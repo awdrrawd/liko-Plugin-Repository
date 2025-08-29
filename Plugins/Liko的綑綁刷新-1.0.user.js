@@ -36,13 +36,13 @@ var bcModSdk=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
     // 指定情況更新角色外觀
     window.ChatRoomMessage = function (data) {
         try {
-            //if (data?.Type === "Action" && data.Content === "ActionUse" && data.Sender === Player.MemberNumber) {
-            if (data?.Type === "Action" && data.Sender === Player.MemberNumber) {
+            //if (data?.Type === "Action" && data.Content === "ActionUse") {
+            if (data?.Type === "Action") {
                 const dict = data.Dictionary || [];
                 const targetID = dict.find(d => d.Tag === "DestinationCharacter" || d.Tag === "TargetCharacter")?.MemberNumber || dict.find(d => d.TargetCharacter)?.TargetCharacter;
                 const targetChar = ChatRoomCharacter.find(c => c.MemberNumber === targetID);
 
-                if (targetChar) {
+                if (targetChar && (data.Sender === Player.MemberNumber || targetID === Player.MemberNumber)) {
                     window.ChatRoomCharacterUpdate(targetChar);
                 }
             }
