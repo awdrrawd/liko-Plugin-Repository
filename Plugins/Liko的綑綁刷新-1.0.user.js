@@ -19,7 +19,7 @@ var bcModSdk=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
     // 註冊 bcModSdk
     try {
         if (typeof bcModSdk === "object" && typeof bcModSdk.registerMod === "function") {
-            bcModSdk.registerMod({
+            const modApi = bcModSdk.registerMod({
                 name: 'liko\'s Bondage renew',
                 fullName: 'Bondage Club - Likolisu\'s Bondage renew',
                 version: '1.0',
