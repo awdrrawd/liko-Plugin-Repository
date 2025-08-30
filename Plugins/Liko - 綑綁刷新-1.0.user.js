@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Liko的綑綁刷新
+// @name         Liko - 綑綁刷新
 // @version      1.0
 // @description  Bondage Club - Likolisu's Bondage renew
 // @author       Likolisu
