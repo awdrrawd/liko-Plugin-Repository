@@ -275,7 +275,7 @@
   // 創建浮動按鈕
   BCUIDebugger.createFloatingButton();
 
-  console.log("✅ BCUIDebugger 已載入 (拖拉新框 & 拖動已標記框功能已啟用)");
+  console.log("✅ CDT - BCUIDebugger 已載入 (拖拉新框 & 拖動已標記框功能已啟用)");
   console.log("BCUIDebugger.toggle() - 開關調試模式");
   console.log("BCUIDebugger.addElement('按鈕1', 100, 200, 120, 40) - 手動標記元素");
   console.log("BCUIDebugger.clear() - 清除所有標記");
