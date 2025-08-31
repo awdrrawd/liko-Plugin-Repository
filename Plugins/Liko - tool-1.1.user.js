@@ -17,20 +17,47 @@
 // ==/UserScript==
 
 (function() {
-    try {
-        if (bcModSdk?.registerMod) {
-            const modApi = bcModSdk.registerMod({
-            name: 'Liko-tool',
-            fullName: 'Likolisu\'s tool with BCC-inspired features',
-            version: '1.1',
-            repository: '莉柯莉絲的工具包'
+    let modApi = null;
+
+    // 等待 bcModSdk 載入的函數
+    function waitForBcModSdk(timeout = 30000) {
+        const start = Date.now();
+        return new Promise(resolve => {
+            const check = () => {
+                if (typeof bcModSdk !== 'undefined' && bcModSdk?.registerMod) {
+                    resolve(true);
+                } else if (Date.now() - start > timeout) {
+                    console.error("[LT] bcModSdk 載入超時");
+                    resolve(false);
+                } else {
+                    setTimeout(check, 100);
+                }
+            };
+            check();
+        });
+    }
+
+    // 初始化 modApi
+    async function initializeModApi() {
+        const success = await waitForBcModSdk();
+        if (!success) {
+            console.error("[LT] ❌ bcModSdk 無法載入，插件將以兼容模式運行");
+            return null;
+        }
+
+        try {
+            modApi = bcModSdk.registerMod({
+                name: 'Liko-tool',
+                fullName: 'Likolisu\'s tool with BCC-inspired features',
+                version: '1.1',
+                repository: '莉柯莉絲的工具包'
             });
             console.log("✅ Liko-tool 腳本啟動完成");
-        } else {
-            console.error("[WCE修復] ❌ bcModSdk 或 registerMod 不可用");
+            return modApi;
+        } catch (e) {
+            console.error("[LT] ❌ 初始化 modApi 失敗:", e.message);
+            return null;
         }
-    } catch (e) {
-        console.error("[WCE修復] ❌ 初始化失敗:", e.message);
     }
 
     // RP 模式按鈕座標
@@ -230,67 +257,93 @@
         });
     }
 
-    // 鉤子：ServerSend（RP模式）
-    modApi.hookFunction("ServerSend", 20, (args, next) => {
-        if (!Player.LikoTool?.rpmode || CurrentScreen !== "ChatRoom") {
-            return next(args);
-        }
-        const [messageType, data] = args;
-        if (messageType === "ChatRoomChat" && data.Type === "Action") {
-            console.log("[LT] RP模式：抑制動作訊息");
-            return;
-        }
-        return next(args);
-    });
-
-    // 鉤子：ChatRoomCharacterViewDrawOverlay（顯示RP標誌）
-    modApi.hookFunction("ChatRoomCharacterViewDrawOverlay", 10, (args, next) => {
-        next(args);
-        const [C, CharX, CharY, Zoom] = args;
-        let likoData;
-        if (C.IsPlayer()) {
-            likoData = Player.LikoTool;
-        } else if (C.LikoTool) {
-            likoData = C.LikoTool;
+    // 安全的 hook 函數包裝器
+    function safeHookFunction(functionName, priority, callback) {
+        if (modApi && typeof modApi.hookFunction === 'function') {
+            try {
+                return modApi.hookFunction(functionName, priority, callback);
+            } catch (e) {
+                console.error(`[LT] Hook ${functionName} 失敗:`, e.message);
+            }
         } else {
-            return;
+            console.warn(`[LT] 無法 hook ${functionName}，modApi 不可用`);
         }
-        if (likoData?.rpmode) {
-            let y = 40;
-            if (C.IsKneeling()) y = 300;
-            DrawImageResize(
-                "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/likorp.png",
-                CharX + 340 * Zoom,
-                CharY + y * Zoom,
-                45 * Zoom,
-                50 * Zoom
+    }
+
+    // 備用的函數覆蓋方案
+    function fallbackHookFunction(functionName, callback) {
+        if (typeof window[functionName] === 'function') {
+            const originalFunction = window[functionName];
+            window[functionName] = function(...args) {
+                return callback(args, () => originalFunction.apply(this, args));
+            };
+        }
+    }
+
+    // 鉤子設置函數
+    function setupHooks() {
+        // 鉤子：ServerSend（RP模式）
+        safeHookFunction("ServerSend", 20, (args, next) => {
+            if (!Player.LikoTool?.rpmode || CurrentScreen !== "ChatRoom") {
+                return next(args);
+            }
+            const [messageType, data] = args;
+            if (messageType === "ChatRoomChat" && data.Type === "Action") {
+                console.log("[LT] RP模式：抑制動作訊息");
+                return;
+            }
+            return next(args);
+        });
+
+        // 鉤子：ChatRoomCharacterViewDrawOverlay（顯示RP標誌）
+        safeHookFunction("ChatRoomCharacterViewDrawOverlay", 10, (args, next) => {
+            next(args);
+            const [C, CharX, CharY, Zoom] = args;
+            let likoData;
+            if (C.IsPlayer()) {
+                likoData = Player.LikoTool;
+            } else if (C.LikoTool) {
+                likoData = C.LikoTool;
+            } else {
+                return;
+            }
+            if (likoData?.rpmode) {
+                let y = 40;
+                if (C.IsKneeling()) y = 300;
+                DrawImageResize(
+                    "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/likorp.png",
+                    CharX + 340 * Zoom,
+                    CharY + y * Zoom,
+                    45 * Zoom,
+                    50 * Zoom
+                );
+            }
+        });
+
+        // 鉤子：ChatRoomMenuDraw（繪製RP模式按鈕）
+        safeHookFunction("ChatRoomMenuDraw", 4, (args, next) => {
+            if (!Player.LikoTool) initializeStorage();
+            DrawButton(
+                rpBtnX, rpBtnY, rpBtnSize, rpBtnSize,
+                "🔰",
+                Player.LikoTool.rpmode ? "Orange" : "Gray",
+                "",
+                "RP模式切換"
             );
-        }
-    });
+            next(args);
+        });
 
-    // 鉤子：ChatRoomMenuDraw（繪製RP模式按鈕）
-    modApi.hookFunction("ChatRoomMenuDraw", 4, (args, next) => {
-        if (!Player.LikoTool) initializeStorage();
-        DrawButton(
-            rpBtnX, rpBtnY, rpBtnSize, rpBtnSize,
-            "🔰",
-            Player.LikoTool.rpmode ? "Orange" : "Gray",
-            "",
-            "RP模式切換"
-        );
-        next(args);
-    });
-
-    // 鉤子：ChatRoomClick（處理RP模式按鈕點擊）
-    modApi.hookFunction("ChatRoomClick", 4, (args, next) => {
-        if (!Player.LikoTool) initializeStorage();
-        if (MouseIn(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize)) {
-            Player.LikoTool.rpmode = !Player.LikoTool.rpmode;
-            ChatRoomSendLocal(Player.LikoTool.rpmode ? "🔰 RP模式啟用" : "🔰 RP模式停用");
-            return;
-        }
-        next(args);
-    });
+        // 鉤子：ChatRoomClick（處理RP模式按鈕點擊）
+        safeHookFunction("ChatRoomClick", 4, (args, next) => {
+            if (!Player.LikoTool) initializeStorage();
+            if (MouseIn(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize)) {
+                Player.LikoTool.rpmode = !Player.LikoTool.rpmode;
+                ChatRoomSendLocal(Player.LikoTool.rpmode ? "🔰 RP模式啟用" : "🔰 RP模式停用");
+                return;
+            }
+            next(args);
+        });
+    }
 
     // 命令實現
     function freetotal(args) {
@@ -548,10 +601,9 @@
                 `/lt fulllock [目標] [鎖名稱] - 為目標的所有束縛添加指定鎖\n`+
                 `/lt rpmode - 切換RP模式（隱藏聊天室綑綁類訊息）\n` +
                 `/lt geteverything - 開啟增強功能管理（道具、金錢、技能）\n` +
-                `/lt wardrobe - 開啟衣櫃\n\n`
-                /*`提示：可點擊聊天室右下角的 🔰 按鈕快速切換 RP 模式！\n` +
-                `注意：權限保護功能（bypassactivities 和 skyshield）因與 BCX、ULTRAbc 衝突已移除，請使用 BCX 的權限設置（https://github.com/Jomshir98/bondage-club-extended）或 ULTRAbc 的保護功能（https://github.com/tetris245/ULTRAbc）。\n` +
-                `感謝使用莉柯莉絲工具！ ❤️`*/
+                `/lt wardrobe - 開啟衣櫃\n\n` +
+                `提示：可點擊聊天室右下角的 🔰 按鈕快速切換 RP 模式！\n` +
+                `感謝使用莉柯莉絲工具！ ❤️`
             );
             return;
         }
@@ -584,20 +636,39 @@
         const start = Date.now();
         return new Promise(resolve => {
             const check = () => {
-                if (condition()) resolve();
-                else if (Date.now() - start > timeout) resolve();
+                if (condition()) resolve(true);
+                else if (Date.now() - start > timeout) resolve(false);
                 else setTimeout(check, 100);
             };
             check();
         });
     }
 
-    waitFor(() => typeof Player?.MemberNumber === "number" && typeof CommandCombine === "function").then(() => {
-        console.log("[LT] 初始化插件...");
+    // 主初始化函數
+    async function initialize() {
+        console.log("[LT] 開始初始化插件...");
+
+        // 初始化 modApi
+        modApi = await initializeModApi();
+
+        // 等待遊戲載入
+        const gameLoaded = await waitFor(() =>
+            typeof Player?.MemberNumber === "number" &&
+            typeof CommandCombine === "function"
+        );
+
+        if (!gameLoaded) {
+            console.error("[LT] 遊戲載入超時");
+            return;
+        }
+
+        console.log("[LT] 遊戲已載入，註冊功能...");
         console.log("[LT] 玩家狀態:", { MemberNumber: Player.MemberNumber, OnlineSettings: !!Player.OnlineSettings });
 
         initializeStorage();
+        setupHooks();
 
+        // 註冊命令
         try {
             CommandCombine([{
                 Tag: "lt",
@@ -605,8 +676,12 @@
                 Action: handleLtCommand
             }]);
             console.log("[LT] /lt 命令已通過 CommandCombine 註冊");
-            waitFor(() => CurrentScreen === "ChatRoom", 60000).then(() => {
-                ChatRoomSendLocal(`莉柯莉絲工具 (LT) v1.1 已載入！使用 /lt help 查看說明`);
+
+            // 等待進入聊天室後顯示載入訊息
+            waitFor(() => CurrentScreen === "ChatRoom", 60000).then((success) => {
+                if (success) {
+                    ChatRoomSendLocal(`莉柯莉絲工具 (LT) v1.1 已載入！使用 /lt help 查看說明`);
+                }
             });
         } catch (e) {
             console.error("[LT] 註冊 /lt 命令錯誤:", e.message);
@@ -614,16 +689,27 @@
         }
 
         console.log("[LT] 插件已載入 (v1.1)");
-    });
+    }
 
     // 卸載清理
-    modApi.onUnload(() => {
-        console.log("[LT] 插件卸載...");
-        if (Player.LikoTool?.bypassActivities) {
-            Player.IsAdmin = Player.LikoTool.originalIsAdmin || false;
-            console.log("[LT] 卸載時恢復 Player.IsAdmin 為", Player.IsAdmin);
+    function setupUnloadHandler() {
+        if (modApi && typeof modApi.onUnload === 'function') {
+            modApi.onUnload(() => {
+                console.log("[LT] 插件卸載...");
+                if (Player.LikoTool?.bypassActivities) {
+                    Player.IsAdmin = Player.LikoTool.originalIsAdmin || false;
+                    console.log("[LT] 卸載時恢復 Player.IsAdmin 為", Player.IsAdmin);
+                }
+            });
         }
+    }
+
+    // 啟動初始化
+    initialize().then(() => {
+        setupUnloadHandler();
+        console.log("[LT] 莉柯莉絲工具初始化完成");
+    }).catch((error) => {
+        console.error("[LT] 初始化失敗:", error);
     });
 
-    console.log("[LT] 莉柯莉絲工具已初始化");
 })();
