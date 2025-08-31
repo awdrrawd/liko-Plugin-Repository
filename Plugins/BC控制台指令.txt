@@ -1,0 +1,38 @@
+//將自己的奴隸打印到聊天室，如果有開啟 WCE - profiles 可以抓取看過的奴的名稱
+(async () => {
+    // 匯入 Dexie 並打開 WCE 的本地 DB
+    const { Dexie } = await import("https://unpkg.com/dexie@latest/dist/dexie.mjs");
+    const db = new Dexie("bce-past-profiles");
+    db.version(3).stores({
+        profiles: "memberNumber, name, lastNick, seen, characterBundle",
+        notes: "memberNumber, note, updatedAt",
+    });
+
+    const subList = Array.from(Player.SubmissivesList);
+    const total = subList.length;
+
+    // 輔助函式：直接從 PROFILES 抓名字
+    async function getName(id) {
+        const profile = await db.table("profiles").get(id);
+        if (profile) {
+            return `${profile.lastNick || profile.name || "未知"} (${id})`;
+        }
+        return `${id}`;
+    }
+
+    const formatted = [];
+    for (const id of subList) {
+        formatted.push(await getName(id));
+    }
+
+    const systemMessage = `${Player.Nickname || Player.Name} 的奴隸有：${formatted.join(", ")}\n總共 ${total} 人`;
+
+    ServerSend("ChatRoomChat", {
+        Type: "Action",
+        Content: "CUSTOM_SYSTEM_ACTION",
+        Dictionary: [{
+            Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION',
+            Text: systemMessage
+        }]
+    });
+})();
