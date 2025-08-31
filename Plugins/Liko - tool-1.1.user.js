@@ -1,6 +1,7 @@
 // ==UserScript==
 // @name         Liko - tool
-// @namespace    https://chat.openai.com/
+// @name:zh      Liko的工具包
+// @namespace    https://likulisu.dev/
 // @version      1.1
 // @description  Bondage Club - Likolisu's tool with BCC-inspired features
 // @author       Likolisu
