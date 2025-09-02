@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Liko's CDT
 // @name:zh      Liko的座標繪製工具
-// @namespace    https://likulisu.dev/
+// @namespace    https://likolisu.dev/
 // @version      1.2
 // @description  在畫面上顯示 UI 座標與滑鼠位置，方便 UI 對齊調整
 // @author       Likolisu
