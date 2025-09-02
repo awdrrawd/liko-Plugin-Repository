@@ -1,0 +1,1254 @@
+//Part_Translation:部位翻譯 ， Interactive_Index:互動翻譯
+{
+  "Part_Translation": [
+{
+"Target_Group": "ItemFeet",
+"Name_CHT": "腳踝",
+"Name_CHS": "脚踝",
+"Name_ENG": "Feet"
+},
+{
+"Target_Group": "ItemLegs",
+"Name_CHT": "腿",
+"Name_CHS": "腿",
+"Name_ENG": "Legs"
+},
+{
+"Target_Group": "ItemVulva",
+"Name_CHT": "外陰",
+"Name_CHS": "外阴",
+"Name_ENG": "Vulva"
+},
+{
+"Target_Group": "ItemVulvaPiercings",
+"Name_CHT": "陰蒂",
+"Name_CHS": "阴蒂",
+"Name_ENG": "Vulva Piercings"
+},
+{
+"Target_Group": "ItemButt",
+"Name_CHT": "臀部",
+"Name_CHS": "臀部",
+"Name_ENG": "Butt"
+},
+{
+"Target_Group": "ItemPelvis",
+"Name_CHT": "小腹",
+"Name_CHS": "小腹",
+"Name_ENG": "Pelvis"
+},
+{
+"Target_Group": "ItemTorso",
+"Name_CHT": "軀幹",
+"Name_CHS": "躯干",
+"Name_ENG": "Torso"
+},
+{
+"Target_Group": "ItemTorso2",
+"Name_CHT": "軀幹",
+"Name_CHS": "躯干",
+"Name_ENG": "Torso 2"
+},
+{
+"Target_Group": "ItemNipples",
+"Name_CHT": "乳頭",
+"Name_CHS": "乳头",
+"Name_ENG": "Nipples"
+},
+{
+"Target_Group": "ItemNipplesPiercings",
+"Name_CHT": "乳頭",
+"Name_CHS": "乳头",
+"Name_ENG": "Nipples Piercings"
+},
+{
+"Target_Group": "ItemBreast",
+"Name_CHT": "乳房",
+"Name_CHS": "乳房",
+"Name_ENG": "Breast"
+},
+{
+"Target_Group": "ItemArms",
+"Name_CHT": "手臂",
+"Name_CHS": "手臂",
+"Name_ENG": "Arms"
+},
+{
+"Target_Group": "ItemHands",
+"Name_CHT": "手",
+"Name_CHS": "手",
+"Name_ENG": "Hands"
+},
+{
+"Target_Group": "ItemHandheld",
+"Name_CHT": "手持",
+"Name_CHS": "手持",
+"Name_ENG": "Handheld"
+},
+{
+"Target_Group": "ItemNeck",
+"Name_CHT": "頸部",
+"Name_CHS": "颈部",
+"Name_ENG": "Neck"
+},
+{
+"Target_Group": "ItemMouth",
+"Name_CHT": "嘴巴",
+"Name_CHS": "嘴巴",
+"Name_ENG": "Mouth"
+},
+{
+"Target_Group": "ItemHead",
+"Name_CHT": "眼睛",
+"Name_CHS": "眼睛",
+"Name_ENG": "Head"
+},
+{
+"Target_Group": "ItemNose",
+"Name_CHT": "鼻子",
+"Name_CHS": "鼻子",
+"Name_ENG": "Nose"
+},
+{
+"Target_Group": "ItemHood",
+"Name_CHT": "頭",
+"Name_CHS": "头",
+"Name_ENG": "Hood"
+},
+{
+"Target_Group": "ItemEars",
+"Name_CHT": "耳朵",
+"Name_CHS": "耳朵",
+"Name_ENG": "Ears"
+},
+{
+"Target_Group": "ItemBoots",
+"Name_CHT": "腳",
+"Name_CHS": "脚",
+"Name_ENG": "Boots"
+},
+{
+"Target_Group": "ItemScript",
+"Name_CHT": "身體",
+"Name_CHS": "身体",
+"Name_ENG": "Script"
+}
+],
+"Interactive_Index": [
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "Nibble",
+        "translatedactivity": "轻咬阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "Lick",
+        "translatedactivity": "舔阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "Kiss",
+        "translatedactivity": "亲吻阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "GaggedKiss",
+        "translatedactivity": "带着口塞亲吻阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "MasturbateTongue",
+        "translatedactivity": "用舌头玩弄阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "Caress",
+        "translatedactivity": "轻抚阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "Slap",
+        "translatedactivity": "扇阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "MasturbateHand",
+        "translatedactivity": "手指玩弄阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "MasturbateFoot",
+        "translatedactivity": "用脚玩弄阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "Kick",
+        "translatedactivity": "踢阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "SpankItem",
+        "translatedactivity": "拍打阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "TickleItem",
+        "translatedactivity": "搔挠阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "RubItem",
+        "translatedactivity": "摩擦阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "MasturbateItem",
+        "translatedactivity": "在阴蒂使用物品"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "ShockItem",
+        "translatedactivity": "电击阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "Inject",
+        "translatedactivity": "注射阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "剪刀剪掉上衣",
+        "translatedactivity": "剪刀剪掉内裤"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "看看裙底",
+        "translatedactivity": "看看裙底"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "看看裙底真空",
+        "translatedactivity": "看看裙底"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "弹阴蒂",
+        "translatedactivity": "弹阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "戳阴蒂",
+        "translatedactivity": "戳阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "钩住阴蒂环",
+        "translatedactivity": "勾弄阴蒂环"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "用手观察阴蒂环",
+        "translatedactivity": "检视阴蒂环"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "拨弄阴蒂环",
+        "translatedactivity": "把玩阴蒂环"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "拉扯阴蒂环",
+        "translatedactivity": "轻拉穿环"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "调整阴蒂环",
+        "translatedactivity": "调整阴蒂环位置"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "脚戳刺激",
+        "translatedactivity": "脚戳阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "贞操带互动",
+        "translatedactivity": "抚弄贞操带"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "LSCG_Flick",
+        "translatedactivity": "轻弹阴蒂"
+    },
+    {
+        "Target_Group": "ItemVulvaPiercings",
+        "activityName": "MPA_FlickBell3",
+        "translatedactivity": "拨动铃铛"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "Nibble",
+        "translatedactivity": "轻咬阴唇"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "Lick",
+        "translatedactivity": "舔阴唇"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "Kiss",
+        "translatedactivity": "亲吻阴唇"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "GaggedKiss",
+        "translatedactivity": "将口塞塞入阴部"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "MasturbateTongue",
+        "translatedactivity": "用舌头玩弄阴部"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "Caress",
+        "translatedactivity": "轻抚阴部"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "Slap",
+        "translatedactivity": "拍打阴唇"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "MasturbateHand",
+        "translatedactivity": "手指玩弄阴部"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "MasturbateFist",
+        "translatedactivity": "拳交阴部"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "MasturbateFoot",
+        "translatedactivity": "用脚玩弄阴部"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "Kick",
+        "translatedactivity": "踢阴部"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "SpankItem",
+        "translatedactivity": "拍打阴部"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "TickleItem",
+        "translatedactivity": "搔挠阴道"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "RubItem",
+        "translatedactivity": "摩擦阴道"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "MasturbateItem",
+        "translatedactivity": "在阴部使用物品"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "ShockItem",
+        "translatedactivity": "电击阴道"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "PenetrateSlow",
+        "translatedactivity": "缓慢插入"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "PenetrateFast",
+        "translatedactivity": "快速插入"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "Scratch",
+        "translatedactivity": "抓挠"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "舔液体",
+        "translatedactivity": "舔掉阴部上的液体"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "看看裙底",
+        "translatedactivity": "看看裙底"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "看看裙底真空",
+        "translatedactivity": "看看裙底"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "手指插进阴道",
+        "translatedactivity": "手指插进阴道"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "拔出自己的手指",
+        "translatedactivity": "拔出自己的手指"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "蠕动手指",
+        "translatedactivity": "蠕动手指"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "快速抽插",
+        "translatedactivity": "用手快速抽插"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "流出液体",
+        "translatedactivity": "流出液体"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "失禁",
+        "translatedactivity": "失禁"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "戳阴部",
+        "translatedactivity": "戳阴部"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "捂住下体",
+        "translatedactivity": "捂住下体"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "脚戳刺激",
+        "translatedactivity": "脚戳阴部"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "贞操带互动",
+        "translatedactivity": "抚弄贞操带"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "猫爪护裆",
+        "translatedactivity": "猫爪防护"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "摩擦笼子",
+        "translatedactivity": "摩擦笼子"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "LSCG_SlapPenis",
+        "translatedactivity": "扇打私处"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "LSCG_FuckWithPussy",
+        "translatedactivity": "用阴部磨擦"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "LSCG_FuckWithAss",
+        "translatedactivity": "用臀部磨擦"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "LSCG_Suck",
+        "translatedactivity": "吮吸"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "LSCG_Throat",
+        "translatedactivity": "深喉"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "LSCG_Flick",
+        "translatedactivity": "轻弹阴部"
+    },
+    {
+        "Target_Group": "ItemVulva",
+        "activityName": "LSCG_Splat",
+        "translatedactivity": "Spray"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Nibble",
+        "translatedactivity": "轻咬大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Lick",
+        "translatedactivity": "舔大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Kiss",
+        "translatedactivity": "亲吻大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "GaggedKiss",
+        "translatedactivity": "用口塞蹭大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Bite",
+        "translatedactivity": "咬大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Caress",
+        "translatedactivity": "轻抚大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "MassageHands",
+        "translatedactivity": "按摩大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Tickle",
+        "translatedactivity": "搔挠大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Grope",
+        "translatedactivity": "抚弄大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Spank",
+        "translatedactivity": "拍打大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Kick",
+        "translatedactivity": "踢大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "StruggleLegs",
+        "translatedactivity": "StruggleLegs"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Sit",
+        "translatedactivity": "坐在膝盖上"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "RestHead",
+        "translatedactivity": "将脑袋枕在膝上"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Wiggle",
+        "translatedactivity": "Wiggle"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "SpankItem",
+        "translatedactivity": "拍打腿部"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "TickleItem",
+        "translatedactivity": "搔挠大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "RubItem",
+        "translatedactivity": "在大腿摩擦"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "RollItem",
+        "translatedactivity": "在大腿滚动"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "MasturbateItem",
+        "translatedactivity": "玩弄大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "PourItem",
+        "translatedactivity": "在大腿泼洒"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "ShockItem",
+        "translatedactivity": "电击大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Inject",
+        "translatedactivity": "注射腿部"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "Scratch",
+        "translatedactivity": "抓挠"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "剪刀剪掉上衣",
+        "translatedactivity": "剪刀剪掉下衣"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "阿巴阿巴",
+        "translatedactivity": "射击大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "阿巴阿巴_瞄准",
+        "translatedactivity": "瞄准大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "夹紧双腿",
+        "translatedactivity": "夹紧双腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "戳腿",
+        "translatedactivity": "戳大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "双腿颤抖",
+        "translatedactivity": "双腿颤抖"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "摇晃双腿",
+        "translatedactivity": "摇晃双腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "脚按摩",
+        "translatedactivity": "脚按摩大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "脚戳中间",
+        "translatedactivity": "脚戳大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "蹭大腿",
+        "translatedactivity": "轻蹭大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "抱腿",
+        "translatedactivity": "环抱双腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "掰开双腿",
+        "translatedactivity": "掰开双腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "跪下",
+        "translatedactivity": "跪下"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "站起来",
+        "translatedactivity": "站起来"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "跪着张开腿",
+        "translatedactivity": "跪着张开腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "跪着并拢腿",
+        "translatedactivity": "跪着并拢腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "宠物服蹭大腿",
+        "translatedactivity": "宠物服蹭大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "宠物服趴下",
+        "translatedactivity": "宠物服趴下"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "宠物服跪立",
+        "translatedactivity": "宠物服跪立"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "鱼尾担膝盖",
+        "translatedactivity": "鱼尾担膝盖"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "鱼尾抚弄大腿",
+        "translatedactivity": "鱼尾抚弄大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "LSCG_Nuzzle",
+        "translatedactivity": "用鼻子轻蹭"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "LSCG_SlapPenis",
+        "translatedactivity": "扇打大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "LSCG_Flick",
+        "translatedactivity": "轻弹大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "LSCG_TieUp",
+        "translatedactivity": "捆绑"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "LSCG_SharkBite",
+        "translatedactivity": "鲨鱼咬"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "XSAct_内八夹腿",
+        "translatedactivity": "内八夹腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "XSAct_活动大腿",
+        "translatedactivity": "活动大腿"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "XSAct_绷紧膝盖",
+        "translatedactivity": "绷紧膝盖"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "XSAct_活动四肢",
+        "translatedactivity": "活动四肢"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "XSAct_头蹭",
+        "translatedactivity": "头蹭"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "XSAct_脸蹭",
+        "translatedactivity": "脸蹭"
+    },
+    {
+        "Target_Group": "ItemLegs",
+        "activityName": "XSAct_鼻子蹭",
+        "translatedactivity": "鼻子蹭"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Nibble",
+        "translatedactivity": "轻咬腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Lick",
+        "translatedactivity": "舔腿"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Kiss",
+        "translatedactivity": "亲吻腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "GaggedKiss",
+        "translatedactivity": "用口塞触碰腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Bite",
+        "translatedactivity": "咬腿"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Caress",
+        "translatedactivity": "轻抚腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "MassageHands",
+        "translatedactivity": "按摩腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Tickle",
+        "translatedactivity": "搔挠腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Grope",
+        "translatedactivity": "抚弄腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Spank",
+        "translatedactivity": "拍打腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Kick",
+        "translatedactivity": "踢腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Wiggle",
+        "translatedactivity": "Wiggle"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "SpankItem",
+        "translatedactivity": "拍打腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "TickleItem",
+        "translatedactivity": "搔挠腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "RubItem",
+        "translatedactivity": "在腿部摩擦"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "RollItem",
+        "translatedactivity": "在腿部滚动"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "MasturbateItem",
+        "translatedactivity": "玩弄腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "PourItem",
+        "translatedactivity": "在腿部泼洒"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "ShockItem",
+        "translatedactivity": "电击腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Inject",
+        "translatedactivity": "注射腿部"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "Scratch",
+        "translatedactivity": "抓挠"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "ThrowItem",
+        "translatedactivity": "扔"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "剪刀剪掉上衣",
+        "translatedactivity": "剪刀剪掉袜子"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "阿巴阿巴",
+        "translatedactivity": "射击小腿"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "阿巴阿巴_瞄准",
+        "translatedactivity": "瞄准小腿"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "阴部轻蹭小腿",
+        "translatedactivity": "阴部轻蹭"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "戳腿",
+        "translatedactivity": "戳小腿"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "脚戳低处",
+        "translatedactivity": "脚戳小腿"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "蹭小腿",
+        "translatedactivity": "轻蹭小腿"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "宠物服蹭小腿",
+        "translatedactivity": "宠物服蹭小腿"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "LSCG_Nuzzle",
+        "translatedactivity": "用鼻子轻蹭"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "LSCG_SlapPenis",
+        "translatedactivity": "扇打小腿"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "LSCG_Flick",
+        "translatedactivity": "轻弹腿"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "LSCG_Chomp",
+        "translatedactivity": "咬住腿"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "LSCG_ReleaseChomp",
+        "translatedactivity": "松开咬住"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "LSCG_TieUp",
+        "translatedactivity": "捆绑"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "LSCG_SharkBite",
+        "translatedactivity": "鲨鱼咬"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "XSAct_活动四肢",
+        "translatedactivity": "活动四肢"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "XSAct_头蹭",
+        "translatedactivity": "头蹭"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "XSAct_脸蹭",
+        "translatedactivity": "脸蹭"
+    },
+    {
+        "Target_Group": "ItemFeet",
+        "activityName": "XSAct_鼻子蹭",
+        "translatedactivity": "鼻子蹭"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "Nibble",
+        "translatedactivity": "轻咬脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "Lick",
+        "translatedactivity": "舔脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "PoliteKiss",
+        "translatedactivity": "礼貌的亲吻脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "Kiss",
+        "translatedactivity": "亲吻脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "GaggedKiss",
+        "translatedactivity": "用口塞触碰脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "Suck",
+        "translatedactivity": "吮吸大脚趾"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "Bite",
+        "translatedactivity": "咬脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "Caress",
+        "translatedactivity": "抚摸脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "MassageHands",
+        "translatedactivity": "按摩脚部"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "TakeCare",
+        "translatedactivity": "给脚指甲涂油"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "Tickle",
+        "translatedactivity": "挠脚心"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "Spank",
+        "translatedactivity": "拍打脚心"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "MassageFeet",
+        "translatedactivity": "玩弄脚部"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "Kick",
+        "translatedactivity": "踢脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "Wiggle",
+        "translatedactivity": "Wiggle"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "SpankItem",
+        "translatedactivity": "拍打脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "TickleItem",
+        "translatedactivity": "挠脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "RubItem",
+        "translatedactivity": "在脚部摩擦"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "RollItem",
+        "translatedactivity": "在脚部滚动"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "PourItem",
+        "translatedactivity": "在脚部泼洒"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "ShockItem",
+        "translatedactivity": "电击脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "Scratch",
+        "translatedactivity": "抓挠"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "剪刀剪掉上衣",
+        "translatedactivity": "剪刀剪掉鞋子"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "用嘴脱掉鞋子",
+        "translatedactivity": "用嘴脱掉鞋子"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "用嘴脱掉袜子",
+        "translatedactivity": "用嘴脱掉袜子"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "阿巴阿巴",
+        "translatedactivity": "射击脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "阿巴阿巴_瞄准",
+        "translatedactivity": "瞄准脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "舔脚",
+        "translatedactivity": "舔脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "戳脚",
+        "translatedactivity": "戳脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "踮起脚尖",
+        "translatedactivity": "踮起脚尖"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "摇晃脚踝",
+        "translatedactivity": "摇晃脚踝"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "伸出脚",
+        "translatedactivity": "伸出脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "跺脚",
+        "translatedactivity": "跺脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "脚戳低处",
+        "translatedactivity": "脚戳脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "爬到脚边",
+        "translatedactivity": "爬到脚边"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "托起脚",
+        "translatedactivity": "托起脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "四肢着地",
+        "translatedactivity": "四肢着地"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "起身跪下",
+        "translatedactivity": "起身跪下"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "宠物服爬到脚边",
+        "translatedactivity": "爬向脚边"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "LSCG_Nuzzle",
+        "translatedactivity": "用鼻子轻蹭"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "LSCG_SlapPenis",
+        "translatedactivity": "扇打脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "LSCG_Flick",
+        "translatedactivity": "轻弹脚底"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "LSCG_TieUp",
+        "translatedactivity": "捆绑"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "LSCG_SharkBite",
+        "translatedactivity": "鲨鱼咬"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "XSAct_绷直脚踝",
+        "translatedactivity": "绷直脚踝"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "XSAct_蜷缩脚趾",
+        "translatedactivity": "蜷缩脚趾"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "XSAct_踮脚",
+        "translatedactivity": "踮脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "XSAct_活动四肢",
+        "translatedactivity": "活动四肢"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "XSAct_跺脚",
+        "translatedactivity": "跺脚"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "XSAct_头蹭",
+        "translatedactivity": "头蹭"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "XSAct_脸蹭",
+        "translatedactivity": "脸蹭"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "XSAct_鼻子蹭",
+        "translatedactivity": "鼻子蹭"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "MPA_StompOnce",
+        "translatedactivity": "MPA_StompOnce"
+    },
+    {
+        "Target_Group": "ItemBoots",
+        "activityName": "MPA_StompTwice",
+        "translatedactivity": "MPA_StompTwice"
+    }
+]
+}
