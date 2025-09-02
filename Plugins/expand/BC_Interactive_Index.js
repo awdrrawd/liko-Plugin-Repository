@@ -80,8 +80,8 @@ window.BC_Interactive_Index = {
 },
 {
 "Target_Group": "ItemHead",
-"Name_CHT": "眼睛",
-"Name_CHS": "眼睛",
+"Name_CHT": "頭",
+"Name_CHS": "头",
 "Name_ENG": "Head"
 },
 {
@@ -92,8 +92,8 @@ window.BC_Interactive_Index = {
 },
 {
 "Target_Group": "ItemHood",
-"Name_CHT": "頭",
-"Name_CHS": "头",
+"Name_CHT": "頭髮",
+"Name_CHS": "头发",
 "Name_ENG": "Hood"
 },
 {
