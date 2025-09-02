@@ -1,4 +1,4 @@
-{
+window.BC_Interactive_Index = {
   "Part_Translation": [
 {
 "Target_Group": "ItemFeet",
@@ -1226,4 +1226,4 @@
         "translatedactivity": "MPA_StompTwice"
     }
 ]
-}
+};
