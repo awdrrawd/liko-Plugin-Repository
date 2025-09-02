@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Liko - Bondage renew
 // @name:zh      Liko的綑綁刷新
-// @namespace    https://likulisu.dev/
+// @namespace    https://likolisu.dev/
 // @version      1.0
 // @description  Bondage Club - Likolisu's Bondage renew
 // @author       Likolisu
