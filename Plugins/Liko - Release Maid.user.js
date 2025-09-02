@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Liko - Release Maid
 // @name:zh      Liko的解綁女僕
-// @namespace    https://likulisu.dev/
+// @namespace    https://likolisu.dev/
 // @version      1.1
 // @description  自動回應「救我 / 救救 / help」來解除拘束，支援指定救人
 // @author       莉柯莉絲(Likolisu)
