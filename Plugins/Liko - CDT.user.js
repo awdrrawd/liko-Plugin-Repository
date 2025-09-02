@@ -5,16 +5,10 @@
 // @version      1.2
 // @description  在畫面上顯示 UI 座標與滑鼠位置，方便 UI 對齊調整
 // @author       Likolisu
-// @match        https://bondageprojects.elementfx.com/*
-// @match        https://bondage-europe.com/*
-// @match        https://bondage-asia.com/*
-// @match        https://www.bondageprojects.elementfx.com/*
-// @match        https://www.bondage-europe.com/*
-// @match        https://www.bondage-asia.com/*
+// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
-// @require      https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/expand/bcmodsdk.js
 // ==/UserScript==
 
 (() => {
