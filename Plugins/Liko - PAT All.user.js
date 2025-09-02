@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Liko - PAT All
 // @name:zh      Liko的對大家互動
-// @namespace    https://likulisu.dev/
+// @namespace    https://likolisu.dev/
 // @version      2.0
 // @description  A BCAR-style compact button to perform activity on everyone in room, with all configs centralized
 // @author       Likolisu & 約爾
