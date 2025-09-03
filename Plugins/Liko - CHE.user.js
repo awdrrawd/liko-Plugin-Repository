@@ -149,9 +149,9 @@
             return;
         }
 
-        if (!isOnLeave) {
+        //if (!isOnLeave) {
             includePrivate = await showCustomPrompt("請問您是否保存包含悄悄話(whisper)與私信(beep)的信息?");
-        }
+        //}
 
         const messages = Array.from(log.querySelectorAll(".ChatMessage, a.beep-link, .chat-room-sep-div"));
         if (messages.length === 0) {
