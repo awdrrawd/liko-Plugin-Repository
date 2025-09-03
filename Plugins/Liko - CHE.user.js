@@ -21,10 +21,10 @@
         try {
             if (typeof bcModSdk !== "undefined" && bcModSdk?.registerMod) {
                 modApi = bcModSdk.registerMod({
-                    name: "Liko\'s CHE",
+                    name: "Liko's CHE",
                     fullName: "Chat room history export to html/excel",
                     version: "1.0",
-                    repository: "聊天室紀錄匯出 /n  Chat room history export to html/excel",
+                    repository: "聊天室紀錄匯出 /n Chat room history export to html/excel",
                 });
 
                 console.log("✅ ChatLogger 已註冊到 /versions");
@@ -142,16 +142,14 @@
     }
 
     // 💾 匯出 HTML
-    async function exportChatAsHTML(isOnLeave = false, includePrivate = false) {
+    async function exportChatAsHTML(NoLeave = true, includePrivate = false) {
         const log = document.querySelector("#TextAreaChatLog");
         if (!log) {
             alert("❌ 找不到聊天室容器 (#TextAreaChatLog)");
             return;
         }
 
-        //if (!isOnLeave) {
-            includePrivate = await showCustomPrompt("請問您是否保存包含悄悄話(whisper)與私信(beep)的信息?");
-        //}
+        if (NoLeave) includePrivate = await showCustomPrompt("請問您是否保存包含悄悄話(whisper)與私信(beep)的信息?");
 
         const messages = Array.from(log.querySelectorAll(".ChatMessage, a.beep-link, .chat-room-sep-div"));
         if (messages.length === 0) {
@@ -427,15 +425,17 @@
 </html>
 `;
 
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const filename = `chatlog_${timestamp}.html`;
         const blob = new Blob([html], { type: "text/html" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `chatlog_${new Date().toISOString().replace(/[:.]/g, "-")}.html`;
+        a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
 
-        console.log("✅ [ChatLogger] 匯出 HTML 完成");
+        console.log(`✅ [ChatLogger] 匯出 HTML 完成: ${filename}`);
     }
 
     // 🗑️ 清空
@@ -473,18 +473,16 @@
         if (currentMode === "stopped") {
             currentMode = "onleave_include_private";
             btn.innerText = "⚡ 退出✅私信";
-            ChatRoomSendLocal("[CHE] 當前模式為✅退出時保存私信內容", 5000);
+            ChatRoomSendLocal("[CHE] 當前模式為✅退出時保存私信內容，建議將瀏覽器下載目錄設為 BC_TEMP", 5000);
             window.onbeforeunload = () => {
-                exportChatAsHTML(true, true);
-                return "是否保存聊天記錄為 HTML？";
+                exportChatAsHTML(false, true);
             };
         } else if (currentMode === "onleave_include_private") {
             currentMode = "onleave_exclude_private";
             btn.innerText = "⚡ 退出🚫私信";
-            ChatRoomSendLocal("[CHE] 當前模式為🚫退出時不保存私信內容", 5000);
+            ChatRoomSendLocal("[CHE] 當前模式為🚫退出時不保存私信內容，建議將瀏覽器下載目錄設為 BC_TEMP", 5000);
             window.onbeforeunload = () => {
-                exportChatAsHTML(true, false);
-                return "是否保存聊天記錄為 HTML？";
+                exportChatAsHTML(false, false);
             };
         } else {
             currentMode = "stopped";
@@ -538,7 +536,7 @@
             };
 
             const toolbar = document.createElement("div");
-            toolbar.id = "chatlogger-toolbar";
+            toolbar.id = "chatlogger-container";
             toolbar.style.display = "none";
             toolbar.style.position = "absolute";
             toolbar.style.bottom = "50px";
@@ -594,15 +592,15 @@
             currentMode = savedMode;
             if (savedMode === "onleave_include_private") {
                 btnMode.innerText = "⚡ 退出✅私信";
+                ChatRoomSendLocal("[CHE] 當前模式為✅退出時保存私信內容，建議將瀏覽器下載目錄設為 BC_TEMP", 5000);
                 window.onbeforeunload = () => {
-                    exportChatAsHTML(true, true);
-                    return "是否保存聊天記錄為 HTML？";
+                    exportChatAsHTML(false, true);
                 };
             } else if (savedMode === "onleave_exclude_private") {
                 btnMode.innerText = "⚡ 退出🚫私信";
+                ChatRoomSendLocal("[CHE] 當前模式為🚫退出時不保存私信內容，建議將瀏覽器下載目錄設為 BC_TEMP", 5000);
                 window.onbeforeunload = () => {
-                    exportChatAsHTML(true, false);
-                    return "是否保存聊天記錄為 HTML？";
+                    exportChatAsHTML(false, false);
                 };
             } else {
                 currentMode = "stopped";
