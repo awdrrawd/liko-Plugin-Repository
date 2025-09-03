@@ -93,7 +93,7 @@
             return;
         }
 
-        const includePrivate = await showCustomPrompt("請問您是否保存包含悄悄話(whisper)與私信(beep)的信息?");
+        const includePrivate = await showCustomPrompt("請問您是否保存包含\n悄悄話(wisper)與私信(beep)的信息?");
         const nodes = Array.from(log.children);
         const data = [["時間", "ID", "訊息"]];
         const processedBeeps = new Set();
@@ -473,7 +473,7 @@
         if (currentMode === "stopped") {
             currentMode = "onleave_include_private";
             btn.innerText = "⚡ 退出✅私信";
-            localStorage.setItem("chatlogger_includePrivate", "true");
+            ChatRoomSendLocal("[CHE] 當前模式為✅退出時保存私信內容", 5000);
             window.onbeforeunload = () => {
                 exportChatAsHTML(true, true);
                 return "是否保存聊天記錄為 HTML？";
@@ -481,7 +481,7 @@
         } else if (currentMode === "onleave_include_private") {
             currentMode = "onleave_exclude_private";
             btn.innerText = "⚡ 退出🚫私信";
-            localStorage.setItem("chatlogger_includePrivate", "false");
+            ChatRoomSendLocal("[CHE] 當前模式為🚫退出時不保存私信內容", 5000);
             window.onbeforeunload = () => {
                 exportChatAsHTML(true, false);
                 return "是否保存聊天記錄為 HTML？";
@@ -489,8 +489,10 @@
         } else {
             currentMode = "stopped";
             btn.innerText = "⏸️ 停用";
+            ChatRoomSendLocal("[CHE] 當前模式為⏸️退出時不保存任何內容", 5000);
             window.onbeforeunload = null;
         }
+        localStorage.setItem("chatlogger_mode", currentMode); // 儲存當前模式
         console.log(`🔄 [ChatLogger] 切換為 ${btn.innerText}`);
     }
 
@@ -523,7 +525,7 @@
             toggleButton.style.opacity = "0.7";
             toggleButton.style.boxShadow = "0 2px 5px rgba(0,0,0,0.3)";
             toggleButton.style.transition = "opacity 0.2s, transform 0.2s, background 0.2s";
-            toggleButton.title = "liko的聊天室書記官";
+            toggleButton.title = "聊天室紀錄保存器";
             toggleButton.onmouseover = () => {
                 toggleButton.style.opacity = "1"; // 懸停透明度 100%
                 toggleButton.style.background = "#AC66E4"; // 懸停底色紫色
@@ -561,7 +563,7 @@
                 b.style.border = "none";
                 b.style.borderRadius = "4px";
                 b.style.cursor = "pointer";
-                b.onmouseover = () => { b.style.background = "#E37736"; }; // 懸停底色改為橙色
+                b.onmouseover = () => { b.style.background = "#E37736"; }; // 工具列按鈕懸停橙色
                 b.onmouseout = () => { b.style.background = "#555"; };
                 b.onclick = handler;
                 return b;
@@ -588,22 +590,26 @@
             console.log("✅ [ChatLogger] 浮動工具列已加入");
 
             // 初始化模式（根據 localStorage）
-            const savedMode = localStorage.getItem("chatlogger_includePrivate");
-            if (savedMode === "true") {
-                currentMode = "onleave_include_private";
+            const savedMode = localStorage.getItem("chatlogger_mode") || "stopped";
+            currentMode = savedMode;
+            if (savedMode === "onleave_include_private") {
                 btnMode.innerText = "⚡ 退出✅私信";
                 window.onbeforeunload = () => {
                     exportChatAsHTML(true, true);
                     return "是否保存聊天記錄為 HTML？";
                 };
-            } else if (savedMode === "false") {
-                currentMode = "onleave_exclude_private";
+            } else if (savedMode === "onleave_exclude_private") {
                 btnMode.innerText = "⚡ 退出🚫私信";
                 window.onbeforeunload = () => {
                     exportChatAsHTML(true, false);
                     return "是否保存聊天記錄為 HTML？";
                 };
+            } else {
+                currentMode = "stopped";
+                btnMode.innerText = "⏸️ 停用";
+                window.onbeforeunload = null;
             }
+            console.log(`🔄 [ChatLogger] 初始化模式為 ${btnMode.innerText}`);
         };
         tryInsert();
     }
