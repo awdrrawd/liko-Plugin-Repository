@@ -1,0 +1,620 @@
+// ==UserScript==
+// @name         Liko - CHE
+// @name:zh      Liko的聊天室書記官
+// @namespace    https://likolisu.dev/
+// @version      1.0
+// @description  聊天室紀錄匯出 \\ Chat room history export to html/excel
+// @author       莉柯莉絲(likolisu)
+// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
+// @grant        none
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
+// @require      https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js
+// ==/UserScript==
+
+(function() {
+    "use strict";
+
+    // ⚡ 插件初始化
+    let modApi;
+    function initPlugin() {
+        try {
+            if (typeof bcModSdk !== "undefined" && bcModSdk?.registerMod) {
+                modApi = bcModSdk.registerMod({
+                    name: "Liko\'s CHE",
+                    fullName: "Chat room history export to html/excel",
+                    version: "1.0",
+                    repository: "聊天室紀錄匯出 /n  Chat room history export to html/excel",
+                });
+
+                console.log("✅ ChatLogger 已註冊到 /versions");
+                setTimeout(() => {
+                    addUI();
+                }, 2000);
+            } else {
+                console.error("❌ ChatLogger 無法找到 bcModSdk");
+            }
+        } catch (e) {
+            console.error("❌ ChatLogger 初始化錯誤:", e);
+        }
+    }
+
+    const idColorMap = new Map();
+    let colorIndex = 0;
+    let currentMode = "stopped"; // stopped, onleave_include_private, onleave_exclude_private
+
+    function getColor(id) {
+        if (!id) return "";
+        if (!idColorMap.has(id)) {
+            idColorMap.set(id, colors[colorIndex % colors.length]);
+            colorIndex++;
+        }
+        return idColorMap.get(id);
+    }
+
+    // 💾 自訂提示視窗
+    function showCustomPrompt(message) {
+        return new Promise((resolve) => {
+            const modal = document.createElement("div");
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center;
+                z-index: 1000;
+            `;
+            modal.innerHTML = `
+                <div style="background: #fff; color: #000; padding: 20px; border-radius: 8px; max-width: 400px; text-align: center;">
+                    <h3>保存設定</h3>
+                    <p>${message}</p>
+                    <button id="customPromptYes" style="margin: 10px; padding: 8px 16px; cursor: pointer;">是</button>
+                    <button id="customPromptNo" style="margin: 10px; padding: 8px 16px; cursor: pointer;">否</button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            const yesButton = modal.querySelector("#customPromptYes");
+            const noButton = modal.querySelector("#customPromptNo");
+
+            yesButton.onclick = () => {
+                document.body.removeChild(modal);
+                resolve(true);
+            };
+            noButton.onclick = () => {
+                document.body.removeChild(modal);
+                resolve(false);
+            };
+        });
+    }
+
+    // 💾 匯出 Excel
+    async function exportExcel() {
+        const log = document.querySelector("#TextAreaChatLog");
+        if (!log) {
+            alert("❌ 找不到聊天室容器 (#TextAreaChatLog)");
+            return;
+        }
+
+        const includePrivate = await showCustomPrompt("請問您是否保存包含悄悄話(whisper)與私信(beep)的信息?");
+        const nodes = Array.from(log.children);
+        const data = [["時間", "ID", "訊息"]];
+        const processedBeeps = new Set();
+
+        nodes.forEach(node => {
+            const parts = (node.innerText || "").split("\n").map(x => x.trim()).filter(Boolean);
+            if (node.matches && node.matches("a.beep-link")) {
+                if (!includePrivate) return;
+                const beepContent = node.innerText.trim();
+                if (processedBeeps.has(beepContent)) return;
+                processedBeeps.add(beepContent);
+                data.push(["", "", beepContent]);
+            } else if (parts.length >= 3) {
+                const time = parts[0];
+                const id = parts[1];
+                const msg = parts.slice(2).join(" ");
+                if (msg.includes("BCX commands tutorial") || msg.includes("BCX also provides") || msg.includes("(输入 /help 查看命令列表)")) return;
+                if (!includePrivate && (msg.includes("悄悄話") || msg.includes("好友私聊") || msg.includes("BEEP"))) return;
+                data.push([time, id, msg]);
+            } else if (parts.length === 2) {
+                if (!includePrivate && (parts[1].includes("悄悄話") || parts[1].includes("好友私聊") || parts[1].includes("BEEP"))) return;
+                data.push([parts[0], "", parts[1]]);
+            }
+        });
+
+        if (data.length <= 1) {
+            alert("❌ 沒有抓到任何訊息");
+            return;
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "ChatLog");
+
+        const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+        const blob = new Blob([wbout], { type: "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `chatlog_${new Date().toISOString().replace(/[:.]/g, "-")}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        console.log(`✅ [ChatLogger] 匯出 ${data.length - 1} 條訊息 (Excel)`);
+    }
+
+    // 💾 匯出 HTML
+    async function exportChatAsHTML(isOnLeave = false, includePrivate = true) {
+        const log = document.querySelector("#TextAreaChatLog");
+        if (!log) {
+            alert("❌ 找不到聊天室容器 (#TextAreaChatLog)");
+            return;
+        }
+
+        if (!isOnLeave) {
+            includePrivate = await showCustomPrompt("請問您是否保存包含悄悄話(whisper)與私信(beep)的信息?");
+        }
+
+        const messages = Array.from(log.querySelectorAll(".ChatMessage, a.beep-link, .chat-room-sep-div"));
+        if (messages.length === 0) {
+            alert("❌ 沒有訊息可匯出");
+            return;
+        }
+
+        function toRGBA(color, alpha = 0.12) {
+            if (!color) return `rgba(0,0,0,${alpha})`;
+            color = color.trim();
+            let m = color.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+            if (m) return `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${alpha})`;
+            if (color[0] === "#") {
+                let h = color.slice(1);
+                if (h.length === 3) h = h.split("").map(c => c + c).join("");
+                if (h.length >= 6) {
+                    const r = parseInt(h.slice(0, 2), 16);
+                    const g = parseInt(h.slice(2, 4), 16);
+                    const b = parseInt(h.slice(4, 6), 16);
+                    if ([r, g, b].every(v => !isNaN(v))) return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                }
+            }
+            return `rgba(0,0,0,${alpha})`;
+        }
+
+        function getLabelColor(msg, nameButton) {
+            let c =
+                msg.style.getPropertyValue("--label-color") ||
+                getComputedStyle(msg).getPropertyValue("--label-color") ||
+                (nameButton && (nameButton.style.getPropertyValue("--label-color") || getComputedStyle(nameButton).getPropertyValue("--label-color"))) ||
+                "";
+            c = (c || "").trim();
+            if (c) return c;
+            const colorSpan = msg.querySelector('[style*="color"]');
+            if (colorSpan && colorSpan.style && colorSpan.style.color) return colorSpan.style.color;
+            const fontEl = msg.querySelector("font[color]");
+            if (fontEl && fontEl.color) return fontEl.color;
+            return "#000";
+        }
+
+        function isPrivateMessage(text) {
+            return text.includes("悄悄話") || text.includes("好友私聊") || text.includes("BEEP");
+        }
+
+        let html = `
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: sans-serif; background: #111; color: #eee; }
+        .chat-row { display: flex; align-items: flex-start; margin: 2px 0; padding: 2px 6px; border-radius: 6px; }
+        .chat-meta { display: flex; flex-direction: column; align-items: flex-end; width: 70px; font-size: 0.8em; margin-right: 8px; }
+        .chat-time { color: #aaa; }
+        .chat-id { font-weight: bold; }
+        .chat-content { flex: 1; white-space: pre-wrap; }
+        .system { font-style: italic; }
+        .beep { color: #d00; font-weight: bold; }
+        .with-accent { border-left: 4px solid transparent; }
+        .separator-row {
+            background: ${toRGBA('#8100E7', 0.2)};
+            border-left: 4px solid #8100E7;
+            text-align: center;
+            font-weight: bold;
+            padding: 8px;
+            margin: 4px 0;
+            border-radius: 8px;
+        }
+        .collapse-button {
+            background: none;
+            border: none;
+            color: inherit;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 4px;
+        }
+        .collapse-button:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .collapsible-content {
+            display: block;
+        }
+        .collapsible-content.collapsed {
+            display: none;
+        }
+        #toggleTheme {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #fff;
+            color: #000;
+        }
+        body.light { background: #fff; color: #000; }
+        body.light .chat-time { color: gray; }
+        body.light #toggleTheme { background: #000; color: #fff; }
+    </style>
+</head>
+<body>
+    <button id="toggleTheme">淺色模式</button>
+    <div id="chatlog">
+`;
+
+        const processedBeeps = new Set();
+        let collapseId = 0;
+        let openCollapsible = false;
+        let lastSeparatorText = "";
+
+        for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i];
+
+            if (msg.classList.contains("chat-room-sep-div")) {
+                const button = msg.querySelector(".chat-room-sep-header");
+                if (button) {
+                    const roomName = button.dataset.room || "";
+                    const iconDiv = button.querySelector(".chat-room-sep-image");
+                    const iconText = iconDiv ? iconDiv.querySelector("span")?.innerText || "" : "";
+                    const collapseBtn = msg.querySelector(".chat-room-sep-collapse");
+                    const isExpanded = collapseBtn && collapseBtn.getAttribute("aria-expanded") === "true";
+                    const separatorText = `${isExpanded ? "˅" : ">"} ${iconText} - ${roomName}`.trim();
+
+                    if (openCollapsible) {
+                        html += `</div>`;
+                        openCollapsible = false;
+                    }
+
+                    html += `
+        <div class="separator-row">
+            <button class="collapse-button" onclick="toggleCollapse(${collapseId})">
+                ${separatorText}
+            </button>
+        </div>
+        <div id="collapse-${collapseId}" class="collapsible-content ${isExpanded ? "" : "collapsed"}">`;
+
+                    collapseId++;
+                    openCollapsible = true;
+                    lastSeparatorText = roomName;
+                    continue;
+                }
+            }
+
+            if (msg.innerText && (
+                msg.innerText.includes("BCX commands tutorial") ||
+                msg.innerText.includes("BCX also provides") ||
+                msg.innerText.includes("(输入 /help 查看命令列表)")
+            )) {
+                continue;
+            }
+
+            if (msg.matches && msg.matches("a.beep-link")) {
+                if (!includePrivate) continue;
+                const beepContent = msg.innerText.trim();
+                if (processedBeeps.has(beepContent)) continue;
+                processedBeeps.add(beepContent);
+
+                html += `
+        <div class="chat-row with-accent" style="background: ${toRGBA('#d00', 0.12)}; border-left-color: #d00;">
+            <div class="chat-meta"></div>
+            <div class="chat-content beep">${beepContent}</div>
+        </div>`;
+                continue;
+            }
+
+            if (!msg.dataset) continue;
+
+            const time = msg.dataset.time || "";
+            const senderId = msg.dataset.sender || "";
+            const nameButton = msg.querySelector(".ChatMessageName");
+            const senderName = nameButton ? nameButton.innerText : "";
+            let labelColor = getLabelColor(msg, nameButton);
+
+            const textNode = msg.querySelector(".chat-room-message-content");
+            const rawText = textNode ? textNode.innerText : msg.innerText;
+
+            const stripUi = s => s.replace(/\bReply\b/g, "").trim();
+            const stripHdr = s => s.replace(/^\d{2}:\d{2}:\d{2}\s*\n\d+\s*\n/, "");
+
+            if (lastSeparatorText && rawText.includes(lastSeparatorText)) {
+                continue;
+            }
+
+            if (!includePrivate && isPrivateMessage(rawText)) {
+                continue;
+            }
+
+            if (processedBeeps.has(rawText.trim())) {
+                continue;
+            }
+
+            let content = "";
+            let rowStyleInline = "";
+            const accent = (c) => `background:${toRGBA(c, 0.12)}; border-left-color:${c};`;
+
+            if (msg.classList.contains("ChatMessageChat")) {
+                const textContent = (textNode?.innerText || "").trim();
+                content = `<span style="color:${labelColor}">${senderName}</span>: ${textContent}`;
+            } else if (msg.classList.contains("ChatMessageWhisper")) {
+                if (!includePrivate) continue;
+                const textContent = (textNode?.innerText || "").trim();
+                const prefix = msg.innerText.includes("悄悄话来自") ? "悄悄话来自" : "悄悄话";
+                content = `${prefix} <span style="color:${labelColor}">${senderName}</span>: ${textContent}`;
+                rowStyleInline = `class="chat-row with-accent" style="${accent(labelColor)}"`;
+            } else if (
+                msg.classList.contains("ChatMessageAction") ||
+                msg.classList.contains("ChatMessageActivity") ||
+                msg.classList.contains("ChatMessageEmote") ||
+                msg.classList.contains("ChatMessageEnterLeave")
+            ) {
+                let cleanContent = stripUi(stripHdr(rawText));
+                content = `<span style="color:${labelColor}">${cleanContent}</span>`;
+                rowStyleInline = `class="chat-row with-accent" style="${accent(labelColor)}"`;
+            } else if (msg.classList.contains("ChatMessageLocalMessage")) {
+                let sysHtml = "";
+                const styledP = msg.querySelector("p[style]");
+                if (styledP) {
+                    sysHtml = `<div style="${styledP.getAttribute("style")}">${styledP.innerHTML}</div>`;
+                } else {
+                    const fontEl = msg.querySelector("font");
+                    if (fontEl && fontEl.color) {
+                        sysHtml = `<span style="color:${fontEl.color}">${fontEl.innerText}</span>`;
+                    } else {
+                        sysHtml = stripUi(stripHdr(rawText));
+                    }
+                }
+                content = sysHtml;
+                rowStyleInline = `class="chat-row with-accent" style="${accent('#3aa76d')}"`;
+            } else if (msg.classList.contains("ChatMessageNonDialogue")) {
+                const cleanContent = stripUi(stripHdr(rawText));
+                content = cleanContent;
+                rowStyleInline = `class="chat-row with-accent" style="${accent('#3aa76d')}"`;
+            } else {
+                content = stripUi(rawText);
+            }
+
+            if (!rowStyleInline) rowStyleInline = `class="chat-row"`;
+
+            html += `
+        <div ${rowStyleInline}>
+            <div class="chat-meta">
+                <span class="chat-time">${time}</span>
+                <span class="chat-id">${senderId}</span>
+            </div>
+            <div class="chat-content">${content}</div>
+        </div>`;
+        }
+
+        if (openCollapsible) {
+            html += `</div>`;
+        }
+
+        html += `
+    </div>
+    <script>
+        function toggleCollapse(id) {
+            const element = document.getElementById('collapse-' + id);
+            if (element) {
+                element.classList.toggle('collapsed');
+            }
+        }
+
+        const btn = document.getElementById("toggleTheme");
+        btn.onclick = () => {
+            document.body.classList.toggle("light");
+            btn.textContent = document.body.classList.contains("light")
+                ? "深色模式"
+                : "淺色模式";
+        };
+    </script>
+</body>
+</html>
+`;
+
+        const blob = new Blob([html], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `chatlog_${new Date().toISOString().replace(/[:.]/g, "-")}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        console.log("✅ [ChatLogger] 匯出 HTML 完成");
+    }
+
+    // 🗑️ 清空
+    async function clearHistory() {
+        const log = document.querySelector("#TextAreaChatLog");
+        if (!log) {
+            alert("❌ 找不到聊天室容器 (#TextAreaChatLog)");
+            return;
+        }
+
+        const confirmClear = await showCustomPrompt("是否清除聊天室訊息？（將保留當前房間資訊）");
+        if (!confirmClear) return;
+
+        const nodes = Array.from(log.children);
+        let lastRoomNode = null;
+
+        for (let i = nodes.length - 1; i >= 0; i--) {
+            const node = nodes[i];
+            if (node.classList.contains("chat-room-sep") || node.classList.contains("chat-room-sep-last")) {
+                lastRoomNode = node;
+                break;
+            }
+        }
+
+        log.innerHTML = "";
+        if (lastRoomNode) {
+            log.appendChild(lastRoomNode);
+        }
+
+        console.log("🗑️ [ChatLogger] 已清空聊天室 DOM，保留房間資訊");
+    }
+
+    // 🔄 模式切換
+    function toggleMode(btn) {
+        if (currentMode === "stopped") {
+            currentMode = "onleave_include_private";
+            btn.innerText = "⚡ 退出✅私信";
+            localStorage.setItem("chatlogger_includePrivate", "true");
+            window.onbeforeunload = () => {
+                exportChatAsHTML(true, true);
+                return "是否保存聊天記錄為 HTML？";
+            };
+        } else if (currentMode === "onleave_include_private") {
+            currentMode = "onleave_exclude_private";
+            btn.innerText = "⚡ 退出🚫私信";
+            localStorage.setItem("chatlogger_includePrivate", "false");
+            window.onbeforeunload = () => {
+                exportChatAsHTML(true, false);
+                return "是否保存聊天記錄為 HTML？";
+            };
+        } else {
+            currentMode = "stopped";
+            btn.innerText = "⏸️ 停用";
+            window.onbeforeunload = null;
+        }
+        console.log(`🔄 [ChatLogger] 切換為 ${btn.innerText}`);
+    }
+
+    // 🖱️ UI
+    function addUI() {
+        const tryInsert = () => {
+            const inputBar = document.querySelector("#InputChat");
+            if (!inputBar) {
+                setTimeout(tryInsert, 1000);
+                return;
+            }
+            if (document.querySelector("#chatlogger-container")) return;
+
+            const container = document.createElement("div");
+            container.id = "chatlogger-container";
+            container.style.position = "fixed";
+            container.style.bottom = "20px";
+            container.style.left = "20px";
+            container.style.zIndex = "1000";
+
+            const toggleButton = document.createElement("button");
+            toggleButton.innerText = "💾";
+            toggleButton.style.width = "40px";
+            toggleButton.style.height = "40px";
+            toggleButton.style.cursor = "pointer";
+            toggleButton.style.borderRadius = "50%";
+            toggleButton.style.background = "#333"; // 平時底色
+            toggleButton.style.color = "#fff";
+            toggleButton.style.border = "none";
+            toggleButton.style.opacity = "0.7";
+            toggleButton.style.boxShadow = "0 2px 5px rgba(0,0,0,0.3)";
+            toggleButton.style.transition = "opacity 0.2s, transform 0.2s, background 0.2s";
+            toggleButton.title = "liko的聊天室書記官";
+            toggleButton.onmouseover = () => {
+                toggleButton.style.opacity = "1"; // 懸停透明度 100%
+                toggleButton.style.background = "#AC66E4"; // 懸停底色紫色
+                toggleButton.style.transform = "scale(1.1)";
+            };
+            toggleButton.onmouseout = () => {
+                toggleButton.style.opacity = "0.7";
+                toggleButton.style.background = "#333"; // 恢復平時底色
+                toggleButton.style.transform = "scale(1)";
+            };
+
+            const toolbar = document.createElement("div");
+            toolbar.id = "chatlogger-toolbar";
+            toolbar.style.display = "none";
+            toolbar.style.position = "absolute";
+            toolbar.style.bottom = "50px";
+            toolbar.style.left = "50px";
+            toolbar.style.background = "#333";
+            toolbar.style.padding = "8px";
+            toolbar.style.borderRadius = "6px";
+            toolbar.style.boxShadow = "0 2px 10px rgba(0,0,0,0.5)";
+            toolbar.style.display = "none";
+            toolbar.style.flexDirection = "column";
+            toolbar.style.gap = "6px";
+
+            const smallBtn = (label, handler) => {
+                const b = document.createElement("button");
+                b.innerText = label;
+                b.style.padding = "4px 8px";
+                b.style.fontSize = "12px";
+                b.style.minWidth = "100px";
+                b.style.textAlign = "left";
+                b.style.background = "#555";
+                b.style.color = "#fff";
+                b.style.border = "none";
+                b.style.borderRadius = "4px";
+                b.style.cursor = "pointer";
+                b.onmouseover = () => { b.style.background = "#E37736"; }; // 懸停底色改為橙色
+                b.onmouseout = () => { b.style.background = "#555"; };
+                b.onclick = handler;
+                return b;
+            };
+
+            const btnHTML = smallBtn("📥 HTML", exportChatAsHTML);
+            const btnExport = smallBtn("📥 EXCEL", exportExcel);
+            const btnClear = smallBtn("🗑️ 清空", clearHistory);
+            const btnMode = smallBtn("⏸️ 停用", () => toggleMode(btnMode));
+
+            toolbar.appendChild(btnHTML);
+            toolbar.appendChild(btnExport);
+            toolbar.appendChild(btnClear);
+            toolbar.appendChild(btnMode);
+
+            container.appendChild(toggleButton);
+            container.appendChild(toolbar);
+
+            toggleButton.onclick = () => {
+                toolbar.style.display = toolbar.style.display === "none" ? "flex" : "none";
+            };
+
+            document.body.appendChild(container);
+            console.log("✅ [ChatLogger] 浮動工具列已加入");
+
+            // 初始化模式（根據 localStorage）
+            const savedMode = localStorage.getItem("chatlogger_includePrivate");
+            if (savedMode === "true") {
+                currentMode = "onleave_include_private";
+                btnMode.innerText = "⚡ 退出✅私信";
+                window.onbeforeunload = () => {
+                    exportChatAsHTML(true, true);
+                    return "是否保存聊天記錄為 HTML？";
+                };
+            } else if (savedMode === "false") {
+                currentMode = "onleave_exclude_private";
+                btnMode.innerText = "⚡ 退出🚫私信";
+                window.onbeforeunload = () => {
+                    exportChatAsHTML(true, false);
+                    return "是否保存聊天記錄為 HTML？";
+                };
+            }
+        };
+        tryInsert();
+    }
+
+    function waitForSdkAndInit() {
+        if (typeof bcModSdk !== "undefined" && bcModSdk?.registerMod) {
+            initPlugin();
+        } else {
+            console.log("⏳ 等待 bcModSdk 載入中...");
+            setTimeout(waitForSdkAndInit, 500);
+        }
+    }
+    waitForSdkAndInit();
+})();
