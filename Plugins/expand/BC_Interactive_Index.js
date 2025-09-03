@@ -1,94 +1,10 @@
 window.BC_Interactive_Index = {
     "Part_Translation": [
         {
-            "Target_Group": "ItemFeet",
-            "Name_CHT": "腳踝",
-            "Name_CHS": "脚踝",
-            "Name_ENG": "Feet"
-        },
-        {
-            "Target_Group": "ItemLegs",
-            "Name_CHT": "腿",
-            "Name_CHS": "腿",
-            "Name_ENG": "Legs"
-        },
-        {
-            "Target_Group": "ItemVulva",
-            "Name_CHT": "外陰",
-            "Name_CHS": "外阴",
-            "Name_ENG": "Vulva"
-        },
-        {
-            "Target_Group": "ItemVulvaPiercings",
-            "Name_CHT": "陰蒂",
-            "Name_CHS": "阴蒂",
-            "Name_ENG": "Vulva Piercings"
-        },
-        {
-            "Target_Group": "ItemButt",
-            "Name_CHT": "臀部",
-            "Name_CHS": "臀部",
-            "Name_ENG": "Butt"
-        },
-        {
-            "Target_Group": "ItemPelvis",
-            "Name_CHT": "小腹",
-            "Name_CHS": "小腹",
-            "Name_ENG": "Pelvis"
-        },
-        {
-            "Target_Group": "ItemTorso",
-            "Name_CHT": "軀幹",
-            "Name_CHS": "躯干",
-            "Name_ENG": "Torso"
-        },
-        {
-            "Target_Group": "ItemNipples",
-            "Name_CHT": "乳頭",
-            "Name_CHS": "乳头",
-            "Name_ENG": "Nipples"
-        },
-        {
-            "Target_Group": "ItemBreast",
-            "Name_CHT": "乳房",
-            "Name_CHS": "乳房",
-            "Name_ENG": "Breast"
-        },
-        {
-            "Target_Group": "ItemArms",
-            "Name_CHT": "手臂",
-            "Name_CHS": "手臂",
-            "Name_ENG": "Arms"
-        },
-        {
-            "Target_Group": "ItemHands",
-            "Name_CHT": "手",
-            "Name_CHS": "手",
-            "Name_ENG": "Hands"
-        },
-        {
-            "Target_Group": "ItemNeck",
-            "Name_CHT": "頸部",
-            "Name_CHS": "颈部",
-            "Name_ENG": "Neck"
-        },
-        {
-            "Target_Group": "ItemMouth",
-            "Name_CHT": "嘴巴",
-            "Name_CHS": "嘴巴",
-            "Name_ENG": "Mouth"
-        },
-        {
             "Target_Group": "ItemHead",
             "Name_CHT": "頭",
             "Name_CHS": "头",
             "Name_ENG": "Head"
-        },
-        {
-            "Target_Group": "ItemNose",
-            "Name_CHT": "鼻子",
-            "Name_CHS": "鼻子",
-            "Name_ENG": "Nose"
         },
         {
             "Target_Group": "ItemHood",
@@ -103,11 +19,95 @@ window.BC_Interactive_Index = {
             "Name_ENG": "Ears"
         },
         {
+            "Target_Group": "ItemNose",
+            "Name_CHT": "鼻子",
+            "Name_CHS": "鼻子",
+            "Name_ENG": "Nose"
+        },
+        {
+            "Target_Group": "ItemMouth",
+            "Name_CHT": "嘴巴",
+            "Name_CHS": "嘴巴",
+            "Name_ENG": "Mouth"
+        },
+        {
+            "Target_Group": "ItemNeck",
+            "Name_CHT": "頸部",
+            "Name_CHS": "颈部",
+            "Name_ENG": "Neck"
+        },
+        {
+            "Target_Group": "ItemArms",
+            "Name_CHT": "手臂",
+            "Name_CHS": "手臂",
+            "Name_ENG": "Arms"
+        },
+        {
+            "Target_Group": "ItemHands",
+            "Name_CHT": "手",
+            "Name_CHS": "手",
+            "Name_ENG": "Hands"
+        },
+        {
+            "Target_Group": "ItemNipples",
+            "Name_CHT": "乳頭",
+            "Name_CHS": "乳头",
+            "Name_ENG": "Nipples"
+        },
+        {
+            "Target_Group": "ItemBreast",
+            "Name_CHT": "乳房",
+            "Name_CHS": "乳房",
+            "Name_ENG": "Breast"
+        },
+        {
+            "Target_Group": "ItemTorso",
+            "Name_CHT": "軀幹",
+            "Name_CHS": "躯干",
+            "Name_ENG": "Torso"
+        },
+        {
+            "Target_Group": "ItemPelvis",
+            "Name_CHT": "小腹",
+            "Name_CHS": "小腹",
+            "Name_ENG": "Pelvis"
+        },
+        {
+            "Target_Group": "ItemButt",
+            "Name_CHT": "臀部",
+            "Name_CHS": "臀部",
+            "Name_ENG": "Butt"
+        },
+        {
+            "Target_Group": "ItemVulvaPiercings",
+            "Name_CHT": "陰蒂",
+            "Name_CHS": "阴蒂",
+            "Name_ENG": "Vulva Piercings"
+        },
+        {
+            "Target_Group": "ItemVulva",
+            "Name_CHT": "外陰",
+            "Name_CHS": "外阴",
+            "Name_ENG": "Vulva"
+        },
+        {
+            "Target_Group": "ItemLegs",
+            "Name_CHT": "腿",
+            "Name_CHS": "腿",
+            "Name_ENG": "Legs"
+        },
+        {
+            "Target_Group": "ItemFeet",
+            "Name_CHT": "腳踝",
+            "Name_CHS": "脚踝",
+            "Name_ENG": "Feet"
+        },
+        {
             "Target_Group": "ItemBoots",
             "Name_CHT": "腳",
             "Name_CHS": "脚",
             "Name_ENG": "Boots"
-        },
+        }
     ],
     "Interactive_Index": [
         {
