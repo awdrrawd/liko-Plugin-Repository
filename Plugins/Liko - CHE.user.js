@@ -142,7 +142,7 @@
     }
 
     // 💾 匯出 HTML
-    async function exportChatAsHTML(isOnLeave = false, includePrivate = true) {
+    async function exportChatAsHTML(isOnLeave = false, includePrivate = false) {
         const log = document.querySelector("#TextAreaChatLog");
         if (!log) {
             alert("❌ 找不到聊天室容器 (#TextAreaChatLog)");
