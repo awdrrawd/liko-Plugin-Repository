@@ -173,7 +173,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemFeet",
             "activityName": "SpankItem",
-            "translatedactivity": "拍打腿部"
+            "translatedactivity": "物品拍打腿部"
         },
         {
             "Target_Group": "ItemFeet",
@@ -183,7 +183,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemFeet",
             "activityName": "RubItem",
-            "translatedactivity": "在腿部摩擦"
+            "translatedactivity": "物品在腿部摩擦"
         },
         {
             "Target_Group": "ItemFeet",
@@ -393,7 +393,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemLegs",
             "activityName": "SpankItem",
-            "translatedactivity": "拍打腿部"
+            "translatedactivity": "物品拍打腿部"
         },
         {
             "Target_Group": "ItemLegs",
@@ -403,7 +403,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemLegs",
             "activityName": "RubItem",
-            "translatedactivity": "在大腿摩擦"
+            "translatedactivity": "物品在大腿摩擦"
         },
         {
             "Target_Group": "ItemLegs",
@@ -658,7 +658,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemVulva",
             "activityName": "SpankItem",
-            "translatedactivity": "拍打阴部"
+            "translatedactivity": "物品拍打阴部"
         },
         {
             "Target_Group": "ItemVulva",
@@ -668,7 +668,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemVulva",
             "activityName": "RubItem",
-            "translatedactivity": "摩擦阴道"
+            "translatedactivity": "物品摩擦阴道"
         },
         {
             "Target_Group": "ItemVulva",
@@ -858,7 +858,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemVulvaPiercings",
             "activityName": "SpankItem",
-            "translatedactivity": "拍打阴蒂"
+            "translatedactivity": "物品拍打阴蒂"
         },
         {
             "Target_Group": "ItemVulvaPiercings",
@@ -868,7 +868,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemVulvaPiercings",
             "activityName": "RubItem",
-            "translatedactivity": "摩擦阴蒂"
+            "translatedactivity": "物品摩擦阴蒂"
         },
         {
             "Target_Group": "ItemVulvaPiercings",
@@ -1033,7 +1033,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemButt",
             "activityName": "SpankItem",
-            "translatedactivity": "拍打屁股"
+            "translatedactivity": "物品拍打屁股"
         },
         {
             "Target_Group": "ItemButt",
@@ -1043,7 +1043,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemButt",
             "activityName": "RubItem",
-            "translatedactivity": "在臀部摩擦"
+            "translatedactivity": "物品在臀部摩擦"
         },
         {
             "Target_Group": "ItemButt",
@@ -1293,7 +1293,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemPelvis",
             "activityName": "SpankItem",
-            "translatedactivity": "拍打肚皮"
+            "translatedactivity": "物品拍打肚皮"
         },
         {
             "Target_Group": "ItemPelvis",
@@ -1303,7 +1303,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemPelvis",
             "activityName": "RubItem",
-            "translatedactivity": "在肚子摩擦"
+            "translatedactivity": "物品在肚子摩擦"
         },
         {
             "Target_Group": "ItemPelvis",
@@ -1483,7 +1483,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemTorso",
             "activityName": "SpankItem",
-            "translatedactivity": "拍打背部"
+            "translatedactivity": "物品拍打背部"
         },
         {
             "Target_Group": "ItemTorso",
@@ -1493,7 +1493,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemTorso",
             "activityName": "RubItem",
-            "translatedactivity": "在后背摩擦"
+            "translatedactivity": "物品在后背摩擦"
         },
         {
             "Target_Group": "ItemTorso",
@@ -1718,7 +1718,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemNipples",
             "activityName": "SpankItem",
-            "translatedactivity": "拍打乳头"
+            "translatedactivity": "物品拍打乳头"
         },
         {
             "Target_Group": "ItemNipples",
@@ -1728,7 +1728,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemNipples",
             "activityName": "RubItem",
-            "translatedactivity": "在乳头摩擦"
+            "translatedactivity": "物品在乳头摩擦"
         },
         {
             "Target_Group": "ItemNipples",
@@ -1878,7 +1878,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemBreast",
             "activityName": "SpankItem",
-            "translatedactivity": "拍打乳房"
+            "translatedactivity": "物品拍打乳房"
         },
         {
             "Target_Group": "ItemBreast",
@@ -1888,7 +1888,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemBreast",
             "activityName": "RubItem",
-            "translatedactivity": "在乳房上摩擦"
+            "translatedactivity": "物品在乳房上摩擦"
         },
         {
             "Target_Group": "ItemBreast",
@@ -2103,7 +2103,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemArms",
             "activityName": "SpankItem",
-            "translatedactivity": "拍打胳膊"
+            "translatedactivity": "物品拍打胳膊"
         },
         {
             "Target_Group": "ItemArms",
@@ -2113,7 +2113,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemArms",
             "activityName": "RubItem",
-            "translatedactivity": "在手臂摩擦"
+            "translatedactivity": "物品在手臂摩擦"
         },
         {
             "Target_Group": "ItemArms",
@@ -2658,7 +2658,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemNeck",
             "activityName": "RubItem",
-            "translatedactivity": "在脖子摩擦"
+            "translatedactivity": "物品在脖子摩擦"
         },
         {
             "Target_Group": "ItemNeck",
@@ -2948,7 +2948,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemMouth",
             "activityName": "RubItem",
-            "translatedactivity": "在嘴部摩擦"
+            "translatedactivity": "物品在嘴部摩擦"
         },
         {
             "Target_Group": "ItemMouth",
@@ -3713,7 +3713,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemNose",
             "activityName": "RubItem",
-            "translatedactivity": "在鼻子摩擦"
+            "translatedactivity": "物品在鼻子摩擦"
         },
         {
             "Target_Group": "ItemNose",
@@ -3823,7 +3823,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemHood",
             "activityName": "RubItem",
-            "translatedactivity": "在头部摩擦"
+            "translatedactivity": "物品在头部摩擦"
         },
         {
             "Target_Group": "ItemHood",
@@ -3938,7 +3938,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemEars",
             "activityName": "RubItem",
-            "translatedactivity": "在耳朵摩擦"
+            "translatedactivity": "物品在耳朵摩擦"
         },
         {
             "Target_Group": "ItemEars",
@@ -4078,7 +4078,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemBoots",
             "activityName": "SpankItem",
-            "translatedactivity": "拍打脚"
+            "translatedactivity": "物品拍打脚"
         },
         {
             "Target_Group": "ItemBoots",
@@ -4088,7 +4088,7 @@ window.BC_Interactive_Index = {
         {
             "Target_Group": "ItemBoots",
             "activityName": "RubItem",
-            "translatedactivity": "在脚部摩擦"
+            "translatedactivity": "物品在脚部摩擦"
         },
         {
             "Target_Group": "ItemBoots",
