@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      1.0
+// @version      1.01
 // @description  聊天室紀錄匯出 \\ Chat room history export to html/excel
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -23,7 +23,7 @@
                 modApi = bcModSdk.registerMod({
                     name: "Liko's CHE",
                     fullName: "Chat room history export to html/excel",
-                    version: "1.0",
+                    version: "1.01",
                     repository: "聊天室紀錄匯出 /n Chat room history export to html/excel",
                 });
 
@@ -50,6 +50,17 @@
             colorIndex++;
         }
         return idColorMap.get(id);
+    }
+
+    // 🔧 HTML转义函数
+    function escapeHtml(text) {
+        if (typeof text !== 'string') return text;
+        return text
+            .replace(/&/g, '&amp;')   // 必须首先转义 & 符号
+            .replace(/</g, '&lt;')    // 转义 < 符号
+            .replace(/>/g, '&gt;')    // 转义 > 符号
+            .replace(/"/g, '&quot;')  // 转义 " 符号
+            .replace(/'/g, '&#39;');  // 转义 ' 符号
     }
 
     // 💾 自訂提示視窗
@@ -272,7 +283,7 @@
                     const iconText = iconDiv ? iconDiv.querySelector("span")?.innerText || "" : "";
                     const collapseBtn = msg.querySelector(".chat-room-sep-collapse");
                     const isExpanded = collapseBtn && collapseBtn.getAttribute("aria-expanded") === "true";
-                    const separatorText = `${isExpanded ? "˅" : ">"} ${iconText} - ${roomName}`.trim();
+                    const separatorText = `${isExpanded ? "▼" : ">"} ${iconText} - ${roomName}`.trim();
 
                     if (openCollapsible) {
                         html += `</div>`;
@@ -282,7 +293,7 @@
                     html += `
         <div class="separator-row">
             <button class="collapse-button" onclick="toggleCollapse(${collapseId})">
-                ${separatorText}
+                ${escapeHtml(separatorText)}
             </button>
         </div>
         <div id="collapse-${collapseId}" class="collapsible-content ${isExpanded ? "" : "collapsed"}">`;
@@ -304,7 +315,7 @@
 
             if (msg.matches && msg.matches("a.beep-link")) {
                 if (!includePrivate) continue;
-                const beepContent = msg.innerText.trim();
+                const beepContent = escapeHtml(msg.innerText.trim());
                 if (processedBeeps.has(beepContent)) continue;
                 processedBeeps.add(beepContent);
 
@@ -347,13 +358,14 @@
             const accent = (c) => `background:${toRGBA(c, 0.12)}; border-left-color:${c};`;
 
             if (msg.classList.contains("ChatMessageChat")) {
-                const textContent = (textNode?.innerText || "").trim();
-                content = `<span style="color:${labelColor}">${senderName}</span>: ${textContent}`;
+                const textContent = escapeHtml((textNode?.innerText || "").trim());
+                content = `<span style="color:${labelColor}">${escapeHtml(senderName)}</span>: ${textContent}`;
+                rowStyleInline = `class="chat-row with-accent" style="border-left-color:${labelColor};"`;
             } else if (msg.classList.contains("ChatMessageWhisper")) {
                 if (!includePrivate) continue;
-                const textContent = (textNode?.innerText || "").trim();
+                const textContent = escapeHtml((textNode?.innerText || "").trim());
                 const prefix = msg.innerText.includes("悄悄话来自") ? "悄悄话来自" : "悄悄话";
-                content = `${prefix} <span style="color:${labelColor}">${senderName}</span>: ${textContent}`;
+                content = `${prefix} <span style="color:${labelColor}">${escapeHtml(senderName)}</span>: ${textContent}`;
                 rowStyleInline = `class="chat-row with-accent" style="${accent(labelColor)}"`;
             } else if (
                 msg.classList.contains("ChatMessageAction") ||
@@ -361,30 +373,30 @@
                 msg.classList.contains("ChatMessageEmote") ||
                 msg.classList.contains("ChatMessageEnterLeave")
             ) {
-                let cleanContent = stripUi(stripHdr(rawText));
+                let cleanContent = escapeHtml(stripUi(stripHdr(rawText)));
                 content = `<span style="color:${labelColor}">${cleanContent}</span>`;
                 rowStyleInline = `class="chat-row with-accent" style="${accent(labelColor)}"`;
             } else if (msg.classList.contains("ChatMessageLocalMessage")) {
                 let sysHtml = "";
                 const styledP = msg.querySelector("p[style]");
                 if (styledP) {
-                    sysHtml = `<div style="${styledP.getAttribute("style")}">${styledP.innerHTML}</div>`;
+                    sysHtml = `<div style="${styledP.getAttribute("style")}">${escapeHtml(styledP.innerText)}</div>`;
                 } else {
                     const fontEl = msg.querySelector("font");
                     if (fontEl && fontEl.color) {
-                        sysHtml = `<span style="color:${fontEl.color}">${fontEl.innerText}</span>`;
+                        sysHtml = `<span style="color:${fontEl.color}">${escapeHtml(fontEl.innerText)}</span>`;
                     } else {
-                        sysHtml = stripUi(stripHdr(rawText));
+                        sysHtml = escapeHtml(stripUi(stripHdr(rawText)));
                     }
                 }
                 content = sysHtml;
                 rowStyleInline = `class="chat-row with-accent" style="${accent('#3aa76d')}"`;
             } else if (msg.classList.contains("ChatMessageNonDialogue")) {
-                const cleanContent = stripUi(stripHdr(rawText));
+                const cleanContent = escapeHtml(stripUi(stripHdr(rawText)));
                 content = cleanContent;
                 rowStyleInline = `class="chat-row with-accent" style="${accent('#3aa76d')}"`;
             } else {
-                content = stripUi(rawText);
+                content = escapeHtml(stripUi(rawText));
             }
 
             if (!rowStyleInline) rowStyleInline = `class="chat-row"`;
@@ -392,8 +404,8 @@
             html += `
         <div ${rowStyleInline}>
             <div class="chat-meta">
-                <span class="chat-time">${time}</span>
-                <span class="chat-id">${senderId}</span>
+                <span class="chat-time">${escapeHtml(time)}</span>
+                <span class="chat-id">${escapeHtml(senderId)}</span>
             </div>
             <div class="chat-content">${content}</div>
         </div>`;
