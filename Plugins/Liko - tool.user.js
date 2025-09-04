@@ -2,7 +2,7 @@
 // @name         Liko - tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.1
+// @version      1.11
 // @description  Bondage Club - Likolisu's tool with BCC-inspired features
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -44,7 +44,7 @@
             modApi = bcModSdk.registerMod({
                 name: 'Liko-tool',
                 fullName: 'Likolisu\'s tool with BCC-inspired features',
-                version: '1.1',
+                version: '1.11',
                 repository: '莉柯莉絲的工具包'
             });
             console.log("✅ Liko-tool 腳本啟動完成");
@@ -75,7 +75,7 @@
     }
 
     // 工具函數
-    function ChatRoomSendLocal(message) {
+    function ChatRoomSendLocal(message , sec = 0) {
         console.log(`[LT] 嘗試發送本地訊息: ${message}`);
         if (CurrentScreen !== "ChatRoom") {
             console.warn("[LT] 不在聊天室，訊息可能不顯示");
@@ -83,21 +83,56 @@
         }
         try {
             ChatRoomMessage({
-                Content: `<font color="#FF69B4">[LT] ${message}</font>`,
                 Type: "LocalMessage",
-                Sender: Player.MemberNumber
+                Sender: Player.MemberNumber,
+                Content: `<font color="#FF69B4">[LT] ${message}</font>`,
+                Timeout: sec
             });
             console.log("[LT] 訊息通過 ChatRoomMessage 發送成功");
         } catch (e) {
             console.error("[LT] 發送本地訊息錯誤:", e.message);
             try {
-                ServerSend("ChatRoomChat", { Content: `[LT] ${message}`, Type: "LocalMessage" });
+                ServerSend("ChatRoomChat", { Content: `[LT] ${message}`, Type: "LocalMessage" ,Time:sec});
                 console.log("[LT] 嘗試通過 ServerSend 發送訊息");
             } catch (e2) {
                 console.error("[LT] ServerSend 失敗:", e2.message);
                 console.log("[LT] 最終錯誤訊息: 本地訊息發送失敗，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！");
             }
         }
+    }
+    //更多樣的提示信息
+    function ChatRoomSendLocalStyled(message, duration = 3000, color = "#ff69b4") {
+        // 建立訊息元素
+        const msgEl = document.createElement("div");
+        msgEl.textContent = message;
+        msgEl.style.position = "fixed";
+        msgEl.style.bottom = "20px";
+        msgEl.style.left = "50%";
+        msgEl.style.transform = "translateX(-50%)";
+        msgEl.style.background = "rgba(0,0,0,0.7)";
+        msgEl.style.color = color;
+        msgEl.style.padding = "8px 15px";
+        msgEl.style.borderRadius = "10px";
+        msgEl.style.fontSize = "20px";
+        msgEl.style.fontWeight = "bold";
+        msgEl.style.opacity = "0";
+        msgEl.style.transition = "opacity 0.5s, transform 0.5s";
+        msgEl.style.zIndex = 9999;
+
+        document.body.appendChild(msgEl);
+
+        // 淡入
+        requestAnimationFrame(() => {
+            msgEl.style.opacity = "1";
+            msgEl.style.transform = "translateX(-50%) translateY(-50px)";
+        });
+
+        // 延遲後淡出並移除
+        setTimeout(() => {
+            msgEl.style.opacity = "0";
+            msgEl.style.transform = "translateX(-50%) translateY(-20px)";
+            setTimeout(() => msgEl.remove(), 500);
+        }, duration);
     }
 
     function getPlayer(identifier) {
@@ -106,10 +141,10 @@
             return ChatRoomCharacter?.find(c => c.MemberNumber === parseInt(identifier)) || Player;
         } else if (typeof identifier === "string") {
             return ChatRoomCharacter?.find(c =>
-                c.Name.toLowerCase() === identifier.toLowerCase() ||
-                c.Nickname?.toLowerCase() === identifier.toLowerCase() ||
-                c.AccountName.toLowerCase() === identifier.toLowerCase()
-            ) || Player;
+                                           c.Name.toLowerCase() === identifier.toLowerCase() ||
+                                           c.Nickname?.toLowerCase() === identifier.toLowerCase() ||
+                                           c.AccountName.toLowerCase() === identifier.toLowerCase()
+                                          ) || Player;
         }
         return Player;
     }
@@ -333,7 +368,7 @@
             if (!Player.LikoTool) initializeStorage();
             if (MouseIn(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize)) {
                 Player.LikoTool.rpmode = !Player.LikoTool.rpmode;
-                ChatRoomSendLocal(Player.LikoTool.rpmode ? "🔰 RP模式啟用" : "🔰 RP模式停用");
+                ChatRoomSendLocalStyled(Player.LikoTool.rpmode ? "🔰 RP模式啟用" : "🔰 RP模式停用",3000);
                 return;
             }
             next(args);
@@ -358,7 +393,7 @@
         }
     }
 
-        async function free(args) {
+    async function free(args) {
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
         if (!hasBCItemPermission(target)) {
@@ -648,9 +683,9 @@
 
         // 等待遊戲載入
         const gameLoaded = await waitFor(() =>
-            typeof Player?.MemberNumber === "number" &&
-            typeof CommandCombine === "function"
-        );
+                                         typeof Player?.MemberNumber === "number" &&
+                                         typeof CommandCombine === "function"
+                                        );
 
         if (!gameLoaded) {
             console.error("[LT] 遊戲載入超時");
@@ -675,7 +710,7 @@
             // 等待進入聊天室後顯示載入訊息
             waitFor(() => CurrentScreen === "ChatRoom", 60000).then((success) => {
                 if (success) {
-                    ChatRoomSendLocal(`莉柯莉絲工具 (LT) v1.1 已載入！使用 /lt help 查看說明`);
+                    ChatRoomSendLocal(`莉柯莉絲工具 (LT) v1.1 已載入！使用 /lt help 查看說明`,30000);
                 }
             });
         } catch (e) {
