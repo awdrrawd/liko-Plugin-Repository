@@ -207,12 +207,12 @@
 
     // PC 拖曳圖片上傳
     document.addEventListener("drop", async (e) => {
-        e.preventDefault();
         if (CurrentScreen !== "ChatRoom") return;
-
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            const file = files[0];
+    
+        // 只有真的有檔案才阻止預設行為
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
             if (file && file.type.startsWith("image/")) {
                 const url = await uploadToLitterbox(file, deleteTime);
                 if (url) sendToChat(url);
@@ -221,10 +221,13 @@
             }
         }
     });
-
+    
     document.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        if (CurrentScreen === "ChatRoom") {
+        if (CurrentScreen !== "ChatRoom") return;
+    
+        // 只有拖曳檔案才阻止
+        if (e.dataTransfer.types.includes("Files")) {
+            e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
         }
     });
