@@ -10,7 +10,6 @@
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==
-import(`https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@latest/Plugins/expand/BC_Interactive_Index.js`);
 (function() {
     "use strict";
 
@@ -37,6 +36,14 @@ import(`https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@latest/Plugi
             console.error("❌ ChatLogger 初始化錯誤:", e);
         }
     }
+
+    //
+    const script = document.createElement("script");
+    script.type = "module";
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js";
+    script.onload = () => console.log("[CHE]✅xlsx.full.min.js 載入完成");
+    script.onerror = (e) => console.error("[CHE]❌xlsx.full.min.js 載入失敗", e);
+    document.head.appendChild(script);
 
     const idColorMap = new Map();
     let colorIndex = 0;
