@@ -19,5 +19,5 @@
     script.type = "module";
     script.crossOrigin = "anonymous";
     document.head.appendChild(script);
-    console.log('[Chat TtoB] loadtime:', Date.now());
+    console.log('[PAT ALL] loadtime:', Date.now());
 })();
