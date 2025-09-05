@@ -18,5 +18,5 @@
     script.type = "module";
     script.crossOrigin = "anonymous";
     document.head.appendChild(script);
-    console.log('[CHE] loadtime:', Date.now());
+    console.log('[Bondage renew] loadtime:', Date.now());
 })();
