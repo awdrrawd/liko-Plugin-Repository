@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Liko - tool
+// @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
 // @version      1.11
