@@ -1,0 +1,131 @@
+//=================================================================================
+//Google Sheet
+const SPREADSHEET_ID = 'GOOGLE_SPREADSHEET_ID';//https://docs.google.com/spreadsheets/d/這一段/edit?
+
+function doGet(e) {
+  try {
+    const id = String(e.parameter.id).trim();
+    const sheetBal = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName('總額');
+    const balData = sheetBal.getDataRange().getValues();
+
+    Logger.log("查詢ID=" + id);
+    Logger.log("表格內容=" + JSON.stringify(balData));
+
+    for (let i = 1; i < balData.length; i++) {
+      const playerId = String(balData[i][0]).trim();
+      const balance = Number(balData[i][2]) || 0;
+      Logger.log(`第${i}列: ID=${playerId}, 餘額=${balance}`);
+
+      if (playerId === id) {
+        return ContentService.createTextOutput(
+          JSON.stringify({ balance })
+        ).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    return ContentService.createTextOutput(
+      JSON.stringify({ balance: 0 })
+    ).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    Logger.log('doGet error: ' + error.message);
+    return ContentService.createTextOutput(
+      JSON.stringify({ error: 'Server error: ' + error.message })
+    ).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doPost(e) {
+  try {
+    Logger.log('doPost called with data: ' + e.postData.contents);
+    const data = JSON.parse(e.postData.contents);
+    if (data.action === 'recordTransaction') {
+      const sheetFlow = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName('流水帳');
+      
+      // 格式化備註：(R)+(A)+(M)
+      const actionText = {
+        'Event': '活動',
+        'Reclaim': '回收',
+        'Payment': '支付'
+      }[data.behavior] || data.behavior;
+      const formattedRemark = `${data.remark}${actionText}${Math.abs(data.amount)}`;
+
+      // 流水帳記錄：使用 targetId 和 targetName 作為主體（EVENT/RECLAIM），PAY 使用 senderId
+      const recordId = data.behavior === 'Payment' ? String(data.senderId).trim() : String(data.targetId).trim();
+      const recordName = data.behavior === 'Payment' ? data.senderName : data.targetName;
+      const recordAmount = data.behavior === 'Payment' ? -Number(data.amount) : Number(data.amount);
+
+      // 寫入流水帳：[玩家名稱, ID, 金額, 行為, 備註, 時間]
+      sheetFlow.appendRow([
+        recordName,
+        recordId,
+        recordAmount,
+        data.behavior,
+        formattedRemark,
+        new Date(data.timestamp).toLocaleString()
+      ]);
+
+      return ContentService.createTextOutput(
+        JSON.stringify({ success: true })
+      ).setMimeType(ContentService.MimeType.JSON);
+    }
+    return ContentService.createTextOutput(
+      JSON.stringify({ error: 'Invalid action' })
+    ).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    Logger.log('doPost error: ' + error.message);
+    return ContentService.createTextOutput(
+      JSON.stringify({ error: 'Server error: ' + error.message })
+    ).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+//========================================================================================================
+//cloudflare Worker
+addEventListener('fetch', event => {
+    event.respondWith(handleRequest(event.request));
+});
+
+async function handleRequest(request) {
+    const url = new URL(request.url);
+    const targetUrl = 'https://...' + url.search; // 替換為新的 Apps Script URL
+
+    if (request.method === 'OPTIONS') {
+        return new Response(null, {
+            status: 204,
+            headers: {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'
+            }
+        });
+    }
+
+    const newRequest = new Request(targetUrl, {
+        method: request.method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: request.method === 'POST' ? await request.text() : null
+    });
+
+    try {
+        const response = await fetch(newRequest);
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set('Access-Control-Allow-Origin', '*');
+        newHeaders.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        newHeaders.set('Access-Control-Allow-Headers', 'Content-Type');
+
+        return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: newHeaders
+        });
+    } catch (error) {
+        return new Response(JSON.stringify({ error: 'Proxy error: ' + error.message }), {
+            status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }
+        });
+    }
+}
