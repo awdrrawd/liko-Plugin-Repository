@@ -15,7 +15,7 @@ var bcModSdk=function(){"use strict";const o="1.2.0";function e(o){alert("Mod ER
 (function () {
     "use strict";
     const script = document.createElement("script");
-    script.src = `https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko%20-%20CHE.user.js?timestamp=${Date.now()}`;
+    script.src = `https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko%20-%20CHE.main.user.js?timestamp=${Date.now()}`;
     script.type = "module";
     script.crossOrigin = "anonymous";
     document.head.appendChild(script);
