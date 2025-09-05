@@ -148,10 +148,9 @@
         }
 
         // 獲取時間顯示文字
-        const timeText = deleteTime === "1h" ? "1小時" :
-                        deleteTime === "12h" ? "12小時" :
-                        deleteTime === "24h" ? "24小時" :
-                        deleteTime === "72h" ? "72小時" : deleteTime;
+        const timeText = deleteTime === "12h" ? "12小時" :
+                         deleteTime === "24h" ? "24小時" :
+                         deleteTime === "72h" ? "72小時" : deleteTime;
 
         const message = `${url} \n⚠️存放時間${timeText}⚠️ `;
 
@@ -239,7 +238,7 @@
             ChatRoomSendLocal(
                 `圖片上傳插件使用說明:\n` +
                 `/img up - 選擇並上傳圖片\n` +
-                `/img set [1h|12h|24h|72h] - 設定圖片保存時間 (預設 12h)\n` +
+                `/img set [12h|24h|72h] - 設定圖片保存時間 (預設 12h)\n` +
                 `PC: 可直接拖曳圖片上傳\n` +
                 `支援格式: JPG/PNG/GIF/BMP/WEBP (最大10MB)`
             );
@@ -249,16 +248,15 @@
         if (sub === "up") {
             triggerFileSelect();
         } else if (sub === "set" && args[1]) {
-            const validTimes = ["1h", "12h", "24h", "72h"];
+            const validTimes = ["12h", "24h", "72h"];
             if (validTimes.includes(args[1])) {
                 deleteTime = args[1];
-                const timeText = args[1] === "1h" ? "1小時" :
-                               args[1] === "12h" ? "12小時" :
-                               args[1] === "24h" ? "24小時" :
-                               args[1] === "72h" ? "72小時" : args[1];
+                const timeText = args[1] === "12h" ? "12小時" :
+                                 args[1] === "24h" ? "24小時" :
+                                 args[1] === "72h" ? "72小時" : args[1];
                 ChatRoomSendLocalStyled(`✅ 已設定保存時間為 ${timeText}`, 3000, "#50C878");
             } else {
-                ChatRoomSendLocalStyled("❌ 時間必須是 1h / 12h / 24h / 72h", 4000, "#ff4444");
+                ChatRoomSendLocalStyled("❌ 時間必須是 12h / 24h / 72h", 4000, "#ff4444");
             }
         } else {
             ChatRoomSendLocalStyled("❌ 未知子指令，使用 /img help 查詢", 4000, "#ff4444");
