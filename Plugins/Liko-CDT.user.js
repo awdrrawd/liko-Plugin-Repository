@@ -2,7 +2,7 @@
 // @name         Liko's CDT
 // @name:zh      Liko的座標繪製工具
 // @namespace    https://likolisu.dev/
-// @version      1.2
+// @version      1.0
 // @description  在畫面上顯示 UI 座標與滑鼠位置，方便 UI 對齊調整
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
