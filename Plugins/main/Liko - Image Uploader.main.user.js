@@ -272,7 +272,7 @@
                     // 首次進入聊天室顯示歡迎訊息
                     if (!window.LikoImageUploaderWelcomed) {
                         ChatRoomSendLocalStyled(
-                            "🖼️ Liko 圖片上傳器 v1.2 已載入！使用 /img help 查看說明",
+                            "🖼️ Liko 圖片上傳器 v1.0 已載入！使用 /img help 查看說明",
                             5000
                         );
                         window.LikoImageUploaderWelcomed = true;
