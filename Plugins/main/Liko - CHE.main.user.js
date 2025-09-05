@@ -8,6 +8,7 @@
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @require      https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js
 // @run-at       document-end
 // ==/UserScript==
