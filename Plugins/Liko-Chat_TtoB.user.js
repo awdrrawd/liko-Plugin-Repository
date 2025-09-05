@@ -1,0 +1,22 @@
+// ==UserScript==
+// @name         Liko - Chat TtoB
+// @name:zh      Liko的對話變按鈕
+// @namespace    https://likolisu.dev/
+// @version      1.0
+// @description  display command buttons in chatroom, copying command to input and showing description
+// @author       likolisu
+// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
+// @grant        none
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
+// ==/UserScript==
+
+(function () {
+    "use strict";
+    const script = document.createElement("script");
+    script.src = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js?timestamp=${Date.now()}`;
+    script.type = "module";
+    script.crossOrigin = "anonymous";
+    document.head.appendChild(script);
+    console.log('[Chat TtoB] loadtime:', Date.now());
+})();
