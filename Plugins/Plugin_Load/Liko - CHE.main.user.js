@@ -8,6 +8,7 @@
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
+// @require      https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js
 // @run-at       document-end
 // ==/UserScript==
 (function() {
@@ -37,7 +38,18 @@
         }
     }
 
-    //
+    if (!(window.XLSX?.version)) {
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js";
+
+        script.onload = () => console.log("[CHE] xlsx.full.min 載入完成");
+        script.onerror = (e) => console.error("[CHE] xlsx.full.min 載入失敗", e);
+
+        document.head.appendChild(script);
+    } else {
+        console.log("[CHE] xlsx.full.min.js 已存在，跳過載入");
+    }
+    
     const script = document.createElement("script");
     script.type = "module";
     script.src = "https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js";
