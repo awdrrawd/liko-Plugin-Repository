@@ -31,7 +31,7 @@
     })();
 
     // === Configuration ===
-    const GOOGLE_SHEET_SCRIPT_URL = 'https://...'; //API 讀寫資料的接口 Web Worker等網站
+    const GOOGLE_SHEET_SCRIPT_URL = 'https://...'; //API 讀寫資料的接口 cloudflare Worker等網站
     const GOOGLE_SHEET_URL = 'https://...'; //Google 試算表（Spreadsheet）
     const BUTTON_X = 955;
     const BUTTON_Y = 80;
