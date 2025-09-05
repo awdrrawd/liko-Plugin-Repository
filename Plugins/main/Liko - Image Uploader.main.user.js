@@ -152,7 +152,7 @@
                          deleteTime === "24h" ? "24小時" :
                          deleteTime === "72h" ? "72小時" : deleteTime;
 
-        const message = `${url} \n⚠️存放時間${timeText}⚠️ `;
+        const message = `${url} \n**存放時間${timeText}** `;
 
         try {
             ServerSend("ChatRoomChat", {
