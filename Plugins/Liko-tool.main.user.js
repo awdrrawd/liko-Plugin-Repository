@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Liko - tool
+// @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
 // @version      1.0
@@ -18,5 +18,5 @@
     script.type = "module";
     script.crossOrigin = "anonymous";
     document.head.appendChild(script);
-    console.log('[Bondage renew] loadtime:', Date.now());
+    console.log('[Tool] loadtime:', Date.now());
 })();
