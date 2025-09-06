@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.11
+// @version      1.12
 // @description  Bondage Club - Likolisu's tool with BCC-inspired features
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,7 +13,7 @@
 
 (function() {
     let modApi = null;
-
+    const modversion = "1.12";
     // 等待 bcModSdk 載入的函數
     function waitForBcModSdk(timeout = 30000) {
         const start = Date.now();
@@ -44,7 +44,7 @@
             modApi = bcModSdk.registerMod({
                 name: 'Liko-tool',
                 fullName: 'Likolisu\'s tool with BCC-inspired features',
-                version: '1.11',
+                version: modversion,
                 repository: '莉柯莉絲的工具包'
             });
             console.log("✅ Liko-tool 腳本啟動完成");
@@ -692,7 +692,7 @@
             // 等待進入聊天室後顯示載入訊息
             waitFor(() => CurrentScreen === "ChatRoom", 60000).then((success) => {
                 if (success) {
-                    ChatRoomSendLocal(`莉柯莉絲工具 (LT) v1.1 已載入！使用 /lt help 查看說明`,30000);
+                    ChatRoomSendLocal(`莉柯莉絲工具 (LT) v${modversion} 已載入！使用 /lt help 查看說明`,30000);
                 }
             });
         } catch (e) {
@@ -700,7 +700,7 @@
             ChatRoomSendLocal(`指令註冊失敗，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！`);
         }
 
-        console.log("[LT] 插件已載入 (v1.1)");
+        console.log(`[LT] 插件已載入 (v${modversion})`);
     }
 
     // 卸載清理
