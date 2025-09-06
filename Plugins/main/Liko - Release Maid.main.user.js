@@ -313,7 +313,7 @@
 
             "其他插件": "🧰 莉柯莉絲(192263)寫的其他插件：\n" +
             "CHE可以把信息转HTML、Image Uploader可以用拖曳图片到聊天室分享图片\n" +
-            "• CH[](https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CHE.user.js)\n" +
+            "• CHE(https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CHE.user.js)\n" +
             "• Image Uploade[](https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Image_Uploader.user.js)\n" +
             "未来可能会更新更多插件请询问作者"
         };
