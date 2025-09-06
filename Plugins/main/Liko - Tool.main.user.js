@@ -54,6 +54,22 @@
             return null;
         }
     }
+    // 載入樣式化訊息系統
+    function loadToastSystem() {
+        return new Promise((resolve, reject) => {
+            if (window.ChatRoomSendLocalStyled) {
+                resolve();
+                return;
+            }
+            const version = GM_info.script.version;
+            const toastUrl = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js`;
+            const script = document.createElement('script');
+            script.src = toastUrl;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error("載入失敗"));
+            document.head.appendChild(script);
+        });
+    }
 
     // RP 模式按鈕座標
     const rpBtnX = 955;
@@ -99,40 +115,6 @@
                 console.log("[LT] 最終錯誤訊息: 本地訊息發送失敗，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！");
             }
         }
-    }
-    //更多樣的提示信息
-    function ChatRoomSendLocalStyled(message, duration = 3000, color = "#ff69b4") {
-        // 建立訊息元素
-        const msgEl = document.createElement("div");
-        msgEl.textContent = message;
-        msgEl.style.position = "fixed";
-        msgEl.style.bottom = "20px";
-        msgEl.style.left = "50%";
-        msgEl.style.transform = "translateX(-50%)";
-        msgEl.style.background = "rgba(0,0,0,0.7)";
-        msgEl.style.color = color;
-        msgEl.style.padding = "8px 15px";
-        msgEl.style.borderRadius = "10px";
-        msgEl.style.fontSize = "20px";
-        msgEl.style.fontWeight = "bold";
-        msgEl.style.opacity = "0";
-        msgEl.style.transition = "opacity 0.5s, transform 0.5s";
-        msgEl.style.zIndex = 9999;
-
-        document.body.appendChild(msgEl);
-
-        // 淡入
-        requestAnimationFrame(() => {
-            msgEl.style.opacity = "1";
-            msgEl.style.transform = "translateX(-50%) translateY(-50px)";
-        });
-
-        // 延遲後淡出並移除
-        setTimeout(() => {
-            msgEl.style.opacity = "0";
-            msgEl.style.transform = "translateX(-50%) translateY(-20px)";
-            setTimeout(() => msgEl.remove(), 500);
-        }, duration);
     }
 
     function getPlayer(identifier) {
@@ -680,7 +662,7 @@
 
         // 初始化 modApi
         modApi = await initializeModApi();
-
+        await loadToastSystem();
         // 等待遊戲載入
         const gameLoaded = await waitFor(() =>
                                          typeof Player?.MemberNumber === "number" &&
