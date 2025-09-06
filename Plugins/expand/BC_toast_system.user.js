@@ -1,29 +1,28 @@
 // toast-system.js
-// 版本: 1.0
+// 版本: 1.0 - 調整訊息起始高度
 // 用法: ChatRoomSendLocalStyled(message, duration, color, x, y, fontSize)
 //      或: ChatRoomSendLocalStyled(message, { duration, color, x, y, fontSize })
 
 (function() {
-    // 避免重複載入
-    if (window.ChatRoomSendLocalStyled) {
-        console.log("[GlobalToast] 系統已存在，版本:", window.ChatRoomSendLocalStyled._version || "未知");
-        return;
-    }
 
     console.log("[GlobalToast] 初始化全域訊息系統 v1.0");
     
     let activeMessages = [];
     let lastPromptTime = 0;
     
+    // 調整這些數值來改變訊息位置
+    const BASE_HEIGHT = 120;  // 起始高度 (原本是 20px，現在改為 80px)
+    const MESSAGE_SPACING = 35; // 訊息間距 (原本是 35px，現在改為 40px)
+    
     function repositionMessages() {
         activeMessages.forEach((msg, index) => {
             if (msg && msg.style) {
-                msg.style.bottom = `${20 + index * 35}px`;
+                msg.style.bottom = `${BASE_HEIGHT + index * MESSAGE_SPACING}px`;
             }
         });
     }
     
-    window.ChatRoomSendLocalStyled = function (message, duration = 3000, color = "#ff69b4", x = null, y = null, fontSize = "20px") {
+    window.ChatRoomSendLocalStyled = function (message, duration = 3000, color = "#ff69b4", x = null, y = null, fontSize = "24px") {
         try {
             if (typeof duration === 'object' && duration !== null) {
                 const options = duration;
@@ -72,7 +71,7 @@
             if (config.y !== null) {
                 msgEl.style.bottom = config.y + "px";
             } else {
-                msgEl.style.bottom = `${20 + activeMessages.length * 35}px`;
+                msgEl.style.bottom = `${BASE_HEIGHT + activeMessages.length * MESSAGE_SPACING}px`;
             }
             
             document.body.appendChild(msgEl);
@@ -101,8 +100,8 @@
     };
     
     // 添加版本標記
-    window.ChatRoomSendLocalStyled._version = "1.0";
+    window.ChatRoomSendLocalStyled._version = "1.1";
     window.ChatRoomSendLocalStyled._loadTime = Date.now();
     
-    console.log("[GlobalToast] 載入完成，版本 1.0");
+    console.log("[GlobalToast] 載入完成，版本 1.1 - 調整後的起始高度");
 })();
