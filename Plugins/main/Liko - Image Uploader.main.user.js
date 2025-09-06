@@ -27,45 +27,22 @@
             check();
         });
     }
-
-    // *******************************樣式化訊息顯示函數*************************************
-    if (window.ChatRoomSendLocalStyled) return;
-    console.log("[GlobalToast] 初始化全域訊息系統");
-    let activeMessages = [];let lastPromptTime = 0;
-    window.ChatRoomSendLocalStyled = function (message, duration = 3000, color = "#ff69b4", x = null, y = null, fontSize = "20px") {
-        // 如果第二個參數是物件，則使用新版格式
-        if (typeof duration === 'object' && duration !== null) {
-            const options = duration;const config = {duration: 3000,color: "#ff69b4",x: null,y: null,fontSize: "20px",...options};
-            duration = config.duration;color = config.color;x = config.x;y = config.y;fontSize = config.fontSize;
-        }
-        // 現在所有參數都是原本的格式
-        const config = { duration, color, x, y, fontSize };
-        const now = Date.now();
-        //if (now - lastPromptTime < 200) return; // 避免洗屏
-        lastPromptTime = now;
-        const msgEl = document.createElement("div");
-        msgEl.classList.add("liko-toast");
-        msgEl.textContent = message;
-        msgEl.style.position = "fixed";
-        msgEl.style.background = "rgba(0,0,0,0.7)";
-        msgEl.style.color = config.color;
-        msgEl.style.padding = "8px 15px";
-        msgEl.style.borderRadius = "10px";
-        msgEl.style.fontSize = typeof config.fontSize === "number" ? config.fontSize + "px" : config.fontSize;
-        msgEl.style.fontWeight = "bold";
-        msgEl.style.opacity = "0";
-        msgEl.style.transition = "opacity 0.5s, transform 0.5s";
-        msgEl.style.zIndex = 9999;
-        // X Y 座標  msg.style.bottom是間距
-        if (config.x !== null) {msgEl.style.left = config.x + "px"; msgEl.style.transform = "translateX(0)";} else {msgEl.style.left = "50%";msgEl.style.transform = "translateX(-50%)";}
-        if (config.y !== null) {msgEl.style.bottom = config.y + "px";} else {msgEl.style.bottom = `${20 + activeMessages.length * 35}px`;}
-        document.body.appendChild(msgEl);activeMessages.push(msgEl);
-        // 淡入
-        requestAnimationFrame(() => {msgEl.style.opacity = "1"; msgEl.style.transform += " translateY(-20px)";});
-        // 自動移除
-        setTimeout(() => {msgEl.style.opacity = "0"; msgEl.style.transform += " translateY(-40px)";setTimeout(() => {msgEl.remove();activeMessages = activeMessages.filter(m => m !== msgEl);if (config.y === null) repositionMessages();}, 500);}, config.duration);};
-    function repositionMessages() {activeMessages.forEach((msg, index) => {msg.style.bottom = `${20 + index * 35}px`;});}
-    // *******************************樣式化訊息顯示函數*************************************
+    // 載入樣式化訊息系統
+    function loadToastSystem() {
+        return new Promise((resolve, reject) => {
+            if (window.ChatRoomSendLocalStyled) {
+                resolve();
+                return;
+            }
+            const version = GM_info.script.version;
+            const toastUrl = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js`;
+            const script = document.createElement('script');
+            script.src = toastUrl;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error("載入失敗"));
+            document.head.appendChild(script);
+        });
+    }
 
     // 發送本地訊息函數
     function ChatRoomSendLocal(message, sec = 0) {
@@ -300,6 +277,7 @@
             console.error("[IMG] bcModSdk 載入失敗");
             return;
         }
+        await loadToastSystem();
 
         try {
             modApi = bcModSdk.registerMod({
