@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.12
+// @version      1.13
 // @description  Bondage Club - Likolisu's tool with BCC-inspired features
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function() {
     let modApi = null;
-    const modversion = "1.12";
+    const modversion = "1.13";
     // 等待 bcModSdk 載入的函數
     function waitForBcModSdk(timeout = 30000) {
         const start = Date.now();
@@ -49,7 +49,7 @@
                 version: modversion,
                 repository: '莉柯莉絲的工具包'
             });
-            console.log("✅ Liko-tool 腳本啟動完成");
+            console.log("[LT] ✅ Liko-tool 腳本啟動完成");
             return modApi;
         } catch (e) {
             console.error("[LT] ❌ 初始化 modApi 失敗:", e.message);
@@ -352,13 +352,59 @@
             if (!Player.LikoTool) initializeStorage();
             if (MouseIn(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize)) {
                 Player.LikoTool.rpmode = !Player.LikoTool.rpmode;
-                ChatRoomSendLocalStyled(Player.LikoTool.rpmode ? "🔰 RP模式啟用" : "🔰 RP模式停用",3000);
+                ChatRoomSendLocalStyled(Player.LikoTool.rpmode ? "🔰 RP模式启用" : "🔰 RP模式停用", 3000);
+                // 新增：发送RP状态
+                if (CurrentScreen === "ChatRoom") {
+                    try {
+                        ServerSend("ChatRoomChat", {
+                            Type: "Hidden",
+                            Content: `LIKO_RP_${Player.LikoTool.rpmode}`
+                        });
+                        console.log(`[LT] 广播 RP 状态: ${Player.LikoTool.rpmode}`);
+                    } catch (e) {
+                        console.error("[LT] 发送RP状态失败:", e.message);
+                    }
+                }
                 return;
             }
             next(args);
         });
+        // 新增：监听聊天消息来同步RP状态
+        safeHookFunction("ChatRoomMessage", 5, (args, next) => {
+            const [data] = args;
+            // 检查是否为 Liko Tool RP 状态消息
+            if (data.Type === "Hidden" &&
+                data.Content &&
+                data.Content.startsWith("LIKO_RP_")) {
+                const character = ChatRoomCharacter.find(c => c.MemberNumber === data.Sender);
+                if (character && character.MemberNumber !== Player.MemberNumber) {
+                    // 初始化 LikoTool 对象（如果不存在）
+                    if (!character.LikoTool) {
+                        character.LikoTool = {};
+                    }
+                    // 更新RP状态
+                    character.LikoTool.rpmode = data.Content === "LIKO_RP_true";
+                    console.log(`[LT] 更新 ${character.Name} 的 RP 状态为: ${character.LikoTool.rpmode}`);
+                }
+                return;// 阻止显示这个隐藏消息
+            }
+            return next(args);
+        });
     }
-
+    // 进入房间时广播自己的RP状态
+    function broadcastRpStatus() {
+        if (CurrentScreen === "ChatRoom" && Player.LikoTool?.rpmode) {
+            try {
+                ServerSend("ChatRoomChat", {
+                    Type: "Hidden",
+                    Content: `LIKO_RP_${Player.LikoTool.rpmode}`
+                });
+                console.log("[LT] 进入房间时广播 RP 状态");
+            } catch (e) {
+                console.error("[LT] 广播RP状态失败:", e.message);
+            }
+        }
+    }
     // 命令實現
     function freetotal(args) {
         if (!Player.LikoTool) initializeStorage();
@@ -453,7 +499,20 @@
     function rpmode(args) {
         if (!Player.LikoTool) initializeStorage();
         Player.LikoTool.rpmode = !Player.LikoTool.rpmode;
-        ChatRoomSendLocal(`RP模式已 ${Player.LikoTool.rpmode ? "開啟" : "關閉"}！`);
+        ChatRoomSendLocal(`RP模式已 ${Player.LikoTool.rpmode ? "开启" : "关闭"}！`);
+
+        // 新增：发送RP状态给房间内其他人
+        if (CurrentScreen === "ChatRoom") {
+            try {
+                ServerSend("ChatRoomChat", {
+                    Type: "Hidden",
+                    Content: `LIKO_RP_${Player.LikoTool.rpmode}`
+                });
+                console.log(`[LT] 广播 RP 状态: ${Player.LikoTool.rpmode}`);
+            } catch (e) {
+                console.error("[LT] 发送RP状态失败:", e.message);
+            }
+        }
     }
 
     function fullUnlock(args) {
@@ -694,7 +753,8 @@
             // 等待進入聊天室後顯示載入訊息
             waitFor(() => CurrentScreen === "ChatRoom", 60000).then((success) => {
                 if (success) {
-                    ChatRoomSendLocal(`莉柯莉絲工具 (LT) v${modversion} 已載入！使用 /lt help 查看說明`,30000);
+                    ChatRoomSendLocal(`莉柯莉絲工具 v${modversion} 載入！使用 /lt help 查看說明`,30000);
+                    setTimeout(broadcastRpStatus, 1000);// 广播当前RP状态
                 }
             });
         } catch (e) {
