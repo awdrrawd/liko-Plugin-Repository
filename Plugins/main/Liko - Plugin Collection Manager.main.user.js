@@ -79,6 +79,15 @@
             customIcon: ""
         },
         {
+            id: "Liko_Prank",
+            name: "Liko對朋友的惡作劇",
+            description: "Liko對朋友的惡作劇",
+            icon: "🧪",
+            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Prank.main.user.js",
+            enabled: pluginSettings["Liko_Prank"] ?? false,
+            customIcon: ""
+        },
+        {
             id: "Liko_Bondage_renew",
             name: "Liko的綑綁刷新",
             description: "Liko的綑綁刷新",
