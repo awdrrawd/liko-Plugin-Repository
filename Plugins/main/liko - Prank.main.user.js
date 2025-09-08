@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         liko - prank
+// @name         liko - Prank
 // @name:zh      Liko對朋友的惡作劇
 // @namespace    https://chat.openai.com/
 // @version      1.0
