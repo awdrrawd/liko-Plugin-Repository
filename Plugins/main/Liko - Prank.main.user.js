@@ -3,7 +3,7 @@
 // @name:zh      Liko對朋友的惡作劇
 // @namespace    https://likolisu.dev/
 // @version      1.0
-// @description  Bondage Club - Likolisu's prank on her friends
+// @description  Likolisu's prank on her friends
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
