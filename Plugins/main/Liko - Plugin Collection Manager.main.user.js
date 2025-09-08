@@ -109,7 +109,7 @@
             id: "Liko_CDT",
             name: "Liko的座標繪製工具",
             description: "Liko的座標繪製工具",
-            icon: "💬",
+            icon: "🖌️",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
             enabled: pluginSettings["Liko_CDT"] ?? false,
             customIcon: ""
