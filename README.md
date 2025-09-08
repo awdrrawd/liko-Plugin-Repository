@@ -18,6 +18,6 @@ javascript:(function(){
 ```
 
 3.**控制台**
-`
+```
 import(`https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/Liko-Plugin_Collection_Manager.user.js?v=${(Date.now()/10000).toFixed(0)}`);
-`
+```
