@@ -91,6 +91,18 @@ window.BC_Interactive_Index = {
             "Name_ENG": "Vulva"
         },
         {
+            "Target_Group": "ItemGlans",
+            "Name_CHT": "龜頭",
+            "Name_CHS": "龟头",
+            "Name_ENG": "Glans"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "Name_CHT": "陰莖",
+            "Name_CHS": "阴茎",
+            "Name_ENG": "Penis"
+        },
+        {
             "Target_Group": "ItemLegs",
             "Name_CHT": "腿",
             "Name_CHS": "腿",
@@ -4269,6 +4281,326 @@ window.BC_Interactive_Index = {
             "Target_Group": "ItemBoots",
             "activityName": "MPA_StompTwice",
             "translatedactivity": "MPA_StompTwice"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "ReversePenetrateAss",
+            "translatedactivity": "送入自己的臀部"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "Caress",
+            "translatedactivity": "轻抚阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "ReversePenetratePussy",
+            "translatedactivity": "送入自己的阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "GaggedKiss",
+            "translatedactivity": "用口塞按压阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "Kick",
+            "translatedactivity": "踢阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "Kiss",
+            "translatedactivity": "亲吻阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "Lick",
+            "translatedactivity": "舔阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "MasturbateFoot",
+            "translatedactivity": "用脚玩弄阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "MasturbateHand",
+            "translatedactivity": "玩弄阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "MasturbateItem",
+            "translatedactivity": "在阴茎使用物品"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "MasturbateTongue",
+            "translatedactivity": "用舌头玩弄阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "Nibble",
+            "translatedactivity": "轻咬阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "PenetrateFast",
+            "translatedactivity": "快速插入"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "PenetrateSlow",
+            "translatedactivity": "缓慢插入"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "RubItem",
+            "translatedactivity": "摩擦阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "ShockItem",
+            "translatedactivity": "电击阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "Slap",
+            "translatedactivity": "拍打阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "SpankItem",
+            "translatedactivity": "拍打阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "ReverseSuckItem",
+            "translatedactivity": "吮吸"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "TickleItem",
+            "translatedactivity": "搔挠阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "Caress",
+            "translatedactivity": "轻抚阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "MasturbateFist",
+            "translatedactivity": "拳交阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "MasturbateHand",
+            "translatedactivity": "玩弄阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "MasturbateItem",
+            "translatedactivity": "玩弄阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "RubItem",
+            "translatedactivity": "摩擦阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "ShockItem",
+            "translatedactivity": "电击阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "Slap",
+            "translatedactivity": "拍打阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "SpankItem",
+            "translatedactivity": "拍打阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "TickleItem",
+            "translatedactivity": "搔挠阴茎"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "LSCG_RubPussy",
+            "translatedactivity": "Rub Pussy"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "LSCG_SlapPenis",
+            "translatedactivity": "Slap Penis"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "LSCG_FuckWithPussy",
+            "translatedactivity": "Ride with Pussy"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "LSCG_FuckWithAss",
+            "translatedactivity": "Ride with Ass"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "LSCG_Suck",
+            "translatedactivity": "Suck"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "LSCG_Throat",
+            "translatedactivity": "Deepthroat"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "LSCG_Flick",
+            "translatedactivity": "Flick Penis"
+        },
+        {
+            "Target_Group": "ItemPenis",
+            "activityName": "LSCG_Splat",
+            "translatedactivity": "Spray"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "Caress",
+            "translatedactivity": "轻抚龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "GaggedKiss",
+            "translatedactivity": "带着口塞亲吻龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "Inject",
+            "translatedactivity": "注射龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "Kick",
+            "translatedactivity": "踢龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "Kiss",
+            "translatedactivity": "亲吻龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "Lick",
+            "translatedactivity": "舔龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "MasturbateFoot",
+            "translatedactivity": "用脚玩弄龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "MasturbateHand",
+            "translatedactivity": "玩弄龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "MasturbateItem",
+            "translatedactivity": "在龟头使用物品"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "MasturbateTongue",
+            "translatedactivity": "用舌头玩弄龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "Nibble",
+            "translatedactivity": "轻咬龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "RubItem",
+            "translatedactivity": "摩擦龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "ShockItem",
+            "translatedactivity": "电击龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "Slap",
+            "translatedactivity": "扇龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "SpankItem",
+            "translatedactivity": "拍打龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "TickleItem",
+            "translatedactivity": "搔挠龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "Caress",
+            "translatedactivity": "轻抚龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "Inject",
+            "translatedactivity": "注射龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "MasturbateHand",
+            "translatedactivity": "玩弄龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "MasturbateItem",
+            "translatedactivity": "玩弄龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "RubItem",
+            "translatedactivity": "摩擦龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "ShockItem",
+            "translatedactivity": "电击龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "Slap",
+            "translatedactivity": "扇龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "SpankItem",
+            "translatedactivity": "拍打龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "TickleItem",
+            "translatedactivity": "搔挠龟头"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "LSCG_Flick",
+            "translatedactivity": "Flick Balls"
+        },
+        {
+            "Target_Group": "ItemGlans",
+            "activityName": "LSCG_Flick",
+            "translatedactivity": "Flick Balls"
         }
     ]
 };
