@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Liko's CDT Universal
-// @name:zh      Liko的座標繪製工具（全界面版）
+// @name         Liko's CDT
+// @name:zh      Liko的座標繪製工具
 // @namespace    https://likolisu.dev/
 // @version      1.3
 // @description  在BC所有畫面上顯示 UI 座標與滑鼠位置，方便 UI 對齊調整
