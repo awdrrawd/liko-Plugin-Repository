@@ -2,7 +2,7 @@
 彙整了一些個人開發的BondageClub小插件，可以使用以下插件進行管理
 
 # 安装
-1.**脚本管理器** (Tampermonkey 等)
+1.**脚本管理器** (Tampermonkey、userscript等)
 
 [插件](https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Plugin_Collection_Manager.user.js)
 
