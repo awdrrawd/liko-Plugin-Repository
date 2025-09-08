@@ -283,7 +283,7 @@
 
         try {
             modApi = bcModSdk.registerMod({
-                name: 'Liko\'s Image Uploader',
+                name: "Liko's Image Uploader",
                 fullName: 'BC - Image Uploader',
                 version: '1.0',
                 repository: '圖片上傳 // Image to litterbox and share'
