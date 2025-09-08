@@ -54,7 +54,7 @@
         {
             id: "Liko_Tool",
             name: "Liko的工具包",
-            description: "Liko的工具包",
+            description: "有許多小功能合集的工具包，但也有點不穩定",
             icon: "🧰",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Tool.main.user.js",
             enabled: pluginSettings["Liko_Tool"] ?? true,
@@ -63,7 +63,7 @@
         {
             id: "Liko_Image_Uploader",
             name: "Liko的圖片上傳器",
-            description: "Liko的圖片上傳器",
+            description: "拖曳上傳圖片並分享到聊天室",
             icon: "🖼️",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
             enabled: pluginSettings["Liko_Image_Uploader"] ?? false,
@@ -72,7 +72,7 @@
         {
             id: "Liko_CHE",
             name: "Liko的聊天室書記官",
-            description: "Liko的聊天室書記官",
+            description: "聊天室信息轉HTML，可以搭配neocities等網站上傳分享",
             icon: "📋",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20CHE.main.user.js",
             enabled: pluginSettings["Liko_CHE"] ?? false,
@@ -81,7 +81,7 @@
         {
             id: "Liko_Prank",
             name: "Liko對朋友的惡作劇",
-            description: "Liko對朋友的惡作劇",
+            description: "內褲大盜鬧的BC社群人心惶惶!",
             icon: "🧪",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Prank.main.user.js",
             enabled: pluginSettings["Liko_Prank"] ?? false,
@@ -90,7 +90,7 @@
         {
             id: "Liko_Bondage_renew",
             name: "Liko的綑綁刷新",
-            description: "Liko的綑綁刷新",
+            description: "針對R119綑綁刷新不夠快的應急措施",
             icon: "♻️",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Bondage%20renew.main.user.js",
             enabled: pluginSettings["Liko_Bondage_renew"] ?? false,
@@ -99,7 +99,7 @@
         {
             id: "Liko_Release_Maid",
             name: "Liko的解綁女僕",
-            description: "Liko的解綁女僕",
+            description: "自動解榜女僕，不過有點天然，會在意外時觸發!",
             icon: "🧹",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Release%20Maid.main.user.js",
             enabled: pluginSettings["Liko_Release_Maid"] ?? false,
@@ -108,7 +108,7 @@
         {
             id: "Liko_Chat_TtoB",
             name: "Liko的對話變按鈕",
-            description: "Liko的對話變按鈕",
+            description: "聊天室信息轉按紐，好像不是很有用!",
             icon: "💬",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
             enabled: pluginSettings["Liko_Chat_TtoB"] ?? false,
@@ -117,7 +117,7 @@
         {
             id: "Liko_CDT",
             name: "Liko的座標繪製工具",
-            description: "Liko的座標繪製工具",
+            description: "BC的介面UI定位工具，有開發需求的能可以使用!",
             icon: "🖌️",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
             enabled: pluginSettings["Liko_CDT"] ?? false,
