@@ -20,7 +20,7 @@
                 name: 'liko\'s Bondage renew',
                 fullName: 'Bondage Club - Likolisu\'s Bondage renew',
                 version: '1.0',
-                repository: 'BC綑綁刷新 \\ Bondage renew'
+                repository: 'BC綑綁刷新 // Bondage renew'
             });
         }
     } catch (e) {
