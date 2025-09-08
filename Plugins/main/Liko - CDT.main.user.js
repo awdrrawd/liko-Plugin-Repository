@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Liko's CDT
+// @name         Liko - CDT
 // @name:zh      Liko的座標繪製工具
 // @namespace    https://likolisu.dev/
 // @version      1.3
@@ -17,10 +17,10 @@
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
-                name: 'CDT Universal',
+                name: 'CDT',
                 fullName: 'Bondage Club - Universal Coordinate adjustment tool',
                 version: modversion,
-                repository: '座標繪製工具 全界面版 // Universal Coordinate adjustment tool',
+                repository: '座標繪製工具 | Coordinate adjustment tool',
             });
             console.log("[CDT]✅ Universal 腳本啟動完成");
         } else {
