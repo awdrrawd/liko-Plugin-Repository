@@ -286,7 +286,7 @@
                 name: "Liko's Image Uploader",
                 fullName: 'BC - Image Uploader',
                 version: '1.0',
-                repository: '圖片上傳 // Image to litterbox and share'
+                repository: '圖片拖曳上傳並分想 | Image to litterbox and share'
             });
         } catch (e) {
             console.error("[IMG] 初始化 modApi 失敗:", e.message);
