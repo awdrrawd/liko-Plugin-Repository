@@ -44,7 +44,7 @@
 
         try {
             modApi = bcModSdk.registerMod({
-                name: 'Liko\'s tool',
+                name: "Liko's tool",
                 fullName: 'Likolisu\'s tool with BCC-inspired features',
                 version: modversion,
                 repository: '莉柯莉絲的工具包'
