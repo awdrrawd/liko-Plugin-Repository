@@ -3,7 +3,7 @@
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
 // @version      1.13
-// @description  Bondage Club - Likolisu's tool with BCC-inspired features
+// @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -45,7 +45,7 @@
         try {
             modApi = bcModSdk.registerMod({
                 name: "Liko's tool",
-                fullName: 'Likolisu\'s tool with BCC-inspired features',
+                fullName: "Liko's tool",
                 version: modversion,
                 repository: '莉柯莉絲的工具包'
             });
@@ -63,7 +63,7 @@
                 resolve();
                 return;
             }
-            const version = GM_info.script.version;
+            const version = modversion;
             const toastUrl = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js`;
             const script = document.createElement('script');
             script.src = toastUrl;
@@ -711,7 +711,7 @@
             const check = () => {
                 if (condition()) resolve(true);
                 else if (Date.now() - start > timeout) resolve(false);
-                else setTimeout(check, 100);
+                else setTimeout(check, 500);
             };
             check();
         });
