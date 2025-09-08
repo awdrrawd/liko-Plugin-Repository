@@ -30,7 +30,7 @@
 
     // 沙箱作用域的主腳本
     const mainScript = document.createElement("script");
-    mainScript.src = `https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js?timestamp=${Date.now()}`;
+    mainScript.src = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js?timestamp=${Date.now()}`;
     mainScript.type = "module"; // 保持 Tampermonkey 沙箱 / module 執行
     mainScript.crossOrigin = "anonymous";
     document.head.appendChild(mainScript);
