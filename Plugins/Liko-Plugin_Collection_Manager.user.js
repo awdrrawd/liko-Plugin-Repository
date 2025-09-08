@@ -35,5 +35,5 @@
     mainScript.crossOrigin = "anonymous";
     document.head.appendChild(mainScript);
 
-    console.log('[Tool] global scripts injected, main script loaded in module sandbox');
+    console.log('[PCM] ✅啟用完成');
 })();
