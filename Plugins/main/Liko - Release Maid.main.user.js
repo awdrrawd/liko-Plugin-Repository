@@ -65,7 +65,7 @@
                 name: "Liko's Release Maid",
                 fullName: 'Bondage Club - Liko Auto Release Maid',
                 version: '1.2',
-                repository: '莉柯莉絲的自動解鎖女僕',
+                repository: "莉柯的自動解鎖女僕 | Liko's auto release maid",
             });
             console.log("✅ Liko Release Bot 註冊成功");
             return modApi;
