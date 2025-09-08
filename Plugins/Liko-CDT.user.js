@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Liko's CDT
+// @name         Liko - CDT
 // @name:zh      Liko的座標繪製工具
 // @namespace    https://likolisu.dev/
 // @version      1.0
