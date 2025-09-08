@@ -36,7 +36,7 @@
                 resolve();
                 return;
             }
-            const version = GM_info.script.version;
+            const version = (window.GM_info?.script?.version) || "Injected";
             const toastUrl = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js`;
             const script = document.createElement('script');
             script.src = toastUrl;
