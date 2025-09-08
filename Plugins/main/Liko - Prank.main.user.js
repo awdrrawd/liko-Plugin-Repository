@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         liko - Prank
+// @name         Liko - Prank
 // @name:zh      Liko對朋友的惡作劇
-// @namespace    https://chat.openai.com/
+// @namespace    https://likolisu.dev/
 // @version      1.0
 // @description  Bondage Club - Likolisu's prank on her friends
 // @author       Likolisu
