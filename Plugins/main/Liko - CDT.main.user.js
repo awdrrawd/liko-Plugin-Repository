@@ -16,10 +16,10 @@
     try {
         if (bcModSdk?.registerMod) {
             const modApi = bcModSdk.registerMod({
-            name: 'CDT',
+            name: "Liko's CDT",
             fullName: 'Bondage Club - Coordinate adjustment tool',
             version: '1.2',
-            repository: '座標繪製工具 // Coordinate adjustment tool',
+            repository: '座標繪製工具 | Coordinate adjustment tool',
             });           
             console.log("✅ CDT 腳本啟動完成");
         } else {
