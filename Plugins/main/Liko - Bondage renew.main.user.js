@@ -17,10 +17,10 @@
     try {
         if (typeof bcModSdk === "object" && typeof bcModSdk.registerMod === "function") {
             const modApi = bcModSdk.registerMod({
-                name: 'liko\'s Bondage renew',
+                name: "liko's Bondage renew",
                 fullName: 'Bondage Club - Likolisu\'s Bondage renew',
                 version: '1.0',
-                repository: 'BC綑綁刷新 // Bondage renew'
+                repository: 'BC綑綁刷新 | Bondage renew'
             });
         }
     } catch (e) {
