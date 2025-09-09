@@ -310,7 +310,7 @@
 
             .bc-plugin-floating-btn {
                 position: fixed;
-                top: 20px;
+                top: 60px;
                 right: 20px;
                 width: 64px;
                 height: 64px;
