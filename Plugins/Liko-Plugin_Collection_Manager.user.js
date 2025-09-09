@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likulisu.dev/
-// @version      1.0
+// @version      1.01
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -28,12 +28,17 @@
         document.head.appendChild(script);
     });
 
-    // 沙箱作用域的主腳本
-    const mainScript = document.createElement("script");
+    // 沙箱作用域的主腳本 先停用
+    /*const mainScript = document.createElement("script");
     mainScript.src = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js?timestamp=${Date.now()}`;
     mainScript.type = "module"; // 保持 Tampermonkey 沙箱 / module 執行
     mainScript.crossOrigin = "anonymous";
-    document.head.appendChild(mainScript);
+    document.head.appendChild(mainScript);*/
+    (async () => {
+        const url = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
+        const code = await fetch(url).then(r => r.text());
+        eval(code); // 在 Tampermonkey 沙箱執行
+    })();
 
     console.log('[PCM] ✅啟用完成');
 })();
