@@ -89,7 +89,7 @@
             id: "Liko_Prank",
             name: "Liko對朋友的惡作劇",
             description: "內褲大盜鬧的BC社群人心惶惶!",
-            icon: "🧪",
+            icon: "🪄",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Prank.main.user.js",
             enabled: pluginSettings["Liko_Prank"] ?? false,
             customIcon: ""
