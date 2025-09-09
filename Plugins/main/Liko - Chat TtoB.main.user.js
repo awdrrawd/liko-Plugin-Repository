@@ -12,7 +12,7 @@
 // @run-at       document-end
 // ==/UserScript==
 
-(() => {
+(function () {
     "use strict";
     let modApi;
     const modversion = "1.1";
@@ -21,7 +21,7 @@
             modApi = bcModSdk.registerMod({
                 name: "Liko's Chat TtoB",
                 fullName: 'BC - Chat room text conversion button',
-                version: modversion, // 更新版本號
+                version: modversion,
                 repository: '聊天室[指令]、[!!內文]與[#房間#]轉按鈕（支援空白房間名稱，包含 https 時跳過房間解析）\nChat Room [Commands], [!!Content], and [#RoomName#] conversion button (supports spaces in room names, skips room parsing when https is present)',
             });
             console.log("✅ CDT 腳本啟動完成");
@@ -34,9 +34,8 @@
 
     const CMD_RE = /\/[\p{L}\p{N}_-]+/gu;
     const COPY_RE = /!!(\S+)/gu;
-    const ROOM_RE = /#([\s\S]+?)#/gu; // 保持支援空白和任意字符
+    const ROOM_RE = /#([\s\S]+?)#/gu;
 
-    // 說明欄
     const desc = document.createElement("div");
     desc.id = "likoCommandDescription";
     Object.assign(desc.style, {
@@ -63,7 +62,6 @@
         desc.style.display = "none";
     }
 
-    // /指令按鈕
     function makeCmdSpan(cmdText, cmdObj) {
         const el = document.createElement("span");
         el.className = "likoCommandInChat";
@@ -80,15 +78,14 @@
         });
 
         el.addEventListener("mouseenter", () => {
-            const descText = cmdObj.Description || `Execute ${cmdText}`;
-            showDesc(descText + `<br><span style="color:#ff65f2;">點下後聊天窗貼上命令</span><br><span style="color:#ff65f2;">Click to paste command in chat input</span>`);
+            const descText = cmdObj.Description || `執行 ${cmdText}`;
+            showDesc(descText + `<br><span style="color:#ff65f2;">點擊後聊天窗貼上命令</span><br><span style="color:#ff65f2;">Click to paste command in chat input</span>`);
         });
         el.addEventListener("mouseleave", hideDesc);
 
         return el;
     }
 
-    // !!追加按鈕
     function makeAppendSpan(label) {
         const el = document.createElement("span");
         el.className = "likoCommandInChat";
@@ -106,25 +103,23 @@
         });
 
         el.addEventListener("mouseenter", () => {
-            showDesc(`點下後添加文字: ${label}<br>Click to append: ${label}`);
+            showDesc(`點擊後添加文字: ${label}<br>Click to append: ${label}`);
         });
         el.addEventListener("mouseleave", hideDesc);
 
         return el;
     }
 
-    // #房間按鈕
     function makeRoomSpan(roomName) {
-        const cleanRoomName = roomName.trim(); // 清理首尾空格
+        const cleanRoomName = roomName.trim();
         const el = document.createElement("span");
         el.className = "likoRoomInChat";
-        el.textContent = `🚪${roomName}🚪`; // 顯示原始房間名稱，包括空格
+        el.textContent = `🚪${roomName}🚪`;
         el.style.color = "#65b5ff";
         el.style.cursor = "pointer";
 
         el.addEventListener("click", (ev) => {
             ev.stopPropagation();
-            // 嘗試使用 enterRoom，如果未定義則直接發送 ServerSend
             if (typeof enterRoom === "function") {
                 enterRoom(cleanRoomName);
             } else {
@@ -135,14 +130,13 @@
         });
 
         el.addEventListener("mouseenter", () => {
-            showDesc(`點下後加入房間: ${cleanRoomName} <br>Click to join room: ${cleanRoomName}`);
+            showDesc(`點擊後加入房間: ${cleanRoomName} <br>Click to join room: ${cleanRoomName}`);
         });
         el.addEventListener("mouseleave", hideDesc);
 
         return el;
     }
 
-    // 查找指令物件
     function normalizeCmd(str) {
         return str.normalize("NFKC").trim().toLowerCase();
     }
@@ -154,23 +148,20 @@
         );
     }
 
-    // 把文字轉成 fragment
     function fragmentFromTextNode(textNode) {
         const text = textNode.textContent;
         if (!text) return null;
         if (!(/[\/!#]/.test(text))) return null;
 
-        // 如果文字節點在 <a> 內（任一祖先是 <a>），跳過
         const parentEl = textNode.parentElement;
         if (parentEl && parentEl.closest && parentEl.closest('a')) return null;
 
-        // 如果文字包含 http:// 或 https://（忽略大小寫），跳過房間名稱解析
         if (/https?:\/\//i.test(text)) return null;
 
         const frag = document.createDocumentFragment();
         let lastIndex = 0;
 
-        const RE = /(\/[\p{L}\p{N}_-]+)|!!(\S+)|#([\s\S]+?)#/gu; // 保持房間正則，支援空白和任意字符
+        const RE = /(\/[\p{L}\p{N}_-]+)|!!(\S+)|#([\s\S]+?)#/gu;
         let m;
         while ((m = RE.exec(text)) !== null) {
             const i = m.index;
@@ -195,7 +186,6 @@
         return frag;
     }
 
-    // 把這個取代原本的 scanChat
     function scanChat() {
         document.querySelectorAll(".chat-room-message-content").forEach((node) => {
             if (node.dataset.likoProcessed) return;
@@ -208,11 +198,9 @@
             texts.forEach((tn) => {
                 if (!tn.parentNode) return;
 
-                // 如果文字節點任一祖先為 <a>，跳過（更健壯）
                 const parentEl = tn.parentElement;
                 if (parentEl && parentEl.closest && parentEl.closest('a')) return;
 
-                // 如果文字包含 http:// 或 https://（忽略大小寫），跳過
                 const t = (tn.textContent || "");
                 if (/https?:\/\//i.test(t)) return;
 
@@ -221,6 +209,31 @@
             });
         });
     }
+
+    // 新增：Hook ChatRoomLoad 顯示歡迎訊息
+    function hookChatRoomLoad() {
+        if (modApi && typeof modApi.hookFunction === 'function') {
+            modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
+                next(args);
+                setTimeout(() => {
+                    if (!window.LikoChatTtoBWelcomed) {
+                        ChatRoomSendLocal(
+                            `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
+                            <b>💭Liko - Chat TtoB v1.1 💭</b>
+                            <br>- /指令：轉為粉色按鈕，點擊貼到輸入框
+                            <br>- !!內容：轉為綠色按鈕，點擊附加到輸入框
+                            <br>- #房間名稱#：轉為藍色按鈕，點擊加入房間
+                            </p>`.replaceAll("\n", ""),30000
+                        );
+                        window.LikoChatTtoBWelcomed = true;
+                    }
+                }, 1000);
+            });
+        }
+    }
+
+    // 初始化時呼叫 hookChatRoomLoad
+    hookChatRoomLoad();
 
     setInterval(scanChat, 500);
 })();
