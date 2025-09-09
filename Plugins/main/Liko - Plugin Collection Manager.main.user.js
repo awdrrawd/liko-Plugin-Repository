@@ -99,7 +99,7 @@
             name: "Liko的邀請通知器",
             description: "發出好友、白單、黑單的信息!",
             icon: "📧",
-            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Bondage%20renew.main.user.js",
+            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20NOI.main.user.js",
             enabled: pluginSettings["Liko - NOI"] ?? false,
             customIcon: ""
         },
