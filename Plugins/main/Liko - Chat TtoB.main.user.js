@@ -38,7 +38,7 @@
 
     // 說明欄
     const desc = document.createElement("div");
-    desc.id = "bccCommandDescription";
+    desc.id = "likoCommandDescription";
     Object.assign(desc.style, {
         position: "fixed",
         left: "0px",
@@ -66,7 +66,7 @@
     // /指令按鈕
     function makeCmdSpan(cmdText, cmdObj) {
         const el = document.createElement("span");
-        el.className = "bccCommandInChat";
+        el.className = "likoCommandInChat";
         el.textContent = cmdText;
         el.style.color = "#ff65f2";
         el.style.cursor = "pointer";
@@ -91,7 +91,7 @@
     // !!追加按鈕
     function makeAppendSpan(label) {
         const el = document.createElement("span");
-        el.className = "bccCommandInChat";
+        el.className = "likoCommandInChat";
         el.textContent = label;
         el.style.color = "#65ff8a";
         el.style.cursor = "pointer";
@@ -117,7 +117,7 @@
     function makeRoomSpan(roomName) {
         const cleanRoomName = roomName.trim(); // 清理首尾空格
         const el = document.createElement("span");
-        el.className = "bccRoomInChat";
+        el.className = "likoRoomInChat";
         el.textContent = `🚪${roomName}🚪`; // 顯示原始房間名稱，包括空格
         el.style.color = "#65b5ff";
         el.style.cursor = "pointer";
@@ -198,8 +198,8 @@
     // 把這個取代原本的 scanChat
     function scanChat() {
         document.querySelectorAll(".chat-room-message-content").forEach((node) => {
-            if (node.dataset.bccProcessed) return;
-            node.dataset.bccProcessed = "1";
+            if (node.dataset.likoProcessed) return;
+            node.dataset.likoProcessed = "1";
 
             const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null);
             const texts = [];
