@@ -368,7 +368,7 @@
                 setTimeout(() => {
                     if (!window.LikoNOIWelcomed) {
                         ChatRoomSendLocalStyled(
-                            " ♠️ Liko的邀请通知器 v1.0 已載入！使用 /noi help 查看说明",
+                            "📧 Liko的邀请通知器 v1.0 已載入！使用 /noi help 查看说明",
                             5000,
                             "#885CB0"
                         );
