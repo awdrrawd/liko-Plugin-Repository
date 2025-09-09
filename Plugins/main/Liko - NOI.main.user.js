@@ -2,8 +2,8 @@
 // @name         Liko - NOI
 // @name:zh      Liko的邀請通知器
 // @namespace    https://likulisu.dev/
-// @version      1.0
-// @description  Notify on Invite
+// @version      1.1
+// @description  Notify on Invite - Optimized with hooks
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant        none
@@ -11,12 +11,11 @@
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @run-at       document-end
 // ==/UserScript==
-
 (function() {
     'use strict';
 
     // ------------ 日誌控制 ------------
-    const debugMode = false; // 設為 true 啟用詳細日誌
+    const debugMode = false;
     function log(...args) {
         if (debugMode) console.log('[NOI]', ...args);
     }
@@ -27,7 +26,7 @@
         console.error('[NOI]', ...args);
     }
 
-    // ------------ 等待工具 ------------
+    // ------------ 初始與等待工具 ------------
     function waitFor(condition, timeout = 30000) {
         const start = Date.now();
         return new Promise(resolve => {
@@ -54,26 +53,15 @@
 
     // ------------ mod 註冊 ------------
     let modApi = null;
-    const modversion = "1.0";
-    (async () => {
-        const ok = await waitForBcModSdk();
-        if (!ok) {
-            warn("bcModSdk 未載入，將繼續以 fallback 模式執行");
-        } else {
-            try {
-                modApi = bcModSdk.registerMod({
-                    name: "Liko's NOI",
-                    fullName: "Liko's Notify on Invite",
-                    version: modversion,
-                    repository: "Liko的邀請通知器 | Liko's Notify on Invite"
-                });
-                log("modApi 註冊成功");
-            } catch (e) {
-                warn("modApi.registerMod 失敗，採用 fallback：", e.message);
-            }
-        }
-        await initialize();
-    })();
+    const modversion = "1.1";
+
+    // ------------ 狀態管理 ------------
+    let isInitialized = false;
+
+    // 保留原來的追蹤方式作為備份
+    let lastWhiteList = [];
+    let lastBlackList = [];
+    let lastFriendList = [];
 
     // ------------ 設定 / 儲存 ------------
     function ensureStorage() {
@@ -142,22 +130,34 @@
         }
     }
 
-    // ------------ 變動檢測與通知 ------------
-    function arraysEqual(a, b) {
-        if (a === b) return true;
-        if (!Array.isArray(a) || !Array.isArray(b)) return false;
-        if (a.length !== b.length) return false;
-        const aa = [...a].sort();
-        const bb = [...b].sort();
-        for (let i = 0; i < aa.length; i++) if (aa[i] !== bb[i]) return false;
-        return true;
+    // ------------ 檢查是否在房間 ------------
+    function isPlayerInChatRoom(memberNumber) {
+        if (!ChatRoomCharacter || !Array.isArray(ChatRoomCharacter)) {
+            log("ChatRoomCharacter 不存在或不是陣列");
+            return false;
+        }
+
+        const found = ChatRoomCharacter.some(c => c.MemberNumber === memberNumber);
+        log(`檢查玩家 ${memberNumber} 是否在房間: ${found}`);
+        return found;
     }
 
-    function sendListMessage(msg, addedMemberNumber) {
-        if (!msg || String(msg).trim() === "") return;
+    // ------------ 通知邏輯 ------------
+    function sendListMessage(msg, addedMemberNumber, listType) {
+        if (!msg || String(msg).trim() === "") {
+            log(`${listType} 訊息為空，不發送`);
+            return;
+        }
+
+        // 檢查目標玩家是否在房間內
+        if (!isPlayerInChatRoom(addedMemberNumber)) {
+            log(`玩家 ${addedMemberNumber} 不在房間內，不發送 ${listType} 訊息`);
+            return;
+        }
 
         const myName = (Player?.Nickname && Player.Nickname.trim()) ? Player.Nickname : (Player?.Name || "Unknown");
         let targetName = "Unknown";
+
         try {
             const targetCharacter = ChatRoomCharacter?.find(c => c.MemberNumber === addedMemberNumber);
             if (targetCharacter) {
@@ -176,76 +176,90 @@
                 Type: "Emote",
                 Content: `*${finalMsg}`
             });
-            log("已發送名單變動訊息:", finalMsg);
+            log(`已發送${listType}變動訊息:`, finalMsg);
+
+            // 本地提示
+            const listNames = { white: "白名单", black: "黑名单", friend: "好友" };
+            ChatRoomSendLocal(`${listNames[listType]}通知设置：${msg}`, 5000);
         } catch (e) {
             error("發送名單訊息失敗:", e.message);
         }
     }
 
-    function checkListChangeAndNotify(data) {
-        if (!Player || !data) return;
+    // ------------ 變動檢測與通知 (fallback) ------------
+    function arraysEqual(a, b) {
+        if (a === b) return true;
+        if (!Array.isArray(a) || !Array.isArray(b)) return false;
+        if (a.length !== b.length) return false;
+        const aa = [...a].sort();
+        const bb = [...b].sort();
+        for (let i = 0; i < aa.length; i++) if (aa[i] !== bb[i]) return false;
+        return true;
+    }
+
+    function checkListChangeAndNotify() {
+        if (!Player || !isInitialized) return;
 
         const curWhite = Player.WhiteList || [];
         const curBlack = Player.BlackList || [];
         const curFriends = Player.FriendList || [];
 
-        // 檢查是否有更新名單的數據
-        const newData = data.WhiteList || data.BlackList || data.FriendList || data.OnlineSettings;
-        if (!newData) return;
-
-        // 白名單檢查
-        if (data.WhiteList && !arraysEqual(curWhite, data.WhiteList)) {
-            const added = data.WhiteList.filter(id => !curWhite.includes(id));
+        // 檢查白名單變化
+        if (!arraysEqual(curWhite, lastWhiteList)) {
+            const added = curWhite.filter(id => !lastWhiteList.includes(id));
             if (added.length > 0) {
+                log("檢測到白名單新增:", added);
                 const m = getWhiteMsg();
                 if (m && m.trim() !== "") {
                     added.forEach(id => {
-                        sendListMessage(m, id);
-                        ChatRoomSendLocal(`白名單通知設置：${m || "目前無設置訊息"}`, 10000);
+                        sendListMessage(m, id, "white");
                     });
                 }
             }
+            lastWhiteList = [...curWhite];
         }
 
-        // 黑名單檢查
-        if (data.BlackList && !arraysEqual(curBlack, data.BlackList)) {
-            const added = data.BlackList.filter(id => !curBlack.includes(id));
+        // 檢查黑名單變化
+        if (!arraysEqual(curBlack, lastBlackList)) {
+            const added = curBlack.filter(id => !lastBlackList.includes(id));
             if (added.length > 0) {
+                log("檢測到黑名單新增:", added);
                 const m = getBlackMsg();
                 if (m && m.trim() !== "") {
                     added.forEach(id => {
-                        sendListMessage(m, id);
-                        ChatRoomSendLocal(`黑名單通知設置：${m || "目前無設置訊息"}`, 10000);
+                        sendListMessage(m, id, "black");
                     });
                 }
             }
+            lastBlackList = [...curBlack];
         }
 
-        // 好友列表檢查
-        if (data.FriendList && !arraysEqual(curFriends, data.FriendList)) {
-            const added = data.FriendList.filter(id => !curFriends.includes(id));
+        // 檢查好友名單變化
+        if (!arraysEqual(curFriends, lastFriendList)) {
+            const added = curFriends.filter(id => !lastFriendList.includes(id));
             if (added.length > 0) {
+                log("檢測到好友名單新增:", added);
                 const m = getFriendMsg();
                 if (m && m.trim() !== "") {
                     added.forEach(id => {
-                        sendListMessage(m, id);
-                        ChatRoomSendLocal(`好友通知設置：${m || "目前無設置訊息"}`, 10000);
+                        sendListMessage(m, id, "friend");
                     });
                 }
             }
+            lastFriendList = [...curFriends];
         }
     }
 
     // ------------ 顯示設定訊息的輔助函數 ------------
     function showCurrentSettings() {
-        const whiteMsg = getWhiteMsg() || "目前無設置訊息";
-        const blackMsg = getBlackMsg() || "目前無設置訊息";
-        const friendMsg = getFriendMsg() || "目前無設置訊息";
+        const whiteMsg = getWhiteMsg() || "目前无设置消息";
+        const blackMsg = getBlackMsg() || "目前无设置消息";
+        const friendMsg = getFriendMsg() || "目前无设置消息";
         const message =
-            "當前通知設置：\n" +
-            `白名單訊息：${whiteMsg}\n` +
-            `黑名單訊息：${blackMsg}\n` +
-            `好友訊息：${friendMsg}`;
+            "当前通知设置：\n" +
+            `白名单消息：${whiteMsg}\n` +
+            `黑名单消息：${blackMsg}\n` +
+            `好友消息：${friendMsg}`;
         ChatRoomSendLocal(message, 30000);
     }
 
@@ -257,22 +271,26 @@
 
         if (!sub || sub === "help") {
             ChatRoomSendLocal(
-                "Liko的邀請通知器 | Notify on Invite：\n" +
-                "/noi help - 顯示說明 | Show this help\n" +
-                "/noi whitemsg <文字> - 設置白名單新增時的訊息\n" +
-                "/noi blackmsg <文字> - 設置黑名單新增時的訊息\n" +
-                "/noi friendmsg <文字> - 設置好友新增時的訊息\n" +
-                "       Set message for friend/white/blacklist additions\n" +
-                "       ✦設置訊息時支持 $me ⮕自己名稱、$tag ⮕目標名稱\n" +
+                "Liko的邀请通知器 v1.2 (優化版) | Notify on Invite：\n" +
+                "/noi help - 显示说明 | Show this help\n" +
+                "/noi whitemsg <文字> - 设置白名单新增时的消息\n" +
+                "/noi blackmsg <文字> - 设置黑名单新增时的消息\n" +
+                "/noi friendmsg <文字> - 设置好友新增时的消息\n" +
+                "       Set message for friend\\white\\blacklist additions\n" +
+                "       ✦设置消息时支持 $me ⮕自己名称、$tag ⮕目标名称\n" +
                 "       ✦support $me ⮕your name and $tag ⮕target name\n" +
-                "       ✦範例：/noi whitemsg $me sends whitelist to $tag!\n" +
+                "       ✦範例：/noi whitemsg $me发送白名单给$tag了!\n" +
                 "       ✦Example: /noi whitemsg $me added $tag to whitelist!\n" +
-                "/noi clearwhitemsg - 清除白名單訊息\n" +
-                "/noi clearblackmsg - 清除黑名單訊息\n" +
-                "/noi clearfriendmsg - 清除好友訊息\n" +
-                "      Clear friend/white/blacklist message\n" +
-                "/noi showsetmsg - 顯示白名單、黑名單、好友的設置訊息\n" +
-                "      Show current white, black, and friend list messages",
+                "       ✦注意：只有当目标玩家在房间内时才会发送消息\n" +
+                "       ✦Note: Messages only sent if target player is in room\n" +
+                "/noi clearwhitemsg - 清除白名单消息\n" +
+                "/noi clearblackmsg - 清除黑名单消息\n" +
+                "/noi clearfriendmsg - 清除好友消息\n" +
+                "      Clear friend\\white\\blacklist message\n" +
+                "/noi showsetmsg - 显示白名单、黑名单、好友的设置消息\n" +
+                "      Show current white, black, and friend list messages\n" +
+                "/noi debug - 显示当前名单大小 (调试用)\n" +
+                "      Show current list sizes (for debugging)",
                 60000
             );
             return;
@@ -281,39 +299,39 @@
         if (sub === "whitemsg" || sub === "whitemessage") {
             const m = args.slice(1).join(" ");
             setWhiteMsg(m);
-            ChatRoomSendLocal(`✅ 白名單訊息已設置為：${m || "目前無設置訊息"}`, 10000);
+            ChatRoomSendLocal(`✅ 白名单消息已设置为：${m || "目前无设置消息"}`, 10000);
             showCurrentSettings();
             return;
         }
         if (sub === "blackmsg" || sub === "blackmessage") {
             const m = args.slice(1).join(" ");
             setBlackMsg(m);
-            ChatRoomSendLocal(`✅ 黑名單訊息已設置為：${m || "目前無設置訊息"}`, 10000);
+            ChatRoomSendLocal(`✅ 黑名单消息已设置为：${m || "目前无设置消息"}`, 10000);
             showCurrentSettings();
             return;
         }
         if (sub === "friendmsg" || sub === "friendmessage") {
             const m = args.slice(1).join(" ");
             setFriendMsg(m);
-            ChatRoomSendLocal(`✅ 好友訊息已設置為：${m || "目前無設置訊息"}`, 10000);
+            ChatRoomSendLocal(`✅ 好友消息已设置为：${m || "目前无设置消息"}`, 10000);
             showCurrentSettings();
             return;
         }
         if (sub === "clearwhitemsg" || sub === "clearwhitemessage") {
             setWhiteMsg("");
-            ChatRoomSendLocal("✅ 白名單訊息已清除", 10000);
+            ChatRoomSendLocal("✅ 白名单消息已清除", 10000);
             showCurrentSettings();
             return;
         }
         if (sub === "clearblackmsg" || sub === "clearblackmessage") {
             setBlackMsg("");
-            ChatRoomSendLocal("✅ 黑名單訊息已清除", 10000);
+            ChatRoomSendLocal("✅ 黑名单消息已清除", 10000);
             showCurrentSettings();
             return;
         }
         if (sub === "clearfriendmsg" || sub === "clearfriendmessage") {
             setFriendMsg("");
-            ChatRoomSendLocal("✅ 好友訊息已清除", 10000);
+            ChatRoomSendLocal("✅ 好友消息已清除", 10000);
             showCurrentSettings();
             return;
         }
@@ -321,7 +339,23 @@
             showCurrentSettings();
             return;
         }
-        ChatRoomSendLocal("[NOI] 未知 /noi 指令，輸入 /noi help 查看用法", 10000);
+        if (sub === "debug") {
+            const whiteSize = Player?.WhiteList?.length || 0;
+            const blackSize = Player?.BlackList?.length || 0;
+            const friendSize = Player?.FriendList?.length || 0;
+            const roomCount = ChatRoomCharacter?.length || 0;
+            ChatRoomSendLocal(
+                `调试信息：\n` +
+                `白名单大小: ${whiteSize}\n` +
+                `黑名单大小: ${blackSize}\n` +
+                `好友大小: ${friendSize}\n` +
+                `房间玩家数: ${roomCount}\n` +
+                `初始化状态: ${isInitialized}`,
+                15000
+            );
+            return;
+        }
+        ChatRoomSendLocal("[NOI] 未知 /noi 指令，输入 /noi help 查看用法", 10000);
     }
 
     // fallback：攔截輸入框送出（若 CommandCombine 無法註冊）
@@ -365,24 +399,6 @@
         return false;
     }
 
-    // ------------ Hook ServerAccountUpdate.QueueData ------------
-    function hookServerAccountUpdate() {
-        if (modApi && typeof modApi.hookFunction === 'function') {
-            modApi.hookFunction("ServerAccountUpdate.QueueData", 0, (args, next) => {
-                const data = args[0];
-                next(args); // 繼續執行原始函數
-                try {
-                    checkListChangeAndNotify(data);
-                } catch (e) {
-                    error("檢查名單變動失敗:", e.message);
-                }
-            });
-            log("已 hook ServerAccountUpdate.QueueData");
-        } else {
-            warn("無法 hook ServerAccountUpdate.QueueData，採用回退模式");
-        }
-    }
-
     // ------------ Hook ChatRoomLoad ------------
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
@@ -390,8 +406,12 @@
                 next(args);
                 setTimeout(() => {
                     if (!window.LikoNOIWelcomed) {
-                        ChatRoomSendLocalStyled(
-                            "📧 Liko的邀請通知器 v1.0 已載入！使用 /noi help 查看說明",
+                        /*ChatRoomSendLocalStyled(
+                            " 📧 Liko的邀请通知器 v1.2 (優化版) 已載入！使用 /noi help 查看说明",
+                            5000,
+                            "#885CB0"
+                        );*/
+                        window.ChatRoomSendLocalStyled(" 📧 Liko的邀请通知器 v1.1 已載入！使用 /noi help 查看说明",
                             5000,
                             "#885CB0"
                         );
@@ -402,7 +422,64 @@
         }
     }
 
-    // ------------ 初始化 ------------
+    // ------------ Hook ServerAccountUpdate.QueueData ------------
+    function hookServerAccountUpdate() {
+        if (modApi && typeof modApi.hookFunction === 'function') {
+            modApi.hookFunction("ServerAccountUpdate.QueueData", 0, (args, next) => {
+                const data = args[0];
+                if (data && typeof data === 'object') {
+                    // 檢查白名單
+                    if ('WhiteList' in data) {
+                        const added = data.WhiteList.filter(id => !lastWhiteList.includes(id));
+                        if (added.length > 0) {
+                            log("檢測到白名單新增:", added);
+                            const m = getWhiteMsg();
+                            if (m && m.trim() !== "") {
+                                added.forEach(id => {
+                                    sendListMessage(m, id, "white");
+                                });
+                            }
+                        }
+                        lastWhiteList = [...data.WhiteList];
+                    }
+
+                    // 檢查黑名單
+                    if ('BlackList' in data) {
+                        const added = data.BlackList.filter(id => !lastBlackList.includes(id));
+                        if (added.length > 0) {
+                            log("檢測到黑名單新增:", added);
+                            const m = getBlackMsg();
+                            if (m && m.trim() !== "") {
+                                added.forEach(id => {
+                                    sendListMessage(m, id, "black");
+                                });
+                            }
+                        }
+                        lastBlackList = [...data.BlackList];
+                    }
+
+                    // 檢查好友名單
+                    if ('FriendList' in data) {
+                        const added = data.FriendList.filter(id => !lastFriendList.includes(id));
+                        if (added.length > 0) {
+                            log("檢測到好友名單新增:", added);
+                            const m = getFriendMsg();
+                            if (m && m.trim() !== "") {
+                                added.forEach(id => {
+                                    sendListMessage(m, id, "friend");
+                                });
+                            }
+                        }
+                        lastFriendList = [...data.FriendList];
+                    }
+                }
+                next(args);
+            });
+            log("已 hook ServerAccountUpdate.QueueData 來偵測名單變化");
+        }
+    }
+
+    // ------------ 初始化與主邏輯 ------------
     async function initialize() {
         const ready = await waitFor(() =>
             typeof Player?.MemberNumber === "number" &&
@@ -414,6 +491,14 @@
         }
 
         ensureStorage();
+
+        // 複製當前名單狀態
+        lastWhiteList = [...(Player?.WhiteList || [])];
+        lastBlackList = [...(Player?.BlackList || [])];
+        lastFriendList = [...(Player?.FriendList || [])];
+
+        log("初始名單狀態已記錄");
+
         const cmdReady = await waitFor(() => typeof CommandCombine === "function", 10000);
         if (cmdReady) {
             tryRegisterCommand();
@@ -421,10 +506,24 @@
             setupChatInterceptFallback();
         }
 
-        hookServerAccountUpdate();
         hookChatRoomLoad();
+        hookServerAccountUpdate();
 
-        log("初始化完成");
+        // 如果沒有 modApi，fallback 到定時檢查
+        if (!modApi) {
+            setInterval(() => {
+                try {
+                    checkListChangeAndNotify();
+                } catch (e) {
+                    error("interval 錯誤:", e);
+                }
+            }, 1000);
+            log("無 modApi，使用 fallback 定時檢查");
+        }
+
+        // 標記初始化完成
+        isInitialized = true;
+        log("初始化完成，開始監聽名單變化");
     }
 
     // ------------ 小工具（顯示本地訊息） ------------
@@ -446,14 +545,41 @@
         }
     }
 
+    function ChatRoomSendLocalStyled(msg, sec = 0, color = "#885CB0") {
+        try {
+            if (CurrentScreen !== "ChatRoom") return;
+            ChatRoomMessage({
+                Type: "LocalMessage",
+                Sender: Player.MemberNumber,
+                Content: `<font color="${color}">${msg}</font>`,
+                Timeout: sec
+            });
+        } catch (e) {
+            error("無法發送樣式化本地訊息:", e);
+        }
+    }
+
+    // ------------ 主初始化流程 ------------
+    (async () => {
+        const ok = await waitForBcModSdk();
+        if (!ok) {
+            warn("bcModSdk 未載入，將繼續以 fallback 模式執行");
+        } else {
+            try {
+                modApi = bcModSdk.registerMod({
+                    name: "Liko's NOI",
+                    fullName: "Liko's Notify on Invite (Optimized)",
+                    version: modversion,
+                    repository: "Liko的邀請通知器 (優化版) | Liko's notify on invite (optimized)."
+                });
+                log("modApi 註冊成功");
+            } catch (e) {
+                warn("modApi.registerMod 失敗，採用 fallback：", e.message);
+            }
+        }
+        await initialize();
+    })();
+
     // export for debug
-    window.NotifyOnInvite = {
-        getWhiteMsg,
-        getBlackMsg,
-        getFriendMsg,
-        setWhiteMsg,
-        setBlackMsg,
-        setFriendMsg,
-        showCurrentSettings
-    };
+    window.NotifyOnInvite = {getWhiteMsg,getBlackMsg,getFriendMsg,setWhiteMsg,setBlackMsg,setFriendMsg,showCurrentSettings,isInitialized,isPlayerInChatRoom,checkListChangeAndNotify};
 })();
