@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likulisu.dev/
-// @version      1.1
+// @version      1.1.1
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -64,7 +64,7 @@
             description: "有許多小功能合集的工具包，但也有點不穩定",
             icon: "🧰",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Tool.main.user.js",
-            enabled: pluginSettings["Liko_Tool"] ?? true,
+            enabled: pluginSettings["Liko_Tool"] ?? false,
             customIcon: ""
         },
         {
@@ -73,7 +73,7 @@
             description: "拖曳上傳圖片並分享到聊天室",
             icon: "🖼️",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
-            enabled: pluginSettings["Liko_Image_Uploader"] ?? false,
+            enabled: pluginSettings["Liko_Image_Uploader"] ?? true,
             customIcon: ""
         },
         {
@@ -82,7 +82,7 @@
             description: "聊天室信息轉HTML，可以搭配neocities等網站上傳分享",
             icon: "📋",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20CHE.main.user.js",
-            enabled: pluginSettings["Liko_CHE"] ?? false,
+            enabled: pluginSettings["Liko_CHE"] ?? true,
             customIcon: ""
         },
         {
@@ -100,7 +100,7 @@
             description: "發出好友、白單、黑單的信息!",
             icon: "📧",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20NOI.main.user.js",
-            enabled: pluginSettings["Liko - NOI"] ?? false,
+            enabled: pluginSettings["Liko - NOI"] ?? true,
             customIcon: ""
         },
         {
@@ -127,7 +127,7 @@
             description: "聊天室信息轉按紐，好像不是很有用!",
             icon: "💬",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
-            enabled: pluginSettings["Liko_Chat_TtoB"] ?? false,
+            enabled: pluginSettings["Liko_Chat_TtoB"] ?? true,
             customIcon: ""
         },
         {
@@ -174,39 +174,120 @@
 
     // --- 載入插件（按需載入，確保最新版本） ---
     let loadedPlugins = new Set();
+    let isLoadingPlugins = false; // 防止重複載入
+
     function loadSubPlugin(plugin) {
         if (!plugin.enabled || loadedPlugins.has(plugin.id)) {
             console.log(`⚪ [SubPlugin] ${plugin.name} 已關閉或已載入`);
-            return;
+            return Promise.resolve();
         }
+
         const urlWithTimestamp = `${plugin.url}?t=${Date.now()}`; // 使用時間戳避免緩存
-        fetch(urlWithTimestamp, { cache: 'no-store' }) // 強制不使用緩存
+        return fetch(urlWithTimestamp, { cache: 'no-store' }) // 強制不使用緩存
             .then(res => {
-                if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-                return res.text();
-            })
+            if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+            return res.text();
+        })
             .then(code => {
-                try {
-                    const script = document.createElement('script');
-                    script.setAttribute('data-plugin', plugin.id);
-                    script.textContent = code;
-                    document.body.appendChild(script);
-                    loadedPlugins.add(plugin.id);
-                    console.log(`✅ [SubPlugin] ${plugin.name} 載入成功 (URL: ${urlWithTimestamp})`);
-                } catch (e) {
-                    console.error(`❌ [SubPlugin] 載入失敗: ${plugin.name}`, e);
-                    showCuteNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                }
-            })
-            .catch(err => {
-                console.error(`❌ [SubPlugin] 無法獲取 ${plugin.name} 的腳本: ${urlWithTimestamp}`, err);
+            try {
+                const script = document.createElement('script');
+                script.setAttribute('data-plugin', plugin.id);
+                script.textContent = code;
+                document.body.appendChild(script);
+                loadedPlugins.add(plugin.id);
+                console.log(`✅ [SubPlugin] ${plugin.name} 載入成功 (URL: ${urlWithTimestamp})`);
+            } catch (e) {
+                console.error(`❌ [SubPlugin] 載入失敗: ${plugin.name}`, e);
                 showCuteNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-            });
+                throw e;
+            }
+        })
+            .catch(err => {
+            console.error(`❌ [SubPlugin] 無法獲取 ${plugin.name} 的腳本: ${urlWithTimestamp}`, err);
+            showCuteNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
+            throw err;
+        });
     }
 
+    // 背景自動載入所有啟用的插件（分批載入以避免阻塞）
+    async function loadSubPluginsInBackground() {
+        if (isLoadingPlugins) return;
+        isLoadingPlugins = true;
+
+        console.log("🔄 [PCM] 開始背景載入啟用的插件...");
+
+        try {
+            // 分批載入插件，每批2個，間隔800ms（增加間隔時間）
+            const enabledPlugins = subPlugins.filter(plugin => plugin.enabled);
+            const batchSize = 2;
+            let loadedCount = 0;
+            let successCount = 0;
+
+            for (let i = 0; i < enabledPlugins.length; i += batchSize) {
+                const batch = enabledPlugins.slice(i, i + batchSize);
+
+                console.log(`📦 [PCM] 正在載入批次 ${Math.floor(i/batchSize) + 1}/${Math.ceil(enabledPlugins.length/batchSize)}: ${batch.map(p => p.name).join(', ')}`);
+
+                // 並行載入這一批插件
+                const promises = batch.map(plugin =>
+                                           loadSubPlugin(plugin).catch(error => {
+                    console.warn(`⚠️ [PCM] 插件 ${plugin.name} 載入失敗:`, error.message);
+                    return { plugin, error }; // 返回錯誤信息而不是拋出
+                })
+                                          );
+
+                try {
+                    const results = await Promise.allSettled(promises);
+
+                    results.forEach((result, index) => {
+                        const plugin = batch[index];
+                        if (result.status === 'fulfilled' && !result.value?.error) {
+                            successCount++;
+                            console.log(`✅ [PCM] ${plugin.name} 載入成功`);
+                        } else {
+                            console.error(`❌ [PCM] ${plugin.name} 載入失敗:`, result.reason || result.value?.error);
+                        }
+                    });
+
+                    loadedCount += batch.length;
+                    console.log(`📈 [PCM] 進度: ${loadedCount}/${enabledPlugins.length} (成功: ${successCount})`);
+                } catch (error) {
+                    console.warn(`⚠️ [PCM] 批次載入時發生錯誤:`, error);
+                }
+
+                // 如果還有更多批次要載入，等待一段時間
+                if (i + batchSize < enabledPlugins.length) {
+                    console.log(`⏳ [PCM] 等待 800ms 後載入下一批次...`);
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                }
+            }
+
+            const failedCount = enabledPlugins.length - successCount;
+            if (failedCount > 0) {
+                console.warn(`⚠️ [PCM] 背景載入完成！成功: ${successCount}, 失敗: ${failedCount}`);
+                showCuteNotification("⚠️", "插件載入完成", `成功載入 ${successCount} 個插件，${failedCount} 個失敗`);
+            } else {
+                console.log("✅ [PCM] 背景插件載入完成！所有插件都載入成功");
+                if (enabledPlugins.length > 0) {
+                    showCuteNotification("✅", "插件載入完成", `已成功載入 ${successCount} 個插件`);
+                }
+            }
+        } catch (error) {
+            console.error("❌ [PCM] 背景載入插件時發生嚴重錯誤:", error);
+            showCuteNotification("❌", "載入錯誤", "背景載入插件時發生嚴重錯誤");
+        } finally {
+            isLoadingPlugins = false;
+        }
+    }
+
+    // 立即載入插件（用於用戶手動切換時）
     function loadSubPlugins() {
         requestAnimationFrame(() => {
-            subPlugins.forEach(plugin => loadSubPlugin(plugin));
+            subPlugins.forEach(plugin => {
+                if (plugin.enabled && !loadedPlugins.has(plugin.id)) {
+                    loadSubPlugin(plugin);
+                }
+            });
         });
     }
 
@@ -645,7 +726,7 @@
             floatingBtn.addEventListener("click", () => {
                 isOpen = !isOpen;
                 panel.classList.toggle("show", isOpen);
-                if (isOpen) loadSubPlugins(); // 按需載入插件
+                // 移除這裡的 loadSubPlugins() 調用，因為插件已經在背景載入了
             });
 
             // 使用事件委派優化事件監聽
@@ -729,7 +810,8 @@
                             plugin.enabled ? "插件已載入或將在下次刷新生效喵～" : "下次載入時將不會啟動"
                         );
 
-                        if (plugin.enabled && isOpen) {
+                        // 如果用戶啟用了插件，立即載入
+                        if (plugin.enabled && !loadedPlugins.has(plugin.id)) {
                             loadSubPlugin(plugin);
                         }
                     }
@@ -827,8 +909,24 @@
     }
 
     // --- 初始化 ---
-    loadCustomIcons();
-    monitorPageChanges();
+    function initialize() {
+        loadCustomIcons();
+        monitorPageChanges();
 
-    console.log("[PCM] ✅初始化完成！");
+        // 延遲啟動背景載入，確保頁面已經準備就緒
+        setTimeout(() => {
+            loadSubPluginsInBackground();
+        }, 3000); // 3秒後開始背景載入插件
+
+        console.log("[PCM] ✅ 初始化完成！插件將在背景自動載入");
+    }
+
+    // 頁面完全載入後再初始化
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initialize);
+    } else {
+        initialize();
+    }
+
+    console.log("[PCM] ✅ 腳本載入完成！");
 })();
