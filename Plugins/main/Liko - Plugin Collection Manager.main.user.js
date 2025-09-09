@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likulisu.dev/
-// @version      1.0
+// @version      1.1
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,6 +14,8 @@
 // ==/UserScript==
 
 (function() {
+    "use strict";
+
     // --- modApi 初始化 ---
     let modApi;
     try {
@@ -21,7 +23,7 @@
             modApi = bcModSdk.registerMod({
                 name: "Liko's PCM",
                 fullName: 'Liko - Plugin Collection Manager',
-                version: '1.0',
+                version: '1.1',
                 repository: 'Liko的插件管理器 | Plugin collection manager',
             });
             console.log("✅ Liko's PCM 腳本啟動完成");
@@ -41,9 +43,13 @@
         return;
     }
 
-    // --- 設定保存 ---
+    // --- 設定保存（使用防抖） ---
+    let saveSettingsTimer;
     function saveSettings(settings) {
-        localStorage.setItem("BC_PluginManager_Settings", JSON.stringify(settings));
+        clearTimeout(saveSettingsTimer);
+        saveSettingsTimer = setTimeout(() => {
+            localStorage.setItem("BC_PluginManager_Settings", JSON.stringify(settings));
+        }, 100);
     }
     function loadSettings() {
         return JSON.parse(localStorage.getItem("BC_PluginManager_Settings") || "{}");
@@ -120,7 +126,7 @@
             name: "Liko的座標繪製工具",
             description: "BC的介面UI定位工具，有開發需求的能可以使用!",
             icon: "🖌️",
-            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
+            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20CDT.main.user.js",
             enabled: pluginSettings["Liko_CDT"] ?? false,
             customIcon: ""
         }
@@ -157,39 +163,45 @@
         });
     }
 
-    // --- 載入插件（添加時間戳避免緩存） ---
-    function loadSubPlugins() {
-        subPlugins.forEach(plugin => {
-            if (!plugin.enabled) {
-                console.log(`⚪ [SubPlugin] ${plugin.name} 已關閉`);
-                return;
-            }
-            const urlWithTimestamp = `${plugin.url}?timestamp=${Date.now()}`;
-            fetch(urlWithTimestamp)
-                .then(res => {
-                    if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-                    return res.text();
-                })
-                .then(code => {
-                    try {
-                        const script = document.createElement('script');
-                        script.setAttribute('data-plugin', plugin.id);
-                        script.textContent = code;
-                        document.body.appendChild(script);
-                        console.log(`✅ [SubPlugin] ${plugin.name} 載入成功 (URL: ${urlWithTimestamp})`);
-                    } catch (e) {
-                        console.error(`❌ [SubPlugin] 載入失敗: ${plugin.name}`, e);
-                        showCuteNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                    }
-                })
-                .catch(err => {
-                    console.error(`❌ [SubPlugin] 無法獲取 ${plugin.name} 的腳本: ${urlWithTimestamp}`, err);
+    // --- 載入插件（按需載入，確保最新版本） ---
+    let loadedPlugins = new Set();
+    function loadSubPlugin(plugin) {
+        if (!plugin.enabled || loadedPlugins.has(plugin.id)) {
+            console.log(`⚪ [SubPlugin] ${plugin.name} 已關閉或已載入`);
+            return;
+        }
+        const urlWithTimestamp = `${plugin.url}?t=${Date.now()}`; // 使用時間戳避免緩存
+        fetch(urlWithTimestamp, { cache: 'no-store' }) // 強制不使用緩存
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+                return res.text();
+            })
+            .then(code => {
+                try {
+                    const script = document.createElement('script');
+                    script.setAttribute('data-plugin', plugin.id);
+                    script.textContent = code;
+                    document.body.appendChild(script);
+                    loadedPlugins.add(plugin.id);
+                    console.log(`✅ [SubPlugin] ${plugin.name} 載入成功 (URL: ${urlWithTimestamp})`);
+                } catch (e) {
+                    console.error(`❌ [SubPlugin] 載入失敗: ${plugin.name}`, e);
                     showCuteNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                });
+                }
+            })
+            .catch(err => {
+                console.error(`❌ [SubPlugin] 無法獲取 ${plugin.name} 的腳本: ${urlWithTimestamp}`, err);
+                showCuteNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
+            });
+    }
+
+    function loadSubPlugins() {
+        requestAnimationFrame(() => {
+            subPlugins.forEach(plugin => loadSubPlugin(plugin));
         });
     }
 
-    // --- 插入CSS樣式 ---
+    // --- 插入CSS樣式（保持原樣） ---
     function injectStyles() {
         if (document.getElementById("bc-plugin-styles")) return;
 
@@ -200,10 +212,10 @@
 
             .bc-plugin-container * {
                 font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                user-select: none; /* 禁用文字選取 */
-                -webkit-user-select: none; /* Chrome/Safari */
-                -moz-user-select: none; /* Firefox */
-                -ms-user-select: none; /* IE/Edge */
+                user-select: none;
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
             }
 
             .bc-plugin-floating-btn {
@@ -302,7 +314,7 @@
 
             .bc-plugin-content {
                 padding: 20px;
-                max-height: calc(8 * 90px + 40px); /* 8 plugins * 90px each + padding */
+                max-height: calc(8 * 90px + 40px);
                 overflow-y: auto;
             }
 
@@ -497,302 +509,309 @@
         document.head.appendChild(style);
     }
 
-    // --- 建立可愛UI ---
+    // --- 建立可愛UI（優化版） ---
+    let cachedPanel = null; // 緩存面板 DOM
     function createCuteManagerUI() {
-        if (!shouldShowUI()) {
+        requestAnimationFrame(() => {
+            if (!shouldShowUI()) {
+                const existingBtn = document.getElementById("bc-plugin-floating-btn");
+                const existingPanel = document.getElementById("bc-plugin-panel");
+                if (existingBtn) existingBtn.style.display = "none";
+                if (existingPanel) existingPanel.style.display = "none";
+                return;
+            }
+
             const existingBtn = document.getElementById("bc-plugin-floating-btn");
-            const existingPanel = document.getElementById("bc-plugin-panel");
-            if (existingBtn) existingBtn.style.display = "none";
-            if (existingPanel) existingPanel.style.display = "none";
-            return;
-        }
+            if (existingBtn) {
+                existingBtn.style.display = "flex";
+                if (cachedPanel) {
+                    cachedPanel.style.display = "block";
+                    return;
+                }
+            }
 
-        const existingBtn = document.getElementById("bc-plugin-floating-btn");
-        const existingPanel = document.getElementById("bc-plugin-panel");
-        if (existingBtn) {
-            existingBtn.style.display = "flex";
-            if (existingPanel) existingPanel.style.display = "block";
-            return;
-        }
+            if (document.getElementById("bc-plugin-floating-btn")) return;
 
-        if (document.getElementById("bc-plugin-floating-btn")) return;
+            injectStyles();
 
-        injectStyles();
+            const floatingBtn = document.createElement("button");
+            floatingBtn.id = "bc-plugin-floating-btn";
+            floatingBtn.className = "bc-plugin-floating-btn bc-plugin-container";
+            floatingBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
+            floatingBtn.title = "插件管理器";
+            floatingBtn.setAttribute("aria-label", "開啟插件管理器");
+            document.body.appendChild(floatingBtn);
 
-        const floatingBtn = document.createElement("button");
-        floatingBtn.id = "bc-plugin-floating-btn";
-        floatingBtn.className = "bc-plugin-floating-btn bc-plugin-container";
-        floatingBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
-        floatingBtn.title = "插件管理器";
-        floatingBtn.setAttribute("aria-label", "開啟插件管理器");
-        document.body.appendChild(floatingBtn);
+            const panel = document.createElement("div");
+            panel.id = "bc-plugin-panel";
+            panel.className = "bc-plugin-panel bc-plugin-container";
 
-        const panel = document.createElement("div");
-        panel.id = "bc-plugin-panel";
-        panel.className = "bc-plugin-panel bc-plugin-container";
-
-        const header = document.createElement("div");
-        header.className = "bc-plugin-header";
-        header.innerHTML = `
+            const header = document.createElement("div");
+            header.className = "bc-plugin-header";
+            header.innerHTML = `
             <h3 class="bc-plugin-title"> 🐈‍⬛ 插件管理器</h3>
         `;
 
-        const content = document.createElement("div");
-        content.className = "bc-plugin-content";
+            const content = document.createElement("div");
+            content.className = "bc-plugin-content";
+            content.style.minHeight = "200px"; // 預設最小高度，確保卷軸立即可見
 
-        const imageIcons = [
-            { id: "coin", url: "https://example.com/coin.png", alt: "Coin Icon" },
-            { id: "gem", url: "https://example.com/gem.png", alt: "Gem Icon" },
-            { id: "box", url: "https://example.com/box.png", alt: "Box Icon" }
-        ];
+            const imageIcons = [
+                { id: "coin", url: "https://example.com/coin.png", alt: "Coin Icon" },
+                { id: "gem", url: "https://example.com/gem.png", alt: "Gem Icon" },
+                { id: "box", url: "https://example.com/box.png", alt: "Box Icon" }
+            ];
 
-        subPlugins.forEach(plugin => {
-            const item = document.createElement("div");
-            item.className = `bc-plugin-item ${plugin.enabled ? 'enabled' : ''}`;
+            // 分批渲染插件項
+            function renderPluginItems(startIndex = 0) {
+                const batchSize = 4; // 每批渲染 4 個插件項
+                const endIndex = Math.min(startIndex + batchSize, subPlugins.length);
 
-            const iconDisplay = plugin.customIcon ?
-                  `<img src="${plugin.customIcon}" alt="${plugin.name} icon" />` :
-            plugin.icon;
+                for (let i = startIndex; i < endIndex; i++) {
+                    const plugin = subPlugins[i];
+                    const item = document.createElement("div");
+                    item.className = `bc-plugin-item ${plugin.enabled ? 'enabled' : ''}`;
 
-            item.innerHTML = `
-                <div class="bc-plugin-item-header">
-                    <div class="bc-plugin-icon" data-plugin="${plugin.id}" tabindex="0">
-                        ${iconDisplay}
-                        <div class="bc-plugin-icon-selector">
-                            <div class="bc-plugin-icon-option" data-icon="💰">💰</div>
-                            <div class="bc-plugin-icon-option" data-icon="💸">💸</div>
-                            <div class="bc-plugin-icon-option" data-icon="💎">💎</div>
-                            <div class="bc-plugin-icon-option" data-icon="📦">📦</div>
-                            <div class="bc-plugin-icon-option" data-icon="📋">📋</div>
-                            <div class="bc-plugin-icon-option" data-icon="🎒">🎒</div>
-                            <div class="bc-plugin-icon-option" data-icon="🔧">🔧</div>
-                            <div class="bc-plugin-icon-option" data-icon="⚙️">⚙️</div>
-                            <div class="bc-plugin-icon-option" data-icon="🛠️">🛠️</div>
-                            <div class="bc-plugin-icon-option" data-icon="📊">📊</div>
-                            <div class="bc-plugin-icon-option" data-icon="📈">📈</div>
-                            <div class="bc-plugin-icon-option" data-icon="⭐">⭐</div>
-                            <div class="bc-plugin-icon-option" data-icon="url">🖼️</div>
-                            ${imageIcons.map(icon => `
-                                <div class="bc-plugin-icon-option" data-icon="img:${icon.id}">
-                                    ${icon.url ? `<img src="${icon.url}" alt="${icon.alt}" />` : '🖼️'}
-                                </div>
-                            `).join('')}
+                    const iconDisplay = plugin.customIcon ?
+                          `<img src="${plugin.customIcon}" alt="${plugin.name} icon" />` :
+                    plugin.icon;
+
+                    item.innerHTML = `
+                    <div class="bc-plugin-item-header">
+                        <div class="bc-plugin-icon" data-plugin="${plugin.id}" tabindex="0">
+                            ${iconDisplay}
+                            <div class="bc-plugin-icon-selector">
+                                <div class="bc-plugin-icon-option" data-icon="💰">💰</div>
+                                <div class="bc-plugin-icon-option" data-icon="💸">💸</div>
+                                <div class="bc-plugin-icon-option" data-icon="💎">💎</div>
+                                <div class="bc-plugin-icon-option" data-icon="📦">📦</div>
+                                <div class="bc-plugin-icon-option" data-icon="📋">📋</div>
+                                <div class="bc-plugin-icon-option" data-icon="🎒">🎒</div>
+                                <div class="bc-plugin-icon-option" data-icon="🔧">🔧</div>
+                                <div class="bc-plugin-icon-option" data-icon="⚙️">⚙️</div>
+                                <div class="bc-plugin-icon-option" data-icon="🛠️">🛠️</div>
+                                <div class="bc-plugin-icon-option" data-icon="📊">📊</div>
+                                <div class="bc-plugin-icon-option" data-icon="📈">📈</div>
+                                <div class="bc-plugin-icon-option" data-icon="⭐">⭐</div>
+                                <div class="bc-plugin-icon-option" data-icon="url">🖼️</div>
+                                ${imageIcons.map(icon => `
+                                    <div class="bc-plugin-icon-option" data-icon="img:${icon.id}">
+                                        ${icon.url ? `<img src="${icon.url}" alt="${icon.alt}" />` : '🖼️'}
+                                    </div>
+                                `).join('')}
+                            </div>
                         </div>
+                        <div class="bc-plugin-info">
+                            <h4 class="bc-plugin-name">${plugin.name}</h4>
+                            <p class="bc-plugin-desc">${plugin.description}</p>
+                        </div>
+                        <button class="bc-plugin-toggle ${plugin.enabled ? 'active' : ''}" data-plugin="${plugin.id}" aria-label="${plugin.name} 啟用開關"></button>
                     </div>
-                    <div class="bc-plugin-info">
-                        <h4 class="bc-plugin-name">${plugin.name}</h4>
-                        <p class="bc-plugin-desc">${plugin.description}</p>
-                    </div>
-                    <button class="bc-plugin-toggle ${plugin.enabled ? 'active' : ''}" data-plugin="${plugin.id}" aria-label="${plugin.name} 啟用開關"></button>
-                </div>
-            `;
-            content.appendChild(item);
-        });
+                `;
+                    content.appendChild(item);
+                }
 
-        const footer = document.createElement("div");
-        footer.className = "bc-plugin-footer";
-        footer.innerHTML = `
-            <div>❖ Liko Plugin Manager v1.0 ❖ by Likolisu</div>
+                if (endIndex < subPlugins.length) {
+                    requestAnimationFrame(() => renderPluginItems(endIndex));
+                }
+            }
+
+            // 開始分批渲染
+            renderPluginItems();
+
+            const footer = document.createElement("div");
+            footer.className = "bc-plugin-footer";
+            footer.innerHTML = `
+            <div>❖ Liko Plugin Manager v1.1 ❖ by Likolisu</div>
         `;
 
-        panel.appendChild(header);
-        panel.appendChild(content);
-        panel.appendChild(footer);
-        document.body.appendChild(panel);
+            panel.appendChild(header);
+            panel.appendChild(content);
+            panel.appendChild(footer);
+            document.body.appendChild(panel);
+            cachedPanel = panel; // 緩存面板
 
-        let isOpen = false;
+            let isOpen = false;
 
-        floatingBtn.addEventListener("click", () => {
-            isOpen = !isOpen;
-            panel.classList.toggle("show", isOpen);
-        });
+            floatingBtn.addEventListener("click", () => {
+                isOpen = !isOpen;
+                panel.classList.toggle("show", isOpen);
+                if (isOpen) loadSubPlugins(); // 按需載入插件
+            });
 
-        content.addEventListener("click", (e) => {
-            if (e.target.classList.contains("bc-plugin-icon") || e.target.closest(".bc-plugin-icon")) {
-                e.stopPropagation();
+            // 使用事件委派優化事件監聽
+            content.addEventListener("click", (e) => {
                 const iconElement = e.target.closest(".bc-plugin-icon");
-                const selector = iconElement.querySelector(".bc-plugin-icon-selector");
+                if (iconElement) {
+                    e.stopPropagation();
+                    const selector = iconElement.querySelector(".bc-plugin-icon-selector");
+                    document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => {
+                        if (s !== selector) s.classList.remove("show");
+                    });
+                    selector.classList.toggle("show");
+                }
 
-                document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => {
-                    if (s !== selector) s.classList.remove("show");
-                });
+                const iconOption = e.target.closest(".bc-plugin-icon-option");
+                if (iconOption) {
+                    e.stopPropagation();
+                    const pluginId = iconOption.closest(".bc-plugin-item").querySelector("[data-plugin]").getAttribute("data-plugin");
+                    const plugin = subPlugins.find(p => p.id === pluginId);
+                    const iconValue = iconOption.getAttribute("data-icon");
 
-                selector.classList.toggle("show");
-            }
+                    if (iconValue === "url") {
+                        const customUrl = prompt("請輸入圖片網址：", "");
+                        if (customUrl && customUrl.trim() && customUrl.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif)$/i)) {
+                            plugin.customIcon = customUrl.trim();
+                            plugin.icon = "";
+                            pluginSettings[`${pluginId}_customIcon`] = customUrl.trim();
+                            saveSettings(pluginSettings);
 
-            if (e.target.classList.contains("bc-plugin-icon-option")) {
-                e.stopPropagation();
-                const pluginId = e.target.closest(".bc-plugin-item").querySelector("[data-plugin]").getAttribute("data-plugin");
-                const plugin = subPlugins.find(p => p.id === pluginId);
-                const iconValue = e.target.getAttribute("data-icon");
+                            const iconContainer = iconOption.closest(".bc-plugin-icon");
+                            const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
+                            iconContainer.innerHTML = `<img src="${customUrl.trim()}" alt="${plugin.name} icon" />${selectorHTML}`;
+                        } else {
+                            showCuteNotification("❌", "無效的圖片網址", "請輸入有效的圖片URL（png、jpg、jpeg、gif）");
+                        }
+                    } else if (iconValue.startsWith("img:")) {
+                        const imgId = iconValue.split(":")[1];
+                        const selectedImage = imageIcons.find(icon => icon.id === imgId);
+                        if (selectedImage && selectedImage.url) {
+                            plugin.customIcon = selectedImage.url;
+                            plugin.icon = "";
+                            pluginSettings[`${pluginId}_customIcon`] = selectedImage.url;
+                            saveSettings(pluginSettings);
 
-                if (iconValue === "url") {
-                    const customUrl = prompt("請輸入圖片網址：", "");
-                    if (customUrl && customUrl.trim() && customUrl.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif)$/i)) {
-                        plugin.customIcon = customUrl.trim();
-                        plugin.icon = "";
-                        pluginSettings[`${pluginId}_customIcon`] = customUrl.trim();
-                        saveSettings(pluginSettings);
-
-                        const iconContainer = e.target.closest(".bc-plugin-icon");
-                        const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
-                        iconContainer.innerHTML = `<img src="${customUrl.trim()}" alt="${plugin.name} icon" />${selectorHTML}`;
+                            const iconContainer = iconOption.closest(".bc-plugin-icon");
+                            const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
+                            iconContainer.innerHTML = `<img src="${selectedImage.url}" alt="${selectedImage.alt}" />${selectorHTML}`;
+                        }
                     } else {
-                        showCuteNotification("❌", "無效的圖片網址", "請輸入有效的圖片URL（png、jpg、jpeg、gif）");
-                    }
-                } else if (iconValue.startsWith("img:")) {
-                    const imgId = iconValue.split(":")[1];
-                    const selectedImage = imageIcons.find(icon => icon.id === imgId);
-                    if (selectedImage && selectedImage.url) {
-                        plugin.customIcon = selectedImage.url;
-                        plugin.icon = "";
-                        pluginSettings[`${pluginId}_customIcon`] = selectedImage.url;
+                        plugin.icon = iconValue;
+                        plugin.customIcon = "";
+                        pluginSettings[`${pluginId}_icon`] = iconValue;
+                        delete pluginSettings[`${pluginId}_customIcon`];
                         saveSettings(pluginSettings);
 
-                        const iconContainer = e.target.closest(".bc-plugin-icon");
+                        const iconContainer = iconOption.closest(".bc-plugin-icon");
                         const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
-                        iconContainer.innerHTML = `<img src="${selectedImage.url}" alt="${selectedImage.alt}" />${selectorHTML}`;
+                        iconContainer.innerHTML = iconValue + selectorHTML;
                     }
-                } else {
-                    plugin.icon = iconValue;
-                    plugin.customIcon = "";
-                    pluginSettings[`${pluginId}_icon`] = iconValue;
-                    delete pluginSettings[`${pluginId}_customIcon`];
-                    saveSettings(pluginSettings);
 
-                    const iconContainer = e.target.closest(".bc-plugin-icon");
-                    const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
-                    iconContainer.innerHTML = iconValue + selectorHTML;
+                    iconOption.closest(".bc-plugin-icon-selector").classList.remove("show");
                 }
 
-                e.target.closest(".bc-plugin-icon-selector").classList.remove("show");
-            }
+                const toggle = e.target.closest(".bc-plugin-toggle");
+                if (toggle) {
+                    const pluginId = toggle.getAttribute("data-plugin");
+                    const plugin = subPlugins.find(p => p.id === pluginId);
 
-            if (e.target.classList.contains("bc-plugin-toggle")) {
-                const pluginId = e.target.getAttribute("data-plugin");
-                const plugin = subPlugins.find(p => p.id === pluginId);
+                    if (plugin) {
+                        plugin.enabled = !plugin.enabled;
+                        pluginSettings[pluginId] = plugin.enabled;
+                        saveSettings(pluginSettings);
 
-                if (plugin) {
-                    plugin.enabled = !plugin.enabled;
-                    pluginSettings[pluginId] = plugin.enabled;
-                    saveSettings(pluginSettings);
+                        toggle.classList.toggle("active", plugin.enabled);
+                        const item = toggle.closest(".bc-plugin-item");
+                        item.classList.toggle("enabled", plugin.enabled);
 
-                    e.target.classList.toggle("active", plugin.enabled);
-                    const item = e.target.closest(".bc-plugin-item");
-                    item.classList.toggle("enabled", plugin.enabled);
+                        showCuteNotification(
+                            plugin.enabled ? "🐈‍⬛" : "🐾",
+                            `${plugin.name} 已${plugin.enabled ? "啟用" : "停用"}`,
+                            plugin.enabled ? "插件已載入或將在下次刷新生效喵～" : "下次載入時將不會啟動"
+                        );
 
-                    showCuteNotification(
-                        plugin.enabled ? "🐈‍⬛" : "🐾",
-                        `${plugin.name} 已${plugin.enabled ? "啟用" : "停用"}`,
-                        plugin.enabled ? "刷新後生效喵～" : "下次載入時將不會啟動"
-                    );
-
-                    if (plugin.enabled) {
-                        const urlWithTimestamp = `${plugin.url}?timestamp=${Date.now()}`;
-                        fetch(urlWithTimestamp)
-                            .then(res => {
-                                if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-                                return res.text();
-                            })
-                            .then(code => {
-                                try {
-                                    const script = document.createElement('script');
-                                    script.setAttribute('data-plugin', plugin.id);
-                                    script.textContent = code;
-                                    document.body.appendChild(script);
-                                    console.log(`✅ [SubPlugin] ${plugin.name} 載入成功 (URL: ${urlWithTimestamp})`);
-                                } catch (e) {
-                                    console.error(`❌ [SubPlugin] 載入失敗: ${plugin.name}`, e);
-                                    showCuteNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                                }
-                            })
-                            .catch(err => {
-                                console.error(`❌ [SubPlugin] 無法獲取 ${plugin.name} 的腳本: ${urlWithTimestamp}`, err);
-                                showCuteNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                            });
+                        if (plugin.enabled && isOpen) {
+                            loadSubPlugin(plugin);
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        content.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" && (e.target.classList.contains("bc-plugin-icon") || e.target.closest(".bc-plugin-icon"))) {
-                e.stopPropagation();
-                const iconElement = e.target.closest(".bc-plugin-icon");
-                const selector = iconElement.querySelector(".bc-plugin-icon-selector");
+            content.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" && e.target.closest(".bc-plugin-icon")) {
+                    e.stopPropagation();
+                    const iconElement = e.target.closest(".bc-plugin-icon");
+                    const selector = iconElement.querySelector(".bc-plugin-icon-selector");
 
-                document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => {
-                    if (s !== selector) s.classList.remove("show");
-                });
+                    document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => {
+                        if (s !== selector) s.classList.remove("show");
+                    });
 
-                selector.classList.toggle("show");
-            }
-        });
+                    selector.classList.toggle("show");
+                }
+            });
 
-        document.addEventListener("click", () => {
-            document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => s.classList.remove("show"));
-        });
+            document.addEventListener("click", () => {
+                document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => s.classList.remove("show"));
+            });
 
-        document.addEventListener("click", (e) => {
-            if (!panel.contains(e.target) && !floatingBtn.contains(e.target) && isOpen) {
-                isOpen = false;
-                panel.classList.remove("show");
-            }
+            document.addEventListener("click", (e) => {
+                if (!panel.contains(e.target) && !floatingBtn.contains(e.target) && isOpen) {
+                    isOpen = false;
+                    panel.classList.remove("show");
+                }
+            });
         });
     }
 
     // --- 可愛通知系統 ---
     function showCuteNotification(icon, title, message) {
-        const existing = document.querySelector(".bc-cute-notification");
-        if (existing) existing.remove();
+        requestAnimationFrame(() => {
+            const existing = document.querySelector(".bc-cute-notification");
+            if (existing) existing.remove();
 
-        const notification = document.createElement("div");
-        notification.className = "bc-cute-notification";
-        notification.style.cssText = `
-            position: fixed;
-            top: 100px;
-            right: 20px;
-            background: linear-gradient(135deg, #7F53CD 0%, #A78BFA 100%);
-            color: white;
-            padding: 16px 20px;
-            border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(127, 83, 205, 0.3);
-            z-index: 2147483648;
-            font-family: 'Noto Sans TC', sans-serif;
-            font-size: 14px;
-            max-width: 300px;
-            transform: translateX(350px);
-            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-            user-select: none; /* 禁用通知文字選取 */
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-        `;
+            const notification = document.createElement("div");
+            notification.className = "bc-cute-notification";
+            notification.style.cssText = `
+                position: fixed;
+                top: 100px;
+                right: 20px;
+                background: linear-gradient(135deg, #7F53CD 0%, #A78BFA 100%);
+                color: white;
+                padding: 16px 20px;
+                border-radius: 15px;
+                box-shadow: 0 8px 25px rgba(127, 83, 205, 0.3);
+                z-index: 2147483648;
+                font-family: 'Noto Sans TC', sans-serif;
+                font-size: 14px;
+                max-width: 300px;
+                transform: translateX(350px);
+                transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+                user-select: none;
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+            `;
 
-        notification.innerHTML = `
-            <div style="display: flex; align-items: center; margin-bottom: 4px;">
-                <span style="font-size: 20px; margin-right: 8px;">${icon}</span>
-                <strong>${title}</strong>
-            </div>
-            <div style="font-size: 12px; opacity: 0.9;">${message}</div>
-        `;
+            notification.innerHTML = `
+                <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                    <span style="font-size: 20px; margin-right: 8px;">${icon}</span>
+                    <strong>${title}</strong>
+                </div>
+                <div style="font-size: 12px; opacity: 0.9;">${message}</div>
+            `;
 
-        document.body.appendChild(notification);
+            document.body.appendChild(notification);
 
-        setTimeout(() => {
-            notification.style.transform = "translateX(0)";
-        }, 100);
+            setTimeout(() => {
+                notification.style.transform = "translateX(0)";
+            }, 100);
 
-        setTimeout(() => {
-            notification.style.transform = "translateX(350px)";
-            setTimeout(() => notification.remove(), 400);
-        }, 3000);
+            setTimeout(() => {
+                notification.style.transform = "translateX(350px)";
+                setTimeout(() => notification.remove(), 400);
+            }, 3000);
+        });
     }
 
-    // --- 監聽頁面變化以更新UI ---
+    // --- 監聽頁面變化（使用防抖） ---
     function monitorPageChanges() {
+        let debounceTimer;
         const observer = new MutationObserver(() => {
-            createCuteManagerUI();
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                createCuteManagerUI();
+            }, 100);
         });
         observer.observe(document.body, { childList: true, subtree: true });
         createCuteManagerUI();
@@ -800,7 +819,6 @@
 
     // --- 初始化 ---
     loadCustomIcons();
-    loadSubPlugins();
     monitorPageChanges();
 
     console.log("[PCM] ✅初始化完成！");
