@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Liko - NOI
-// @name:zh      Liko的邀請通知器
+// @name:zh      Liko的邀请通知器
 // @namespace    https://likulisu.dev/
 // @version      1.0
 // @description  Notify on Invite
@@ -9,8 +9,10 @@
 // @grant        none
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js
 // @run-at       document-end
 // ==/UserScript==
+
 (function() {
     'use strict';
 
@@ -51,6 +53,22 @@
         });
     }
 
+    // ------------ 載入樣式化訊息系統 ------------
+    function loadToastSystem() {
+        return new Promise((resolve, reject) => {
+            if (window.ChatRoomSendLocalStyled) {
+                resolve();
+                return;
+            }
+            const toastUrl = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js`;
+            const script = document.createElement('script');
+            script.src = toastUrl;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error("載入 BC_toast_system 失敗"));
+            document.head.appendChild(script);
+        });
+    }
+
     // ------------ mod 註冊 ------------
     let modApi = null;
     const modversion = "1.0";
@@ -64,13 +82,14 @@
                     name: "Liko's NOI",
                     fullName: "Liko's Notify on Invite",
                     version: modversion,
-                    repository: "Liko的邀請通知器 | Liko's notify on invite."
+                    repository: "Liko的邀请通知器 | Liko's notify on invite."
                 });
                 log("modApi 註冊成功");
             } catch (e) {
                 warn("modApi.registerMod 失敗，採用 fallback：", e.message);
             }
         }
+        await loadToastSystem();
         await initialize();
     })();
 
@@ -96,7 +115,7 @@
         ensureStorage();
         return (Player.OnlineSettings?.NotifyOnInvite?.whiteMsg) || "";
     }
-    function getBlackMsg() {
+    function getBlackMsg() understatement
         ensureStorage();
         return (Player.OnlineSettings?.NotifyOnInvite?.blackMsg) || "";
     }
@@ -194,7 +213,7 @@
                 if (m && m.trim() !== "") {
                     added.forEach(id => {
                         sendListMessage(m, id);
-                        ChatRoomSendLocal(`白名单通知设置：${m || "目前无设置消息"}`, 10000);
+                        ChatRoomSendLocalStyled(`白名单通知设置：${m || "目前无设置消息"}`, 10000, "#50C878");
                     });
                 }
             }
@@ -208,7 +227,7 @@
                 if (m && m.trim() !== "") {
                     added.forEach(id => {
                         sendListMessage(m, id);
-                        ChatRoomSendLocal(`黑名单通知设置：${m || "目前无设置消息"}`, 10000);
+                        ChatRoomSendLocalStyled(`黑名单通知设置：${m || "目前无设置消息"}`, 10000, "#50C878");
                     });
                 }
             }
@@ -222,7 +241,7 @@
                 if (m && m.trim() !== "") {
                     added.forEach(id => {
                         sendListMessage(m, id);
-                        ChatRoomSendLocal(`好友通知设置：${m || "目前无设置消息"}`, 10000);
+                        ChatRoomSendLocalStyled(`好友通知设置：${m || "目前无设置消息"}`, 10000, "#50C878");
                     });
                 }
             }
@@ -240,7 +259,7 @@
             `白名单消息：${whiteMsg}\n` +
             `黑名单消息：${blackMsg}\n` +
             `好友消息：${friendMsg}`;
-        ChatRoomSendLocal(message, 30000);
+        ChatRoomSendLocalStyled(message, 30000, "#50C878");
     }
 
     // ------------ 指令系統 /noi ------------
@@ -250,25 +269,35 @@
         const sub = (args[0] || "").toLowerCase();
 
         if (!sub || sub === "help") {
-            ChatRoomSendLocal(
+            ChatRoomSendLocalStyled(
                 // 簡體中文
-                "Liko的邀请通知器 | Notify on Invite：\n" +
-                "/noi help - 显示说明 | Show this help\n" +
+                "Liko的邀请通知器：\n" +
+                "/noi help - 显示说明\n" +
                 "/noi whitemsg <文字> - 设置白名单新增时的消息\n" +
                 "/noi blackmsg <文字> - 设置黑名单新增时的消息\n" +
                 "/noi friendmsg <文字> - 设置好友新增时的消息\n" +
-                "       Set message for friend\white\blacklist additions\n" +
-                "       ✦设置消息时支持 $me ⮕自己名称、$tag ⮕目标名称\n" +
-                "       ✦support $me ⮕your name and $tag ⮕target name\n" +
-                "       ✦範例：/noi whitemsg $me发送白名单给$tag了!\n" +
-                "       ✦Example: /noi whitemsg $me added $tag to whitelist!\n" +
+                "       设置消息时支持 $me 为自己名称、$tag 为目标名称\n" +
+                "       示例：/noi whitemsg $me发送白名单给$tag了!\n" +
                 "/noi clearwhitemsg - 清除白名单消息\n" +
                 "/noi clearblackmsg - 清除黑名单消息\n" +
                 "/noi clearfriendmsg - 清除好友消息\n" +
-                "      Clear friend\white\blacklist message\n" +
+                "/noi showsetmsg - 显示白名单、黑名单、好友的设置消息\n\n" +
+                // 英文
+                "Liko's Notify on Invite:\n" +
+                "/noi help - Show this help\n" +
+                "/noi whitemsg <text> - Set message for whitelist additions\n" +
+                "/noi blackmsg <text> - Set message for blacklist additions\n" +
+                "/noi friendmsg <text> - Set message for friend list additions\n" +
+                "       Messages support $me for your name and $tag for target name\n" +
+                "       Example: /noi whitemsg $me added $tag to whitelist!\n" +
+                "/noi clearwhitemsg - Clear whitelist message\n" +
+                "/noi clearblackmsg - Clear blacklist message\n" +
+                "/noi clearfriendmsg - Clear friend list message\n" +
                 "/noi showsetmsg - 显示白名单、黑名单、好友的设置消息\n" +
                 "      Show current white, black, and friend list messages",
                 60000
+                60000,
+                "#50C878"
             );
             return;
         }
@@ -276,39 +305,39 @@
         if (sub === "whitemsg" || sub === "whitemessage") {
             const m = args.slice(1).join(" ");
             setWhiteMsg(m);
-            ChatRoomSendLocal(`✅ 白名单消息已设置为：${m || "目前无设置消息"}`, 10000);
+            ChatRoomSendLocalStyled(`✅ 白名单消息已设置为：${m || "目前无设置消息"}`, 10000, "#50C878");
             showCurrentSettings();
             return;
         }
         if (sub === "blackmsg" || sub === "blackmessage") {
             const m = args.slice(1).join(" ");
             setBlackMsg(m);
-            ChatRoomSendLocal(`✅ 黑名单消息已设置为：${m || "目前无设置消息"}`, 10000);
+            ChatRoomSendLocalStyled(`✅ 黑名单消息已设置为：${m || "目前无设置消息"}`, 10000, "#50C878");
             showCurrentSettings();
             return;
         }
         if (sub === "friendmsg" || sub === "friendmessage") {
             const m = args.slice(1).join(" ");
             setFriendMsg(m);
-            ChatRoomSendLocal(`✅ 好友消息已设置为：${m || "目前无设置消息"}`, 10000);
+            ChatRoomSendLocalStyled(`✅ 好友消息已设置为：${m || "目前无设置消息"}`, 10000, "#50C878");
             showCurrentSettings();
             return;
         }
         if (sub === "clearwhitemsg" || sub === "clearwhitemessage") {
             setWhiteMsg("");
-            ChatRoomSendLocal("✅ 白名单消息已清除", 10000);
+            ChatRoomSendLocalStyled("✅ 白名单消息已清除", 10000, "#50C878");
             showCurrentSettings();
             return;
         }
         if (sub === "clearblackmsg" || sub === "clearblackmessage") {
             setBlackMsg("");
-            ChatRoomSendLocal("✅ 黑名单消息已清除", 10000);
+            ChatRoomSendLocalStyled("✅ 黑名单消息已清除", 10000, "#50C878");
             showCurrentSettings();
             return;
         }
         if (sub === "clearfriendmsg" || sub === "clearfriendmessage") {
             setFriendMsg("");
-            ChatRoomSendLocal("✅ 好友消息已清除", 10000);
+            ChatRoomSendLocalStyled("✅ 好友消息已清除", 10000, "#50C878");
             showCurrentSettings();
             return;
         }
@@ -316,7 +345,7 @@
             showCurrentSettings();
             return;
         }
-        ChatRoomSendLocal("[NOI] 未知 /noi 指令，输入 /noi help 查看用法", 10000);
+        ChatRoomSendLocalStyled("[NOI] 未知 /noi 指令，输入 /noi help 查看用法", 10000, "#ff4444");
     }
 
     // fallback：攔截輸入框送出（若 CommandCombine 無法註冊）
@@ -362,7 +391,7 @@
 
     // ------------ Hook ChatRoomLoad ------------
     function hookChatRoomLoad() {
-        if (modApi && typeof modApi.hookFunction === 'function') {
+        if (modApi && mod Nap.hookFunction) {
             modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
                 next(args);
                 setTimeout(() => {
@@ -370,7 +399,7 @@
                         ChatRoomSendLocalStyled(
                             "📧 Liko的邀请通知器 v1.0 已載入！使用 /noi help 查看说明",
                             5000,
-                            "#885CB0"
+                            "#50C878"
                         );
                         window.LikoNOIWelcomed = true;
                     }
@@ -423,18 +452,10 @@
     function ChatRoomSendLocal(msg, sec = 0) {
         try {
             if (CurrentScreen !== "ChatRoom") return;
-            ChatRoomMessage({
-                Type: "LocalMessage",
-                Sender: Player.MemberNumber,
-                Content: `<font color="#885CB0">[NOI] ${msg}</font>`,
-                Timeout: sec
-            });
+            // 改用 ChatRoomSendLocalStyled，避免直接調用 ChatRoomMessage
+            ChatRoomSendLocalStyled(`[NOI] ${msg}`, sec, "#885CB0");
         } catch (e) {
-            try {
-                ServerSend("ChatRoomChat", { Content: `[NOI] ${msg}`, Type: "LocalMessage", Time: sec });
-            } catch (e2) {
-                error("無法發送本地訊息:", e2);
-            }
+            error("無法發送本地訊息:", e);
         }
     }
 
