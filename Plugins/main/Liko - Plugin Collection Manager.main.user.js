@@ -100,7 +100,7 @@
             description: "發出好友、白單、黑單的信息!",
             icon: "📧",
             url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Bondage%20renew.main.user.js",
-            enabled: pluginSettings["Liko_Bondage_renew"] ?? false,
+            enabled: pluginSettings["Liko - NOI"] ?? false,
             customIcon: ""
         },
         {
