@@ -22,7 +22,6 @@
                 repository: "BC綑綁刷新 | Bondage renew"
             });
 
-            // 用 hookFunction 取代直接覆寫
             modApi.hookFunction("ChatRoomMessage", 1, (args, next) => {
                 const data = args[0];
                 try {
