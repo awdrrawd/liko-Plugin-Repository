@@ -14,12 +14,14 @@
 
 (() => {
     "use strict";
+    let modApi;
+    const modversion = "1.1";
     try {
         if (bcModSdk?.registerMod) {
-            const modApi = bcModSdk.registerMod({
+            modApi = bcModSdk.registerMod({
                 name: "Liko's Chat TtoB",
                 fullName: 'BC - Chat room text conversion button',
-                version: '1.6', // 更新版本號
+                version: modversion, // 更新版本號
                 repository: '聊天室[指令]、[!!內文]與[#房間#]轉按鈕（支援空白房間名稱，包含 https 時跳過房間解析）\nChat Room [Commands], [!!Content], and [#RoomName#] conversion button (supports spaces in room names, skips room parsing when https is present)',
             });
             console.log("✅ CDT 腳本啟動完成");
@@ -79,7 +81,7 @@
 
         el.addEventListener("mouseenter", () => {
             const descText = cmdObj.Description || `Execute ${cmdText}`;
-            showDesc(descText + `<br><span style="color:#ff65f2;">Click to paste command in chat input</span>`);
+            showDesc(descText + `<br><span style="color:#ff65f2;">點下後聊天窗貼上命令</span><br><span style="color:#ff65f2;">Click to paste command in chat input</span>`);
         });
         el.addEventListener("mouseleave", hideDesc);
 
@@ -104,7 +106,7 @@
         });
 
         el.addEventListener("mouseenter", () => {
-            showDesc(`Click to append: ${label}`);
+            showDesc(`點下後添加文字: ${label}<br>Click to append: ${label}`);
         });
         el.addEventListener("mouseleave", hideDesc);
 
@@ -133,8 +135,7 @@
         });
 
         el.addEventListener("mouseenter", () => {
-            showDesc(`點下後加入: ${cleanRoomName} 房間`);
-            //showDesc(`Click to join room: ${cleanRoomName}`);
+            showDesc(`點下後加入房間: ${cleanRoomName} <br>Click to join room: ${cleanRoomName}`);
         });
         el.addEventListener("mouseleave", hideDesc);
 
