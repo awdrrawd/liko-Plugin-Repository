@@ -290,8 +290,8 @@
                 "      Clear friend\\white\\blacklist message\n" +
                 "/noi showsetmsg - 显示白名单、黑名单、好友的设置消息\n" +
                 "      Show current white, black, and friend list messages\n" +
-                "/noi debug - 显示当前名单大小 (调试用)\n" +
-                "      Show current list sizes (for debugging)",
+                "/noi debug - 显示当前名单人数 (调试用)\n" +
+                "      Show current number of people (for debugging)",
                 60000
             );
             return;
