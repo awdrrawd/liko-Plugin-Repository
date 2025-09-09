@@ -272,7 +272,7 @@
 
         if (!sub || sub === "help") {
             ChatRoomSendLocal(
-                "Liko的邀请通知器 v1.2 (優化版) | Notify on Invite：\n" +
+                "Liko的邀请通知器 v1.1 | Notify on Invite：\n" +
                 "/noi help - 显示说明 | Show this help\n" +
                 "/noi whitemsg <文字> - 设置白名单新增时的消息\n" +
                 "/noi blackmsg <文字> - 设置黑名单新增时的消息\n" +
