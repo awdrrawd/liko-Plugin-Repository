@@ -175,7 +175,7 @@
             ];
 
             const isAllowedScreen = allowedScreens.includes(CurrentScreen);
-            console.log(`  → CurrentScreen: ${CurrentScreen}, 允许显示: ${isAllowedScreen}`);
+            //console.log(`  → CurrentScreen: ${CurrentScreen}, 允许显示: ${isAllowedScreen}`);
 
             if (isAllowedScreen) {
                 return true;
