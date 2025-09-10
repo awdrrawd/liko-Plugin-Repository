@@ -144,10 +144,10 @@
 
     // --- 修改后的UI显示检查函数 ---
     function shouldShowUI() {
-        console.log("[PCM Debug] 当前页面检查:");
+        /*console.log("[PCM Debug] 当前页面检查:");
         console.log("  - URL:", window.location.href);
         console.log("  - Player:", typeof Player, Player?.Name);
-        console.log("  - CurrentScreen:", typeof CurrentScreen !== 'undefined' ? CurrentScreen : 'undefined');
+        console.log("  - CurrentScreen:", typeof CurrentScreen !== 'undefined' ? CurrentScreen : 'undefined');*/
 
         // 检查是否在登入页面（URL包含login）
         const isLoginPage = window.location.href.includes('/login') ||
@@ -875,7 +875,7 @@
             // 建立 footer
             const footer = document.createElement("div");
             footer.className = "bc-plugin-footer";
-            footer.innerHTML = `❖ Liko Plugin Manager v1.1.2 ❖ by Likolisu`;
+            footer.innerHTML = `❖ Liko Plugin Manager v${modversion} ❖ by Likolisu`;
 
             // 組裝面板
             panel.appendChild(header);
