@@ -182,7 +182,7 @@
             }
         }
 
-        console.log("  → 不符合显示条件，隐藏UI");
+        //console.log("  → 不符合显示条件，隐藏UI");
         return false;
     }
 
