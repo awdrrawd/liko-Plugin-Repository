@@ -292,13 +292,12 @@
         });
     }
 
-    // --- 插入CSS樣式（保持原樣） ---
-    function injectStyles() {
-        if (document.getElementById("bc-plugin-styles")) return;
+function injectStyles() {
+    if (document.getElementById("bc-plugin-styles")) return;
 
-        const style = document.createElement("style");
-        style.id = "bc-plugin-styles";
-        style.textContent = `
+    const style = document.createElement("style");
+    style.id = "bc-plugin-styles";
+    style.textContent = `
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600&display=swap');
 
         .bc-plugin-container * {
@@ -409,26 +408,68 @@
 
         .bc-plugin-content {
             padding: 20px;
-            /* 修復：使用 flex-grow 而不是固定高度 */
-            flex: 1;
+            /* 修復：確保內容區域會占滿剩餘空間並觸發滾動 */
+            flex: 1 1 auto;
             overflow-y: auto;
             overflow-x: hidden;
-            /* 確保滾動區域正確 */
-            min-height: 200px;
+            /* 設定固定高度確保滾動觸發 */
+            max-height: 400px;
+            min-height: 300px;
         }
 
+        /* 修復：確保所有設備都能顯示捲軸 */
+        .bc-plugin-content {
+            /* 強制顯示捲軸 */
+            scrollbar-width: thin;
+            scrollbar-color: rgba(127, 83, 205, 0.8) rgba(255, 255, 255, 0.1);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Webkit 瀏覽器的捲軸樣式 */
         .bc-plugin-content::-webkit-scrollbar {
-            width: 6px;
+            width: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
         }
 
         .bc-plugin-content::-webkit-scrollbar-track {
             background: rgba(255, 255, 255, 0.05);
-            border-radius: 3px;
+            border-radius: 4px;
+            margin: 4px;
         }
 
         .bc-plugin-content::-webkit-scrollbar-thumb {
             background: linear-gradient(135deg, #7F53CD, #A78BFA);
-            border-radius: 3px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-height: 20px;
+        }
+
+        .bc-plugin-content::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #6B46B2, #9577E3);
+        }
+
+        /* 為觸控設備添加視覺捲軸指示器 */
+        .bc-plugin-content::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 8px;
+            height: 100%;
+            background: linear-gradient(to bottom,
+                rgba(127, 83, 205, 0.3) 0%,
+                rgba(127, 83, 205, 0.1) 50%,
+                rgba(127, 83, 205, 0.3) 100%);
+            border-radius: 4px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .bc-plugin-content:hover::after,
+        .bc-plugin-content:focus::after {
+            opacity: 1;
         }
 
         .bc-plugin-footer {
@@ -629,254 +670,225 @@
             }
         }
     `;
-        document.head.appendChild(style);
-    }
+    document.head.appendChild(style);
+}
 
     // --- 建立UI（優化版） ---
     let cachedPanel = null; // 緩存面板 DOM
-    function createManagerUI() {
-        requestAnimationFrame(() => {
-            if (!shouldShowUI()) {
-                const existingBtn = document.getElementById("bc-plugin-floating-btn");
-                const existingPanel = document.getElementById("bc-plugin-panel");
-                if (existingBtn) existingBtn.style.display = "none";
-                if (existingPanel) existingPanel.style.display = "none";
-                return;
-            }
+function createManagerUI() {
+    console.log("🔧 [PCM Debug] 開始建立UI");
 
-            const existingBtn = document.getElementById("bc-plugin-floating-btn");
-            if (existingBtn) {
-                existingBtn.style.display = "flex";
-                if (cachedPanel) {
-                    cachedPanel.style.display = "block";
-                    return;
-                }
-            }
-
-            if (document.getElementById("bc-plugin-floating-btn")) return;
-
-            injectStyles();
-
-            const floatingBtn = document.createElement("button");
-            floatingBtn.id = "bc-plugin-floating-btn";
-            floatingBtn.className = "bc-plugin-floating-btn bc-plugin-container";
-            floatingBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
-            floatingBtn.title = "插件管理器";
-            floatingBtn.setAttribute("aria-label", "開啟插件管理器");
-            document.body.appendChild(floatingBtn);
-
-            const panel = document.createElement("div");
-            panel.id = "bc-plugin-panel";
-            panel.className = "bc-plugin-panel bc-plugin-container";
-
-            const header = document.createElement("div");
-            header.className = "bc-plugin-header";
-            header.innerHTML = `
-            <h3 class="bc-plugin-title"> 🐈‍⬛ 插件管理器</h3>
-        `;
-
-            const content = document.createElement("div");
-            content.className = "bc-plugin-content";
-            content.style.minHeight = "200px"; // 預設最小高度，確保卷軸立即可見
-
-            const imageIcons = [
-                { id: "coin", url: "https://example.com/coin.png", alt: "Coin Icon" },
-                { id: "gem", url: "https://example.com/gem.png", alt: "Gem Icon" },
-                { id: "box", url: "https://example.com/box.png", alt: "Box Icon" }
-            ];
-
-            // 分批渲染插件項
-            function renderPluginItems(startIndex = 0) {
-                const batchSize = 4; // 每批渲染 4 個插件項
-                const endIndex = Math.min(startIndex + batchSize, subPlugins.length);
-
-                for (let i = startIndex; i < endIndex; i++) {
-                    const plugin = subPlugins[i];
-                    const item = document.createElement("div");
-                    item.className = `bc-plugin-item ${plugin.enabled ? 'enabled' : ''}`;
-
-                    const iconDisplay = plugin.customIcon ?
-                          `<img src="${plugin.customIcon}" alt="${plugin.name} icon" />` :
-                    plugin.icon;
-
-                    item.innerHTML = `
-                    <div class="bc-plugin-item-header">
-                        <div class="bc-plugin-icon" data-plugin="${plugin.id}" tabindex="0">
-                            ${iconDisplay}
-                            <div class="bc-plugin-icon-selector">
-                                <div class="bc-plugin-icon-option" data-icon="💰">💰</div>
-                                <div class="bc-plugin-icon-option" data-icon="💸">💸</div>
-                                <div class="bc-plugin-icon-option" data-icon="💎">💎</div>
-                                <div class="bc-plugin-icon-option" data-icon="📦">📦</div>
-                                <div class="bc-plugin-icon-option" data-icon="📋">📋</div>
-                                <div class="bc-plugin-icon-option" data-icon="🎒">🎒</div>
-                                <div class="bc-plugin-icon-option" data-icon="🔧">🔧</div>
-                                <div class="bc-plugin-icon-option" data-icon="⚙️">⚙️</div>
-                                <div class="bc-plugin-icon-option" data-icon="🛠️">🛠️</div>
-                                <div class="bc-plugin-icon-option" data-icon="📊">📊</div>
-                                <div class="bc-plugin-icon-option" data-icon="📈">📈</div>
-                                <div class="bc-plugin-icon-option" data-icon="⭐">⭐</div>
-                                <div class="bc-plugin-icon-option" data-icon="url">🖼️</div>
-                                ${imageIcons.map(icon => `
-                                    <div class="bc-plugin-icon-option" data-icon="img:${icon.id}">
-                                        ${icon.url ? `<img src="${icon.url}" alt="${icon.alt}" />` : '🖼️'}
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                        <div class="bc-plugin-info">
-                            <h4 class="bc-plugin-name">${plugin.name}</h4>
-                            <p class="bc-plugin-desc">${plugin.description}</p>
-                        </div>
-                        <button class="bc-plugin-toggle ${plugin.enabled ? 'active' : ''}" data-plugin="${plugin.id}" aria-label="${plugin.name} 啟用開關"></button>
-                    </div>
-                `;
-                    content.appendChild(item);
-                }
-
-                if (endIndex < subPlugins.length) {
-                    requestAnimationFrame(() => renderPluginItems(endIndex));
-                }
-            }
-
-            // 開始分批渲染
-            renderPluginItems();
-
-            const footer = document.createElement("div");
-            footer.className = "bc-plugin-footer";
-            footer.innerHTML = `
-            <div>❖ Liko Plugin Manager v${modversion} ❖ by Likolisu</div>
-        `;
-
-            panel.appendChild(header);
-            panel.appendChild(content);
-            panel.appendChild(footer);
-            document.body.appendChild(panel);
-            cachedPanel = panel; // 緩存面板
-
-            let isOpen = false;
-
-            floatingBtn.addEventListener("click", () => {
-                isOpen = !isOpen;
-                panel.classList.toggle("show", isOpen);
-                // 移除這裡的 loadSubPlugins() 調用，因為插件已經在背景載入了
-            });
-
-            // 使用事件委派優化事件監聽
-            content.addEventListener("click", (e) => {
-                const iconElement = e.target.closest(".bc-plugin-icon");
-                if (iconElement) {
-                    e.stopPropagation();
-                    const selector = iconElement.querySelector(".bc-plugin-icon-selector");
-                    document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => {
-                        if (s !== selector) s.classList.remove("show");
-                    });
-                    selector.classList.toggle("show");
-                }
-
-                const iconOption = e.target.closest(".bc-plugin-icon-option");
-                if (iconOption) {
-                    e.stopPropagation();
-                    const pluginId = iconOption.closest(".bc-plugin-item").querySelector("[data-plugin]").getAttribute("data-plugin");
-                    const plugin = subPlugins.find(p => p.id === pluginId);
-                    const iconValue = iconOption.getAttribute("data-icon");
-
-                    if (iconValue === "url") {
-                        const customUrl = prompt("請輸入圖片網址：", "");
-                        if (customUrl && customUrl.trim() && customUrl.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif)$/i)) {
-                            plugin.customIcon = customUrl.trim();
-                            plugin.icon = "";
-                            pluginSettings[`${pluginId}_customIcon`] = customUrl.trim();
-                            saveSettings(pluginSettings);
-
-                            const iconContainer = iconOption.closest(".bc-plugin-icon");
-                            const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
-                            iconContainer.innerHTML = `<img src="${customUrl.trim()}" alt="${plugin.name} icon" />${selectorHTML}`;
-                        } else {
-                            showNotification("❌", "無效的圖片網址", "請輸入有效的圖片URL（png、jpg、jpeg、gif）");
-                        }
-                    } else if (iconValue.startsWith("img:")) {
-                        const imgId = iconValue.split(":")[1];
-                        const selectedImage = imageIcons.find(icon => icon.id === imgId);
-                        if (selectedImage && selectedImage.url) {
-                            plugin.customIcon = selectedImage.url;
-                            plugin.icon = "";
-                            pluginSettings[`${pluginId}_customIcon`] = selectedImage.url;
-                            saveSettings(pluginSettings);
-
-                            const iconContainer = iconOption.closest(".bc-plugin-icon");
-                            const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
-                            iconContainer.innerHTML = `<img src="${selectedImage.url}" alt="${selectedImage.alt}" />${selectorHTML}`;
-                        }
-                    } else {
-                        plugin.icon = iconValue;
-                        plugin.customIcon = "";
-                        pluginSettings[`${pluginId}_icon`] = iconValue;
-                        delete pluginSettings[`${pluginId}_customIcon`];
-                        saveSettings(pluginSettings);
-
-                        const iconContainer = iconOption.closest(".bc-plugin-icon");
-                        const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
-                        iconContainer.innerHTML = iconValue + selectorHTML;
-                    }
-
-                    iconOption.closest(".bc-plugin-icon-selector").classList.remove("show");
-                }
-
-                const toggle = e.target.closest(".bc-plugin-toggle");
-                if (toggle) {
-                    const pluginId = toggle.getAttribute("data-plugin");
-                    const plugin = subPlugins.find(p => p.id === pluginId);
-
-                    if (plugin) {
-                        plugin.enabled = !plugin.enabled;
-                        pluginSettings[pluginId] = plugin.enabled;
-                        saveSettings(pluginSettings);
-
-                        toggle.classList.toggle("active", plugin.enabled);
-                        const item = toggle.closest(".bc-plugin-item");
-                        item.classList.toggle("enabled", plugin.enabled);
-
-                        showNotification(
-                            plugin.enabled ? "🐈‍⬛" : "🐾",
-                            `${plugin.name} 已${plugin.enabled ? "啟用" : "停用"}`,
-                            plugin.enabled ? "插件已載入或將在下次刷新生效喵～" : "下次載入時將不會啟動"
-                        );
-
-                        // 如果用戶啟用了插件，立即載入
-                        if (plugin.enabled && !loadedPlugins.has(plugin.id)) {
-                            loadSubPlugin(plugin);
-                        }
-                    }
-                }
-            });
-
-            content.addEventListener("keydown", (e) => {
-                if (e.key === "Enter" && e.target.closest(".bc-plugin-icon")) {
-                    e.stopPropagation();
-                    const iconElement = e.target.closest(".bc-plugin-icon");
-                    const selector = iconElement.querySelector(".bc-plugin-icon-selector");
-
-                    document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => {
-                        if (s !== selector) s.classList.remove("show");
-                    });
-
-                    selector.classList.toggle("show");
-                }
-            });
-
-            document.addEventListener("click", () => {
-                document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => s.classList.remove("show"));
-            });
-
-            document.addEventListener("click", (e) => {
-                if (!panel.contains(e.target) && !floatingBtn.contains(e.target) && isOpen) {
-                    isOpen = false;
-                    panel.classList.remove("show");
-                }
-            });
-        });
+    if (!shouldShowUI()) {
+        console.log("🔧 [PCM Debug] shouldShowUI 返回 false，不建立UI");
+        return;
     }
+
+    // 檢查是否已存在
+    if (document.getElementById("bc-plugin-floating-btn")) {
+        console.log("🔧 [PCM Debug] UI已存在，跳過建立");
+        return;
+    }
+
+    injectStyles();
+
+    // 建立浮動按鈕
+    const floatingBtn = document.createElement("button");
+    floatingBtn.id = "bc-plugin-floating-btn";
+    floatingBtn.className = "bc-plugin-floating-btn";
+    floatingBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
+    floatingBtn.title = "插件管理器";
+    document.body.appendChild(floatingBtn);
+
+    // 建立面板 - 確保使用 flexbox 結構
+    const panel = document.createElement("div");
+    panel.id = "bc-plugin-panel";
+    panel.className = "bc-plugin-panel";
+
+    // 建立 header
+    const header = document.createElement("div");
+    header.className = "bc-plugin-header";
+    header.innerHTML = `<h3 class="bc-plugin-title">🐈‍⬛ 插件管理器</h3>`;
+
+    // 建立 content - 這裡會包含所有插件項目
+    const content = document.createElement("div");
+    content.className = "bc-plugin-content";
+
+    // 為每個插件建立項目
+    subPlugins.forEach(plugin => {
+        const item = document.createElement("div");
+        item.className = `bc-plugin-item ${plugin.enabled ? 'enabled' : ''}`;
+
+        const iconDisplay = plugin.customIcon ?
+              `<img src="${plugin.customIcon}" alt="${plugin.name} icon" />` :
+              plugin.icon;
+
+        item.innerHTML = `
+            <div class="bc-plugin-item-header">
+                <div class="bc-plugin-icon" data-plugin="${plugin.id}" tabindex="0">
+                    ${iconDisplay}
+                    <div class="bc-plugin-icon-selector">
+                        <div class="bc-plugin-icon-option" data-icon="🧰">🧰</div>
+                        <div class="bc-plugin-icon-option" data-icon="🖼️">🖼️</div>
+                        <div class="bc-plugin-icon-option" data-icon="📋">📋</div>
+                        <div class="bc-plugin-icon-option" data-icon="🪄">🪄</div>
+                        <div class="bc-plugin-icon-option" data-icon="📧">📧</div>
+                        <div class="bc-plugin-icon-option" data-icon="♻️">♻️</div>
+                        <div class="bc-plugin-icon-option" data-icon="🧹">🧹</div>
+                        <div class="bc-plugin-icon-option" data-icon="💬">💬</div>
+                        <div class="bc-plugin-icon-option" data-icon="🖌️">🖌️</div>
+                        <div class="bc-plugin-icon-option" data-icon="⭐">⭐</div>
+                        <div class="bc-plugin-icon-option" data-icon="🔧">🔧</div>
+                        <div class="bc-plugin-icon-option" data-icon="⚙️">⚙️</div>
+                        <div class="bc-plugin-icon-option" data-icon="url">🖼️</div>
+                    </div>
+                </div>
+                <div class="bc-plugin-info">
+                    <h4 class="bc-plugin-name">${plugin.name}</h4>
+                    <p class="bc-plugin-desc">${plugin.description}</p>
+                </div>
+                <button class="bc-plugin-toggle ${plugin.enabled ? 'active' : ''}"
+                        data-plugin="${plugin.id}"
+                        aria-label="${plugin.name} 啟用開關">
+                </button>
+            </div>
+        `;
+
+        content.appendChild(item);
+    });
+
+    // 建立 footer
+    const footer = document.createElement("div");
+    footer.className = "bc-plugin-footer";
+    footer.innerHTML = `❖ Liko Plugin Manager v1.1.1 ❖ by Likolisu`;
+
+    // 組裝面板
+    panel.appendChild(header);
+    panel.appendChild(content);
+    panel.appendChild(footer);
+    document.body.appendChild(panel);
+
+    // 確保面板結構正確
+    console.log("🔧 [PCM Debug] 面板結構 - Header高度:", header.offsetHeight,
+                "Content高度:", content.offsetHeight,
+                "Footer高度:", footer.offsetHeight,
+                "Panel總高度:", panel.offsetHeight);
+
+    let isOpen = false;
+
+    floatingBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isOpen = !isOpen;
+        panel.classList.toggle("show", isOpen);
+
+        // 開啟面板時檢查滾動狀況
+        if (isOpen) {
+            setTimeout(() => {
+                const needsScroll = content.scrollHeight > content.clientHeight;
+                console.log("🔧 [PCM Debug] 滾動檢查:",
+                           "內容總高度:", content.scrollHeight,
+                           "可見高度:", content.clientHeight,
+                           "需要滾動:", needsScroll);
+
+                /*if (needsScroll) {
+                    showNotification("ℹ️", "提示", "可上下滾動查看所有插件");
+                } else {
+                    console.log("🔧 [PCM Debug] 內容完全可見，不需要滾動");
+                }*/
+            }, 500);
+        }
+    });
+
+    // 事件委派處理
+    content.addEventListener("click", (e) => {
+        // icon 點擊處理
+        const iconElement = e.target.closest(".bc-plugin-icon");
+        if (iconElement) {
+            e.stopPropagation();
+            const selector = iconElement.querySelector(".bc-plugin-icon-selector");
+            document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => {
+                if (s !== selector) s.classList.remove("show");
+            });
+            selector.classList.toggle("show");
+        }
+
+        // icon 選項處理
+        const iconOption = e.target.closest(".bc-plugin-icon-option");
+        if (iconOption) {
+            e.stopPropagation();
+            const pluginId = iconOption.closest(".bc-plugin-item").querySelector("[data-plugin]").getAttribute("data-plugin");
+            const plugin = subPlugins.find(p => p.id === pluginId);
+            const iconValue = iconOption.getAttribute("data-icon");
+
+            if (iconValue === "url") {
+                const customUrl = prompt("請輸入圖片網址：", "");
+                if (customUrl && customUrl.trim() && customUrl.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif)$/i)) {
+                    plugin.customIcon = customUrl.trim();
+                    plugin.icon = "";
+                    pluginSettings[`${pluginId}_customIcon`] = customUrl.trim();
+                    saveSettings(pluginSettings);
+
+                    const iconContainer = iconOption.closest(".bc-plugin-icon");
+                    const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
+                    iconContainer.innerHTML = `<img src="${customUrl.trim()}" alt="${plugin.name} icon" />${selectorHTML}`;
+                }
+            } else {
+                plugin.icon = iconValue;
+                plugin.customIcon = "";
+                pluginSettings[`${pluginId}_icon`] = iconValue;
+                delete pluginSettings[`${pluginId}_customIcon`];
+                saveSettings(pluginSettings);
+
+                const iconContainer = iconOption.closest(".bc-plugin-icon");
+                const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
+                iconContainer.innerHTML = iconValue + selectorHTML;
+            }
+
+            iconOption.closest(".bc-plugin-icon-selector").classList.remove("show");
+        }
+
+        // toggle 開關處理
+        const toggle = e.target.closest(".bc-plugin-toggle");
+        if (toggle) {
+            const pluginId = toggle.getAttribute("data-plugin");
+            const plugin = subPlugins.find(p => p.id === pluginId);
+
+            if (plugin) {
+                plugin.enabled = !plugin.enabled;
+                pluginSettings[pluginId] = plugin.enabled;
+                saveSettings(pluginSettings);
+
+                toggle.classList.toggle("active", plugin.enabled);
+                const item = toggle.closest(".bc-plugin-item");
+                item.classList.toggle("enabled", plugin.enabled);
+
+                showNotification(
+                    plugin.enabled ? "🐈‍⬛" : "🐾",
+                    `${plugin.name} 已${plugin.enabled ? "啟用" : "停用"}`,
+                    plugin.enabled ? "插件已載入或將在下次刷新生效" : "下次載入時將不會啟動"
+                );
+
+                if (plugin.enabled && !loadedPlugins.has(plugin.id)) {
+                    loadSubPlugin(plugin);
+                }
+            }
+        }
+    });
+
+    // 點擊外部關閉面板
+    document.addEventListener("click", (e) => {
+        if (!panel.contains(e.target) && !floatingBtn.contains(e.target) && isOpen) {
+            isOpen = false;
+            panel.classList.remove("show");
+        }
+    });
+
+    // 點擊外部隱藏 icon selector
+    document.addEventListener("click", () => {
+        document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => s.classList.remove("show"));
+    });
+
+}
 
     // --- 通知系統 ---
     function showNotification(icon, title, message) {
@@ -960,6 +972,5 @@
     } else {
         initialize();
     }
-
     console.log("[PCM] ✅ 腳本載入完成！");
 })();
