@@ -144,10 +144,10 @@
 
     // --- 修改后的UI显示检查函数 ---
     function shouldShowUI() {
-        console.log("[PCM Debug] 当前页面检查:");
-        console.log("  - URL:", window.location.href);
-        console.log("  - Player:", typeof Player, Player?.Name);
-        console.log("  - CurrentScreen:", typeof CurrentScreen !== 'undefined' ? CurrentScreen : 'undefined');
+        //console.log("[PCM Debug] 当前页面检查:");
+        //console.log("  - URL:", window.location.href);
+        //console.log("  - Player:", typeof Player, Player?.Name);
+        //console.log("  - CurrentScreen:", typeof CurrentScreen !== 'undefined' ? CurrentScreen : 'undefined');
 
         // 检查是否在登入页面（URL包含login）
         const isLoginPage = window.location.href.includes('/login') ||
