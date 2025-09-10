@@ -142,22 +142,53 @@
         }
     ];
 
-    // --- 檢查是否應該顯示UI ---
+    // --- 修改后的UI显示检查函数 ---
     function shouldShowUI() {
-        if (window.location.href.includes('/login') || window.location.href.includes('/Login')) {
+        console.log("[PCM Debug] 当前页面检查:");
+        console.log("  - URL:", window.location.href);
+        console.log("  - Player:", typeof Player, Player?.Name);
+        console.log("  - CurrentScreen:", typeof CurrentScreen !== 'undefined' ? CurrentScreen : 'undefined');
+
+        // 检查是否在登入页面（URL包含login）
+        const isLoginPage = window.location.href.includes('/login') ||
+                           window.location.href.includes('/Login') ||
+                           window.location.href.includes('Login.html');
+
+        if (isLoginPage) {
+            console.log("  → 在登入页面，显示UI");
             return true;
         }
-        if (typeof Player === 'undefined' || !Player || !Player.Name) {
+
+        // 检查是否Player尚未加载完成（登入过程中）
+        if (typeof Player === 'undefined' || !Player.Name) {
+            console.log("  → Player未加载完成，显示UI");
             return true;
         }
-        if (typeof CurrentScreen !== 'undefined' &&
-            (CurrentScreen === 'Preference' ||
-             CurrentScreen === 'InformationSheet' ||
-             CurrentScreen === 'Login' ||
-             CurrentScreen === 'Character')) {
-            return true;
+
+        // 检查是否在特定的游戏画面（设定界面等）
+        if (typeof CurrentScreen !== 'undefined') {
+            const allowedScreens = [
+                'Preference',      // 设定界面
+                'InformationSheet', // 信息界面
+                'Login',           // 登入界面
+                'Character'        // 角色界面
+            ];
+
+            const isAllowedScreen = allowedScreens.includes(CurrentScreen);
+            console.log(`  → CurrentScreen: ${CurrentScreen}, 允许显示: ${isAllowedScreen}`);
+
+            if (isAllowedScreen) {
+                return true;
+            }
         }
+
+        console.log("  → 不符合显示条件，隐藏UI");
         return false;
+    }
+
+    // --- 檢查 Player 是否已載入 ---
+    function isPlayerLoaded() {
+        return typeof Player !== 'undefined' && Player && Player.Name;
     }
 
     // --- 載入設定中的自定義圖標 ---
@@ -176,6 +207,7 @@
     // --- 載入插件（按需載入，確保最新版本） ---
     let loadedPlugins = new Set();
     let isLoadingPlugins = false; // 防止重複載入
+    let hasStartedPluginLoading = false; // 追踪是否已開始載入插件
 
     function loadSubPlugin(plugin) {
         if (!plugin.enabled || loadedPlugins.has(plugin.id)) {
@@ -210,6 +242,34 @@
         });
     }
 
+    // 等待Player載入後再開始背景載入插件
+    async function waitForPlayerAndLoadPlugins() {
+        if (hasStartedPluginLoading) return; // 避免重複執行
+
+        console.log("🔍 [PCM] 檢查 Player 是否已載入...");
+
+        // 等待 Player 載入
+        const maxWaitTime = 60000; // 最多等待60秒
+        const checkInterval = 1000; // 每秒檢查一次
+        let waitTime = 0;
+
+        while (!isPlayerLoaded() && waitTime < maxWaitTime) {
+            console.log(`⏳ [PCM] 等待 Player 載入... (${waitTime/1000}s)`);
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            waitTime += checkInterval;
+        }
+
+        if (isPlayerLoaded()) {
+            console.log("✅ [PCM] Player 已載入，開始載入插件");
+            hasStartedPluginLoading = true;
+            await loadSubPluginsInBackground();
+        } else {
+            console.warn("⚠️ [PCM] 等待 Player 載入超時，仍將嘗試載入插件");
+            hasStartedPluginLoading = true;
+            await loadSubPluginsInBackground();
+        }
+    }
+
     // 背景自動載入所有啟用的插件（分批載入以避免阻塞）
     async function loadSubPluginsInBackground() {
         if (isLoadingPlugins) return;
@@ -223,6 +283,11 @@
             const batchSize = 2;
             let loadedCount = 0;
             let successCount = 0;
+
+            if (enabledPlugins.length === 0) {
+                console.log("ℹ️ [PCM] 沒有啟用的插件需要載入");
+                return;
+            }
 
             for (let i = 0; i < enabledPlugins.length; i += batchSize) {
                 const batch = enabledPlugins.slice(i, i + batchSize);
@@ -642,6 +707,19 @@ function injectStyles() {
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
+        /* 隐藏UI的样式 */
+        .bc-plugin-floating-btn.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(100px) scale(0.8);
+        }
+
+        .bc-plugin-panel.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(420px) scale(0.8);
+        }
+
         /* 響應式設計 - 保留但修復 */
         @media (max-width: 480px) {
             .bc-plugin-panel {
@@ -673,221 +751,239 @@ function injectStyles() {
     document.head.appendChild(style);
 }
 
-    // --- 建立UI（優化版） ---
+    // --- 建立UI（优化版，添加显示/隐藏逻辑） ---
     let cachedPanel = null; // 緩存面板 DOM
+    let currentUIState = null; // 追踪当前UI状态
+
 function createManagerUI() {
-    console.log("🔧 [PCM Debug] 開始建立UI");
+    //console.log("🔧 [PCM Debug] 開始建立UI");
 
-    if (!shouldShowUI()) {
-        console.log("🔧 [PCM Debug] shouldShowUI 返回 false，不建立UI");
+    const shouldShow = shouldShowUI();
+    const existingBtn = document.getElementById("bc-plugin-floating-btn");
+    const existingPanel = document.getElementById("bc-plugin-panel");
+
+    // 如果UI状态没有变化，则不需要处理
+    if (currentUIState === shouldShow) {
+        //console.log(`🔧 [PCM Debug] UI状态未变化 (${shouldShow ? '显示' : '隐藏'})，跳过处理`);
         return;
     }
 
-    // 檢查是否已存在
-    if (document.getElementById("bc-plugin-floating-btn")) {
-        console.log("🔧 [PCM Debug] UI已存在，跳過建立");
+    currentUIState = shouldShow;
+    //console.log(`🔧 [PCM Debug] UI状态变化为: ${shouldShow ? '显示' : '隐藏'}`);
+
+    // 如果需要隐藏UI
+    if (!shouldShow) {
+        if (existingBtn) {
+            existingBtn.classList.add('hidden');
+            //console.log("🔧 [PCM Debug] 隐藏浮动按钮");
+        }
+        if (existingPanel) {
+            existingPanel.classList.add('hidden');
+            existingPanel.classList.remove('show');
+            //console.log("🔧 [PCM Debug] 隐藏面板");
+        }
         return;
     }
 
-    injectStyles();
+    // 如果需要显示UI但UI已存在，则显示它们
+    if (shouldShow && existingBtn && existingPanel) {
+        existingBtn.classList.remove('hidden');
+        existingPanel.classList.remove('hidden');
+        //console.log("🔧 [PCM Debug] 显示现有UI");
+        return;
+    }
 
-    // 建立浮動按鈕
-    const floatingBtn = document.createElement("button");
-    floatingBtn.id = "bc-plugin-floating-btn";
-    floatingBtn.className = "bc-plugin-floating-btn";
-    floatingBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
-    floatingBtn.title = "插件管理器";
-    document.body.appendChild(floatingBtn);
+    // 如果需要显示UI但UI不存在，则创建它们
+    if (shouldShow && (!existingBtn || !existingPanel)) {
+        // 清理可能存在的不完整UI
+        if (existingBtn) existingBtn.remove();
+        if (existingPanel) existingPanel.remove();
 
-    // 建立面板 - 確保使用 flexbox 結構
-    const panel = document.createElement("div");
-    panel.id = "bc-plugin-panel";
-    panel.className = "bc-plugin-panel";
+        //console.log("🔧 [PCM Debug] 创建新的UI");
+        injectStyles();
 
-    // 建立 header
-    const header = document.createElement("div");
-    header.className = "bc-plugin-header";
-    header.innerHTML = `<h3 class="bc-plugin-title">🐈‍⬛ 插件管理器</h3>`;
+        // 建立浮動按鈕
+        const floatingBtn = document.createElement("button");
+        floatingBtn.id = "bc-plugin-floating-btn";
+        floatingBtn.className = "bc-plugin-floating-btn";
+        floatingBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
+        floatingBtn.title = "插件管理器";
+        document.body.appendChild(floatingBtn);
 
-    // 建立 content - 這裡會包含所有插件項目
-    const content = document.createElement("div");
-    content.className = "bc-plugin-content";
+        // 建立面板 - 確保使用 flexbox 結構
+        const panel = document.createElement("div");
+        panel.id = "bc-plugin-panel";
+        panel.className = "bc-plugin-panel";
 
-    // 為每個插件建立項目
-    subPlugins.forEach(plugin => {
-        const item = document.createElement("div");
-        item.className = `bc-plugin-item ${plugin.enabled ? 'enabled' : ''}`;
+        // 建立 header
+        const header = document.createElement("div");
+        header.className = "bc-plugin-header";
+        header.innerHTML = `<h3 class="bc-plugin-title">🐈‍⬛ 插件管理器</h3>`;
 
-        const iconDisplay = plugin.customIcon ?
-              `<img src="${plugin.customIcon}" alt="${plugin.name} icon" />` :
-              plugin.icon;
+        // 建立 content - 這裡會包含所有插件項目
+        const content = document.createElement("div");
+        content.className = "bc-plugin-content";
 
-        item.innerHTML = `
-            <div class="bc-plugin-item-header">
-                <div class="bc-plugin-icon" data-plugin="${plugin.id}" tabindex="0">
-                    ${iconDisplay}
-                    <div class="bc-plugin-icon-selector">
-                        <div class="bc-plugin-icon-option" data-icon="🧰">🧰</div>
-                        <div class="bc-plugin-icon-option" data-icon="🖼️">🖼️</div>
-                        <div class="bc-plugin-icon-option" data-icon="📋">📋</div>
-                        <div class="bc-plugin-icon-option" data-icon="🪄">🪄</div>
-                        <div class="bc-plugin-icon-option" data-icon="📧">📧</div>
-                        <div class="bc-plugin-icon-option" data-icon="♻️">♻️</div>
-                        <div class="bc-plugin-icon-option" data-icon="🧹">🧹</div>
-                        <div class="bc-plugin-icon-option" data-icon="💬">💬</div>
-                        <div class="bc-plugin-icon-option" data-icon="🖌️">🖌️</div>
-                        <div class="bc-plugin-icon-option" data-icon="⭐">⭐</div>
-                        <div class="bc-plugin-icon-option" data-icon="🔧">🔧</div>
-                        <div class="bc-plugin-icon-option" data-icon="⚙️">⚙️</div>
-                        <div class="bc-plugin-icon-option" data-icon="url">🖼️</div>
+        // 為每個插件建立項目
+        subPlugins.forEach(plugin => {
+            const item = document.createElement("div");
+            item.className = `bc-plugin-item ${plugin.enabled ? 'enabled' : ''}`;
+
+            const iconDisplay = plugin.customIcon ?
+                  `<img src="${plugin.customIcon}" alt="${plugin.name} icon" />` :
+                  plugin.icon;
+
+            item.innerHTML = `
+                <div class="bc-plugin-item-header">
+                    <div class="bc-plugin-icon" data-plugin="${plugin.id}" tabindex="0">
+                        ${iconDisplay}
+                        <div class="bc-plugin-icon-selector">
+                            <div class="bc-plugin-icon-option" data-icon="🧰">🧰</div>
+                            <div class="bc-plugin-icon-option" data-icon="🖼️">🖼️</div>
+                            <div class="bc-plugin-icon-option" data-icon="📋">📋</div>
+                            <div class="bc-plugin-icon-option" data-icon="🪄">🪄</div>
+                            <div class="bc-plugin-icon-option" data-icon="📧">📧</div>
+                            <div class="bc-plugin-icon-option" data-icon="♻️">♻️</div>
+                            <div class="bc-plugin-icon-option" data-icon="🧹">🧹</div>
+                            <div class="bc-plugin-icon-option" data-icon="💬">💬</div>
+                            <div class="bc-plugin-icon-option" data-icon="🖌️">🖌️</div>
+                            <div class="bc-plugin-icon-option" data-icon="⭐">⭐</div>
+                            <div class="bc-plugin-icon-option" data-icon="🔧">🔧</div>
+                            <div class="bc-plugin-icon-option" data-icon="⚙️">⚙️</div>
+                            <div class="bc-plugin-icon-option" data-icon="url">🖼️</div>
+                        </div>
                     </div>
+                    <div class="bc-plugin-info">
+                        <h4 class="bc-plugin-name">${plugin.name}</h4>
+                        <p class="bc-plugin-desc">${plugin.description}</p>
+                    </div>
+                    <button class="bc-plugin-toggle ${plugin.enabled ? 'active' : ''}"
+                            data-plugin="${plugin.id}"
+                            aria-label="${plugin.name} 啟用開關">
+                    </button>
                 </div>
-                <div class="bc-plugin-info">
-                    <h4 class="bc-plugin-name">${plugin.name}</h4>
-                    <p class="bc-plugin-desc">${plugin.description}</p>
-                </div>
-                <button class="bc-plugin-toggle ${plugin.enabled ? 'active' : ''}"
-                        data-plugin="${plugin.id}"
-                        aria-label="${plugin.name} 啟用開關">
-                </button>
-            </div>
-        `;
+            `;
 
-        content.appendChild(item);
-    });
+            content.appendChild(item);
+        });
 
-    // 建立 footer
-    const footer = document.createElement("div");
-    footer.className = "bc-plugin-footer";
-    footer.innerHTML = `❖ Liko Plugin Manager v1.1.1 ❖ by Likolisu`;
+        // 建立 footer
+        const footer = document.createElement("div");
+        footer.className = "bc-plugin-footer";
+        footer.innerHTML = `❖ Liko Plugin Manager v1.1.2 ❖ by Likolisu`;
 
-    // 組裝面板
-    panel.appendChild(header);
-    panel.appendChild(content);
-    panel.appendChild(footer);
-    document.body.appendChild(panel);
+        // 組裝面板
+        panel.appendChild(header);
+        panel.appendChild(content);
+        panel.appendChild(footer);
+        document.body.appendChild(panel);
 
-    // 確保面板結構正確
-    console.log("🔧 [PCM Debug] 面板結構 - Header高度:", header.offsetHeight,
-                "Content高度:", content.offsetHeight,
-                "Footer高度:", footer.offsetHeight,
-                "Panel總高度:", panel.offsetHeight);
+        let isOpen = false;
 
-    let isOpen = false;
+        floatingBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isOpen = !isOpen;
+            panel.classList.toggle("show", isOpen);
 
-    floatingBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        isOpen = !isOpen;
-        panel.classList.toggle("show", isOpen);
+            // 開啟面板時檢查滾動狀況
+            if (isOpen) {
+                setTimeout(() => {
+                    const needsScroll = content.scrollHeight > content.clientHeight;
+                }, 1000);
+            }
+        });
 
-        // 開啟面板時檢查滾動狀況
-        if (isOpen) {
-            setTimeout(() => {
-                const needsScroll = content.scrollHeight > content.clientHeight;
-                console.log("🔧 [PCM Debug] 滾動檢查:",
-                           "內容總高度:", content.scrollHeight,
-                           "可見高度:", content.clientHeight,
-                           "需要滾動:", needsScroll);
+        // 事件委派處理
+        content.addEventListener("click", (e) => {
+            // icon 點擊處理
+            const iconElement = e.target.closest(".bc-plugin-icon");
+            if (iconElement) {
+                e.stopPropagation();
+                const selector = iconElement.querySelector(".bc-plugin-icon-selector");
+                document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => {
+                    if (s !== selector) s.classList.remove("show");
+                });
+                selector.classList.toggle("show");
+            }
 
-                /*if (needsScroll) {
-                    showNotification("ℹ️", "提示", "可上下滾動查看所有插件");
+            // icon 選項處理
+            const iconOption = e.target.closest(".bc-plugin-icon-option");
+            if (iconOption) {
+                e.stopPropagation();
+                const pluginId = iconOption.closest(".bc-plugin-item").querySelector("[data-plugin]").getAttribute("data-plugin");
+                const plugin = subPlugins.find(p => p.id === pluginId);
+                const iconValue = iconOption.getAttribute("data-icon");
+
+                if (iconValue === "url") {
+                    const customUrl = prompt("請輸入圖片網址：", "");
+                    if (customUrl && customUrl.trim() && customUrl.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif)$/i)) {
+                        plugin.customIcon = customUrl.trim();
+                        plugin.icon = "";
+                        pluginSettings[`${pluginId}_customIcon`] = customUrl.trim();
+                        saveSettings(pluginSettings);
+
+                        const iconContainer = iconOption.closest(".bc-plugin-icon");
+                        const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
+                        iconContainer.innerHTML = `<img src="${customUrl.trim()}" alt="${plugin.name} icon" />${selectorHTML}`;
+                    }
                 } else {
-                    console.log("🔧 [PCM Debug] 內容完全可見，不需要滾動");
-                }*/
-            }, 500);
-        }
-    });
-
-    // 事件委派處理
-    content.addEventListener("click", (e) => {
-        // icon 點擊處理
-        const iconElement = e.target.closest(".bc-plugin-icon");
-        if (iconElement) {
-            e.stopPropagation();
-            const selector = iconElement.querySelector(".bc-plugin-icon-selector");
-            document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => {
-                if (s !== selector) s.classList.remove("show");
-            });
-            selector.classList.toggle("show");
-        }
-
-        // icon 選項處理
-        const iconOption = e.target.closest(".bc-plugin-icon-option");
-        if (iconOption) {
-            e.stopPropagation();
-            const pluginId = iconOption.closest(".bc-plugin-item").querySelector("[data-plugin]").getAttribute("data-plugin");
-            const plugin = subPlugins.find(p => p.id === pluginId);
-            const iconValue = iconOption.getAttribute("data-icon");
-
-            if (iconValue === "url") {
-                const customUrl = prompt("請輸入圖片網址：", "");
-                if (customUrl && customUrl.trim() && customUrl.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif)$/i)) {
-                    plugin.customIcon = customUrl.trim();
-                    plugin.icon = "";
-                    pluginSettings[`${pluginId}_customIcon`] = customUrl.trim();
+                    plugin.icon = iconValue;
+                    plugin.customIcon = "";
+                    pluginSettings[`${pluginId}_icon`] = iconValue;
+                    delete pluginSettings[`${pluginId}_customIcon`];
                     saveSettings(pluginSettings);
 
                     const iconContainer = iconOption.closest(".bc-plugin-icon");
                     const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
-                    iconContainer.innerHTML = `<img src="${customUrl.trim()}" alt="${plugin.name} icon" />${selectorHTML}`;
+                    iconContainer.innerHTML = iconValue + selectorHTML;
                 }
-            } else {
-                plugin.icon = iconValue;
-                plugin.customIcon = "";
-                pluginSettings[`${pluginId}_icon`] = iconValue;
-                delete pluginSettings[`${pluginId}_customIcon`];
-                saveSettings(pluginSettings);
 
-                const iconContainer = iconOption.closest(".bc-plugin-icon");
-                const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
-                iconContainer.innerHTML = iconValue + selectorHTML;
+                iconOption.closest(".bc-plugin-icon-selector").classList.remove("show");
             }
 
-            iconOption.closest(".bc-plugin-icon-selector").classList.remove("show");
-        }
+            // toggle 開關處理
+            const toggle = e.target.closest(".bc-plugin-toggle");
+            if (toggle) {
+                const pluginId = toggle.getAttribute("data-plugin");
+                const plugin = subPlugins.find(p => p.id === pluginId);
 
-        // toggle 開關處理
-        const toggle = e.target.closest(".bc-plugin-toggle");
-        if (toggle) {
-            const pluginId = toggle.getAttribute("data-plugin");
-            const plugin = subPlugins.find(p => p.id === pluginId);
+                if (plugin) {
+                    plugin.enabled = !plugin.enabled;
+                    pluginSettings[pluginId] = plugin.enabled;
+                    saveSettings(pluginSettings);
 
-            if (plugin) {
-                plugin.enabled = !plugin.enabled;
-                pluginSettings[pluginId] = plugin.enabled;
-                saveSettings(pluginSettings);
+                    toggle.classList.toggle("active", plugin.enabled);
+                    const item = toggle.closest(".bc-plugin-item");
+                    item.classList.toggle("enabled", plugin.enabled);
 
-                toggle.classList.toggle("active", plugin.enabled);
-                const item = toggle.closest(".bc-plugin-item");
-                item.classList.toggle("enabled", plugin.enabled);
+                    showNotification(
+                        plugin.enabled ? "🐈‍⬛" : "🐾",
+                        `${plugin.name} 已${plugin.enabled ? "啟用" : "停用"}`,
+                        plugin.enabled ? "插件已載入或將在下次刷新生效" : "下次載入時將不會啟動"
+                    );
 
-                showNotification(
-                    plugin.enabled ? "🐈‍⬛" : "🐾",
-                    `${plugin.name} 已${plugin.enabled ? "啟用" : "停用"}`,
-                    plugin.enabled ? "插件已載入或將在下次刷新生效" : "下次載入時將不會啟動"
-                );
-
-                if (plugin.enabled && !loadedPlugins.has(plugin.id)) {
-                    loadSubPlugin(plugin);
+                    // 如果啟用插件且Player已載入，則立即載入插件
+                    if (plugin.enabled && !loadedPlugins.has(plugin.id) && isPlayerLoaded()) {
+                        loadSubPlugin(plugin);
+                    }
                 }
             }
-        }
-    });
+        });
 
-    // 點擊外部關閉面板
-    document.addEventListener("click", (e) => {
-        if (!panel.contains(e.target) && !floatingBtn.contains(e.target) && isOpen) {
-            isOpen = false;
-            panel.classList.remove("show");
-        }
-    });
+        // 點擊外部關閉面板
+        document.addEventListener("click", (e) => {
+            if (!panel.contains(e.target) && !floatingBtn.contains(e.target) && isOpen) {
+                isOpen = false;
+                panel.classList.remove("show");
+            }
+        });
 
-    // 點擊外部隱藏 icon selector
-    document.addEventListener("click", () => {
-        document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => s.classList.remove("show"));
-    });
-
+        // 點擊外部隱藏 icon selector
+        document.addEventListener("click", () => {
+            document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => s.classList.remove("show"));
+        });
+    }
 }
 
     // --- 通知系統 ---
@@ -940,16 +1036,42 @@ function createManagerUI() {
         });
     }
 
-    // --- 監聽頁面變化（使用防抖） ---
+    // --- 监听页面变化（使用防抖，增加UI状态检查） ---
     function monitorPageChanges() {
         let debounceTimer;
         const observer = new MutationObserver(() => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 createManagerUI();
-            }, 100);
+
+                // 如果Player已載入且尚未開始載入插件，則開始載入
+                if (isPlayerLoaded() && !hasStartedPluginLoading) {
+                    console.log("🎯 [PCM] Player已載入，觸發插件載入");
+                    waitForPlayerAndLoadPlugins();
+                }
+            }, 300); // 增加防抖延迟以避免过于频繁的检查
         });
         observer.observe(document.body, { childList: true, subtree: true });
+
+        // 也监听URL变化
+        let lastUrl = window.location.href;
+        setInterval(() => {
+            if (window.location.href !== lastUrl) {
+                lastUrl = window.location.href;
+                //console.log("[PCM Debug] URL变化，检查UI状态:", lastUrl);
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    createManagerUI();
+
+                    // 檢查是否需要觸發插件載入
+                    if (isPlayerLoaded() && !hasStartedPluginLoading) {
+                        console.log("🎯 [PCM] URL變化後Player已載入，觸發插件載入");
+                        waitForPlayerAndLoadPlugins();
+                    }
+                }, 1000);
+            }
+        }, 1000);
+
         createManagerUI();
     }
 
@@ -958,12 +1080,13 @@ function createManagerUI() {
         loadCustomIcons();
         monitorPageChanges();
 
-        // 延遲啟動背景載入，確保頁面已經準備就緒
+        // 延遲檢查Player並開始載入插件
         setTimeout(() => {
-            loadSubPluginsInBackground();
-        }, 5000); // 5秒後開始背景載入插件
+            console.log("🔍 [PCM] 5秒後開始檢查Player狀態");
+            waitForPlayerAndLoadPlugins();
+        }, 5000); // 5秒後開始檢查Player狀態
 
-        console.log("[PCM] ✅ 初始化完成！插件將在背景自動載入");
+        console.log("[PCM] ✅ 初始化完成！插件將在Player載入後自動載入");
     }
 
     // 頁面完全載入後再初始化
