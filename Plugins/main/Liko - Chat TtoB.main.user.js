@@ -2,7 +2,7 @@
 // @name         Liko - Chat TtoB
 // @name:zh      Liko的對話變按鈕
 // @namespace    https://likolisu.dev/
-// @version      1.1
+// @version      1.1.1
 // @description  display command buttons in chatroom, copying command to input and showing description
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 (function () {
     "use strict";
     let modApi;
-    const modversion = "1.1";
+    const modversion = "1.1.1";
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
@@ -31,10 +31,6 @@
     } catch (e) {
         console.error("[WCE修復] ❌ 初始化失敗:", e.message);
     }
-
-    const CMD_RE = /\/[\p{L}\p{N}_-]+/gu;
-    const COPY_RE = /!!(\S+)/gu;
-    const ROOM_RE = /#([\s\S]+?)#/gu;
 
     const desc = document.createElement("div");
     desc.id = "likoCommandDescription";
@@ -140,6 +136,7 @@
     function normalizeCmd(str) {
         return str.normalize("NFKC").trim().toLowerCase();
     }
+
     function findCommandObjectByTag(cmdKey) {
         if (!Array.isArray(window.Commands)) return null;
         return Commands.find(
@@ -148,69 +145,130 @@
         );
     }
 
-    function fragmentFromTextNode(textNode) {
-        const text = textNode.textContent;
-        if (!text) return null;
-        if (!(/[\/!#]/.test(text))) return null;
+    // 採用1.4版本的字符串處理方式，但保持1.1的按鈕創建方法
+    function processTextContent(element) {
+        if (element.dataset.likoProcessed === "1") return;
 
-        const parentEl = textNode.parentElement;
-        if (parentEl && parentEl.closest && parentEl.closest('a')) return null;
+        // 檢查是否在連結內
+        if (element.closest('a')) return;
 
-        if (/https?:\/\//i.test(text)) return null;
+        let originalHTML = element.innerHTML;
+        let processedHTML = originalHTML;
+        let hasChanges = false;
 
-        const frag = document.createDocumentFragment();
-        let lastIndex = 0;
+        // 跳過包含 https 的內容
+        if (/https?:\/\//i.test(originalHTML)) return;
 
-        const RE = /(\/[\p{L}\p{N}_-]+)|!!(\S+)|#([\s\S]+?)#/gu;
-        let m;
-        while ((m = RE.exec(text)) !== null) {
-            const i = m.index;
-            if (i > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, i)));
-
-            if (m[1]) {
-                const cmdText = m[1];
-                const cmdKey = cmdText.slice(1);
-                const cmdObj = findCommandObjectByTag(cmdKey);
-                if (cmdObj) frag.appendChild(makeCmdSpan(cmdText, cmdObj));
-                else frag.appendChild(document.createTextNode(cmdText));
-            } else if (m[2]) {
-                frag.appendChild(makeAppendSpan(m[2]));
-            } else if (m[3]) {
-                frag.appendChild(makeRoomSpan(m[3]));
+        // 處理房間名稱 #room name# (使用1.4版本的正則)
+        processedHTML = processedHTML.replace(/#([^#\n\r]{1,50})#/g, (match, roomName) => {
+            if (roomName && roomName.trim().length > 0) {
+                hasChanges = true;
+                const cleanName = roomName.trim();
+                return `<span class="likoRoomInChat" style="color:#65b5ff;cursor:pointer;" data-room-name="${cleanName}">🚪${roomName}🚪</span>`;
             }
+            return match;
+        });
 
-            lastIndex = RE.lastIndex;
+        // 處理 !! 內容
+        processedHTML = processedHTML.replace(/!!(\S+)/g, (match, content) => {
+            hasChanges = true;
+            return `<span class="likoCommandInChat" style="color:#65ff8a;cursor:pointer;" data-append-text="${content}">${content}</span>`;
+        });
+
+        // 處理命令 /command
+        processedHTML = processedHTML.replace(/(^|\s)(\/[\p{L}\p{N}_-]+)/gu, (match, prefix, cmdText) => {
+            const cmdKey = cmdText.slice(1);
+            const cmdObj = findCommandObjectByTag(cmdKey);
+            if (cmdObj) {
+                hasChanges = true;
+                const descText = (cmdObj.Description || '').replace(/"/g, '&quot;');
+                return `${prefix}<span class="likoCommandInChat" style="color:#ff65f2;cursor:pointer;" data-cmd-text="${cmdText}" data-cmd-desc="${descText}">${cmdText}</span>`;
+            }
+            return match;
+        });
+
+        if (hasChanges) {
+            element.innerHTML = processedHTML;
+
+            // 為新創建的元素添加事件監聽器
+            element.querySelectorAll('.likoRoomInChat[data-room-name]').forEach(el => {
+                if (el.dataset.likoEventAdded) return;
+                el.dataset.likoEventAdded = "1";
+
+                const roomName = el.dataset.roomName;
+                const roomSpan = makeRoomSpan(roomName);
+
+                // 復制事件監聽器
+                el.addEventListener("click", (ev) => {
+                    ev.stopPropagation();
+                    if (typeof enterRoom === "function") {
+                        enterRoom(roomName);
+                    } else {
+                        ChatRoomLeave();
+                        CommonSetScreen("Online", "ChatSearch");
+                        ServerSend("ChatRoomJoin", { Name: roomName });
+                    }
+                });
+
+                el.addEventListener("mouseenter", () => {
+                    showDesc(`點擊後加入房間: ${roomName} <br>Click to join room: ${roomName}`);
+                });
+                el.addEventListener("mouseleave", hideDesc);
+            });
+
+            element.querySelectorAll('.likoCommandInChat[data-cmd-text]').forEach(el => {
+                if (el.dataset.likoEventAdded) return;
+                el.dataset.likoEventAdded = "1";
+
+                const cmdText = el.dataset.cmdText;
+                const cmdDesc = el.dataset.cmdDesc;
+
+                el.addEventListener("click", () => {
+                    const input = document.querySelector("#InputChat");
+                    if (input) {
+                        input.value = cmdText + " ";
+                        input.focus();
+                    }
+                });
+
+                el.addEventListener("mouseenter", () => {
+                    const descText = cmdDesc || `執行 ${cmdText}`;
+                    showDesc(descText + `<br><span style="color:#ff65f2;">點擊後聊天窗貼上命令</span><br><span style="color:#ff65f2;">Click to paste command in chat input</span>`);
+                });
+                el.addEventListener("mouseleave", hideDesc);
+            });
+
+            element.querySelectorAll('.likoCommandInChat[data-append-text]').forEach(el => {
+                if (el.dataset.likoEventAdded) return;
+                el.dataset.likoEventAdded = "1";
+
+                const appendText = el.dataset.appendText;
+
+                el.addEventListener("click", (ev) => {
+                    ev.stopPropagation();
+                    const input = document.querySelector("#InputChat");
+                    if (input) {
+                        input.value += appendText;
+                        input.focus();
+                    }
+                });
+
+                el.addEventListener("mouseenter", () => {
+                    showDesc(`點擊後添加文字: ${appendText}<br>Click to append: ${appendText}`);
+                });
+                el.addEventListener("mouseleave", hideDesc);
+            });
         }
-        if (lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
 
-        return frag;
+        element.dataset.likoProcessed = "1";
     }
 
     function scanChat() {
-        document.querySelectorAll(".chat-room-message-content").forEach((node) => {
-            if (node.dataset.likoProcessed) return;
-            node.dataset.likoProcessed = "1";
-
-            const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null);
-            const texts = [];
-            while (walker.nextNode()) texts.push(walker.currentNode);
-
-            texts.forEach((tn) => {
-                if (!tn.parentNode) return;
-
-                const parentEl = tn.parentElement;
-                if (parentEl && parentEl.closest && parentEl.closest('a')) return;
-
-                const t = (tn.textContent || "");
-                if (/https?:\/\//i.test(t)) return;
-
-                const frag = fragmentFromTextNode(tn);
-                if (frag) tn.parentNode.replaceChild(frag, tn);
-            });
-        });
+        // 直接處理所有聊天內容元素
+        document.querySelectorAll(".chat-room-message-content").forEach(processTextContent);
     }
 
-    // 新增：Hook ChatRoomLoad 顯示歡迎訊息
+    // Hook ChatRoomLoad 顯示歡迎訊息
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
             modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
@@ -232,7 +290,6 @@
         }
     }
 
-    // 初始化時呼叫 hookChatRoomLoad
     hookChatRoomLoad();
 
     setInterval(scanChat, 500);
