@@ -571,7 +571,7 @@
                     name: "Liko's NOI",
                     fullName: "Liko's Notify on Invite (Optimized)",
                     version: modversion,
-                    repository: "Liko的邀請通知器 (優化版) | Liko's notify on invite (optimized)."
+                    repository: "Liko的邀請通知器 | Liko's notify on invite."
                 });
                 log("modApi 註冊成功");
             } catch (e) {
