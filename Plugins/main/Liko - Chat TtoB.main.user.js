@@ -54,7 +54,7 @@
                 name: "Liko's Chat TtoB",
                 fullName: 'BC - Chat room text conversion button',
                 version: modversion,
-                repository: '聊天室[指令]、[!!內文]與[#房間#]轉按鈕（支援空白房間名稱，包含 https 時跳過房間解析）\nChat Room [Commands], [!!Content], and [#RoomName#] conversion button (supports spaces in room names, skips room parsing when https is present)',
+                repository: '聊天室[指令]、[!!內文]與[#房間#]轉按鈕\nChat Room [Commands], [!!Content], and [#RoomName#] conversion button.',
             });
             console.log("✅ CDT 腳本啟動完成");
         } else {
