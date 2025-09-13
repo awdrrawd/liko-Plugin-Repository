@@ -1,6 +1,9 @@
 //                                                Telegram BOT說明
 //1.搜尋(search) @BotFather ➤ /start ➤ /newbot ➤ 設定(set) bot name & bot username ➤ 保存(save) Token
 //2.搜尋(search) @userinfobot ➤ 保存(save) Chat ID
+//✦測試Token 瀏覽器搜尋 https://api.telegram.org/bot<you token>/getUpdates ，如果不能訪問就
+//✦cmd >curl "https://api.telegram.org/bot<you token>/getUpdates"
+//✦bot<you token>是bot8420...8ec，不是bot<8420...8ec>，如果返回不是401代表token有用
 
 //                                          部署您自己的 Cloudflare Worker
 //訪問 Cloudflare Workers:  https://workers.cloudflare.com/
