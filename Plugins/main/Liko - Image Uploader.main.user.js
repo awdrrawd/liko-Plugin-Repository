@@ -422,7 +422,7 @@
                 `/img up - 上傳圖片 | UPload image\n` +
                 `/img time [12h|24h|72h] - 存放時間 | Set expiration time\n` +
                 `/img web [litterbox|uguu|imgbb] - 選擇圖床 | Set img host\n\n` +
-                `支援 | Support:\n` +
+                `支援(Support):\n` +
                 `• 可以拖曳圖片上傳 | You can direct drag & drop\n` +
                 `• 格式(Format): JPG/PNG/GIF/BMP/WEBP\n` +
                 //`• 大小(Size): Litterbox/Uguu 10MB, ImgBB 32MB\n` +
