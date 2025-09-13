@@ -1,0 +1,90 @@
+//                                                Telegram BOT說明
+//1.搜尋(search) @BotFather ➤ /start ➤ /newbot ➤ 設定(set) bot name & bot username ➤ 保存(save) Token
+//2.搜尋(search) @userinfobot ➤ 保存(save) Chat ID
+
+//                                          部署您自己的 Cloudflare Worker
+//訪問 Cloudflare Workers:  https://workers.cloudflare.com/
+//創建 Compute(Worker) ➤ 建立 ➤ 從 Hello World 開始! ➤ 命名 ➤ </>編輯代碼 ➤ 貼上以下內容 ➤ 部屬 ➤ 複製右邊的網址 https://XXX.workers.dev
+//✦Worker URL要注意是 https://XXX.workers.dev 而不是 https://XXX.workers.dev/ ，最後沒有斜線
+//                                             Cloudflare Worker code
+export default {
+  async fetch(request, env, ctx) {
+    // 處理 CORS 預檢請求
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+          'Access-Control-Max-Age': '86400',
+        }
+      });
+    }
+
+    try {
+      const url = new URL(request.url);
+      
+      // 檢查路徑是否以 /telegram/ 開頭
+      if (!url.pathname.startsWith('/telegram/')) {
+        return new Response('Invalid path. Use /telegram/bot<TOKEN>/method', {
+          status: 400,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+
+      // 提取 Telegram API 路徑
+      const telegramPath = url.pathname.replace('/telegram/', '');
+      const telegramUrl = `https://api.telegram.org/${telegramPath}${url.search}`;
+
+      // 創建新的請求
+      const telegramRequest = new Request(telegramUrl, {
+        method: request.method,
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Cloudflare-Worker-Telegram-Proxy'
+        },
+        body: request.method !== 'GET' ? await request.text() : undefined
+      });
+
+      // 發送請求到 Telegram API
+      const telegramResponse = await fetch(telegramRequest);
+      const responseText = await telegramResponse.text();
+      
+      console.log('Telegram 響應:', {
+        status: telegramResponse.status,
+        statusText: telegramResponse.statusText,
+        responseLength: responseText.length,
+        response: responseText.substring(0, 200)
+      });
+
+      // 返回響應，添加 CORS 頭
+      return new Response(responseText, {
+        status: telegramResponse.status,
+        statusText: telegramResponse.statusText,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+          'Content-Type': 'application/json'
+        }
+      });
+
+    } catch (error) {
+      console.error('Worker error:', error);
+      
+      return new Response(JSON.stringify({
+        error: 'Proxy error',
+        message: error.message
+      }), {
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+  }
+};
