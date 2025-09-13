@@ -428,7 +428,7 @@
                 //`• 大小(Size): Litterbox/Uguu 10MB, ImgBB 32MB\n` +
                 `• 時間(Time): Litterbox/ImgBB (12.24.72HR), Uguu 30day\n` +
                 `✦建議使用(suggestion) litterbox > uguu > imgbb\n` +
-                `✦imgbb使用私人API請珍惜使用，如果過期將不會再更新\n` +
+                `✦imgbb是私人API，請珍惜使用，如果過期將不會再更新\n` +
                 `  └Use private API. If they expire, they will not be updated.`
                 ,30000
             );
