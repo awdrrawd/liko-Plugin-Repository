@@ -418,7 +418,7 @@
 
             ChatRoomSendLocal(
                 `🖼️圖片上傳說明 | Image upload illustrate🖼️\n` +
-                `        當前設定(Current): 🌐${currentHost} 📌${currentTimeText}\n\n` +
+                `           當前設定(Current): 🌐${currentHost} 📌${currentTimeText}\n\n` +
                 `/img up - 上傳圖片 | UPload image\n` +
                 `/img time [12h|24h|72h] - 存放時間 | Set expiration time\n` +
                 `/img web [litterbox|uguu|imgbb] - 選擇圖床 | Set img host\n\n` +
