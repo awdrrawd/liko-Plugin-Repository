@@ -8,9 +8,10 @@
         window.BCMedia = {};
     }
 
-    // ==================== UI管理器類 ====================
-    class UIManager {
+    // 修復版 UIManager，添加影片管理功能
+    class EnhancedUIManager {
         constructor() {
+            // 原有屬性
             this.mediaPlayer = null;
             this.container = null;
             this.titleElement = null;
@@ -28,16 +29,19 @@
             this.styles = null;
             this.notifications = new Set();
             
-            this.isMobile = window.BCMedia.Utils.isMobile();
+            this.isMobile = window.BCMedia.Utils ? window.BCMedia.Utils.isMobile() : false;
+            
+            // 新增：影片管理相關
+            this.addVideoDialog = null;
+            this.videoUrlInput = null;
+            this.videoNameInput = null;
         }
 
-        // ==================== 模塊設置 ====================
-        setMediaPlayer(mediaPlayer) {
-            this.mediaPlayer = mediaPlayer;
-        }
-
-        // ==================== 主要創建方法 ====================
+        // 修復：確保重新創建時正確清理和重新初始化
         async create() {
+            // 先清理可能存在的舊元素
+            this.cleanup();
+            
             this.createStyles();
             this.createContainer();
             this.createTitleBar();
@@ -50,584 +54,611 @@
             // 恢復位置
             this.restorePosition();
             
+            // 確保視頻容器正確設置
+            this.ensureVideoContainer();
+            
             console.log('[UI管理器] 界面創建完成');
         }
 
-        // ==================== 樣式創建 ====================
-        createStyles() {
-            if (this.styles) return;
-            
-            this.styles = document.createElement('style');
-            this.styles.textContent = `
-                .${window.BCMedia.Constants.CSS_CLASSES.CONTAINER} {
-                    position: fixed;
-                    border: 1px solid #333;
-                    border-radius: 12px;
-                    overflow: hidden;
-                    background: linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%);
-                    box-shadow: 0 15px 35px rgba(0,0,0,0.7), 0 5px 15px rgba(0,0,0,0.4);
-                    z-index: ${window.BCMedia.Constants.UI.Z_INDEX.PLAYER};
-                    resize: both;
-                    min-width: ${window.BCMedia.Constants.UI.MIN_WIDTH}px;
-                    min-height: ${window.BCMedia.Constants.UI.MIN_HEIGHT}px;
-                    backdrop-filter: blur(15px);
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        // 新增：確保視頻容器正確設置
+        ensureVideoContainer() {
+            if (this.mediaPlayer && this.mediaPlayer.playerContainer) {
+                const targetContainer = this.videoContainer || 
+                    this.container.querySelector('.media-player-video-container');
+                
+                if (targetContainer && this.mediaPlayer.playerContainer) {
+                    // 清空現有內容
+                    targetContainer.innerHTML = '';
+                    // 添加播放器容器
+                    targetContainer.appendChild(this.mediaPlayer.player || this.mediaPlayer.playerContainer);
                 }
+            }
+        }
 
-                .${window.BCMedia.Constants.CSS_CLASSES.CONTAINER}:hover {
-                    box-shadow: 0 20px 45px rgba(0,0,0,0.8), 0 8px 20px rgba(0,0,0,0.5);
-                }
+        // 修復：改進的清理方法
+        cleanup() {
+            // 清理通知
+            this.notifications.forEach(notification => {
+                this.removeNotification(notification);
+            });
+            this.notifications.clear();
 
-                .${window.BCMedia.Constants.CSS_CLASSES.CONTAINER}.${window.BCMedia.Constants.CSS_CLASSES.MINI_MODE} {
-                    resize: none;
-                    border-radius: 8px;
-                }
+            // 清理容器
+            if (this.container && this.container.parentNode) {
+                this.container.parentNode.removeChild(this.container);
+            }
 
-                .${window.BCMedia.Constants.CSS_CLASSES.TITLEBAR} {
-                    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 50%, #2a2a2a 100%);
-                    padding: 12px 16px;
-                    cursor: move;
-                    color: #ffffff;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    position: relative;
-                    border-bottom: 1px solid rgba(255,255,255,0.1);
-                    user-select: none;
-                }
+            // 清理對話框
+            if (this.addVideoDialog && this.addVideoDialog.parentNode) {
+                this.addVideoDialog.parentNode.removeChild(this.addVideoDialog);
+            }
 
-                .media-player-title-text {
-                    flex: 1;
-                    margin: 0 12px;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    font-size: 14px;
-                    color: #e0e0e0;
-                }
+            // 重置引用
+            this.container = null;
+            this.titleElement = null;
+            this.progressBar = null;
+            this.volumeSlider = null;
+            this.playButton = null;
+            this.sidebar = null;
+            this.videoContainer = null;
+            this.addVideoDialog = null;
+        }
 
-                .${window.BCMedia.Constants.CSS_CLASSES.BUTTON} {
-                    background: rgba(255,255,255,0.15);
-                    border: 1px solid rgba(255,255,255,0.2);
-                    color: white;
-                    padding: 6px 12px;
-                    margin: 0 3px;
-                    cursor: pointer;
-                    border-radius: 6px;
-                    font-size: 12px;
-                    font-weight: 500;
-                    transition: all 0.2s ease;
-                    backdrop-filter: blur(10px);
-                }
+        // 增強：修改createSidebar方法，添加影片管理功能
+        createSidebar(parent) {
+            this.sidebar = document.createElement('div');
+            this.sidebar.className = window.BCMedia.Constants.CSS_CLASSES.SIDEBAR;
 
-                .${window.BCMedia.Constants.CSS_CLASSES.BUTTON}:hover {
-                    background: rgba(255,255,255,0.25);
-                    border-color: rgba(255,255,255,0.3);
-                    transform: translateY(-1px);
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                }
+            // 側邊欄標題區域
+            const headerContainer = document.createElement('div');
+            headerContainer.style.display = 'flex';
+            headerContainer.style.alignItems = 'center';
+            headerContainer.style.justifyContent = 'space-between';
+            headerContainer.style.padding = '12px 16px';
+            headerContainer.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+            headerContainer.style.background = 'rgba(255,255,255,0.05)';
 
-                .${window.BCMedia.Constants.CSS_CLASSES.BUTTON}:active {
-                    transform: translateY(0);
-                }
+            const header = document.createElement('div');
+            header.style.color = 'white';
+            header.style.fontWeight = '600';
+            header.style.fontSize = '14px';
+            header.textContent = '播放列表';
 
-                .${window.BCMedia.Constants.CSS_CLASSES.CONTENT} {
-                    display: flex;
-                    height: calc(100% - 60px);
-                    position: relative;
-                }
+            // 添加影片按鈕
+            const addVideoBtn = this.createButton('➕', '添加影片', () => {
+                this.showAddVideoDialog();
+            });
+            addVideoBtn.style.padding = '4px 8px';
+            addVideoBtn.style.fontSize = '12px';
+            addVideoBtn.style.margin = '0';
 
-                .${window.BCMedia.Constants.CSS_CLASSES.VIDEO_AREA} {
-                    flex: 1;
-                    position: relative;
-                    background: #000;
-                    display: flex;
-                    flex-direction: column;
-                }
+            headerContainer.appendChild(header);
+            headerContainer.appendChild(addVideoBtn);
 
-                .media-player-video-container {
-                    flex: 1;
-                    position: relative;
-                    background: #000;
-                }
+            // 播放列表
+            this.playlist = document.createElement('div');
+            this.playlist.className = 'media-player-playlist';
 
-                .media-player-video-container video,
-                .media-player-video-container audio {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: contain;
-                }
+            // 空狀態提示
+            this.createEmptyStateMessage();
 
-                .media-player-controls {
-                    background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.8) 100%);
-                    padding: 16px;
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    position: absolute;
-                    bottom: 0;
-                    left: 0;
-                    right: 0;
-                    opacity: 0;
-                    transition: opacity 0.3s ease;
-                    backdrop-filter: blur(10px);
-                }
+            this.sidebar.appendChild(headerContainer);
+            this.sidebar.appendChild(this.playlist);
 
-                .${window.BCMedia.Constants.CSS_CLASSES.VIDEO_AREA}:hover .media-player-controls {
-                    opacity: 1;
-                }
+            parent.appendChild(this.sidebar);
+        }
 
-                .media-player-progress-container {
-                    flex: 1;
-                    height: 4px;
-                    background: rgba(255,255,255,0.2);
-                    border-radius: 2px;
-                    cursor: pointer;
-                    position: relative;
-                }
-
-                .media-player-progress-bar {
-                    height: 100%;
-                    background: linear-gradient(90deg, #00d4aa, #00a8cc);
-                    border-radius: 2px;
-                    transition: width 0.1s ease;
-                    position: relative;
-                }
-
-                .media-player-progress-bar::after {
-                    content: '';
-                    position: absolute;
-                    right: -6px;
-                    top: -4px;
-                    width: 12px;
-                    height: 12px;
-                    background: #ffffff;
-                    border-radius: 50%;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                    opacity: 0;
-                    transition: opacity 0.3s ease;
-                }
-
-                .media-player-progress-container:hover .media-player-progress-bar::after {
-                    opacity: 1;
-                }
-
-                .media-player-volume-container {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-
-                .media-player-volume-slider {
-                    width: 80px;
-                    height: 4px;
-                    background: rgba(255,255,255,0.2);
-                    border-radius: 2px;
-                    cursor: pointer;
-                    position: relative;
-                }
-
-                .media-player-volume-bar {
-                    height: 100%;
-                    background: linear-gradient(90deg, #00d4aa, #00a8cc);
-                    border-radius: 2px;
-                    transition: width 0.1s ease;
-                }
-
-                .media-player-time-display {
-                    color: white;
-                    font-size: 12px;
-                    font-weight: 500;
-                    min-width: 80px;
+        // 新增：創建空狀態提示
+        createEmptyStateMessage() {
+            const emptyMessage = document.createElement('div');
+            emptyMessage.className = 'media-player-empty-state';
+            emptyMessage.innerHTML = `
+                <div style="
+                    padding: 40px 20px;
                     text-align: center;
-                }
-
-                .${window.BCMedia.Constants.CSS_CLASSES.SIDEBAR} {
-                    width: ${window.BCMedia.Constants.UI.SIDEBAR_WIDTH}px;
-                    background: linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%);
-                    overflow-y: auto;
-                    border-left: 1px solid rgba(255,255,255,0.1);
-                    display: flex;
-                    flex-direction: column;
-                    transition: width 0.3s ease;
-                }
-
-                .${window.BCMedia.Constants.CSS_CLASSES.SIDEBAR}.hidden {
-                    width: 0;
-                    overflow: hidden;
-                }
-
-                .media-player-sidebar-header {
-                    padding: 16px;
-                    border-bottom: 1px solid rgba(255,255,255,0.1);
-                    color: white;
-                    font-weight: 600;
-                    font-size: 14px;
-                    background: rgba(255,255,255,0.05);
-                }
-
-                .media-player-playlist {
-                    flex: 1;
-                    overflow-y: auto;
-                }
-
-                .media-player-playlist-item {
-                    padding: 12px 16px;
-                    border-bottom: 1px solid rgba(255,255,255,0.05);
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    color: #cccccc;
-                }
-
-                .media-player-playlist-item:hover {
-                    background: rgba(255,255,255,0.1);
-                    color: white;
-                }
-
-                .media-player-playlist-item.active {
-                    background: linear-gradient(135deg, rgba(0, 212, 170, 0.2), rgba(0, 168, 204, 0.2));
-                    color: white;
-                    font-weight: 600;
-                    border-left: 3px solid #00d4aa;
-                }
-
-                .media-player-playlist-item .item-icon {
-                    width: 32px;
-                    height: 32px;
-                    border-radius: 6px;
-                    background: rgba(255,255,255,0.1);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 14px;
-                }
-
-                .media-player-playlist-item .item-info {
-                    flex: 1;
-                    min-width: 0;
-                }
-
-                .media-player-playlist-item .item-title {
-                    font-size: 13px;
-                    font-weight: 500;
-                    margin-bottom: 4px;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }
-
-                .media-player-playlist-item .item-duration {
-                    font-size: 11px;
                     color: rgba(255,255,255,0.6);
-                }
+                    font-size: 14px;
+                ">
+                    <div style="font-size: 48px; margin-bottom: 16px;">🎬</div>
+                    <div style="margin-bottom: 8px;">暫無播放內容</div>
+                    <div style="font-size: 12px; color: rgba(255,255,255,0.4);">
+                        點擊上方的 ➕ 按鈕添加影片
+                    </div>
+                </div>
+            `;
+            this.playlist.appendChild(emptyMessage);
+        }
 
-                .${window.BCMedia.Constants.CSS_CLASSES.NOTIFICATION} {
-                    position: fixed;
-                    top: 20px;
-                    right: 20px;
-                    padding: 16px 24px;
-                    border-radius: 8px;
-                    color: white;
-                    z-index: ${window.BCMedia.Constants.UI.Z_INDEX.NOTIFICATION};
-                    animation: slideInRight 0.3s ease;
-                    backdrop-filter: blur(15px);
-                    font-weight: 500;
-                    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-                    max-width: 300px;
-                }
+        // 新增：顯示添加影片對話框
+        showAddVideoDialog() {
+            if (this.addVideoDialog) {
+                this.addVideoDialog.style.display = 'block';
+                return;
+            }
 
-                .${window.BCMedia.Constants.CSS_CLASSES.NOTIFICATION}.error {
-                    background: linear-gradient(135deg, rgba(231, 76, 60, 0.9), rgba(192, 57, 43, 0.9));
-                    border-left: 4px solid #e74c3c;
-                }
+            this.createAddVideoDialog();
+        }
 
-                .${window.BCMedia.Constants.CSS_CLASSES.NOTIFICATION}.success {
-                    background: linear-gradient(135deg, rgba(39, 174, 96, 0.9), rgba(46, 204, 113, 0.9));
-                    border-left: 4px solid #27ae60;
-                }
+        // 新增：創建添加影片對話框
+        createAddVideoDialog() {
+            // 創建遮罩層
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.7);
+                z-index: ${window.BCMedia.Constants.UI.Z_INDEX.MODAL};
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                backdrop-filter: blur(5px);
+            `;
 
-                .${window.BCMedia.Constants.CSS_CLASSES.NOTIFICATION}.info {
-                    background: linear-gradient(135deg, rgba(52, 152, 219, 0.9), rgba(41, 128, 185, 0.9));
-                    border-left: 4px solid #3498db;
-                }
+            // 創建對話框
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+                background: linear-gradient(145deg, #2a2a2a 0%, #1a1a1a 100%);
+                border-radius: 12px;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+                padding: 24px;
+                min-width: 400px;
+                max-width: 500px;
+                width: 90%;
+                border: 1px solid rgba(255,255,255,0.1);
+            `;
 
-                .${window.BCMedia.Constants.CSS_CLASSES.NOTIFICATION}.warning {
-                    background: linear-gradient(135deg, rgba(243, 156, 18, 0.9), rgba(230, 126, 34, 0.9));
-                    border-left: 4px solid #f39c12;
-                }
+            // 標題
+            const title = document.createElement('h3');
+            title.style.cssText = `
+                margin: 0 0 20px 0;
+                color: white;
+                font-size: 18px;
+                font-weight: 600;
+            `;
+            title.textContent = '添加新影片';
 
-                @keyframes slideInRight {
-                    from { 
-                        transform: translateX(100%); 
-                        opacity: 0;
-                    }
-                    to { 
-                        transform: translateX(0); 
-                        opacity: 1;
-                    }
-                }
+            // URL輸入
+            const urlContainer = document.createElement('div');
+            urlContainer.style.marginBottom = '16px';
 
-                @keyframes slideOutRight {
-                    from { 
-                        transform: translateX(0); 
-                        opacity: 1;
-                    }
-                    to { 
-                        transform: translateX(100%); 
-                        opacity: 0;
-                    }
-                }
+            const urlLabel = document.createElement('label');
+            urlLabel.style.cssText = `
+                display: block;
+                color: rgba(255,255,255,0.9);
+                font-size: 14px;
+                margin-bottom: 8px;
+                font-weight: 500;
+            `;
+            urlLabel.textContent = '影片URL：';
 
-                /* 迷你模式樣式 */
-                .${window.BCMedia.Constants.CSS_CLASSES.MINI_MODE} .${window.BCMedia.Constants.CSS_CLASSES.SIDEBAR} {
-                    display: none;
-                }
+            this.videoUrlInput = document.createElement('input');
+            this.videoUrlInput.type = 'url';
+            this.videoUrlInput.placeholder = '請輸入影片URL（支持 mp4, m3u8, 等格式）';
+            this.videoUrlInput.style.cssText = `
+                width: 100%;
+                padding: 12px;
+                border: 1px solid rgba(255,255,255,0.2);
+                border-radius: 6px;
+                background: rgba(255,255,255,0.1);
+                color: white;
+                font-size: 14px;
+                box-sizing: border-box;
+            `;
+            this.videoUrlInput.style.setProperty('&:focus', `
+                outline: none;
+                border-color: #00d4aa;
+                box-shadow: 0 0 0 2px rgba(0, 212, 170, 0.2);
+            `);
 
-                .${window.BCMedia.Constants.CSS_CLASSES.MINI_MODE} .${window.BCMedia.Constants.CSS_CLASSES.CONTENT} {
-                    height: calc(100% - 45px);
-                }
+            urlContainer.appendChild(urlLabel);
+            urlContainer.appendChild(this.videoUrlInput);
 
-                .${window.BCMedia.Constants.CSS_CLASSES.MINI_MODE} .${window.BCMedia.Constants.CSS_CLASSES.TITLEBAR} {
-                    padding: 8px 12px;
-                    font-size: 12px;
-                }
+            // 名稱輸入
+            const nameContainer = document.createElement('div');
+            nameContainer.style.marginBottom = '24px';
 
-                .${window.BCMedia.Constants.CSS_CLASSES.MINI_MODE} .${window.BCMedia.Constants.CSS_CLASSES.BUTTON} {
-                    padding: 4px 8px;
-                    font-size: 11px;
-                    margin: 0 2px;
-                }
+            const nameLabel = document.createElement('label');
+            nameLabel.style.cssText = `
+                display: block;
+                color: rgba(255,255,255,0.9);
+                font-size: 14px;
+                margin-bottom: 8px;
+                font-weight: 500;
+            `;
+            nameLabel.textContent = '影片名稱：';
 
-                .${window.BCMedia.Constants.CSS_CLASSES.MINI_MODE} .media-player-title-text {
-                    font-size: 12px;
-                    margin: 0 8px;
-                }
+            this.videoNameInput = document.createElement('input');
+            this.videoNameInput.type = 'text';
+            this.videoNameInput.placeholder = '請輸入影片名稱（可選，將自動從URL提取）';
+            this.videoNameInput.style.cssText = `
+                width: 100%;
+                padding: 12px;
+                border: 1px solid rgba(255,255,255,0.2);
+                border-radius: 6px;
+                background: rgba(255,255,255,0.1);
+                color: white;
+                font-size: 14px;
+                box-sizing: border-box;
+            `;
 
-                .${window.BCMedia.Constants.CSS_CLASSES.MINI_MODE} .media-player-controls {
-                    padding: 8px;
-                    gap: 8px;
-                }
+            nameContainer.appendChild(nameLabel);
+            nameContainer.appendChild(this.videoNameInput);
 
-                .${window.BCMedia.Constants.CSS_CLASSES.MINI_MODE} .media-player-time-display {
-                    font-size: 10px;
-                    min-width: 60px;
-                }
+            // 按鈕區域
+            const buttonContainer = document.createElement('div');
+            buttonContainer.style.cssText = `
+                display: flex;
+                gap: 12px;
+                justify-content: flex-end;
+            `;
 
-                /* 緊湊模式樣式 */
-                .${window.BCMedia.Constants.CSS_CLASSES.COMPACT_MODE} .${window.BCMedia.Constants.CSS_CLASSES.SIDEBAR} {
-                    width: ${window.BCMedia.Constants.UI.SIDEBAR_MIN_WIDTH}px;
-                }
+            // 取消按鈕
+            const cancelBtn = this.createButton('取消', '取消添加', () => {
+                this.hideAddVideoDialog();
+            });
+            cancelBtn.style.cssText = `
+                background: rgba(255,255,255,0.1);
+                border: 1px solid rgba(255,255,255,0.2);
+                color: white;
+                padding: 10px 20px;
+                cursor: pointer;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s ease;
+            `;
 
-                .${window.BCMedia.Constants.CSS_CLASSES.COMPACT_MODE} .media-player-playlist-item {
-                    padding: 8px 12px;
-                }
+            // 確認按鈕
+            const confirmBtn = this.createButton('添加', '確認添加影片', () => {
+                this.handleAddVideo();
+            });
+            confirmBtn.style.cssText = `
+                background: linear-gradient(135deg, #00d4aa, #00a8cc);
+                border: none;
+                color: white;
+                padding: 10px 20px;
+                cursor: pointer;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s ease;
+            `;
 
-                .${window.BCMedia.Constants.CSS_CLASSES.COMPACT_MODE} .media-player-playlist-item .item-icon {
-                    width: 24px;
-                    height: 24px;
-                    font-size: 12px;
-                }
+            buttonContainer.appendChild(cancelBtn);
+            buttonContainer.appendChild(confirmBtn);
 
-                /* 響應式設計 */
-                @media (max-width: 768px) {
-                    .${window.BCMedia.Constants.CSS_CLASSES.CONTAINER} {
-                        border-radius: 8px;
-                    }
-                    
-                    .${window.BCMedia.Constants.CSS_CLASSES.SIDEBAR} {
-                        width: 250px;
-                    }
-                    
-                    .media-player-controls {
-                        padding: 12px;
-                        gap: 8px;
-                    }
-                    
-                    .media-player-volume-slider {
-                        width: 60px;
-                    }
-                }
+            // 組裝對話框
+            dialog.appendChild(title);
+            dialog.appendChild(urlContainer);
+            dialog.appendChild(nameContainer);
+            dialog.appendChild(buttonContainer);
 
-                /* 滾動條樣式 */
-                .${window.BCMedia.Constants.CSS_CLASSES.SIDEBAR}::-webkit-scrollbar,
-                .media-player-playlist::-webkit-scrollbar {
-                    width: 8px;
-                }
+            overlay.appendChild(dialog);
 
-                .${window.BCMedia.Constants.CSS_CLASSES.SIDEBAR}::-webkit-scrollbar-track,
-                .media-player-playlist::-webkit-scrollbar-track {
-                    background: rgba(255,255,255,0.1);
-                    border-radius: 4px;
+            // 點擊遮罩關閉
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    this.hideAddVideoDialog();
                 }
+            });
 
-                .${window.BCMedia.Constants.CSS_CLASSES.SIDEBAR}::-webkit-scrollbar-thumb,
-                .media-player-playlist::-webkit-scrollbar-thumb {
-                    background: rgba(255,255,255,0.3);
-                    border-radius: 4px;
+            // ESC鍵關閉
+            const escapeHandler = (e) => {
+                if (e.key === 'Escape') {
+                    this.hideAddVideoDialog();
+                    document.removeEventListener('keydown', escapeHandler);
                 }
+            };
+            document.addEventListener('keydown', escapeHandler);
 
-                .${window.BCMedia.Constants.CSS_CLASSES.SIDEBAR}::-webkit-scrollbar-thumb:hover,
-                .media-player-playlist::-webkit-scrollbar-thumb:hover {
-                    background: rgba(255,255,255,0.5);
+            document.body.appendChild(overlay);
+            this.addVideoDialog = overlay;
+
+            // 聚焦到URL輸入框
+            setTimeout(() => {
+                this.videoUrlInput.focus();
+            }, 100);
+        }
+
+        // 新增：處理添加影片
+        handleAddVideo() {
+            const url = this.videoUrlInput.value.trim();
+            const name = this.videoNameInput.value.trim();
+
+            if (!url) {
+                this.showError('請輸入影片URL');
+                return;
+            }
+
+            // 驗證URL格式
+            if (!this.isValidUrl(url)) {
+                this.showError('請輸入有效的URL');
+                return;
+            }
+
+            // 檢查是否支援的格式
+            if (window.BCMedia.Constants && !window.BCMedia.Constants.isSupportedFormat(url)) {
+                this.showWarning('此格式可能不被支援，但仍會嘗試添加');
+            }
+
+            // 生成影片名稱（如果未提供）
+            const videoName = name || this.extractVideoName(url);
+            const videoId = this.generateVideoId();
+
+            // 創建影片項目
+            const videoItem = {
+                id: videoId,
+                url: url,
+                name: videoName,
+                duration: 0,
+                addedAt: Date.now()
+            };
+
+            // 添加到播放列表
+            if (this.mediaPlayer) {
+                if (!this.mediaPlayer.videoList) {
+                    this.mediaPlayer.videoList = [];
                 }
+                this.mediaPlayer.videoList.push(videoItem);
+                
+                // 更新播放列表顯示
+                this.updatePlaylist();
+                
+                // 如果是第一個影片，自動播放
+                if (this.mediaPlayer.videoList.length === 1) {
+                    this.mediaPlayer.playId(videoId);
+                }
+                
+                this.showSuccess(`已添加影片：${videoName}`);
+            }
+
+            this.hideAddVideoDialog();
+        }
+
+        // 新增：隱藏添加影片對話框
+        hideAddVideoDialog() {
+            if (this.addVideoDialog) {
+                this.addVideoDialog.style.display = 'none';
+                this.videoUrlInput.value = '';
+                this.videoNameInput.value = '';
+            }
+        }
+
+        // 新增：驗證URL
+        isValidUrl(url) {
+            try {
+                new URL(url);
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
+        // 新增：從URL提取影片名稱
+        extractVideoName(url) {
+            try {
+                const urlObj = new URL(url);
+                const pathname = urlObj.pathname;
+                const filename = pathname.split('/').pop();
+                
+                if (filename && filename.includes('.')) {
+                    return filename.split('.')[0];
+                }
+                
+                return `影片_${Date.now()}`;
+            } catch {
+                return `影片_${Date.now()}`;
+            }
+        }
+
+        // 新增：生成影片ID
+        generateVideoId() {
+            return 'video_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // 修復：改進的updatePlaylist方法
+        updatePlaylist() {
+            if (!this.playlist) return;
+
+            this.playlist.innerHTML = '';
+
+            // 如果沒有影片，顯示空狀態
+            if (!this.mediaPlayer || !this.mediaPlayer.videoList || this.mediaPlayer.videoList.length === 0) {
+                this.createEmptyStateMessage();
+                return;
+            }
+
+            // 渲染播放列表
+            this.mediaPlayer.videoList.forEach(item => {
+                const element = this.createPlaylistItem(item);
+                this.playlist.appendChild(element);
+            });
+        }
+
+        // 修復：改進的createPlaylistItem方法
+        createPlaylistItem(item) {
+            const element = document.createElement('div');
+            element.className = 'media-player-playlist-item';
+            
+            if (this.mediaPlayer && item.id === this.mediaPlayer.playingId) {
+                element.classList.add('active');
+            }
+
+            // 圖標
+            const icon = document.createElement('div');
+            icon.className = 'item-icon';
+            
+            // 根據格式顯示不同圖標
+            if (window.BCMedia.Constants) {
+                if (window.BCMedia.Constants.isVideoFormat(item.url)) {
+                    icon.textContent = '🎥';
+                } else if (window.BCMedia.Constants.isAudioFormat(item.url)) {
+                    icon.textContent = '🎵';
+                } else {
+                    icon.textContent = '📄';
+                }
+            } else {
+                icon.textContent = '🎬';
+            }
+
+            // 信息容器
+            const info = document.createElement('div');
+            info.className = 'item-info';
+
+            const title = document.createElement('div');
+            title.className = 'item-title';
+            title.textContent = item.name;
+            title.title = item.name; // 顯示完整標題
+
+            const urlDisplay = document.createElement('div');
+            urlDisplay.style.cssText = `
+                font-size: 11px;
+                color: rgba(255,255,255,0.5);
+                margin-bottom: 4px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            `;
+            urlDisplay.textContent = item.url;
+            urlDisplay.title = item.url;
+
+            const duration = document.createElement('div');
+            duration.className = 'item-duration';
+            duration.textContent = item.duration ? 
+                this.formatTime(item.duration) : '未知時長';
+
+            info.appendChild(title);
+            info.appendChild(urlDisplay);
+            info.appendChild(duration);
+
+            // 操作按鈕容器
+            const actions = document.createElement('div');
+            actions.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            `;
+
+            // 刪除按鈕
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = '🗑️';
+            deleteBtn.title = '刪除';
+            deleteBtn.style.cssText = `
+                background: rgba(255,0,0,0.2);
+                border: 1px solid rgba(255,0,0,0.3);
+                color: #ff6b6b;
+                width: 24px;
+                height: 24px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s ease;
             `;
             
-            document.head.appendChild(this.styles);
-        }
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.handleDeleteVideo(item.id);
+            });
 
-        // ==================== 容器創建 ====================
-        createContainer() {
-            this.container = document.createElement('div');
-            this.container.className = window.BCMedia.Constants.CSS_CLASSES.CONTAINER;
-            
-            // 設置初始大小和位置
-            const config = window.BCMedia.Constants.getModeConfig(
-                window.BCMedia.Constants.MODES.NORMAL, 
-                this.isMobile
-            );
-            
-            this.container.style.width = config.width;
-            this.container.style.height = config.height;
-            this.container.style.left = this.isMobile ? '5%' : '20%';
-            this.container.style.top = this.isMobile ? '5%' : '10%';
-        }
+            actions.appendChild(deleteBtn);
 
-        // ==================== 標題欄創建 ====================
-        createTitleBar() {
-            const titleBar = document.createElement('div');
-            titleBar.className = window.BCMedia.Constants.CSS_CLASSES.TITLEBAR;
+            element.appendChild(icon);
+            element.appendChild(info);
+            element.appendChild(actions);
 
-            // 同步按鈕
-            const syncBtn = this.createButton('🔄', '手動同步', () => {
+            // 點擊播放
+            element.addEventListener('click', () => {
                 if (this.mediaPlayer) {
-                    this.mediaPlayer.requestSync();
-                    this.setTitle("手動同步中...");
+                    this.mediaPlayer.playId(item.id);
                 }
             });
 
-            // 迷你模式按鈕
-            const miniBtn = this.createButton('📱', '迷你模式', () => {
-                this.toggleMiniMode();
-            });
-
-            // 標題文字
-            this.titleElement = document.createElement('span');
-            this.titleElement.className = 'media-player-title-text';
-            this.titleElement.textContent = '暫無播放中';
-
-            // 側邊欄切換按鈕
-            const sidebarBtn = this.createButton('>|', '切換側邊欄', () => {
-                this.toggleSidebar();
-            });
-
-            // 關閉按鈕
-            const closeBtn = this.createButton('✖', '關閉', () => {
-                if (this.mediaPlayer) {
-                    this.mediaPlayer.exit();
-                }
-            });
-
-            titleBar.appendChild(syncBtn);
-            titleBar.appendChild(miniBtn);
-            titleBar.appendChild(this.titleElement);
-            titleBar.appendChild(sidebarBtn);
-            titleBar.appendChild(closeBtn);
-
-            this.container.appendChild(titleBar);
+            return element;
         }
 
-        // ==================== 內容區域創建 ====================
-        createContent() {
-            const content = document.createElement('div');
-            content.className = window.BCMedia.Constants.CSS_CLASSES.CONTENT;
+        // 新增：處理刪除影片
+        handleDeleteVideo(videoId) {
+            if (!this.mediaPlayer || !this.mediaPlayer.videoList) return;
 
-            // 創建視頻區域
-            this.createVideoArea(content);
-            
-            // 創建側邊欄
-            this.createSidebar(content);
+            const index = this.mediaPlayer.videoList.findIndex(item => item.id === videoId);
+            if (index === -1) return;
 
-            this.container.appendChild(content);
+            const videoName = this.mediaPlayer.videoList[index].name;
+
+            // 如果正在播放被刪除的影片，停止播放
+            if (this.mediaPlayer.playingId === videoId) {
+                this.mediaPlayer.stop();
+                this.mediaPlayer.playingId = '';
+                if (this.titleElement) {
+                    this.titleElement.textContent = '暫無播放中';
+                }
+            }
+
+            // 從列表中移除
+            this.mediaPlayer.videoList.splice(index, 1);
+
+            // 更新播放列表顯示
+            this.updatePlaylist();
+
+            this.showSuccess(`已刪除影片：${videoName}`);
         }
 
-        createVideoArea(parent) {
-            const videoArea = document.createElement('div');
-            videoArea.className = window.BCMedia.Constants.CSS_CLASSES.VIDEO_AREA;
-
-            // 視頻容器
-            this.videoContainer = document.createElement('div');
-            this.videoContainer.className = 'media-player-video-container';
+        // 新增：格式化時間的方法（如果Utils不可用）
+        formatTime(seconds) {
+            if (!seconds || !isFinite(seconds)) return '00:00';
             
-            // 控制欄
-            const controls = this.createControls();
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
             
-            videoArea.appendChild(this.videoContainer);
-            videoArea.appendChild(controls);
-            
-            parent.appendChild(videoArea);
+            if (hours > 0) {
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            } else {
+                return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
         }
 
-        createControls() {
-            const controls = document.createElement('div');
-            controls.className = 'media-player-controls';
+        // 修復：確保destroy方法正確清理所有資源
+        destroy() {
+            this.cleanup();
+            
+            // 移除樣式
+            if (this.styles && this.styles.parentNode) {
+                this.styles.parentNode.removeChild(this.styles);
+                this.styles = null;
+            }
 
-            // 播放按鈕
-            this.playButton = this.createButton('▶', '播放/暫停', () => {
-                if (this.mediaPlayer) {
-                    if (this.mediaPlayer.state.playing) {
-                        this.mediaPlayer.pause();
-                    } else {
-                        this.mediaPlayer.play();
-                    }
-                }
-            });
-
-            // 上一首按鈕
-            const prevBtn = this.createButton('⏮', '上一首', () => {
-                if (this.mediaPlayer) {
-                    this.mediaPlayer.playPrev();
-                }
-            });
-
-            // 下一首按鈕
-            const nextBtn = this.createButton('⏭', '下一首', () => {
-                if (this.mediaPlayer) {
-                    this.mediaPlayer.playNext();
-                }
-            });
-
-            // 進度條
-            const progressContainer = this.createProgressBar();
-
-            // 時間顯示
-            this.timeDisplay = document.createElement('div');
-            this.timeDisplay.className = 'media-player-time-display';
-            this.timeDisplay.textContent = '00:00 / 00:00';
-
-            // 音量控制
-            const volumeContainer = this.createVolumeControl();
-
-            controls.appendChild(prevBtn);
-            controls.appendChild(this.playButton);
-            controls.appendChild(nextBtn);
-            controls.appendChild(progressContainer);
-            controls.appendChild(this.timeDisplay);
-            controls.appendChild(volumeContainer);
-
-            return controls;
+            console.log('[UI管理器] 清理完成');
         }
 
         createProgressBar() {
             const container = document.createElement('div');
             container.className = 'media-player-progress-container';
+            container.style.cssText = `
+                flex: 1;
+                height: 4px;
+                background: rgba(255,255,255,0.2);
+                border-radius: 2px;
+                cursor: pointer;
+                position: relative;
+            `;
 
             this.progressBar = document.createElement('div');
             this.progressBar.className = 'media-player-progress-bar';
-            this.progressBar.style.width = '0%';
+            this.progressBar.style.cssText = `
+                height: 100%;
+                background: linear-gradient(90deg, #00d4aa, #00a8cc);
+                border-radius: 2px;
+                width: 0%;
+                transition: width 0.1s ease;
+                position: relative;
+            `;
 
             container.appendChild(this.progressBar);
 
@@ -648,6 +679,11 @@
         createVolumeControl() {
             const container = document.createElement('div');
             container.className = 'media-player-volume-container';
+            container.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            `;
 
             // 靜音按鈕
             const muteBtn = this.createButton('🔊', '靜音/取消靜音', () => {
@@ -659,10 +695,24 @@
             // 音量滑塊
             const volumeContainer = document.createElement('div');
             volumeContainer.className = 'media-player-volume-slider';
+            volumeContainer.style.cssText = `
+                width: 80px;
+                height: 4px;
+                background: rgba(255,255,255,0.2);
+                border-radius: 2px;
+                cursor: pointer;
+                position: relative;
+            `;
 
             this.volumeBar = document.createElement('div');
             this.volumeBar.className = 'media-player-volume-bar';
-            this.volumeBar.style.width = '80%';
+            this.volumeBar.style.cssText = `
+                height: 100%;
+                background: linear-gradient(90deg, #00d4aa, #00a8cc);
+                border-radius: 2px;
+                width: 80%;
+                transition: width 0.1s ease;
+            `;
 
             volumeContainer.appendChild(this.volumeBar);
 
@@ -683,38 +733,8 @@
             return container;
         }
 
-        createSidebar(parent) {
-            this.sidebar = document.createElement('div');
-            this.sidebar.className = window.BCMedia.Constants.CSS_CLASSES.SIDEBAR;
-
-            // 側邊欄標題
-            const header = document.createElement('div');
-            header.className = 'media-player-sidebar-header';
-            header.textContent = '播放列表';
-
-            // 播放列表
-            this.playlist = document.createElement('div');
-            this.playlist.className = 'media-player-playlist';
-
-            this.sidebar.appendChild(header);
-            this.sidebar.appendChild(this.playlist);
-
-            parent.appendChild(this.sidebar);
-        }
-
-        // ==================== 輔助創建方法 ====================
-        createButton(text, title, onclick) {
-            const btn = document.createElement('button');
-            btn.className = window.BCMedia.Constants.CSS_CLASSES.BUTTON;
-            btn.innerHTML = text;
-            btn.title = title;
-            btn.addEventListener('click', onclick);
-            return btn;
-        }
-
-        // ==================== 拖拽和縮放 ====================
         setupDragAndResize() {
-            const titleBar = this.container.querySelector('.' + window.BCMedia.Constants.CSS_CLASSES.TITLEBAR);
+            const titleBar = this.container.querySelector('.bc-media-player-titlebar');
             
             // 拖拽功能
             titleBar.addEventListener('mousedown', (e) => {
@@ -778,61 +798,56 @@
             this.savePosition();
         }
 
-        // ==================== 模式切換 ====================
-        switchMode(mode) {
-            // 移除所有模式類
-            this.container.classList.remove(
-                window.BCMedia.Constants.CSS_CLASSES.MINI_MODE,
-                window.BCMedia.Constants.CSS_CLASSES.COMPACT_MODE,
-                window.BCMedia.Constants.CSS_CLASSES.FULLSCREEN_MODE
-            );
-
-            const config = window.BCMedia.Constants.getModeConfig(mode, this.isMobile);
+        bindEvents() {
+            // 控制欄顯示/隱藏
+            const videoArea = this.container.querySelector('.bc-media-player-video-area');
+            const controls = this.container.querySelector('.media-player-controls');
             
-            switch (mode) {
-                case window.BCMedia.Constants.MODES.MINI:
-                    this.container.classList.add(window.BCMedia.Constants.CSS_CLASSES.MINI_MODE);
-                    this.container.style.width = config.width;
-                    this.container.style.height = config.height;
-                    this.container.style.resize = 'none';
-                    break;
-                    
-                case window.BCMedia.Constants.MODES.COMPACT:
-                    this.container.classList.add(window.BCMedia.Constants.CSS_CLASSES.COMPACT_MODE);
-                    this.container.style.width = config.width;
-                    this.container.style.height = config.height;
-                    this.container.style.resize = 'both';
-                    break;
-                    
-                case window.BCMedia.Constants.MODES.NORMAL:
-                default:
-                    this.container.style.width = config.width;
-                    this.container.style.height = config.height;
-                    this.container.style.resize = 'both';
-                    break;
+            if (videoArea && controls) {
+                videoArea.addEventListener('mouseenter', () => {
+                    controls.style.opacity = '1';
+                });
+                
+                videoArea.addEventListener('mouseleave', () => {
+                    controls.style.opacity = '0';
+                });
             }
-            
-            this.savePosition();
+
+            // 窗口大小改變
+            window.addEventListener('resize', this.debounce(() => {
+                this.handleResize();
+            }, 250));
         }
 
-        toggleMiniMode() {
-            const currentMode = this.mediaPlayer ? this.mediaPlayer.currentMode : window.BCMedia.Constants.MODES.NORMAL;
-            const newMode = currentMode === window.BCMedia.Constants.MODES.MINI 
-                ? window.BCMedia.Constants.MODES.NORMAL 
-                : window.BCMedia.Constants.MODES.MINI;
-            
-            if (this.mediaPlayer) {
-                this.mediaPlayer.switchMode(newMode);
-            }
+        debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
         }
 
-        toggleSidebar() {
-            if (this.sidebar) {
-                this.sidebar.classList.toggle('hidden');
+        handleResize() {
+            if (!this.container) return;
+
+            // 確保播放器在可視區域內
+            const rect = this.container.getBoundingClientRect();
+            const maxLeft = window.innerWidth - rect.width;
+            const maxTop = window.innerHeight - rect.height;
+
+            if (rect.left > maxLeft) {
+                this.container.style.left = Math.max(0, maxLeft) + 'px';
+            }
+
+            if (rect.top > maxTop) {
+                this.container.style.top = Math.max(0, maxTop) + 'px';
             }
         }
 
-        // ==================== 更新方法 ====================
         setTitle(title) {
             if (this.titleElement) {
                 this.titleElement.textContent = title || '暫無播放中';
@@ -848,8 +863,8 @@
 
             // 更新時間顯示
             if (this.timeDisplay) {
-                const current = window.BCMedia.Utils.formatTime(state.currentTime);
-                const duration = window.BCMedia.Utils.formatTime(state.duration);
+                const current = this.formatTime(state.currentTime);
+                const duration = this.formatTime(state.duration);
                 this.timeDisplay.textContent = `${current} / ${duration}`;
             }
 
@@ -865,72 +880,123 @@
             }
         }
 
-        updatePlaylist() {
-            if (!this.playlist || !this.mediaPlayer) return;
-
-            this.playlist.innerHTML = '';
-
-            this.mediaPlayer.videoList.forEach(item => {
-                const element = this.createPlaylistItem(item);
-                this.playlist.appendChild(element);
-            });
+        toggleMiniMode() {
+            const currentMode = this.mediaPlayer ? 
+                this.mediaPlayer.currentMode : 'normal';
+            const newMode = currentMode === 'mini' ? 'normal' : 'mini';
+            
+            if (this.mediaPlayer) {
+                this.mediaPlayer.switchMode(newMode);
+            }
         }
 
-        createPlaylistItem(item) {
-            const element = document.createElement('div');
-            element.className = 'media-player-playlist-item';
+        switchMode(mode) {
+            // 移除所有模式類
+            this.container.classList.remove('mini-mode', 'compact-mode', 'fullscreen-mode');
             
-            if (item.id === this.mediaPlayer.playingId) {
-                element.classList.add('active');
+            switch (mode) {
+                case 'mini':
+                    this.container.classList.add('mini-mode');
+                    this.container.style.width = this.isMobile ? '280px' : '320px';
+                    this.container.style.height = this.isMobile ? '120px' : '180px';
+                    this.container.style.resize = 'none';
+                    break;
+                    
+                case 'compact':
+                    this.container.classList.add('compact-mode');
+                    this.container.style.width = this.isMobile ? '320px' : '400px';
+                    this.container.style.height = this.isMobile ? '240px' : '300px';
+                    this.container.style.resize = 'both';
+                    break;
+                    
+                case 'normal':
+                default:
+                    this.container.style.width = this.isMobile ? '90%' : '60%';
+                    this.container.style.height = this.isMobile ? '70%' : '60%';
+                    this.container.style.resize = 'both';
+                    break;
             }
-
-            // 圖標
-            const icon = document.createElement('div');
-            icon.className = 'item-icon';
             
-            // 根據格式顯示不同圖標
-            if (window.BCMedia.Constants.isVideoFormat(item.url)) {
-                icon.textContent = '🎥';
-            } else if (window.BCMedia.Constants.isAudioFormat(item.url)) {
-                icon.textContent = '🎵';
-            } else {
-                icon.textContent = '📄';
+            this.savePosition();
+        }
+
+        toggleSidebar() {
+            if (this.sidebar) {
+                this.sidebar.classList.toggle('hidden');
             }
+        }
 
-            // 信息
-            const info = document.createElement('div');
-            info.className = 'item-info';
+        savePosition() {
+            if (!this.container) return;
 
-            const title = document.createElement('div');
-            title.className = 'item-title';
-            title.textContent = item.name;
+            const position = {
+                left: this.container.style.left,
+                top: this.container.style.top,
+                width: this.container.style.width,
+                height: this.container.style.height
+            };
 
-            const duration = document.createElement('div');
-            duration.className = 'item-duration';
-            duration.textContent = item.duration ? window.BCMedia.Utils.formatTime(item.duration) : '未知時長';
+            try {
+                localStorage.setItem('bc_media_position', JSON.stringify(position));
+            } catch (e) {
+                console.warn('無法保存播放器位置:', e);
+            }
+        }
 
-            info.appendChild(title);
-            info.appendChild(duration);
-
-            element.appendChild(icon);
-            element.appendChild(info);
-
-            // 點擊播放
-            element.addEventListener('click', () => {
-                if (this.mediaPlayer) {
-                    this.mediaPlayer.playId(item.id);
+        restorePosition() {
+            try {
+                const position = localStorage.getItem('bc_media_position');
+                if (position && this.container) {
+                    const pos = JSON.parse(position);
+                    if (pos.left) this.container.style.left = pos.left;
+                    if (pos.top) this.container.style.top = pos.top;
+                    if (pos.width) this.container.style.width = pos.width;
+                    if (pos.height) this.container.style.height = pos.height;
                 }
-            });
-
-            return element;
+            } catch (e) {
+                console.warn('無法恢復播放器位置:', e);
+            }
         }
 
-        // ==================== 通知系統 ====================
         showNotification(message, type = 'info', duration = 3000) {
             const notification = document.createElement('div');
-            notification.className = `${window.BCMedia.Constants.CSS_CLASSES.NOTIFICATION} ${type}`;
-            notification.textContent = message;
+            notification.className = `bc-media-notification ${type}`;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 16px 24px;
+                border-radius: 8px;
+                color: white;
+                z-index: 10001;
+                animation: slideInRight 0.3s ease;
+                backdrop-filter: blur(15px);
+                font-weight: 500;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+                max-width: 300px;
+            `;
 
+            // 設置背景顏色
+            switch (type) {
+                case 'error':
+                    notification.style.background = 'linear-gradient(135deg, rgba(231, 76, 60, 0.9), rgba(192, 57, 43, 0.9))';
+                    notification.style.borderLeft = '4px solid #e74c3c';
+                    break;
+                case 'success':
+                    notification.style.background = 'linear-gradient(135deg, rgba(39, 174, 96, 0.9), rgba(46, 204, 113, 0.9))';
+                    notification.style.borderLeft = '4px solid #27ae60';
+                    break;
+                case 'warning':
+                    notification.style.background = 'linear-gradient(135deg, rgba(243, 156, 18, 0.9), rgba(230, 126, 34, 0.9))';
+                    notification.style.borderLeft = '4px solid #f39c12';
+                    break;
+                default:
+                    notification.style.background = 'linear-gradient(135deg, rgba(52, 152, 219, 0.9), rgba(41, 128, 185, 0.9))';
+                    notification.style.borderLeft = '4px solid #3498db';
+                    break;
+            }
+
+            notification.textContent = message;
             document.body.appendChild(notification);
             this.notifications.add(notification);
 
@@ -966,99 +1032,51 @@
             this.showNotification(message, 'warning', 4000);
         }
 
-        // ==================== 事件處理 ====================
-        bindEvents() {
-            // 窗口大小改變
-            window.addEventListener('resize', window.BCMedia.Utils.debounce(() => {
-                this.handleResize();
-            }, 250));
-        }
-
-        handleResize() {
-            if (!this.container) return;
-
-            // 確保播放器在可視區域內
-            const rect = this.container.getBoundingClientRect();
-            const maxLeft = window.innerWidth - rect.width;
-            const maxTop = window.innerHeight - rect.height;
-
-            if (rect.left > maxLeft) {
-                this.container.style.left = Math.max(0, maxLeft) + 'px';
-            }
-
-            if (rect.top > maxTop) {
-                this.container.style.top = Math.max(0, maxTop) + 'px';
-            }
-        }
-
-        // ==================== 位置保存和恢復 ====================
-        savePosition() {
-            if (!this.container) return;
-
-            const position = {
-                left: this.container.style.left,
-                top: this.container.style.top,
-                width: this.container.style.width,
-                height: this.container.style.height
-            };
-
-            window.BCMedia.Utils.setLocalData(
-                window.BCMedia.Constants.STORAGE_KEYS.POSITION,
-                position
-            );
-        }
-
-        restorePosition() {
-            const position = window.BCMedia.Utils.getLocalData(
-                window.BCMedia.Constants.STORAGE_KEYS.POSITION
-            );
-
-            if (position && this.container) {
-                if (position.left) this.container.style.left = position.left;
-                if (position.top) this.container.style.top = position.top;
-                if (position.width) this.container.style.width = position.width;
-                if (position.height) this.container.style.height = position.height;
-            }
-        }
-
-        // ==================== 播放器容器獲取 ====================
         getVideoContainer() {
             return this.videoContainer;
         }
 
-        // ==================== 清理方法 ====================
-        destroy() {
-            // 清理通知
-            this.notifications.forEach(notification => {
-                this.removeNotification(notification);
+        // 輔助方法
+        createButton(text, title, onclick) {
+            const btn = document.createElement('button');
+            btn.className = 'bc-media-player-btn';
+            btn.innerHTML = text;
+            btn.title = title;
+            btn.style.cssText = `
+                background: rgba(255,255,255,0.15);
+                border: 1px solid rgba(255,255,255,0.2);
+                color: white;
+                padding: 6px 12px;
+                margin: 0 3px;
+                cursor: pointer;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: 500;
+                transition: all 0.2s ease;
+                backdrop-filter: blur(10px);
+            `;
+            
+            btn.addEventListener('mouseenter', () => {
+                btn.style.background = 'rgba(255,255,255,0.25)';
+                btn.style.borderColor = 'rgba(255,255,255,0.3)';
+                btn.style.transform = 'translateY(-1px)';
+                btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
             });
-            this.notifications.clear();
-
-            // 移除容器
-            if (this.container && this.container.parentNode) {
-                this.container.parentNode.removeChild(this.container);
-            }
-
-            // 移除樣式
-            if (this.styles && this.styles.parentNode) {
-                this.styles.parentNode.removeChild(this.styles);
-            }
-
-            // 重置引用
-            this.container = null;
-            this.titleElement = null;
-            this.progressBar = null;
-            this.volumeSlider = null;
-            this.playButton = null;
-            this.sidebar = null;
-            this.videoContainer = null;
-
-            console.log('[UI管理器] 清理完成');
+            
+            btn.addEventListener('mouseleave', () => {
+                btn.style.background = 'rgba(255,255,255,0.15)';
+                btn.style.borderColor = 'rgba(255,255,255,0.2)';
+                btn.style.transform = 'translateY(0)';
+                btn.style.boxShadow = '';
+            });
+            
+            btn.addEventListener('click', onclick);
+            return btn;
         }
     }
 
-    // 註冊到全域命名空間
-    window.BCMedia.UIManager = UIManager;
+    // 替換原有的 UIManager
+    window.BCMedia.UIManager = EnhancedUIManager;
 
-    console.log('[BC增強媒體] UI管理器模塊載入完成');
+    console.log('[BC增強媒體] 增強UI管理器載入完成');
 })();
