@@ -174,12 +174,8 @@
 
         // ==================== 播放控制 ====================
         async enter() {
-            if (this.isActive) {
-                console.log('[媒體播放器] 已處於活躍狀態，忽略進入');
-                return;
-            }
+            if (this.isActive) return;
             
-            console.log('[媒體播放器] 開始進入');
             try {
                 this.isActive = true;
                 
@@ -188,10 +184,7 @@
                 
                 // 創建 UI
                 if (this.uiManager) {
-                    console.log('[媒體播放器] 調用 UI 創建');
                     await this.uiManager.create();
-                } else {
-                    throw new Error('UIManager 未初始化');
                 }
                 
                 // 請求同步
@@ -199,19 +192,14 @@
                 
                 console.log('[媒體播放器] 進入成功');
             } catch (error) {
-                console.error('[媒體播放器] 進入失敗:', error.message, error.stack);
+                console.error('[媒體播放器] 進入失敗:', error);
                 this.exit();
-                throw error; // 拋出以便上層捕獲
             }
         }
-        
+
         exit() {
-            if (!this.isActive) {
-                console.log('[媒體播放器] 已關閉，忽略退出');
-                return;
-            }
+            if (!this.isActive) return;
             
-            console.log('[媒體播放器] 開始退出');
             this.isActive = false;
             
             // 停止播放
@@ -227,6 +215,7 @@
             
             console.log('[媒體播放器] 退出成功');
         }
+
         async initPlayer() {
             // 這裡可以根據需要使用不同的播放器實現
             // 例如 HTML5 video/audio, HLS.js, DPlayer 等
@@ -266,11 +255,6 @@
 
         destroyPlayer() {
             if (this.player) {
-                // 移除所有事件監聽器
-                ['play', 'pause', 'seeked', 'timeupdate', 'loadedmetadata', 'loadstart', 'canplay', 'ended', 'error', 'volumechange'].forEach(event => {
-                    this.player.removeEventListener(event, this.callbacks['on' + event.charAt(0).toUpperCase() + event.slice(1)]);
-                });
-        
                 this.player.pause();
                 this.player.src = '';
                 this.player.load();
@@ -327,14 +311,6 @@
                 
             } catch (error) {
                 this.handleError('播放失敗: ' + error.message);
-            }
-            if (item.duration === 0 && this.player) {
-                this.player.addEventListener('loadedmetadata', () => {
-                    item.duration = this.player.duration;
-                    if (this.uiManager) {
-                        this.uiManager.updatePlaylist();
-                    }
-                }, { once: true });
             }
         }
 
@@ -546,19 +522,12 @@
         }
 
         handleError(error) {
-            let errorMessage = '';
-            if (error instanceof Event) {
-                errorMessage = '事件錯誤: ' + (error.type || '未知類型') + ' - ' + (error.message || '無訊息');
-                console.error('[媒體播放器] 事件錯誤細節:', error); // 記錄完整事件
-            } else {
-                errorMessage = error.message || error.toString();
-            }
-            console.error('[媒體播放器] 錯誤:', errorMessage);
-            this.state.error = errorMessage;
+            console.error('[媒體播放器] 錯誤:', error);
+            this.state.error = error;
             this.state.loading = false;
             
             if (this.uiManager) {
-                this.uiManager.showError(errorMessage);
+                this.uiManager.showError(error);
             }
         }
 
