@@ -522,12 +522,19 @@
         }
 
         handleError(error) {
-            console.error('[媒體播放器] 錯誤:', error);
-            this.state.error = error;
+            let errorMessage = '';
+            if (error instanceof Event) {
+                errorMessage = '事件錯誤: ' + (error.type || '未知類型') + ' - ' + (error.message || '無訊息');
+                console.error('[媒體播放器] 事件錯誤細節:', error); // 記錄完整事件
+            } else {
+                errorMessage = error.message || error.toString();
+            }
+            console.error('[媒體播放器] 錯誤:', errorMessage);
+            this.state.error = errorMessage;
             this.state.loading = false;
             
             if (this.uiManager) {
-                this.uiManager.showError(error);
+                this.uiManager.showError(errorMessage);
             }
         }
 
