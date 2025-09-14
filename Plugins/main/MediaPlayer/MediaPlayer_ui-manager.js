@@ -38,39 +38,17 @@
 
         // ==================== 主要創建方法 ====================
         async create() {
-            console.log('[UI管理器] 開始創建界面');
-            if (!document.body) {
-                console.error('[UI管理器] document.body 未準備好');
-                throw new Error('DOM 未準備好');
-            }
-        
             this.createStyles();
             this.createContainer();
             this.createTitleBar();
             this.createContent();
-            this.createAddLinkUI(); // 確保新增連結 UI
             this.setupDragAndResize();
             this.bindEvents();
             
-            // 確保容器附加到 DOM
-            try {
-                document.body.appendChild(this.container);
-                console.log('[UI管理器] 容器已附加到 DOM:', this.container);
-            } catch (error) {
-                console.error('[UI管理器] 附加容器失敗:', error);
-                throw error;
-            }
+            document.body.appendChild(this.container);
             
             // 恢復位置
             this.restorePosition();
-            
-            // 檢查容器是否可見
-            const computedStyle = window.getComputedStyle(this.container);
-            if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden') {
-                console.warn('[UI管理器] 容器不可見，檢查 CSS');
-                this.container.style.display = 'block';
-                this.container.style.visibility = 'visible';
-            }
             
             console.log('[UI管理器] 界面創建完成');
         }
@@ -576,63 +554,6 @@
             this.container.appendChild(content);
         }
 
-        createAddLinkUI() {
-            console.log('[UI管理器] 創建新增連結 UI');
-            const addContainer = document.createElement('div');
-            addContainer.className = 'media-player-add-link';
-            addContainer.style.padding = '10px';
-            addContainer.style.borderTop = '1px solid rgba(255,255,255,0.1)';
-            addContainer.style.background = 'rgba(0,0,0,0.8)';
-            addContainer.style.zIndex = window.BCMedia.Constants.UI.Z_INDEX.PLAYER + 1;
-        
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.placeholder = '輸入影片連結 (MP4, MP3 等)';
-            input.style.width = '70%';
-            input.style.padding = '8px';
-            input.style.borderRadius = '4px';
-            input.style.border = '1px solid #ccc';
-            addContainer.appendChild(input);
-        
-            const button = document.createElement('button');
-            button.textContent = '新增並播放';
-            button.className = window.BCMedia.Constants.CSS_CLASSES.BUTTON;
-            button.style.marginLeft = '10px';
-            button.onclick = () => {
-                console.log('[UI管理器] 新增連結按鈕點擊');
-                const url = window.BCMedia.Utils.normalizeUrl(input.value);
-                if (!window.BCMedia.Utils.isValidUrl(url)) {
-                    this.showError('無效的連結');
-                    return;
-                }
-                if (!window.BCMedia.Constants.isSupportedFormat(url)) {
-                    this.showError('不支援的格式');
-                    return;
-                }
-        
-                const id = window.BCMedia.Utils.generateShortId();
-                const name = url.split('/').pop() || '未知影片';
-                this.mediaPlayer.videoList.push({ id, url, name, duration: 0 });
-        
-                this.updatePlaylist();
-                if (this.mediaPlayer.networkManager) {
-                    this.mediaPlayer.networkManager.sendSyncList();
-                }
-        
-                this.mediaPlayer.playId(id);
-                input.value = '';
-            };
-            addContainer.appendChild(button);
-        
-            if (this.sidebar) {
-                this.sidebar.appendChild(addContainer);
-            } else if (this.content) {
-                this.content.appendChild(addContainer);
-            } else {
-                console.warn('[UI管理器] 無法附加新增連結 UI，缺少 sidebar 或 content');
-            }
-        }
-        
         createVideoArea(parent) {
             const videoArea = document.createElement('div');
             videoArea.className = window.BCMedia.Constants.CSS_CLASSES.VIDEO_AREA;
@@ -1047,13 +968,12 @@
 
         // ==================== 事件處理 ====================
         bindEvents() {
-            // 保存移除函數
-            this.resizeListener = window.BCMedia.Utils.debounce(() => {
+            // 窗口大小改變
+            window.addEventListener('resize', window.BCMedia.Utils.debounce(() => {
                 this.handleResize();
-            }, 250);
-            window.addEventListener('resize', this.resizeListener);
+            }, 250));
         }
-        
+
         handleResize() {
             if (!this.container) return;
 
@@ -1113,23 +1033,17 @@
                 this.removeNotification(notification);
             });
             this.notifications.clear();
-        
+
             // 移除容器
             if (this.container && this.container.parentNode) {
                 this.container.parentNode.removeChild(this.container);
             }
-        
+
             // 移除樣式
             if (this.styles && this.styles.parentNode) {
                 this.styles.parentNode.removeChild(this.styles);
             }
-        
-            // 移除事件監聽器
-            if (this.resizeListener) {
-                window.removeEventListener('resize', this.resizeListener);
-                this.resizeListener = null;
-            }
-        
+
             // 重置引用
             this.container = null;
             this.titleElement = null;
@@ -1138,9 +1052,10 @@
             this.playButton = null;
             this.sidebar = null;
             this.videoContainer = null;
-        
+
             console.log('[UI管理器] 清理完成');
         }
+    }
 
     // 註冊到全域命名空間
     window.BCMedia.UIManager = UIManager;
