@@ -174,11 +174,12 @@
 
         // ==================== 播放控制 ====================
         async enter() {
-            if (this.isActive) return;
+            if (this.isActive) {
+                console.log('[媒體播放器] 已處於活躍狀態，忽略進入');
+                return;
+            }
             
-            // 先確保舊資源清理
-            this.destroyPlayer();
-            
+            console.log('[媒體播放器] 開始進入');
             try {
                 this.isActive = true;
                 
@@ -187,7 +188,10 @@
                 
                 // 創建 UI
                 if (this.uiManager) {
+                    console.log('[媒體播放器] 調用 UI 創建');
                     await this.uiManager.create();
+                } else {
+                    throw new Error('UIManager 未初始化');
                 }
                 
                 // 請求同步
@@ -195,14 +199,19 @@
                 
                 console.log('[媒體播放器] 進入成功');
             } catch (error) {
-                console.error('[媒體播放器] 進入失敗:', error);
+                console.error('[媒體播放器] 進入失敗:', error.message, error.stack);
                 this.exit();
+                throw error; // 拋出以便上層捕獲
             }
         }
-
+        
         exit() {
-            if (!this.isActive) return;
+            if (!this.isActive) {
+                console.log('[媒體播放器] 已關閉，忽略退出');
+                return;
+            }
             
+            console.log('[媒體播放器] 開始退出');
             this.isActive = false;
             
             // 停止播放
@@ -218,7 +227,6 @@
             
             console.log('[媒體播放器] 退出成功');
         }
-
         async initPlayer() {
             // 這裡可以根據需要使用不同的播放器實現
             // 例如 HTML5 video/audio, HLS.js, DPlayer 等
