@@ -44,6 +44,7 @@
             this.createContent();
             this.setupDragAndResize();
             this.bindEvents();
+            this.createAddLinkUI();
             
             document.body.appendChild(this.container);
             
@@ -552,6 +553,61 @@
             this.createSidebar(content);
 
             this.container.appendChild(content);
+        }
+
+        createAddLinkUI() {
+            const addContainer = document.createElement('div');
+            addContainer.className = 'media-player-add-link';
+            addContainer.style.padding = '10px';
+            addContainer.style.borderTop = '1px solid rgba(255,255,255,0.1)';
+        
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = '輸入影片連結 (MP4, MP3 等)';
+            input.style.width = '70%';
+            input.style.padding = '8px';
+            input.style.borderRadius = '4px';
+            input.style.border = '1px solid #ccc';
+            addContainer.appendChild(input);
+        
+            const button = document.createElement('button');
+            button.textContent = '新增並播放';
+            button.className = window.BCMedia.Constants.CSS_CLASSES.BUTTON;
+            button.style.marginLeft = '10px';
+            button.onclick = () => {
+                const url = window.BCMedia.Utils.normalizeUrl(input.value);
+                if (!window.BCMedia.Utils.isValidUrl(url)) {
+                    this.showError('無效的連結');
+                    return;
+                }
+                if (!window.BCMedia.Constants.isSupportedFormat(url)) {
+                    this.showError('不支援的格式');
+                    return;
+                }
+        
+                // 添加到播放列表
+                const id = window.BCMedia.Utils.generateShortId();
+                const name = url.split('/').pop() || '未知影片';
+                this.mediaPlayer.videoList.push({ id, url, name, duration: 0 });
+        
+                // 更新 UI 和同步
+                this.updatePlaylist();
+                if (this.mediaPlayer.networkManager) {
+                    this.mediaPlayer.networkManager.sendSyncList();
+                }
+        
+                // 立即播放
+                this.mediaPlayer.playId(id);
+                input.value = ''; // 清空輸入
+            };
+            addContainer.appendChild(button);
+        
+            // 添加到側邊欄或內容區域
+            if (this.sidebar) {
+                this.sidebar.appendChild(addContainer);
+            } else if (this.content) {
+                this.content.appendChild(addContainer);
+            }
         }
 
         createVideoArea(parent) {
