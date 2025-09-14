@@ -968,12 +968,13 @@
 
         // ==================== 事件處理 ====================
         bindEvents() {
-            // 窗口大小改變
-            window.addEventListener('resize', window.BCMedia.Utils.debounce(() => {
+            // 保存移除函數
+            this.resizeListener = window.BCMedia.Utils.debounce(() => {
                 this.handleResize();
-            }, 250));
+            }, 250);
+            window.addEventListener('resize', this.resizeListener);
         }
-
+        
         handleResize() {
             if (!this.container) return;
 
