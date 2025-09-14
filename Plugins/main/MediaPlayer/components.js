@@ -726,3 +726,4 @@ https://example.com/video2.mp3`;
         createDialog,
         closeDialog
     };
+})();
