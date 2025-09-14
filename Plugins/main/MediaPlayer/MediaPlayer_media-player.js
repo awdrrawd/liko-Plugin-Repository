@@ -320,6 +320,14 @@
             } catch (error) {
                 this.handleError('播放失敗: ' + error.message);
             }
+            if (item.duration === 0 && this.player) {
+                this.player.addEventListener('loadedmetadata', () => {
+                    item.duration = this.player.duration;
+                    if (this.uiManager) {
+                        this.uiManager.updatePlaylist();
+                    }
+                }, { once: true });
+            }
         }
 
         play() {
