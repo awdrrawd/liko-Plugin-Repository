@@ -577,10 +577,13 @@
         }
 
         createAddLinkUI() {
+            console.log('[UI管理器] 創建新增連結 UI');
             const addContainer = document.createElement('div');
             addContainer.className = 'media-player-add-link';
             addContainer.style.padding = '10px';
             addContainer.style.borderTop = '1px solid rgba(255,255,255,0.1)';
+            addContainer.style.background = 'rgba(0,0,0,0.8)';
+            addContainer.style.zIndex = window.BCMedia.Constants.UI.Z_INDEX.PLAYER + 1;
         
             const input = document.createElement('input');
             input.type = 'text';
@@ -596,6 +599,7 @@
             button.className = window.BCMedia.Constants.CSS_CLASSES.BUTTON;
             button.style.marginLeft = '10px';
             button.onclick = () => {
+                console.log('[UI管理器] 新增連結按鈕點擊');
                 const url = window.BCMedia.Utils.normalizeUrl(input.value);
                 if (!window.BCMedia.Utils.isValidUrl(url)) {
                     this.showError('無效的連結');
@@ -606,31 +610,29 @@
                     return;
                 }
         
-                // 添加到播放列表
                 const id = window.BCMedia.Utils.generateShortId();
                 const name = url.split('/').pop() || '未知影片';
                 this.mediaPlayer.videoList.push({ id, url, name, duration: 0 });
         
-                // 更新 UI 和同步
                 this.updatePlaylist();
                 if (this.mediaPlayer.networkManager) {
                     this.mediaPlayer.networkManager.sendSyncList();
                 }
         
-                // 立即播放
                 this.mediaPlayer.playId(id);
-                input.value = ''; // 清空輸入
+                input.value = '';
             };
             addContainer.appendChild(button);
         
-            // 添加到側邊欄或內容區域
             if (this.sidebar) {
                 this.sidebar.appendChild(addContainer);
             } else if (this.content) {
                 this.content.appendChild(addContainer);
+            } else {
+                console.warn('[UI管理器] 無法附加新增連結 UI，缺少 sidebar 或 content');
             }
         }
-
+        
         createVideoArea(parent) {
             const videoArea = document.createElement('div');
             videoArea.className = window.BCMedia.Constants.CSS_CLASSES.VIDEO_AREA;
