@@ -1034,17 +1034,23 @@
                 this.removeNotification(notification);
             });
             this.notifications.clear();
-
+        
             // 移除容器
             if (this.container && this.container.parentNode) {
                 this.container.parentNode.removeChild(this.container);
             }
-
+        
             // 移除樣式
             if (this.styles && this.styles.parentNode) {
                 this.styles.parentNode.removeChild(this.styles);
             }
-
+        
+            // 移除事件監聽器
+            if (this.resizeListener) {
+                window.removeEventListener('resize', this.resizeListener);
+                this.resizeListener = null;
+            }
+        
             // 重置引用
             this.container = null;
             this.titleElement = null;
@@ -1053,10 +1059,9 @@
             this.playButton = null;
             this.sidebar = null;
             this.videoContainer = null;
-
+        
             console.log('[UI管理器] 清理完成');
         }
-    }
 
     // 註冊到全域命名空間
     window.BCMedia.UIManager = UIManager;
