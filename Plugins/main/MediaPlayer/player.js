@@ -305,12 +305,12 @@ window.BCEnhancedMedia.Player = (function() {
             console.error('ArtPlayer not loaded');
             return;
         }
-
+    
         const art = new Artplayer({
             container: `#${containerId}`,
             poster: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjQ1MCIgdmlld0JveD0iMCAwIDgwMCA0NTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI4MDAiIGhlaWdodD0iNDUwIiBmaWxsPSIjMTExIi8+Cjx0ZXh0IHg9IjQwMCIgeT0iMjI1IiBmaWxsPSIjNTU1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiBmb250LXNpemU9IjI0Ij5CQyDlop7lhLrlqZLkvZM8L3RleHQ+Cjwvc3ZnPgo=',
-            autoplay: playerState.settings.autoplay,
-            pip: true,
+            autoplay: false,  // 修改為 false，避免初始化中斷
+            pip: false,  // 先禁用 PIP，後續手動啟用（見下一個錯誤修復）
             muted: playerState.settings.muted,
             volume: playerState.settings.volume,
             fullscreen: true,
@@ -318,43 +318,50 @@ window.BCEnhancedMedia.Player = (function() {
             playsInline: true,
             plugins: []
         });
-
-        // 添加彈幕插件（如果可用）
+    
+        // 添加彈幕插件（保持原樣）
         if (window.artplayerPluginDanmuku && playerState.settings.danmuEnabled) {
             art.plugins.add(artplayerPluginDanmuku({
                 opacity: 0.6,
                 speed: 8,
                 minWidth: 0,
                 maxWidth: 500,
-                lockTime: 1,
-                color: helpers.getPlayerDefaultColor(Player),
-                beforeEmit: (danmu) => !!danmu.text.trim() && art.playing
+                lock: false,
+                synchronousPlayback: false,
+                theme: 'dark'
             }));
         }
-
-        // 綁定事件
-        art.on('video:pause', playerState.callbacks.onPause);
-        art.on('video:play', playerState.callbacks.onPlay);
-        art.on('video:seeked', playerState.callbacks.onSeeked);
-        art.on('video:ended', playerState.callbacks.onEnded);
+    
+        // 等待元數據加載後手動播放
+        art.on('loadedmetadata', () => {
+            if (playerState.settings.autoplay) {
+                playerState.preventCallback = true;
+                art.play().then(() => {
+                    playerState.preventCallback = false;
+                }).catch(err => {
+                    console.error('播放失敗:', err);
+                    playerState.preventCallback = false;
+                });
+            }
+        });
+    const pipBtn = createButton('🖼️', '畫中畫模式', () => {
+    if (playerState.artPlayer && playerState.artPlayer.video.readyState >= 1) {  // 檢查 metadata 已加載
+        playerState.artPlayer.pip = true;
+        playerState.artPlayer.video.requestPictureInPicture().catch(err => {
+            console.error('PIP 失敗:', err);
+        });
+    } else {
+        console.warn('視頻元數據尚未加載，無法進入 PIP');
+    }
+        // 綁定其他事件（保持原樣）
         art.on('ready', playerState.callbacks.onReady);
-
-        if (art.plugins.artplayerPluginDanmuku) {
-            art.on('artplayerPluginDanmuku:emit', playerState.callbacks.onDanmuEmit);
-        }
-
-        // 禁用一些移動端的默認行為
-        if (window.Artplayer.MOBILE_CLICK_PLAY !== undefined) {
-            Artplayer.MOBILE_CLICK_PLAY = false;
-        }
-        if (window.Artplayer.MOBILE_DBCLICK_PLAY !== undefined) {
-            Artplayer.MOBILE_DBCLICK_PLAY = false;
-        }
-
+        art.on('play', playerState.callbacks.onPlay);
+        art.on('pause', playerState.callbacks.onPause);
+        art.on('seeked', playerState.callbacks.onSeeked);
+        art.on('ended', playerState.callbacks.onEnded);
+        art.on('artplayerPluginDanmuku:emit', playerState.callbacks.onDanmuEmit);
+    
         playerState.artPlayer = art;
-        helpers.preventTextSelection(art.template.$container);
-
-        return art;
     }
 
     // 創建迷你模式播放器
@@ -676,6 +683,9 @@ window.BCEnhancedMedia.Player = (function() {
         const playUrl = validation.generateSafePlayURL(item.url, validationResult);
         
         playerState.artPlayer.url = playUrl;
+    playerState.artPlayer.once('canplay', () => {  // 等待可播放
+        playerState.artPlayer.play();
+    });
         playerState.currentPlayingId = id;
         updateTitle(item.name);
 
