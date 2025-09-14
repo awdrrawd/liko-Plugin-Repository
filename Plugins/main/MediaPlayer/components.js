@@ -87,7 +87,7 @@ window.BCEnhancedMedia.Components = (function() {
         topBar.appendChild(title);
 
         // 按鈕組
-        if (hasModifyPermission()) {
+        //if (hasModifyPermission()) {
             const btnGroup = document.createElement('div');
             btnGroup.style.display = 'flex';
             btnGroup.style.gap = '4px';
@@ -101,7 +101,7 @@ window.BCEnhancedMedia.Components = (function() {
             btnGroup.appendChild(importBtn);
 
             topBar.appendChild(btnGroup);
-        }
+        //}
 
         return topBar;
     }
@@ -648,8 +648,10 @@ https://example.com/video2.mp3`;
             window.BCEnhancedMedia.Sync.updateSyncTime();
             window.BCEnhancedMedia.Sync.sendSyncList();
         }
-        
-        renderPlaylist();
+        if (window.BCEnhancedMedia.Components) {
+        window.BCEnhancedMedia.Components.renderPlaylist();
+    }
+        //renderPlaylist();
     }
 
     function removePlaylistItem(id, index) {
