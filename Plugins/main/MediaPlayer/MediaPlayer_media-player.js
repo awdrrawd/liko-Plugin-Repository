@@ -8,11 +8,11 @@
         window.BCMedia = {};
     }
 
-    // ==================== 媒體播放器核心類 ====================
-    class MediaPlayer {
+    // 修復版 MediaPlayer
+    class EnhancedMediaPlayer {
         constructor(options = {}) {
             this.isActive = false;
-            this.currentMode = window.BCMedia.Constants.MODES.NORMAL;
+            this.currentMode = 'normal';
             this.playingId = '';
             this.videoList = [];
             this.watchers = [];
@@ -26,7 +26,7 @@
             
             // 播放器狀態
             this.state = {
-                volume: window.BCMedia.Constants.DEFAULT_SETTINGS.volume,
+                volume: 0.8,
                 muted: false,
                 currentTime: 0,
                 duration: 0,
@@ -48,7 +48,6 @@
             this.init();
         }
 
-        // ==================== 初始化方法 ====================
         init() {
             this.initUpdateTimer();
             this.loadSettings();
@@ -56,38 +55,36 @@
         }
 
         initCallbacks() {
-            const utils = window.BCMedia.Utils;
-            
             return {
-                onPlay: utils.debounce(() => {
+                onPlay: () => {
                     this.state.playing = true;
                     this.updateSyncTime();
                     this.sendSyncPlay();
                     if (!this.hasModifyPermission()) {
                         this.requestSync();
                     }
-                }, window.BCMedia.Constants.DEBOUNCE_DELAY),
+                },
 
-                onPause: utils.debounce(() => {
+                onPause: () => {
                     this.state.playing = false;
                     this.updateSyncTime();
                     this.sendSyncPlay();
                     if (!this.hasModifyPermission()) {
                         this.requestSync();
                     }
-                }, window.BCMedia.Constants.DEBOUNCE_DELAY),
+                },
 
-                onSeeked: utils.debounce(() => {
+                onSeeked: () => {
                     this.updateSyncTime();
                     this.sendSyncPlay();
                     if (!this.hasModifyPermission()) {
                         this.requestSync();
                     }
-                }, 500),
+                },
 
-                onTimeUpdate: utils.throttle(() => {
+                onTimeUpdate: () => {
                     this.updateState();
-                }, 1000),
+                },
 
                 onLoadedMetadata: () => {
                     this.state.duration = this.player?.duration || 0;
@@ -122,13 +119,6 @@
                         this.state.muted = this.player.muted;
                         this.saveSettings();
                     }
-                },
-
-                onDanmuEmit: (danmu) => {
-                    if (window.BCMedia.Utils.isValidDanmu(danmu.text)) {
-                        danmu.border = false;
-                        this.sendMessage("Danmu", `SourceCharacter發彈幕：${danmu.text}`, danmu);
-                    }
                 }
             };
         }
@@ -137,7 +127,7 @@
             if (!this.updateTimer) {
                 this.updateTimer = setInterval(() => {
                     this.updateCheck();
-                }, window.BCMedia.Constants.UPDATE_INTERVAL);
+                }, 2000);
             }
         }
 
@@ -149,43 +139,27 @@
             });
 
             // 窗口大小改變
-            window.addEventListener('resize', window.BCMedia.Utils.debounce(() => {
+            window.addEventListener('resize', this.debounce(() => {
                 this.handleResize();
             }, 250));
-
-            // 頁面卸載清理
-            window.addEventListener('beforeunload', () => {
-                this.destroy();
-            });
         }
 
-        // ==================== 模塊設置 ====================
-        setUIManager(uiManager) {
-            this.uiManager = uiManager;
-        }
-
-        setSyncManager(syncManager) {
-            this.syncManager = syncManager;
-        }
-
-        setNetworkManager(networkManager) {
-            this.networkManager = networkManager;
-        }
-
-        // ==================== 播放控制 ====================
+        // 修復：改進的enter方法
         async enter() {
             if (this.isActive) return;
             
             try {
                 this.isActive = true;
                 
-                // 初始化播放器
-                await this.initPlayer();
-                
                 // 創建 UI
                 if (this.uiManager) {
                     await this.uiManager.create();
                 }
+                
+                // 初始化播放器（延遲執行確保UI已創建）
+                setTimeout(() => {
+                    this.initPlayer();
+                }, 100);
                 
                 // 請求同步
                 this.requestSync();
@@ -216,26 +190,37 @@
             console.log('[媒體播放器] 退出成功');
         }
 
+        // 修復：改進的initPlayer方法
         async initPlayer() {
-            // 這裡可以根據需要使用不同的播放器實現
-            // 例如 HTML5 video/audio, HLS.js, DPlayer 等
-            
-            const container = document.createElement('div');
-            container.className = 'media-player-video-container';
-            
-            // 創建基本的 HTML5 播放器
-            this.player = document.createElement('video');
-            this.player.controls = true;
-            this.player.preload = 'metadata';
-            this.player.style.width = '100%';
-            this.player.style.height = '100%';
-            this.player.style.backgroundColor = '#000';
-            
-            // 綁定事件
-            this.bindPlayerEvents();
-            
-            container.appendChild(this.player);
-            this.playerContainer = container;
+            try {
+                // 基本HTML5播放器
+                this.player = document.createElement('video');
+                this.player.controls = true;
+                this.player.preload = 'metadata';
+                this.player.style.cssText = `
+                    width: 100%;
+                    height: 100%;
+                    background: #000;
+                    object-fit: contain;
+                `;
+                
+                // 綁定事件
+                this.bindPlayerEvents();
+                
+                // 設置初始音量
+                this.player.volume = this.state.volume;
+                
+                // 插入到視頻容器
+                if (this.uiManager && this.uiManager.videoContainer) {
+                    this.uiManager.videoContainer.innerHTML = '';
+                    this.uiManager.videoContainer.appendChild(this.player);
+                }
+                
+                console.log('[媒體播放器] 播放器初始化完成');
+            } catch (error) {
+                console.error('[媒體播放器] 播放器初始化失敗:', error);
+                this.handleError('播放器初始化失敗');
+            }
         }
 
         bindPlayerEvents() {
@@ -258,16 +243,28 @@
                 this.player.pause();
                 this.player.src = '';
                 this.player.load();
+                
+                // 移除事件監聽器
+                this.player.removeEventListener('play', this.callbacks.onPlay);
+                this.player.removeEventListener('pause', this.callbacks.onPause);
+                this.player.removeEventListener('seeked', this.callbacks.onSeeked);
+                this.player.removeEventListener('timeupdate', this.callbacks.onTimeUpdate);
+                this.player.removeEventListener('loadedmetadata', this.callbacks.onLoadedMetadata);
+                this.player.removeEventListener('loadstart', this.callbacks.onLoadStart);
+                this.player.removeEventListener('canplay', this.callbacks.onCanPlay);
+                this.player.removeEventListener('ended', this.callbacks.onEnded);
+                this.player.removeEventListener('error', this.callbacks.onError);
+                this.player.removeEventListener('volumechange', this.callbacks.onVolumeChange);
+                
+                if (this.player.parentNode) {
+                    this.player.parentNode.removeChild(this.player);
+                }
+                
                 this.player = null;
-            }
-            
-            if (this.playerContainer) {
-                window.BCMedia.Utils.removeElement(this.playerContainer);
-                this.playerContainer = null;
             }
         }
 
-        // ==================== 播放列表管理 ====================
+        // 播放控制方法
         async playId(id) {
             const item = this.getPlayItem(id);
             if (!item) {
@@ -275,13 +272,8 @@
                 return;
             }
 
-            if (!window.BCMedia.Utils.isValidUrl(item.url)) {
+            if (!this.isValidUrl(item.url)) {
                 this.showError('無效的媒體URL');
-                return;
-            }
-
-            if (!window.BCMedia.Constants.isSupportedFormat(item.url)) {
-                this.showError('不支援的媒體格式');
                 return;
             }
 
@@ -309,6 +301,8 @@
                 // 發送狀態更新
                 this.sendState();
                 
+                console.log('[媒體播放器] 開始播放:', item.name);
+                
             } catch (error) {
                 this.handleError('播放失敗: ' + error.message);
             }
@@ -316,7 +310,9 @@
 
         play() {
             if (this.player && this.player.paused) {
-                return this.player.play();
+                return this.player.play().catch(error => {
+                    this.handleError('播放失敗: ' + error.message);
+                });
             }
         }
 
@@ -344,6 +340,7 @@
             if (this.player && volume >= 0 && volume <= 1) {
                 this.player.volume = volume;
                 this.state.volume = volume;
+                this.saveSettings();
             }
         }
 
@@ -370,7 +367,6 @@
             }
         }
 
-        // ==================== 模式切換 ====================
         switchMode(mode) {
             if (this.currentMode === mode) return;
             
@@ -384,18 +380,12 @@
             console.log(`[媒體播放器] 模式切換: ${oldMode} -> ${mode}`);
         }
 
-        // ==================== 權限管理 ====================
+        // 權限管理
         hasModifyPermission() {
             return window.ChatRoomPlayerIsAdmin && window.ChatRoomPlayerIsAdmin();
         }
 
-        shouldShowButton() {
-            return this.hasModifyPermission() || 
-                   this.isActive || 
-                   this.isChatRoomPlayingVideo();
-        }
-
-        // ==================== 同步相關 ====================
+        // 同步相關
         updateSyncTime() {
             if (this.syncManager) {
                 this.syncManager.updateSyncTime();
@@ -426,7 +416,7 @@
             }
         }
 
-        // ==================== 狀態管理 ====================
+        // 狀態管理
         updateState() {
             if (!this.player) return;
             
@@ -457,58 +447,52 @@
             }
         }
 
-        // ==================== 事件處理 ====================
+        // 事件處理
         handleKeydown(e) {
             if (!this.isActive || e.ctrlKey || e.altKey || e.metaKey) return;
             
-            const hotkeys = window.BCMedia.Constants.HOTKEYS;
-            
             switch (e.code) {
-                case hotkeys.TOGGLE_PLAY:
+                case 'Space':
                     e.preventDefault();
                     this.state.playing ? this.pause() : this.play();
                     break;
                     
-                case hotkeys.VOLUME_UP:
+                case 'ArrowUp':
                     e.preventDefault();
                     this.setVolume(Math.min(1, this.state.volume + 0.1));
                     break;
                     
-                case hotkeys.VOLUME_DOWN:
+                case 'ArrowDown':
                     e.preventDefault();
                     this.setVolume(Math.max(0, this.state.volume - 0.1));
                     break;
                     
-                case hotkeys.SEEK_FORWARD:
+                case 'ArrowRight':
                     e.preventDefault();
                     this.seek(this.state.currentTime + 10);
                     break;
                     
-                case hotkeys.SEEK_BACKWARD:
+                case 'ArrowLeft':
                     e.preventDefault();
                     this.seek(this.state.currentTime - 10);
                     break;
                     
-                case hotkeys.TOGGLE_MUTE:
+                case 'KeyM':
                     e.preventDefault();
                     this.toggleMute();
                     break;
                     
-                case hotkeys.TOGGLE_MINI:
+                case 'KeyC':
                     e.preventDefault();
-                    this.switchMode(
-                        this.currentMode === window.BCMedia.Constants.MODES.MINI 
-                            ? window.BCMedia.Constants.MODES.NORMAL 
-                            : window.BCMedia.Constants.MODES.MINI
-                    );
+                    this.switchMode(this.currentMode === 'mini' ? 'normal' : 'mini');
                     break;
                     
-                case hotkeys.NEXT_TRACK:
+                case 'KeyN':
                     e.preventDefault();
                     this.playNext();
                     break;
                     
-                case hotkeys.PREV_TRACK:
+                case 'KeyP':
                     e.preventDefault();
                     this.playPrev();
                     break;
@@ -531,25 +515,13 @@
             }
         }
 
-        // ==================== 輔助方法 ====================
+        // 輔助方法
         getPlayItem(id) {
             return this.videoList.find(item => item.id === id);
         }
 
         getPlayingItem() {
             return this.videoList.find(item => item.id === this.playingId);
-        }
-
-        getChatRoomPlayingName() {
-            const playingItem = this.getPlayingItem();
-            return playingItem ? playingItem.name : this.localState.playingName;
-        }
-
-        isChatRoomPlayingVideo() {
-            const selfPlaying = this.isActive && this.getPlayingItem()?.name;
-            const otherPlaying = this.watchers.length > 0 && 
-                               this.watchers.some(w => w.PlayingName);
-            return selfPlaying || otherPlaying;
         }
 
         clearError() {
@@ -564,33 +536,67 @@
             }
         }
 
-        // ==================== 設置管理 ====================
+        isValidUrl(url) {
+            try {
+                new URL(url);
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
+        // 設置管理
         loadSettings() {
-            const settings = window.BCMedia.Utils.getLocalData(
-                window.BCMedia.Constants.STORAGE_KEYS.SETTINGS,
-                window.BCMedia.Constants.DEFAULT_SETTINGS
-            );
-            
-            this.state.volume = settings.volume;
-            
-            if (this.player) {
-                this.player.volume = settings.volume;
+            try {
+                const settings = localStorage.getItem('bc_media_settings');
+                if (settings) {
+                    const parsed = JSON.parse(settings);
+                    this.state.volume = parsed.volume || 0.8;
+                }
+            } catch (e) {
+                console.warn('無法載入設置:', e);
             }
         }
 
         saveSettings() {
-            const settings = {
-                volume: this.state.volume,
-                mode: this.currentMode
-            };
-            
-            window.BCMedia.Utils.setLocalData(
-                window.BCMedia.Constants.STORAGE_KEYS.SETTINGS,
-                settings
-            );
+            try {
+                const settings = {
+                    volume: this.state.volume,
+                    mode: this.currentMode
+                };
+                localStorage.setItem('bc_media_settings', JSON.stringify(settings));
+            } catch (e) {
+                console.warn('無法保存設置:', e);
+            }
         }
 
-        // ==================== 清理方法 ====================
+        // 輔助工具
+        debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // 模塊設置
+        setUIManager(uiManager) {
+            this.uiManager = uiManager;
+        }
+
+        setSyncManager(syncManager) {
+            this.syncManager = syncManager;
+        }
+
+        setNetworkManager(networkManager) {
+            this.networkManager = networkManager;
+        }
+
+        // 清理方法
         destroy() {
             // 清理定時器
             if (this.updateTimer) {
@@ -611,8 +617,8 @@
         }
     }
 
-    // 註冊到全域命名空間
-    window.BCMedia.MediaPlayer = MediaPlayer;
+    // 替換原有的 MediaPlayer
+    window.BCMedia.MediaPlayer = EnhancedMediaPlayer;
 
-    console.log('[BC增強媒體] 媒體播放器模塊載入完成');
+    console.log('[BC增強媒體] 增強媒體播放器載入完成');
 })();
