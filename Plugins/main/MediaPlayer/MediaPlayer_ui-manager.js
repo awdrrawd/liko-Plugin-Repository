@@ -38,18 +38,39 @@
 
         // ==================== 主要創建方法 ====================
         async create() {
+            console.log('[UI管理器] 開始創建界面');
+            if (!document.body) {
+                console.error('[UI管理器] document.body 未準備好');
+                throw new Error('DOM 未準備好');
+            }
+        
             this.createStyles();
             this.createContainer();
             this.createTitleBar();
             this.createContent();
+            this.createAddLinkUI(); // 確保新增連結 UI
             this.setupDragAndResize();
             this.bindEvents();
-            this.createAddLinkUI();
             
-            document.body.appendChild(this.container);
+            // 確保容器附加到 DOM
+            try {
+                document.body.appendChild(this.container);
+                console.log('[UI管理器] 容器已附加到 DOM:', this.container);
+            } catch (error) {
+                console.error('[UI管理器] 附加容器失敗:', error);
+                throw error;
+            }
             
             // 恢復位置
             this.restorePosition();
+            
+            // 檢查容器是否可見
+            const computedStyle = window.getComputedStyle(this.container);
+            if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden') {
+                console.warn('[UI管理器] 容器不可見，檢查 CSS');
+                this.container.style.display = 'block';
+                this.container.style.visibility = 'visible';
+            }
             
             console.log('[UI管理器] 界面創建完成');
         }
