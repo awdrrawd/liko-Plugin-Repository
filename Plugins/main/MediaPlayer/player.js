@@ -707,11 +707,15 @@ window.BCEnhancedMedia.Player = (function() {
         createMiniPlayer();
     }
 
-    function switchToFullMode() {
-        playerState.mode = 'full';
-        destroyMiniPlayer();
-        createFullPlayer();
+function switchToFullMode() {
+    playerState.mode = 'full';
+    destroyMiniPlayer();
+    createFullPlayer();
+    // 切換後重新渲染播放列表
+    if (window.BCEnhancedMedia.Components) {
+        window.BCEnhancedMedia.Components.renderPlaylist();
     }
+}
 
     // 切換播放列表顯示
     function togglePlaylist() {
