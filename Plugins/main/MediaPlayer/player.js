@@ -160,12 +160,16 @@ window.BCEnhancedMedia.Player = (function() {
         const titleBar = createTitleBar();
         floatingDiv.appendChild(titleBar);
 
-        // 創建主內容區域
+        // 創建主內容區域（現在不初始化 ArtPlayer）
         const contentArea = createContentArea();
         floatingDiv.appendChild(contentArea);
-
+    
+        // 添加到 DOM
         document.body.appendChild(floatingDiv);
         playerState.floatingDiv = floatingDiv;
+    
+        // DOM 添加後初始化 ArtPlayer
+        createArtPlayer('bc-media-video-container');
 
         // 設置拖拽功能
         setupDragFunctionality(floatingDiv, titleBar);
@@ -290,7 +294,7 @@ window.BCEnhancedMedia.Player = (function() {
         contentArea.appendChild(playlistArea);
 
         // 創建ArtPlayer實例
-        createArtPlayer('bc-media-video-container');
+        //createArtPlayer('bc-media-video-container');
 
         return contentArea;
     }
