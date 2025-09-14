@@ -176,6 +176,9 @@
         async enter() {
             if (this.isActive) return;
             
+            // 先確保舊資源清理
+            this.destroyPlayer();
+            
             try {
                 this.isActive = true;
                 
@@ -255,6 +258,11 @@
 
         destroyPlayer() {
             if (this.player) {
+                // 移除所有事件監聽器
+                ['play', 'pause', 'seeked', 'timeupdate', 'loadedmetadata', 'loadstart', 'canplay', 'ended', 'error', 'volumechange'].forEach(event => {
+                    this.player.removeEventListener(event, this.callbacks['on' + event.charAt(0).toUpperCase() + event.slice(1)]);
+                });
+        
                 this.player.pause();
                 this.player.src = '';
                 this.player.load();
