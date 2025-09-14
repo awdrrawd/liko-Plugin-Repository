@@ -186,8 +186,17 @@
             
             // 清理播放器
             this.destroyPlayer();
+            this.resetState();
             
             console.log('[媒體播放器] 退出成功');
+        }
+        resetState() {
+            this.playingId = '';
+            this.localState.playingName = '';
+            this.localState.playingRoom = '';
+            this.state.error = null;
+            this.state.loading = false;
+            this.state.playing = false;
         }
 
         // 修復：改進的initPlayer方法
