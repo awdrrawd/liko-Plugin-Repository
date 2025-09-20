@@ -13,12 +13,19 @@
 // @run-at       document-end
 // ==/UserScript==
 
-(function () {
-    "use strict";
-    const script = document.createElement("script");
-    script.src = `https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/test/Liko%20-%20CHE.main.user.js?timestamp=${Date.now()}`;
-    script.type = "module";
-    script.crossOrigin = "anonymous";
-    document.head.appendChild(script);
-    console.log('[CHE] loadtime:', Date.now());
+(function loadCHE() {
+  fetch("https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/test/Liko%20-%20CHE.main.user.js")
+    .then(res => {
+      if (!res.ok) throw new Error("HTTP error " + res.status);
+      return res.text();
+    })
+    .then(js => {
+      const s = document.createElement("script");
+      s.textContent = js;
+      document.body.appendChild(s);
+      console.log("[CHE] 載入成功 via fetch");
+    })
+    .catch(err => {
+      console.error("[CHE] 載入 CHE 腳本失敗:", err);
+    });
 })();
