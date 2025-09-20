@@ -16,22 +16,26 @@
 (function() {
     "use strict";
 
-    let modApi;
-    const modversion = "2.1";
-    let currentMessageCount = 0;
-    const AUTO_SAVE_INTERVAL = 10 * 60 * 1000; // 10分钟
-    let autoSaveTimer = null;
-    let lastSaveTime = Date.now();
-    let currentMode = localStorage.getItem("chatlogger_mode") || "stopped";
-    const validModes = ["stopped", "cache"];
+    // ===== 全局變量定義 =====
+    let modApi; // bcModSdk註冊的mod API對象，用於與遊戲框架交互
+    const modversion = "2.1"; // 插件版本號
+    let currentMessageCount = 0; // 當前聊天室中的消息數量計數器，用於監控消息增長
+    const AUTO_SAVE_INTERVAL = 10 * 60 * 1000; // 自動保存間隔時間：10分鐘（毫秒）
+    let autoSaveTimer = null; // 自動保存定時器對象，用於管理定時保存
+    let lastSaveTime = Date.now(); // 上次保存的時間戳，用於計算是否達到保存間隔
+    let currentMode = localStorage.getItem("chatlogger_mode") || "stopped"; // 當前工作模式：stopped(停用) 或 cache(緩存)
+    const validModes = ["stopped", "cache"]; // 有效的工作模式列表，用於驗證模式切換
 
-    // DOM 快取管理
+    // ===== DOM快取管理系統 =====
+    // 用於優化DOM查詢性能，避免重複查找聊天室元素
     const DOMCache = {
-        chatLog: null,
-        lastCheckTime: 0,
+        chatLog: null, // 緩存的聊天室主容器DOM元素
+        lastCheckTime: 0, // 上次檢查DOM的時間戳
 
+        // 獲取聊天室容器，帶緩存和失效檢查
         getChatLog() {
             const now = Date.now();
+            // 如果緩存失效（元素不存在、被移除或超過5秒）則重新查找
             if (!this.chatLog || !document.contains(this.chatLog) || now - this.lastCheckTime > 5000) {
                 this.chatLog = document.querySelector("#TextAreaChatLog");
                 this.lastCheckTime = now;
@@ -39,56 +43,67 @@
             return this.chatLog;
         },
 
+        // 獲取所有聊天消息（包括普通消息、BEEP、房間分隔符）
         getMessages() {
             const log = this.getChatLog();
             return log ? Array.from(log.querySelectorAll(".ChatMessage, a.beep-link, .chat-room-sep-div")) : [];
         },
 
+        // 獲取當前消息總數（不包括房間分隔符）
         getMessageCount() {
             const log = this.getChatLog();
             return log ? log.querySelectorAll(".ChatMessage, a.beep-link").length : 0;
         }
     };
 
-    // 日期工具
+    // ===== 日期工具函數 =====
+    // 處理日期格式化和轉換的工具集
     const DateUtils = {
+        // 將日期對象轉換為YYYY-MM-DD格式的字符串，用作數據庫鍵
         getDateKey(date = new Date()) {
             const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0'); // 月份補零
+            const day = String(date.getDate()).padStart(2, '0'); // 日期補零
             return `${year}-${month}-${day}`;
         },
 
+        // 將日期鍵轉換為用戶友好的顯示格式（M/D）
         getDisplayDate(dateKey) {
             try {
-                const date = new Date(dateKey + 'T00:00:00');
+                const date = new Date(dateKey + 'T00:00:00'); // 添加時間部分避免時區問題
                 const month = date.getMonth() + 1;
                 const day = date.getDate();
                 return `${month}/${day}`;
             } catch (e) {
                 console.error("[CHE] getDisplayDate 錯誤:", e);
-                return dateKey;
+                return dateKey; // 轉換失敗時返回原始值
             }
         }
     };
 
-    // 緩存管理器
+    // ===== IndexedDB緩存管理器 =====
+    // 負責管理本地數據庫的所有操作，包括保存、讀取、刪除消息
     const CacheManager = {
+        // 初始化IndexedDB數據庫，創建必要的對象存儲
         async init() {
-            const request = indexedDB.open("ChatLoggerV2", 2);
+            const request = indexedDB.open("ChatLoggerV2", 2); // 版本2的數據庫
 
+            // 數據庫升級時的處理邏輯
             request.onupgradeneeded = (e) => {
                 const db = e.target.result;
 
+                // 清理舊版本的存儲（如果存在）
                 if (db.objectStoreNames.contains("fragments")) {
                     db.deleteObjectStore("fragments");
                 }
 
+                // 創建新的每日消息片段存儲
                 if (!db.objectStoreNames.contains("daily_fragments")) {
-                    db.createObjectStore("daily_fragments");
+                    db.createObjectStore("daily_fragments"); // 以日期為鍵的鍵值存儲
                 }
             };
 
+            // 返回Promise包裝的數據庫連接
             return new Promise((resolve, reject) => {
                 request.onsuccess = () => resolve(request.result);
                 request.onerror = () => {
@@ -98,6 +113,7 @@
             });
         },
 
+        // 將消息保存到今天的數據片段中，包含去重邏輯
         async saveToday(messages) {
             if (!messages || messages.length === 0) {
                 console.log("[CHE] saveToday: 沒有訊息需要保存");
@@ -106,16 +122,18 @@
 
             try {
                 const db = await this.init();
-                const dateKey = DateUtils.getDateKey();
+                const dateKey = DateUtils.getDateKey(); // 獲取今天的日期鍵
 
+                // 開始數據庫事務
                 const tx = db.transaction(["daily_fragments"], "readwrite");
                 const store = tx.objectStore("daily_fragments");
 
+                // 獲取今天已存在的消息
                 const existing = await new Promise((resolve, reject) => {
                     const req = store.get(dateKey);
                     req.onsuccess = () => {
                         const result = req.result;
-                        resolve(result ? result.messages : []);
+                        resolve(result ? result.messages : []); // 返回現有消息或空數組
                     };
                     req.onerror = () => {
                         console.error("[CHE] 獲取現有數據失敗:", req.error);
@@ -123,30 +141,33 @@
                     };
                 });
 
-                // 去重逻辑：基于消息内容和时间创建唯一键
+                // 去重邏輯：使用時間+ID+內容前50字符作為唯一鍵
                 const existingKeys = new Set();
                 existing.forEach(msg => {
                     const key = `${msg.time}-${msg.id}-${msg.content.substring(0, 50)}`;
                     existingKeys.add(key);
                 });
 
+                // 過濾出真正的新消息
                 const newMessages = messages.filter(msg => {
                     const key = `${msg.time}-${msg.id}-${msg.content.substring(0, 50)}`;
                     return !existingKeys.has(key);
                 });
 
                 if (newMessages.length === 0) {
-                    console.log("[CHE] saveToday: 所有消息都已存在，跳过保存");
+                    console.log("[CHE] saveToday: 所有消息都已存在，跳過保存");
                     return 0;
                 }
 
+                // 合併現有消息和新消息
                 const allMessages = [...existing, ...newMessages];
 
+                // 保存到數據庫
                 await new Promise((resolve, reject) => {
                     const data = {
-                        messages: allMessages,
-                        count: allMessages.length,
-                        lastUpdate: Date.now()
+                        messages: allMessages, // 完整的消息列表
+                        count: allMessages.length, // 消息總數
+                        lastUpdate: Date.now() // 最後更新時間
                     };
                     const req = store.put(data, dateKey);
                     req.onsuccess = () => {
@@ -159,12 +180,14 @@
                     };
                 });
 
+                // 等待事務完成
                 await new Promise((resolve, reject) => {
                     tx.oncomplete = () => resolve();
                     tx.onerror = () => reject(tx.error);
                     tx.onabort = () => reject(new Error("事務被中止"));
                 });
 
+                // 顯示成功消息
                 window.ChatRoomSendLocalStyled(`[CHE] 已緩存 ${newMessages.length} 條新訊息`, 2000, "#00ff00");
                 return allMessages.length;
             } catch (e) {
@@ -174,18 +197,21 @@
             }
         },
 
+        // 獲取所有可用日期的列表，用於日期選擇器
         async getAvailableDates() {
             try {
                 const db = await this.init();
                 const tx = db.transaction(["daily_fragments"], "readonly");
                 const store = tx.objectStore("daily_fragments");
 
+                // 獲取所有日期鍵
                 const keys = await new Promise((resolve, reject) => {
                     const req = store.getAllKeys();
                     req.onsuccess = () => resolve(req.result);
                     req.onerror = () => reject(req.error);
                 });
 
+                // 構建日期信息對象數組
                 const result = [];
                 for (const key of keys) {
                     const data = await new Promise((resolve, reject) => {
@@ -196,13 +222,14 @@
 
                     if (data) {
                         result.push({
-                            dateKey: key,
-                            count: data.count || 0,
-                            display: DateUtils.getDisplayDate(key)
+                            dateKey: key, // 原始日期鍵（YYYY-MM-DD）
+                            count: data.count || 0, // 該日期的消息數量
+                            display: DateUtils.getDisplayDate(key) // 用戶友好的顯示格式
                         });
                     }
                 }
 
+                // 按日期倒序排列（最新的在前）
                 return result.sort((a, b) => b.dateKey.localeCompare(a.dateKey));
             } catch (e) {
                 console.error("[CHE] 獲取日期列表失敗:", e);
@@ -210,6 +237,7 @@
             }
         },
 
+        // 根據日期鍵數組獲取對應的所有消息
         async getMessagesForDates(dateKeys) {
             try {
                 const db = await this.init();
@@ -217,6 +245,7 @@
                 const store = tx.objectStore("daily_fragments");
 
                 let allMessages = [];
+                // 遍歷每個日期鍵
                 for (const dateKey of dateKeys) {
                     const data = await new Promise((resolve, reject) => {
                         const req = store.get(dateKey);
@@ -225,14 +254,16 @@
                     });
 
                     if (data && data.messages) {
+                        // 為每條消息添加來源標記
                         const messagesWithFlag = data.messages.map(msg => ({
                             ...msg,
-                            isFromCache: true
+                            isFromCache: true // 標記消息來自緩存
                         }));
                         allMessages.push(...messagesWithFlag);
                     }
                 }
 
+                // 按時間順序排序所有消息
                 allMessages.sort((a, b) => {
                     const timeA = new Date(a.time || "1970-01-01").getTime();
                     const timeB = new Date(b.time || "1970-01-01").getTime();
@@ -247,6 +278,7 @@
             }
         },
 
+        // 刪除指定日期的數據
         async deleteDates(dateKeys) {
             if (!dateKeys || dateKeys.length === 0) {
                 console.log("[CHE] deleteDates: 沒有要刪除的日期");
@@ -260,6 +292,7 @@
                 console.log("[CHE] deleteDates: 數據庫連接成功");
 
                 let successCount = 0;
+                // 逐個刪除每個日期的數據
                 for (const dateKey of dateKeys) {
                     try {
                         console.log(`[CHE] deleteDates: 處理日期 ${dateKey}`);
@@ -276,10 +309,11 @@
                             };
                             deleteReq.onerror = () => {
                                 console.error(`[CHE] deleteDates: ✗ 刪除 ${dateKey} 失敗:`, deleteReq.error);
-                                resolve();
+                                resolve(); // 即使失敗也繼續處理下一個
                             };
                         });
 
+                        // 等待事務完成
                         await new Promise((resolve, reject) => {
                             tx.oncomplete = () => resolve();
                             tx.onerror = () => resolve();
@@ -293,6 +327,7 @@
 
                 console.log(`[CHE] deleteDates: 刪除完成，成功刪除 ${successCount}/${dateKeys.length} 個項目`);
 
+                // 顯示結果
                 if (successCount > 0) {
                     window.ChatRoomSendLocalStyled(`[CHE] 已刪除 ${successCount} 個日期的數據`, 3000, "#00ff00");
                     return true;
@@ -308,25 +343,29 @@
             }
         },
 
+        // 清理7天前的舊數據，自動維護數據庫大小
         async cleanOldData() {
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            const cutoffKey = DateUtils.getDateKey(sevenDaysAgo);
+            const cutoffKey = DateUtils.getDateKey(sevenDaysAgo); // 7天前的日期鍵
 
             try {
                 const db = await this.init();
                 const tx = db.transaction(["daily_fragments"], "readwrite");
                 const store = tx.objectStore("daily_fragments");
 
+                // 獲取所有日期鍵
                 const keys = await new Promise((resolve, reject) => {
                     const req = store.getAllKeys();
                     req.onsuccess = () => resolve(req.result);
                     req.onerror = () => reject(req.error);
                 });
 
+                // 找出需要刪除的過期鍵
                 const keysToDelete = keys.filter(key => key < cutoffKey);
 
                 if (keysToDelete.length > 0) {
+                    // 刪除過期數據
                     for (const key of keysToDelete) {
                         await new Promise((resolve, reject) => {
                             const req = store.delete(key);
@@ -342,13 +381,15 @@
         }
     };
 
-    // 載入樣式化訊息系統
+    // ===== 外部依賴載入系統 =====
+    // 載入樣式化訊息系統（用於顯示彩色提示消息）
     function loadToastSystem() {
         return new Promise((resolve, reject) => {
             if (window.ChatRoomSendLocalStyled) {
-                resolve();
+                resolve(); // 如果已經載入則直接返回
                 return;
             }
+            // 動態載入外部腳本
             const toastUrl = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js`;
             const script = document.createElement('script');
             script.src = toastUrl;
@@ -358,7 +399,7 @@
         });
     }
 
-    // XLSX 載入檢查
+    // 檢查並載入XLSX庫（用於Excel導出功能）
     if (!window.XLSX?.version) {
         const script = document.createElement("script");
         script.src = "https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js";
@@ -366,19 +407,20 @@
         document.head.appendChild(script);
     }
 
-    // 统一的消息过滤函数
+    // ===== 消息過濾系統 =====
+    // 統一的消息過濾函數，根據用戶設置決定哪些消息需要被過濾掉
     function isFilteredMessage(content, messageType, includePrivate = true) {
-        // 基础过滤条件
+        // 基础过滤条件：過濾系統提示和幫助信息
         const basicFilters = [
             "BCX commands tutorial",
             "BCX also provides",
             "(输入 /help 查看命令列表)"
         ];
-
+        
         if (basicFilters.some(filter => content.includes(filter))) {
             return true;
         }
-
+        
         if (includePrivate) {
             // 保存所有信息时：只过滤BEEP消息，保留↩️但不是BEEP的信息
             if (messageType === "beep") {
@@ -389,50 +431,51 @@
             if (messageType === "whisper" || messageType === "beep") {
                 return true;
             }
-
+            
             // 过滤包含↩️的消息
             if (content.includes("↩️")) {
                 return true;
             }
-
+            
             // 额外过滤包含私聊关键词的消息
             const privateKeywords = ["悄悄話", "悄悄话", "好友私聊", "BEEP"];
             if (privateKeywords.some(keyword => content.includes(keyword))) {
                 return true;
             }
         }
-
+        
         return false;
     }
 
-    // 改进的消息类型检测
+    // 檢測消息類型的函數，用於準確識別不同類型的消息
     function detectMessageType(msg, content) {
-        // 优先检测DOM元素类型
+        // 優先檢測DOM元素類型（最準確的方法）
         if (msg.matches && msg.matches("a.beep-link")) {
-            return "beep";
+            return "beep"; // BEEP私信鏈接
         }
-
+        
         if (msg.classList && msg.classList.contains("ChatMessageWhisper")) {
-            return "whisper";
+            return "whisper"; // 悄悄話消息
         }
-
-        // 通过内容检测（作为备选）
+        
+        // 通過內容檢測（作為備選方案）
         if (content.includes("好友私聊来自") || content.includes("BEEP")) {
-            // 如果有↩️但不是真正的beep元素，可能是重复消息
+            // 如果有↩️但不是真正的beep元素，可能是重複消息
             if (content.includes("↩️") && !(msg.matches && msg.matches("a.beep-link"))) {
-                return "beep_duplicate";
+                return "beep_duplicate"; // 重複的BEEP消息
             }
             return "beep";
         }
-
+        
         if (content.includes("悄悄话") || content.includes("悄悄話")) {
             return "whisper";
         }
-
-        return "normal";
+        
+        return "normal"; // 普通消息
     }
 
-    // HTML 轉義函數
+    // ===== 文本處理工具函數 =====
+    // HTML轉義函數，防止XSS攻擊
     function escapeHtml(text) {
         if (typeof text !== 'string') return text;
         return text
@@ -443,33 +486,37 @@
             .replace(/'/g, '&#39;');
     }
 
-    // 提取文本內容
+    // 提取DOM元素的完整文本內容，處理鏈接等特殊元素
     function extractFullTextContent(element) {
         if (!element) return "";
         try {
-            const clone = element.cloneNode(true);
+            const clone = element.cloneNode(true); // 克隆元素避免修改原始DOM
             const links = clone.querySelectorAll('a[href]');
+            
+            // 處理鏈接：顯示文本和URL
             links.forEach(function(link) {
                 const href = link.getAttribute('href');
                 const text = link.innerText || link.textContent || '';
                 if (text && text !== href && !text.includes('http')) {
-                    link.textContent = text + ' (' + href + ')';
+                    link.textContent = text + ' (' + href + ')'; // 格式：文本 (URL)
                 } else {
-                    link.textContent = href;
+                    link.textContent = href; // 只顯示URL
                 }
             });
 
             let text = clone.textContent || clone.innerText || "";
-            return text.replace(/\s*\n\s*/g, '\n').trim();
+            return text.replace(/\s*\n\s*/g, '\n').trim(); // 清理多餘空白
         } catch (e) {
             console.error("[CHE] extractFullTextContent 錯誤:", e);
             return element.textContent || element.innerText || "";
         }
     }
 
-    // 獲取標籤顏色
+    // 獲取消息的標籤顏色（用戶名顏色）
     function getLabelColor(msg, nameButton) {
         if (!msg) return "#000";
+        
+        // 嘗試多種方式獲取顏色
         let c =
             msg.style?.getPropertyValue("--label-color") ||
             getComputedStyle(msg).getPropertyValue("--label-color") ||
@@ -477,20 +524,26 @@
             "";
         c = c.trim();
         if (c) return c;
+        
+        // 從內聯樣式獲取顏色
         const colorSpan = msg.querySelector('[style*="color"]');
         if (colorSpan && colorSpan.style?.color) return colorSpan.style.color;
+        
+        // 從font標籤獲取顏色
         const fontEl = msg.querySelector("font[color]");
         if (fontEl && fontEl.color) return fontEl.color;
-        return "#000";
+        
+        return "#000"; // 默認黑色
     }
 
-    // 改進的顏色對比度處理
+    // ===== 顏色處理系統 =====
+    // 改進對比度的顏色處理，確保在不同主題下的可讀性
     function getEnhancedContrastColor(hexColor, isDarkTheme) {
         if (!hexColor || typeof hexColor !== 'string') return isDarkTheme ? "#eee" : "#333";
 
         let cleanColor = hexColor.trim();
-
-        // 處理RGB格式
+        
+        // 處理RGB格式轉換為HEX
         if (cleanColor.startsWith('rgb')) {
             const match = cleanColor.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
             if (match) {
@@ -505,10 +558,11 @@
         if (cleanColor.length !== 7) return cleanColor;
 
         try {
+            // 計算顏色亮度
             const r = parseInt(cleanColor.slice(1, 3), 16);
             const g = parseInt(cleanColor.slice(3, 5), 16);
             const b = parseInt(cleanColor.slice(5, 7), 16);
-            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255; // 亮度公式
 
             if (isDarkTheme) {
                 // 暗色模式：確保顏色足夠亮
@@ -532,6 +586,7 @@
         }
     }
 
+    // 顏色變亮函數
     function lightenColor(color, amount) {
         try {
             const num = parseInt(color.slice(1), 16);
@@ -544,6 +599,7 @@
         }
     }
 
+    // 顏色變暗函數
     function darkenColor(color, amount) {
         try {
             const num = parseInt(color.slice(1), 16);
@@ -556,11 +612,12 @@
         }
     }
 
-    // DB專用的內容解析函數
+    // ===== 數據庫內容解析系統 =====
+    // 專門用於解析數據庫中存儲的消息內容格式
     function parseDBContent(content, id, time) {
         if (!content) return { isNormal: true, displayContent: "" };
-
-        // 如果以˅開頭，這是房間信息
+        
+        // 檢測房間信息（以˅開頭）
         if (content.startsWith('˅')) {
             return {
                 isRoom: true,
@@ -568,30 +625,30 @@
                 displayContent: content
             };
         }
-
+        
         let cleanContent = content;
-
-        // 移除開頭的時間格式（HH:MM:SS）
+        
+        // 清理時間戳格式（HH:MM:SS）
         const timeMatch = content.match(/^(\d{2}:\d{2}:\d{2})/);
         if (timeMatch) {
             cleanContent = content.substring(timeMatch[1].length);
         }
-
-        // 移除開頭的ID
+        
+        // 清理用戶ID
         if (id && cleanContent.startsWith(id)) {
             cleanContent = cleanContent.substring(id.length);
         }
 
-        // 移除末端的時間+ID+Reply模式
+        // 清理末尾的時間+ID+Reply模式
         const endPattern = /(\d{2}:\d{2}:\d{2}\d+(?:Reply)?)$/;
         cleanContent = cleanContent.replace(endPattern, '');
 
-        // 檢查是否以˅開頭（移除時間ID後）
+        // 再次檢查是否為房間信息
         if (cleanContent.startsWith('˅')) {
             return { isSkip: true };
         }
-
-        // 檢查是否以*或(開頭 - 動作文本
+        
+        // 檢測動作文本（以*或(開頭）
         if (cleanContent.startsWith('*') || cleanContent.startsWith('(')) {
             return {
                 isAction: true,
@@ -599,10 +656,10 @@
             };
         }
 
-        // 檢查前20個字元是否有冒號（人名）
+        // 檢測用戶消息（前20字符內包含冒號）
         const first20 = cleanContent.substring(0, 20);
         const colonIndex = first20.indexOf(':');
-
+        
         if (colonIndex !== -1 && colonIndex > 0) {
             const userName = cleanContent.substring(0, colonIndex);
             const userMessage = cleanContent.substring(colonIndex + 1);
@@ -620,8 +677,10 @@
         };
     }
 
-    // HTML模板生成函數
+    // ===== HTML模板生成系統 =====
+    // 生成HTML導出文件的模板，包含搜索控件和樣式
     async function generateHTMLTemplate(title) {
+        // 搜索和過濾控件的HTML
         const searchControls = `
         <div id="searchPanel" style="position: sticky; top: 0; background: inherit; padding: 12px; border-bottom: 1px solid var(--border-color); backdrop-filter: blur(10px); z-index: 100;">
             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -640,6 +699,7 @@
             </div>
         </div>`;
 
+        // 完整的HTML模板，包含CSS變量和響應式設計
         return `
     <html>
     <head>
@@ -780,12 +840,12 @@
             .user-name {
                 font-weight: bold;
             }
-
+            
             .action-text {
                 font-style: italic;
                 opacity: 0.9;
             }
-
+            
             .beep {
                 color: var(--beep-color);
                 font-weight: bold;
@@ -808,12 +868,12 @@
                     width: 60px;
                     font-size: 0.7em;
                 }
-
+                
                 #searchPanel > div {
                     flex-direction: column;
                     align-items: stretch;
                 }
-
+                
                 #searchPanel input, #searchPanel select {
                     width: 100% !important;
                     margin-bottom: 5px;
@@ -828,7 +888,7 @@
     `;
     }
 
-    // HTML footer
+    // HTML文件的尾部，包含JavaScript交互功能
     function getHTMLFooter() {
         return `
         </div>
@@ -922,26 +982,28 @@
     `;
     }
 
-    // 修改后的processCurrentMessages函数
+    // ===== 消息處理系統 =====
+    // 處理當前聊天室中的所有消息，轉換為標準格式
     function processCurrentMessages() {
         const messages = DOMCache.getMessages();
         const processedMessages = [];
 
         messages.forEach(msg => {
             try {
-                const rawContent = extractFullTextContent(msg);
-                const messageType = detectMessageType(msg, rawContent);
-
+                const rawContent = extractFullTextContent(msg); // 提取文本內容
+                const messageType = detectMessageType(msg, rawContent); // 檢測消息類型
+                
+                // 構建標準消息對象
                 let messageData = {
-                    time: msg.dataset?.time || new Date().toISOString(),
-                    id: msg.dataset?.sender || "",
-                    content: rawContent,
-                    type: messageType,
-                    color: getLabelColor(msg, msg.querySelector(".ChatMessageName"))
+                    time: msg.dataset?.time || new Date().toISOString(), // 時間戳
+                    id: msg.dataset?.sender || "", // 發送者ID
+                    content: rawContent, // 消息內容
+                    type: messageType, // 消息類型
+                    color: getLabelColor(msg, msg.querySelector(".ChatMessageName")) // 用戶名顏色
                 };
 
                 processedMessages.push(messageData);
-
+                
             } catch (e) {
                 console.error("[CHE] processCurrentMessages: 訊息處理錯誤", e);
             }
@@ -950,10 +1012,12 @@
         return processedMessages;
     }
 
-    // 修改后的DB HTML生成函数
+    // ===== HTML導出系統 =====
+    // 生成數據庫緩存的HTML文件
     async function generateDBHTML(messages, includePrivate) {
         window.ChatRoomSendLocalStyled("[CHE] 正在匯出緩存HTML，請稍候...", 3000, "#ffa500");
 
+        // 顏色轉RGBA的工具函數
         function toRGBA(color, alpha = 0.12) {
             if (!color) return `rgba(128,128,128,${alpha})`;
             color = color.trim();
@@ -975,20 +1039,21 @@
         const htmlTemplate = await generateHTMLTemplate("緩存HTML");
         let html = htmlTemplate;
 
-        let collapseId = 0;
-        let openCollapsible = false;
-        let processedCount = 0;
-        let lastSeparatorText = "";
+        let collapseId = 0; // 折疊區域ID計數器
+        let openCollapsible = false; // 當前是否有開啟的折疊區域
+        let processedCount = 0; // 處理的消息計數
+        let lastSeparatorText = ""; // 最後一個房間分隔符的文本
 
+        // 遍歷所有消息進行處理
         for (const msg of messages) {
-            // 解析內容
+            // 解析數據庫格式的消息內容
             const parsed = parseDBContent(msg.content, msg.id, msg.time);
+            
+            if (parsed.isSkip) continue; // 跳過需要忽略的消息
 
-            if (parsed.isSkip) continue;
-
-            // 處理房間信息
+            // 處理房間信息分隔符
             if (parsed.isRoom) {
-                if (openCollapsible) html += `</div>`;
+                if (openCollapsible) html += `</div>`; // 關閉前一個折疊區域
                 html += `
             <div class="separator-row">
                 <button class="collapse-button" onclick="toggleCollapse(${collapseId})">
@@ -1003,20 +1068,20 @@
                 continue;
             }
 
-            // 应用统一的过滤逻辑
+            // 應用消息過濾規則
             if (isFilteredMessage(msg.content, msg.type, includePrivate)) {
                 console.log(`[CHE] DB过滤消息: ${msg.content.substring(0, 50)}...`);
                 continue;
             }
 
-            // 过滤重複信息
+            // 過濾與房間分隔符重複的信息
             if (lastSeparatorText && msg.content.includes(lastSeparatorText)) continue;
 
-            // 時間顯示 - 统一处理不同格式
+            // 統一處理不同的時間格式
             let timeDisplay = msg.time;
             if (typeof msg.time === 'string') {
                 if (msg.time.includes('T')) {
-                    // ISO格式转换为本地时间
+                    // ISO格式轉換為本地時間格式
                     try {
                         timeDisplay = new Date(msg.time).toLocaleTimeString('zh-CN', {
                             hour12: false,
@@ -1029,13 +1094,14 @@
                         timeDisplay = msg.time;
                     }
                 }
-                // 如果已经是HH:MM:SS格式，保持不变
+                // 如果已經是HH:MM:SS格式，保持不變
             }
 
-            // 顏色和樣式
+            // 設置顏色和背景樣式
             const adjustedColor = getEnhancedContrastColor(msg.color || "#888", true);
             const bgColor = toRGBA(adjustedColor, 0.12);
 
+            // 根據消息類型構建內容HTML
             let content = "";
             if (parsed.isUser) {
                 content = `<span class="user-name" style="color:${adjustedColor}">${escapeHtml(parsed.userName)}</span>: ${escapeHtml(parsed.userMessage)}`;
@@ -1045,6 +1111,7 @@
                 content = escapeHtml(parsed.displayContent);
             }
 
+            // 生成消息行HTML
             html += `
             <div class="chat-row with-accent" style="background:${bgColor}; border-left-color:${adjustedColor};">
                 <div class="chat-meta">
@@ -1056,10 +1123,10 @@
             processedCount++;
         }
 
-        if (openCollapsible) html += `</div>`;
-        html += getHTMLFooter();
+        if (openCollapsible) html += `</div>`; // 關閉最後一個折疊區域
+        html += getHTMLFooter(); // 添加HTML尾部
 
-        // 下載文件
+        // 下載生成的HTML文件
         try {
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             const blob = new Blob([html], { type: "text/html;charset=utf-8" });
@@ -1076,10 +1143,11 @@
         }
     }
 
-    // 修改後的Chat HTML生成函數
+    // 生成當前聊天室的HTML文件
     async function generateChatHTML(messages, includePrivate) {
         window.ChatRoomSendLocalStyled("[CHE] 正在匯出HTML，請稍候...", 3000, "#ffa500");
 
+        // 顏色處理函數（與DB導出相同）
         function toRGBA(color, alpha = 0.12) {
             if (!color) return `rgba(128,128,128,${alpha})`;
             color = color.trim();
@@ -1105,8 +1173,9 @@
         let openCollapsible = false;
         let lastSeparatorText = "";
         let processedCount = 0;
-        const isDarkTheme = true;
+        const isDarkTheme = true; // 假設為暗色主題
 
+        // 處理每個DOM消息元素
         for (const msg of messages) {
             // 處理房間分隔符
             if (msg.classList?.contains("chat-room-sep-div")) {
@@ -1134,14 +1203,15 @@
                 }
             }
 
-            // 跳过真正的BEEP元素（避免重复）
+            // 跳過真正的BEEP元素避免重複
             if (msg.matches && msg.matches("a.beep-link")) {
                 console.log("[CHE] Chat跳过BEEP元素避免重复");
                 continue;
             }
 
-            if (!msg.dataset) continue;
+            if (!msg.dataset) continue; // 跳過沒有數據屬性的元素
 
+            // 提取消息信息
             const time = msg.dataset.time || "";
             const senderId = msg.dataset.sender || "";
             const nameButton = msg.querySelector(".ChatMessageName");
@@ -1149,6 +1219,7 @@
             let labelColor = getLabelColor(msg, nameButton);
             const adjustedColor = getEnhancedContrastColor(labelColor, isDarkTheme);
 
+            // 提取消息文本內容
             let rawText = "";
             const textNode = msg.querySelector(".chat-room-message-content");
             if (textNode) {
@@ -1159,10 +1230,8 @@
                 rawText = extractFullTextContent(clonedMsg).trim();
             }
 
-            // 检测消息类型
+            // 檢測消息類型並應用過濾
             const messageType = detectMessageType(msg, rawText);
-
-            // 应用统一的过滤逻辑
             if (isFilteredMessage(rawText, messageType, includePrivate)) {
                 console.log(`[CHE] Chat过滤消息: ${rawText.substring(0, 50)}...`);
                 continue;
@@ -1170,17 +1239,19 @@
 
             if (lastSeparatorText && rawText.includes(lastSeparatorText)) continue;
 
+            // 根據消息類型構建內容和樣式
             let content = "";
             let rowStyleInline = `class="chat-row with-accent" style="background:${toRGBA(adjustedColor, 0.12)}; border-left-color:${adjustedColor};"`;
 
             if (msg.classList.contains("ChatMessageChat")) {
-                // 檢查是否為動作文本
+                // 普通聊天消息
                 if (rawText.startsWith('*') || rawText.startsWith('(')) {
                     content = `<span class="action-text" style="color:${adjustedColor}">${escapeHtml(rawText.trim())}</span>`;
                 } else {
                     content = `<span class="user-name" style="color:${adjustedColor}">${escapeHtml(senderName)}</span>: ${escapeHtml(rawText.trim())}`;
                 }
             } else if (msg.classList.contains("ChatMessageWhisper")) {
+                // 悄悄話消息
                 if (!includePrivate) continue;
                 const prefix = rawText.includes("悄悄话来自") ? "悄悄话来自" : "悄悄话";
                 content = `${prefix} <span class="user-name" style="color:${adjustedColor}">${escapeHtml(senderName)}</span>: ${escapeHtml(rawText.trim())}`;
@@ -1190,15 +1261,19 @@
                 msg.classList.contains("ChatMessageEmote") ||
                 msg.classList.contains("ChatMessageEnterLeave")
             ) {
+                // 動作、活動、表情、進出房間消息
                 content = `<span class="action-text" style="color:${adjustedColor}">${escapeHtml(rawText.replace(/^\d{2}:\d{2}:\d{2}\s*\n\d+\s*\n/, "").trim())}</span>`;
             } else if (msg.classList.contains("ChatMessageLocalMessage") || msg.classList.contains("ChatMessageNonDialogue")) {
+                // 本地消息和非對話消息
                 const systemColor = getEnhancedContrastColor('#3aa76d', isDarkTheme);
                 content = `<span style="color:${systemColor}">${escapeHtml(rawText.replace(/^\d{2}:\d{2}:\d{2}\s*\n\d+\s*\n/, "").trim())}</span>`;
                 rowStyleInline = `class="chat-row with-accent" style="background:${toRGBA(systemColor, 0.12)}; border-left-color:${systemColor};"`;
             } else {
+                // 其他類型消息
                 content = escapeHtml(rawText.trim());
             }
 
+            // 生成消息行HTML
             html += `
             <div ${rowStyleInline}>
                 <div class="chat-meta">
@@ -1213,6 +1288,7 @@
         if (openCollapsible) html += `</div>`;
         html += getHTMLFooter();
 
+        // 下載生成的HTML文件
         try {
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             const blob = new Blob([html], { type: "text/html;charset=utf-8" });
@@ -1229,7 +1305,8 @@
         }
     }
 
-    // 自訂提示視窗
+    // ===== 用戶界面系統 =====
+    // 自定義提示視窗，用於用戶確認操作
     function showCustomPrompt(message, options = []) {
         return new Promise(function(resolve) {
             const modal = document.createElement("div");
@@ -1239,18 +1316,22 @@
                 z-index: 2000;
             `;
 
+            // 構建按鈕HTML
             let buttons = '';
             if (options.length === 0) {
+                // 默認是/否按鈕
                 buttons = `
                     <button id="customPromptYes" style="margin: 10px; padding: 8px 16px; cursor: pointer; background: #0066cc; color: #fff; border: none; border-radius: 4px;">是</button>
                     <button id="customPromptNo" style="margin: 10px; padding: 8px 16px; cursor: pointer; background: #666; color: #fff; border: none; border-radius: 4px;">否</button>
                 `;
             } else {
+                // 自定義選項按鈕
                 buttons = options.map((opt, idx) =>
-                                      `<button data-value="${opt.value}" style="margin: 5px; padding: 8px 16px; cursor: pointer; background: #0066cc; color: #fff; border: none; border-radius: 4px;">${opt.text}</button>`
-                                     ).join('');
+                    `<button data-value="${opt.value}" style="margin: 5px; padding: 8px 16px; cursor: pointer; background: #0066cc; color: #fff; border: none; border-radius: 4px;">${opt.text}</button>`
+                ).join('');
             }
 
+            // 構建完整的模態框HTML
             modal.innerHTML = `
                 <div style="background: #333; color: #fff; padding: 24px; border-radius: 12px; max-width: 500px; text-align: center; max-height: 80vh; overflow-y: auto;">
                     <h3 style="margin-top: 0;">${message.split('\n')[0]}</h3>
@@ -1262,6 +1343,7 @@
             `;
             document.body.appendChild(modal);
 
+            // 綁定按鈕事件
             if (options.length === 0) {
                 modal.querySelector("#customPromptYes").onclick = () => {
                     document.body.removeChild(modal);
@@ -1282,7 +1364,7 @@
         });
     }
 
-    // 日期選擇器
+    // 日期選擇器界面，用於緩存管理
     async function showDateSelector() {
         const availableDates = await CacheManager.getAvailableDates();
 
@@ -1303,12 +1385,13 @@
                 z-index: 2000;
             `;
 
+            // 生成日期選項列表
             const dateOptions = availableDates.map(date =>
-                                                   `<label style="display: block; margin: 8px 0; cursor: pointer; padding: 8px; border-radius: 4px; background: #444;">
+                `<label style="display: block; margin: 8px 0; cursor: pointer; padding: 8px; border-radius: 4px; background: #444;">
                     <input type="checkbox" value="${date.dateKey}" style="margin-right: 8px;">
                     ${date.display} - ${date.count} 條訊息
                 </label>`
-                                                  ).join('');
+            ).join('');
 
             modal.innerHTML = `
                 <div style="background: #333; color: #fff; padding: 24px; border-radius: 12px; max-width: 500px; max-height: 80vh; overflow-y: auto;">
@@ -1330,10 +1413,11 @@
 
             document.body.appendChild(modal);
 
+            // 綁定按鈕事件
             modal.querySelector("#selectAll").onclick = () => {
                 const checkboxes = modal.querySelectorAll('input[type="checkbox"]');
                 const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-                checkboxes.forEach(cb => cb.checked = !allChecked);
+                checkboxes.forEach(cb => cb.checked = !allChecked); // 切換全選狀態
             };
 
             modal.querySelector("#saveCurrent").onclick = () => {
@@ -1348,7 +1432,7 @@
 
             modal.querySelector("#exportBtn").onclick = () => {
                 const selected = Array.from(modal.querySelectorAll('input[type="checkbox"]:checked'))
-                .map(cb => cb.value);
+                                    .map(cb => cb.value);
                 if (selected.length === 0) {
                     alert('請選擇要匯出的日期');
                     return;
@@ -1359,7 +1443,7 @@
 
             modal.querySelector("#deleteBtn").onclick = () => {
                 const selected = Array.from(modal.querySelectorAll('input[type="checkbox"]:checked'))
-                .map(cb => cb.value);
+                                    .map(cb => cb.value);
                 if (selected.length === 0) {
                     alert('請選擇要刪除的日期');
                     return;
@@ -1370,16 +1454,18 @@
         });
     }
 
-    // 修復的DB匯出函數
+    // ===== 主要功能函數 =====
+    // 數據庫HTML導出的主控制函數
     async function export_DB_HTML() {
         const result = await showDateSelector();
         if (!result) return;
 
         if (result.action === 'save_current') {
+            // 保存當前消息到緩存
             const currentMessages = processCurrentMessages();
             if (currentMessages.length > 0) {
                 await CacheManager.saveToday(currentMessages);
-                // 保存后清空currentMessageCount
+                // 保存後重置計數器（重要：避免重複累積）
                 currentMessageCount = 0;
                 console.log("[CHE] save_current: 保存後重置計數器");
                 window.ChatRoomSendLocalStyled("[CHE] 已保存當前訊息到緩存", 3000, "#00ff00");
@@ -1388,6 +1474,7 @@
         }
 
         if (result.action === 'delete') {
+            // 刪除選中的日期數據
             const confirmDelete = await showCustomPrompt(`確定要刪除 ${result.dates.length} 個日期的數據嗎？`);
             if (confirmDelete) {
                 await CacheManager.deleteDates(result.dates);
@@ -1396,6 +1483,7 @@
         }
 
         if (result.action === 'export' && result.dates.length > 0) {
+            // 導出選中日期的數據
             const messages = await CacheManager.getMessagesForDates(result.dates);
             if (messages.length === 0) {
                 window.ChatRoomSendLocalStyled("[CHE] 選中日期沒有數據", 3000, "#ffa500");
@@ -1407,10 +1495,10 @@
         }
     }
 
-    // 修復的Chat匯出函數
+    // 當前聊天室HTML導出函數
     async function exportChatAsHTML() {
         const includePrivate = await showCustomPrompt("請問您是否保存包含悄悄話(whisper)與私信(beep)的信息?");
-
+        
         const log = DOMCache.getChatLog();
         if (!log || log.querySelectorAll(".ChatMessage, a.beep-link, .chat-room-sep-div").length === 0) {
             window.ChatRoomSendLocalStyled("[CHE] ❌ 找不到聊天室容器或無訊息可匯出", 5000, "#ff0000");
@@ -1426,16 +1514,16 @@
         await generateChatHTML(messages, includePrivate);
     }
 
-    // 簡化的匯出HTML函數
+    // HTML導出的統一入口函數
     async function exportHTML(fromCache = false) {
         if (fromCache) {
-            await export_DB_HTML();
+            await export_DB_HTML(); // 從緩存導出
         } else {
-            await exportChatAsHTML();
+            await exportChatAsHTML(); // 從當前聊天室導出
         }
     }
 
-    // 修改后的Excel导出函数
+    // Excel導出函數
     async function exportExcel() {
         if (!window.XLSX?.utils) {
             window.ChatRoomSendLocalStyled("[CHE] ❌ XLSX庫未載入", 3000, "#ff0000");
@@ -1452,25 +1540,28 @@
         window.ChatRoomSendLocalStyled("[CHE] 正在生成Excel，請稍候...", 2000, "#ffa500");
 
         try {
-            const data = [["時間", "ID", "內容"]];
+            const data = [["時間", "ID", "內容"]]; // Excel表頭
 
             messages.forEach(msg => {
-                // 应用统一的过滤逻辑
+                // 應用統一的過濾邏輯
                 if (isFilteredMessage(msg.content, msg.type, includePrivate)) {
                     return;
                 }
 
+                // 格式化時間顯示
                 const timeDisplay = typeof msg.time === 'string' && msg.time.includes('T')
-                ? new Date(msg.time).toLocaleString()
-                : msg.time;
+                    ? new Date(msg.time).toLocaleString()
+                    : msg.time;
 
                 data.push([timeDisplay, msg.id, msg.content]);
             });
 
+            // 創建Excel工作簿
             const ws = XLSX.utils.aoa_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "ChatLog");
 
+            // 下載Excel文件
             const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
             const blob = new Blob([wbout], { type: "application/octet-stream" });
             const url = URL.createObjectURL(blob);
@@ -1487,7 +1578,7 @@
         }
     }
 
-    // 清空當前聊天室
+    // 清空當前聊天室函數
     async function clearCache() {
         const confirm = await showCustomPrompt("確定要清空當前聊天室的訊息嗎？\n（緩存數據庫不會被清空）");
         if (!confirm) return;
@@ -1501,17 +1592,22 @@
 
             const nodes = Array.from(chatLog.children);
             let lastRoomNode = null;
+            
+            // 找到最後一個房間分隔符
             for (let i = nodes.length - 1; i >= 0; i--) {
-                if (nodes[i].classList.contains("chat-room-sep") || nodes[i].classList.contains("chat-room-sep-last") || nodes[i].classList.contains("chat-room-sep-div")) {
+                if (nodes[i].classList.contains("chat-room-sep") || 
+                    nodes[i].classList.contains("chat-room-sep-last") || 
+                    nodes[i].classList.contains("chat-room-sep-div")) {
                     lastRoomNode = nodes[i];
                     break;
                 }
             }
 
+            // 清空聊天室，保留房間分隔符
             chatLog.innerHTML = "";
             if (lastRoomNode) chatLog.appendChild(lastRoomNode);
 
-            currentMessageCount = 0;
+            currentMessageCount = 0; // 重置消息計數
             window.ChatRoomSendLocalStyled("[CHE] 當前聊天室已清空！", 3000, "#00ff00");
         } catch (e) {
             console.error("[CHE] 清空聊天室失敗:", e);
@@ -1519,12 +1615,14 @@
         }
     }
 
-    // 修改的訊息監控 - 改为基于时间的自动保存
+    // ===== 自動保存系統 =====
+    // 修改的訊息監控 - 改為基於時間的自動保存
     function initMessageObserver() {
         console.log("[CHE] 開始初始化訊息監控");
-        const maxWaitTime = 10 * 60 * 1000;
+        const maxWaitTime = 10 * 60 * 1000; // 最大等待時間：10分鐘
         const startTime = Date.now();
 
+        // 定期檢查聊天室是否載入
         const checkChatRoom = setInterval(() => {
             const chatLog = DOMCache.getChatLog();
             if (chatLog) {
@@ -1534,6 +1632,7 @@
                 currentMessageCount = DOMCache.getMessageCount();
                 console.log("[CHE] 初始訊息數量:", currentMessageCount);
 
+                // 創建MutationObserver監控DOM變化
                 const observer = new MutationObserver((mutations) => {
                     let newMessages = 0;
                     mutations.forEach((mutation) => {
@@ -1552,12 +1651,13 @@
                     }
                 });
 
+                // 開始監控聊天室容器的變化
                 observer.observe(chatLog, {
-                    childList: true,
-                    subtree: true
+                    childList: true, // 監控子節點的添加/刪除
+                    subtree: true // 監控所有後代節點
                 });
 
-                // 启动定时保存
+                // 啟動定時保存系統
                 startAutoSave();
                 console.log("[CHE] MutationObserver 和定時保存已啟動");
             } else if (Date.now() - startTime > maxWaitTime) {
@@ -1567,30 +1667,32 @@
         }, 500);
     }
 
-    // 启动自动保存定时器
+    // 啟動自動保存定時器
     function startAutoSave() {
         if (autoSaveTimer) {
-            clearInterval(autoSaveTimer);
+            clearInterval(autoSaveTimer); // 清除現有定時器
         }
 
+        // 每分鐘檢查一次是否需要保存
         autoSaveTimer = setInterval(() => {
             if (currentMode === "cache") {
                 const now = Date.now();
                 const timeSinceLastSave = now - lastSaveTime;
-
+                
                 console.log(`[CHE] 定時檢查: 距離上次保存 ${Math.round(timeSinceLastSave / 1000)} 秒`);
-
+                
+                // 如果達到10分鐘間隔則觸發保存
                 if (timeSinceLastSave >= AUTO_SAVE_INTERVAL) {
                     console.log("[CHE] 達到10分鐘間隔，觸發自動保存");
                     saveCurrentMessages();
                 }
             }
-        }, 60 * 1000); // 每分钟检查一次
+        }, 60 * 1000); // 每分鐘檢查一次
 
         console.log("[CHE] 自動保存定時器已啟動 (10分鐘間隔)");
     }
 
-    // 停止自动保存定时器
+    // 停止自動保存定時器
     function stopAutoSave() {
         if (autoSaveTimer) {
             clearInterval(autoSaveTimer);
@@ -1599,7 +1701,7 @@
         }
     }
 
-    // 修改的保存當前訊息函數
+    // 保存當前消息的主要函數
     async function saveCurrentMessages() {
         if (currentMode !== "cache") {
             console.log("[CHE] saveCurrentMessages: 非緩存模式，跳過保存");
@@ -1612,11 +1714,12 @@
         if (messages.length > 0) {
             try {
                 await CacheManager.saveToday(messages);
-                // 保存成功后重置计数器和更新保存时间
+                // 保存成功後重置計數器和更新保存時間（重要：避免重複累積）
                 currentMessageCount = 0;
                 lastSaveTime = Date.now();
                 console.log("[CHE] saveCurrentMessages: 保存完成，計數器和時間已重置");
 
+                // 清理舊消息，保持界面性能
                 const chatLog = DOMCache.getChatLog();
                 if (chatLog) {
                     const allMessages = Array.from(chatLog.querySelectorAll(".ChatMessage, a.beep-link"));
@@ -1635,15 +1738,17 @@
         }
     }
 
-    // 退出時保存和定期備份
+    // ===== 數據備份系統 =====
+    // 設置退出時保存和緊急備份
     function setupDataBackup() {
+        // 瀏覽器關閉前的緊急保存
         window.addEventListener('beforeunload', (e) => {
             if (currentMode === "cache") {
                 saveToLocalStorage("beforeunload事件");
             }
         });
 
-        // 移除定期备份，改为基于时间的自动保存
+        // 頁面隱藏時的保存（例如切換標籤頁）
         document.addEventListener('visibilitychange', () => {
             if (document.hidden && currentMode === "cache") {
                 saveToLocalStorage("頁面隱藏");
@@ -1651,6 +1756,7 @@
         });
     }
 
+    // 緊急保存到localStorage（臨時存儲）
     function saveToLocalStorage(reason) {
         try {
             const messages = processCurrentMessages();
@@ -1658,11 +1764,11 @@
 
             if (messages.length > 0) {
                 const tempData = {
-                    messages: messages,
-                    date: DateUtils.getDateKey(),
-                    timestamp: Date.now(),
-                    count: messages.length,
-                    reason: reason
+                    messages: messages, // 消息數據
+                    date: DateUtils.getDateKey(), // 日期
+                    timestamp: Date.now(), // 時間戳
+                    count: messages.length, // 消息數量
+                    reason: reason // 保存原因
                 };
 
                 localStorage.setItem('che_temp_data', JSON.stringify(tempData));
@@ -1675,7 +1781,7 @@
         }
     }
 
-    // 修改的頁面載入時檢查臨時數據
+    // 檢查並恢復臨時數據
     async function checkTempData() {
         console.log("[CHE] checkTempData: 開始檢查臨時數據");
 
@@ -1704,6 +1810,7 @@
                 return;
             }
 
+            // 檢查數據是否在有效期內（今天或昨天）
             const currentDate = DateUtils.getDateKey();
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
@@ -1715,11 +1822,11 @@
 
                     try {
                         await CacheManager.saveToday(tempData.messages);
-                        // 恢复后重置状态
+                        // 恢復後重置狀態（重要：避免重複累積）
                         currentMessageCount = 0;
                         lastSaveTime = Date.now();
                         console.log("[CHE] checkTempData: 恢復後重置計數器和時間");
-
+                        
                         window.ChatRoomSendLocalStyled(`[CHE] 恢復了 ${tempData.messages.length} 條未保存的訊息 (${tempData.reason})`, 4000, "#00ff00");
                         console.log(`[CHE] checkTempData: 成功恢復 ${tempData.messages.length} 條訊息`);
                     } catch (saveError) {
@@ -1733,6 +1840,7 @@
                 console.log(`[CHE] checkTempData: 臨時數據日期 ${tempData.date} 過舊，跳過恢復 (當前: ${currentDate})`);
             }
 
+            // 清除臨時數據
             localStorage.removeItem('che_temp_data');
             console.log("[CHE] checkTempData: 已清除臨時數據");
 
@@ -1746,19 +1854,23 @@
         }
     }
 
-    // 添加UI
+    // ===== 用戶界面創建 =====
+    // 創建插件的主要用戶界面
     function addUI() {
+        // 清除已存在的界面（防止重複創建）
         const existingContainer = document.querySelector("#chatlogger-container");
         if (existingContainer) {
             existingContainer.remove();
         }
 
+        // 創建主容器
         const container = document.createElement("div");
         container.id = "chatlogger-container";
         container.style.cssText = `
             position: fixed; bottom: 20px; left: 20px; z-index: 1000;
         `;
 
+        // 創建主按鈕
         const toggleButton = document.createElement("button");
         toggleButton.innerHTML = "💾";
         toggleButton.style.cssText = `
@@ -1769,6 +1881,7 @@
         `;
         toggleButton.title = "聊天室記錄管理器 v2.1";
 
+        // 懸停效果
         toggleButton.onmouseover = () => {
             toggleButton.style.opacity = "1";
             toggleButton.style.background = "#AC66E4";
@@ -1780,6 +1893,7 @@
             toggleButton.style.transform = "scale(1)";
         };
 
+        // 創建工具欄
         const toolbar = document.createElement("div");
         toolbar.id = "chatlogger-toolbar";
         toolbar.style.cssText = `
@@ -1789,6 +1903,7 @@
             flex-direction: column; gap: 8px; min-width: 150px;
         `;
 
+        // 按鈕創建函數
         const createButton = (label, handler, color = "#555") => {
             const btn = document.createElement("button");
             btn.textContent = label;
@@ -1797,117 +1912,209 @@
                 background: ${color}; color: #fff; border: none; border-radius: 4px;
                 cursor: pointer; transition: background 0.2s; white-space: nowrap;
             `;
-            btn.onmouseover = () => btn.style.background = "#E37736";
-            btn.onmouseout = () => btn.style.background = color;
+            btn.onmouseover = () => btn.style.background = "#E37736"; // 懸停時變色
+            btn.onmouseout = () => btn.style.background = color; // 恢復原色
             btn.onclick = () => {
+                // 檢查聊天室是否已載入
                 if (!DOMCache.getChatLog()) {
                     window.ChatRoomSendLocalStyled("❌ 聊天室尚未載入", 3000, "#ff0000");
                     return;
                 }
-                handler();
+                handler(); // 執行按鈕功能
             };
             return btn;
         };
 
-        const btnHTML = createButton("📥 HTML匯出", () => exportHTML(false));
-        const btnExcel = createButton("📊 Excel匯出", exportExcel);
-        const btnCache = createButton("📂 緩存管理", export_DB_HTML);
-        const btnClear = createButton("🗑️ 清空緩存", clearCache, "#cc0000");
-        const btnMode = createButton("⏸️ 停用", () => toggleMode(btnMode));
+        // 創建各功能按鈕
+        const btnHTML = createButton("📥 HTML匯出", () => exportHTML(false)); // 導出當前聊天室為HTML
+        const btnExcel = createButton("📊 Excel匯出", exportExcel); // 導出為Excel文件
+        const btnCache = createButton("📂 緩存管理", export_DB_HTML); // 管理緩存數據
+        const btnClear = createButton("🗑️ 清空緩存", clearCache, "#cc0000"); // 清空當前聊天室（紅色警告色）
+        const btnMode = createButton("⏸️ 停用", () => toggleMode(btnMode)); // 模式切換按鈕
 
+        // 將所有按鈕添加到工具欄
         [btnHTML, btnExcel, btnCache, btnClear, btnMode].forEach(btn => toolbar.appendChild(btn));
 
+        // 組裝界面元素
         container.appendChild(toggleButton);
         container.appendChild(toolbar);
         document.body.appendChild(container);
 
+        // 主按鈕點擊事件：切換工具欄顯示/隱藏
         toggleButton.onclick = () => {
             toolbar.style.display = toolbar.style.display === "none" ? "flex" : "none";
         };
 
+        // 初始化模式按鈕狀態
         updateModeButton(btnMode);
         console.log("[CHE] UI已載入，當前模式:", currentMode);
     }
 
-    // 更新模式按鈕
+    // 更新模式按鈕的顯示狀態
     function updateModeButton(btn) {
         if (currentMode === "cache") {
+            // 緩存模式：橙色，顯示緩存狀態
             btn.textContent = "💾 緩存中";
             btn.style.background = "#ff8800";
             window.ChatRoomSendLocalStyled("[CHE] 緩存模式：每10分鐘自動保存", 3000, "#ff8800");
         } else {
+            // 停用模式：灰色，顯示停用狀態
             btn.textContent = "⏸️ 停用";
             btn.style.background = "#555";
             window.ChatRoomSendLocalStyled("[CHE] 已停用自動緩存", 3000, "#ffa500");
         }
     }
 
-    // 修改的模式切換
+    // 模式切換函數
     function toggleMode(btn) {
         if (currentMode === "stopped") {
+            // 從停用切換到緩存模式
             currentMode = "cache";
-            initMessageObserver();
+            initMessageObserver(); // 啟動消息監控
         } else {
+            // 從緩存切換到停用模式
             currentMode = "stopped";
-            stopAutoSave();
+            stopAutoSave(); // 停止自動保存
         }
 
+        // 保存模式設置到localStorage
         localStorage.setItem("chatlogger_mode", currentMode);
-        updateModeButton(btn);
+        updateModeButton(btn); // 更新按鈕顯示
         console.log("[CHE] 模式已切換:", currentMode);
     }
 
-    // 初始化
+    // ===== 插件初始化系統 =====
+    // 主初始化函數，負責啟動所有插件功能
     async function init() {
         try {
+            // 1. 載入必要的外部依賴
             await loadToastSystem();
 
+            // 2. 設置數據備份機制
             setupDataBackup();
 
+            // 3. 等待遊戲玩家數據載入完成
             const waitForPlayer = setInterval(() => {
-                if (window.Player?.Name) {
+                if (window.Player?.Name) { // 檢查玩家對象是否存在
                     clearInterval(waitForPlayer);
 
                     console.log("[CHE] 玩家數據已載入，開始初始化插件");
 
+                    // 4. 檢查並恢復臨時數據
                     checkTempData().then(() => {
                         console.log("[CHE] 臨時數據檢查完成");
                     }).catch(e => {
                         console.error("[CHE] 臨時數據檢查失敗:", e);
                     });
 
+                    // 5. 清理7天前的舊數據
                     CacheManager.cleanOldData().then(() => {
                         console.log("[CHE] 舊數據清理完成");
                     }).catch(e => {
                         console.error("[CHE] 舊數據清理失敗:", e);
                     });
 
+                    // 6. 創建用戶界面
                     addUI();
 
+                    // 7. 根據當前模式啟動相應功能
                     if (currentMode === "cache") {
                         console.log("[CHE] 緩存模式，啟動訊息監控");
-                        initMessageObserver();
+                        initMessageObserver(); // 啟動消息監控和自動保存
                     }
 
                     console.log("[CHE] 插件初始化完成，當前模式:", currentMode);
                 }
-            }, 1000);
+            }, 1000); // 每秒檢查一次玩家數據
 
+            // 8. 嘗試註冊到bcModSdk（如果可用）
             if (typeof bcModSdk !== "undefined" && bcModSdk?.registerMod) {
                 modApi = bcModSdk.registerMod({
-                    name: "Liko's CHE Enhanced",
-                    fullName: "Chat History Export Enhanced v2.1",
-                    version: modversion,
-                    repository: "Enhanced chat room history export with 7-day cache",
+                    name: "Liko's CHE Enhanced", // 插件名稱
+                    fullName: "Chat History Export Enhanced v2.1", // 完整名稱
+                    version: modversion, // 版本號
+                    repository: "Enhanced chat room history export with 7-day cache", // 描述
                 });
                 console.log("[CHE] 已註冊到 bcModSdk");
             }
 
         } catch (e) {
+            // 初始化失敗時的錯誤處理
             console.error("[CHE] 初始化失敗:", e);
             window.ChatRoomSendLocalStyled("[CHE] ❌ 初始化失敗", 3000, "#ff0000");
         }
     }
 
+    // ===== 插件啟動 =====
+    // 立即執行初始化函數，啟動整個插件
     init();
-})();
+
+})(); // 立即執行函數表達式(IIFE)結束
+
+/*
+===== 插件架構總結 =====
+
+這個插件的主要組件和工作流程：
+
+1. **全局變量管理**
+   - 版本控制、模式狀態、定時器管理
+   - 使用localStorage持久化用戶設置
+
+2. **DOM快取系統 (DOMCache)**
+   - 優化DOM查詢性能，避免重複查找
+   - 智能緩存失效機制
+
+3. **日期工具 (DateUtils)**  
+   - 統一的日期格式處理
+   - 支援多種日期格式轉換
+
+4. **緩存管理器 (CacheManager)**
+   - IndexedDB數據庫操作
+   - 7天數據保留策略
+   - 自動去重機制
+
+5. **消息處理系統**
+   - 統一的消息過濾邏輯
+   - 消息類型檢測
+   - 內容解析和格式化
+
+6. **導出系統**
+   - HTML導出（支援搜索和主題切換）
+   - Excel導出
+   - 緩存數據導出
+
+7. **自動保存系統**
+   - 10分鐘定時保存
+   - DOM變化監控
+   - 緊急備份機制
+
+8. **用戶界面**
+   - 浮動工具欄
+   - 模態對話框
+   - 日期選擇器
+
+9. **數據備份系統**
+   - 瀏覽器關閉前保存
+   - 頁面隱藏時保存
+   - 啟動時數據恢復
+
+主要特點：
+- 模組化設計，每個功能獨立
+- 完善的錯誤處理機制  
+- 性能優化（DOM緩存、去重等）
+- 用戶友好的界面設計
+- 數據安全保障（多重備份）
+
+使用方式：
+1. 安裝腳本後會在左下角顯示💾按鈕
+2. 點擊主按鈕展開工具欄
+3. 切換到"緩存中"模式開始自動保存
+4. 使用各種導出功能匯出數據
+5. 通過緩存管理進行數據維護
+
+注意事項：
+- 緩存數據會自動保留7天
+- 10分鐘自動保存一次（緩存模式下）
+- 支援瀏覽器異常關閉的數據恢復
+- 所有導出功能都有過濾選項
+*/
