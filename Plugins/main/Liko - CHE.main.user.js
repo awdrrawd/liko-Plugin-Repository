@@ -1018,7 +1018,7 @@
         </style>
     </head>
     <body>
-        <button id="toggleTheme">🌞 淺色模式</button>
+        <button id="toggleTheme">☀️淺色模式</button>
         ${searchControls}
         <div id="chatlog">
     `;
@@ -1108,7 +1108,7 @@
             document.getElementById("toggleTheme").onclick = function() {
                 document.body.classList.toggle("light");
                 const isLight = document.body.classList.contains("light");
-                this.innerHTML = isLight ? "🌙 暗色模式" : "🌞 淺色模式";
+                this.innerHTML = isLight ? "🌙深色模式" : "☀️淺色模式";
             };
 
             applyFilters();
