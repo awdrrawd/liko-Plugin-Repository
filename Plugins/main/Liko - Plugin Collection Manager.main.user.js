@@ -93,7 +93,7 @@
             id: "Liko_CDB",
             name: "Liko的自訂更衣室背景",
             description: "更衣室背景替換，並提供格線對焦",
-            icon: "📋",
+            icon: "👗",
             //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20CDB.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js",
             enabled: pluginSettings["Liko_CHE"] ?? true,
