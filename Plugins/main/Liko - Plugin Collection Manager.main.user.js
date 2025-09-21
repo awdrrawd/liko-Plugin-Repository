@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likulisu.dev/
-// @version      1.1.3
+// @version      1.1.4
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.1.3";
+    const modversion = "1.1.4";
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
@@ -86,6 +86,16 @@
             icon: "📋",
             //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20CHE.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CHE.main.user.js",
+            enabled: pluginSettings["Liko_CHE"] ?? true,
+            customIcon: ""
+        },
+        {
+            id: "Liko_CDB",
+            name: "Liko的自訂更衣室背景",
+            description: "更衣室背景替換，並提供格線對焦",
+            icon: "📋",
+            //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20CDB.main.user.js",
+            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js",
             enabled: pluginSettings["Liko_CHE"] ?? true,
             customIcon: ""
         },
