@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
-// @namespace    https://likulisu.dev/
-// @version      1.1.4
+// @namespace    https://likolisu.dev/
+// @version      1.2
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,144 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.1.4";
+    const modversion = "1.2";
+
+    // --- 語言檢測和多語言支持 ---
+    function detectLanguage() {
+        // 檢查瀏覽器語言
+        const browserLang = navigator.language || navigator.userLanguage;
+
+        // 檢查 BC 遊戲語言設置（如果存在）
+        let gameLang = null;
+        if (typeof TranslationLanguage !== 'undefined') {
+            gameLang = TranslationLanguage;
+        }
+
+        // 優先使用遊戲語言，其次瀏覽器語言
+        const lang = gameLang || browserLang || 'en';
+
+        // 判斷是否為中文
+        return lang.toLowerCase().startsWith('zh') || lang.toLowerCase().includes('cn') || lang.toLowerCase().includes('tw');
+    }
+
+    // 多語言信息配置
+    const messages = {
+        en: {
+            loaded: `Liko's Plugin Collection Manager v${modversion} Loaded! Click the floating button to manage plugins.`,
+            shortLoaded: `📋 Liko Plugin Collection Manager Manual
+
+🎮 How to Use:
+• Click the floating button in the top right to open management panel
+• Toggle switches to enable/disable plugins
+
+📝 Available Commands:
+/pcm help - Show this manual
+/pcm list - View descriptions for all available plugins.
+
+💡 Tips:
+Plugins will auto-load after enabling, or take effect on next page refresh.
+Recommend selectively enabling plugins for the best experience.`,
+            welcomeTitle: "🐈‍⬛ Plugin Manager",
+            helpCommand: "Use floating button or /pcm help for more information",
+            pluginLoadComplete: "Plugin loading completed",
+            successLoaded: "Successfully loaded",
+            plugins: "plugins",
+            failed: "failed",
+            pluginEnabled: "enabled",
+            pluginDisabled: "disabled",
+            willTakeEffect: "Plugin loaded or will take effect on next refresh",
+            willNotStart: "Will not start on next load"
+        },
+        zh: {
+            loaded: `Liko的插件管理器 v${modversion} 載入完成！點擊浮動按鈕管理插件。`,
+            shortLoaded: `📋 Liko 插件管理器 說明書
+
+🎮 使用方法：
+• 點擊右上角的浮動按鈕開啟管理面板
+• 切換開關來啟用/停用插件
+
+📝 可用指令：
+/pcm help - 顯示此說明書
+/pcm list - 查看所有可用插件說明
+
+💡 小提示：
+插件啟用後會自動載入，或在下次刷新頁面時生效。
+建議根據需要選擇性啟用插件以獲得最佳體驗。`,
+            welcomeTitle: "🐈‍⬛ 插件管理器",
+            helpCommand: "使用浮動按鈕或 /pcm help 查看更多信息",
+            pluginLoadComplete: "插件載入完成",
+            successLoaded: "已成功載入",
+            plugins: "個插件",
+            failed: "個失敗",
+            pluginEnabled: "已啟用",
+            pluginDisabled: "已停用",
+            willTakeEffect: "插件已載入或將在下次刷新生效",
+            willNotStart: "下次載入時將不會啟動"
+        }
+    };
+
+    // 獲取當前語言的信息
+    function getMessage(key) {
+        const isZh = detectLanguage();
+        return messages[isZh ? 'zh' : 'en'][key];
+    }
+
+    // 獲取插件名稱（根據語言）
+    function getPluginName(plugin) {
+        const isZh = detectLanguage();
+        return isZh ? plugin.name : plugin.en_name;
+    }
+
+    // 獲取插件描述（根據語言）
+    function getPluginDescription(plugin) {
+        const isZh = detectLanguage();
+        return isZh ? plugin.description : plugin.en_description;
+    }
+
+    // 獲取插件補充信息（根據語言）
+    function getPluginAdditionalInfo(plugin) {
+        const isZh = detectLanguage();
+        return isZh ? plugin.additionalInfo : plugin.en_additionalInfo;
+    }
+
+    // 發送載入完成信息的函數
+    function sendLoadedMessage() {
+        const waitForChatRoom = () => {
+            return new Promise((resolve) => {
+                const checkChatRoom = () => {
+                    if (CurrentScreen === "ChatRoom") {
+                        resolve(true);
+                    } else {
+                        setTimeout(checkChatRoom, 1000);
+                    }
+                };
+                checkChatRoom();
+
+                // 60秒超時
+                setTimeout(() => resolve(false), 60000);
+            });
+        };
+
+        waitForChatRoom().then((success) => {
+            if (success) {
+                try {
+                    // 發送簡短的聊天室提醒信息
+                    if (typeof ChatRoomSendLocal === 'function') {
+                        ChatRoomSendLocal(getMessage('shortLoaded'), 60000);
+                    }
+
+                    // 使用通知顯示詳細信息
+                    showNotification("🐈‍⬛", "PCM", getMessage('loaded'));
+
+                    // 可選：也在控制台輸出
+                    console.log(`[PCM] ${getMessage('loaded')}`);
+                } catch (e) {
+                    console.log(`[PCM] ${getMessage('loaded')}`);
+                }
+            }
+        });
+    }
+
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
@@ -57,109 +194,181 @@
     }
     let pluginSettings = loadSettings();
 
-    // --- 子插件清單 (簡化版) ---
+    // --- 子插件清單 ---
     const subPlugins = [
         {
             id: "Liko_Tool",
             name: "Liko的工具包",
+            en_name: "Liko's Tool Kit",
             description: "有許多小功能合集的工具包，但也有點不穩定",
+            en_description: "A collection of small utility functions, but somewhat unstable",
+            additionalInfo: "詳細使用說明請輸入/LT或/LT help查詢",
+            en_additionalInfo: "For detailed usage instructions, please enter /LT or /LT help.",
             icon: "🧰",
-            //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Tool.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Tool.main.user.js",
             enabled: pluginSettings["Liko_Tool"] ?? false,
-            customIcon: ""
+            priority: 3 // 優先度：1=最高，數字越大優先度越低
         },
         {
             id: "Liko_Image_Uploader",
             name: "Liko的圖片上傳器",
+            en_name: "Liko's Image Uploader",
             description: "拖曳上傳圖片並分享到聊天室",
+            en_description: "Drag and drop image upload and share to chatroom",
+            additionalInfo: "圖片上傳失敗時，可以使用/IMG或/IMG HELP查閱說明",
+            en_additionalInfo: "If the image fails to upload, you can use /IMG or /IMG HELP to view the instructions.",
             icon: "🖼️",
-            //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
             enabled: pluginSettings["Liko_Image_Uploader"] ?? true,
-            customIcon: ""
+            priority: 3
         },
         {
             id: "Liko_CHE",
             name: "Liko的聊天室書記官",
-            description: "聊天室信息轉HTML，可以搭配neocities等網站上傳分享",
+            en_name: "Liko's Chat History Exporter",
+            description: "聊天室信息轉HTML，並且提供最多7天的信息救援(需要手動啟用緩存功能)",
+            en_description: "Convert chat history to HTML and provides message recovery for up to 7 days.(The caching feature requires manual activation.)",
+            additionalInfo: "包含完整的聊天記錄、時間戳和角色信息，可以搭配Neocities等網站上傳分享",
+            en_additionalInfo: "Includes complete chat logs, timestamps and character info, compatible with sites like Neocities for sharing",
             icon: "📋",
-            //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20CHE.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CHE.main.user.js",
             enabled: pluginSettings["Liko_CHE"] ?? true,
-            customIcon: ""
+            priority: 3
         },
         {
             id: "Liko_CDB",
             name: "Liko的自訂更衣室背景",
-            description: "更衣室背景替換，並提供格線對焦",
+            en_name: "Liko's Custom Dressing Background",
+            description: "更衣室背景替換，並提供網格對焦",
+            en_description: "Replace wardrobe background with grid focus assistance",
+            additionalInfo: "",
+            en_additionalInfo: "",
             icon: "👗",
-            //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20CDB.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js",
             enabled: pluginSettings["Liko_CDB"] ?? true,
-            customIcon: ""
+            priority: 3
         },
         {
             id: "Liko_Prank",
             name: "Liko對朋友的惡作劇",
-            description: "內褲大盜鬧得BC社群人心惶惶!",
+            en_name: "Liko's Friend Prank",
+            description: "內褲大盜鬧得BC社群人心惶惶！",
+            en_description: "The underwear thief causing panic in the BC community!",
+            additionalInfo: "注意：這是個惡作劇插件，請謹慎使用！指令 /偷取, /溶解, /传送",
+            en_additionalInfo: "Warning: This is a prank plugin, use with caution! Command /Steal, /dissolve, /Teleport",
             icon: "🪄",
-            //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Prank.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Prank.main.user.js",
             enabled: pluginSettings["Liko_Prank"] ?? false,
-            customIcon: ""
+            priority: 5 // 較低優先度
         },
         {
             id: "Liko_NOI",
             name: "Liko的邀請通知器",
+            en_name: "Liko's Notification of Invites",
             description: "發出好友、白單、黑單的信息!",
+            en_description: "Customize the notification message when sending a friend, whitelist, or blacklist request.",
+            additionalInfo: "可以使用/NOI或/NOI HELP查閱說明",
+            en_additionalInfo: "For detailed usage instructions, please enter /NOI or /NOI help.",
             icon: "📧",
-            //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20NOI.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20NOI.main.user.js",
             enabled: pluginSettings["Liko_NOI"] ?? true,
-            customIcon: ""
+            priority: 5
         },
         {
             id: "Liko_Bondage_renew",
             name: "Liko的捆綁刷新",
-            description: "針對R119捆綁刷新不夠快的應急措施",
+            en_name: "Liko's Bondage Refresh",
+            description: "針對R120捆綁刷新不夠快的應急措施",
+            en_description: "Emergency fix for slow bondage refresh in R120",
+            additionalInfo: "修復版本更新後可能不再需要此插件",
+            en_additionalInfo: "May no longer be needed after version updates",
             icon: "♻️",
-            //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Bondage%20renew.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Bondage%20renew.main.user.js",
             enabled: pluginSettings["Liko_Bondage_renew"] ?? false,
-            customIcon: ""
+            priority: 10
         },
         {
             id: "Liko_Release_Maid",
             name: "Liko的解綁女僕",
+            en_name: "Liko's Release Maid",
             description: "自動解綁女僕，不過有點天然，會在意外時觸發!",
+            en_description: "Auto-release maid, but a bit naive and may trigger unexpectedly!",
+            additionalInfo: "請評估自己需求，避免降低遊戲樂趣",
+            en_additionalInfo: "Please consider your own needs to avoid diminishing the enjoyment of the game.",
             icon: "🧹",
-            //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Release%20Maid.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Release%20Maid.main.user.js",
             enabled: pluginSettings["Liko_Release_Maid"] ?? false,
-            customIcon: ""
+            priority: 10
         },
         {
             id: "Liko_Chat_TtoB",
             name: "Liko的對話變按鈕",
+            en_name: "Liko's Chat Text to Button",
             description: "聊天室信息轉按鈕，現在還多了傳送門功能!",
+            en_description: "Convert chat messages to buttons, now with portal feature!",
+            additionalInfo: "使用/指令、!!說話、#房名#都會變成可以點擊的按鈕，#房名#提供傳送功能",
+            en_additionalInfo: "Commands starting with /, !! for speech, and #RoomName# will become clickable buttons. The #RoomName# button provides a teleport function.",
             icon: "💬",
-            //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
             enabled: pluginSettings["Liko_Chat_TtoB"] ?? true,
-            customIcon: ""
+            priority: 5
         },
         {
             id: "Liko_CDT",
             name: "Liko的座標繪製工具",
+            en_name: "Liko's Coordinate Drawing Tool",
             description: "BC的介面UI定位工具，有開發需求的可以使用!",
+            en_description: "BC interface UI positioning tool for developers!",
+            additionalInfo: "",
+            en_additionalInfo: "",
             icon: "🖌️",
-            //url: "https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20CDT.main.user.js",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDT.main.user.js",
             enabled: pluginSettings["Liko_CDT"] ?? false,
-            customIcon: ""
+            priority: 10
+        },
+        {
+            id: "ECHO_cloth",
+            name: "ECHO的服裝拓展",
+            en_name: "ECHO's Expansion on cloth options",
+            description: "ECHO的服裝拓展",
+            en_description: "ECHO's Expansion on cloth options",
+            additionalInfo: "",
+            en_additionalInfo: "",
+            icon: "🥐",
+            url: "https://SugarChain-Studio.github.io/echo-clothing-ext/bc-cloth.js",
+            enabled: pluginSettings["ECHO_cloth"] ?? false,
+            priority: 1
+        },
+        {
+            id: "ECHO_activity",
+            name: "ECHO的動作拓展",
+            en_name: "ECHO's Expansion on activity options",
+            description: "ECHO的動作拓展",
+            en_description: "ECHO's Expansion on activity options",
+            additionalInfo: "",
+            en_additionalInfo: "",
+            icon: "🥐",
+            url: "https://SugarChain-Studio.github.io/echo-activity-ext/bc-activity.js",
+            enabled: pluginSettings["ECHO_activity"] ?? false,
+            priority: 1
+        },
+        {
+            id: "XSActivity",
+            name: "小酥的動作拓展",
+            en_name: "Liko's Coordinate Drawing Tool",
+            description: "小酥的動作拓展",
+            en_description: "XS's Expansion on activity options",
+            additionalInfo: "",
+            en_additionalInfo: "",
+            icon: "🍪",
+            url: "https://iceriny.github.io/XiaoSuActivity/main/XSActivity.js",
+            enabled: pluginSettings["XSActivity"] ?? false,
+            priority: 2
         }
     ];
+
+    // 根據優先度排序插件
+    subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
 
     // --- 載入插件（簡化版，移除時間戳） ---
     let loadedPlugins = new Set();
@@ -175,28 +384,28 @@
         // 直接使用 URL，不添加時間戳
         return fetch(plugin.url)
             .then(res => {
-                if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-                return res.text();
-            })
+            if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+            return res.text();
+        })
             .then(code => {
-                try {
-                    const script = document.createElement('script');
-                    script.setAttribute('data-plugin', plugin.id);
-                    script.textContent = code;
-                    document.body.appendChild(script);
-                    loadedPlugins.add(plugin.id);
-                    console.log(`✅ [SubPlugin] ${plugin.name} 載入成功`);
-                } catch (e) {
-                    console.error(`❌ [SubPlugin] 載入失敗: ${plugin.name}`, e);
-                    showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                    throw e;
-                }
-            })
-            .catch(err => {
-                console.error(`❌ [SubPlugin] 無法獲取 ${plugin.name} 的腳本`, err);
+            try {
+                const script = document.createElement('script');
+                script.setAttribute('data-plugin', plugin.id);
+                script.textContent = code;
+                document.body.appendChild(script);
+                loadedPlugins.add(plugin.id);
+                console.log(`✅ [SubPlugin] ${plugin.name} 載入成功`);
+            } catch (e) {
+                console.error(`❌ [SubPlugin] 載入失敗: ${plugin.name}`, e);
                 showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                throw err;
-            });
+                throw e;
+            }
+        })
+            .catch(err => {
+            console.error(`❌ [SubPlugin] 無法獲取 ${plugin.name} 的腳本`, err);
+            showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
+            throw err;
+        });
     }
 
     // 等待Player載入後再開始背景載入插件
@@ -223,6 +432,7 @@
 
         if (isPlayerLoaded()) {
             console.log("✅ [PCM] Player 已載入，開始載入插件");
+            console.log(`[PCM] 🔢 插件載入順序:`, subPlugins.map(p => `${p.priority}:${getPluginName(p)}`));
             hasStartedPluginLoading = true;
             await loadSubPluginsInBackground();
         } else {
@@ -256,11 +466,11 @@
                 console.log(`📦 [PCM] 正在載入批次 ${Math.floor(i/batchSize) + 1}/${Math.ceil(enabledPlugins.length/batchSize)}: ${batch.map(p => p.name).join(', ')}`);
 
                 const promises = batch.map(plugin =>
-                    loadSubPlugin(plugin).catch(error => {
-                        console.warn(`⚠️ [PCM] 插件 ${plugin.name} 載入失敗:`, error.message);
-                        return { plugin, error };
-                    })
-                );
+                                           loadSubPlugin(plugin).catch(error => {
+                    console.warn(`⚠️ [PCM] 插件 ${plugin.name} 載入失敗:`, error.message);
+                    return { plugin, error };
+                })
+                                          );
 
                 try {
                     const results = await Promise.allSettled(promises);
@@ -290,11 +500,11 @@
             const failedCount = enabledPlugins.length - successCount;
             if (failedCount > 0) {
                 console.warn(`⚠️ [PCM] 背景載入完成！成功: ${successCount}, 失敗: ${failedCount}`);
-                showNotification("⚠️", "插件載入完成", `成功載入 ${successCount} 個插件，${failedCount} 個失敗`);
+                showNotification("⚠️", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}，${failedCount} ${getMessage('failed')}`);
             } else {
                 console.log("✅ [PCM] 背景插件載入完成！所有插件都載入成功");
                 if (enabledPlugins.length > 0) {
-                    showNotification("✅", "插件載入完成", `已成功載入 ${successCount} 個插件`);
+                    showNotification("✅", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}`);
                 }
             }
         } catch (error) {
@@ -340,13 +550,10 @@
     function isPlayerLoaded() {return typeof Player !== 'undefined'}
 
     function loadCustomIcons() {
+        // 簡化的圖標載入 - 僅從設定中載入自訂圖標URL（如果有）
         subPlugins.forEach(plugin => {
             if (pluginSettings[`${plugin.id}_customIcon`]) {
                 plugin.customIcon = pluginSettings[`${plugin.id}_customIcon`];
-                plugin.icon = "";
-            } else if (pluginSettings[`${plugin.id}_icon`]) {
-                plugin.icon = pluginSettings[`${plugin.id}_icon`];
-                plugin.customIcon = "";
             }
         });
     }
@@ -559,59 +766,12 @@
             height: 40px;
             border-radius: 10px;
             background: rgba(255, 255, 255, 0.1);
-            cursor: pointer;
-            position: relative;
-            overflow: visible;
         }
 
         .bc-plugin-icon img {
             width: 24px;
             height: 24px;
             border-radius: 4px;
-        }
-
-        .bc-plugin-icon-selector {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            background: rgba(26, 32, 46, 0.95);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            padding: 8px;
-            display: none;
-            flex-wrap: wrap;
-            gap: 4px;
-            width: 200px;
-            max-height: 120px;
-            overflow-y: auto;
-            z-index: 10;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        }
-
-        .bc-plugin-icon-selector.show {
-            display: flex;
-        }
-
-        .bc-plugin-icon-option {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.2s ease;
-            font-size: 16px;
-        }
-
-        .bc-plugin-icon-option img {
-            width: 24px;
-            height: 24px;
-            border-radius: 4px;
-        }
-
-        .bc-plugin-icon-option:hover {
-            background: rgba(255, 255, 255, 0.1);
         }
 
         .bc-plugin-info {
@@ -755,7 +915,7 @@
 
             const header = document.createElement("div");
             header.className = "bc-plugin-header";
-            header.innerHTML = `<h3 class="bc-plugin-title">🐈‍⬛ 插件管理器</h3>`;
+            header.innerHTML = `<h3 class="bc-plugin-title">${getMessage('welcomeTitle')}</h3>`;
 
             const content = document.createElement("div");
             content.className = "bc-plugin-content";
@@ -765,36 +925,21 @@
                 item.className = `bc-plugin-item ${plugin.enabled ? 'enabled' : ''}`;
 
                 const iconDisplay = plugin.customIcon ?
-                      `<img src="${plugin.customIcon}" alt="${plugin.name} icon" />` :
+                      `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />` :
                 plugin.icon;
 
                 item.innerHTML = `
                 <div class="bc-plugin-item-header">
-                    <div class="bc-plugin-icon" data-plugin="${plugin.id}" tabindex="0">
+                    <div class="bc-plugin-icon">
                         ${iconDisplay}
-                        <div class="bc-plugin-icon-selector">
-                            <div class="bc-plugin-icon-option" data-icon="🧰">🧰</div>
-                            <div class="bc-plugin-icon-option" data-icon="🖼️">🖼️</div>
-                            <div class="bc-plugin-icon-option" data-icon="📋">📋</div>
-                            <div class="bc-plugin-icon-option" data-icon="🪄">🪄</div>
-                            <div class="bc-plugin-icon-option" data-icon="📧">📧</div>
-                            <div class="bc-plugin-icon-option" data-icon="♻️">♻️</div>
-                            <div class="bc-plugin-icon-option" data-icon="🧹">🧹</div>
-                            <div class="bc-plugin-icon-option" data-icon="💬">💬</div>
-                            <div class="bc-plugin-icon-option" data-icon="🖌️">🖌️</div>
-                            <div class="bc-plugin-icon-option" data-icon="⭐">⭐</div>
-                            <div class="bc-plugin-icon-option" data-icon="🔧">🔧</div>
-                            <div class="bc-plugin-icon-option" data-icon="⚙️">⚙️</div>
-                            <div class="bc-plugin-icon-option" data-icon="url">🖼️</div>
-                        </div>
                     </div>
                     <div class="bc-plugin-info">
-                        <h4 class="bc-plugin-name">${plugin.name}</h4>
-                        <p class="bc-plugin-desc">${plugin.description}</p>
+                        <h4 class="bc-plugin-name">${getPluginName(plugin)}</h4>
+                        <p class="bc-plugin-desc">${getPluginDescription(plugin)}</p>
                     </div>
                     <button class="bc-plugin-toggle ${plugin.enabled ? 'active' : ''}"
                             data-plugin="${plugin.id}"
-                            aria-label="${plugin.name} 啟用開關">
+                            aria-label="${getPluginName(plugin)} 啟用開關">
                     </button>
                 </div>
             `;
@@ -881,8 +1026,8 @@
 
                         showNotification(
                             plugin.enabled ? "🐈‍⬛" : "🐾",
-                            `${plugin.name} 已${plugin.enabled ? "啟用" : "停用"}`,
-                            plugin.enabled ? "插件已載入或將在下次刷新生效" : "下次載入時將不會啟動"
+                            `${plugin.name} ${plugin.enabled ? getMessage('pluginEnabled') : getMessage('pluginDisabled')}`,
+                            plugin.enabled ? getMessage('willTakeEffect') : getMessage('willNotStart')
                         );
 
                         if (plugin.enabled && !loadedPlugins.has(plugin.id) && isPlayerLoaded()) {
@@ -897,10 +1042,6 @@
                     isOpen = false;
                     panel.classList.remove("show");
                 }
-            });
-
-            document.addEventListener("click", () => {
-                document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => s.classList.remove("show"));
             });
         }
     }
@@ -954,11 +1095,30 @@
         });
     }
 
+    // 添加語言變化監聽
+    let lastDetectedLanguage = null;
+
+    function checkLanguageChange() {
+        const currentLang = detectLanguage();
+        if (lastDetectedLanguage !== null && lastDetectedLanguage !== currentLang) {
+            console.log("[PCM] 檢測到語言變化，重新創建UI");
+            // 強制重新創建UI
+            const existingBtn = document.getElementById("bc-plugin-floating-btn");
+            const existingPanel = document.getElementById("bc-plugin-panel");
+            if (existingBtn) existingBtn.remove();
+            if (existingPanel) existingPanel.remove();
+            currentUIState = null; // 重置UI狀態
+            createManagerUI();
+        }
+        lastDetectedLanguage = currentLang;
+    }
+
     function monitorPageChanges() {
         let debounceTimer;
         const observer = new MutationObserver(() => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
+                checkLanguageChange(); // 檢查語言變化
                 createManagerUI();
 
                 if (isPlayerLoaded() && !hasStartedPluginLoading) {
@@ -975,6 +1135,7 @@
                 lastUrl = window.location.href;
                 clearTimeout(debounceTimer);
                 debounceTimer = setTimeout(() => {
+                    checkLanguageChange(); // 檢查語言變化
                     createManagerUI();
 
                     if (isPlayerLoaded() && !hasStartedPluginLoading) {
@@ -985,22 +1146,135 @@
             }
         }, 1000);
 
+        // 定期檢查語言變化（例如用戶在遊戲中切換語言）
+        setInterval(() => {
+            checkLanguageChange();
+        }, 2000);
+
         createManagerUI();
     }
     function handle_PCM_Command(text) {
         if (typeof text !== "string") text = String(text || "");
         const args = text.trim().split(/\s+/).filter(x => x !== "");
         const sub = (args[0] || "").toLowerCase();
+        const isZh = detectLanguage();
 
         if (!sub || sub === "help") {
-            ChatRoomSendLocal(
-                "PCM說明\n" +
-                "施工中",
-                60000
-            );return;
-        }else{
-            ChatRoomSendLocal("請輸入/pcm help查閱");return;
+            const helpText = isZh ? generateChineseHelp() : generateEnglishHelp();
+
+            if (typeof ChatRoomSendLocal === 'function') {
+                ChatRoomSendLocal(helpText, 60000);
+            } else {
+                console.log(`[PCM] ${helpText}`);
+            }
+            return;
+        } else if (sub === "list") {
+            const listText = isZh ? generateChinesePluginList() : generateEnglishPluginList();
+
+            if (typeof ChatRoomSendLocal === 'function') {
+                ChatRoomSendLocal(listText, 60000);
+            } else {
+                console.log(`[PCM] ${listText}`);
+            }
+            return;
+        } else {
+            const errorText = isZh ?
+                "請輸入 /pcm help 查看說明或 /pcm list 查看插件列表" :
+                "Please enter /pcm help for instructions or /pcm list to see plugin list";
+
+            if (typeof ChatRoomSendLocal === 'function') {
+                ChatRoomSendLocal(errorText);
+            } else {
+                console.log(`[PCM] ${errorText}`);
+            }
+            return;
         }
+    }
+
+    function generateChineseHelp() {
+        return `📋 Liko 插件管理器 說明書
+
+🎮 使用方法：
+• 點擊右上角的浮動按鈕開啟管理面板
+• 切換開關來啟用/停用插件
+• 點擊插件圖標可更換顯示圖標
+
+📝 可用指令：
+/pcm help - 顯示此說明書
+/pcm list - 查看所有可用插件列表
+
+💡 小提示：
+插件啟用後會自動載入，或在下次刷新頁面時生效。
+建議根據需要選擇性啟用插件以獲得最佳體驗。
+
+❤️ 感謝使用 Liko 插件管理器！`;
+    }
+
+    function generateEnglishHelp() {
+        return `📋 Liko Plugin Collection Manager Manual
+
+🎮 How to Use:
+• Click the floating button in the top right to open management panel
+• Toggle switches to enable/disable plugins
+• Click plugin icons to change display icons
+
+📝 Available Commands:
+/pcm help - Show this manual
+/pcm list - View all available plugin list
+
+💡 Tips:
+Plugins will auto-load after enabling, or take effect on next page refresh.
+Recommend selectively enabling plugins for the best experience.
+
+❤️ Thank you for using Liko Plugin Collection Manager!`;
+    }
+
+    function generateChinesePluginList() {
+        let listText = "🔌 可用插件列表：\n\n";
+
+        subPlugins.forEach((plugin, index) => {
+            const status = plugin.enabled ? "✅" : "⭕";
+            const pluginName = getPluginName(plugin);
+            const pluginDesc = getPluginDescription(plugin);
+            const additionalInfo = getPluginAdditionalInfo(plugin);
+
+            listText += `${status}${plugin.icon} ${pluginName}\n`;
+            listText += `📄 ${pluginDesc}\n`;
+
+            // 只有當補充信息存在且不為空時才顯示
+            if (additionalInfo && additionalInfo.trim() !== "") {
+                listText += ` ✦ ${additionalInfo}\n`;
+            }
+
+            listText += "\n";
+        });
+
+        listText += "💡 在管理面板中切換開關來啟用/停用插件";
+        return listText;
+    }
+
+    function generateEnglishPluginList() {
+        let listText = "🔌 Available Plugin List:\n\n";
+
+        subPlugins.forEach((plugin, index) => {
+            const status = plugin.enabled ? "✅" : "⭕";
+            const pluginName = getPluginName(plugin);
+            const pluginDesc = getPluginDescription(plugin);
+            const additionalInfo = getPluginAdditionalInfo(plugin);
+
+            listText += `${status}${plugin.icon} ${pluginName}\n`;
+            listText += `📄 ${pluginDesc}\n`;
+
+            // 只有當補充信息存在且不為空時才顯示
+            if (additionalInfo && additionalInfo.trim() !== "") {
+                listText += ` ✦ ${additionalInfo}\n`;
+            }
+
+            listText += "\n";
+        });
+
+        listText += "💡 Toggle switches in the management panel to enable/disable plugins";
+        return listText;
     }
     function tryRegisterCommand() {
         try {
@@ -1015,7 +1289,7 @@
                 return true;
             }
         } catch (e) {
-            warn("CommandCombine 註冊 /pcm 失敗：", e.message);
+            console.warn("CommandCombine 註冊 /pcm 失敗：", e.message);
         }
         return false;
     }
@@ -1032,27 +1306,65 @@
             try {
                 ServerSend("ChatRoomChat", { Content: `[PCM] ${msg}`, Type: "LocalMessage", Time: sec });
             } catch (e2) {
-                error("無法發送本地訊息:", e2);
+                console.error("無法發送本地訊息:", e2);
             }
         }
     }
-    function initialize() {
+    async function initialize() {
+        console.log("[PCM] 開始初始化...");
+
+        // 首先嘗試初始化modApi
+        try {
+            modApi = await initializeModApi();
+        } catch (e) {
+            console.error("[PCM] modApi 初始化失敗:", e.message);
+            modApi = null;
+        }
+
+        // 初始化語言檢測
+        lastDetectedLanguage = detectLanguage();
+
+        // 載入自定義圖標設定
         loadCustomIcons();
+
+        // 設置頁面監控
         monitorPageChanges();
+
+        // 註冊命令
         tryRegisterCommand();
 
+        // 延遲啟動插件載入檢查
         setTimeout(() => {
             console.log("🔍 [PCM] 5秒後開始檢查Player狀態");
             waitForPlayerAndLoadPlugins();
         }, 5000);
-        console.log("[PCM] ✅ 初始化完成！插件將在Player載入後自動載入");
-        console.log("[PCM] 💬 可使用 /pcm 或 /pcm help 指令");
+
+        // 延遲檢查語言設置，確保遊戲語言已載入
+        setTimeout(() => {
+            console.log("[PCM] 檢查遊戲語言設置並更新UI");
+            checkLanguageChange();
+        }, 10000);
+
+        console.log("[PCM] 初始化完成！插件將在Player載入後自動載入");
+        console.log("[PCM] 可使用 /pcm 或 /pcm help 指令");
     }
 
+    // 啟動初始化
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initialize);
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await initialize();
+                sendLoadedMessage();
+            } catch (e) {
+                console.error("[PCM] 初始化過程中發生錯誤:", e);
+            }
+        });
     } else {
-        initialize();
+        initialize().then(() => {
+            sendLoadedMessage();
+        }).catch((e) => {
+            console.error("[PCM] 初始化過程中發生錯誤:", e);
+        });
     }
-    console.log("[PCM] ✅ 腳本載入完成！");
+    console.log("[PCM] 腳本載入完成");
 })();
