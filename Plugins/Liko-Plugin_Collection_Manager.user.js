@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager L
 // @name:zh      Liko的插件管理器 L
 // @namespace    https://likulisu.dev/
-// @version      1.01
+// @version      1.02
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
