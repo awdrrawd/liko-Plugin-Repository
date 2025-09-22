@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Liko - Plugin Collection Manager L
-// @name:zh      Liko的插件管理器 L
+// @name         Liko - Plugin Collection Manager
+// @name:zh      Liko的插件管理器
 // @namespace    https://likulisu.dev/
 // @version      1.02
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
