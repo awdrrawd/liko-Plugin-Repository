@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Liko - Plugin Collection Manager
-// @name:zh      Liko的插件管理器
+// @name         Liko - Plugin Collection Manager L
+// @name:zh      Liko的插件管理器 L
 // @namespace    https://likulisu.dev/
 // @version      1.01
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
@@ -26,22 +26,50 @@
     globalScripts.forEach(url => {
         const script = document.createElement("script");
         script.src = `${url}?timestamp=${Date.now()}`;
-        script.type = "text/javascript"; // 非 module，全域作用域
+        script.type = "text/javascript";
         script.crossOrigin = "anonymous";
         document.head.appendChild(script);
     });
 
-    // 沙箱作用域的主腳本 先停用
-    /*const mainScript = document.createElement("script");
-    mainScript.src = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js?timestamp=${Date.now()}`;
-    mainScript.type = "module"; // 保持 Tampermonkey 沙箱 / module 執行
-    mainScript.crossOrigin = "anonymous";
-    document.head.appendChild(mainScript);*/
+    // 等待 bcModSdk 載入
+    async function waitForBcModSdk(timeout = 10000) {
+        const interval = 200;
+        let waited = 0;
+        return new Promise((resolve, reject) => {
+            const timer = setInterval(() => {
+                const sdk = window.bcModSdk || unsafeWindow?.bcModSdk;
+                if (sdk?.registerMod) {
+                    clearInterval(timer);
+                    resolve(sdk);
+                } else if (waited >= timeout) {
+                    clearInterval(timer);
+                    reject(new Error("bcModSdk 載入超時"));
+                }
+                waited += interval;
+            }, interval);
+        });
+    }
+
+    // 載入主程式
     (async () => {
-        const url = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
-        const code = await fetch(url).then(r => r.text());
-        eval(code); // 在 Tampermonkey 沙箱執行
+        console.log("[PCM] ⏳ 等待 bcModSdk 載入...");
+        try {
+            const sdk = await waitForBcModSdk();
+            console.log("[PCM] ✅ bcModSdk 已載入");
+
+            // 抓主程式碼
+            const url = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
+            const code = await fetch(url).then(r => r.text());
+
+            // 提供給主程式使用
+            window.bcModSdk = sdk;
+
+            eval(code);
+            console.log("[PCM] ✅ 主程式已啟動");
+        } catch (e) {
+            console.error("[PCM] ❌ 初始化失敗:", e.message);
+        }
     })();
 
-    console.log('[PCM] ✅啟用完成');
+    console.log('[PCM] ✅ 啟用完成');
 })();
