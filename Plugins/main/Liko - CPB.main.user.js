@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Liko - Custom Profile Background
+// @name         Liko - CPB
 // @name:zh      Liko的自定義個人資料頁面背景
 // @namespace    https://likolisu.dev/
 // @version      1.0
-// @description  自定義個人資料頁面背景
+// @description  自定義個人資料頁面背景 | Custom Profile Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant        none
