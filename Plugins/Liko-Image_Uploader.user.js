@@ -20,5 +20,5 @@
     script.type = "module";
     script.crossOrigin = "anonymous";
     document.head.appendChild(script);
-    console.log('[IMG_Up] loadtime:', Date.now());
+    console.log('[IMG] loadtime:', Date.now());
 })();
