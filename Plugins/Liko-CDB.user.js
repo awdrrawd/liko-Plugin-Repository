@@ -18,5 +18,5 @@
     script.type = "module";
     script.crossOrigin = "anonymous";
     document.head.appendChild(script);
-    console.log('[CDT] loadtime:', Date.now());
+    console.log('[CDB] loadtime:', Date.now());
 })();
