@@ -20,5 +20,5 @@
     script.type = "module";
     script.crossOrigin = "anonymous";
     document.head.appendChild(script);
-    console.log('[Tool] loadtime:', Date.now());
+    console.log('[NOI] loadtime:', Date.now());
 })();
