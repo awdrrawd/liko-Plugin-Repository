@@ -210,6 +210,19 @@ Recommend selectively enabling plugins for the best experience.`,
             priority: 3 // 優先度：1=最高，數字越大優先度越低
         },
         {
+            id: "Liko_CPB",
+            name: "Liko的自定義個人資料頁面背景",
+            en_name: "Liko's Custom Profile Background",
+            description: "自定義個人資料頁面背景並分享給他人",
+            en_description: "Customize profile page background and share it with others.",
+            additionalInfo: "",
+            en_additionalInfo: "",
+            icon: "🪪",
+            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CPB.main.user.js",
+            enabled: pluginSettings["Liko_CPB"] ?? false,
+            priority: 3 // 較低優先度
+        },
+        {
             id: "Liko_Image_Uploader",
             name: "Liko的圖片上傳器",
             en_name: "Liko's Image Uploader",
