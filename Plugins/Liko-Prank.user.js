@@ -19,5 +19,5 @@
     script.type = "module";
     script.crossOrigin = "anonymous";
     document.head.appendChild(script);
-    console.log('[PAT ALL] loadtime:', Date.now());
+    console.log('[Prank] loadtime:', Date.now());
 })();
