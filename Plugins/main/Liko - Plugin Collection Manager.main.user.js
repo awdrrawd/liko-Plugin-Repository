@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likolisu.dev/
-// @version      1.2.1
+// @version      1.2.2
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,13 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.2.1";
+    const modversion = "1.2.2";
+    let cachedViewingCharacter = null;
+    let lastCharacterCheck = 0;
+    let lastScreenCheck = null;
+    let lastScreenCheckTime = 0;
+    const CHARACTER_CACHE_TIME = 50; // 角色快取時間 (ms)
+    const SCREEN_CACHE_TIME = 100; // 屏幕檢查快取時間 (ms)
 
     // --- 語言檢測和多語言支持 ---
     function detectLanguage() {
@@ -528,26 +534,116 @@ Recommend selectively enabling plugins for the best experience.`,
         }
     }
 
-    // --- 修改后的UI显示检查函数 ---
+    // 獲取當前查看的角色
+    function getCurrentViewingCharacter() {
+        const now = Date.now();
+
+        // 快取檢查，減少重複計算
+        if (now - lastCharacterCheck < CHARACTER_CACHE_TIME && cachedViewingCharacter !== null) {
+            return cachedViewingCharacter;
+        }
+
+        try {
+            let character = null;
+
+            // 方法1: 使用 InformationSheetCharacter (最直接的方法)
+            if (typeof InformationSheetCharacter !== 'undefined' && InformationSheetCharacter) {
+                character = InformationSheetCharacter;
+            }
+            // 方法2: 檢查 InformationSheetSelection 是否就是角色對象
+            else if (typeof InformationSheetSelection !== 'undefined' && InformationSheetSelection !== null && typeof InformationSheetSelection === 'object') {
+                // 如果 InformationSheetSelection 本身就是一個角色對象
+                if (InformationSheetSelection.Name && (InformationSheetSelection.MemberNumber || InformationSheetSelection.ID)) {
+                    character = InformationSheetSelection;
+                }
+                // 如果有 ID 屬性，嘗試在 ChatRoomCharacter 中查找
+                else if (InformationSheetSelection.ID && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
+                    character = ChatRoomCharacter.find(c => c.ID === InformationSheetSelection.ID);
+                }
+                // 如果有 MemberNumber 屬性，嘗試在 ChatRoomCharacter 中查找
+                else if (InformationSheetSelection.MemberNumber && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
+                    character = ChatRoomCharacter.find(c => c.MemberNumber === InformationSheetSelection.MemberNumber);
+                }
+            }
+            // 方法3: 如果 InformationSheetSelection 是數字，當作 MemberNumber 處理
+            else if (typeof InformationSheetSelection !== 'undefined' && typeof InformationSheetSelection === 'number') {
+                if (CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
+                    character = ChatRoomCharacter.find(c => c.MemberNumber === InformationSheetSelection);
+                }
+            }
+
+            // 默認返回 Player
+            if (!character) {
+                character = Player;
+            }
+
+            // 更新快取
+            cachedViewingCharacter = character;
+            lastCharacterCheck = now;
+
+            return character;
+        } catch (e) {
+            console.error("[PCM] 獲取當前查看角色失敗:", e.message);
+            return Player;
+        }
+    }
+
+    // 檢查是否為個人資料頁面
+    function isProfilePage() {
+        const now = Date.now();
+
+        // 快取屏幕檢查結果
+        if (now - lastScreenCheckTime < SCREEN_CACHE_TIME && lastScreenCheck !== null) {
+            return lastScreenCheck;
+        }
+
+        const result = CurrentScreen === "InformationSheet" &&
+              window.bcx?.inBcxSubscreen() !== true &&
+              window.LITTLISH_CLUB?.inModSubscreen() !== true &&
+              window.MPA?.menuLoaded !== true &&
+              window.LSCG_REMOTE_WINDOW_OPEN !== true;
+
+        lastScreenCheck = result;
+        lastScreenCheckTime = now;
+        return result;
+    }
+
+    // --- UI显示检查函数 ---
     function shouldShowUI() {
+        // 首先檢查基本條件
         const isLoginPage = window.location.href.includes('/login') ||
               window.location.href.includes('/Login') ||
               window.location.href.includes('Login.html');
 
+        // 在登入頁面總是顯示
         if (isLoginPage) {
             return true;
         }
 
+        // 如果 Player 未載入，顯示UI（登入前狀態）
         if (typeof Player === 'undefined' || !Player.Name) {
             return true;
         }
 
+        // 檢查當前屏幕
         if (typeof CurrentScreen !== 'undefined') {
+            // 在個人資料頁面時，只有查看自己的才顯示
+            if (CurrentScreen === 'InformationSheet') {
+                if (isProfilePage()) {
+                    const viewingCharacter = getCurrentViewingCharacter();
+                    // 只有在查看自己的 profile 時才顯示按鈕
+                    return viewingCharacter && viewingCharacter.MemberNumber === Player.MemberNumber;
+                }
+                return false;
+            }
+
+            // 其他允許的頁面
             const allowedScreens = [
-                'Preference',
-                'InformationSheet',
-                'Login',
-                'Character'
+                'Preference',      // 設定頁面
+                'Login',           // 登入頁面
+                'Character',       // 角色創建頁面
+                'MainHall',        // 主大廳（首頁）
+                'Introduction'     // 介紹頁面（首頁的另一種）
             ];
 
             const isAllowedScreen = allowedScreens.includes(CurrentScreen);
@@ -1192,8 +1288,8 @@ Recommend selectively enabling plugins for the best experience.`,
             return;
         } else {
             const errorText = isZh ?
-                "請輸入 /pcm help 查看說明或 /pcm list 查看插件列表" :
-                "Please enter /pcm help for instructions or /pcm list to see plugin list";
+                  "請輸入 /pcm help 查看說明或 /pcm list 查看插件列表" :
+            "Please enter /pcm help for instructions or /pcm list to see plugin list";
 
             if (typeof ChatRoomSendLocal === 'function') {
                 ChatRoomSendLocal(errorText);
