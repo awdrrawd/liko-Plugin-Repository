@@ -34,7 +34,17 @@
                             frameborder="0" allowfullscreen
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             referrerpolicy="strict-origin-when-cross-origin"
+                            onload="this.style.display='block'"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='block'"
                             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a1a; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center;">
+                        <div style="font-size: 2em; margin-bottom: 10px;">📺</div>
+                        <div style="margin-bottom: 15px;">無法嵌入此視頻</div>
+                        <a href="https://www.youtube.com/watch?v=${id}" target="_blank"
+                           style="background: #ff0000; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+                           在 YouTube 觀看
+                        </a>
+                    </div>
                 </div>
             </div>`,
             name: "YouTube"
@@ -128,23 +138,23 @@
     function simplifyUrl(url) {
         // 移除协议前缀
         let simplified = url.replace(/^https?:\/\/(www\.)?/, '');
-        
+
         // 特定平台的简化规则
         if (simplified.includes('bilibili.com/video/')) {
             const match = simplified.match(/bilibili\.com\/video\/(BV[a-zA-Z0-9]{10})/);
             if (match) return `bilibili.com/video/${match[1]}`;
         }
-        
+
         if (simplified.includes('youtube.com/watch?v=')) {
             const match = simplified.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
             if (match) return `youtube.com/watch?v=${match[1]}`;
         }
-        
+
         // 通用截断
         if (simplified.length > 60) {
             return simplified.substring(0, 57) + '...';
         }
-        
+
         return simplified;
     }
 
@@ -219,12 +229,12 @@
             if (!isEnabled) return;
             event.preventDefault();
             event.stopPropagation();
-            
+
             const messageElement = button.closest('.chat-room-message-content') || button.closest('[role="log"] div') || button.closest('div');
             if (!messageElement) return;
 
             let existingIframe = messageElement.querySelector('.likoVideoIframe');
-            
+
             if (existingIframe) {
                 if (existingIframe.style.display === 'none') {
                     existingIframe.style.display = 'block';
@@ -238,11 +248,11 @@
             } else {
                 const iframeContainer = document.createElement("div");
                 iframeContainer.className = "likoVideoIframe";
-                
+
                 const pattern = videoPatterns[videoInfo.platform];
                 const htmlContent = pattern.htmlTemplate(videoInfo.id, videoInfo.type);
                 iframeContainer.innerHTML = htmlContent;
-                
+
                 const closeButton = document.createElement("button");
                 closeButton.textContent = "✕";
                 closeButton.style.cssText = `
@@ -260,21 +270,21 @@
                     z-index: 100;
                     font-weight: bold;
                 `;
-                
+
                 closeButton.addEventListener("click", () => {
                     iframeContainer.remove();
                     button.textContent = "🎬";
                     button.style.color = "#ff4757";
                 });
-                
+
                 iframeContainer.style.position = "relative";
                 iframeContainer.appendChild(closeButton);
-                
+
                 messageElement.appendChild(iframeContainer);
-                
+
                 button.textContent = "📺";
                 button.style.color = "#2ed573";
-                
+
                 resources.eventListeners.push({
                     element: closeButton,
                     events: [{ type: "click", handler: closeButton.onclick }]
@@ -283,7 +293,7 @@
         };
 
         button.addEventListener("click", clickHandler);
-        
+
         resources.eventListeners.push({
             element: button,
             events: [{ type: "click", handler: clickHandler }]
@@ -296,18 +306,18 @@
     function processTextContent(element) {
         if (!isEnabled) return;
         if (element.dataset.likoVideoProcessed === "1") return;
-        
+
         // 避免重复处理和处理特殊元素
-        if (element.querySelector('.likoVideoButton') || 
+        if (element.querySelector('.likoVideoButton') ||
             element.querySelector('.likoVideoIframe') ||
             element.closest('.likoVideoIframe') ||
             element.tagName === 'IFRAME' ||
             element.closest('iframe')) {
             return;
         }
-        
+
         let hasChanges = false;
-        
+
         // 处理现有的链接
         const existingLinks = element.querySelectorAll('a[href]:not([data-liko-processed])');
         existingLinks.forEach(link => {
@@ -330,18 +340,18 @@
                 hasChanges = true;
             }
         });
-        
+
         // 处理纯文本中的视频链接
         let innerHTML = element.innerHTML;
-        
+
         for (let platform in videoPatterns) {
             const pattern = videoPatterns[platform];
             const regex = new RegExp(pattern.regex.source, 'gi');
-            
+
             innerHTML = innerHTML.replace(regex, (match) => {
                 // 避免处理已经在链接中的URL
                 if (match.includes('<') || match.includes('>')) return match;
-                
+
                 const videoInfo = detectVideoUrl(match);
                 if (videoInfo) {
                     hasChanges = true;
@@ -351,10 +361,10 @@
                 return match;
             });
         }
-        
+
         if (hasChanges && innerHTML !== element.innerHTML) {
             element.innerHTML = innerHTML;
-            
+
             // 为新创建的span添加按钮
             element.querySelectorAll('.likoVideoLink[data-video-info]:not([data-button-added])').forEach(span => {
                 try {
@@ -368,17 +378,17 @@
                 }
             });
         }
-        
+
         element.dataset.likoVideoProcessed = "1";
     }
 
     // 掃描聊天消息 - 更安全的扫描方式
     function scanChatMessages() {
         if (!isEnabled) return;
-        
+
         // 只处理聊天消息容器，避免处理iframe内容
         const messageContainers = document.querySelectorAll(".chat-room-message-content, [role='log'] > div");
-        
+
         messageContainers.forEach(container => {
             // 跳过已经包含视频播放器的容器的进一步处理
             if (container.querySelector('.likoVideoIframe')) {
@@ -391,12 +401,12 @@
     // 插件控制函數
     function enablePlugin() {
         isEnabled = true;
-        
+
         if (!scanInterval) {
             scanInterval = setInterval(scanChatMessages, 500);
             resources.intervals.push(scanInterval);
         }
-        
+
         document.querySelectorAll(".chat-room-message-content, [role='log'] div").forEach(el => {
             el.dataset.likoVideoProcessed = "";
         });
@@ -405,18 +415,18 @@
 
     function disablePlugin() {
         isEnabled = false;
-        
+
         if (scanInterval) {
             clearInterval(scanInterval);
             const index = resources.intervals.indexOf(scanInterval);
             if (index > -1) resources.intervals.splice(index, 1);
             scanInterval = null;
         }
-        
+
         document.querySelectorAll('.likoVideoButton, .likoVideoIframe').forEach(el => {
             el.remove();
         });
-        
+
         document.querySelectorAll('.likoVideoLink').forEach(el => {
             const originalUrl = el.dataset.originalUrl;
             if (originalUrl) {
@@ -424,7 +434,7 @@
                 el.parentNode.replaceChild(textNode, el);
             }
         });
-        
+
         document.querySelectorAll('[data-liko-processed], [data-liko-video-processed]').forEach(el => {
             delete el.dataset.likoProcessed;
             delete el.dataset.likoVideoProcessed;
@@ -442,11 +452,11 @@
 
     function destroyPlugin() {
         disablePlugin();
-        
+
         resources.intervals.forEach(interval => {
             clearInterval(interval);
         });
-        
+
         resources.eventListeners.forEach(({ element, events }) => {
             if (element) {
                 events.forEach(({ type, handler }) => {
@@ -454,7 +464,7 @@
                 });
             }
         });
-        
+
         document.querySelectorAll('.likoVideoButton, .likoVideoIframe, .likoVideoLink').forEach(el => {
             if (el.classList.contains('likoVideoLink')) {
                 const originalUrl = el.dataset.originalUrl;
@@ -466,7 +476,7 @@
                 el.remove();
             }
         });
-        
+
         delete window.LikoVideoPlayerInstance;
     }
 
