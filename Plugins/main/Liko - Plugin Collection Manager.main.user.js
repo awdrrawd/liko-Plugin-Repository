@@ -383,6 +383,19 @@ Recommend selectively enabling plugins for the best experience.`,
             url: "https://iceriny.github.io/XiaoSuActivity/main/XSActivity.js",
             enabled: pluginSettings["XSActivity"] ?? false,
             priority: 2
+        },
+        {
+            id: "Liko_ACV",
+            name: "Liko的自動創建影片",
+            en_name: "Liko's Automatically create video.",
+            description: "Liko的自動創建影片",
+            en_description: "Liko's Automatically create video.",
+            additionalInfo: "",
+            en_additionalInfo: "",
+            icon: "🎬",
+            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20ACV.main.user.js",
+            enabled: pluginSettings["Liko_ACV"] ?? true,
+            priority: 5
         }
     ];
 
