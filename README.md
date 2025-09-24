@@ -6,7 +6,7 @@
 
 [插件](https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Plugin_Collection_Manager.user.js)
 
-2.**書籤**
+2.**書籤(bookmark)**
 ```
 javascript:(function(){
   var s=document.createElement('script');
@@ -17,7 +17,7 @@ javascript:(function(){
 })();
 ```
 
-3.**控制台**
+3.**控制台(console)**
 ```
 import(`https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/Liko-Plugin_Collection_Manager.user.js?v=${(Date.now()/10000).toFixed(0)}`);
 ```
