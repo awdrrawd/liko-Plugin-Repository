@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Liko - Video Player Advanced
-// @name:zh      Liko的进阶影片播放器
+// @name         Liko - ACV
+// @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.02
+// @version      1.01
 // @description  Advanced video player that auto-detects video links in chat and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -19,7 +19,7 @@
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
-    const modVersion = "1.02";
+    const modVersion = "1.01";
     let isEnabled = true;
     let scanInterval;
 
@@ -40,10 +40,12 @@
                     <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a1a; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center;">
                         <div style="font-size: 2em; margin-bottom: 10px;">📺</div>
                         <div style="margin-bottom: 15px;">無法嵌入此視頻</div>
+                        <div style="margin-bottom: 10px; font-size: 0.9em; color: #aaa;">建議在瀏覽器中觀看以獲得最佳體驗</div>
                         <a href="https://www.youtube.com/watch?v=${id}" target="_blank"
-                           style="background: #ff0000; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+                           style="background: #ff0000; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-bottom: 10px; display: inline-block;">
                            在 YouTube 觀看
                         </a>
+                        <div style="font-size: 0.8em; color: #666;">或複製連結到瀏覽器: youtube.com/watch?v=${id}</div>
                     </div>
                 </div>
             </div>`,
@@ -64,13 +66,13 @@
         twitch: {
             regex: /twitch\.tv\/(?:(?:videos\/([0-9]+)(?:[\/?].*)?)|([a-zA-Z0-9_]+)(?:[\/?].*)?)/,
             embedTemplate: (id, type) => type === "video"
-                ? `https://player.twitch.tv/?video=${id}&parent=${window.location.hostname}&autoplay=false`
-                : `https://player.twitch.tv/?channel=${id}&parent=${window.location.hostname}&autoplay=false`,
+            ? `https://player.twitch.tv/?video=${id}&parent=${window.location.hostname}&autoplay=false`
+            : `https://player.twitch.tv/?channel=${id}&parent=${window.location.hostname}&autoplay=false`,
             htmlTemplate: (id, type) => `<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
                     <iframe src="${type === "video"
-                        ? `https://player.twitch.tv/?video=${id}&parent=${window.location.hostname}&autoplay=false`
-                        : `https://player.twitch.tv/?channel=${id}&parent=${window.location.hostname}&autoplay=false`}"
+            ? `https://player.twitch.tv/?video=${id}&parent=${window.location.hostname}&autoplay=false`
+            : `https://player.twitch.tv/?channel=${id}&parent=${window.location.hostname}&autoplay=false`}"
                              frameborder="0" allowfullscreen
                             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
                 </div>
@@ -124,10 +126,10 @@
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
-                name: "Liko's Video Player Advanced",
-                fullName: 'BC - Advanced Video Player with Auto Detection',
+                name: "Liko's ACV",
+                fullName: "Liko's Automatically create video.",
                 version: modVersion,
-                repository: '進階聊天室影片播放器，自動檢測影片連結並添加播放按鈕\nAdvanced Video Player with auto video link detection and play buttons.',
+                repository: '自動創建影片 | Automatically create video.',
             });
         }
     } catch (e) {
