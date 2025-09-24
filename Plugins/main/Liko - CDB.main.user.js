@@ -2,7 +2,7 @@
 // @name         Liko - CDB
 // @name:zh      Liko的自訂更衣室背景
 // @namespace    https://likolisu.dev/
-// @version      1.3
+// @version      1.3.1
 // @description  自訂更衣室背景 | Custom Dressing Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -19,7 +19,7 @@
     // 常量配置
     // ================================
     const CONFIG = {
-        VERSION: "1.3",
+        VERSION: "1.3.1",
         DEFAULT_BG_URL: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/refs/heads/main/Plugins/expand/Leonardo_Anime_XL_anime_style_outdoor_magical_wedding_backgrou_2.jpg",
         BUTTON_X: 600,
         BUTTON_Y: 25,
@@ -233,30 +233,44 @@
     }
 
     // ================================
-    // 姿勢更換功能 - 修正版
+    // 姿勢更換功能
     // ================================
+
     function changePose(poseIndex = null) {
         const now = Date.now();
 
-        // 冷卻檢查（1秒）
+        // 冷卻檢查（300ms）
         if (now - state.lastPoseChangeTime < 300) {
-            //safeLog("姿勢更換冷卻中");
             return false;
         }
 
         try {
             // 檢查遊戲狀態
-            if (typeof Player === 'undefined') {
-                safeError("Player對象不存在");
-                return false;
-            }
-
             if (typeof CharacterSetActivePose === 'undefined') {
                 safeError("CharacterSetActivePose函數不存在");
                 return false;
             }
 
-            // 設定姿勢索引 - 添加範圍檢查
+            // 確定操作目標 - 使用 CharacterAppearanceSelection
+            let target = Player; // 默認為自己
+
+            try {
+                // 檢查 CharacterAppearanceSelection (更衣室專用)
+                if (typeof CharacterAppearanceSelection !== 'undefined' && CharacterAppearanceSelection) {
+                    if (CharacterAppearanceSelection.Name && typeof CharacterAppearanceSelection.MemberNumber !== 'undefined') {
+                        target = CharacterAppearanceSelection;
+                    } else if (typeof ChatRoomCharacter !== 'undefined' && Array.isArray(ChatRoomCharacter)) {
+                        const found = ChatRoomCharacter.find(function(char) {
+                            return char && (char.MemberNumber === CharacterAppearanceSelection || char === CharacterAppearanceSelection);
+                        });
+                        if (found) target = found;
+                    }
+                }
+            } catch (e) {
+                safeError("獲取目標角色失敗:", e);
+            }
+
+            // 設定姿勢索引
             if (poseIndex !== null) {
                 if (poseIndex >= 0 && poseIndex < CONFIG.POSES.length) {
                     state.currentPoseIndex = poseIndex;
@@ -282,32 +296,25 @@
 
             const poseName = pose.name;
 
-            //safeLog("嘗試更換姿勢到: " + poseName + " (" + pose.display + ")");
-
             // 使用正確的BC API
-            CharacterSetActivePose(Player, poseName);
+            CharacterSetActivePose(target, poseName);
 
             // 強制刷新外觀
             if (typeof CharacterRefresh !== 'undefined') {
-                CharacterRefresh(Player);
-                //safeLog("執行 CharacterRefresh");
+                CharacterRefresh(target);
             }
 
             // 如果在聊天室，更新角色狀態
             if (typeof ChatRoomCharacterUpdate !== 'undefined' && typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
-                ChatRoomCharacterUpdate(Player);
-                //safeLog("執行 ChatRoomCharacterUpdate");
+                ChatRoomCharacterUpdate(target);
             }
 
             state.lastPoseChangeTime = now;
             saveToOnlineSettings();
 
-            //safeLog("姿勢更換完成: " + poseName + " (" + pose.display + ")");
-
             return true;
         } catch (e) {
             safeError("姿勢更換失敗:", e);
-            safeLog("錯誤詳情: " + e.stack);
             // 重置索引到安全值
             state.currentPoseIndex = 0;
             return false;
