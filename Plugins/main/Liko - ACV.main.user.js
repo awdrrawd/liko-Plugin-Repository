@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Liko - ACV
-// @name:zh      Liko的自動創建影片
+// @name         Liko - Video Player Advanced
+// @name:zh      Liko的进阶影片播放器
 // @namespace    https://likolisu.dev/
-// @version      1.0
-// @description  Automatically create video.
+// @version      1.01
+// @description  Advanced video player that auto-detects video links in chat and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -19,7 +19,7 @@
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
-    const modVersion = "1.0";
+    const modVersion = "1.01";
     let isEnabled = true;
     let scanInterval;
 
@@ -112,10 +112,10 @@
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
-                name: "Liko's ACV",
-                fullName: "Liko'sAutomatically create video.",
+                name: "Liko's Video Player Advanced",
+                fullName: 'BC - Advanced Video Player with Auto Detection',
                 version: modVersion,
-                repository: '自動創建影片 | Automatically create video.',
+                repository: '進階聊天室影片播放器，自動檢測影片連結並添加播放按鈕\nAdvanced Video Player with auto video link detection and play buttons.',
             });
         }
     } catch (e) {
@@ -126,23 +126,23 @@
     function simplifyUrl(url) {
         // 移除协议前缀
         let simplified = url.replace(/^https?:\/\/(www\.)?/, '');
-
+        
         // 特定平台的简化规则
         if (simplified.includes('bilibili.com/video/')) {
             const match = simplified.match(/bilibili\.com\/video\/(BV[a-zA-Z0-9]{10})/);
             if (match) return `bilibili.com/video/${match[1]}`;
         }
-
+        
         if (simplified.includes('youtube.com/watch?v=')) {
             const match = simplified.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
             if (match) return `youtube.com/watch?v=${match[1]}`;
         }
-
+        
         // 通用截断
         if (simplified.length > 60) {
             return simplified.substring(0, 57) + '...';
         }
-
+        
         return simplified;
     }
 
@@ -217,12 +217,12 @@
             if (!isEnabled) return;
             event.preventDefault();
             event.stopPropagation();
-
+            
             const messageElement = button.closest('.chat-room-message-content') || button.closest('[role="log"] div') || button.closest('div');
             if (!messageElement) return;
 
             let existingIframe = messageElement.querySelector('.likoVideoIframe');
-
+            
             if (existingIframe) {
                 if (existingIframe.style.display === 'none') {
                     existingIframe.style.display = 'block';
@@ -236,11 +236,11 @@
             } else {
                 const iframeContainer = document.createElement("div");
                 iframeContainer.className = "likoVideoIframe";
-
+                
                 const pattern = videoPatterns[videoInfo.platform];
                 const htmlContent = pattern.htmlTemplate(videoInfo.id, videoInfo.type);
                 iframeContainer.innerHTML = htmlContent;
-
+                
                 const closeButton = document.createElement("button");
                 closeButton.textContent = "✕";
                 closeButton.style.cssText = `
@@ -258,21 +258,21 @@
                     z-index: 100;
                     font-weight: bold;
                 `;
-
+                
                 closeButton.addEventListener("click", () => {
                     iframeContainer.remove();
                     button.textContent = "🎬";
                     button.style.color = "#ff4757";
                 });
-
+                
                 iframeContainer.style.position = "relative";
                 iframeContainer.appendChild(closeButton);
-
+                
                 messageElement.appendChild(iframeContainer);
-
+                
                 button.textContent = "📺";
                 button.style.color = "#2ed573";
-
+                
                 resources.eventListeners.push({
                     element: closeButton,
                     events: [{ type: "click", handler: closeButton.onclick }]
@@ -281,7 +281,7 @@
         };
 
         button.addEventListener("click", clickHandler);
-
+        
         resources.eventListeners.push({
             element: button,
             events: [{ type: "click", handler: clickHandler }]
@@ -294,12 +294,18 @@
     function processTextContent(element) {
         if (!isEnabled) return;
         if (element.dataset.likoVideoProcessed === "1") return;
-
-        // 避免重复处理
-        if (element.querySelector('.likoVideoButton')) return;
-
+        
+        // 避免重复处理和处理特殊元素
+        if (element.querySelector('.likoVideoButton') || 
+            element.querySelector('.likoVideoIframe') ||
+            element.closest('.likoVideoIframe') ||
+            element.tagName === 'IFRAME' ||
+            element.closest('iframe')) {
+            return;
+        }
+        
         let hasChanges = false;
-
+        
         // 处理现有的链接
         const existingLinks = element.querySelectorAll('a[href]:not([data-liko-processed])');
         existingLinks.forEach(link => {
@@ -322,18 +328,18 @@
                 hasChanges = true;
             }
         });
-
+        
         // 处理纯文本中的视频链接
         let innerHTML = element.innerHTML;
-
+        
         for (let platform in videoPatterns) {
             const pattern = videoPatterns[platform];
             const regex = new RegExp(pattern.regex.source, 'gi');
-
+            
             innerHTML = innerHTML.replace(regex, (match) => {
                 // 避免处理已经在链接中的URL
                 if (match.includes('<') || match.includes('>')) return match;
-
+                
                 const videoInfo = detectVideoUrl(match);
                 if (videoInfo) {
                     hasChanges = true;
@@ -343,10 +349,10 @@
                 return match;
             });
         }
-
+        
         if (hasChanges && innerHTML !== element.innerHTML) {
             element.innerHTML = innerHTML;
-
+            
             // 为新创建的span添加按钮
             element.querySelectorAll('.likoVideoLink[data-video-info]:not([data-button-added])').forEach(span => {
                 try {
@@ -360,25 +366,35 @@
                 }
             });
         }
-
+        
         element.dataset.likoVideoProcessed = "1";
     }
 
-    // 掃描聊天消息
+    // 掃描聊天消息 - 更安全的扫描方式
     function scanChatMessages() {
         if (!isEnabled) return;
-        document.querySelectorAll(".chat-room-message-content, [role='log'] div").forEach(processTextContent);
+        
+        // 只处理聊天消息容器，避免处理iframe内容
+        const messageContainers = document.querySelectorAll(".chat-room-message-content, [role='log'] > div");
+        
+        messageContainers.forEach(container => {
+            // 跳过已经包含视频播放器的容器的进一步处理
+            if (container.querySelector('.likoVideoIframe')) {
+                return;
+            }
+            processTextContent(container);
+        });
     }
 
     // 插件控制函數
     function enablePlugin() {
         isEnabled = true;
-
+        
         if (!scanInterval) {
             scanInterval = setInterval(scanChatMessages, 500);
             resources.intervals.push(scanInterval);
         }
-
+        
         document.querySelectorAll(".chat-room-message-content, [role='log'] div").forEach(el => {
             el.dataset.likoVideoProcessed = "";
         });
@@ -387,18 +403,18 @@
 
     function disablePlugin() {
         isEnabled = false;
-
+        
         if (scanInterval) {
             clearInterval(scanInterval);
             const index = resources.intervals.indexOf(scanInterval);
             if (index > -1) resources.intervals.splice(index, 1);
             scanInterval = null;
         }
-
+        
         document.querySelectorAll('.likoVideoButton, .likoVideoIframe').forEach(el => {
             el.remove();
         });
-
+        
         document.querySelectorAll('.likoVideoLink').forEach(el => {
             const originalUrl = el.dataset.originalUrl;
             if (originalUrl) {
@@ -406,7 +422,7 @@
                 el.parentNode.replaceChild(textNode, el);
             }
         });
-
+        
         document.querySelectorAll('[data-liko-processed], [data-liko-video-processed]').forEach(el => {
             delete el.dataset.likoProcessed;
             delete el.dataset.likoVideoProcessed;
@@ -424,11 +440,11 @@
 
     function destroyPlugin() {
         disablePlugin();
-
+        
         resources.intervals.forEach(interval => {
             clearInterval(interval);
         });
-
+        
         resources.eventListeners.forEach(({ element, events }) => {
             if (element) {
                 events.forEach(({ type, handler }) => {
@@ -436,7 +452,7 @@
                 });
             }
         });
-
+        
         document.querySelectorAll('.likoVideoButton, .likoVideoIframe, .likoVideoLink').forEach(el => {
             if (el.classList.contains('likoVideoLink')) {
                 const originalUrl = el.dataset.originalUrl;
@@ -448,7 +464,7 @@
                 el.remove();
             }
         });
-
+        
         delete window.LikoVideoPlayerInstance;
     }
 
@@ -462,7 +478,7 @@
                         const supportedPlatforms = Object.values(videoPatterns).map(p => p.name).join(", ");
                         ChatRoomSendLocal(
                             `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
-                            <b>🎬 Liko - ACV v${modVersion} 🎬</b>
+                            <b>🎬 Liko - Video Player Advanced v${modVersion} 🎬</b>
                             <br>- 自動檢測並簡化顯示影片連結，添加 🎬 播放按鈕
                             <br>- 支援平台: ${supportedPlatforms}
                             <br>- 點擊 🎬 按鈕播放，再次點擊隱藏，✕ 按鈕關閉
