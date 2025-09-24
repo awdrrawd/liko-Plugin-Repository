@@ -159,6 +159,10 @@ Recommend selectively enabling plugins for the best experience.`,
     // 繪製PCM徽章
     function drawPCMBadge(character, x, y, zoom) {
         try {
+            // 只在聊天室顯示徽章
+            if (CurrentScreen !== "ChatRoom") {
+                return;
+            }
             // 確保圖片已初始化
             if (!pcmBadgeImage) {
                 initializePCMBadgeImage();
