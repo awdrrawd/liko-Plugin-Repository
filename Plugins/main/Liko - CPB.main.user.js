@@ -2,7 +2,7 @@
 // @name         Liko - CPB
 // @name:zh      Liko的自定義個人資料頁面背景
 // @namespace    https://likolisu.dev/
-// @version      1.1
+// @version      1.2
 // @description  自定義個人資料頁面背景 | Custom Profile Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
     'use strict';
 
     let modApi = null;
-    const modversion = "1.1";
+    const modversion = "1.2";
     let customBG = null;
     let buttonImage = null;
     let isInitialized = false;
@@ -300,8 +300,8 @@
             // 檢查圖片格式
             const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
             const hasValidExtension = validExtensions.some(ext =>
-                parsedUrl.pathname.toLowerCase().includes(ext)
-            );
+                                                           parsedUrl.pathname.toLowerCase().includes(ext)
+                                                          );
 
             if (!hasValidExtension) {
                 return { valid: false, error: "不支援的圖片格式，請使用 jpg、png、gif 或 webp" };
@@ -323,10 +323,10 @@
         }
 
         const result = CurrentScreen === "InformationSheet" &&
-            window.bcx?.inBcxSubscreen() !== true &&
-            window.LITTLISH_CLUB?.inModSubscreen() !== true &&
-            window.MPA?.menuLoaded !== true &&
-            window.LSCG_REMOTE_WINDOW_OPEN !== true;
+              window.bcx?.inBcxSubscreen() !== true &&
+              window.LITTLISH_CLUB?.inModSubscreen() !== true &&
+              window.MPA?.menuLoaded !== true &&
+              window.LSCG_REMOTE_WINDOW_OPEN !== true;
 
         lastScreenCheck = result;
         lastScreenCheckTime = now;
@@ -1052,15 +1052,106 @@
             return;
         }
 
+        // 检测是否有 Themed-BC
+        const hasThemed = window.Themed || window.Player?.Themed;
+        console.log("[CPB] Themed-BC 检测:", hasThemed ? "已找到" : "未找到");
+
+        // CPB 背景控制标记
+        let cpbControllingBackground = false;
+
+        if (hasThemed) {
+            // 如果有 Themed，使用高优先级 hook DrawRoomBackground
+            modApi.hookFunction("DrawRoomBackground", 100, (args, next) => {
+                try {
+                    const [url] = args;
+                    if (url && url.includes("Backgrounds/Sheet.jpg") && shouldReplaceBackground()) {
+                        const settings = getSettings();
+                        const viewingCharacter = getCurrentViewingCharacter();
+
+                        let targetBG = null;
+
+                        // 确定要使用的背景
+                        if (viewingCharacter &&
+                            viewingCharacter.MemberNumber !== Player.MemberNumber &&
+                            settings.showRemoteBackground) {
+                            const remoteImageUrl = getPlayerCustomBackground(viewingCharacter);
+                            if (remoteImageUrl && remoteBackgrounds.has(remoteImageUrl)) {
+                                targetBG = remoteBackgrounds.get(remoteImageUrl);
+                                updateCacheAccess(remoteImageUrl);
+                            }
+                        }
+
+                        if (!targetBG && settings.enabled && customBG) {
+                            targetBG = customBG;
+                        }
+
+                        if (targetBG) {
+                            cpbControllingBackground = true;
+
+                            // 保存 canvas 状态并重置
+                            MainCanvas.save();
+                            MainCanvas.globalCompositeOperation = "source-over";
+                            MainCanvas.filter = "none";
+                            MainCanvas.globalAlpha = 1;
+
+                            // 绘制自定义背景到整个屏幕
+                            MainCanvas.drawImage(targetBG, 0, 0, 2000, 1000);
+
+                            MainCanvas.restore();
+
+                            // 延迟重置标记
+                            setTimeout(() => {
+                                cpbControllingBackground = false;
+                            }, 200);
+
+                            //console.log("[CPB] 已绘制自定义背景 (Themed兼容模式)");
+                            return; // 阻止 Themed 的后续处理
+                        }
+                    }
+
+                    cpbControllingBackground = false;
+                    return next(args);
+                } catch (e) {
+                    console.error("[CPB] DrawRoomBackground hook 失敗:", e.message);
+                    cpbControllingBackground = false;
+                    return next(args);
+                }
+            });
+
+            // 阻止 Themed 的颜色叠加
+            modApi.hookFunction("DrawRect", 200, (args, next) => {
+                try {
+                    const [Left, Top, Width, Height, Color] = args;
+
+                    // 如果 CPB 正在控制背景，并且这是全屏颜色叠加，跳过它
+                    if (cpbControllingBackground &&
+                        Left === 0 && Top === 0 &&
+                        Width >= 2000 && Height >= 1000 &&
+                        (typeof Color === 'string' && Color.includes('main'))) {
+
+                        console.log("[CPB] 阻止 Themed 颜色叠加");
+                        return;
+                    }
+
+                    return next(args);
+                } catch (e) {
+                    console.error("[CPB] DrawRect hook 失敗:", e.message);
+                    return next(args);
+                }
+            });
+
+        } else {
+            // 没有 Themed 时使用原有的 drawImage hook
+            setupDrawImageHook();
+        }
+
+        // 其他现有的 hooks 保持不变
         modApi.hookFunction("InformationSheetRun", 10, (args, next) => {
             try {
                 const result = next(args);
-
-                // 更新當前查看的角色
                 currentViewingCharacter = getCurrentViewingCharacter();
                 drawButton();
 
-                // 確保監控正在運行
                 if (!interfaceCheckInterval) {
                     startInterfaceMonitoring();
                 }
@@ -1072,19 +1163,14 @@
             }
         });
 
-        // 添加對 InformationSheetLoad 的 hook 來確保獲取最新角色資料
         modApi.hookFunction("InformationSheetLoad", 5, (args, next) => {
             try {
                 const result = next(args);
-
-                // 在載入後重新獲取當前查看的角色
                 setTimeout(() => {
                     currentViewingCharacter = getCurrentViewingCharacter();
-                    // 清理快取以確保獲取最新狀態
                     cachedViewingCharacter = null;
                     lastCharacterCheck = 0;
                 }, 100);
-
                 return result;
             } catch (e) {
                 console.error("[CPB] InformationSheetLoad 處理失敗:", e.message);
@@ -1104,16 +1190,15 @@
             }
         });
 
-        // Hook Exit function to stop monitoring when leaving
         modApi.hookFunction("InformationSheetExit", 5, (args, next) => {
             try {
                 stopInterfaceMonitoring();
                 currentViewingCharacter = null;
-                // 清理快取
                 cachedViewingCharacter = null;
                 lastCharacterCheck = 0;
                 lastScreenCheck = null;
                 lastScreenCheckTime = 0;
+                cpbControllingBackground = false; // 重置标记
 
                 if (isUIOpen) {
                     closeUI();
@@ -1125,9 +1210,8 @@
             }
         });
 
-        console.log("[CPB] ModSDK hooks 設置完成");
+        console.log("[CPB] ModSDK hooks 設置完成 (Themed 兼容模式:", hasThemed ? "啟用" : "禁用", ")");
     }
-
     // 完整資源清理函數
     function cleanup() {
         console.log("[CPB] 開始資源清理...");
