@@ -1888,7 +1888,7 @@
 
             if (newMessages > 0) {
                 currentMessageCount += newMessages;
-                console.log(`[CHE] 檢測到 ${newMessages} 條新訊息，當前總數: ${currentMessageCount}`);
+                //console.log(`[CHE] 檢測到 ${newMessages} 條新訊息，當前總數: ${currentMessageCount}`);
             }
 
         } catch (e) {
