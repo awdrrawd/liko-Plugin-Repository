@@ -462,7 +462,7 @@
                         const supportedPlatforms = Object.values(videoPatterns).map(p => p.name).join(", ");
                         ChatRoomSendLocal(
                             `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
-                            <b>🎬 Liko - Video Player Advanced v${modVersion} 🎬</b>
+                            <b>🎬 Liko - ACV v${modVersion} 🎬</b>
                             <br>- 自動檢測並簡化顯示影片連結，添加 🎬 播放按鈕
                             <br>- 支援平台: ${supportedPlatforms}
                             <br>- 點擊 🎬 按鈕播放，再次點擊隱藏，✕ 按鈕關閉
