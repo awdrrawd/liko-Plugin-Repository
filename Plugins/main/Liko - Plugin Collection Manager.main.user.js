@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likolisu.dev/
-// @version      1.2.2
+// @version      1.3
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,13 +18,28 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.2.2";
+    const modversion = "1.3";
     let cachedViewingCharacter = null;
     let lastCharacterCheck = 0;
     let lastScreenCheck = null;
     let lastScreenCheckTime = 0;
     const CHARACTER_CACHE_TIME = 50; // 角色快取時間 (ms)
     const SCREEN_CACHE_TIME = 100; // 屏幕檢查快取時間 (ms)
+
+    // --- PCM徽章配置 ---
+    const PCM_BADGE_CONFIG = {
+        offsetX: 240,        // X軸偏移 (正數向右，負數向左)
+        offsetY: 25,         // Y軸偏移 (負數向上，正數向下)
+        size: 36,            // 徽章大小
+        showBackground: false, // 是否顯示背景
+        backgroundColor: "#7F53CD", // 背景顏色
+        borderColor: "#FFFFFF",     // 邊框顏色
+        borderWidth: 1              // 邊框寬度
+    };
+
+    // 緩存PCM圖標，避免重複載入造成閃爍
+    let pcmBadgeImage = null;
+    let pcmImageLoaded = false;
 
     // --- 語言檢測和多語言支持 ---
     function detectLanguage() {
@@ -124,6 +139,174 @@ Recommend selectively enabling plugins for the best experience.`,
         return isZh ? plugin.additionalInfo : plugin.en_additionalInfo;
     }
 
+    // --- PCM徽章相關功能 ---
+    // 初始化PCM圖標
+    function initializePCMBadgeImage() {
+        if (!pcmBadgeImage) {
+            pcmBadgeImage = new Image();
+            pcmBadgeImage.onload = function() {
+                pcmImageLoaded = true;
+                //console.log("[PCM] ✅ PCM徽章圖片載入完成");
+            };
+            pcmBadgeImage.onerror = function() {
+                console.warn("[PCM] ⚠️ PCM徽章圖片載入失敗");
+                pcmImageLoaded = false;
+            };
+            pcmBadgeImage.src = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_4.png";
+        }
+    }
+
+    // 繪製PCM徽章
+    function drawPCMBadge(character, x, y, zoom) {
+        try {
+            // 確保圖片已初始化
+            if (!pcmBadgeImage) {
+                initializePCMBadgeImage();
+                return; // 第一次載入時跳過繪製
+            }
+
+            // 計算徽章位置
+            const badgeX = x + (PCM_BADGE_CONFIG.offsetX * zoom);
+            const badgeY = y + (PCM_BADGE_CONFIG.offsetY * zoom);
+            const badgeSize = PCM_BADGE_CONFIG.size * zoom;
+
+            // 繪製背景 (如果啟用)
+            if (PCM_BADGE_CONFIG.showBackground) {
+                MainCanvas.fillStyle = PCM_BADGE_CONFIG.backgroundColor;
+                MainCanvas.beginPath();
+                MainCanvas.arc(badgeX, badgeY, badgeSize/2, 0, 2 * Math.PI);
+                MainCanvas.fill();
+
+                // 繪製邊框
+                if (PCM_BADGE_CONFIG.borderWidth > 0) {
+                    MainCanvas.strokeStyle = PCM_BADGE_CONFIG.borderColor;
+                    MainCanvas.lineWidth = PCM_BADGE_CONFIG.borderWidth * zoom;
+                    MainCanvas.stroke();
+                }
+            }
+
+            // 繪製PCM圖標
+            if (pcmImageLoaded && pcmBadgeImage.complete) {
+                const imgX = badgeX - badgeSize/2;
+                const imgY = badgeY - badgeSize/2;
+                MainCanvas.drawImage(pcmBadgeImage, imgX, imgY, badgeSize, badgeSize);
+            } else {
+                // 備用文字顯示
+                MainCanvas.save();
+                MainCanvas.fillStyle = "#FFFFFF";
+                MainCanvas.font = `bold ${Math.max(10, badgeSize/3)}px Arial`;
+                MainCanvas.textAlign = "center";
+                MainCanvas.textBaseline = "middle";
+                MainCanvas.fillText("PCM", badgeX, badgeY);
+                MainCanvas.restore();
+            }
+
+        } catch (e) {
+            console.error("[PCM] ❌ 繪製PCM徽章失敗:", e.message);
+        }
+    }
+
+    // 添加PCM標識到玩家
+    function addPCMBadgeToPlayer() {
+        try {
+            // 等待Player物件完全載入
+            const addBadge = () => {
+                if (typeof Player !== 'undefined' && Player && typeof Player.OnlineSharedSettings !== 'undefined') {
+
+                    // 檢查是否已經有PCM標識
+                    if (!Player.OnlineSharedSettings.PCM) {
+                        Player.OnlineSharedSettings.PCM = {
+                            name: "Liko's PCM",
+                            version: modversion,
+                            badge: true,
+                            timestamp: Date.now()
+                        };
+                        // 強制更新角色顯示
+                        if (typeof CharacterRefresh === 'function' && CurrentScreen === 'ChatRoom') {
+                            CharacterRefresh(Player, false);
+                        }
+                    }
+
+                } else {
+                    setTimeout(addBadge, 1000);
+                }
+            };
+
+            addBadge();
+
+        } catch (e) {
+            console.error("[PCM] ❌ 添加PCM標識失敗:", e.message);
+        }
+    }
+
+    // 掛鉤角色繪製函數來顯示其他玩家的PCM徽章
+    function hookCharacterDrawing() {
+        try {
+            if (!modApi || typeof modApi.hookFunction !== 'function') {
+                console.warn("[PCM] ⚠️ modApi.hookFunction 不可用，無法掛鉤角色繪製");
+                return;
+            }
+
+            // 掛鉤DrawCharacter函數來繪製PCM徽章
+            modApi.hookFunction('DrawCharacter', 5, (args, next) => {
+                const [character, x, y, zoom, invert] = args;
+                const result = next(args);
+
+                // 檢查角色是否有PCM標識並繪製徽章
+                if (character && character.OnlineSharedSettings && character.OnlineSharedSettings.PCM) {
+                    drawPCMBadge(character, x, y, zoom);
+                }
+
+                return result;
+            });
+
+            // 掛鉤ChatRoom事件來檢測新玩家進入
+            modApi.hookFunction('ChatRoomSyncCharacter', 5, (args, next) => {
+                const result = next(args);
+                const [character] = args;
+
+                //if (character && character.OnlineSharedSettings && character.OnlineSharedSettings.PCM) console.log(`[PCM] 🎖️ 檢測到 ${character.Name} 使用PCM插件`);
+                return result;
+            });
+            //console.log("✅ [PCM] 角色繪製掛鉤設置完成");
+        } catch (e) {
+            console.error("[PCM] ❌ 設置角色繪製掛鉤失敗:", e.message);
+        }
+    }
+
+    // 註冊PCM徽章
+    function registerPCMBadge() {
+        try {
+            // 等待modApi完全初始化
+            const waitForModApi = () => {
+                if (modApi && typeof modApi.hookFunction === 'function') {
+                    //console.log("[PCM] 🎖️ 開始註冊PCM徽章");
+
+                    // 初始化徽章圖片
+                    initializePCMBadgeImage();
+
+                    // 添加PCM標識到玩家
+                    addPCMBadgeToPlayer();
+
+                    // 掛鉤角色載入函數來添加徽章
+                    hookCharacterDrawing();
+
+                } else {
+                    setTimeout(waitForModApi, 500);
+                }
+            };
+
+            waitForModApi();
+
+        } catch (e) {
+            console.error("[PCM] ❌ 註冊PCM徽章失敗:", e.message);
+            // 即使徽章註冊失敗，也嘗試備用方法
+            setTimeout(() => {
+                addPCMBadgeToPlayer();
+            }, 2000);
+        }
+    }
+
     // 發送載入完成信息的函數
     function sendLoadedMessage() {
         const waitForChatRoom = () => {
@@ -154,7 +337,7 @@ Recommend selectively enabling plugins for the best experience.`,
                     showNotification("🐈‍⬛", "PCM", getMessage('loaded'));
 
                     // 可選：也在控制台輸出
-                    console.log(`[PCM] ${getMessage('loaded')}`);
+                    //console.log(`[PCM] ${getMessage('loaded')}`);
                 } catch (e) {
                     console.log(`[PCM] ${getMessage('loaded')}`);
                 }
@@ -170,6 +353,10 @@ Recommend selectively enabling plugins for the best experience.`,
                 version: modversion,
                 repository: 'Liko的插件管理器 | Plugin collection manager',
             });
+
+            // 註冊PCM徽章
+            registerPCMBadge();
+
             console.log("✅ Liko's PCM 腳本啟動完成");
             setTimeout(() => {
                 if (typeof inplugJS === 'function') {
@@ -213,7 +400,7 @@ Recommend selectively enabling plugins for the best experience.`,
             icon: "🧰",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Tool.main.user.js",
             enabled: pluginSettings["Liko_Tool"] ?? false,
-            priority: 3 // 優先度：1=最高，數字越大優先度越低
+            priority: 3
         },
         {
             id: "Liko_CPB",
@@ -226,7 +413,7 @@ Recommend selectively enabling plugins for the best experience.`,
             icon: "🪪",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CPB.main.user.js",
             enabled: pluginSettings["Liko_CPB"] ?? false,
-            priority: 3 // 較低優先度
+            priority: 3
         },
         {
             id: "Liko_Image_Uploader",
@@ -278,7 +465,7 @@ Recommend selectively enabling plugins for the best experience.`,
             icon: "🪄",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Prank.main.user.js",
             enabled: pluginSettings["Liko_Prank"] ?? false,
-            priority: 5 // 較低優先度
+            priority: 5
         },
         {
             id: "Liko_NOI",
@@ -483,7 +670,7 @@ Recommend selectively enabling plugins for the best experience.`,
 
         try {
             const enabledPlugins = subPlugins.filter(plugin => plugin.enabled);
-            const batchSize = 2;
+            const batchSize = 3;
             let loadedCount = 0;
             let successCount = 0;
 
@@ -534,7 +721,7 @@ Recommend selectively enabling plugins for the best experience.`,
                 console.warn(`⚠️ [PCM] 背景載入完成！成功: ${successCount}, 失敗: ${failedCount}`);
                 showNotification("⚠️", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}，${failedCount} ${getMessage('failed')}`);
             } else {
-                console.log("✅ [PCM] 背景插件載入完成！所有插件都載入成功");
+                //console.log("✅ [PCM] 背景插件載入完成！所有插件都載入成功");
                 if (enabledPlugins.length > 0) {
                     showNotification("✅", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}`);
                 }
@@ -1261,7 +1448,7 @@ Recommend selectively enabling plugins for the best experience.`,
                     createManagerUI();
 
                     if (isPlayerLoaded() && !hasStartedPluginLoading) {
-                        console.log("🎯 [PCM] URL變化後Player已載入，觸發插件載入");
+                        //console.log("🎯 [PCM] URL變化後Player已載入，觸發插件載入");
                         waitForPlayerAndLoadPlugins();
                     }
                 }, 1000);
@@ -1275,6 +1462,7 @@ Recommend selectively enabling plugins for the best experience.`,
 
         createManagerUI();
     }
+
     function handle_PCM_Command(text) {
         if (typeof text !== "string") text = String(text || "");
         const args = text.trim().split(/\s+/).filter(x => x !== "");
@@ -1287,7 +1475,7 @@ Recommend selectively enabling plugins for the best experience.`,
             if (typeof ChatRoomSendLocal === 'function') {
                 ChatRoomSendLocal(helpText, 60000);
             } else {
-                console.log(`[PCM] ${helpText}`);
+                //console.log(`[PCM] ${helpText}`);
             }
             return;
         } else if (sub === "list") {
@@ -1296,7 +1484,7 @@ Recommend selectively enabling plugins for the best experience.`,
             if (typeof ChatRoomSendLocal === 'function') {
                 ChatRoomSendLocal(listText, 60000);
             } else {
-                console.log(`[PCM] ${listText}`);
+                //console.log(`[PCM] ${listText}`);
             }
             return;
         } else {
@@ -1432,16 +1620,28 @@ Recommend selectively enabling plugins for the best experience.
             }
         }
     }
+
+    // 檢查並確保PCM標識存在
+    function ensurePCMBadgeExists() {
+        try {
+            if (typeof Player !== 'undefined' && Player && Player.OnlineSharedSettings) {
+                if (!Player.OnlineSharedSettings.PCM) {
+                    Player.OnlineSharedSettings.PCM = {
+                        name: "Liko's PCM",
+                        version: modversion,
+                        badge: true,
+                        timestamp: Date.now()
+                    };
+                    console.log("[PCM] 🔄 重新添加PCM標識到OnlineSharedSettings");
+                }
+            }
+        } catch (e) {
+            console.error("[PCM] ❌ 檢查PCM標識時出錯:", e.message);
+        }
+    }
+
     async function initialize() {
         console.log("[PCM] 開始初始化...");
-
-        // 首先嘗試初始化modApi
-        try {
-            modApi = await initializeModApi();
-        } catch (e) {
-            console.error("[PCM] modApi 初始化失敗:", e.message);
-            modApi = null;
-        }
 
         // 初始化語言檢測
         lastDetectedLanguage = detectLanguage();
@@ -1455,20 +1655,28 @@ Recommend selectively enabling plugins for the best experience.
         // 註冊命令
         tryRegisterCommand();
 
+        // 在進入聊天室時檢查PCM標識
+        const originalChatRoomJoin = setInterval(() => {
+            if (typeof Player !== 'undefined' && Player && CurrentScreen === 'ChatRoom') {
+                ensurePCMBadgeExists();
+                clearInterval(originalChatRoomJoin);
+            }
+        }, 1000);
+
         // 延遲啟動插件載入檢查
         setTimeout(() => {
-            console.log("🔍 [PCM] 5秒後開始檢查Player狀態");
+            //console.log("🔍 [PCM] 5秒後開始檢查Player狀態");
             waitForPlayerAndLoadPlugins();
         }, 5000);
 
         // 延遲檢查語言設置，確保遊戲語言已載入
         setTimeout(() => {
-            console.log("[PCM] 檢查遊戲語言設置並更新UI");
+            //console.log("[PCM] 檢查遊戲語言設置並更新UI");
             checkLanguageChange();
         }, 10000);
 
-        console.log("[PCM] 初始化完成！插件將在Player載入後自動載入");
-        console.log("[PCM] 可使用 /pcm 或 /pcm help 指令");
+        //console.log("[PCM] 初始化完成！插件將在Player載入後自動載入");
+        //console.log("[PCM] 可使用 /pcm 或 /pcm help 指令");
     }
 
     // 啟動初始化
