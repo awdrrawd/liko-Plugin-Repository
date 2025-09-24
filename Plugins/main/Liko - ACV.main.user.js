@@ -2,7 +2,7 @@
 // @name         Liko - Video Player Advanced
 // @name:zh      Liko的进阶影片播放器
 // @namespace    https://likolisu.dev/
-// @version      1.01
+// @version      1.02
 // @description  Advanced video player that auto-detects video links in chat and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -19,7 +19,7 @@
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
-    const modVersion = "1.01";
+    const modVersion = "1.02";
     let isEnabled = true;
     let scanInterval;
 
@@ -27,11 +27,13 @@
     const videoPatterns = {
         youtube: {
             regex: /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})(?:[&?].*)?/,
-            embedTemplate: (id) => `https://www.youtube.com/embed/${id}`,
+            embedTemplate: (id) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0&modestbranding=1`,
             htmlTemplate: (id) => `<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
-                    <iframe src="https://www.youtube.com/embed/${id}"
+                    <iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0&modestbranding=1"
                             frameborder="0" allowfullscreen
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            referrerpolicy="strict-origin-when-cross-origin"
                             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
                 </div>
             </div>`,
