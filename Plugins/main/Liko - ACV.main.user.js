@@ -493,9 +493,9 @@
                         ChatRoomSendLocal(
                             `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
                             <b>🎬 Liko's ACV v${modVersion} 🎬</b>
-                            <br>- 自動檢測並簡化顯示影片連結，添加 🎬 播放按鈕
-                            <br>- 支援平台: ${supportedPlatforms}
-                            <br>- 點擊 🎬 按鈕播放，再次點擊隱藏，✕ 按鈕關閉
+                            <br>- 自動檢測影片連結，添加 🎬 播放按鈕 | Auto-detect video links, add 🎬 play button.
+                            <br>- 支援平台(Supported): ${supportedPlatforms}
+                            <br>- 點擊 🎬 按鈕播放，再次點擊則隱藏 | Click 🎬 button to play, click again to hide
                             </p>`.replace(/\s+/g, " "), 10000
                         );
                         window.LikoVideoPlayerWelcomed = true;
