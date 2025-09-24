@@ -2,7 +2,7 @@
 // @name         Liko - CPB
 // @name:zh      Liko的自定義個人資料頁面背景
 // @namespace    https://likolisu.dev/
-// @version      1.0
+// @version      1.1
 // @description  自定義個人資料頁面背景 | Custom Profile Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
     'use strict';
 
     let modApi = null;
-    const modversion = "1.0";
+    const modversion = "1.1";
     let customBG = null;
     let buttonImage = null;
     let isInitialized = false;
@@ -228,9 +228,13 @@
                 });
             }
 
-            // 觸發設置同步
+            // 嘗試觸發設置同步（靜默處理，失敗不影響功能）
             if (typeof ServerPlayerExtensionSettingsSync === 'function') {
-                ServerPlayerExtensionSettingsSync("CustomProfileBG");
+                try {
+                    ServerPlayerExtensionSettingsSync("CustomProfileBG");
+                } catch (syncError) {
+                    // 靜默處理，這個函數主要用於官方擴展
+                }
             }
 
             console.log("[CPB] 設置已保存:", settings);
@@ -345,7 +349,7 @@
         return isProfilePage();
     }
 
-    // 載入圖片（修正記憶體洩漏）
+    // 載入圖片（修正記憶體洩漏和預覽顯示問題）
     async function loadImage(url, isPersistent = false) {
         try {
             const validation = isValidImageUrl(url);
@@ -371,10 +375,8 @@
                 pendingBlobUrls.add(blobUrl);
 
                 img.onload = () => {
-                    // 如果不是持久化圖片（如按鈕圖標），載入後立即清理 Blob URL
-                    if (!isPersistent) {
-                        cleanupBlobUrl(blobUrl);
-                    }
+                    // 預覽圖片需要保留 Blob URL 用於顯示
+                    // 只有非持久化且非預覽的情況下才立即清理
                     resolve(img);
                 };
 
@@ -393,7 +395,7 @@
         }
     }
 
-    // 創建 UI 樣式
+    // 創建 UI 樣式 - 新增按鈕點擊效果
     function createUIStyles() {
         // 避免重複創建樣式
         if (document.querySelector('#cpbg-styles')) return;
@@ -523,6 +525,29 @@
                 transition: all 0.3s ease;
                 text-transform: uppercase;
                 letter-spacing: 1px;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .cpbg-button::before {
+                content: '';
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 0;
+                height: 0;
+                background: rgba(255, 255, 255, 0.3);
+                border-radius: 50%;
+                transition: width 0.3s, height 0.3s, top 0.3s, left 0.3s;
+                transform: translate(-50%, -50%);
+            }
+
+            .cpbg-button.clicked::before {
+                width: 300px;
+                height: 300px;
+                top: 50%;
+                left: 50%;
+                background: rgba(255, 255, 255, 0.1);
             }
 
             .cpbg-button.primary {
@@ -536,6 +561,11 @@
                 box-shadow: 0 6px 20px rgba(96, 39, 221, 0.4);
             }
 
+            .cpbg-button.primary:active {
+                transform: translateY(0);
+                box-shadow: 0 2px 10px rgba(96, 39, 221, 0.3);
+            }
+
             .cpbg-button.secondary {
                 background: rgba(96, 39, 221, 0.2);
                 color: #E5DEFF;
@@ -545,6 +575,12 @@
             .cpbg-button.secondary:hover {
                 background: rgba(96, 39, 221, 0.3);
                 border-color: #7C3AED;
+                transform: translateY(-2px);
+            }
+
+            .cpbg-button.secondary:active {
+                transform: translateY(0);
+                background: rgba(96, 39, 221, 0.4);
             }
 
             .cpbg-error {
@@ -582,6 +618,11 @@
             .cpbg-close:hover {
                 background: rgba(239, 68, 68, 0.2);
                 color: #FCA5A5;
+                transform: scale(1.1);
+            }
+
+            .cpbg-close:active {
+                transform: scale(0.95);
             }
 
             @keyframes cpbg-fadeIn {
@@ -608,7 +649,17 @@
         document.head.appendChild(style);
     }
 
-    // 創建 UI - 修改為包含遠程背景設置（增強清理）
+    // 添加按鈕點擊回饋效果
+    function addButtonClickEffect(button) {
+        button.addEventListener('click', function() {
+            this.classList.add('clicked');
+            setTimeout(() => {
+                this.classList.remove('clicked');
+            }, 300);
+        });
+    }
+
+    // 創建 UI - 修正事件綁定邏輯
     function createUI() {
         const settings = getSettings();
 
@@ -616,6 +667,7 @@
         modal.className = 'cpbg-modal';
         modal.innerHTML = `
             <div class="cpbg-dialog">
+                <button class="cpbg-close" type="button">×</button>
                 <div class="cpbg-title">🎨 自訂個人資料背景</div>
 
                 <div class="cpbg-section">
@@ -650,14 +702,30 @@
 
                 <div class="cpbg-buttons">
                     <button class="cpbg-button secondary" id="cpbg-preview-btn">預覽</button>
-                    <button class="cpbg-button secondary" id="cpbg-save-btn">保存設置</button>
+                    <button class="cpbg-button primary" id="cpbg-save-btn">保存設置</button>
                     <button class="cpbg-button secondary" id="cpbg-cancel-btn">取消</button>
                 </div>
             </div>
         `;
 
-        // 事件處理器函數（避免記憶體洩漏）
-        const handleCancel = () => closeUI();
+        // 綁定事件處理器
+        bindUIEvents(modal);
+
+        // 儲存引用
+        uiElements.modal = modal;
+        document.body.appendChild(modal);
+    }
+
+    // 單獨的事件綁定函數
+    function bindUIEvents(modal) {
+        // 按鈕引用
+        const closeBtn = modal.querySelector('.cpbg-close');
+        const cancelBtn = modal.querySelector('#cpbg-cancel-btn');
+        const saveBtn = modal.querySelector('#cpbg-save-btn');
+        const previewBtn = modal.querySelector('#cpbg-preview-btn');
+
+        // 事件處理器
+        const handleClose = () => closeUI();
         const handleModalClick = (e) => {
             if (e.target === modal) closeUI();
         };
@@ -685,15 +753,45 @@
             errorDiv.textContent = '';
 
             try {
-                const img = await loadImage(url, false); // 預覽圖片不需要持久化
-                preview.style.backgroundImage = `url(${img.src})`;
+                // 清理之前的預覽背景
+                if (preview.style.backgroundImage) {
+                    const oldUrl = preview.style.backgroundImage.match(/url\("([^"]+)"\)/);
+                    if (oldUrl && oldUrl[1] && oldUrl[1].startsWith('blob:')) {
+                        cleanupBlobUrl(oldUrl[1]);
+                    }
+                }
+
+                // 直接通過Image對象載入並顯示
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`無法載入圖片: ${response.status}`);
+
+                const blob = await response.blob();
+                if (blob.size > 10 * 1024 * 1024) {
+                    throw new Error("圖片檔案過大，請使用小於 10MB 的圖片");
+                }
+
+                const previewUrl = URL.createObjectURL(blob);
+                pendingBlobUrls.add(previewUrl);
+
+                // 測試圖片是否能正確載入
+                const testImg = new Image();
+                await new Promise((resolve, reject) => {
+                    testImg.onload = resolve;
+                    testImg.onerror = () => reject(new Error("圖片格式不支援"));
+                    testImg.src = previewUrl;
+                });
+
+                preview.style.backgroundImage = `url("${previewUrl}")`;
                 preview.textContent = '';
                 preview.className = 'cpbg-preview';
+
+                console.log("[CPB] 預覽載入成功");
             } catch (error) {
                 showError(errorDiv, error.message);
                 preview.className = 'cpbg-preview';
                 preview.textContent = '預覽失敗';
                 preview.style.backgroundImage = '';
+                console.error("[CPB] 預覽載入失敗:", error.message);
             }
         };
 
@@ -714,8 +812,7 @@
                 }
 
                 try {
-                    // 嘗試載入圖片驗證
-                    customBG = await loadImage(url, true); // 用於實際使用的背景需要持久化
+                    customBG = await loadImage(url, true);
                 } catch (error) {
                     showError(errorDiv, error.message);
                     return;
@@ -732,26 +829,25 @@
             closeUI();
         };
 
-        // 添加事件監聽器
-        const cancelBtn = modal.querySelector('#cpbg-cancel-btn');
-        const saveBtn = modal.querySelector('#cpbg-save-btn');
-        const previewBtn = modal.querySelector('#cpbg-preview-btn');
-
-        cancelBtn.addEventListener('click', handleCancel);
+        // 綁定事件
+        closeBtn.addEventListener('click', handleClose);
+        cancelBtn.addEventListener('click', handleClose);
         saveBtn.addEventListener('click', handleSave);
         previewBtn.addEventListener('click', handlePreview);
         modal.addEventListener('click', handleModalClick);
 
-        // 儲存事件處理器引用以便清理
-        uiElements.modal = modal;
+        // 添加按鈕點擊效果
+        [closeBtn, cancelBtn, saveBtn, previewBtn].forEach(btn => {
+            if (btn) addButtonClickEffect(btn);
+        });
+
+        // 儲存事件處理器引用（如果需要手動清理）
         uiElements.eventHandlers = {
-            handleCancel,
+            handleClose,
             handleModalClick,
             handlePreview,
             handleSave
         };
-
-        document.body.appendChild(modal);
     }
 
     // 顯示錯誤
@@ -761,38 +857,29 @@
         }
     }
 
-    // 打開 UI
+    // 打開 UI - 修正邏輯
     function openUI() {
         if (isUIOpen) return;
 
-        if (!uiElements.modal) {
-            createUIStyles();
-            createUI();
+        // 總是重新創建UI以確保事件正確綁定
+        if (uiElements.modal) {
+            uiElements.modal.remove();
+            uiElements.modal = null;
         }
+
+        createUIStyles();
+        createUI();
 
         isUIOpen = true;
         uiElements.modal.style.display = 'flex';
     }
 
-    // 關閉 UI（增強清理）
+    // 關閉 UI - 簡化邏輯
     function closeUI() {
         if (!isUIOpen) return;
 
         isUIOpen = false;
         if (uiElements.modal) {
-            // 移除事件監聽器
-            if (uiElements.eventHandlers) {
-                const modal = uiElements.modal;
-                const cancelBtn = modal.querySelector('#cpbg-cancel-btn');
-                const saveBtn = modal.querySelector('#cpbg-save-btn');
-                const previewBtn = modal.querySelector('#cpbg-preview-btn');
-
-                if (cancelBtn) cancelBtn.removeEventListener('click', uiElements.eventHandlers.handleCancel);
-                if (saveBtn) saveBtn.removeEventListener('click', uiElements.eventHandlers.handleSave);
-                if (previewBtn) previewBtn.removeEventListener('click', uiElements.eventHandlers.handlePreview);
-                modal.removeEventListener('click', uiElements.eventHandlers.handleModalClick);
-            }
-
             uiElements.modal.style.display = 'none';
         }
     }
@@ -876,7 +963,6 @@
         try {
             DrawButton(BUTTON_X, BUTTON_Y, BUTTON_SIZE, BUTTON_SIZE, "", "White", "", "自訂背景設置");
 
-            // 確保 buttonImage.src 存在且有效
             if (buttonImage.src && buttonImage.complete) {
                 DrawImage(buttonImage.src, BUTTON_X, BUTTON_Y, BUTTON_SIZE, BUTTON_SIZE);
             } else {
@@ -1136,12 +1222,12 @@
 
             if (settings.enabled && settings.imageUrl) {
                 try {
-                    customBG = await loadImage(settings.imageUrl, true); // 使用持久化模式
+                    customBG = await loadImage(settings.imageUrl, true);
                 } catch (error) {
                     console.warn("[CPB] 載入保存的背景失敗:", error.message);
                     // 如果載入失敗，嘗試載入默認背景
                     try {
-                        customBG = await loadImage(DEFAULT_BG_URL, true); // 使用持久化模式
+                        customBG = await loadImage(DEFAULT_BG_URL, true);
                         // 更新設置為默認URL
                         const newSettings = { ...settings, imageUrl: DEFAULT_BG_URL };
                         saveSettings(newSettings);
@@ -1152,7 +1238,7 @@
             } else if (!settings.imageUrl) {
                 // 如果沒有設置圖片URL，載入默認背景
                 try {
-                    customBG = await loadImage(DEFAULT_BG_URL, true); // 使用持久化模式
+                    customBG = await loadImage(DEFAULT_BG_URL, true);
                     // 更新設置為默認URL
                     const newSettings = { ...settings, imageUrl: DEFAULT_BG_URL };
                     saveSettings(newSettings);
@@ -1163,7 +1249,7 @@
 
             // 載入按鈕圖標（持久化圖片）
             try {
-                buttonImage = await loadImage(BUTTON_IMAGE_URL, true); // 使用持久化模式
+                buttonImage = await loadImage(BUTTON_IMAGE_URL, true);
             } catch (error) {
                 console.warn("[CPB] 載入按鈕圖標失敗，嘗試直接使用原始 URL:", error.message);
                 // 備用方案：直接使用原始 URL
