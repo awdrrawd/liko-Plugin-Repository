@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likolisu.dev/
-// @version      1.3.1
+// @version      1.3.2
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -700,6 +700,19 @@ Recommend selectively enabling plugins for the best experience.`,
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20ACV.main.user.js",
             enabled: pluginSettings["Liko_ACV"] ?? true,
             priority: 5
+        },
+        {
+            id: "Liko - Region switch",
+            name: "快速切換混合&女性區",
+            en_name: "Region switch",
+            description: "快速切換混合&女性區",
+            en_description: "Region switch",
+            additionalInfo: "",
+            en_additionalInfo: "",
+            icon: "⚧️",
+            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
+            enabled: pluginSettings["Liko - Region switch"] ?? true,
+            priority: 10
         }
     ];
 
