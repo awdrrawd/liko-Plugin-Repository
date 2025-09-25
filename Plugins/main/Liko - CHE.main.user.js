@@ -49,7 +49,7 @@
                     this.lastCheckTime = now;
 
                     if (!this.chatLog) {
-                        console.warn("[CHE] ChatLog 元素未找到");
+                        //console.warn("[CHE] ChatLog 元素未找到");
                         return null;
                     }
                 }
