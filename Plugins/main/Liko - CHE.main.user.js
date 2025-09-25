@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.1.1
+// @version      2.1.2
 // @description  聊天室紀錄匯出
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
     "use strict";
 
     let modApi;
-    const modversion = "2.1.1";
+    const modversion = "2.1.2";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 10 * 60 * 1000; // 10分钟保存一次碎片
     let autoSaveTimer = null;
@@ -285,7 +285,7 @@
                 });
 
                 if (newMessages.length === 0) {
-                    console.log("[CHE] saveToday: 所有消息都已存在，跳过保存");
+                    //console.log("[CHE] saveToday: 所有消息都已存在，跳过保存");
                     return 0;
                 }
 
@@ -387,7 +387,7 @@
                     return timeA - timeB;
                 });
 
-                console.log(`[CHE] 從緩存獲取了 ${allMessages.length} 條訊息`);
+                //console.log(`[CHE] 從緩存獲取了 ${allMessages.length} 條訊息`);
                 return allMessages;
             } catch (e) {
                 logError("CacheManager.getMessagesForDates", e);
@@ -397,20 +397,20 @@
 
         async deleteDates(dateKeys) {
             if (!dateKeys || dateKeys.length === 0) {
-                console.log("[CHE] deleteDates: 沒有要刪除的日期");
+                //console.log("[CHE] deleteDates: 沒有要刪除的日期");
                 return false;
             }
 
-            console.log(`[CHE] deleteDates: 開始刪除操作，目標日期:`, dateKeys);
+            //console.log(`[CHE] deleteDates: 開始刪除操作，目標日期:`, dateKeys);
 
             try {
                 const db = await this.init();
-                console.log("[CHE] deleteDates: 數據庫連接成功");
+                //console.log("[CHE] deleteDates: 數據庫連接成功");
 
                 let successCount = 0;
                 for (const dateKey of dateKeys) {
                     try {
-                        console.log(`[CHE] deleteDates: 處理日期 ${dateKey}`);
+                        //console.log(`[CHE] deleteDates: 處理日期 ${dateKey}`);
 
                         const tx = db.transaction(["daily_fragments"], "readwrite");
                         const store = tx.objectStore("daily_fragments");
@@ -418,7 +418,7 @@
                         await new Promise((resolve, reject) => {
                             const deleteReq = store.delete(dateKey);
                             deleteReq.onsuccess = () => {
-                                console.log(`[CHE] deleteDates: ✓ 成功刪除 ${dateKey}`);
+                                //console.log(`[CHE] deleteDates: ✓ 成功刪除 ${dateKey}`);
                                 successCount++;
                                 resolve();
                             };
@@ -439,7 +439,7 @@
                     }
                 }
 
-                console.log(`[CHE] deleteDates: 刪除完成，成功刪除 ${successCount}/${dateKeys.length} 個項目`);
+                //console.log(`[CHE] deleteDates: 刪除完成，成功刪除 ${successCount}/${dateKeys.length} 個項目`);
 
                 if (successCount > 0) {
                     window.ChatRoomSendLocalStyled(`[CHE] 已刪除 ${successCount} 個日期的數據`, 3000, "#00ff00");
@@ -482,7 +482,7 @@
                             req.onerror = () => reject(req.error);
                         });
                     }
-                    console.log(`[CHE] 已清理 ${keysToDelete.length} 個過期日期的數據`);
+                    //console.log(`[CHE] 已清理 ${keysToDelete.length} 個過期日期的數據`);
                 }
             } catch (e) {
                 logError("CacheManager.cleanOldData", e);
@@ -1089,8 +1089,9 @@
                     if (visible) visibleCount++;
                 });
 
+                // 修正：使用字符串拼接而不是转义模板字符串
                 document.getElementById('filterStats').textContent =
-                    \`顯示 \${visibleCount} / \${allChatRows.length} 條訊息\`;
+                    '顯示 ' + visibleCount + ' / ' + allChatRows.length + ' 條訊息';
             }
 
             ['contentSearch', 'idFilter'].forEach(id => {
@@ -1108,7 +1109,7 @@
             document.getElementById("toggleTheme").onclick = function() {
                 document.body.classList.toggle("light");
                 const isLight = document.body.classList.contains("light");
-                this.innerHTML = isLight ? "🌙深色模式" : "☀️淺色模式";
+                this.innerHTML = isLight ? "✦ 深色模式" : "✧ 淺色模式";
             };
 
             applyFilters();
@@ -1486,7 +1487,7 @@
             `;
 
             const dateOptions = availableDates.map(date =>
-                `<div class="date-option" data-value="${date.dateKey}" style="
+                                                   `<div class="date-option" data-value="${date.dateKey}" style="
                     position: relative; margin: 8px 0; cursor: pointer; padding: 12px; border-radius: 8px;
                     background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
                     border: 2px solid transparent; transition: all 0.3s ease;
@@ -1495,7 +1496,7 @@
                     <span style="font-size: 16px;">${date.display}</span>
                     <span style="color: #bdc3c7; margin-left: 8px;">(${date.count} 條訊息)</span>
                 </div>`
-            ).join('');
+                                                  ).join('');
 
             modal.innerHTML = `
                 <div style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
@@ -1637,7 +1638,7 @@
 
             modal.querySelector("#exportBtn").onclick = async () => {
                 const selected = Array.from(modal.querySelectorAll('.date-option.selected'))
-                    .map(opt => opt.dataset.value);
+                .map(opt => opt.dataset.value);
                 if (selected.length === 0) {
                     alert('請選擇要匯出的日期');
                     return;
@@ -1649,7 +1650,7 @@
                 // 檢查是否包含今天，如果包含則先合併當前碎片
                 const today = DateUtils.getDateKey();
                 if (selected.includes(today)) {
-                    console.log("[CHE] 匯出包含今天，先保存當前訊息");
+                    //console.log("[CHE] 匯出包含今天，先保存當前訊息");
                     const currentMessages = processCurrentMessages();
                     if (currentMessages.length > 0) {
                         await CacheManager.saveToday(currentMessages);
@@ -1662,7 +1663,7 @@
 
             modal.querySelector("#deleteBtn").onclick = () => {
                 const selected = Array.from(modal.querySelectorAll('.date-option.selected'))
-                    .map(opt => opt.dataset.value);
+                .map(opt => opt.dataset.value);
                 if (selected.length === 0) {
                     alert('請選擇要刪除的日期');
                     return;
@@ -1824,10 +1825,10 @@
                 const chatLog = DOMCache.getChatLog();
                 if (chatLog && document.contains(chatLog)) {
                     clearInterval(checkChatRoom);
-                    console.log("[CHE] 聊天室容器已找到，啟動訊息監控");
+                    //console.log("[CHE] 聊天室容器已找到，啟動訊息監控");
 
                     currentMessageCount = DOMCache.getMessageCount();
-                    console.log("[CHE] 初始訊息數量:", currentMessageCount);
+                    //console.log("[CHE] 初始訊息數量:", currentMessageCount);
 
                     messageObserver = new MutationObserver(handleMutations);
 
@@ -1841,7 +1842,7 @@
                     try {
                         messageObserver.observe(chatLog, observerConfig);
                         observerActive = true;
-                        console.log("[CHE] MutationObserver 已啟動");
+                        //console.log("[CHE] MutationObserver 已啟動");
 
                         startAutoSave();
 
@@ -1902,7 +1903,7 @@
             if (messageObserver) {
                 messageObserver.disconnect();
                 messageObserver = null;
-                console.log("[CHE] MutationObserver 已清理");
+                //console.log("[CHE] MutationObserver 已清理");
             }
             observerActive = false;
         } catch (e) {
@@ -1912,7 +1913,7 @@
 
     // 停止觀察器
     function stopMessageObserver() {
-        console.log("[CHE] 停止訊息監控");
+        //console.log("[CHE] 停止訊息監控");
         cleanupObserver();
         stopAutoSave();
     }
@@ -1945,7 +1946,7 @@
         if (autoSaveTimer) {
             clearInterval(autoSaveTimer);
             autoSaveTimer = null;
-            console.log("[CHE] 自動保存定時器已停止");
+            //console.log("[CHE] 自動保存定時器已停止");
         }
     }
 
@@ -1965,7 +1966,7 @@
                 currentMessageCount = 0;
                 lastSaveTime = Date.now();
 
-                console.log(`[CHE] 自動保存完成：${savedCount} 條訊息，時間: ${new Date().toLocaleTimeString()}`);
+                //console.log(`[CHE] 自動保存完成：${savedCount} 條訊息，時間: ${new Date().toLocaleTimeString()}`);
 
                 const chatLog = DOMCache.getChatLog();
                 if (chatLog) {
@@ -1973,7 +1974,7 @@
                     if (allMessages.length > 500) {
                         const toRemove = allMessages.slice(0, allMessages.length - 500);
                         toRemove.forEach(msg => msg.remove());
-                        console.log(`[CHE] 清理了 ${toRemove.length} 條舊訊息，保留最新500條`);
+                        //console.log(`[CHE] 清理了 ${toRemove.length} 條舊訊息，保留最新500條`);
                     }
                 }
             } catch (e) {
@@ -1981,7 +1982,7 @@
                 window.ChatRoomSendLocalStyled("[CHE] ❌ 自動保存失敗", 3000, "#ff0000");
             }
         } else {
-            console.log("[CHE] saveCurrentMessages: 沒有新訊息需要保存");
+            //console.log("[CHE] saveCurrentMessages: 沒有新訊息需要保存");
         }
     }
 
@@ -2053,12 +2054,12 @@
             let tempData;
             try {
                 tempData = JSON.parse(tempDataStr);
-                //console.log("[CHE] checkTempData: 解析臨時數據成功:", {
+                /*console.log("[CHE] checkTempData: 解析臨時數據成功:", {
                     date: tempData.date,
                     count: tempData.count,
                     reason: tempData.reason,
                     timestamp: new Date(tempData.timestamp).toLocaleString()
-                });
+                });*/
             } catch (parseError) {
                 logError("checkTempData.parse", parseError);
                 localStorage.removeItem('che_temp_data');
@@ -2233,11 +2234,11 @@
             if (currentMode === "cache") {
                 btn.textContent = "💾 緩存中";
                 btn.style.background = "linear-gradient(135deg, #644CB0 0%, #552B90 100%)";
-                console.log("[CHE] 緩存模式：每10分鐘自動保存");
+                //console.log("[CHE] 緩存模式：每10分鐘自動保存");
             } else {
                 btn.textContent = "⏸️ 停用";
                 btn.style.background = "linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%)";
-                console.log("[CHE] 已停用自動緩存");
+                //console.log("[CHE] 已停用自動緩存");
             }
         }
 
@@ -2340,7 +2341,7 @@
                     version: modversion,
                     repository: "Enhanced chat room history export with 7-day cache",
                 });
-                console.log("[CHE] 已註冊到 bcModSdk");
+                //console.log("[CHE] 已註冊到 bcModSdk");
             }
 
         } catch (e) {
