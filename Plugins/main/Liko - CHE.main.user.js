@@ -19,7 +19,7 @@
     let modApi;
     const modversion = "2.1.2";
     let currentMessageCount = 0;
-    const AUTO_SAVE_INTERVAL = 10 * 60 * 1000; // 10分钟保存一次碎片
+    const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5分钟保存一次碎片
     let autoSaveTimer = null;
     let lastSaveTime = Date.now();
     let currentMode = localStorage.getItem("chatlogger_mode") || "stopped";
@@ -1932,13 +1932,13 @@
                 //console.log(`[CHE] 定時檢查: 距離上次保存 ${Math.round(timeSinceLastSave / 1000)} 秒`);
 
                 if (timeSinceLastSave >= AUTO_SAVE_INTERVAL) {
-                    //console.log("[CHE] 達到10分鐘間隔，觸發自動保存");
+                    //console.log("[CHE] 達到5分鐘間隔，觸發自動保存");
                     saveCurrentMessages();
                 }
             }
         }, 60 * 1000);
 
-        console.log("[CHE] 自動保存定時器已啟動 (10分鐘間隔)");
+        console.log("[CHE] 自動保存定時器已啟動 (5分鐘間隔)");
     }
 
     // 停止自动保存定时器
@@ -2234,7 +2234,7 @@
             if (currentMode === "cache") {
                 btn.textContent = "💾 緩存中";
                 btn.style.background = "linear-gradient(135deg, #644CB0 0%, #552B90 100%)";
-                //console.log("[CHE] 緩存模式：每10分鐘自動保存");
+                //console.log("[CHE] 緩存模式：每5分鐘自動保存");
             } else {
                 btn.textContent = "⏸️ 停用";
                 btn.style.background = "linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%)";
@@ -2283,7 +2283,7 @@
         if (currentMode === "cache") {
             btn.textContent = "💾 緩存中";
             btn.style.background = "linear-gradient(135deg, #644CB0 0%, #552B90 100%)";
-            //console.log("[CHE] 緩存模式：每10分鐘自動保存");
+            //console.log("[CHE] 緩存模式：每5分鐘自動保存");
         } else {
             btn.textContent = "⏸️ 停用";
             btn.style.background = "linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%)";
