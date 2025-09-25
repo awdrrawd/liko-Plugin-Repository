@@ -713,7 +713,7 @@ Recommend selectively enabling plugins for the best experience.`,
 
     function loadSubPlugin(plugin) {
         if (!plugin.enabled || loadedPlugins.has(plugin.id)) {
-            console.log(`⚪ [SubPlugin] ${plugin.name} 已關閉或已載入`);
+            //console.log(`⚪ [PCM - SubPlugin] ${plugin.name} 已關閉或已載入`);
             return Promise.resolve();
         }
 
@@ -730,15 +730,15 @@ Recommend selectively enabling plugins for the best experience.`,
                 script.textContent = code;
                 document.body.appendChild(script);
                 loadedPlugins.add(plugin.id);
-                console.log(`✅ [SubPlugin] ${plugin.name} 載入成功`);
+                console.log(`✅ [PCM - SubPlugin] ${plugin.name} 載入成功`);
             } catch (e) {
-                console.error(`❌ [SubPlugin] 載入失敗: ${plugin.name}`, e);
+                console.error(`❌ [PCM - SubPlugin] 載入失敗: ${plugin.name}`, e);
                 showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
                 throw e;
             }
         })
             .catch(err => {
-            console.error(`❌ [SubPlugin] 無法獲取 ${plugin.name} 的腳本`, err);
+            console.error(`❌ [PCM - SubPlugin] 無法獲取 ${plugin.name} 的腳本`, err);
             showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
             throw err;
         });
