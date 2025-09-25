@@ -299,7 +299,7 @@
                     };
                     const req = store.put(data, dateKey);
                     req.onsuccess = () => {
-                        console.log(`[CHE] 成功保存 ${newMessages.length} 條新訊息到 ${dateKey}，總計 ${allMessages.length} 條`);
+                        //console.log(`[CHE] 成功保存 ${newMessages.length} 條新訊息到 ${dateKey}，總計 ${allMessages.length} 條`);
                         resolve();
                     };
                     req.onerror = () => {
@@ -1931,7 +1931,7 @@
                 //console.log(`[CHE] 定時檢查: 距離上次保存 ${Math.round(timeSinceLastSave / 1000)} 秒`);
 
                 if (timeSinceLastSave >= AUTO_SAVE_INTERVAL) {
-                    console.log("[CHE] 達到10分鐘間隔，觸發自動保存");
+                    //console.log("[CHE] 達到10分鐘間隔，觸發自動保存");
                     saveCurrentMessages();
                 }
             }
@@ -1952,11 +1952,11 @@
     // 修改的保存當前訊息函數 - 移除頻繁提示
     async function saveCurrentMessages() {
         if (currentMode !== "cache") {
-            console.log("[CHE] saveCurrentMessages: 非緩存模式，跳過保存");
+            //console.log("[CHE] saveCurrentMessages: 非緩存模式，跳過保存");
             return;
         }
 
-        console.log("[CHE] saveCurrentMessages: 開始自動保存當前訊息");
+        //console.log("[CHE] saveCurrentMessages: 開始自動保存當前訊息");
         const messages = processCurrentMessages();
 
         if (messages.length > 0) {
