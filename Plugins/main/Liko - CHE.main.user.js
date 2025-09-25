@@ -2038,22 +2038,22 @@
 
     // 修改的頁面載入時檢查臨時數據
     async function checkTempData() {
-        console.log("[CHE] checkTempData: 開始檢查臨時數據");
+        //console.log("[CHE] checkTempData: 開始檢查臨時數據");
 
         try {
             const tempDataStr = localStorage.getItem('che_temp_data');
 
             if (!tempDataStr) {
-                console.log("[CHE] checkTempData: 沒有找到臨時數據");
+                //console.log("[CHE] checkTempData: 沒有找到臨時數據");
                 return;
             }
 
-            console.log("[CHE] checkTempData: 找到臨時數據，長度:", tempDataStr.length);
+            //console.log("[CHE] checkTempData: 找到臨時數據，長度:", tempDataStr.length);
 
             let tempData;
             try {
                 tempData = JSON.parse(tempDataStr);
-                console.log("[CHE] checkTempData: 解析臨時數據成功:", {
+                //console.log("[CHE] checkTempData: 解析臨時數據成功:", {
                     date: tempData.date,
                     count: tempData.count,
                     reason: tempData.reason,
@@ -2072,29 +2072,29 @@
 
             if (tempData.date === currentDate || tempData.date === yesterdayKey) {
                 if (tempData.messages && tempData.messages.length > 0) {
-                    console.log(`[CHE] checkTempData: 準備恢復 ${tempData.messages.length} 條訊息 (${tempData.date})`);
+                    //console.log(`[CHE] checkTempData: 準備恢復 ${tempData.messages.length} 條訊息 (${tempData.date})`);
 
                     try {
                         await CacheManager.saveToday(tempData.messages);
                         currentMessageCount = 0;
                         lastSaveTime = Date.now();
-                        console.log("[CHE] checkTempData: 恢復後重置計數器和時間");
+                        //console.log("[CHE] checkTempData: 恢復後重置計數器和時間");
 
                         window.ChatRoomSendLocalStyled(`[CHE] 恢復了 ${tempData.messages.length} 條未保存的訊息 (${tempData.reason})`, 4000, "#00ff00");
-                        console.log(`[CHE] checkTempData: 成功恢復 ${tempData.messages.length} 條訊息`);
+                        //console.log(`[CHE] checkTempData: 成功恢復 ${tempData.messages.length} 條訊息`);
                     } catch (saveError) {
                         logError("checkTempData.save", saveError);
                         window.ChatRoomSendLocalStyled("[CHE] ❌ 恢復數據保存失敗", 3000, "#ff0000");
                     }
                 } else {
-                    console.log("[CHE] checkTempData: 臨時數據中沒有訊息");
+                    //console.log("[CHE] checkTempData: 臨時數據中沒有訊息");
                 }
             } else {
-                console.log(`[CHE] checkTempData: 臨時數據日期 ${tempData.date} 過舊，跳過恢復 (當前: ${currentDate})`);
+                //console.log(`[CHE] checkTempData: 臨時數據日期 ${tempData.date} 過舊，跳過恢復 (當前: ${currentDate})`);
             }
 
             localStorage.removeItem('che_temp_data');
-            console.log("[CHE] checkTempData: 已清除臨時數據");
+            //console.log("[CHE] checkTempData: 已清除臨時數據");
 
         } catch (e) {
             logError("checkTempData", e);
@@ -2311,13 +2311,13 @@
                     console.log("[CHE] 玩家數據已載入，開始初始化插件");
 
                     checkTempData().then(() => {
-                        console.log("[CHE] 臨時數據檢查完成");
+                        //console.log("[CHE] 臨時數據檢查完成");
                     }).catch(e => {
                         logError("init.checkTempData", e);
                     });
 
                     CacheManager.cleanOldData().then(() => {
-                        console.log("[CHE] 舊數據清理檢查完成");
+                        //console.log("[CHE] 舊數據清理檢查完成");
                     }).catch(e => {
                         logError("init.cleanOldData", e);
                     });
