@@ -2015,7 +2015,7 @@
     function saveToLocalStorage(reason) {
         try {
             const messages = processCurrentMessages();
-            console.log(`[CHE] ${reason}: 準備保存 ${messages.length} 條訊息`);
+            //console.log(`[CHE] ${reason}: 準備保存 ${messages.length} 條訊息`);
 
             if (messages.length > 0) {
                 const tempData = {
@@ -2027,9 +2027,9 @@
                 };
 
                 localStorage.setItem('che_temp_data', JSON.stringify(tempData));
-                console.log(`[CHE] ${reason}: 已臨時保存 ${messages.length} 條訊息`);
+                //console.log(`[CHE] ${reason}: 已臨時保存 ${messages.length} 條訊息`);
             } else {
-                console.log(`[CHE] ${reason}: 沒有訊息需要保存`);
+                //console.log(`[CHE] ${reason}: 沒有訊息需要保存`);
             }
         } catch (e) {
             logError("saveToLocalStorage", e);
