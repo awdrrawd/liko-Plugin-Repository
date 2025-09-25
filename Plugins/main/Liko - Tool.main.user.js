@@ -80,15 +80,15 @@
 
     // 初始化儲存
     function initializeStorage() {
-        console.log("[LT] 初始化儲存...");
+        //console.log("[LT] 初始化儲存...");
         if (!Player.LikoTool) {
             Player.LikoTool = {
                 rpmode: false,
                 bypassActivities: false // bypassactivities 狀態
             };
-            console.log("[LT] 儲存已初始化:", Player.LikoTool);
+            //console.log("[LT] 儲存已初始化:", Player.LikoTool);
         } else {
-            console.log("[LT] 儲存已存在:", Player.LikoTool);
+            //console.log("[LT] 儲存已存在:", Player.LikoTool);
         }
     }
 
@@ -735,8 +735,8 @@
             return;
         }
 
-        console.log("[LT] 遊戲已載入，註冊功能...");
-        console.log("[LT] 玩家狀態:", { MemberNumber: Player.MemberNumber, OnlineSettings: !!Player.OnlineSettings });
+        //console.log("[LT] 遊戲已載入，註冊功能...");
+        //console.log("[LT] 玩家狀態:", { MemberNumber: Player.MemberNumber, OnlineSettings: !!Player.OnlineSettings });
 
         initializeStorage();
         setupHooks();
@@ -748,7 +748,7 @@
                 Description: "執行莉柯莉絲工具命令（例如 /lt help, /lt free）",
                 Action: handleLtCommand
             }]);
-            console.log("[LT] /lt 命令已通過 CommandCombine 註冊");
+            //console.log("[LT] /lt 命令已通過 CommandCombine 註冊");
 
             // 等待進入聊天室後顯示載入訊息
             waitFor(() => CurrentScreen === "ChatRoom", 60000).then((success) => {
@@ -762,7 +762,7 @@
             ChatRoomSendLocal(`指令註冊失敗，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！`);
         }
 
-        console.log(`[LT] 插件已載入 (v${modversion})`);
+        console.log(`[LT] ✅插件已載入 (v${modversion})`);
     }
 
     // 卸載清理
@@ -781,7 +781,7 @@
     // 啟動初始化
     initialize().then(() => {
         setupUnloadHandler();
-        console.log("[LT] 莉柯莉絲工具初始化完成");
+        //console.log("[LT] 莉柯莉絲工具初始化完成");
     }).catch((error) => {
         console.error("[LT] 初始化失敗:", error);
     });
