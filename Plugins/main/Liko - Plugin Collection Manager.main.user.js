@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likolisu.dev/
-// @version      1.3
+// @version      1.3.1
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.3";
+    const modversion = "1.3.1";
     let cachedViewingCharacter = null;
     let lastCharacterCheck = 0;
     let lastScreenCheck = null;
@@ -159,14 +159,49 @@ Recommend selectively enabling plugins for the best experience.`,
     // 繪製PCM徽章
     function drawPCMBadge(character, x, y, zoom) {
         try {
-            // 只在聊天室顯示徽章
+            // 參考BCTweaks的顯示條件邏輯
+            if (!character.OnlineSharedSettings || !character.OnlineSharedSettings.PCM) {
+                return;
+            }
+
+            // 檢查ChatRoomHideIconState (BC的圖標隱藏狀態)
+            if (typeof ChatRoomHideIconState !== 'undefined' && ChatRoomHideIconState !== 0) {
+                return;
+            }
+
+            // 只在聊天室顯示
             if (CurrentScreen !== "ChatRoom") {
                 return;
             }
+
+            // 檢查是否選中了特定角色 - 選中時不顯示徽章
+            if (typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null) {
+                return;
+            }
+
+            // 參考BCTweaks的懸停邏輯 - 使用BC內建的MouseHovering函數
+            const shouldShowOnHover = true; // 預設啟用懸停顯示，可以做成配置項
+            if (shouldShowOnHover) {
+                // 懸停範圍
+                const hoverWidth = 400 * zoom;   // 懸停寬度範圍
+                const hoverHeight = 100 * zoom;  // 懸停高度範圍
+
+                if (typeof MouseHovering === 'function') {
+                    if (!MouseHovering(x, y, hoverWidth, hoverHeight)) {
+                        return;
+                    }
+                } else {
+                    // 備用懸停檢測 - 也使用擴大的範圍
+                    if (!isCharacterMousedOverExtended(character, x, y, hoverWidth, hoverHeight)) {
+                        return;
+                    }
+                }
+            }
+
             // 確保圖片已初始化
             if (!pcmBadgeImage) {
                 initializePCMBadgeImage();
-                return; // 第一次載入時跳過繪製
+                return;
             }
 
             // 計算徽章位置
@@ -210,6 +245,78 @@ Recommend selectively enabling plugins for the best experience.`,
         }
     }
 
+    // 擴展的鼠標懸停檢測（備用）
+    function isCharacterMousedOverExtended(character, charX, charY, width, height) {
+        try {
+            if (typeof MouseX !== 'undefined' && typeof MouseY !== 'undefined') {
+                // 檢查鼠標是否在擴大的範圍內
+                const halfWidth = width / 2;
+                const halfHeight = height / 2;
+
+                if (MouseX >= charX - halfWidth && MouseX <= charX + halfWidth &&
+                    MouseY >= charY - halfHeight && MouseY <= charY + halfHeight) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (e) {
+            console.error("[PCM] ❌ 檢查擴展鼠標懸停狀態失敗:", e.message);
+            return false;
+        }
+    }
+
+    // 簡化的聊天室狀態檢查（保留作為備用）
+    function shouldShowBadgeInChatRoom() {
+        if (CurrentScreen !== "ChatRoom") {
+            return false;
+        }
+
+        if (typeof ChatRoomHideIconState !== 'undefined' && ChatRoomHideIconState !== 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    // 檢查角色是否被鼠標懸停
+    function isCharacterMousedOver(character) {
+        try {
+            // 檢查全局的鼠標懸停目標
+            if (typeof ChatRoomHoverObject !== 'undefined' && ChatRoomHoverObject) {
+                // 如果懸停對象是角色，檢查是否為目標角色
+                if (ChatRoomHoverObject.Type === "Character" &&
+                    ChatRoomHoverObject.Character &&
+                    ChatRoomHoverObject.Character.MemberNumber === character.MemberNumber) {
+                    return true;
+                }
+            }
+
+            // 備用方法：檢查MouseX/MouseY是否在角色範圍內
+            if (typeof MouseX !== 'undefined' && typeof MouseY !== 'undefined' &&
+                typeof ChatRoomCharacter !== 'undefined' && Array.isArray(ChatRoomCharacter)) {
+
+                const charIndex = ChatRoomCharacter.findIndex(c => c.MemberNumber === character.MemberNumber);
+                if (charIndex >= 0) {
+                    // 計算角色位置 (參考BC的角色繪製邏輯)
+                    const CharX = 250 + (charIndex % 6) * 250;
+                    const CharY = (charIndex < 6) ? 250 : 550;
+                    const CharWidth = 200;
+                    const CharHeight = 400;
+
+                    if (MouseX >= CharX - CharWidth/2 && MouseX <= CharX + CharWidth/2 &&
+                        MouseY >= CharY - CharHeight/2 && MouseY <= CharY + CharHeight/2) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        } catch (e) {
+            console.error("[PCM] ❌ 檢查鼠標懸停狀態失敗:", e.message);
+            return false;
+        }
+    }
+
     // 添加PCM標識到玩家
     function addPCMBadgeToPlayer() {
         try {
@@ -225,6 +332,9 @@ Recommend selectively enabling plugins for the best experience.`,
                             badge: true,
                             timestamp: Date.now()
                         };
+
+                        //console.log("✅ [PCM] PCM標識已添加到OnlineSharedSettings");
+
                         // 強制更新角色顯示
                         if (typeof CharacterRefresh === 'function' && CurrentScreen === 'ChatRoom') {
                             CharacterRefresh(Player, false);
@@ -270,9 +380,12 @@ Recommend selectively enabling plugins for the best experience.`,
                 const [character] = args;
 
                 //if (character && character.OnlineSharedSettings && character.OnlineSharedSettings.PCM) console.log(`[PCM] 🎖️ 檢測到 ${character.Name} 使用PCM插件`);
+
                 return result;
             });
+
             //console.log("✅ [PCM] 角色繪製掛鉤設置完成");
+
         } catch (e) {
             console.error("[PCM] ❌ 設置角色繪製掛鉤失敗:", e.message);
         }
@@ -635,7 +748,7 @@ Recommend selectively enabling plugins for the best experience.`,
     async function waitForPlayerAndLoadPlugins() {
         if (hasStartedPluginLoading) return;
 
-        console.log("🔍 [PCM] 檢查 Player 是否已載入...");
+        //console.log("🔍 [PCM] 檢查 Player 是否已載入...");
 
         const maxWaitTime = 15*60*1000;
         const checkInterval = 1000;
@@ -654,7 +767,7 @@ Recommend selectively enabling plugins for the best experience.`,
         }
 
         if (isPlayerLoaded()) {
-            console.log("✅ [PCM] Player 已載入，開始載入插件");
+            //console.log("✅ [PCM] Player 已載入，開始載入插件");
             console.log(`[PCM] 🔢 插件載入順序:`, subPlugins.map(p => `${p.priority}:${getPluginName(p)}`));
             hasStartedPluginLoading = true;
             await loadSubPluginsInBackground();
@@ -670,7 +783,7 @@ Recommend selectively enabling plugins for the best experience.`,
         if (isLoadingPlugins) return;
         isLoadingPlugins = true;
 
-        console.log("🔄 [PCM] 開始背景載入啟用的插件...");
+        //console.log("🔄 [PCM] 開始背景載入啟用的插件...");
 
         try {
             const enabledPlugins = subPlugins.filter(plugin => plugin.enabled);
@@ -679,7 +792,7 @@ Recommend selectively enabling plugins for the best experience.`,
             let successCount = 0;
 
             if (enabledPlugins.length === 0) {
-                console.log("ℹ️ [PCM] 沒有啟用的插件需要載入");
+                //console.log("ℹ️ [PCM] 沒有啟用的插件需要載入");
                 return;
             }
 
@@ -702,7 +815,7 @@ Recommend selectively enabling plugins for the best experience.`,
                         const plugin = batch[index];
                         if (result.status === 'fulfilled' && !result.value?.error) {
                             successCount++;
-                            console.log(`✅ [PCM] ${plugin.name} 載入成功`);
+                            //console.log(`✅ [PCM] ${plugin.name} 載入成功`);
                         } else {
                             console.error(`❌ [PCM] ${plugin.name} 載入失敗:`, result.reason || result.value?.error);
                         }
@@ -725,7 +838,7 @@ Recommend selectively enabling plugins for the best experience.`,
                 console.warn(`⚠️ [PCM] 背景載入完成！成功: ${successCount}, 失敗: ${failedCount}`);
                 showNotification("⚠️", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}，${failedCount} ${getMessage('failed')}`);
             } else {
-                //console.log("✅ [PCM] 背景插件載入完成！所有插件都載入成功");
+                console.log("✅ [PCM] 背景插件載入完成！所有插件都載入成功");
                 if (enabledPlugins.length > 0) {
                     showNotification("✅", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}`);
                 }
@@ -1499,7 +1612,7 @@ Recommend selectively enabling plugins for the best experience.`,
             if (typeof ChatRoomSendLocal === 'function') {
                 ChatRoomSendLocal(errorText);
             } else {
-                console.log(`[PCM] ${errorText}`);
+                //console.log(`[PCM] ${errorText}`);
             }
             return;
         }
@@ -1636,7 +1749,7 @@ Recommend selectively enabling plugins for the best experience.
                         badge: true,
                         timestamp: Date.now()
                     };
-                    console.log("[PCM] 🔄 重新添加PCM標識到OnlineSharedSettings");
+                    //console.log("[PCM] 🔄 重新添加PCM標識到OnlineSharedSettings");
                 }
             }
         } catch (e) {
