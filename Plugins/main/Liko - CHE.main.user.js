@@ -1812,7 +1812,7 @@
 
     // 改進的訊息監控
     function initMessageObserver() {
-        console.log("[CHE] 開始初始化訊息監控");
+        //console.log("[CHE] 開始初始化訊息監控");
 
         cleanupObserver();
 
@@ -2263,7 +2263,7 @@
         // 返回updateButtonColors函數供外部使用
         window.updateCHEButtonColors = updateButtonColors;
 
-        console.log("[CHE] 現代化UI已載入，當前模式:", currentMode);
+        //console.log("[CHE] 現代化UI已載入，當前模式:", currentMode);
     }
 
     // 修改的模式切換
@@ -2282,11 +2282,11 @@
         if (currentMode === "cache") {
             btn.textContent = "💾 緩存中";
             btn.style.background = "linear-gradient(135deg, #644CB0 0%, #552B90 100%)";
-            console.log("[CHE] 緩存模式：每10分鐘自動保存");
+            //console.log("[CHE] 緩存模式：每10分鐘自動保存");
         } else {
             btn.textContent = "⏸️ 停用";
             btn.style.background = "linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%)";
-            console.log("[CHE] 已停用自動緩存");
+            //console.log("[CHE] 已停用自動緩存");
         }
 
         // 更新主按鈕顏色
@@ -2294,7 +2294,7 @@
             window.updateCHEButtonColors(currentMode);
         }
 
-        console.log("[CHE] 模式已切換:", currentMode);
+        //console.log("[CHE] 模式已切換:", currentMode);
     }
 
     // 初始化
@@ -2325,7 +2325,7 @@
                     addUI();
 
                     if (currentMode === "cache") {
-                        console.log("[CHE] 緩存模式，啟動訊息監控");
+                        //console.log("[CHE] 緩存模式，啟動訊息監控");
                         initMessageObserver();
                     }
 
