@@ -1054,7 +1054,7 @@
 
         // 检测是否有 Themed-BC
         const hasThemed = window.Themed || window.Player?.Themed;
-        console.log("[CPB] Themed-BC 检测:", hasThemed ? "已找到" : "未找到");
+        //console.log("[CPB] Themed-BC 检测:", hasThemed ? "已找到" : "未找到");
 
         // CPB 背景控制标记
         let cpbControllingBackground = false;
@@ -1210,7 +1210,7 @@
             }
         });
 
-        console.log("[CPB] ModSDK hooks 設置完成 (Themed 兼容模式:", hasThemed ? "啟用" : "禁用", ")");
+        //console.log("[CPB] ModSDK hooks 設置完成 (Themed 兼容模式:", hasThemed ? "啟用" : "禁用", ")");
     }
     // 完整資源清理函數
     function cleanup() {
