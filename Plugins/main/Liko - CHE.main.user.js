@@ -1018,7 +1018,7 @@
         </style>
     </head>
     <body>
-        <button id="toggleTheme">☀️淺色模式</button>
+        <button id="toggleTheme">✧ 淺色模式</button>
         ${searchControls}
         <div id="chatlog">
     `;
