@@ -144,9 +144,9 @@ Recommend selectively enabling plugins for the best experience.`,
     function initializePCMBadgeImage() {
         if (!pcmBadgeImage) {
             pcmBadgeImage = new Image();
+            pcmBadgeImage.crossOrigin = "anonymous";
             pcmBadgeImage.onload = function() {
                 pcmImageLoaded = true;
-                //console.log("[PCM] ✅ PCM徽章圖片載入完成");
             };
             pcmBadgeImage.onerror = function() {
                 console.warn("[PCM] ⚠️ PCM徽章圖片載入失敗");
@@ -155,7 +155,6 @@ Recommend selectively enabling plugins for the best experience.`,
             pcmBadgeImage.src = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_4.png";
         }
     }
-
     // 繪製PCM徽章
     function drawPCMBadge(character, x, y, zoom) {
         try {
