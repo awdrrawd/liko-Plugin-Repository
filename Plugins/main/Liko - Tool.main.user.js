@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.14
+// @version      1.15
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function() {
     let modApi = null;
-    const modversion = "1.14";
+    const modversion = "1.15";
     // 等待 bcModSdk 載入的函數
     function waitForBcModSdk(timeout = 30000) {
         const start = Date.now();
@@ -100,7 +100,7 @@
             z-index: 9998;
         `;
         document.body.appendChild(rpOverlayContainer);
-        console.log("[LT] RP 覆蓋層容器已創建");
+        //console.log("[LT] RP 覆蓋層容器已創建");
     }
 
     function updateRpOverlays() {
@@ -193,13 +193,13 @@
         // 同步到伺服器
         if (typeof ServerAccountUpdate !== 'undefined' && ServerAccountUpdate.QueueData) {
             ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
-            console.log(`[LT] RP 模式已設置為 ${enabled} 並同步到伺服器`);
+            //console.log(`[LT] RP 模式已設置為 ${enabled} 並同步到伺服器`);
         }
     }
 
     // 工具函數
     function ChatRoomSendLocal(message , sec = 0) {
-        console.log(`[LT] 嘗試發送本地訊息: ${message}`);
+        //console.log(`[LT] 嘗試發送本地訊息: ${message}`);
         if (CurrentScreen !== "ChatRoom") {
             console.warn("[LT] 不在聊天室，訊息可能不顯示");
             return;
@@ -211,12 +211,12 @@
                 Content: `<font color="#FF69B4">[LT] ${message}</font>`,
                 Timeout: sec
             });
-            console.log("[LT] 訊息通過 ChatRoomMessage 發送成功");
+            //console.log("[LT] 訊息通過 ChatRoomMessage 發送成功");
         } catch (e) {
             console.error("[LT] 發送本地訊息錯誤:", e.message);
             try {
                 ServerSend("ChatRoomChat", { Content: `[LT] ${message}`, Type: "LocalMessage" ,Time:sec});
-                console.log("[LT] 嘗試通過 ServerSend 發送訊息");
+                //console.log("[LT] 嘗試通過 ServerSend 發送訊息");
             } catch (e2) {
                 console.error("[LT] ServerSend 失敗:", e2.message);
                 console.log("[LT] 最終錯誤訊息: 本地訊息發送失敗，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！");
@@ -244,7 +244,7 @@
 
     function chatSendCustomAction(message) {
         if (CurrentScreen !== "ChatRoom") {
-            console.log("[LT] 不在聊天室，跳過自訂動作");
+            //console.log("[LT] 不在聊天室，跳過自訂動作");
             return;
         }
         try {
@@ -253,7 +253,7 @@
                 Content: "CUSTOM_SYSTEM_ACTION",
                 Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: message }]
             });
-            console.log("[LT] 自訂動作發送:", message);
+            //console.log("[LT] 自訂動作發送:", message);
         } catch (e) {
             console.error("[LT] 自訂動作發送錯誤:", e.message);
             ChatRoomSendLocal("自訂動作發送失敗，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！");
@@ -408,7 +408,7 @@
             }
             const [messageType, data] = args;
             if (messageType === "ChatRoomChat" && data.Type === "Action") {
-                console.log("[LT] RP模式：抑制動作訊息");
+                //console.log("[LT] RP模式：抑制動作訊息");
                 return;
             }
             return next(args);
@@ -501,7 +501,7 @@
         if (CurrentScreen === "ChatRoom") {
             // OnlineSharedSettings 會自動同步，這裡只需要更新覆蓋層
             setTimeout(() => updateRpOverlays(), 500);
-            console.log("[LT] 確保 RP 狀態已同步");
+            //console.log("[LT] 確保 RP 狀態已同步");
         }
     }
 
@@ -724,17 +724,24 @@
 
         try {
             let lockedCount = 0;
-            // 使用與 free 函數相同的拘束判定方式
-            for (let group of AssetGroup) {
-                if (group.Name.startsWith("Item")) {
-                    const item = InventoryGet(target, group.Name);
-                    // 只鎖定存在且未上鎖的拘束物品
-                    if (item && !item.Property?.LockedBy) {
-                        InventoryLock(target, item, { Asset: AssetGet(Player.AssetFamily, "ItemMisc", lock.Name) }, Player.MemberNumber);
-                        lockedCount++;
-                    }
+            // ✅ 直接遍歷角色的 Appearance
+            for (let item of target.Appearance) {
+                // 獲取組別名稱（Group 是對象，需要用 .Name）
+                const groupName = item.Asset?.Group?.Name || "";
+
+                // 檢查是否為拘束物品（組別名稱以 "Item" 開頭）
+                const isRestraint = groupName.startsWith("Item");
+
+                // 檢查物品是否可以被鎖定且未上鎖
+                const canBeLocked = item.Asset?.AllowLock !== false;
+                const isNotLocked = !item.Property?.LockedBy;
+
+                if (isRestraint && canBeLocked && isNotLocked) {
+                    InventoryLock(target, item, { Asset: AssetGet(Player.AssetFamily, "ItemMisc", lock.Name) }, Player.MemberNumber);
+                    lockedCount++;
                 }
             }
+
             if (lockedCount === 0) {
                 ChatRoomSendLocal(`${getNickname(target)} 沒有可鎖定的束縛！`);
                 return;
@@ -750,7 +757,7 @@
     // 命令處理
     function handleLtCommand(text) {
         if (!Player.LikoTool) initializeStorage();
-        console.log("[LT] 執行命令: /lt " + text);
+        //console.log("[LT] 執行命令: /lt " + text);
         const args = text.trim().split(/\s+/);
         const subCommand = args[0]?.toLowerCase() || "";
         const commandText = args.slice(1).join(" ");
