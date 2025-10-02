@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.1.2
+// @version      2.1.3
 // @description  聊天室紀錄匯出
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
     "use strict";
 
     let modApi;
-    const modversion = "2.1.2";
+    const modversion = "2.1.3";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5分钟保存一次碎片
     let autoSaveTimer = null;
@@ -1968,7 +1968,8 @@
 
                 //console.log(`[CHE] 自動保存完成：${savedCount} 條訊息，時間: ${new Date().toLocaleTimeString()}`);
 
-                const chatLog = DOMCache.getChatLog();
+                // 停用500条限制
+                /*const chatLog = DOMCache.getChatLog();
                 if (chatLog) {
                     const allMessages = Array.from(chatLog.querySelectorAll(".ChatMessage, a.beep-link"));
                     if (allMessages.length > 500) {
@@ -1976,14 +1977,12 @@
                         toRemove.forEach(msg => msg.remove());
                         //console.log(`[CHE] 清理了 ${toRemove.length} 條舊訊息，保留最新500條`);
                     }
-                }
+                }*/
             } catch (e) {
                 logError("saveCurrentMessages", e);
                 window.ChatRoomSendLocalStyled("[CHE] ❌ 自動保存失敗", 3000, "#ff0000");
             }
-        } else {
-            //console.log("[CHE] saveCurrentMessages: 沒有新訊息需要保存");
-        }
+        } 
     }
 
     // 退出時保存和定期備份
