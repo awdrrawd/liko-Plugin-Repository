@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.15.1
+// @version      1.2
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function() {
     let modApi = null;
-    const modversion = "1.15.1";
+    const modversion = "1.2";
 
     // 等待 bcModSdk 載入的函數
     function waitForBcModSdk(timeout = 30000) {
@@ -168,8 +168,14 @@
     function initializeStorage() {
         if (!Player.LikoTool) {
             Player.LikoTool = {
-                bypassActivities: false
+                bypassActivities: false,
+                heightHijackEnabled: false
             };
+        }
+
+        // 確保 heightHijackEnabled 存在
+        if (typeof Player.LikoTool.heightHijackEnabled === 'undefined') {
+            Player.LikoTool.heightHijackEnabled = false;
         }
 
         if (!Player.OnlineSharedSettings) {
@@ -390,6 +396,58 @@
         } else {
             console.warn(`[LT] 無法 hook ${functionName}，modApi 不可用`);
         }
+    }
+
+    // 身高劫持功能
+    function setupHeightHijack() {
+        // 使用 ModSDK 鉤住 CharacterSetCurrent
+        safeHookFunction("CharacterSetCurrent", 10, (args, next) => {
+            const [C, options] = args;
+            const result = next(args);
+
+            // 只在功能啟用時劫持
+            if (Player.LikoTool?.heightHijackEnabled && C && C.MemberNumber) {
+                setTimeout(() => {
+                    if (!C._heightHijacked) {
+                        C._realHeightRatio = C.HeightRatio;
+                        C._realHeightModifier = C.HeightModifier;
+
+                        Object.defineProperty(C, 'HeightRatio', {
+                            get() { return 1.0; },
+                            set(v) { this._realHeightRatio = v; },
+                            configurable: true
+                        });
+
+                        Object.defineProperty(C, 'HeightModifier', {
+                            get() { return 0; },
+                            set(v) { this._realHeightModifier = v; },
+                            configurable: true
+                        });
+
+                        C._heightHijacked = true;
+                    }
+                }, 10);
+            }
+
+            return result;
+        });
+
+        // 使用 ModSDK 鉤住 DialogLeave
+        safeHookFunction("DialogLeave", 10, (args, next) => {
+            if (CurrentCharacter && CurrentCharacter._heightHijacked) {
+                const C = CurrentCharacter;
+                delete C.HeightRatio;
+                delete C.HeightModifier;
+                C.HeightRatio = C._realHeightRatio;
+                C.HeightModifier = C._realHeightModifier;
+                delete C._realHeightRatio;
+                delete C._realHeightModifier;
+                delete C._heightHijacked;
+            }
+            return next(args);
+        });
+
+        console.log("[LT] ✅ 身高劫持功能已安裝");
     }
 
     // 鉤子設置函數
@@ -771,6 +829,27 @@
         }
     }
 
+    function heightCommand(args) {
+        if (!Player.LikoTool) initializeStorage();
+
+        const enabled = !Player.LikoTool.heightHijackEnabled;
+        Player.LikoTool.heightHijackEnabled = enabled;
+
+        ChatRoomSendLocal(`身高劫持功能已 ${enabled ? "啟用" : "停用"}！${enabled ? "\n所有對話中的角色將顯示為默認身高。" : "\n角色將恢復真實身高顯示。"}`);
+
+        // 如果正在對話中且停用了功能，立即恢復當前角色
+        if (!enabled && CurrentCharacter && CurrentCharacter._heightHijacked) {
+            const C = CurrentCharacter;
+            delete C.HeightRatio;
+            delete C.HeightModifier;
+            C.HeightRatio = C._realHeightRatio;
+            C.HeightModifier = C._realHeightModifier;
+            delete C._realHeightRatio;
+            delete C._realHeightModifier;
+            delete C._heightHijacked;
+        }
+    }
+
     // 命令處理
     function handleLtCommand(text) {
         if (!Player.LikoTool) initializeStorage();
@@ -789,6 +868,7 @@
                 `/lt fullunlock [目標] - 移除所有鎖\n` +
                 `/lt fulllock [目標] [鎖名稱] - 添加鎖\n` +
                 `/lt rpmode - 切換RP模式\n` +
+                `/lt height - 切換選中角色時身高固定\n` +
                 `/lt geteverything - 增強功能\n` +
                 `/lt wardrobe - 開啟衣櫃\n\n` +
                 `提示：點擊聊天室右下角的 🔰 按鈕快速切換 RP 模式！`
@@ -804,7 +884,8 @@
             fullunlock: fullUnlock,
             geteverything: getEverything,
             wardrobe,
-            fulllock: fullLock
+            fulllock: fullLock,
+            height: heightCommand
         };
 
         if (commands[subCommand]) {
@@ -852,6 +933,7 @@
 
         initializeStorage();
         setupHooks();
+        setupHeightHijack();
 
         try {
             CommandCombine([{
