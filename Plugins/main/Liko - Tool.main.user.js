@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.15
+// @version      1.15.1
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,8 @@
 
 (function() {
     let modApi = null;
-    const modversion = "1.15";
+    const modversion = "1.15.1";
+
     // 等待 bcModSdk 載入的函數
     function waitForBcModSdk(timeout = 30000) {
         const start = Date.now();
@@ -56,6 +57,7 @@
             return null;
         }
     }
+
     // 載入樣式化訊息系統
     function loadToastSystem() {
         return new Promise((resolve, reject) => {
@@ -100,17 +102,27 @@
             z-index: 9998;
         `;
         document.body.appendChild(rpOverlayContainer);
-        //console.log("[LT] RP 覆蓋層容器已創建");
     }
 
     function updateRpOverlays() {
+        // 非聊天室状态：隐藏容器并清空内容
         if (!rpOverlayContainer || CurrentScreen !== "ChatRoom") {
             if (rpOverlayContainer) {
+                rpOverlayContainer.style.display = 'none';
                 rpOverlayContainer.innerHTML = '';
             }
             return;
         }
 
+        // 选中角色时：隐藏容器
+        if (typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null) {
+            rpOverlayContainer.style.display = 'none';
+            rpOverlayContainer.innerHTML = '';
+            return;
+        }
+
+        // 聊天室正常状态：显示容器
+        rpOverlayContainer.style.display = 'block';
         rpOverlayContainer.innerHTML = '';
 
         // 獲取遊戲 Canvas 的位置和大小
@@ -154,15 +166,12 @@
 
     // 初始化儲存
     function initializeStorage() {
-        //console.log("[LT] 初始化儲存...");
         if (!Player.LikoTool) {
             Player.LikoTool = {
-                bypassActivities: false // bypassactivities 狀態
+                bypassActivities: false
             };
-            //console.log("[LT] 儲存已初始化:", Player.LikoTool);
         }
 
-        // 初始化 OnlineSharedSettings（用於同步 RP 模式）
         if (!Player.OnlineSharedSettings) {
             Player.OnlineSharedSettings = {};
         }
@@ -190,16 +199,13 @@
 
         Player.OnlineSharedSettings.LikoRPMode = enabled;
 
-        // 同步到伺服器
         if (typeof ServerAccountUpdate !== 'undefined' && ServerAccountUpdate.QueueData) {
             ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
-            //console.log(`[LT] RP 模式已設置為 ${enabled} 並同步到伺服器`);
         }
     }
 
     // 工具函數
-    function ChatRoomSendLocal(message , sec = 0) {
-        //console.log(`[LT] 嘗試發送本地訊息: ${message}`);
+    function ChatRoomSendLocal(message, sec = 0) {
         if (CurrentScreen !== "ChatRoom") {
             console.warn("[LT] 不在聊天室，訊息可能不顯示");
             return;
@@ -211,15 +217,12 @@
                 Content: `<font color="#FF69B4">[LT] ${message}</font>`,
                 Timeout: sec
             });
-            //console.log("[LT] 訊息通過 ChatRoomMessage 發送成功");
         } catch (e) {
             console.error("[LT] 發送本地訊息錯誤:", e.message);
             try {
-                ServerSend("ChatRoomChat", { Content: `[LT] ${message}`, Type: "LocalMessage" ,Time:sec});
-                //console.log("[LT] 嘗試通過 ServerSend 發送訊息");
+                ServerSend("ChatRoomChat", { Content: `[LT] ${message}`, Type: "LocalMessage", Time: sec });
             } catch (e2) {
                 console.error("[LT] ServerSend 失敗:", e2.message);
-                console.log("[LT] 最終錯誤訊息: 本地訊息發送失敗，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！");
             }
         }
     }
@@ -230,10 +233,10 @@
             return ChatRoomCharacter?.find(c => c.MemberNumber === parseInt(identifier)) || Player;
         } else if (typeof identifier === "string") {
             return ChatRoomCharacter?.find(c =>
-                                           c.Name.toLowerCase() === identifier.toLowerCase() ||
-                                           c.Nickname?.toLowerCase() === identifier.toLowerCase() ||
-                                           c.AccountName.toLowerCase() === identifier.toLowerCase()
-                                          ) || Player;
+                c.Name.toLowerCase() === identifier.toLowerCase() ||
+                c.Nickname?.toLowerCase() === identifier.toLowerCase() ||
+                c.AccountName.toLowerCase() === identifier.toLowerCase()
+            ) || Player;
         }
         return Player;
     }
@@ -243,30 +246,24 @@
     }
 
     function chatSendCustomAction(message) {
-        if (CurrentScreen !== "ChatRoom") {
-            //console.log("[LT] 不在聊天室，跳過自訂動作");
-            return;
-        }
+        if (CurrentScreen !== "ChatRoom") return;
         try {
             ServerSend("ChatRoomChat", {
                 Type: "Action",
                 Content: "CUSTOM_SYSTEM_ACTION",
                 Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: message }]
             });
-            //console.log("[LT] 自訂動作發送:", message);
         } catch (e) {
             console.error("[LT] 自訂動作發送錯誤:", e.message);
-            ChatRoomSendLocal("自訂動作發送失敗，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！");
+            ChatRoomSendLocal("自訂動作發送失敗，可能有插件衝突。");
         }
     }
 
     function hasBCItemPermission(target) {
         if (Player.LikoTool.bypassActivities) {
-            console.log("[LT] bypassActivities 啟用，繞過權限檢查");
             return true;
         }
         const allow = typeof ServerChatRoomGetAllowItem === "function" ? ServerChatRoomGetAllowItem(Player, target) : true;
-        console.log("[LT] hasBCItemPermission:", { target: getNickname(target), allow });
         return allow;
     }
 
@@ -287,6 +284,7 @@
                 border: 2px solid #444; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.5);
                 display: flex; flex-direction: column;
             `;
+
             const promptDiv = document.createElement("div");
             promptDiv.innerText = prompt;
             promptDiv.style = "margin-bottom: 15px; font-size: 18px; text-align: center;";
@@ -308,6 +306,7 @@
             const buttonContainer = document.createElement("div");
             buttonContainer.style = "flex-grow: 1; overflow-y: auto; margin-bottom: 10px;";
             let selected = [];
+
             buttons.forEach(btn => {
                 const button = document.createElement("button");
                 button.innerText = btn.text;
@@ -332,17 +331,21 @@
                         resolve(btn.text);
                     }
                 };
+
                 if (btn.preview) {
-                    const canvas = document.createElement("canvas");
-                    canvas.width = 100;
-                    canvas.height = 200;
-                    canvas.style = "margin: 5px; vertical-align: middle;";
+                    let previewCanvas = document.createElement("canvas");
+                    previewCanvas.width = 100;
+                    previewCanvas.height = 200;
+                    previewCanvas.style = "margin: 5px; vertical-align: middle;";
                     try {
-                        DrawCharacter(btn.preview, 0, 0, 0.2, false, canvas.getContext("2d"));
+                        const ctx = previewCanvas.getContext("2d");
+                        if (ctx) {
+                            DrawCharacter(btn.preview, 0, 0, 0.2, false, ctx);
+                        }
                     } catch (e) {
                         console.error("[LT] 預覽渲染錯誤:", e.message);
                     }
-                    button.prepend(canvas);
+                    button.prepend(previewCanvas);
                 }
                 buttonContainer.appendChild(button);
             });
@@ -389,16 +392,6 @@
         }
     }
 
-    // 備用的函數覆蓋方案
-    function fallbackHookFunction(functionName, callback) {
-        if (typeof window[functionName] === 'function') {
-            const originalFunction = window[functionName];
-            window[functionName] = function(...args) {
-                return callback(args, () => originalFunction.apply(this, args));
-            };
-        }
-    }
-
     // 鉤子設置函數
     function setupHooks() {
         // 鉤子：ServerSend（RP模式）
@@ -408,25 +401,64 @@
             }
             const [messageType, data] = args;
             if (messageType === "ChatRoomChat" && data.Type === "Action") {
-                //console.log("[LT] RP模式：抑制動作訊息");
                 return;
             }
             return next(args);
+        });
+
+        // 鉤子：CommonSetScreen（切換畫面時清理覆蓋層）
+        safeHookFunction("CommonSetScreen", 10, (args, next) => {
+            const [newScreen] = args;
+            next(args);
+
+            if (newScreen !== "ChatRoom" && rpOverlayContainer) {
+                rpOverlayContainer.style.display = 'none';
+                rpOverlayContainer.innerHTML = '';
+                rpCharacterPositions.clear();
+            }
         });
 
         // 鉤子：ChatRoomCharacterViewDrawOverlay（捕獲角色實際位置）
         safeHookFunction("ChatRoomCharacterViewDrawOverlay", 10, (args, next) => {
             const [C, CharX, CharY, Zoom] = args;
 
-            // 儲存角色的實際位置
             if (C && C.MemberNumber) {
                 rpCharacterPositions.set(C.MemberNumber, { CharX, CharY, Zoom });
             }
 
             next(args);
-
-            // 在遊戲繪製完成後更新我們的覆蓋層
             updateRpOverlays();
+        });
+
+        // 鉤子：監聽角色點擊（檢測 CurrentCharacter 變化）
+        safeHookFunction("ChatRoomClick", 5, (args, next) => {
+            const prevCurrentCharacter = CurrentCharacter;
+            next(args);
+
+            if (CurrentScreen === "ChatRoom") {
+                setTimeout(() => {
+                    const currentCharacterChanged = (prevCurrentCharacter !== CurrentCharacter);
+                    if (currentCharacterChanged) {
+                        updateRpOverlays();
+                    }
+                }, 50);
+            }
+        });
+
+        // 鉤子：監聽角色信息窗口的加載/卸載
+        safeHookFunction("InformationSheetLoad", 10, (args, next) => {
+            next(args);
+            if (rpOverlayContainer) {
+                rpOverlayContainer.style.display = 'none';
+                rpOverlayContainer.innerHTML = '';
+            }
+        });
+
+        safeHookFunction("InformationSheetExit", 10, (args, next) => {
+            next(args);
+            if (CurrentScreen === "ChatRoom") {
+                setTimeout(() => updateRpOverlays(), 100);
+            }
         });
 
         // 鉤子：ChatRoomMenuDraw（繪製RP模式按鈕）
@@ -449,7 +481,7 @@
                 const newRpMode = !getRpMode(Player);
                 setRpMode(newRpMode);
                 ChatRoomSendLocalStyled(newRpMode ? "🔰 RP模式启用" : "🔰 RP模式停用", 3000);
-                updateRpOverlays(); // 立即更新覆蓋層
+                updateRpOverlays();
                 return;
             }
             next(args);
@@ -458,17 +490,15 @@
         // 鉤子：监听角色数据更新
         safeHookFunction("ChatRoomSyncMemberJoin", 10, (args, next) => {
             next(args);
-            // 當有新成員加入時，更新覆蓋層
             setTimeout(() => updateRpOverlays(), 100);
         });
 
         safeHookFunction("ChatRoomSyncMemberLeave", 10, (args, next) => {
             next(args);
-            // 當成員離開時，更新覆蓋層
             setTimeout(() => updateRpOverlays(), 100);
         });
 
-        // 監聽視窗大小變化，更新覆蓋層位置
+        // 監聽視窗大小變化
         window.addEventListener('resize', () => {
             if (CurrentScreen === "ChatRoom") {
                 updateRpOverlays();
@@ -478,7 +508,6 @@
         // 鉤子：ChatRoomSync（清理離開的角色位置數據）
         safeHookFunction("ChatRoomSync", 10, (args, next) => {
             next(args);
-            // 清理不在房間內的角色位置數據
             if (ChatRoomCharacter) {
                 const currentMembers = new Set(ChatRoomCharacter.map(c => c.MemberNumber));
                 for (const memberNumber of rpCharacterPositions.keys()) {
@@ -499,9 +528,7 @@
     // 進入房間時確保 RP 狀態已同步
     function ensureRpStatusSync() {
         if (CurrentScreen === "ChatRoom") {
-            // OnlineSharedSettings 會自動同步，這裡只需要更新覆蓋層
             setTimeout(() => updateRpOverlays(), 500);
-            //console.log("[LT] 確保 RP 狀態已同步");
         }
     }
 
@@ -510,7 +537,7 @@
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
         if (!hasBCItemPermission(target)) {
-            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。請檢查 BCX 或 ULTRAbc 權限設置！`);
+            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`);
             return;
         }
         try {
@@ -519,7 +546,7 @@
             chatSendCustomAction(`${getNickname(Player)} 完全解除了 ${getNickname(target)} 的所有束縛！`);
         } catch (e) {
             console.error("[LT] freetotal 錯誤:", e.message);
-            ChatRoomSendLocal(`無法解除束縛，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！`);
+            ChatRoomSendLocal(`無法解除束縛。`);
         }
     }
 
@@ -527,7 +554,7 @@
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
         if (!hasBCItemPermission(target)) {
-            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。請檢查 BCX 或 ULTRAbc 權限設置！`);
+            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`);
             return;
         }
         const restraints = [];
@@ -542,8 +569,7 @@
                     restraints.push({
                         text: displayText,
                         fontSize: "16px",
-                        group: group.Name,
-                        //preview: target // 為按鈕添加角色預覽
+                        group: group.Name
                     });
                 }
             }
@@ -563,7 +589,7 @@
             chatSendCustomAction(`${getNickname(Player)} 解除了 ${getNickname(target)} 的 ${selected.join("、")}`);
         } catch (e) {
             console.error("[LT] free 錯誤:", e.message);
-            ChatRoomSendLocal(`無法移除束縛，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！`);
+            ChatRoomSendLocal(`無法移除束縛。`);
         }
     }
 
@@ -571,7 +597,7 @@
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
         if (!hasBCItemPermission(target)) {
-            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。請檢查 BCX 或 ULTRAbc 權限設置！`);
+            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`);
             return;
         }
         let bcxCode;
@@ -579,20 +605,20 @@
             bcxCode = await navigator.clipboard.readText();
         } catch (e) {
             console.error("[LT] bcxImport 錯誤:", e.message);
-            ChatRoomSendLocal(`無法讀取剪貼簿，請確認權限！`);
+            ChatRoomSendLocal(`無法讀取剪貼簿。`);
             return;
         }
         try {
             const appearance = JSON.parse(LZString.decompressFromBase64(bcxCode));
             if (!Array.isArray(appearance)) {
-                throw new Error("無效的外觀數據：必須為陣列");
+                throw new Error("無效的外觀數據");
             }
             ServerAppearanceLoadFromBundle(target, target.AssetFamily, appearance, Player.MemberNumber);
             ChatRoomCharacterUpdate(target);
             chatSendCustomAction(`${getNickname(Player)} 為 ${getNickname(target)} 導入了 BCX 外觀！`);
         } catch (e) {
             console.error("[LT] bcxImport 錯誤:", e.message);
-            ChatRoomSendLocal(`無效的 BCX 代碼，請檢查剪貼簿內容！`);
+            ChatRoomSendLocal(`無效的 BCX 代碼。`);
         }
     }
 
@@ -601,14 +627,14 @@
         const newRpMode = !getRpMode(Player);
         setRpMode(newRpMode);
         ChatRoomSendLocal(`RP模式已 ${newRpMode ? "开启" : "关闭"}！`);
-        updateRpOverlays(); // 更新覆蓋層
+        updateRpOverlays();
     }
 
     function fullUnlock(args) {
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
         if (!hasBCItemPermission(target)) {
-            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。請檢查 BCX 或 ULTRAbc 權限設置！`);
+            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`);
             return;
         }
         try {
@@ -628,7 +654,7 @@
             chatSendCustomAction(`${getNickname(Player)} 移除了 ${getNickname(target)} 的所有鎖！`);
         } catch (e) {
             console.error("[LT] fullUnlock 錯誤:", e.message);
-            ChatRoomSendLocal(`無法移除鎖，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！`);
+            ChatRoomSendLocal(`無法移除鎖。`);
         }
     }
 
@@ -654,7 +680,7 @@
                     });
                 });
                 ServerPlayerInventorySync();
-                ChatRoomSendLocal(`已添加 ${ids.length} 個新物品到您的背包！`);
+                ChatRoomSendLocal(`已添加 ${ids.length} 個新物品！`);
             }
             if (selected.includes("設置金錢為 999,999")) {
                 Player.Money = 999999;
@@ -662,16 +688,13 @@
                 ChatRoomSendLocal(`金錢已設置為 999,999！`);
             }
             if (selected.includes("所有技能升至 10 級")) {
-                const skills = [
-                    "LockPicking", "Evasion", "Willpower", "Bondage",
-                    "SelfBondage", "Dressage", "Infiltration"
-                ];
+                const skills = ["LockPicking", "Evasion", "Willpower", "Bondage", "SelfBondage", "Dressage", "Infiltration"];
                 skills.forEach(skill => SkillChange(Player, skill, 10, 0, true));
                 ChatRoomSendLocal(`所有技能已升至 10 級！`);
             }
         } catch (e) {
             console.error("[LT] getEverything 錯誤:", e.message);
-            ChatRoomSendLocal(`無法執行增強功能，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！`);
+            ChatRoomSendLocal(`無法執行增強功能。`);
         }
     }
 
@@ -682,7 +705,7 @@
             ChatRoomSendLocal(`已開啟衣櫃！`);
         } catch (e) {
             console.error("[LT] wardrobe 錯誤:", e.message);
-            ChatRoomSendLocal(`無法開啟衣櫃，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！`);
+            ChatRoomSendLocal(`無法開啟衣櫃。`);
         }
     }
 
@@ -702,13 +725,13 @@
             return;
         }
         if (!hasBCItemPermission(target)) {
-            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。請檢查 BCX 或 ULTRAbc 權限設置！`);
+            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`);
             return;
         }
 
         const itemMiscGroup = AssetGroupGet(Player.AssetFamily, "ItemMisc");
         if (!itemMiscGroup) {
-            ChatRoomSendLocal(`無法獲取 ItemMisc 群組，請檢查遊戲版本！`);
+            ChatRoomSendLocal(`無法獲取 ItemMisc 群組。`);
             return;
         }
         const validLocks = itemMiscGroup.Asset.filter(asset => asset.IsLock).map(asset => ({
@@ -724,15 +747,9 @@
 
         try {
             let lockedCount = 0;
-            // ✅ 直接遍歷角色的 Appearance
             for (let item of target.Appearance) {
-                // 獲取組別名稱（Group 是對象，需要用 .Name）
                 const groupName = item.Asset?.Group?.Name || "";
-
-                // 檢查是否為拘束物品（組別名稱以 "Item" 開頭）
                 const isRestraint = groupName.startsWith("Item");
-
-                // 檢查物品是否可以被鎖定且未上鎖
                 const canBeLocked = item.Asset?.AllowLock !== false;
                 const isNotLocked = !item.Property?.LockedBy;
 
@@ -750,14 +767,13 @@
             chatSendCustomAction(`${getNickname(Player)} 為 ${getNickname(target)} 的 ${lockedCount} 個束縛添加了 ${lock.Description} 鎖！`);
         } catch (e) {
             console.error("[LT] fullLock 錯誤:", e.message);
-            ChatRoomSendLocal(`無法添加鎖，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！`);
+            ChatRoomSendLocal(`無法添加鎖。`);
         }
     }
 
     // 命令處理
     function handleLtCommand(text) {
         if (!Player.LikoTool) initializeStorage();
-        //console.log("[LT] 執行命令: /lt " + text);
         const args = text.trim().split(/\s+/);
         const subCommand = args[0]?.toLowerCase() || "";
         const commandText = args.slice(1).join(" ");
@@ -765,19 +781,17 @@
         if (!subCommand || subCommand === "help") {
             ChatRoomSendLocal(
                 `莉柯莉絲工具使用說明書\n\n` +
-                `歡迎使用莉柯莉絲工具！這是一個多功能的 Bondage Club 輔助工具，提供多項實用功能。\n\n` +
                 `可用指令列表：\n` +
                 `/lt help - 顯示此說明書\n` +
-                `/lt free [目標] - 移除自己或目標的指定束縛\n` +
-                `/lt freetotal [目標] - 移除自己或目標的所有束縛\n` +
-                `/lt bcximport [目標] - 從剪貼簿導入 BCX 外觀到自己或目標\n` +
-                `/lt fullunlock [目標] - 移除自己或目標的所有鎖\n` +
-                `/lt fulllock [目標] [鎖名稱] - 為目標的所有束縛添加指定鎖\n`+
-                `/lt rpmode - 切換RP模式（隱藏聊天室綑綁類訊息）\n` +
-                `/lt geteverything - 開啟增強功能管理（道具、金錢、技能）\n` +
+                `/lt free [目標] - 移除束縛\n` +
+                `/lt freetotal [目標] - 移除所有束縛\n` +
+                `/lt bcximport [目標] - 導入 BCX 外觀\n` +
+                `/lt fullunlock [目標] - 移除所有鎖\n` +
+                `/lt fulllock [目標] [鎖名稱] - 添加鎖\n` +
+                `/lt rpmode - 切換RP模式\n` +
+                `/lt geteverything - 增強功能\n` +
                 `/lt wardrobe - 開啟衣櫃\n\n` +
-                `提示：可點擊聊天室右下角的 🔰 按鈕快速切換 RP 模式！\n` +
-                `感謝使用莉柯莉絲工具！ ❤️`
+                `提示：點擊聊天室右下角的 🔰 按鈕快速切換 RP 模式！`
             );
             return;
         }
@@ -797,15 +811,15 @@
             try {
                 commands[subCommand](commandText);
             } catch (e) {
-                console.error(`[LT] 命令 ${subCommand} 執行錯誤:`, e.message, e.stack);
-                ChatRoomSendLocal(`執行 /lt ${subCommand} 失敗：${e.message}。請檢查控制台！`);
+                console.error(`[LT] 命令 ${subCommand} 執行錯誤:`, e.message);
+                ChatRoomSendLocal(`執行 /lt ${subCommand} 失敗。`);
             }
         } else {
-            ChatRoomSendLocal(`未知指令：/lt ${subCommand}，請使用 /lt help 查詢說明`);
+            ChatRoomSendLocal(`未知指令：/lt ${subCommand}`);
         }
     }
 
-    // 初始化並註冊命令
+    // 等待條件函數
     function waitFor(condition, timeout = 30000) {
         const start = Date.now();
         return new Promise(resolve => {
@@ -822,52 +836,41 @@
     async function initialize() {
         console.log("[LT] 開始初始化插件...");
 
-        // 初始化 modApi
         modApi = await initializeModApi();
         await loadToastSystem();
-
-        // 創建 RP 覆蓋層容器
         createRpOverlay();
 
-        // 等待遊戲載入
         const gameLoaded = await waitFor(() =>
-                                         typeof Player?.MemberNumber === "number" &&
-                                         typeof CommandCombine === "function"
-                                        );
+            typeof Player?.MemberNumber === "number" &&
+            typeof CommandCombine === "function"
+        );
 
         if (!gameLoaded) {
             console.error("[LT] 遊戲載入超時");
             return;
         }
 
-        //console.log("[LT] 遊戲已載入，註冊功能...");
-        //console.log("[LT] 玩家狀態:", { MemberNumber: Player.MemberNumber, OnlineSettings: !!Player.OnlineSettings });
-
         initializeStorage();
         setupHooks();
 
-        // 註冊命令
         try {
             CommandCombine([{
                 Tag: "lt",
-                Description: "執行莉柯莉絲工具命令（例如 /lt help, /lt free）",
+                Description: "執行莉柯莉絲工具命令",
                 Action: handleLtCommand
             }]);
-            //console.log("[LT] /lt 命令已通過 CommandCombine 註冊");
 
-            // 等待進入聊天室後顯示載入訊息
             waitFor(() => CurrentScreen === "ChatRoom", 60000).then((success) => {
                 if (success) {
-                    ChatRoomSendLocal(`莉柯莉絲工具 v${modversion} 載入！使用 /lt help 查看說明`,30000);
-                    setTimeout(ensureRpStatusSync, 1000);// 確保 RP 狀態已同步
+                    ChatRoomSendLocal(`莉柯莉絲工具 v${modversion} 載入！使用 /lt help 查看說明`, 30000);
+                    setTimeout(ensureRpStatusSync, 1000);
                 }
             });
         } catch (e) {
-            console.error("[LT] 註冊 /lt 命令錯誤:", e.message);
-            ChatRoomSendLocal(`指令註冊失敗，可能有插件衝突（例如 BCX、ULTRAbc）。請檢查控制台！`);
+            console.error("[LT] 註冊命令錯誤:", e.message);
         }
 
-        console.log(`[LT] ✅插件已載入 (v${modversion})`);
+        console.log(`[LT] ✅ 插件已載入 (v${modversion})`);
     }
 
     // 卸載清理
@@ -877,9 +880,7 @@
                 console.log("[LT] 插件卸載...");
                 if (Player.LikoTool?.bypassActivities) {
                     Player.IsAdmin = Player.LikoTool.originalIsAdmin || false;
-                    console.log("[LT] 卸載時恢復 Player.IsAdmin 為", Player.IsAdmin);
                 }
-                // 移除覆蓋層
                 if (rpOverlayContainer && rpOverlayContainer.parentNode) {
                     rpOverlayContainer.parentNode.removeChild(rpOverlayContainer);
                 }
@@ -890,7 +891,6 @@
     // 啟動初始化
     initialize().then(() => {
         setupUnloadHandler();
-        //console.log("[LT] 莉柯莉絲工具初始化完成");
     }).catch((error) => {
         console.error("[LT] 初始化失敗:", error);
     });
