@@ -139,7 +139,7 @@
         "Cloth_笨笨笨蛋Luzi2", "BodyMarkings2_Luzi", "长袖子_Luzi", "身体痕迹_Luzi", "Liquid2_Luzi",
         "FaceMarkings", "BodyMarkings", "HandAccessoryRight", "HandAccessoryLeft", "AnkletLeft",
         "AnkletRight", "EyeShadow", "ClothOuter", "Cloth_笨笨蛋Luzi", "ClothAccessory_笨笨蛋Luzi",
-        "Bra_笨笨蛋Luzi"
+        "Bra_笨笨蛋Luzi", "Decals"
     ];
 
     // 偷取内裤功能
