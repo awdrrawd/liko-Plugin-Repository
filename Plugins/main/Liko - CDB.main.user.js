@@ -2,7 +2,7 @@
 // @name         Liko - CDB
 // @name:zh      Liko的自訂更衣室背景
 // @namespace    https://likolisu.dev/
-// @version      1.3.1
+// @version      1.4
 // @description  自訂更衣室背景 | Custom Dressing Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -19,7 +19,7 @@
     // 常量配置
     // ================================
     const CONFIG = {
-        VERSION: "1.3.1",
+        VERSION: "1.4",
         DEFAULT_BG_URL: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/refs/heads/main/Plugins/expand/Leonardo_Anime_XL_anime_style_outdoor_magical_wedding_backgrou_2.jpg",
         BUTTON_X: 600,
         BUTTON_Y: 25,
@@ -55,15 +55,54 @@
             { name: "BackCuffs", display: "右手反抓左手" },
             { name: "BaseLower", display: "站立" },
             { name: "LegsClosed", display: "併腿站立" },
-            //{ name: "LegsOpen", display: "開腿站立" },
-            //{ name: "Spread", display: "分腿站立" }
             { name: "Kneel", display: "跪下" },
             { name: "KneelingSpread", display: "跪姿分腿" },
-            //{ name: "HogTied", display: "趴下" },
             { name: "AllFours", display: "趴跪" }
-        ]
-    };
+        ],
+        _cachedIconsPath: null,
 
+        // 获取 Icons 路径
+        getIconsPath: function() {
+            if (this._cachedIconsPath) {
+                return this._cachedIconsPath;
+            }
+
+            // 从页面已加载的图标中提取路径
+            const images = document.querySelectorAll('img[src*="/Icons/"]');
+            if (images.length > 0) {
+                const src = images[0].src;
+                const match = src.match(/(https?:\/\/.*?)\/Icons\//);
+                if (match) {
+                    this._cachedIconsPath = match[1] + '/Icons/';
+                    safeLog("图标路径: " + this._cachedIconsPath);
+                    return this._cachedIconsPath;
+                }
+            }
+
+            // 回退：根据域名判断
+            const hostname = window.location.hostname;
+            if (hostname.includes('bondage-asia.com')) {
+                this._cachedIconsPath = window.location.protocol + '//' + hostname + '/club/R120/Icons/';
+            } else if (hostname.includes('bondage-europe.com')) {
+                this._cachedIconsPath = window.location.protocol + '//' + hostname + '/R120/BondageClub/Icons/';
+            } else {
+                this._cachedIconsPath = window.location.protocol + '//' + hostname + '/R120/BondageClub/Icons/';
+            }
+
+            safeLog("使用默认图标路径: " + this._cachedIconsPath);
+            return this._cachedIconsPath;
+        },
+
+        // 获取姿势图标 URL
+        getPoseIconURL: function(poseName) {
+            return this.getIconsPath() + 'Poses/' + poseName + '.png';
+        },
+
+        // 获取普通图标 URL
+        getIconURL: function(iconName) {
+            return this.getIconsPath() + iconName + '.png';
+        }
+    };
     // ================================
     // 全局變量
     // ================================
@@ -92,7 +131,19 @@
         expanded: false,  // 是否展開姿勢按鈕
         enabled: true     // 是否啟用姿勢功能
     };
-
+    // 放大預覽相關狀態
+    const zoomPreviewState = {
+        active: false,
+        zoom: 1.5,
+        offsetX: 0,
+        offsetY: 0,
+        isDragging: false,
+        lastMouseX: 0,
+        lastMouseY: 0,
+        windowX: 0,  // 百分比定位不需要具体像素值
+        windowY: 0,
+        isDraggingWindow: false
+    };
     // 性能監控
     const performance = {
         drawImageCalls: 0,
@@ -238,11 +289,6 @@
 
     function changePose(poseIndex = null) {
         const now = Date.now();
-
-        // 冷卻檢查（300ms）
-        if (now - state.lastPoseChangeTime < 300) {
-            return false;
-        }
 
         try {
             // 檢查遊戲狀態
@@ -721,7 +767,13 @@
 
     function createPresetColors() {
         const container = document.getElementById('bc-preset-colors');
-        if (!container) return;
+        if (!container) {
+            safeLog("预设颜色容器不存在");
+            return;
+        }
+
+        // 清空容器（防止重复创建）
+        container.innerHTML = '';
 
         CONFIG.PRESET_COLORS.forEach(function(color) {
             const colorDiv = document.createElement('div');
@@ -1094,7 +1146,7 @@
     }
 
     // ================================
-    // 姿勢按鈕繪製 - 簡化版無姿勢偵測
+    // 姿勢按鈕繪製
     // ================================
     function drawPoseButtons() {
         return safeCallWithFallback(function() {
@@ -1120,9 +1172,8 @@
                 // 如果展開，顯示所有姿勢按鈕（6+5佈局）
                 if (poseState.expanded) {
                     CONFIG.POSES.forEach(function(pose, index) {
-                        // 統一的按鈕顏色，不進行當前姿勢偵測
                         const buttonColor = "White";
-                        const iconUrl = 'https://www.bondageprojects.elementfx.com/R120/BondageClub/Icons/Poses/' + pose.name + '.png';
+                        const iconUrl = CONFIG.getPoseIconURL(pose.name);
 
                         // 計算位置 - 6+5佈局
                         let buttonX, buttonY;
@@ -1261,9 +1312,10 @@
 
     function drawMainButton() {
         return safeCallWithFallback(function() {
-            const iconUrl = "https://www.bondageprojects.elementfx.com/R120/BondageClub/Icons/Extensions.png";
+            const iconUrl = CONFIG.getIconURL('Extensions');
             const text = "";
-            const color = state.currentMode === 'disabled' ? "White" : "#5323a1";
+            // 如果 UI 开启，显示紫色；否则根据模式显示
+            const color = state.uiVisible ? "#5323a1" : (state.currentMode === 'disabled' ? "White" : "#5323a1");
 
             if (typeof DrawButton === 'function') {
                 DrawButton(CONFIG.BUTTON_X, CONFIG.BUTTON_Y, CONFIG.BUTTON_SIZE, CONFIG.BUTTON_SIZE,
@@ -1276,13 +1328,270 @@
         return safeCallWithFallback(function() {
             if (typeof MouseIn === 'function' &&
                 MouseIn(CONFIG.BUTTON_X, CONFIG.BUTTON_Y, CONFIG.BUTTON_SIZE, CONFIG.BUTTON_SIZE)) {
-                showUI();
+                if (state.uiVisible) {
+                    hideUI();
+                } else {
+                    showUI();
+                }
+                return true;
+            }
+            return false;
+        }, function() { return false; });
+    }
+    // 放大預覽按鈕繪製
+    function drawZoomPreviewButton() {
+        return safeCallWithFallback(function() {
+            const iconUrl = CONFIG.getIconURL('Search');
+            const color = zoomPreviewState.active ? "#5323a1" : "White";
+
+            if (typeof DrawButton === 'function') {
+                DrawButton(145, 25, 90, 90, "", color, iconUrl, "點擊開啟/關閉放大預覽");
+            }
+        }, null);
+    }
+
+    // 放大預覽點擊處理
+    function handleZoomPreviewButtonClick() {
+        return safeCallWithFallback(function() {
+            if (typeof MouseIn === 'function' && MouseIn(145, 25, 90, 90)) {
+                if (zoomPreviewState.active) {
+                    closeZoomPreview();
+                } else {
+                    toggleZoomPreview();
+                }
                 return true;
             }
             return false;
         }, function() { return false; });
     }
 
+    // 創建放大預覽UI
+    function createZoomPreviewUI() {
+        const uiHTML = [
+            '<div id="bc-zoom-preview" style="position: fixed !important; top: 10% !important; left: 1% !important; right: auto !important; width: 40%; height: 89.5%; background: rgba(30, 30, 30, 0.95); border: 2px solid rgba(83, 35, 161, 0.6); border-radius: 16px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); z-index: ' + CONFIG.Z_INDEX.UI + '; display: none; backdrop-filter: blur(20px);">',
+
+            '<div id="bc-zoom-header" style="background: linear-gradient(135deg, #5323a1 0%, #7b2cbf 50%, #9d4edd 100%); color: white; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 16px; border-radius: 14px 14px 0 0; cursor: move; user-select: none;">',
+            '<span>🔍 放大预览</span>',
+            '<div style="display: flex; gap: 8px;">',
+            '<button id="bc-zoom-reset" style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 16px; line-height: 1;">⟲</button>',
+            '<button id="bc-zoom-close" style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 18px; line-height: 1;">×</button>',
+            '</div>',
+            '</div>',
+
+            '<div id="bc-zoom-container" style="width: 100%; height: calc(100% - 90px); overflow: auto; position: relative; cursor: grab; background: #1a1a1a;">',
+            '<canvas id="bc-zoom-canvas" style="display: block;"></canvas>',
+            '</div>',
+
+            '<div style="padding: 8px 16px; background: rgba(0,0,0,0.3); display: flex; align-items: center; gap: 12px; border-radius: 0 0 14px 14px;">',
+            '<label style="color: #ccc; font-size: 12px;">缩放: <span id="bc-zoom-value">150</span>%</label>',
+            '<input type="range" id="bc-zoom-slider" min="100" max="300" value="150" step="10" style="flex: 1; height: 6px; border-radius: 3px; outline: none; -webkit-appearance: none;">',
+            '</div>',
+
+            // 自定义调整大小手柄
+            '<div id="bc-zoom-resizer" style="position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 0%, transparent 50%, rgba(83, 35, 161, 0.6) 50%, rgba(83, 35, 161, 0.6) 100%); border-radius: 0 0 14px 0;"></div>',
+
+            '</div>'
+        ].join('');
+
+        document.body.insertAdjacentHTML('beforeend', uiHTML);
+
+        const previewUI = document.getElementById('bc-zoom-preview');
+        const header = document.getElementById('bc-zoom-header');
+        const slider = document.getElementById('bc-zoom-slider');
+        const resetBtn = document.getElementById('bc-zoom-reset');
+        const closeBtn = document.getElementById('bc-zoom-close');
+        const container = document.getElementById('bc-zoom-container');
+        const zoomValue = document.getElementById('bc-zoom-value');
+        const resizer = document.getElementById('bc-zoom-resizer');
+
+        // 缩放滑块
+        addManagedEventListener(slider, 'input', function(e) {
+            zoomPreviewState.zoom = parseInt(e.target.value) / 100;
+            zoomValue.textContent = e.target.value;
+            updateZoomPreview();
+        });
+
+        // 重置按钮
+        addManagedEventListener(resetBtn, 'click', function() {
+            zoomPreviewState.zoom = 1.5;
+            slider.value = 150;
+            zoomValue.textContent = '150';
+            container.scrollTop = 0;
+            container.scrollLeft = 0;
+            updateZoomPreview();
+        });
+
+        // 关闭按钮
+        addManagedEventListener(closeBtn, 'click', function() {
+            toggleZoomPreview();
+            closeZoomPreview();
+        });
+
+        // 窗口拖曳（标题栏）
+        addManagedEventListener(header, 'mousedown', function(e) {
+            zoomPreviewState.isDraggingWindow = true;
+            zoomPreviewState.lastMouseX = e.clientX;
+            zoomPreviewState.lastMouseY = e.clientY;
+            e.preventDefault();
+        });
+
+        // 窗口调整大小（右下角手柄）
+        let isResizing = false;
+        let resizeStartX, resizeStartY, resizeStartWidth, resizeStartHeight;
+
+        addManagedEventListener(resizer, 'mousedown', function(e) {
+            isResizing = true;
+            resizeStartX = e.clientX;
+            resizeStartY = e.clientY;
+            resizeStartWidth = previewUI.offsetWidth;
+            resizeStartHeight = previewUI.offsetHeight;
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        addManagedEventListener(document, 'mousemove', function(e) {
+            if (isResizing) {
+                const deltaX = e.clientX - resizeStartX;
+                const deltaY = e.clientY - resizeStartY;
+                const newWidth = Math.max(400, resizeStartWidth + deltaX);
+                const newHeight = Math.max(500, resizeStartHeight + deltaY);
+                previewUI.style.width = newWidth + 'px';
+                previewUI.style.height = newHeight + 'px';
+            } else if (zoomPreviewState.isDraggingWindow) {
+                const deltaX = e.clientX - zoomPreviewState.lastMouseX;
+                const deltaY = e.clientY - zoomPreviewState.lastMouseY;
+                zoomPreviewState.windowX += deltaX;
+                zoomPreviewState.windowY += deltaY;
+                previewUI.style.left = zoomPreviewState.windowX + 'px';
+                previewUI.style.top = zoomPreviewState.windowY + 'px';
+                zoomPreviewState.lastMouseX = e.clientX;
+                zoomPreviewState.lastMouseY = e.clientY;
+            } else if (zoomPreviewState.isDragging) {
+                container.scrollLeft -= e.clientX - zoomPreviewState.lastMouseX;
+                container.scrollTop -= e.clientY - zoomPreviewState.lastMouseY;
+                zoomPreviewState.lastMouseX = e.clientX;
+                zoomPreviewState.lastMouseY = e.clientY;
+            }
+        });
+
+        addManagedEventListener(document, 'mouseup', function() {
+            isResizing = false;
+            zoomPreviewState.isDraggingWindow = false;
+            if (zoomPreviewState.isDragging) {
+                zoomPreviewState.isDragging = false;
+                container.style.cursor = 'grab';
+            }
+        });
+
+        // 画布拖曳（滚动内容）
+        addManagedEventListener(container, 'mousedown', function(e) {
+            if (e.button === 0) {
+                zoomPreviewState.isDragging = true;
+                zoomPreviewState.lastMouseX = e.clientX;
+                zoomPreviewState.lastMouseY = e.clientY;
+                container.style.cursor = 'grabbing';
+            }
+        });
+
+        return previewUI;
+    }
+
+    function updateZoomPreview() {
+        const C = CharacterAppearanceSelection;
+        if (!C || !C.Canvas) return;
+
+        const canvas = document.getElementById('bc-zoom-canvas');
+        const container = document.getElementById('bc-zoom-container');
+        if (!canvas || !container) return;
+
+        const ctx = canvas.getContext('2d');
+        const zoom = zoomPreviewState.zoom;
+
+        const sourceWidth = C.Canvas.width;
+        const sourceHeight = C.Canvas.height;
+
+        // 顶部预留 250px 给帽子等装饰
+        const topPadding = 250;
+
+        canvas.width = sourceWidth * zoom;
+        canvas.height = (sourceHeight + topPadding) * zoom;
+        canvas.style.width = canvas.width + 'px';
+        canvas.style.height = canvas.height + 'px';
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.globalCompositeOperation = 'source-over';
+
+        // 1. 背景
+        if (state.currentMode === 'solid') {
+            ctx.fillStyle = state.bgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        } else if (state.currentMode === 'custom' && customBG && customBG.complete) {
+            ctx.drawImage(customBG, 0, 0, canvas.width, canvas.height);
+        } else {
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // 2. 角色（从 topPadding 位置开始绘制）
+        const yOffset = topPadding * zoom;
+        ctx.save();
+        ctx.drawImage(C.Canvas, 0, 0, sourceWidth, sourceHeight, 0, yOffset, sourceWidth * zoom, sourceHeight * zoom);
+        ctx.restore();
+
+        // 3. 格线
+        if (state.gridMode !== 'disabled') {
+            const spacing = CONFIG.GRID_SPACING[state.gridMode] * zoom;
+            const rgb = hexToRgb(state.gridColor);
+            if (rgb) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ', ' + state.gridOpacity + ')';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let x = 0; x <= canvas.width; x += spacing) {
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, canvas.height);
+                }
+                for (let y = 0; y <= canvas.height; y += spacing) {
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // 4. 设置滚动位置：垂直25%，水平50%
+        setTimeout(function() {
+            const maxScrollTop = container.scrollHeight - container.clientHeight;
+            const maxScrollLeft = container.scrollWidth - container.clientWidth;
+            container.scrollTop = maxScrollTop * 0.25; // 垂直25%
+            container.scrollLeft = maxScrollLeft * 0.5; // 水平50%
+        }, 10);
+    }
+    function toggleZoomPreview() {
+        zoomPreviewState.active = !zoomPreviewState.active;
+
+        let previewUI = document.getElementById('bc-zoom-preview');
+
+        if (zoomPreviewState.active) {
+            if (!previewUI) {
+                previewUI = createZoomPreviewUI();
+            }
+
+            // 初始化窗口位置（转换百分比为像素）
+            const rect = previewUI.getBoundingClientRect();
+            zoomPreviewState.windowX = rect.left;
+            zoomPreviewState.windowY = rect.top;
+
+            previewUI.style.display = 'block';
+            updateZoomPreview();
+        }
+    }
+    function closeZoomPreview() {
+        zoomPreviewState.active = false;
+        const previewUI = document.getElementById('bc-zoom-preview');
+        if (previewUI) previewUI.style.display = 'none';
+    }
     // ================================
     // Hook 設置
     // ================================
@@ -1359,8 +1668,6 @@
 
             return originalDrawImage.apply(this, [img].concat(args));
         };
-
-        safeLog("drawImage hook 設置完成");
     }
 
     function setupBCHooks() {
@@ -1374,9 +1681,23 @@
                 safeCallWithFallback(function() {
                     if (isMainAppearanceMode()) {
                         drawMainButton();
-                        drawPoseButtons(); // 改用新的按鈕繪製函數
+                        drawZoomPreviewButton();
+                        drawPoseButtons();
                     }
                 });
+
+                return result;
+            });
+
+            // CharacterLoadCanvas hook - 自动更新放大预览
+            modApi.hookFunction("CharacterLoadCanvas", 4, function(args, next) {
+                const result = next(args);
+
+                if (args[0] === CharacterAppearanceSelection && zoomPreviewState.active) {
+                    setTimeout(function() {
+                        updateZoomPreview();
+                    }, 50);
+                }
 
                 return result;
             });
@@ -1387,17 +1708,52 @@
                     return isMainAppearanceMode() && handleMainButtonClick();
                 }, function() { return false; });
 
-                const poseButtonHandled = safeCallWithFallback(function() {
-                    return isMainAppearanceMode() && handlePoseButtonsClick(); // 改用新的點擊處理函數
+                const zoomButtonHandled = safeCallWithFallback(function() {
+                    return isMainAppearanceMode() && handleZoomPreviewButtonClick();
                 }, function() { return false; });
 
-                if (mainButtonHandled || poseButtonHandled) return;
+                const poseButtonHandled = safeCallWithFallback(function() {
+                    return isMainAppearanceMode() && handlePoseButtonsClick();
+                }, function() { return false; });
+
+                if (mainButtonHandled || zoomButtonHandled || poseButtonHandled) return;
                 return next(args);
             });
 
-            //safeLog("BC hooks 設置完成");
+            // AppearanceExit hook - 检查是否真的退出
+            modApi.hookFunction("AppearanceExit", 4, function(args, next) {
+                const result = next(args);
+
+                // 延迟检查是否真的离开更衣室
+                setTimeout(function() {
+                    if (typeof CurrentScreen === 'undefined' || CurrentScreen !== "Appearance") {
+                        closeZoomPreview();
+                        poseState.expanded = false;
+                        hideUI();
+                    }
+                }, 100);
+
+                return result;
+            });
+
+            // CharacterAppearanceExit hook - 真正退出更衣室
+            modApi.hookFunction("CharacterAppearanceExit", 4, function(args, next) {
+                // 这个函数只在真的退出时调用，直接关闭
+                closeZoomPreview();
+                poseState.expanded = false;
+                hideUI();
+                return next(args);
+            });
+
+            // CharacterAppearanceWardrobeLoad hook - 进入衣柜时关闭所有UI
+            modApi.hookFunction("CharacterAppearanceWardrobeLoad", 4, function(args, next) {
+                closeZoomPreview();
+                poseState.expanded = false;
+                hideUI();
+                return next(args);
+            });
         } catch (e) {
-            safeError("設置BC hooks失敗:", e);
+            safeError("设置BC hooks失败:", e);
         }
     }
 
@@ -1415,7 +1771,7 @@
                     version: CONFIG.VERSION,
                     repository: '自訂更衣室背景 | Custom Dressing Background'
                 });
-                safeLog("✅ 插件註冊成功");
+                //safeLog("✅ 插件註冊成功");
                 return modApi;
             } catch (e) {
                 safeError("❌ 初始化 modApi 失敗:", e);
@@ -1425,7 +1781,11 @@
     }
 
     function cleanup() {
+
         try {
+            closeZoomPreview();
+            poseState.expanded = false;
+            hideUI();
             // 恢復原始的 drawImage 方法
             if (originalDrawImage) {
                 CanvasRenderingContext2D.prototype.drawImage = originalDrawImage;
@@ -1468,11 +1828,12 @@
             resources.eventListeners.clear();
 
             // 移除UI元素
-            const ui = document.getElementById('bc-colorpicker-ui');
-            if (ui) {
-                ui.remove();
-                colorPickerUI = null;
-            }
+            const uiElements = ['bc-colorpicker-ui', 'bc-zoom-preview'];
+            uiElements.forEach(function(id) {
+                const element = document.getElementById(id);
+                if (element) element.remove();
+            });
+            colorPickerUI = null;
 
             // 移除樣式表
             resources.styleSheets.forEach(function(styleElement) {
