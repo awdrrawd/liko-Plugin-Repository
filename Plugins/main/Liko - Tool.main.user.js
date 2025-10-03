@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.2
+// @version      1.2.1
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function() {
     let modApi = null;
-    const modversion = "1.2";
+    const modversion = "1.2.1";
 
     // 等待 bcModSdk 載入的函數
     function waitForBcModSdk(timeout = 30000) {
@@ -168,21 +168,28 @@
     function initializeStorage() {
         if (!Player.LikoTool) {
             Player.LikoTool = {
-                bypassActivities: false,
-                heightHijackEnabled: false
+                bypassActivities: false
             };
-        }
-
-        // 確保 heightHijackEnabled 存在
-        if (typeof Player.LikoTool.heightHijackEnabled === 'undefined') {
-            Player.LikoTool.heightHijackEnabled = false;
         }
 
         if (!Player.OnlineSharedSettings) {
             Player.OnlineSharedSettings = {};
         }
-        if (typeof Player.OnlineSharedSettings.LikoRPMode === 'undefined') {
-            Player.OnlineSharedSettings.LikoRPMode = false;
+
+        // 只在不存在时才创建，避免覆盖已保存的设置
+        if (!Player.OnlineSharedSettings.LikoTOOL) {
+            Player.OnlineSharedSettings.LikoTOOL = {
+                RPmode: 0,
+                height: 0
+            };
+        }
+
+        // 确保属性存在（如果对象存在但缺少某个属性）
+        if (typeof Player.OnlineSharedSettings.LikoTOOL.RPmode === 'undefined') {
+            Player.OnlineSharedSettings.LikoTOOL.RPmode = 0;
+        }
+        if (typeof Player.OnlineSharedSettings.LikoTOOL.height === 'undefined') {
+            Player.OnlineSharedSettings.LikoTOOL.height = 0;
         }
     }
 
@@ -191,10 +198,10 @@
         if (!character) return false;
 
         if (character.IsPlayer && character.IsPlayer()) {
-            return Player.OnlineSharedSettings?.LikoRPMode || false;
+            return Player.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
         }
 
-        return character.OnlineSharedSettings?.LikoRPMode || false;
+        return character.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
     }
 
     // 設置 RP 模式並同步
@@ -202,8 +209,11 @@
         if (!Player.OnlineSharedSettings) {
             Player.OnlineSharedSettings = {};
         }
+        if (!Player.OnlineSharedSettings.LikoTOOL) {
+            Player.OnlineSharedSettings.LikoTOOL = {};
+        }
 
-        Player.OnlineSharedSettings.LikoRPMode = enabled;
+        Player.OnlineSharedSettings.LikoTOOL.RPmode = enabled ? 1 : 0;
 
         if (typeof ServerAccountUpdate !== 'undefined' && ServerAccountUpdate.QueueData) {
             ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
@@ -239,10 +249,10 @@
             return ChatRoomCharacter?.find(c => c.MemberNumber === parseInt(identifier)) || Player;
         } else if (typeof identifier === "string") {
             return ChatRoomCharacter?.find(c =>
-                c.Name.toLowerCase() === identifier.toLowerCase() ||
-                c.Nickname?.toLowerCase() === identifier.toLowerCase() ||
-                c.AccountName.toLowerCase() === identifier.toLowerCase()
-            ) || Player;
+                                           c.Name.toLowerCase() === identifier.toLowerCase() ||
+                                           c.Nickname?.toLowerCase() === identifier.toLowerCase() ||
+                                           c.AccountName.toLowerCase() === identifier.toLowerCase()
+                                          ) || Player;
         }
         return Player;
     }
@@ -400,13 +410,12 @@
 
     // 身高劫持功能
     function setupHeightHijack() {
-        // 使用 ModSDK 鉤住 CharacterSetCurrent
         safeHookFunction("CharacterSetCurrent", 10, (args, next) => {
             const [C, options] = args;
             const result = next(args);
 
-            // 只在功能啟用時劫持
-            if (Player.LikoTool?.heightHijackEnabled && C && C.MemberNumber) {
+            // 检查是否启用（值为 1）
+            if (Player.OnlineSharedSettings?.LikoTOOL?.height === 1 && C && C.MemberNumber) {
                 setTimeout(() => {
                     if (!C._heightHijacked) {
                         C._realHeightRatio = C.HeightRatio;
@@ -432,7 +441,6 @@
             return result;
         });
 
-        // 使用 ModSDK 鉤住 DialogLeave
         safeHookFunction("DialogLeave", 10, (args, next) => {
             if (CurrentCharacter && CurrentCharacter._heightHijacked) {
                 const C = CurrentCharacter;
@@ -446,8 +454,6 @@
             }
             return next(args);
         });
-
-        console.log("[LT] ✅ 身高劫持功能已安裝");
     }
 
     // 鉤子設置函數
@@ -829,15 +835,25 @@
         }
     }
 
+    // 身高劫持命令
     function heightCommand(args) {
-        if (!Player.LikoTool) initializeStorage();
+        if (!Player.OnlineSharedSettings) {
+            Player.OnlineSharedSettings = {};
+        }
+        if (!Player.OnlineSharedSettings.LikoTOOL) {
+            Player.OnlineSharedSettings.LikoTOOL = {};
+        }
 
-        const enabled = !Player.LikoTool.heightHijackEnabled;
-        Player.LikoTool.heightHijackEnabled = enabled;
+        const enabled = Player.OnlineSharedSettings.LikoTOOL.height !== 1;
+        Player.OnlineSharedSettings.LikoTOOL.height = enabled ? 1 : 0;
 
-        ChatRoomSendLocal(`身高劫持功能已 ${enabled ? "啟用" : "停用"}！${enabled ? "\n所有對話中的角色將顯示為默認身高。" : "\n角色將恢復真實身高顯示。"}`);
+        if (typeof ServerAccountUpdate !== 'undefined' && ServerAccountUpdate.QueueData) {
+            ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+        }
 
-        // 如果正在對話中且停用了功能，立即恢復當前角色
+        ChatRoomSendLocal(`身高劫持功能已 ${enabled ? "啟用" : "停用"}！`);
+
+        // 如果停用且正在对话，恢复角色身高
         if (!enabled && CurrentCharacter && CurrentCharacter._heightHijacked) {
             const C = CurrentCharacter;
             delete C.HeightRatio;
@@ -922,9 +938,9 @@
         createRpOverlay();
 
         const gameLoaded = await waitFor(() =>
-            typeof Player?.MemberNumber === "number" &&
-            typeof CommandCombine === "function"
-        );
+                                         typeof Player?.MemberNumber === "number" &&
+                                         typeof CommandCombine === "function"
+                                        );
 
         if (!gameLoaded) {
             console.error("[LT] 遊戲載入超時");
