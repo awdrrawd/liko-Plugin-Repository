@@ -2,7 +2,7 @@
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.01
+// @version      1.1
 // @description  Advanced video player that auto-detects video links in chat and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -19,14 +19,14 @@
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
-    const modVersion = "1.01";
+    const modVersion = "1.1";
     let isEnabled = true;
     let scanInterval;
 
     // 支援的影音平台配置
     const videoPatterns = {
         youtube: {
-            regex: /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})(?:[&?].*)?/,
+            regex: /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
             embedTemplate: (id) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0&modestbranding=1`,
             htmlTemplate: (id) => `<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
@@ -63,6 +63,37 @@
             </div>`,
             name: "Bilibili"
         },
+        douyin: {
+            regex: /douyin\.com\/(?:video\/(\d+)|jingxuan\?modal_id=(\d+))/,
+            embedTemplate: (id1, id2) => {
+                const id = id1 || id2;
+                return `https://open.douyin.com/player/video?vid=${id}&autoplay=0`;
+            },
+            htmlTemplate: (id1, id2) => {
+                const id = id1 || id2;
+                return `<div style="width: 100%; max-width: 300px; margin: 0.3em auto; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
+                    <div style="position: relative; width: 100%; height: 533px;">
+                        <iframe src="https://open.douyin.com/player/video?vid=${id}&autoplay=0"
+                                frameborder="0" allowfullscreen
+                                referrerpolicy="unsafe-url"
+                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
+                    </div>
+                </div>`;
+            },
+            name: "抖音"
+        },
+        instagram: {
+            regex: /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/,
+            embedTemplate: (id) => `https://www.instagram.com/p/${id}/embed/`,
+            htmlTemplate: (id) => `<div style="width: 100%; max-width: 400px; margin: 0.3em auto; background: #fff; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
+                <div style="position: relative; width: 100%; height: 500px;">
+                    <iframe src="https://www.instagram.com/p/${id}/embed/"
+                            frameborder="0" allowfullscreen scrolling="no" allowtransparency="true"
+                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
+                </div>
+            </div>`,
+            name: "Instagram"
+        },
         twitch: {
             regex: /twitch\.tv\/(?:(?:videos\/([0-9]+)(?:[\/?].*)?)|([a-zA-Z0-9_]+)(?:[\/?].*)?)/,
             embedTemplate: (id, type) => type === "video"
@@ -73,7 +104,7 @@
                     <iframe src="${type === "video"
             ? `https://player.twitch.tv/?video=${id}&parent=${window.location.hostname}&autoplay=false`
             : `https://player.twitch.tv/?channel=${id}&parent=${window.location.hostname}&autoplay=false`}"
-                             frameborder="0" allowfullscreen
+                            frameborder="0" allowfullscreen
                             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
                 </div>
             </div>`,
@@ -102,6 +133,28 @@
                 </div>
             </div>`,
             name: "Niconico"
+        },
+        twitter: {
+            regex: /(?:twitter\.com|x\.com)\/[^\/]+\/status\/(\d+)/,
+            embedTemplate: (id) => `https://twitter.com/i/status/${id}`,
+            htmlTemplate: (id, username) => {
+                // 確保 widgets.js 已加載
+                if (!window.twttr) {
+                    const script = document.createElement('script');
+                    script.src = 'https://platform.twitter.com/widgets.js';
+                    script.async = true;
+                    script.charset = 'utf-8';
+                    document.head.appendChild(script);
+                }
+
+                return `<div class="twitter-embed-container" style="width: 100%; max-width: 500px; margin: 0.3em auto;">
+            <blockquote class="twitter-tweet" data-media-max-width="500">
+                <a href="https://twitter.com/i/status/${id}"></a>
+            </blockquote>
+        </div>`;
+            },
+            name: "Twitter/X",
+            needsScriptReload: true // 標記需要重新加載腳本
         }
     };
 
@@ -138,10 +191,8 @@
 
     // 简化URL显示
     function simplifyUrl(url) {
-        // 移除协议前缀
         let simplified = url.replace(/^https?:\/\/(www\.)?/, '');
 
-        // 特定平台的简化规则
         if (simplified.includes('bilibili.com/video/')) {
             const match = simplified.match(/bilibili\.com\/video\/(BV[a-zA-Z0-9]{10})/);
             if (match) return `bilibili.com/video/${match[1]}`;
@@ -152,7 +203,11 @@
             if (match) return `youtube.com/watch?v=${match[1]}`;
         }
 
-        // 通用截断
+        if (simplified.includes('youtube.com/shorts/')) {
+            const match = simplified.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/);
+            if (match) return `youtube.com/shorts/${match[1]}`;
+        }
+
         if (simplified.length > 60) {
             return simplified.substring(0, 57) + '...';
         }
@@ -164,6 +219,8 @@
     function detectVideoUrl(url) {
         for (let platform in videoPatterns) {
             const pattern = videoPatterns[platform];
+            if (!pattern || !pattern.regex) continue; // 安全檢查
+
             const match = url.match(pattern.regex);
             if (match) {
                 if (platform === "twitch") {
@@ -175,6 +232,28 @@
                         type,
                         originalUrl: url,
                         embedUrl: pattern.embedTemplate(id, type),
+                        platformName: pattern.name
+                    };
+                } else if (platform === "douyin") {
+                    const id = match[1] || match[2];
+                    const shortCode = match[3];
+                    return {
+                        platform,
+                        id: id || shortCode,
+                        shortCode: shortCode,
+                        originalUrl: url,
+                        embedUrl: pattern.embedTemplate(match[1], match[2], match[3]),
+                        platformName: pattern.name
+                    };
+                } else if (platform === "twitter") {
+                    const username = match[1];
+                    const id = match[2];
+                    return {
+                        platform,
+                        id,
+                        username,
+                        originalUrl: url,
+                        embedUrl: pattern.embedTemplate(username, id),
                         platformName: pattern.name
                     };
                 } else {
@@ -214,7 +293,6 @@
             text-align: center;
         `;
 
-        // 鼠標懸停效果
         button.addEventListener("mouseenter", () => {
             if (!isEnabled) return;
             button.style.background = "rgba(255, 71, 87, 0.2)";
@@ -226,7 +304,6 @@
             button.style.transform = "scale(1)";
         });
 
-        // 點擊事件
         const clickHandler = (event) => {
             if (!isEnabled) return;
             event.preventDefault();
@@ -252,7 +329,16 @@
                 iframeContainer.className = "likoVideoIframe";
 
                 const pattern = videoPatterns[videoInfo.platform];
-                const htmlContent = pattern.htmlTemplate(videoInfo.id, videoInfo.type);
+                let htmlContent;
+                if (videoInfo.platform === "douyin") {
+                    htmlContent = pattern.htmlTemplate(videoInfo.id, null, videoInfo.shortCode);
+                } else if (videoInfo.platform === "twitch") {
+                    htmlContent = pattern.htmlTemplate(videoInfo.id, videoInfo.type);
+                } else if (videoInfo.platform === "twitter") {
+                    htmlContent = pattern.htmlTemplate(videoInfo.username, videoInfo.id);
+                } else {
+                    htmlContent = pattern.htmlTemplate(videoInfo.id);
+                }
                 iframeContainer.innerHTML = htmlContent;
 
                 const closeButton = document.createElement("button");
@@ -283,6 +369,9 @@
                 iframeContainer.appendChild(closeButton);
 
                 messageElement.appendChild(iframeContainer);
+                if (videoInfo.platform === "twitter" && window.twttr) {
+                    window.twttr.widgets.load(iframeContainer);
+                }
 
                 button.textContent = "📺";
                 button.style.color = "#2ed573";
@@ -304,12 +393,11 @@
         return button;
     }
 
-    // 處理文本內容 - 回到简单有效的方法
+    // 處理文本內容
     function processTextContent(element) {
         if (!isEnabled) return;
         if (element.dataset.likoVideoProcessed === "1") return;
 
-        // 避免重复处理和处理特殊元素
         if (element.querySelector('.likoVideoButton') ||
             element.querySelector('.likoVideoIframe') ||
             element.closest('.likoVideoIframe') ||
@@ -320,7 +408,6 @@
 
         let hasChanges = false;
 
-        // 处理现有的链接
         const existingLinks = element.querySelectorAll('a[href]:not([data-liko-processed])');
         existingLinks.forEach(link => {
             const href = link.getAttribute('href');
@@ -343,15 +430,15 @@
             }
         });
 
-        // 处理纯文本中的视频链接
         let innerHTML = element.innerHTML;
 
         for (let platform in videoPatterns) {
             const pattern = videoPatterns[platform];
+            if (!pattern || !pattern.regex) continue; // 安全檢查
+
             const regex = new RegExp(pattern.regex.source, 'gi');
 
             innerHTML = innerHTML.replace(regex, (match) => {
-                // 避免处理已经在链接中的URL
                 if (match.includes('<') || match.includes('>')) return match;
 
                 const videoInfo = detectVideoUrl(match);
@@ -367,7 +454,6 @@
         if (hasChanges && innerHTML !== element.innerHTML) {
             element.innerHTML = innerHTML;
 
-            // 为新创建的span添加按钮
             element.querySelectorAll('.likoVideoLink[data-video-info]:not([data-button-added])').forEach(span => {
                 try {
                     const videoInfo = JSON.parse(span.dataset.videoInfo);
@@ -376,7 +462,7 @@
                     span.appendChild(button);
                     span.dataset.buttonAdded = "1";
                 } catch (e) {
-                    console.error("Video Player: 添加按钮失败:", e);
+                    console.error("Video Player: 添加按鈕失敗:", e);
                 }
             });
         }
@@ -384,15 +470,13 @@
         element.dataset.likoVideoProcessed = "1";
     }
 
-    // 掃描聊天消息 - 更安全的扫描方式
+    // 掃描聊天消息
     function scanChatMessages() {
         if (!isEnabled) return;
 
-        // 只处理聊天消息容器，避免处理iframe内容
         const messageContainers = document.querySelectorAll(".chat-room-message-content, [role='log'] > div");
 
         messageContainers.forEach(container => {
-            // 跳过已经包含视频播放器的容器的进一步处理
             if (container.querySelector('.likoVideoIframe')) {
                 return;
             }
