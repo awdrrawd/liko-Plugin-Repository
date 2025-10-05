@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.5
+// @version      1.6
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -23,7 +23,7 @@
     window.LIKO_PRANK_LOADED = true;
 
     let modApi;
-    const modversion = "1.5";
+    const modversion = "1.6";
 
     // ===== 多语言支持 =====
     function detectLanguage() {
@@ -46,7 +46,7 @@
             stealFailed: "Failed to steal",
             removeFailed: "Failed to remove",
             nothingToRemove: "has no removable clothing in this area",
-
+            
             // Actions
             stealUnderwear: "quietly stole",
             stealUnderwearSuffix: "'s underwear 💕",
@@ -70,7 +70,7 @@
             removedAndHoldSocks: "removed",
             holdSocks: "'s socks and held them in hand",
             holdOwnSocks: "removed their own socks and held them in hand",
-
+            
             // Activity labels
             actCutClothes: "Cut Clothes",
             actRemoveClothes: "Remove Clothes",
@@ -79,7 +79,7 @@
             actRemoveHoldPanties: "Remove & Hold Panties",
             actStealSocks: "Steal Socks",
             actRemoveHoldSocks: "Remove & Hold Socks",
-
+            
             // Activity descriptions
             actCutClothesDesc: "SourceCharacter used scissors to cut TargetCharacter's clothes",
             actCutClothesSelf: "SourceCharacter used scissors to cut their own clothes",
@@ -103,7 +103,7 @@
             stealFailed: "偷取失败",
             removeFailed: "脱下失败",
             nothingToRemove: "在这个部位没有可移除的衣物",
-
+            
             // Actions
             stealUnderwear: "悄悄偷走了",
             stealUnderwearSuffix: "的内裤 💕",
@@ -127,7 +127,7 @@
             removedAndHoldSocks: "脱下了",
             holdSocks: "的袜子并握在手中",
             holdOwnSocks: "脱下了自己的袜子并握在手中",
-
+            
             // Activity labels
             actCutClothes: "剪掉衣物",
             actRemoveClothes: "脱掉衣物",
@@ -136,7 +136,7 @@
             actRemoveHoldPanties: "脱下并握着内裤",
             actStealSocks: "偷袜子",
             actRemoveHoldSocks: "脱下并握着袜子",
-
+            
             // Activity descriptions
             actCutClothesDesc: "SourceCharacter 用剪刀剪掉了 TargetCharacter 的衣物",
             actCutClothesSelf: "SourceCharacter 用剪刀剪掉了自己的衣物",
@@ -334,8 +334,8 @@
             InventoryRemove(Player, "ItemHandheld");
 
             const isZh = detectLanguage();
-            const itemName = isZh ?
-                  `${targetNick}刚脱下的内裤 💕` :
+            const itemName = isZh ? 
+                  `${targetNick}刚脱下的内裤 💕` : 
                   `${targetNick}'s freshly removed panties 💕`;
             const itemDesc = isZh ?
                   `${targetNick}刚脱下的内裤，带有一点余温与气味💕` :
@@ -621,7 +621,7 @@
 
         let handheldItemName;
         const isZh = detectLanguage();
-
+        
         if (itemType === "panties") {
             handheldItemName = "Panties";
         } else {
@@ -629,19 +629,19 @@
         }
 
         const itemName = isZh ?
-              (itemType === "panties" ?
-               `${targetNick}刚脱下的内裤 💕` :
+              (itemType === "panties" ? 
+               `${targetNick}刚脱下的内裤 💕` : 
                `${targetNick}刚脱下的袜子 💕`) :
-              (itemType === "panties" ?
-               `${targetNick}'s freshly removed panties 💕` :
+              (itemType === "panties" ? 
+               `${targetNick}'s freshly removed panties 💕` : 
                `${targetNick}'s freshly removed socks 💕`);
 
         const itemDesc = isZh ?
-              (itemType === "panties" ?
-               `${targetNick}刚脱下的内裤，带有一点余温与气味💕` :
+              (itemType === "panties" ? 
+               `${targetNick}刚脱下的内裤，带有一点余温与气味💕` : 
                `${targetNick}刚脱下的袜子，带有一点余温与气味💕`) :
-              (itemType === "panties" ?
-               `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕` :
+              (itemType === "panties" ? 
+               `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕` : 
                `${targetNick}'s freshly removed socks, with a hint of warmth and scent 💕`);
 
         InventoryWear(Player, handheldItemName, "ItemHandheld", itemColor, 0, target.MemberNumber, {
