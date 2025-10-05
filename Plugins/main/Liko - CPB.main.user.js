@@ -2,7 +2,7 @@
 // @name         Liko - CPB
 // @name:zh      Liko的自定義個人資料頁面背景
 // @namespace    https://likolisu.dev/
-// @version      1.2
+// @version      1.2.1
 // @description  自定義個人資料頁面背景 | Custom Profile Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,36 +16,68 @@
     'use strict';
 
     let modApi = null;
-    const modversion = "1.2";
+    const modversion = "1.2.1";
     let customBG = null;
     let buttonImage = null;
     let isInitialized = false;
-    let remoteBackgrounds = new Map(); // 存儲其他玩家的背景
-    let cacheAccessOrder = []; // LRU 快取順序追蹤
+    let remoteBackgrounds = new Map();
+    let cacheAccessOrder = [];
     let isUIOpen = false;
     let uiElements = {};
-    let lastButtonState = false; // 追蹤按鈕顯示狀態
+    let lastButtonState = false;
     let interfaceCheckInterval = null;
-    let currentViewingCharacter = null; // 當前正在查看的角色
+    let currentViewingCharacter = null;
 
-    // 效能優化快取
     let cachedViewingCharacter = null;
     let lastCharacterCheck = 0;
     let lastScreenCheck = null;
     let lastScreenCheckTime = 0;
-    let pendingBlobUrls = new Set(); // 追蹤待清理的 Blob URLs
+    let pendingBlobUrls = new Set();
+
+    // ===== 圖片路徑輔助工具 =====
+    const ImagePathHelper = {
+        _cachedBasePath: null,
+
+        getBasePath: function() {
+            if (this._cachedBasePath) return this._cachedBasePath;
+
+            let href = window.location.href;
+
+            // 確保結尾有斜線
+            if (!href.endsWith('/')) {
+                href = href.substring(0, href.lastIndexOf('/') + 1);
+            }
+
+            this._cachedBasePath = href;
+            return href;
+        },
+
+        getAssetURL: function(path) {
+            return this.getBasePath() + 'Assets/' + path;
+        },
+
+        getIconURL: function(iconName) {
+            return this.getBasePath() + 'Icons/' + iconName;
+        },
+
+        clearCache: function() {
+            this._cachedBasePath = null;
+        }
+    };
 
     // 配置
     const DEFAULT_BG_URL = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/refs/heads/main/Plugins/expand/Leonardo_Anime_XL_anime_style_outdoor_magical_wedding_backgrou_2.jpg";
     const BUTTON_X = 1695;
     const BUTTON_Y = 190;
     const BUTTON_SIZE = 90;
-    const BUTTON_IMAGE_URL = "https://www.bondageprojects.elementfx.com/R120/BondageClub/Icons/Extensions.png";
-    const MAX_CACHE_SIZE = 15; // 限制遠程背景快取大小
-    const CHARACTER_CACHE_TIME = 50; // 角色快取時間 (ms)
-    const SCREEN_CACHE_TIME = 100; // 屏幕檢查快取時間 (ms)
+    const MAX_CACHE_SIZE = 15;
+    const CHARACTER_CACHE_TIME = 50;
+    const SCREEN_CACHE_TIME = 100;
 
-    // 資源清理函數
+    function getButtonImageURL() {
+        return ImagePathHelper.getIconURL('Extensions.png');
+    }
+
     function cleanupBlobUrl(url) {
         if (url && url.startsWith('blob:')) {
             try {
@@ -57,13 +89,11 @@
         }
     }
 
-    // LRU 快取清理
     function cleanupImageCache() {
         while (remoteBackgrounds.size > MAX_CACHE_SIZE && cacheAccessOrder.length > 0) {
             const oldestKey = cacheAccessOrder.shift();
             const oldImage = remoteBackgrounds.get(oldestKey);
 
-            // 清理 Blob URL
             if (oldImage && oldImage.src) {
                 cleanupBlobUrl(oldImage.src);
             }
@@ -72,7 +102,6 @@
         }
     }
 
-    // 更新快取訪問順序
     function updateCacheAccess(key) {
         const index = cacheAccessOrder.indexOf(key);
         if (index > -1) {
@@ -81,7 +110,6 @@
         cacheAccessOrder.push(key);
     }
 
-    // 開始界面檢測（增強錯誤處理）
     function startInterfaceMonitoring() {
         if (interfaceCheckInterval) {
             clearInterval(interfaceCheckInterval);
@@ -93,20 +121,17 @@
                 if (currentButtonState !== lastButtonState) {
                     lastButtonState = currentButtonState;
 
-                    // 如果按鈕應該隱藏且UI是開啟的，關閉UI
                     if (!currentButtonState && isUIOpen) {
                         closeUI();
                     }
                 }
             } catch (e) {
                 console.error("[CPB] 界面監控錯誤:", e.message);
-                // 出錯時停止監控避免持續錯誤
                 stopInterfaceMonitoring();
             }
         }, 3000);
     }
 
-    // 停止界面檢測
     function stopInterfaceMonitoring() {
         if (interfaceCheckInterval) {
             clearInterval(interfaceCheckInterval);
@@ -114,11 +139,9 @@
         }
     }
 
-    // 獲取當前查看的角色（優化效能）
     function getCurrentViewingCharacter() {
         const now = Date.now();
 
-        // 快取檢查，減少重複計算
         if (now - lastCharacterCheck < CHARACTER_CACHE_TIME && cachedViewingCharacter !== null) {
             return cachedViewingCharacter;
         }
@@ -126,38 +149,30 @@
         try {
             let character = null;
 
-            // 方法1: 使用 InformationSheetCharacter (最直接的方法)
             if (typeof InformationSheetCharacter !== 'undefined' && InformationSheetCharacter) {
                 character = InformationSheetCharacter;
             }
-            // 方法2: 檢查 InformationSheetSelection 是否就是角色對象
             else if (typeof InformationSheetSelection !== 'undefined' && InformationSheetSelection !== null && typeof InformationSheetSelection === 'object') {
-                // 如果 InformationSheetSelection 本身就是一個角色對象
                 if (InformationSheetSelection.Name && (InformationSheetSelection.MemberNumber || InformationSheetSelection.ID)) {
                     character = InformationSheetSelection;
                 }
-                // 如果有 ID 屬性，嘗試在 ChatRoomCharacter 中查找
                 else if (InformationSheetSelection.ID && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
                     character = ChatRoomCharacter.find(c => c.ID === InformationSheetSelection.ID);
                 }
-                // 如果有 MemberNumber 屬性，嘗試在 ChatRoomCharacter 中查找
                 else if (InformationSheetSelection.MemberNumber && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
                     character = ChatRoomCharacter.find(c => c.MemberNumber === InformationSheetSelection.MemberNumber);
                 }
             }
-            // 方法3: 如果 InformationSheetSelection 是數字，當作 MemberNumber 處理
             else if (typeof InformationSheetSelection !== 'undefined' && typeof InformationSheetSelection === 'number') {
                 if (CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
                     character = ChatRoomCharacter.find(c => c.MemberNumber === InformationSheetSelection);
                 }
             }
 
-            // 默認返回 Player
             if (!character) {
                 character = Player;
             }
 
-            // 更新快取
             cachedViewingCharacter = character;
             lastCharacterCheck = now;
 
@@ -168,10 +183,8 @@
         }
     }
 
-    // 獲取設置 - 修改為支持遠程背景
     function getSettings() {
         try {
-            // 共享設置 - 其他玩家可見
             if (!Player?.OnlineSharedSettings?.CustomProfileBG) {
                 Player.OnlineSharedSettings.CustomProfileBG = {
                     enabled: true,
@@ -180,7 +193,6 @@
                 };
             }
 
-            // 私有設置 - 僅自己可見
             if (!Player?.OnlineSettings?.CustomProfileBG) {
                 Player.OnlineSettings.CustomProfileBG = {
                     showRemoteBackground: true
@@ -202,38 +214,31 @@
         }
     }
 
-    // 保存設置 - 修改為分別保存共享和私有設置
     function saveSettings(settings) {
         try {
             if (!Player?.OnlineSharedSettings || !Player?.OnlineSettings) return;
 
-            // 分離共享和私有設置
             const { showRemoteBackground, ...sharedSettings } = settings;
 
-            // 保存共享設置
             Player.OnlineSharedSettings.CustomProfileBG = {
                 ...sharedSettings,
                 lastUpdated: Date.now()
             };
 
-            // 保存私有設置
             Player.OnlineSettings.CustomProfileBG = {
                 showRemoteBackground: showRemoteBackground !== false
             };
 
-            // 強制上傳共享設置
             if (typeof ServerAccountUpdate?.QueueData === 'function') {
                 ServerAccountUpdate.QueueData({
                     OnlineSharedSettings: Player.OnlineSharedSettings
                 });
             }
 
-            // 嘗試觸發設置同步（靜默處理，失敗不影響功能）
             if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 try {
                     ServerPlayerExtensionSettingsSync("CustomProfileBG");
                 } catch (syncError) {
-                    // 靜默處理，這個函數主要用於官方擴展
                 }
             }
 
@@ -243,7 +248,6 @@
         }
     }
 
-    // 獲取其他玩家的自定義背景
     function getPlayerCustomBackground(character) {
         if (!character || !character.OnlineSharedSettings) {
             return null;
@@ -257,7 +261,6 @@
         return bgSettings.imageUrl;
     }
 
-    // 異步載入遠程背景（增強記憶體管理）
     async function loadRemoteBackground(imageUrl) {
         if (remoteBackgrounds.has(imageUrl)) {
             updateCacheAccess(imageUrl);
@@ -265,16 +268,13 @@
         }
 
         try {
-            const img = await loadImage(imageUrl, true); // 遠程背景需要持久化
+            const img = await loadImage(imageUrl, true);
 
-            // 清理舊快取
             cleanupImageCache();
 
-            // 添加到快取
             remoteBackgrounds.set(imageUrl, img);
             updateCacheAccess(imageUrl);
 
-            // 載入完成後立即觸發重新繪製
             if (CurrentScreen === "InformationSheet") {
                 setTimeout(() => {
                     if (typeof InformationSheetRun === 'function') {
@@ -287,21 +287,18 @@
         }
     }
 
-    // URL 安全檢查
     function isValidImageUrl(url) {
         try {
             const parsedUrl = new URL(url);
 
-            // 檢查協議
             if (parsedUrl.protocol !== 'https:') {
                 return { valid: false, error: "必須使用 HTTPS 協議" };
             }
 
-            // 檢查圖片格式
             const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
             const hasValidExtension = validExtensions.some(ext =>
-                                                           parsedUrl.pathname.toLowerCase().includes(ext)
-                                                          );
+                parsedUrl.pathname.toLowerCase().includes(ext)
+            );
 
             if (!hasValidExtension) {
                 return { valid: false, error: "不支援的圖片格式，請使用 jpg、png、gif 或 webp" };
@@ -313,11 +310,9 @@
         }
     }
 
-    // 檢查是否為個人資料頁面（快取優化）
     function isProfilePage() {
         const now = Date.now();
 
-        // 快取屏幕檢查結果
         if (now - lastScreenCheckTime < SCREEN_CACHE_TIME && lastScreenCheck !== null) {
             return lastScreenCheck;
         }
@@ -333,25 +328,34 @@
         return result;
     }
 
-    // 檢查是否應該顯示按鈕 - 只在查看自己的 profile 時顯示
     function shouldShowButton() {
         if (!isProfilePage()) return false;
 
-        // 獲取當前查看的角色
         const viewingCharacter = getCurrentViewingCharacter();
 
-        // 只有在查看自己的 profile 時才顯示按鈕
         return viewingCharacter && viewingCharacter.MemberNumber === Player.MemberNumber;
     }
 
-    // 檢查是否應該替換背景
     function shouldReplaceBackground() {
         return isProfilePage();
     }
 
-    // 載入圖片（修正記憶體洩漏和預覽顯示問題）
     async function loadImage(url, isPersistent = false) {
         try {
+            const isGameResource = url && (
+                url.includes('/BondageClub/') ||
+                url.startsWith(window.location.origin)
+            );
+
+            if (isGameResource) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = () => reject(new Error("遊戲資源載入失敗"));
+                    img.src = url;
+                });
+            }
+
             const validation = isValidImageUrl(url);
             if (!validation.valid) {
                 throw new Error(validation.error);
@@ -362,7 +366,6 @@
 
             const blob = await response.blob();
 
-            // 檢查檔案大小 (最大 10MB)
             if (blob.size > 10 * 1024 * 1024) {
                 throw new Error("圖片檔案過大，請使用小於 10MB 的圖片");
             }
@@ -371,17 +374,13 @@
                 const img = new Image();
                 const blobUrl = URL.createObjectURL(blob);
 
-                // 追蹤這個 Blob URL
                 pendingBlobUrls.add(blobUrl);
 
                 img.onload = () => {
-                    // 預覽圖片需要保留 Blob URL 用於顯示
-                    // 只有非持久化且非預覽的情況下才立即清理
                     resolve(img);
                 };
 
                 img.onerror = () => {
-                    // 錯誤時總是清理 Blob URL
                     cleanupBlobUrl(blobUrl);
                     console.error("[CPB] 圖片載入失敗:", url);
                     reject(new Error("圖片載入失敗"));
@@ -395,9 +394,7 @@
         }
     }
 
-    // 創建 UI 樣式 - 新增按鈕點擊效果
     function createUIStyles() {
-        // 避免重複創建樣式
         if (document.querySelector('#cpbg-styles')) return;
 
         const style = document.createElement('style');
@@ -649,7 +646,6 @@
         document.head.appendChild(style);
     }
 
-    // 添加按鈕點擊回饋效果
     function addButtonClickEffect(button) {
         button.addEventListener('click', function() {
             this.classList.add('clicked');
@@ -659,7 +655,6 @@
         });
     }
 
-    // 創建 UI - 修正事件綁定邏輯
     function createUI() {
         const settings = getSettings();
 
@@ -708,29 +703,23 @@
             </div>
         `;
 
-        // 綁定事件處理器
         bindUIEvents(modal);
 
-        // 儲存引用
         uiElements.modal = modal;
         document.body.appendChild(modal);
     }
 
-    // 單獨的事件綁定函數
     function bindUIEvents(modal) {
-        // 按鈕引用
         const closeBtn = modal.querySelector('.cpbg-close');
         const cancelBtn = modal.querySelector('#cpbg-cancel-btn');
         const saveBtn = modal.querySelector('#cpbg-save-btn');
         const previewBtn = modal.querySelector('#cpbg-preview-btn');
 
-        // 事件處理器
         const handleClose = () => closeUI();
         const handleModalClick = (e) => {
             if (e.target === modal) closeUI();
         };
 
-        // 預覽功能
         const handlePreview = async () => {
             const urlInput = modal.querySelector('#cpbg-url-input');
             const preview = modal.querySelector('#cpbg-preview');
@@ -753,7 +742,6 @@
             errorDiv.textContent = '';
 
             try {
-                // 清理之前的預覽背景
                 if (preview.style.backgroundImage) {
                     const oldUrl = preview.style.backgroundImage.match(/url\("([^"]+)"\)/);
                     if (oldUrl && oldUrl[1] && oldUrl[1].startsWith('blob:')) {
@@ -761,7 +749,6 @@
                     }
                 }
 
-                // 直接通過Image對象載入並顯示
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`無法載入圖片: ${response.status}`);
 
@@ -773,7 +760,6 @@
                 const previewUrl = URL.createObjectURL(blob);
                 pendingBlobUrls.add(previewUrl);
 
-                // 測試圖片是否能正確載入
                 const testImg = new Image();
                 await new Promise((resolve, reject) => {
                     testImg.onload = resolve;
@@ -795,7 +781,6 @@
             }
         };
 
-        // 保存設置
         const handleSave = async () => {
             const urlInput = modal.querySelector('#cpbg-url-input');
             const errorDiv = modal.querySelector('#cpbg-url-error');
@@ -829,19 +814,16 @@
             closeUI();
         };
 
-        // 綁定事件
         closeBtn.addEventListener('click', handleClose);
         cancelBtn.addEventListener('click', handleClose);
         saveBtn.addEventListener('click', handleSave);
         previewBtn.addEventListener('click', handlePreview);
         modal.addEventListener('click', handleModalClick);
 
-        // 添加按鈕點擊效果
         [closeBtn, cancelBtn, saveBtn, previewBtn].forEach(btn => {
             if (btn) addButtonClickEffect(btn);
         });
 
-        // 儲存事件處理器引用（如果需要手動清理）
         uiElements.eventHandlers = {
             handleClose,
             handleModalClick,
@@ -850,18 +832,15 @@
         };
     }
 
-    // 顯示錯誤
     function showError(errorDiv, message) {
         if (errorDiv) {
             errorDiv.textContent = message;
         }
     }
 
-    // 打開 UI - 修正邏輯
     function openUI() {
         if (isUIOpen) return;
 
-        // 總是重新創建UI以確保事件正確綁定
         if (uiElements.modal) {
             uiElements.modal.remove();
             uiElements.modal = null;
@@ -874,7 +853,6 @@
         uiElements.modal.style.display = 'flex';
     }
 
-    // 關閉 UI - 簡化邏輯
     function closeUI() {
         if (!isUIOpen) return;
 
@@ -884,13 +862,11 @@
         }
     }
 
-    // Hook drawImage 替換背景（優化效能）
     function setupDrawImageHook() {
         const originalDrawImage = CanvasRenderingContext2D.prototype.drawImage;
 
         CanvasRenderingContext2D.prototype.drawImage = function(img, ...args) {
             try {
-                // 快速檢查是否需要處理
                 if (img && img.src && img.src.includes("Backgrounds/Sheet.jpg")) {
                     const shouldReplace = shouldReplaceBackground();
 
@@ -898,10 +874,8 @@
                         const settings = getSettings();
                         const viewingCharacter = getCurrentViewingCharacter();
 
-                        // 確定要使用的背景
                         let targetBG = null;
 
-                        // 如果查看其他玩家且啟用了遠程背景顯示
                         if (viewingCharacter &&
                             viewingCharacter.MemberNumber !== Player.MemberNumber &&
                             settings.showRemoteBackground) {
@@ -913,7 +887,6 @@
                                     targetBG = remoteBackgrounds.get(remoteImageUrl);
                                     updateCacheAccess(remoteImageUrl);
                                 } else {
-                                    // 異步載入遠程背景
                                     loadRemoteBackground(remoteImageUrl).then(() => {
                                         if (CurrentScreen === "InformationSheet") {
                                             setTimeout(() => {
@@ -924,7 +897,6 @@
                                         }
                                     });
 
-                                    // 載入期間使用自己的背景作為後備
                                     if (settings.enabled && customBG) {
                                         targetBG = customBG;
                                     }
@@ -932,12 +904,10 @@
                             }
                         }
 
-                        // 如果沒有遠程背景，使用自己的背景
                         if (!targetBG && settings.enabled && customBG) {
                             targetBG = customBG;
                         }
 
-                        // 應用背景
                         if (targetBG) {
                             const canvas = this.canvas;
                             if (canvas) {
@@ -954,7 +924,6 @@
         };
     }
 
-    // 繪製按鈕
     function drawButton() {
         const shouldShow = shouldShowButton();
 
@@ -973,7 +942,6 @@
         }
     }
 
-    // 處理按鈕點擊
     function handleClick() {
         if (!shouldShowButton()) return false;
         if (MouseIn(BUTTON_X, BUTTON_Y, BUTTON_SIZE, BUTTON_SIZE)) {
@@ -983,7 +951,6 @@
         return false;
     }
 
-    // 等待 bcModSdk 載入
     function waitForBcModSdk(timeout = 30000) {
         const start = Date.now();
         return new Promise(resolve => {
@@ -1001,7 +968,6 @@
         });
     }
 
-    // 初始化 modApi
     async function initializeModApi() {
         const success = await waitForBcModSdk();
         if (!success) return null;
@@ -1021,7 +987,6 @@
         }
     }
 
-    // 等待遊戲載入
     function waitForGame(timeout = 30000) {
         const start = Date.now();
         return new Promise(resolve => {
@@ -1045,22 +1010,17 @@
         });
     }
 
-    // 設置 ModSDK Hooks（增強錯誤處理）
     function setupHooks() {
         if (!modApi || typeof modApi.hookFunction !== 'function') {
             console.error("[CPB] modApi 未正確初始化，無法設置 hooks");
             return;
         }
 
-        // 检测是否有 Themed-BC
         const hasThemed = window.Themed || window.Player?.Themed;
-        //console.log("[CPB] Themed-BC 检测:", hasThemed ? "已找到" : "未找到");
 
-        // CPB 背景控制标记
         let cpbControllingBackground = false;
 
         if (hasThemed) {
-            // 如果有 Themed，使用高优先级 hook DrawRoomBackground
             modApi.hookFunction("DrawRoomBackground", 100, (args, next) => {
                 try {
                     const [url] = args;
@@ -1070,7 +1030,6 @@
 
                         let targetBG = null;
 
-                        // 确定要使用的背景
                         if (viewingCharacter &&
                             viewingCharacter.MemberNumber !== Player.MemberNumber &&
                             settings.showRemoteBackground) {
@@ -1088,24 +1047,20 @@
                         if (targetBG) {
                             cpbControllingBackground = true;
 
-                            // 保存 canvas 状态并重置
                             MainCanvas.save();
                             MainCanvas.globalCompositeOperation = "source-over";
                             MainCanvas.filter = "none";
                             MainCanvas.globalAlpha = 1;
 
-                            // 绘制自定义背景到整个屏幕
                             MainCanvas.drawImage(targetBG, 0, 0, 2000, 1000);
 
                             MainCanvas.restore();
 
-                            // 延迟重置标记
                             setTimeout(() => {
                                 cpbControllingBackground = false;
                             }, 200);
 
-                            //console.log("[CPB] 已绘制自定义背景 (Themed兼容模式)");
-                            return; // 阻止 Themed 的后续处理
+                            return;
                         }
                     }
 
@@ -1118,12 +1073,10 @@
                 }
             });
 
-            // 阻止 Themed 的颜色叠加
             modApi.hookFunction("DrawRect", 200, (args, next) => {
                 try {
                     const [Left, Top, Width, Height, Color] = args;
 
-                    // 如果 CPB 正在控制背景，并且这是全屏颜色叠加，跳过它
                     if (cpbControllingBackground &&
                         Left === 0 && Top === 0 &&
                         Width >= 2000 && Height >= 1000 &&
@@ -1141,11 +1094,9 @@
             });
 
         } else {
-            // 没有 Themed 时使用原有的 drawImage hook
             setupDrawImageHook();
         }
 
-        // 其他现有的 hooks 保持不变
         modApi.hookFunction("InformationSheetRun", 10, (args, next) => {
             try {
                 const result = next(args);
@@ -1198,7 +1149,7 @@
                 lastCharacterCheck = 0;
                 lastScreenCheck = null;
                 lastScreenCheckTime = 0;
-                cpbControllingBackground = false; // 重置标记
+                cpbControllingBackground = false;
 
                 if (isUIOpen) {
                     closeUI();
@@ -1209,34 +1160,27 @@
                 return next(args);
             }
         });
-
-        //console.log("[CPB] ModSDK hooks 設置完成 (Themed 兼容模式:", hasThemed ? "啟用" : "禁用", ")");
     }
-    // 完整資源清理函數
+
     function cleanup() {
         console.log("[CPB] 開始資源清理...");
 
         try {
-            // 停止定時器
             stopInterfaceMonitoring();
 
-            // 清理 UI
             closeUI();
 
-            // 清理所有 UI 元素
             if (uiElements.modal) {
                 uiElements.modal.remove();
                 uiElements.modal = null;
             }
             uiElements.eventHandlers = null;
 
-            // 清理樣式
             const styleElement = document.querySelector('#cpbg-styles');
             if (styleElement) {
                 styleElement.remove();
             }
 
-            // 清理圖片快取和 Blob URLs
             for (const [key, img] of remoteBackgrounds) {
                 if (img && img.src) {
                     cleanupBlobUrl(img.src);
@@ -1245,13 +1189,11 @@
             remoteBackgrounds.clear();
             cacheAccessOrder = [];
 
-            // 清理待處理的 Blob URLs
             for (const blobUrl of pendingBlobUrls) {
                 cleanupBlobUrl(blobUrl);
             }
             pendingBlobUrls.clear();
 
-            // 清理主要圖片資源
             if (customBG && customBG.src && customBG.src.startsWith('blob:')) {
                 cleanupBlobUrl(customBG.src);
             }
@@ -1262,14 +1204,12 @@
             customBG = null;
             buttonImage = null;
 
-            // 清理快取變量
             currentViewingCharacter = null;
             cachedViewingCharacter = null;
             lastCharacterCheck = 0;
             lastScreenCheck = null;
             lastScreenCheckTime = 0;
 
-            // 重置狀態
             isInitialized = false;
             isUIOpen = false;
             lastButtonState = false;
@@ -1280,28 +1220,24 @@
         }
     }
 
-    // 主初始化函數
     async function initialize() {
         if (isInitialized) return;
 
         console.log("[CPB] 開始初始化...");
 
         try {
-            // 初始化 modApi
             modApi = await initializeModApi();
             if (!modApi) {
                 console.error("[CPB] modApi 初始化失敗，無法繼續");
                 return;
             }
 
-            // 等待遊戲載入
             const gameLoaded = await waitForGame();
             if (!gameLoaded) {
                 console.error("[CPB] 遊戲載入失敗，無法繼續");
                 return;
             }
 
-            // 載入設置中的背景圖片
             const settings = getSettings();
 
             if (settings.enabled && settings.imageUrl) {
@@ -1309,10 +1245,8 @@
                     customBG = await loadImage(settings.imageUrl, true);
                 } catch (error) {
                     console.warn("[CPB] 載入保存的背景失敗:", error.message);
-                    // 如果載入失敗，嘗試載入默認背景
                     try {
                         customBG = await loadImage(DEFAULT_BG_URL, true);
-                        // 更新設置為默認URL
                         const newSettings = { ...settings, imageUrl: DEFAULT_BG_URL };
                         saveSettings(newSettings);
                     } catch (defaultError) {
@@ -1320,10 +1254,8 @@
                     }
                 }
             } else if (!settings.imageUrl) {
-                // 如果沒有設置圖片URL，載入默認背景
                 try {
                     customBG = await loadImage(DEFAULT_BG_URL, true);
-                    // 更新設置為默認URL
                     const newSettings = { ...settings, imageUrl: DEFAULT_BG_URL };
                     saveSettings(newSettings);
                 } catch (error) {
@@ -1331,30 +1263,22 @@
                 }
             }
 
-            // 載入按鈕圖標（持久化圖片）
             try {
-                buttonImage = await loadImage(BUTTON_IMAGE_URL, true);
-            } catch (error) {
-                console.warn("[CPB] 載入按鈕圖標失敗，嘗試直接使用原始 URL:", error.message);
-                // 備用方案：直接使用原始 URL
-                try {
-                    buttonImage = new Image();
-                    buttonImage.src = BUTTON_IMAGE_URL;
-                    await new Promise((resolve, reject) => {
-                        buttonImage.onload = resolve;
-                        buttonImage.onerror = reject;
-                    });
-                } catch (backupError) {
-                    console.error("[CPB] 按鈕圖標備用載入也失敗:", backupError.message);
-                    buttonImage = null;
+                const buttonImageURL = getButtonImageURL();
+                if (buttonImageURL) {
+                    buttonImage = await loadImage(buttonImageURL, true);
+                    console.log("[CPB] ✅ 按鈕圖標載入成功");
+                } else {
+                    throw new Error("無法獲取按鈕圖標路徑");
                 }
+            } catch (error) {
+                console.warn("[CPB] 載入按鈕圖標失敗:", error.message);
+                buttonImage = null;
             }
 
-            // 設置 hooks
             setupDrawImageHook();
             setupHooks();
 
-            // 設置卸載處理
             if (modApi && typeof modApi.onUnload === 'function') {
                 modApi.onUnload(() => {
                     console.log("[CPB] 模組卸載中...");
@@ -1362,21 +1286,17 @@
                 });
             }
 
-            // 設置頁面卸載處理
             window.addEventListener('beforeunload', cleanup);
 
-            // 啟動界面監控
             startInterfaceMonitoring();
 
             isInitialized = true;
             console.log("[CPB] ✅ 初始化完成");
         } catch (e) {
             console.error("[CPB] 初始化失敗:", e.message);
-            // 初始化失敗時也要清理
             cleanup();
         }
     }
 
-    // 啟動腳本
     initialize();
 })();
