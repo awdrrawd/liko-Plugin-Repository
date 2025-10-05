@@ -100,7 +100,6 @@
             Player.OnlineSettings.NotifyOnInvite.whiteMsg = s;
             try {
                 ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
-                log("白名單訊息已更新並同步至伺服器");
             } catch (e) {
                 error("無法同步白名單訊息:", e.message);
             }
@@ -112,7 +111,6 @@
             Player.OnlineSettings.NotifyOnInvite.blackMsg = s;
             try {
                 ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
-                log("黑名單訊息已更新並同步至伺服器");
             } catch (e) {
                 error("無法同步黑名單訊息:", e.message);
             }
@@ -124,7 +122,6 @@
             Player.OnlineSettings.NotifyOnInvite.friendMsg = s;
             try {
                 ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
-                log("好友訊息已更新並同步至伺服器");
             } catch (e) {
                 error("無法同步好友訊息:", e.message);
             }
@@ -134,28 +131,15 @@
     // ------------ 檢查是否在房間 ------------
     function isPlayerInChatRoom(memberNumber) {
         if (!ChatRoomCharacter || !Array.isArray(ChatRoomCharacter)) {
-            log("ChatRoomCharacter 不存在或不是陣列");
             return false;
         }
 
         const found = ChatRoomCharacter.some(c => c.MemberNumber === memberNumber);
-        log(`檢查玩家 ${memberNumber} 是否在房間: ${found}`);
         return found;
     }
 
     // ------------ 通知邏輯 ------------
     function sendListMessage(msg, addedMemberNumber, listType) {
-        if (!msg || String(msg).trim() === "") {
-            log(`${listType} 訊息為空，不發送`);
-            return;
-        }
-
-        // 檢查目標玩家是否在房間內
-        if (!isPlayerInChatRoom(addedMemberNumber)) {
-            log(`玩家 ${addedMemberNumber} 不在房間內，不發送 ${listType} 訊息`);
-            return;
-        }
-
         const myName = (Player?.Nickname && Player.Nickname.trim()) ? Player.Nickname : (Player?.Name || "Unknown");
         let targetName = "Unknown";
 
@@ -177,11 +161,10 @@
                 Type: "Emote",
                 Content: `*${finalMsg}`
             });
-            log(`已發送${listType}變動訊息:`, finalMsg);
 
             // 本地提示
             const listNames = { white: "白名单", black: "黑名单", friend: "好友" };
-            ChatRoomSendLocal(`${listNames[listType]}通知设置：${msg}`, 5000);
+            //ChatRoomSendLocal(`${listNames[listType]}通知设置：${msg}`, 5000);
         } catch (e) {
             error("發送名單訊息失敗:", e.message);
         }
@@ -209,7 +192,6 @@
         if (!arraysEqual(curWhite, lastWhiteList)) {
             const added = curWhite.filter(id => !lastWhiteList.includes(id));
             if (added.length > 0) {
-                log("檢測到白名單新增:", added);
                 const m = getWhiteMsg();
                 if (m && m.trim() !== "") {
                     added.forEach(id => {
@@ -224,7 +206,6 @@
         if (!arraysEqual(curBlack, lastBlackList)) {
             const added = curBlack.filter(id => !lastBlackList.includes(id));
             if (added.length > 0) {
-                log("檢測到黑名單新增:", added);
                 const m = getBlackMsg();
                 if (m && m.trim() !== "") {
                     added.forEach(id => {
@@ -239,7 +220,6 @@
         if (!arraysEqual(curFriends, lastFriendList)) {
             const added = curFriends.filter(id => !lastFriendList.includes(id));
             if (added.length > 0) {
-                log("檢測到好友名單新增:", added);
                 const m = getFriendMsg();
                 if (m && m.trim() !== "") {
                     added.forEach(id => {
@@ -377,7 +357,6 @@
             }
             return original_ChatRoomSendChat.apply(this, arguments);
         };
-        log("已安裝聊天攔截 fallback（/noi）");
     }
 
     // 嘗試用 CommandCombine 註冊（較佳）
@@ -391,7 +370,6 @@
                         handle_NOI_Command(text);
                     }
                 }]);
-                log("/noi 已透過 CommandCombine 註冊");
                 return true;
             }
         } catch (e) {
@@ -407,12 +385,7 @@
                 next(args);
                 setTimeout(() => {
                     if (!window.LikoNOIWelcomed) {
-                        /*ChatRoomSendLocalStyled(
-                            " 📧 Liko的邀请通知器 v1.2 (優化版) 已載入！使用 /noi help 查看说明",
-                            5000,
-                            "#885CB0"
-                        );*/
-                        window.ChatRoomSendLocalStyled(" 📧 Liko的邀请通知器 v1.1 已載入！使用 /noi help 查看说明",
+                        window.ChatRoomSendLocalStyled(" 📧 Liko的邀请通知器 v"+modversion+" 已載入！使用 /noi help 查看说明",
                             5000,
                             "#885CB0"
                         );
@@ -433,7 +406,6 @@
                     if ('WhiteList' in data) {
                         const added = data.WhiteList.filter(id => !lastWhiteList.includes(id));
                         if (added.length > 0) {
-                            log("檢測到白名單新增:", added);
                             const m = getWhiteMsg();
                             if (m && m.trim() !== "") {
                                 added.forEach(id => {
@@ -448,7 +420,6 @@
                     if ('BlackList' in data) {
                         const added = data.BlackList.filter(id => !lastBlackList.includes(id));
                         if (added.length > 0) {
-                            log("檢測到黑名單新增:", added);
                             const m = getBlackMsg();
                             if (m && m.trim() !== "") {
                                 added.forEach(id => {
@@ -463,7 +434,6 @@
                     if ('FriendList' in data) {
                         const added = data.FriendList.filter(id => !lastFriendList.includes(id));
                         if (added.length > 0) {
-                            log("檢測到好友名單新增:", added);
                             const m = getFriendMsg();
                             if (m && m.trim() !== "") {
                                 added.forEach(id => {
@@ -476,7 +446,6 @@
                 }
                 next(args);
             });
-            log("已 hook ServerAccountUpdate.QueueData 來偵測名單變化");
         }
     }
 
@@ -498,8 +467,6 @@
         lastBlackList = [...(Player?.BlackList || [])];
         lastFriendList = [...(Player?.FriendList || [])];
 
-        log("初始名單狀態已記錄");
-
         const cmdReady = await waitFor(() => typeof CommandCombine === "function", 10000);
         if (cmdReady) {
             tryRegisterCommand();
@@ -519,12 +486,10 @@
                     error("interval 錯誤:", e);
                 }
             }, 1000);
-            log("無 modApi，使用 fallback 定時檢查");
         }
 
         // 標記初始化完成
         isInitialized = true;
-        log("初始化完成，開始監聽名單變化");
     }
 
     // ------------ 小工具（顯示本地訊息） ------------
