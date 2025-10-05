@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.6
+// @version      1.5.1
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -23,7 +23,34 @@
     window.LIKO_PRANK_LOADED = true;
 
     let modApi;
-    const modversion = "1.6";
+    const modversion = "1.5.1";
+
+    // ===== 图片路径辅助工具 =====
+    const ImagePathHelper = {
+        _cachedBasePath: null,
+
+        getBasePath: function() {
+            if (this._cachedBasePath) return this._cachedBasePath;
+
+            let href = window.location.href;
+            
+            // 确保结尾有斜线
+            if (!href.endsWith('/')) {
+                href = href.substring(0, href.lastIndexOf('/') + 1);
+            }
+            
+            this._cachedBasePath = href;
+            return href;
+        },
+
+        getAssetURL: function(path) {
+            return this.getBasePath() + 'Assets/' + path;
+        },
+
+        clearCache: function() {
+            this._cachedBasePath = null;
+        }
+    };
 
     // ===== 多语言支持 =====
     function detectLanguage() {
@@ -157,37 +184,6 @@
         const isZh = detectLanguage();
         return messages[isZh ? 'zh' : 'en'][key];
     }
-
-    // ===== 图片路径辅助工具 =====
-    const ImagePathHelper = {
-        _cachedBasePath: null,
-
-        getBasePath: function() {
-            if (this._cachedBasePath) return this._cachedBasePath;
-
-            const currentUrl = window.location.href;
-            const urlMatch = currentUrl.match(/\/(?:club\/)?(R\d+)\//);
-            if (urlMatch) {
-                const version = urlMatch[1];
-                const hostname = window.location.hostname;
-                const protocol = window.location.protocol;
-                if (hostname.includes('bondage-asia.com')) {
-                    this._cachedBasePath = protocol + '//' + hostname + '/club/' + version + '/BondageClub';
-                } else {
-                    this._cachedBasePath = protocol + '//' + hostname + '/' + version + '/BondageClub';
-                }
-                return this._cachedBasePath;
-            }
-        },
-
-        getAssetURL: function(path) {
-            return this.getBasePath() + '/Assets/' + path;
-        },
-
-        clearCache: function() {
-            this._cachedBasePath = null;
-        }
-    };
 
     try {
         if (typeof bcModSdk === "object" && typeof bcModSdk.registerMod === "function") {
