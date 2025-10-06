@@ -18,7 +18,7 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.3.2";
+    const modversion = "1.3.3";
     let cachedViewingCharacter = null;
     let lastCharacterCheck = 0;
     let lastScreenCheck = null;
@@ -698,6 +698,19 @@ Recommend selectively enabling plugins for the best experience.`,
             icon: "🎬",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20ACV.main.user.js",
             enabled: pluginSettings["Liko_ACV"] ?? true,
+            priority: 5
+        },
+        {
+            id: "Liko_CMC",
+            name: "Liko的聊天室音樂控制器",
+            en_name: "Liko's Music Controller.",
+            description: "支援歌詞(需要有曲名)、歌曲列表、flac等格式",
+            en_description: "Supports lyrics (must have song title), song list, flac and other formats.",
+            additionalInfo: "",
+            en_additionalInfo: "",
+            icon: "🎵",
+            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CMC.main.user.js",
+            enabled: pluginSettings["Liko_CMC"] ?? true,
             priority: 5
         },
         {
