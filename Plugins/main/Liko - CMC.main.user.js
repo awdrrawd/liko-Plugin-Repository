@@ -1466,7 +1466,8 @@
             modApi = bcModSdk.registerMod({
                 name: "CMC",
                 fullName: "Chat Music Controller",
-                version: MOD_VERSION
+                version: MOD_VERSION,
+                repository: '聊天室音樂控制器 | Chat Music Controller'
             });
             log('ModSDK注册成功');
         } catch (e) {
