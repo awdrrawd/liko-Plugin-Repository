@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.2.1
+// @version      1.2.2
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function() {
     let modApi = null;
-    const modversion = "1.2.1";
+    const modversion = "1.2.2";
 
     // 等待 bcModSdk 載入的函數
     function waitForBcModSdk(timeout = 30000) {
@@ -414,19 +414,24 @@
             const [C, options] = args;
             const result = next(args);
 
-            // 检查是否启用（值为 1）
+            // 檢查是否啟用身高劫持
             if (Player.OnlineSharedSettings?.LikoTOOL?.height === 1 && C && C.MemberNumber) {
                 setTimeout(() => {
                     if (!C._heightHijacked) {
+                        // 儲存原始身高數據
                         C._realHeightRatio = C.HeightRatio;
                         C._realHeightModifier = C.HeightModifier;
 
+                        // 僅當 HeightRatio < 0.81 或 > 1 時設為 1.0
                         Object.defineProperty(C, 'HeightRatio', {
-                            get() { return 1.0; },
+                            get() {
+                                return (C._realHeightRatio < 0.81 || C._realHeightRatio > 1) ? 1.0 : C._realHeightRatio;
+                            },
                             set(v) { this._realHeightRatio = v; },
                             configurable: true
                         });
 
+                        // HeightModifier 固定為 0（與原腳本一致）
                         Object.defineProperty(C, 'HeightModifier', {
                             get() { return 0; },
                             set(v) { this._realHeightModifier = v; },
@@ -444,6 +449,7 @@
         safeHookFunction("DialogLeave", 10, (args, next) => {
             if (CurrentCharacter && CurrentCharacter._heightHijacked) {
                 const C = CurrentCharacter;
+                // 恢復原始身高數據
                 delete C.HeightRatio;
                 delete C.HeightModifier;
                 C.HeightRatio = C._realHeightRatio;
