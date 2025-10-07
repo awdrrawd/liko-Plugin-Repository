@@ -2,7 +2,7 @@
 // @name         Liko - Region switch
 // @name:zh      快速切換混合&女性區
 // @namespace    https://likolisu.dev/
-// @version      1.0
+// @version      1.1
 // @description  快速切換混合/女性區 | Region switch
 // @author       Likolisu & yu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
     'use strict';
 
     let modApi = null;
-    const modversion = "1.0";
+    const modversion = "1.1";
     const BTN_X = 1555;
     const BTN_Y = 25;
     const BTN_SIZE = 90;
