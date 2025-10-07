@@ -6,6 +6,7 @@
 // @description  快速切換混合/女性區 | Region switch
 // @author       Likolisu & yu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @run-at       document-end
@@ -43,6 +44,34 @@
             check();
         });
     }
+// 檢測目前區域
+function detectCurrentZone() {
+    try {
+        if (typeof Player !== 'undefined' && Player.ChatSearchSettings) {
+            const space = Player.ChatSearchSettings.Space;
+            if (space === "X") return true;   // 混合區
+            if (space === "") return false;   // 女性區
+        }
+        if (typeof ChatSearchFemaleOnly !== 'undefined') {
+            return !ChatSearchFemaleOnly ? true : false;
+        }
+    } catch (e) {
+        console.warn("[Region switch] 無法判定區域:", e);
+    }
+    // 預設混合區
+    return true;
+}
+
+// 載入保存的狀態
+function loadSavedState() {
+    const storedZone = localStorage.getItem("ChatSearchSwitch_Zone");
+    if (storedZone !== null) {
+        inMixedZone = storedZone === "Mixed";
+    } else {
+        // 若沒有保存過，就依目前實際區域設定
+        inMixedZone = detectCurrentZone();
+    }
+}
 
     // 執行搜索
     function performSearch() {
@@ -104,22 +133,19 @@
 
             // Hook ChatSearchLoad: 同步狀態
             modApi.hookFunction("ChatSearchLoad", 1, (args, next) => {
-                const result = next(args);
-
-                try {
-                    if (typeof Player !== 'undefined' && Player.ChatSearchSettings) {
-                        Player.ChatSearchSettings.Space = inMixedZone ? "X" : "";
-                    }
-
-                    if (typeof ChatSearchFemaleOnly !== 'undefined') {
-                        ChatSearchFemaleOnly = !inMixedZone;
-                    }
-                } catch (error) {
-                    console.error("[Region switch] ChatSearchLoad Hook 錯誤:", error);
-                }
-
-                return result;
-            });
+    const result = next(args);
+    try {
+        // 強制同步實際狀態
+        inMixedZone = detectCurrentZone();
+        Player.ChatSearchSettings.Space = inMixedZone ? "X" : "";
+        if (typeof ChatSearchFemaleOnly !== 'undefined') {
+            ChatSearchFemaleOnly = !inMixedZone;
+        }
+    } catch (error) {
+        console.error("[Region switch] ChatSearchLoad Hook 錯誤:", error);
+    }
+    return result;
+});
 
             // Hook ChatSearchRun: 繪製切換按鈕
             modApi.hookFunction("ChatSearchRun", 1, (args, next) => {
