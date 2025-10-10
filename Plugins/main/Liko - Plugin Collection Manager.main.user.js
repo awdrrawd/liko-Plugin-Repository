@@ -700,7 +700,7 @@ Recommend selectively enabling plugins for the best experience.`,
             enabled: pluginSettings["Liko_ACV"] ?? true,
             priority: 5
         },
-        {
+        /*{
             id: "Liko_CMC",
             name: "Liko的聊天室音樂控制器",
             en_name: "Liko's Music Controller.",
@@ -712,7 +712,7 @@ Recommend selectively enabling plugins for the best experience.`,
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CMC.main.user.js",
             enabled: pluginSettings["Liko_CMC"] ?? true,
             priority: 5
-        },
+        },*/
         {
             id: "Liko - Region switch",
             name: "快速切換混合&女性區",
