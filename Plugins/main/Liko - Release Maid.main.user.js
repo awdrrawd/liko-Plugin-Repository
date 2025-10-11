@@ -218,50 +218,88 @@
 
     // === 查詢關係函數 ===
     function queryRelationship(target) {
-        if (!target) {
-            console.warn("[Release Bot] 查詢目標無效");
-            return;
-        }
+        const c = target;
 
-        try {
-            let output = `${target.Name}(${target.MemberNumber})的關係為\n`;
+        if (!c) {
+            ChatRoomSendLocal("❌ 找不到目標角色。");
+        } else {
+            let output = `💠 ${c.Name} (${c.MemberNumber}) 的關係狀況：\n`;
+
+            //  🎂 加入遊戲開始時間
+            if (c.Creation) {
+                const creationTime = new Date(c.Creation);
+                output += ` 🎂 誕生日：${creationTime.toLocaleString()}\n`;
+            }
 
             // 主人
-            if (target.Ownership) {
-                const owners = Array.isArray(target.Ownership) ? target.Ownership : [target.Ownership];
+            if (c.Ownership) {
+                const owners = Array.isArray(c.Ownership) ? c.Ownership : [c.Ownership];
                 owners.forEach(owner => {
-                    try {
-                        const startDate = new Date(owner.Start);
-                        const now = new Date();
-                        const days = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
-                        output += `主人 ${owner.Name}(${owner.MemberNumber}) 總共${days}天 起始時間 ${startDate.toLocaleString()}\n`;
-                    } catch (e) {
-                        output += `主人 ${owner.Name}(${owner.MemberNumber}) (日期解析錯誤)\n`;
-                    }
+                    const startTime = new Date(owner.Start); // UNIX 毫秒
+                    const now = new Date();
+                    const days = Math.floor((now - startTime) / (1000 * 60 * 60 * 24));
+
+                    // 主人階段：0=試用、1=認主
+                    const stageLabel = owner.Stage === 0 ? "試用期" :
+                    owner.Stage === 1 ? "認主" : "未知";
+
+                    output += `👑 主人：${owner.Name} (${owner.MemberNumber})\n`;
+                    output += `　${stageLabel}：${days} 天\n`;
+                    output += `　開始時間：${startTime.toLocaleString()}\n`;
                 });
             } else {
-                output += `沒有主人\n`;
+                output += `🚫 沒有主人\n`;
             }
 
             // 戀人
-            if (Array.isArray(target.Lovership) && target.Lovership.length > 0) {
-                target.Lovership.forEach(love => {
-                    try {
-                        const startDate = new Date(love.Start);
-                        const now = new Date();
-                        const days = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
-                        output += `戀人 ${love.Name}(${love.MemberNumber}) 總共${days}天 起始時間 ${startDate.toLocaleString()}\n`;
-                    } catch (e) {
-                        output += `戀人 ${love.Name}(${love.MemberNumber}) (日期解析錯誤)\n`;
-                    }
+            if (c.Lovership && c.Lovership.length > 0) {
+                c.Lovership.forEach(love => {
+                    const startTime = new Date(love.Start);
+                    const now = new Date();
+                    const days = Math.floor((now - startTime) / (1000 * 60 * 60 * 24));
+
+                    // 戀人階段：0=約會、1=訂婚、2=結婚
+                    const stageLabel = love.Stage === 0 ? "約會" :
+                    love.Stage === 1 ? "訂婚" :
+                    love.Stage === 2 ? "結婚" : "未知";
+
+                    output += `💞 戀人：${love.Name} (${love.MemberNumber})\n`;
+                    output += `　${stageLabel}：${days} 天\n`;
+                    output += `　開始時間：${startTime.toLocaleString()}\n`;
                 });
             } else {
-                output += `沒有戀人\n`;
+                output += `🚫 沒有戀人\n`;
             }
 
-            sendSystemAction(output);
-        } catch (e) {
-            console.error("[Release Bot] 查詢關係失敗:", e.message);
+            // 難度紀錄
+            if (c.Difficulty) {
+                const diff = c.Difficulty;
+                const lastChange = new Date(diff.LastChange);
+                const now = new Date();
+                const days = Math.floor((now - lastChange) / (1000 * 60 * 60 * 24));
+
+                // 難度階段對應
+                const diffLabel = diff.Level === 0 ? "角色扮演" :
+                diff.Level === 1 ? "普通" :
+                diff.Level === 2 ? "硬核" :
+                diff.Level === 3 ? "極限" : "未知";
+
+                output += `⚙️ 當前難度：${diffLabel}\n`;
+                output += `　最後變更：${lastChange.toLocaleString()}\n`;
+                output += `　維持天數：${days} 天\n`;
+            }
+
+            // 顯示在聊天
+            ServerSend("ChatRoomChat", {
+                Type: "Action",
+                Content: "CUSTOM_SYSTEM_RELATION_INFO",
+                Dictionary: [
+                    {
+                        Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_RELATION_INFO',
+                        Text: output
+                    }
+                ]
+            });
         }
     }
 
