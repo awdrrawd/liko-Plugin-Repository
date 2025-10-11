@@ -2,7 +2,7 @@
 // @name         Liko - Image Uploader
 // @name:zh      Liko的圖片上傳器
 // @namespace    https://likolisu.dev/
-// @version      1.2
+// @version      1.3
 // @description  Bondage Club - 上傳圖片到圖床並分享網址
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function () {
     let modApi = null;
-    const modversion = "1.2";
+    const modversion = "1.3";
     let imageHost = "litterbox"; // 預設圖床為 Litterbox（主力）
 
     // 等待 bcModSdk
@@ -89,6 +89,9 @@
             case "tmpfiles":
                 maxSize = 100 * 1024 * 1024; // 100MB
                 break;
+            case "cloudflare":
+                maxSize = 10 * 1024 * 1024; // 10MB
+                break;
             case "litterbox":
             default:
                 maxSize = 100 * 1024 * 1024; // 100MB
@@ -100,6 +103,7 @@
     // 獲取文件大小限制文字
     function getMaxSizeText(host = imageHost) {
         switch(host) {
+            case "cloudflare": return "10MB";
             case "uguu": return "128MB";
             case "imgbb": return "32MB";
             case "tmpfiles": return "100MB";
@@ -113,7 +117,6 @@
         if (Player && Player.OnlineSettings && Player.OnlineSettings.LikoImageUploader) {
             const settings = Player.OnlineSettings.LikoImageUploader;
             imageHost = settings.imageHost || "litterbox";
-            console.log("[IMG] 從 OnlineSettings 載入設定:", { imageHost });
         } else {
             console.warn("[IMG] OnlineSettings 不可用，使用預設設定");
         }
@@ -131,7 +134,6 @@
         };
         if (typeof ServerAccountUpdate?.QueueData === 'function') {
             ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
-            console.log("[IMG] 設定已保存到 OnlineSettings:", Player.OnlineSettings.LikoImageUploader);
         } else {
             console.warn("[IMG] ServerAccountUpdate.QueueData 不可用，設定未同步");
             ChatRoomSendLocalStyled("⚠️ 無法同步設定，模組可能干擾", 4000, "#FFA500");
@@ -168,7 +170,7 @@
                 throw new Error(`HTTP ${res.status}: ${res.statusText}`);
             }
             const text = (await res.text()).trim();
-            console.log("[IMG] Litterbox response:", text);
+            //console.log("[IMG] Litterbox response:", text);
             if (!text.startsWith("http")) {
                 throw new Error(`Litterbox API 返回錯誤: ${text}`);
             }
@@ -210,7 +212,7 @@
                 throw new Error(`HTTP ${res.status}: ${res.statusText}`);
             }
             const json = await res.json();
-            console.log("[IMG] Uguu response:", json);
+            //console.log("[IMG] Uguu response:", json);
             if (!json.success || !json.files?.[0]?.url) {
                 throw new Error(`Uguu API 返回錯誤: ${json.description || '未知錯誤'}`);
             }
@@ -253,10 +255,10 @@
                 body: form
             });
 
-            console.log(`[IMG] ImgBB Worker 回應狀態: ${res.status}`);
+            //console.log(`[IMG] ImgBB Worker 回應狀態: ${res.status}`);
 
             const responseText = await res.text();
-            console.log(`[IMG] ImgBB Worker 原始回應: ${responseText.substring(0, 200)}...`);
+            //console.log(`[IMG] ImgBB Worker 原始回應: ${responseText.substring(0, 200)}...`);
 
             if (responseText.trim().toLowerCase().startsWith('<html')) {
                 throw new Error("Worker 返回 HTML 頁面，可能是部署問題");
@@ -269,7 +271,7 @@
                 throw new Error(`Worker 返回非 JSON 格式: ${responseText.substring(0, 100)}`);
             }
 
-            console.log("[IMG] ImgBB 解析後回應:", json);
+            //console.log("[IMG] ImgBB 解析後回應:", json);
 
             if (!res.ok) {
                 const errorMsg = json.error || `HTTP ${res.status}: ${res.statusText}`;
@@ -330,7 +332,7 @@
             }
 
             const json = await res.json();
-            console.log("[IMG] TmpFiles response:", json);
+            //console.log("[IMG] TmpFiles response:", json);
 
             if (!json.data?.url) {
                 throw new Error(`TmpFiles API 返回錯誤: 未獲取到 URL`);
@@ -347,9 +349,61 @@
         }
     }
 
+    // 上傳到 Cloudflare R2
+    async function uploadToCloudflareR2(file) {
+        if (!ChatRoomData || CurrentScreen !== "ChatRoom") {
+            ChatRoomSendLocalStyled("🚫 請加入聊天室後重新上傳圖片", 4000, "#ff4444");
+            return null;
+        }
+        if (!isValidImageFormat(file)) {
+            ChatRoomSendLocalStyled("❌ 請使用正確的圖片格式 (JPG/PNG/GIF/BMP/WEBP)", 5000, "#ff4444");
+            return null;
+        }
+
+        // Cloudflare R2 限制 10MB
+        if (file.size > 10 * 1024 * 1024) {
+            ChatRoomSendLocalStyled("❌ 圖片超過 10MB (Cloudflare R2 限制)", 5000, "#ff4444");
+            return null;
+        }
+
+        const form = new FormData();
+        form.append("file", file);
+
+        const workerUrl = "https://liko-image-upload-cloudflare.awdrrawd1.workers.dev"; // ⚠️ 替換成你的
+
+        try {
+            ChatRoomSendLocalStyled("📤 正在上傳圖片到 Cloudflare R2...", 2000, "#FFA500");
+
+            const res = await fetch(workerUrl, {
+                method: "POST",
+                body: form
+            });
+
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+
+            const json = await res.json();
+            //console.log("[IMG] Cloudflare R2 response:", json);
+
+            if (!json.success || !json.url) {
+                throw new Error(`R2 上傳失敗: ${json.error || '未知錯誤'}`);
+            }
+
+            return json.url;
+
+        } catch (err) {
+            console.error("[IMG] Cloudflare R2 上傳失敗:", err);
+            ChatRoomSendLocalStyled(`❌ R2 上傳失敗: ${err.message}`, 5000, "#ff4444");
+            return null;
+        }
+    }
+
     // 動態選擇圖床進行上傳
     async function uploadImage(file) {
         switch(imageHost) {
+            case "cloudflare":
+                return await uploadToCloudflareR2(file);
             case "uguu":
                 return await uploadToUguu(file);
             case "imgbb":
@@ -370,14 +424,16 @@
         }
 
         const timeText = imageHost === "uguu" ? "3小時" :
-            imageHost === "tmpfiles" ? "60分鐘" :
-            imageHost === "litterbox" ? "12小時" :
-            imageHost === "imgbb" ? "12小時" : "12小時";
+        imageHost === "tmpfiles" ? "60分鐘" :
+        imageHost === "cloudflare" ? "30分鐘" :
+        imageHost === "litterbox" ? "12小時" :
+        imageHost === "imgbb" ? "12小時" : "12小時";
 
         const hostText = imageHost === "litterbox" ? "Litterbox" :
-            imageHost === "uguu" ? "Uguu" :
-            imageHost === "imgbb" ? "ImgBB" :
-            imageHost === "tmpfiles" ? "TmpFiles" : imageHost;
+        imageHost === "cloudflare" ? "Cloudflare R2" :
+        imageHost === "uguu" ? "Uguu" :
+        imageHost === "imgbb" ? "ImgBB" :
+        imageHost === "tmpfiles" ? "TmpFiles" : imageHost;
 
         //const message = `(${url}) \n**🌐存放於 ${hostText} | 📌保存時間 ${timeText}**`;
         const message = `(${url})`;
@@ -462,26 +518,28 @@
 
         if (!sub || sub === "help") {
             const currentHost = imageHost === "litterbox" ? "Litterbox" :
-                imageHost === "uguu" ? "Uguu" :
-                imageHost === "imgbb" ? "ImgBB" :
-                imageHost === "tmpfiles" ? "TmpFiles" : imageHost;
+            imageHost === "uguu" ? "Uguu" :
+            imageHost === "imgbb" ? "ImgBB" :
+            imageHost === "cloudflare" ? "Cloudflare R2" :
+            imageHost === "tmpfiles" ? "TmpFiles" : imageHost;
 
             const currentTimeText = imageHost === "uguu" ? "3小時" :
-                imageHost === "tmpfiles" ? "60分鐘" :
-                imageHost === "litterbox" ? "12小時" :
-                imageHost === "imgbb" ? "12小時" : "12小時";
+            imageHost === "tmpfiles" ? "60分鐘" :
+            imageHost === "litterbox" ? "12小時" :
+            imageHost === "cloudflare" ? "1小時" :
+            imageHost === "imgbb" ? "12小時" : "12小時";
 
             ChatRoomSendLocal(
                 `🖼️圖片上傳說明 | Image upload illustrate🖼️\n` +
                 `        當前設定(Current): 🌐${currentHost} 📌${currentTimeText}\n\n` +
                 `/img up - 上傳圖片 | UPload image\n` +
-                `/img web [litterbox|uguu|imgbb|tmpfiles]\n` +
-                `                ✦選擇圖床 | Set img host\n\n` +
+                `/img web [litterbox|uguu|imgbb|tmpfiles|cloudflare]\n` +
+                `               └選擇圖床 | Set img host\n\n` +
                 `支援 | Support:\n` +
                 `• 可以拖曳圖片上傳 | You can direct drag & drop\n` +
                 `• 格式(Format): JPG/PNG/GIF/BMP/WEBP\n` +
-                `• 大小(Size): Litterbox(100MB) | Uguu(128MB) | ImgBB(32MB) | TmpFiles(100MB)\n` +
-                `• 時間(Time): Litterbox(12HR) | Uguu(3HR) | ImgBB(12HR) | TmpFiles(60min)\n` +
+                `• 大小(Size): Litterbox(100MB) | Uguu(128MB) | ImgBB(32MB) | TmpFiles(100MB) | Cloudflare(10MB)\n` +
+                `• 時間(Time): Litterbox(12HR) | Uguu(3HR) | ImgBB(12HR) | TmpFiles(1HR) | Cloudflare(30Min)\n` +
                 `✦建議使用(suggestion) litterbox > tmpfiles > uguu > imgbb\n` +
                 `✦ImgBB使用私人API請珍惜使用，如果過期將不會再更新\n` +
                 `  └Use private API. If expired, will not be updated.`
@@ -493,19 +551,21 @@
         if (sub === "up") {
             triggerFileSelect();
         } else if (sub === "web" && args[1]) {
-            const validHosts = ["litterbox", "uguu", "imgbb", "tmpfiles"];
+            const validHosts = ["litterbox", "uguu", "imgbb", "tmpfiles","cloudflare"];
             if (validHosts.includes(args[1])) {
                 imageHost = args[1];
                 saveSettings();
                 const hostText = args[1] === "litterbox" ? "Litterbox" :
-                    args[1] === "uguu" ? "Uguu" :
-                    args[1] === "imgbb" ? "ImgBB" :
-                    args[1] === "tmpfiles" ? "TmpFiles" : args[1];
+                args[1] === "uguu" ? "Uguu" :
+                args[1] === "imgbb" ? "ImgBB" :
+                args[1] === "cloudflare" ? "Cloudflare R2" :
+                args[1] === "tmpfiles" ? "TmpFiles" : args[1];
 
                 const timeNote = args[1] === "litterbox" ? " (保存12小時)" :
-                    args[1] === "uguu" ? " (保存3小時)" :
-                    args[1] === "imgbb" ? " (保存12小時)" :
-                    args[1] === "tmpfiles" ? " (保存60分鐘)" : "";
+                args[1] === "uguu" ? " (保存3小時)" :
+                args[1] === "imgbb" ? " (保存12小時)" :
+                args[1] === "cloudflare" ? " (保存1小時)" :
+                args[1] === "tmpfiles" ? " (保存60分鐘)" : "";
                 ChatRoomSendLocalStyled(`✅ 已設定圖床為 ${hostText}${timeNote}`, 3000, "#50C878");
             } else {
                 ChatRoomSendLocalStyled("❌ 圖床參數必須是 litterbox/uguu/imgbb/tmpfiles", 5000, "#ff4444");
