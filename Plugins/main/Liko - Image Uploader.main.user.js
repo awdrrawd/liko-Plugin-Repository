@@ -526,7 +526,7 @@
             const currentTimeText = imageHost === "uguu" ? "3小時" :
             imageHost === "tmpfiles" ? "60分鐘" :
             imageHost === "litterbox" ? "12小時" :
-            imageHost === "cloudflare" ? "1小時" :
+            imageHost === "cloudflare" ? "30分鐘" :
             imageHost === "imgbb" ? "12小時" : "12小時";
 
             ChatRoomSendLocal(
@@ -564,7 +564,7 @@
                 const timeNote = args[1] === "litterbox" ? " (保存12小時)" :
                 args[1] === "uguu" ? " (保存3小時)" :
                 args[1] === "imgbb" ? " (保存12小時)" :
-                args[1] === "cloudflare" ? " (保存1小時)" :
+                args[1] === "cloudflare" ? " (保存30分鐘)" :
                 args[1] === "tmpfiles" ? " (保存60分鐘)" : "";
                 ChatRoomSendLocalStyled(`✅ 已設定圖床為 ${hostText}${timeNote}`, 3000, "#50C878");
             } else {
