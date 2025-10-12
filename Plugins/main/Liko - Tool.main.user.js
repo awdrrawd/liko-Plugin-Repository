@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.2.2
+// @version      1.2.3
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function() {
     let modApi = null;
-    const modversion = "1.2.2";
+    const modversion = "1.2.3";
 
     // 等待 bcModSdk 載入的函數
     function waitForBcModSdk(timeout = 30000) {
@@ -447,18 +447,24 @@
         });
 
         safeHookFunction("DialogLeave", 10, (args, next) => {
-            if (CurrentCharacter && CurrentCharacter._heightHijacked) {
-                const C = CurrentCharacter;
-                // 恢復原始身高數據
-                delete C.HeightRatio;
-                delete C.HeightModifier;
-                C.HeightRatio = C._realHeightRatio;
-                C.HeightModifier = C._realHeightModifier;
-                delete C._realHeightRatio;
-                delete C._realHeightModifier;
-                delete C._heightHijacked;
+            try {
+                if (CurrentCharacter && CurrentCharacter._heightHijacked) {
+                    const C = CurrentCharacter;
+                    delete C.HeightRatio;
+                    delete C.HeightModifier;
+                    C.HeightRatio = C._realHeightRatio;
+                    C.HeightModifier = C._realHeightModifier;
+                    delete C._realHeightRatio;
+                    delete C._realHeightModifier;
+                    delete C._heightHijacked;
+                }
+
+                const result = next(args);
+                return result ?? Promise.resolve();  // 如果是 undefined，返回空 Promise
+            } catch (e) {
+                console.error("[LT] DialogLeave hook 錯誤:", e);
+                return Promise.resolve();
             }
-            return next(args);
         });
     }
 
