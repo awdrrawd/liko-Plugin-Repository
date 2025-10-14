@@ -2,8 +2,8 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.2.3
-// @description  Bondage Club - Likolisu's tool
+// @version      1.3.0
+// @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -15,7 +15,13 @@
 
 (function() {
     let modApi = null;
-    const modversion = "1.2.3";
+    const modversion = "1.3.0";
+
+    // RP 圖標配置
+    const rpBtnX = 955;
+    const rpBtnY = 855;
+    const rpBtnSize = 45;
+    const rpIconUrl = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/likorp.png";
 
     // 等待 bcModSdk 載入的函數
     function waitForBcModSdk(timeout = 30000) {
@@ -65,102 +71,12 @@
                 resolve();
                 return;
             }
-            const version = (window.GM_info?.script?.version) || "Injected";
             const toastUrl = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js`;
             const script = document.createElement('script');
             script.src = toastUrl;
             script.onload = () => resolve();
             script.onerror = () => reject(new Error("載入失敗"));
             document.head.appendChild(script);
-        });
-    }
-
-    // RP 模式按鈕座標
-    const rpBtnX = 955;
-    const rpBtnY = 855;
-    const rpBtnSize = 45;
-
-    // RP 圖標 URL
-    const rpIconUrl = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/likorp.png";
-
-    // RP 圖標覆蓋層管理（避免 Canvas 污染）
-    let rpOverlayContainer = null;
-    const rpCharacterPositions = new Map(); // 儲存角色的實際位置
-
-    function createRpOverlay() {
-        if (rpOverlayContainer) return;
-
-        rpOverlayContainer = document.createElement('div');
-        rpOverlayContainer.id = 'liko-rp-overlay-container';
-        rpOverlayContainer.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 9998;
-        `;
-        document.body.appendChild(rpOverlayContainer);
-    }
-
-    function updateRpOverlays() {
-        // 非聊天室状态：隐藏容器并清空内容
-        if (!rpOverlayContainer || CurrentScreen !== "ChatRoom") {
-            if (rpOverlayContainer) {
-                rpOverlayContainer.style.display = 'none';
-                rpOverlayContainer.innerHTML = '';
-            }
-            return;
-        }
-
-        // 选中角色时：隐藏容器
-        if (typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null) {
-            rpOverlayContainer.style.display = 'none';
-            rpOverlayContainer.innerHTML = '';
-            return;
-        }
-
-        // 聊天室正常状态：显示容器
-        rpOverlayContainer.style.display = 'block';
-        rpOverlayContainer.innerHTML = '';
-
-        // 獲取遊戲 Canvas 的位置和大小
-        const canvas = document.getElementById('MainCanvas');
-        if (!canvas) return;
-
-        const canvasRect = canvas.getBoundingClientRect();
-        const canvasWidth = canvas.width;
-        const canvasHeight = canvas.height;
-
-        // 計算縮放比例
-        const scaleX = canvasRect.width / canvasWidth;
-        const scaleY = canvasRect.height / canvasHeight;
-
-        // 使用儲存的實際位置來繪製圖標
-        rpCharacterPositions.forEach((position, memberNumber) => {
-            const C = ChatRoomCharacter?.find(c => c.MemberNumber === memberNumber);
-            if (!C) return;
-
-            // 使用 OnlineSharedSettings 檢查 RP 模式
-            if (getRpMode(C)) {
-                const { CharX, CharY, Zoom } = position;
-                let offsetY = 40;
-                if (C.IsKneeling && C.IsKneeling()) offsetY = 300;
-
-                // 創建圖片元素
-                const img = document.createElement('img');
-                img.src = rpIconUrl;
-                img.style.cssText = `
-                    position: absolute;
-                    left: ${canvasRect.left + (CharX + 340 * Zoom) * scaleX}px;
-                    top: ${canvasRect.top + (CharY + offsetY * Zoom) * scaleY}px;
-                    width: ${45 * Zoom * scaleX}px;
-                    height: ${50 * Zoom * scaleY}px;
-                    pointer-events: none;
-                `;
-                rpOverlayContainer.appendChild(img);
-            }
         });
     }
 
@@ -176,7 +92,6 @@
             Player.OnlineSharedSettings = {};
         }
 
-        // 只在不存在时才创建，避免覆盖已保存的设置
         if (!Player.OnlineSharedSettings.LikoTOOL) {
             Player.OnlineSharedSettings.LikoTOOL = {
                 RPmode: 0,
@@ -184,7 +99,6 @@
             };
         }
 
-        // 确保属性存在（如果对象存在但缺少某个属性）
         if (typeof Player.OnlineSharedSettings.LikoTOOL.RPmode === 'undefined') {
             Player.OnlineSharedSettings.LikoTOOL.RPmode = 0;
         }
@@ -220,6 +134,22 @@
         }
     }
 
+    // Canvas 繪製 RP 圖標
+    function drawRpIcon(C, CharX, CharY, Zoom) {
+        if (!getRpMode(C)) return;
+
+        let offsetY = 40;
+        if (C.IsKneeling && C.IsKneeling()) offsetY = 300;
+
+        DrawImageResize(
+            rpIconUrl,
+            CharX + 340 * Zoom,
+            CharY + offsetY * Zoom,
+            45 * Zoom,
+            50 * Zoom
+        );
+    }
+
     // 工具函數
     function ChatRoomSendLocal(message, sec = 0) {
         if (CurrentScreen !== "ChatRoom") {
@@ -235,11 +165,6 @@
             });
         } catch (e) {
             console.error("[LT] 發送本地訊息錯誤:", e.message);
-            try {
-                ServerSend("ChatRoomChat", { Content: `[LT] ${message}`, Type: "LocalMessage", Time: sec });
-            } catch (e2) {
-                console.error("[LT] ServerSend 失敗:", e2.message);
-            }
         }
     }
 
@@ -249,10 +174,10 @@
             return ChatRoomCharacter?.find(c => c.MemberNumber === parseInt(identifier)) || Player;
         } else if (typeof identifier === "string") {
             return ChatRoomCharacter?.find(c =>
-                                           c.Name.toLowerCase() === identifier.toLowerCase() ||
-                                           c.Nickname?.toLowerCase() === identifier.toLowerCase() ||
-                                           c.AccountName.toLowerCase() === identifier.toLowerCase()
-                                          ) || Player;
+                c.Name.toLowerCase() === identifier.toLowerCase() ||
+                c.Nickname?.toLowerCase() === identifier.toLowerCase() ||
+                c.AccountName.toLowerCase() === identifier.toLowerCase()
+            ) || Player;
         }
         return Player;
     }
@@ -408,21 +333,76 @@
         }
     }
 
-    // 身高劫持功能
-    function setupHeightHijack() {
+    // 鉤子設置函數
+    function setupHooks() {
+        // ===== RP 模式相關 Hooks =====
+
+        // 鉤子：ServerSend（RP模式阻止動作）
+        safeHookFunction("ServerSend", 20, (args, next) => {
+            if (!getRpMode(Player) || CurrentScreen !== "ChatRoom") {
+                return next(args);
+            }
+            const [messageType, data] = args;
+            if (messageType === "ChatRoomChat" && data.Type === "Action") {
+                return;
+            }
+            return next(args);
+        });
+
+        // 鉤子：ChatRoomCharacterViewDrawOverlay（繪製 RP 圖標）
+        safeHookFunction("ChatRoomCharacterViewDrawOverlay", 10, (args, next) => {
+            const [C, CharX, CharY, Zoom] = args;
+
+            next(args);
+
+            if (C && C.MemberNumber && CurrentScreen === "ChatRoom") {
+                if (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null) {
+                    drawRpIcon(C, CharX, CharY, Zoom);
+                }
+            }
+        });
+
+        // 鉤子：ChatRoomMenuDraw（繪製RP模式按鈕）
+        safeHookFunction("ChatRoomMenuDraw", 4, (args, next) => {
+            if (!Player.LikoTool) initializeStorage();
+            DrawButton(
+                rpBtnX, rpBtnY, rpBtnSize, rpBtnSize,
+                "🔰",
+                getRpMode(Player) ? "Orange" : "Gray",
+                "",
+                "RP模式切換"
+            );
+            next(args);
+        });
+
+        // 鉤子：ChatRoomClick（處理RP模式按鈕點擊）
+        safeHookFunction("ChatRoomClick", 4, (args, next) => {
+            if (!Player.LikoTool) initializeStorage();
+            if (MouseIn(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize)) {
+                const newRpMode = !getRpMode(Player);
+                setRpMode(newRpMode);
+                if (typeof ChatRoomSendLocalStyled === 'function') {
+                    ChatRoomSendLocalStyled(newRpMode ? "🔰 RP模式启用" : "🔰 RP模式停用", 3000);
+                } else {
+                    ChatRoomSendLocal(newRpMode ? "RP模式已启用" : "RP模式已停用");
+                }
+                return;
+            }
+            next(args);
+        });
+
+        // ===== 身高劫持功能 Hooks =====
+
         safeHookFunction("CharacterSetCurrent", 10, (args, next) => {
             const [C, options] = args;
             const result = next(args);
 
-            // 檢查是否啟用身高劫持
             if (Player.OnlineSharedSettings?.LikoTOOL?.height === 1 && C && C.MemberNumber) {
                 setTimeout(() => {
                     if (!C._heightHijacked) {
-                        // 儲存原始身高數據
                         C._realHeightRatio = C.HeightRatio;
                         C._realHeightModifier = C.HeightModifier;
 
-                        // 僅當 HeightRatio < 0.81 或 > 1 時設為 1.0
                         Object.defineProperty(C, 'HeightRatio', {
                             get() {
                                 return (C._realHeightRatio < 0.81 || C._realHeightRatio > 1) ? 1.0 : C._realHeightRatio;
@@ -431,7 +411,6 @@
                             configurable: true
                         });
 
-                        // HeightModifier 固定為 0（與原腳本一致）
                         Object.defineProperty(C, 'HeightModifier', {
                             get() { return 0; },
                             set(v) { this._realHeightModifier = v; },
@@ -460,152 +439,12 @@
                 }
 
                 const result = next(args);
-                return result ?? Promise.resolve();  // 如果是 undefined，返回空 Promise
+                return result ?? Promise.resolve();
             } catch (e) {
                 console.error("[LT] DialogLeave hook 錯誤:", e);
                 return Promise.resolve();
             }
         });
-    }
-
-    // 鉤子設置函數
-    function setupHooks() {
-        // 鉤子：ServerSend（RP模式）
-        safeHookFunction("ServerSend", 20, (args, next) => {
-            if (!getRpMode(Player) || CurrentScreen !== "ChatRoom") {
-                return next(args);
-            }
-            const [messageType, data] = args;
-            if (messageType === "ChatRoomChat" && data.Type === "Action") {
-                return;
-            }
-            return next(args);
-        });
-
-        // 鉤子：CommonSetScreen（切換畫面時清理覆蓋層）
-        safeHookFunction("CommonSetScreen", 10, (args, next) => {
-            const [newScreen] = args;
-            next(args);
-
-            if (newScreen !== "ChatRoom" && rpOverlayContainer) {
-                rpOverlayContainer.style.display = 'none';
-                rpOverlayContainer.innerHTML = '';
-                rpCharacterPositions.clear();
-            }
-        });
-
-        // 鉤子：ChatRoomCharacterViewDrawOverlay（捕獲角色實際位置）
-        safeHookFunction("ChatRoomCharacterViewDrawOverlay", 10, (args, next) => {
-            const [C, CharX, CharY, Zoom] = args;
-
-            if (C && C.MemberNumber) {
-                rpCharacterPositions.set(C.MemberNumber, { CharX, CharY, Zoom });
-            }
-
-            next(args);
-            updateRpOverlays();
-        });
-
-        // 鉤子：監聽角色點擊（檢測 CurrentCharacter 變化）
-        safeHookFunction("ChatRoomClick", 5, (args, next) => {
-            const prevCurrentCharacter = CurrentCharacter;
-            next(args);
-
-            if (CurrentScreen === "ChatRoom") {
-                setTimeout(() => {
-                    const currentCharacterChanged = (prevCurrentCharacter !== CurrentCharacter);
-                    if (currentCharacterChanged) {
-                        updateRpOverlays();
-                    }
-                }, 50);
-            }
-        });
-
-        // 鉤子：監聽角色信息窗口的加載/卸載
-        safeHookFunction("InformationSheetLoad", 10, (args, next) => {
-            next(args);
-            if (rpOverlayContainer) {
-                rpOverlayContainer.style.display = 'none';
-                rpOverlayContainer.innerHTML = '';
-            }
-        });
-
-        safeHookFunction("InformationSheetExit", 10, (args, next) => {
-            next(args);
-            if (CurrentScreen === "ChatRoom") {
-                setTimeout(() => updateRpOverlays(), 100);
-            }
-        });
-
-        // 鉤子：ChatRoomMenuDraw（繪製RP模式按鈕）
-        safeHookFunction("ChatRoomMenuDraw", 4, (args, next) => {
-            if (!Player.LikoTool) initializeStorage();
-            DrawButton(
-                rpBtnX, rpBtnY, rpBtnSize, rpBtnSize,
-                "🔰",
-                getRpMode(Player) ? "Orange" : "Gray",
-                "",
-                "RP模式切換"
-            );
-            next(args);
-        });
-
-        // 鉤子：ChatRoomClick（處理RP模式按鈕點擊）
-        safeHookFunction("ChatRoomClick", 4, (args, next) => {
-            if (!Player.LikoTool) initializeStorage();
-            if (MouseIn(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize)) {
-                const newRpMode = !getRpMode(Player);
-                setRpMode(newRpMode);
-                ChatRoomSendLocalStyled(newRpMode ? "🔰 RP模式启用" : "🔰 RP模式停用", 3000);
-                updateRpOverlays();
-                return;
-            }
-            next(args);
-        });
-
-        // 鉤子：监听角色数据更新
-        safeHookFunction("ChatRoomSyncMemberJoin", 10, (args, next) => {
-            next(args);
-            setTimeout(() => updateRpOverlays(), 100);
-        });
-
-        safeHookFunction("ChatRoomSyncMemberLeave", 10, (args, next) => {
-            next(args);
-            setTimeout(() => updateRpOverlays(), 100);
-        });
-
-        // 監聽視窗大小變化
-        window.addEventListener('resize', () => {
-            if (CurrentScreen === "ChatRoom") {
-                updateRpOverlays();
-            }
-        });
-
-        // 鉤子：ChatRoomSync（清理離開的角色位置數據）
-        safeHookFunction("ChatRoomSync", 10, (args, next) => {
-            next(args);
-            if (ChatRoomCharacter) {
-                const currentMembers = new Set(ChatRoomCharacter.map(c => c.MemberNumber));
-                for (const memberNumber of rpCharacterPositions.keys()) {
-                    if (!currentMembers.has(memberNumber)) {
-                        rpCharacterPositions.delete(memberNumber);
-                    }
-                }
-            }
-        });
-
-        // 鉤子：ChatRoomLoad（清空位置數據）
-        safeHookFunction("ChatRoomLoad", 10, (args, next) => {
-            rpCharacterPositions.clear();
-            next(args);
-        });
-    }
-
-    // 進入房間時確保 RP 狀態已同步
-    function ensureRpStatusSync() {
-        if (CurrentScreen === "ChatRoom") {
-            setTimeout(() => updateRpOverlays(), 500);
-        }
     }
 
     // 命令實現
@@ -703,7 +542,6 @@
         const newRpMode = !getRpMode(Player);
         setRpMode(newRpMode);
         ChatRoomSendLocal(`RP模式已 ${newRpMode ? "开启" : "关闭"}！`);
-        updateRpOverlays();
     }
 
     function fullUnlock(args) {
@@ -847,7 +685,6 @@
         }
     }
 
-    // 身高劫持命令
     function heightCommand(args) {
         if (!Player.OnlineSharedSettings) {
             Player.OnlineSharedSettings = {};
@@ -865,7 +702,6 @@
 
         ChatRoomSendLocal(`身高劫持功能已 ${enabled ? "啟用" : "停用"}！`);
 
-        // 如果停用且正在对话，恢复角色身高
         if (!enabled && CurrentCharacter && CurrentCharacter._heightHijacked) {
             const C = CurrentCharacter;
             delete C.HeightRatio;
@@ -899,7 +735,7 @@
                 `/lt height - 切換選中角色時身高固定\n` +
                 `/lt geteverything - 增強功能\n` +
                 `/lt wardrobe - 開啟衣櫃\n\n` +
-                `提示：點擊聊天室右下角的 🔰 按鈕快速切換 RP 模式！`
+                `提示：點擊聊天室右上角的 🔰 按鈕快速切換 RP 模式！`
             );
             return;
         }
@@ -947,12 +783,11 @@
 
         modApi = await initializeModApi();
         await loadToastSystem();
-        createRpOverlay();
 
         const gameLoaded = await waitFor(() =>
-                                         typeof Player?.MemberNumber === "number" &&
-                                         typeof CommandCombine === "function"
-                                        );
+            typeof Player?.MemberNumber === "number" &&
+            typeof CommandCombine === "function"
+        );
 
         if (!gameLoaded) {
             console.error("[LT] 遊戲載入超時");
@@ -961,7 +796,6 @@
 
         initializeStorage();
         setupHooks();
-        setupHeightHijack();
 
         try {
             CommandCombine([{
@@ -973,7 +807,6 @@
             waitFor(() => CurrentScreen === "ChatRoom", 60000).then((success) => {
                 if (success) {
                     ChatRoomSendLocal(`莉柯莉絲工具 v${modversion} 載入！使用 /lt help 查看說明`, 30000);
-                    setTimeout(ensureRpStatusSync, 1000);
                 }
             });
         } catch (e) {
@@ -990,9 +823,6 @@
                 console.log("[LT] 插件卸載...");
                 if (Player.LikoTool?.bypassActivities) {
                     Player.IsAdmin = Player.LikoTool.originalIsAdmin || false;
-                }
-                if (rpOverlayContainer && rpOverlayContainer.parentNode) {
-                    rpOverlayContainer.parentNode.removeChild(rpOverlayContainer);
                 }
             });
         }
