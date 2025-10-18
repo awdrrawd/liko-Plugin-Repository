@@ -503,41 +503,51 @@
         }
     });
 
-    function appendToInput(inputElement, url) {
-        if (!url || !inputElement) return;
-
-        inputElement.value = inputElement.value ? `${inputElement.value} ${url}` : url;
-    }
-
     // 输入框粘贴上传
     document.addEventListener("paste", async (e) => {
         if (CurrentScreen !== "ChatRoom") return;
         const inputElement = document.getElementById("InputChat");
-        if (inputElement === null || document.activeElement !== inputElement) return;
+        if (inputElement === null || document.activeElement !== inputElement || e.clipboardData === null) return;
+
+        let hasImage = false;
+        const contents = [];
 
         if (e.clipboardData.files && e.clipboardData.files.length > 0) {
-            e.preventDefault();
-            const file = e.clipboardData.files[0];
-            if (file && file.type.startsWith("image/")) {
-                const url = await uploadImage(file);
-                appendToInput(inputElement, url);
-            } else {
-                ChatRoomSendLocalStyled("❌ 請粘貼圖片文件", 3000, "#ff4444");
+            for (const file of e.clipboardData.files) {
+                if (file.type.startsWith("image/")) {
+                    hasImage = true;
+                    e.preventDefault();
+                    const url = await uploadImage(file);
+                    if (url) contents.push(url);
+                }
             }
         }
+
         if (e.clipboardData.items && e.clipboardData.items.length > 0) {
-            e.preventDefault();
-            const file = e.clipboardData.items[0].getAsFile();
-            if (file && file.type.startsWith("image/")) {
-                const url = await uploadImage(file);
-                appendToInput(inputElement, url);
-            } else {
-                ChatRoomSendLocalStyled("❌ 請粘貼圖片文件", 3000, "#ff4444");
+            for (const item of e.clipboardData.items) {
+                console.info(item)
+                if (item.type.startsWith("image/")) {
+                    hasImage = true;
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) {
+                        const url = await uploadImage(file);
+                        if (url) contents.push(url);
+                    }
+                } else  {
+                    await new Promise(resolve => {
+                        item.getAsString(text => {
+                            if (text.trim()) contents.push(text.trim());
+                            resolve();
+                        });
+                    });
+                }
             }
-            e.stopPropagation();
-            return false;
         }
-        return true;
+
+        if (hasImage && contents.length > 0) {
+            inputElement.value = contents.join(" ");
+        }
     });
 
     document.addEventListener("dragover", (e) => {
