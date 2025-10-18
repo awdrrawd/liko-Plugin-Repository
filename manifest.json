@@ -1,0 +1,252 @@
+{
+  "version": "1",
+  "addons": [
+    {
+      "id": "Liko_Tool",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的工具包 —— Liko's Tool Kit",
+      "description": "有許多小功能合集的工具包，但也有點不穩定\nA collection of small utility functions, but somewhat unstable",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Tool.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_CPB",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的自定義個人資料頁面背景 —— Liko's Custom Profile Background",
+      "description": "自定義個人資料頁面背景並分享給他人\nCustomize profile page background and share it with others.",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20CPB.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_Image_Uploader",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的圖片上傳器 —— Liko's Image Uploader",
+      "description": "拖曳上傳 圖片並分享到聊天室\nDrag and drop image upload and share to chatroom",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_CHE",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的聊天室書記官 —— Liko's Chat History Exporter",
+      "description": "聊天室信息轉HTML，並且提供最多7天的信息救援(需要手動啟用緩存功能)\nConvert chat history to HTML and provides message recovery for up to 7 days.(The caching feature requires manual activation.)",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20CHE.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_CDB",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的自訂更衣室背景 —— Liko's Custom Dressing Background",
+      "description": "更衣室背景替換，並提供網格對焦\nReplace wardrobe background with grid focus assistance",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20CDB.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_Prank",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko對朋友的惡作劇 —— Liko's Friend Prank",
+      "description": "內褲大盜鬧得BC社群人心惶惶！\nThe underwear thief causing panic in the BC community!",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Prank.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_NOI",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的邀請通知器 —— Liko's Notification of Invites",
+      "description": "發出好友、白 單、黑單的信息!\nCustomize the notification message when sending a friend, whitelist, or blacklist request.",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20NOI.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_Bondage_renew",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的捆綁刷新 —— Liko's Bondage Refresh",
+      "description": "針對R120捆綁刷新不夠快的應急措施\nEmergency fix for slow bondage refresh in R120",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Bondage%20renew.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_Release_Maid",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的解綁女僕 —— Liko's Release Maid",
+      "description": "自動解綁女僕，不過有點天然，會在意外時觸發!\nAuto-release maid, but a bit naive and may trigger unexpectedly!",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Release%20Maid.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_Chat_TtoB",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的對話變按鈕 —— Liko's Chat Text to Button",
+      "description": "聊天室信息轉按鈕，現在還多了傳送門功能!\nConvert chat messages to buttons, now with portal feature!",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_CDT",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的座標繪製工具 —— Liko's Coordinate Drawing Tool",
+      "description": "BC的介面UI定位工具，有開發需求的可以使用!\nBC interface UI positioning tool for developers!",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20CDT.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_ACV",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的自動創建影片 —— Liko's Automatically create video.",
+      "description": "Liko的自動創建影片\nLiko's Automatically create video.",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20ACV.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko - Region switch",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "快速切換混合&女性區 —— Region switch",
+      "description": "快速切換混合&女性區\nRegion switch",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Region%20switch.main.user.js"
+        }
+      ]
+    }
+  ]
+}
