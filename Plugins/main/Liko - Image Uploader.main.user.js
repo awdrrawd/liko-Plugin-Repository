@@ -503,6 +503,43 @@
         }
     });
 
+    function appendToInput(inputElement, url) {
+        if (!url || !inputElement) return;
+
+        inputElement.value = inputElement.value ? `${inputElement.value} ${url}` : url;
+    }
+
+    // 输入框粘贴上传
+    document.addEventListener("paste", async (e) => {
+        if (CurrentScreen !== "ChatRoom") return;
+        const inputElement = document.getElementById("InputChat");
+        if (inputElement === null || document.activeElement !== inputElement) return;
+
+        if (e.clipboardData.files && e.clipboardData.files.length > 0) {
+            e.preventDefault();
+            const file = e.clipboardData.files[0];
+            if (file && file.type.startsWith("image/")) {
+                const url = await uploadImage(file);
+                appendToInput(inputElement, url);
+            } else {
+                ChatRoomSendLocalStyled("❌ 請粘貼圖片文件", 3000, "#ff4444");
+            }
+        }
+        if (e.clipboardData.items && e.clipboardData.items.length > 0) {
+            e.preventDefault();
+            const file = e.clipboardData.items[0].getAsFile();
+            if (file && file.type.startsWith("image/")) {
+                const url = await uploadImage(file);
+                appendToInput(inputElement, url);
+            } else {
+                ChatRoomSendLocalStyled("❌ 請粘貼圖片文件", 3000, "#ff4444");
+            }
+            e.stopPropagation();
+            return false;
+        }
+        return true;
+    });
+
     document.addEventListener("dragover", (e) => {
         if (CurrentScreen !== "ChatRoom") return;
         if (e.dataTransfer.types.includes("Files")) {
