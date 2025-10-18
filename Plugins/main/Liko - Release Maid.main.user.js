@@ -615,17 +615,11 @@
     function setupHooks() {
         // ChatRoom 載入時重新綁定監聽器
         safeHookFunction("ChatRoomLoad", 0, (args, next) => {
-            try {
-                next(args);
+            setTimeout(() => {
+                rebindListener();
+            }, 1000);
 
-                // 延遲綁定以確保 ServerSocket 已準備好
-                setTimeout(() => {
-                    rebindListener();
-                }, 1000);
-
-            } catch (e) {
-                console.error("[Release Bot] ChatRoomLoad hook 錯誤:", e.message);
-            }
+            return next(args);
         });
 
         // 繪製按鈕

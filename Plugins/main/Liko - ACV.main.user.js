@@ -570,7 +570,6 @@
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
             modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                next(args);
                 setTimeout(() => {
                     if (!window.LikoVideoPlayerWelcomed && isEnabled) {
                         const supportedPlatforms = Object.values(videoPatterns).map(p => p.name).join(", ");
@@ -585,6 +584,7 @@
                         window.LikoVideoPlayerWelcomed = true;
                     }
                 }, 1000);
+                return next(args);
             });
 
             modApi.hookFunction("ChatRoomMessage", 0, (args, next) => {

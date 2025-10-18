@@ -263,7 +263,7 @@
 
     // === ChatRoom Load Hook ===
     modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-        next(args);
+        const result = next(args);
         if (!hookBound) {
             hookBound = true;
             ServerSocket.on("ChatRoomMessage", async data => {
@@ -357,6 +357,7 @@
                 }
             });
         }
+        return result;
     });
 
     // === Draw Button ===

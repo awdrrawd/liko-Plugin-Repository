@@ -495,7 +495,6 @@
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
             const originalFunc = modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                next(args);
                 setTimeout(() => {
                     if (!window.LikoChatTtoBWelcomed && isEnabled) {
                         ChatRoomSendLocal(
@@ -509,6 +508,7 @@
                         window.LikoChatTtoBWelcomed = true;
                     }
                 }, 1000);
+                return next(args);
             });
 
             // 提供清理函數

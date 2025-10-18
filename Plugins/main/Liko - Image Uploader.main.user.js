@@ -579,7 +579,6 @@
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
             modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                next(args);
                 setTimeout(() => {
                     loadSettings();
                     if (!window.LikoImageUploaderWelcomed) {
@@ -590,6 +589,7 @@
                         window.LikoImageUploaderWelcomed = true;
                     }
                 }, 1000);
+                return next(args);
             });
         }
     }

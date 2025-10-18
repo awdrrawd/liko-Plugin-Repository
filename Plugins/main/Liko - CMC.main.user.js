@@ -1569,7 +1569,6 @@
         if (!modApi?.hookFunction) return;
 
         modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-            next(args);
             setTimeout(async () => {
                 // 确保 Custom 对象存在
                 if (ChatRoomData && !ChatRoomData.Custom) {
@@ -1586,6 +1585,7 @@
                     window.CMCWelcomed = true;
                 }
             }, 1000);
+            return next(args);
         });
 
         modApi.hookFunction("ChatRoomLeave", 0, (args, next) => {

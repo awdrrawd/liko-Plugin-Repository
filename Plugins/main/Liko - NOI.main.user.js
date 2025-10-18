@@ -382,7 +382,6 @@
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
             modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                next(args);
                 setTimeout(() => {
                     if (!window.LikoNOIWelcomed) {
                         window.ChatRoomSendLocalStyled(" 📧 Liko的邀请通知器 v"+modversion+" 已載入！使用 /noi help 查看说明",
@@ -392,6 +391,7 @@
                         window.LikoNOIWelcomed = true;
                     }
                 }, 1000);
+                return next(args);
             });
         }
     }
