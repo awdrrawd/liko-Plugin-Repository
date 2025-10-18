@@ -7,8 +7,8 @@
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
-// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
-// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js
+// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
+// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_toast_system.user.js
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==
@@ -64,7 +64,7 @@
             name: "Liko的工具包",
             description: "有許多小功能合集的工具包，但也有點不穩定",
             icon: "🧰",
-            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Tool.main.user.js",
+            url: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Tool.main.user.js",
             enabled: pluginSettings["Liko_Tool"] ?? false,
             customIcon: ""
         },
@@ -73,7 +73,7 @@
             name: "Liko的圖片上傳器",
             description: "拖曳上傳圖片並分享到聊天室",
             icon: "🖼️",
-            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
+            url: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
             enabled: pluginSettings["Liko_Image_Uploader"] ?? true,
             customIcon: ""
         },
@@ -82,7 +82,7 @@
             name: "Liko的聊天室書記官",
             description: "聊天室信息轉HTML，可以搭配neocities等網站上傳分享",
             icon: "📋",
-            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20CHE.main.user.js",
+            url: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CHE.main.user.js",
             enabled: pluginSettings["Liko_CHE"] ?? true,
             customIcon: ""
         },
@@ -91,7 +91,7 @@
             name: "Liko對朋友的惡作劇",
             description: "內褲大盜鬧得BC社群人心惶惶!",
             icon: "🪄",
-            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Prank.main.user.js",
+            url: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Prank.main.user.js",
             enabled: pluginSettings["Liko_Prank"] ?? false,
             customIcon: ""
         },
@@ -100,7 +100,7 @@
             name: "Liko的邀請通知器",
             description: "發出好友、白單、黑單的信息!",
             icon: "📧",
-            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20NOI.main.user.js",
+            url: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20NOI.main.user.js",
             enabled: pluginSettings["Liko_NOI"] ?? true,
             customIcon: ""
         },
@@ -109,7 +109,7 @@
             name: "Liko的捆綁刷新",
             description: "針對R119捆綁刷新不夠快的應急措施",
             icon: "♻️",
-            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Bondage%20renew.main.user.js",
+            url: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Bondage%20renew.main.user.js",
             enabled: pluginSettings["Liko_Bondage_renew"] ?? false,
             customIcon: ""
         },
@@ -118,7 +118,7 @@
             name: "Liko的解綁女僕",
             description: "自動解綁女僕，不過有點天然，會在意外時觸發!",
             icon: "🧹",
-            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Release%20Maid.main.user.js",
+            url: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Release%20Maid.main.user.js",
             enabled: pluginSettings["Liko_Release_Maid"] ?? false,
             customIcon: ""
         },
@@ -127,7 +127,7 @@
             name: "Liko的對話變按鈕",
             description: "聊天室信息轉按鈕，現在還多了傳送門功能!",
             icon: "💬",
-            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
+            url: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
             enabled: pluginSettings["Liko_Chat_TtoB"] ?? true,
             customIcon: ""
         },
@@ -136,7 +136,7 @@
             name: "Liko的座標繪製工具",
             description: "BC的介面UI定位工具，有開發需求的可以使用!",
             icon: "🖌️",
-            url: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20CDT.main.user.js",
+            url: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CDT.main.user.js",
             enabled: pluginSettings["Liko_CDT"] ?? false,
             customIcon: ""
         }

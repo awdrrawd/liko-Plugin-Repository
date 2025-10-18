@@ -4,13 +4,13 @@
 # 安装
 1.**脚本管理器** (Tampermonkey、userscript等)
 
-[插件](https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Plugin_Collection_Manager.user.js)
+[插件](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js)
 
 2.**書籤(bookmark)**
 ```
 javascript:(function(){
   var s=document.createElement('script');
-  s.src="https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/Liko-Plugin_Collection_Manager.user.js?"+Date.now();
+  s.src="https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js?"+Date.now();
   s.type="text/javascript";
   s.crossOrigin="anonymous";
   document.head.appendChild(s);
@@ -19,5 +19,5 @@ javascript:(function(){
 
 3.**控制台(console)**
 ```
-import(`https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/Liko-Plugin_Collection_Manager.user.js?v=${(Date.now()/10000).toFixed(0)}`);
+import(`https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js?v=${(Date.now()/10000).toFixed(0)}`);
 ```

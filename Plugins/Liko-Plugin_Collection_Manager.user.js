@@ -19,8 +19,8 @@
 
     // 全域載入腳本
     const globalScripts = [
-        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js",
-        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js"
+        "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js",
+        "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_toast_system.user.js"
     ];
 
     globalScripts.forEach(url => {

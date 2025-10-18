@@ -15,7 +15,7 @@
 (function () {
     "use strict";
     const script = document.createElement("script");
-    script.src = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Prank.main.user.js?timestamp=${Date.now()}`;
+    script.src = `https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Prank.main.user.js?timestamp=${Date.now()}`;
     script.type = "module";
     script.crossOrigin = "anonymous";
     document.head.appendChild(script);
