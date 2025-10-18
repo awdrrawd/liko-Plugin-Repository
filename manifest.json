@@ -247,6 +247,25 @@
           "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20Region%20switch.main.user.js"
         }
       ]
+    },
+    {
+      "id": "Liko_CMC",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的聊天室音樂控制器 —— Liko's Music Controller.",
+      "description": "支援歌詞(需要有曲名)、歌曲列表、flac等格式\nSupports lyrics (must have song title), song list, flac and other formats.",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/main/Liko%20-%20CMC.main.user.js"
+        }
+      ]
     }
   ]
 }
