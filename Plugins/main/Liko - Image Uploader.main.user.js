@@ -579,17 +579,18 @@
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
             modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                setTimeout(() => {
-                    loadSettings();
-                    if (!window.LikoImageUploaderWelcomed) {
-                        ChatRoomSendLocalStyled(
-                            `🖼️ Liko 圖片上傳器 v${modversion} 載入！使用(use) /img help 查看說明`,
-                            5000
-                        );
-                        window.LikoImageUploaderWelcomed = true;
-                    }
-                }, 1000);
-                return next(args);
+                return next(args).then(() => {
+                    setTimeout(() => {
+                        loadSettings();
+                        if (!window.LikoImageUploaderWelcomed) {
+                            ChatRoomSendLocalStyled(
+                                `🖼️ Liko 圖片上傳器 v${modversion} 載入！使用(use) /img help 查看說明`,
+                                5000
+                            );
+                            window.LikoImageUploaderWelcomed = true;
+                        }
+                    }, 1000);
+                })
             });
         }
     }

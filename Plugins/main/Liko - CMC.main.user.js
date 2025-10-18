@@ -1569,23 +1569,24 @@
         if (!modApi?.hookFunction) return;
 
         modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-            setTimeout(async () => {
-                // 确保 Custom 对象存在
-                if (ChatRoomData && !ChatRoomData.Custom) {
-                    ChatRoomData.Custom = {};
-                    log('初始化 ChatRoomData.Custom');
-                }
+            return next(args).then(() => {
+                setTimeout(async () => {
+                    // 确保 Custom 对象存在
+                    if (ChatRoomData && !ChatRoomData.Custom) {
+                        ChatRoomData.Custom = {};
+                        log('初始化 ChatRoomData.Custom');
+                    }
 
-                updateControllerRank();
-                muteBCMusic();
-                checkAndPlayBCMusic();
+                    updateControllerRank();
+                    muteBCMusic();
+                    checkAndPlayBCMusic();
 
-                if (!window.CMCWelcomed) {
-                    sendLocalMsg("CHAT MUSIC CONTROLLER v" + MOD_VERSION + " | /cmc show");
-                    window.CMCWelcomed = true;
-                }
-            }, 1000);
-            return next(args);
+                    if (!window.CMCWelcomed) {
+                        sendLocalMsg("CHAT MUSIC CONTROLLER v" + MOD_VERSION + " | /cmc show");
+                        window.CMCWelcomed = true;
+                    }
+                }, 1000);
+            })
         });
 
         modApi.hookFunction("ChatRoomLeave", 0, (args, next) => {

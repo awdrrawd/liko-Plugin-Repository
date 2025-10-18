@@ -494,21 +494,22 @@
 
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
-            const originalFunc = modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                setTimeout(() => {
-                    if (!window.LikoChatTtoBWelcomed && isEnabled) {
-                        ChatRoomSendLocal(
-                            `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
+            modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
+                return next(args).then(() => {
+                    setTimeout(() => {
+                        if (!window.LikoChatTtoBWelcomed && isEnabled) {
+                            ChatRoomSendLocal(
+                                `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
                             <b>💭Liko - Chat TtoB v1.1 💭</b>
                             <br>- /指令：轉為粉色按鈕，點擊貼到輸入框
                             <br>- !!內容：轉為綠色按鈕，點擊附加到輸入框
                             <br>- #房間名稱#：轉為藍色按鈕，點擊加入房間
                             </p>`.replaceAll("\n", ""),30000
-                        );
-                        window.LikoChatTtoBWelcomed = true;
-                    }
-                }, 1000);
-                return next(args);
+                            );
+                            window.LikoChatTtoBWelcomed = true;
+                        }
+                    }, 1000);
+                });
             });
 
             // 提供清理函數

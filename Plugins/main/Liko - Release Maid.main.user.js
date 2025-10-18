@@ -615,11 +615,11 @@
     function setupHooks() {
         // ChatRoom 載入時重新綁定監聽器
         safeHookFunction("ChatRoomLoad", 0, (args, next) => {
-            setTimeout(() => {
-                rebindListener();
-            }, 1000);
-
-            return next(args);
+            return next(args).then(() => {
+                setTimeout(() => {
+                    rebindListener();
+                }, 1000);
+            })
         });
 
         // 繪製按鈕

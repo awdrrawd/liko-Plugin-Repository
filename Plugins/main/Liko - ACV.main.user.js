@@ -570,21 +570,22 @@
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
             modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                setTimeout(() => {
-                    if (!window.LikoVideoPlayerWelcomed && isEnabled) {
-                        const supportedPlatforms = Object.values(videoPatterns).map(p => p.name).join(", ");
-                        ChatRoomSendLocal(
-                            `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
+                return next(args).then(()=>{
+                    setTimeout(() => {
+                        if (!window.LikoVideoPlayerWelcomed && isEnabled) {
+                            const supportedPlatforms = Object.values(videoPatterns).map(p => p.name).join(", ");
+                            ChatRoomSendLocal(
+                                `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
                             <b>🎬 Liko's ACV v${modVersion} 🎬</b>
                             <br>- 自動檢測影片連結，添加 🎬 播放按鈕 | Auto-detect video links, add 🎬 play button.
                             <br>- 支援平台(Supported): ${supportedPlatforms}
                             <br>- 點擊 🎬 按鈕播放，再次點擊則隱藏 | Click 🎬 button to play, click again to hide
                             </p>`.replace(/\s+/g, " "), 10000
-                        );
-                        window.LikoVideoPlayerWelcomed = true;
-                    }
-                }, 1000);
-                return next(args);
+                            );
+                            window.LikoVideoPlayerWelcomed = true;
+                        }
+                    }, 1000);
+                })
             });
 
             modApi.hookFunction("ChatRoomMessage", 0, (args, next) => {

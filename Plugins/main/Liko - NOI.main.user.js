@@ -382,16 +382,17 @@
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
             modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                setTimeout(() => {
-                    if (!window.LikoNOIWelcomed) {
-                        window.ChatRoomSendLocalStyled(" 📧 Liko的邀请通知器 v"+modversion+" 已載入！使用 /noi help 查看说明",
-                            5000,
-                            "#885CB0"
-                        );
-                        window.LikoNOIWelcomed = true;
-                    }
-                }, 1000);
-                return next(args);
+                return next(args).then(() => {
+                    setTimeout(() => {
+                        if (!window.LikoNOIWelcomed) {
+                            window.ChatRoomSendLocalStyled(" 📧 Liko的邀请通知器 v"+modversion+" 已載入！使用 /noi help 查看说明",
+                                5000,
+                                "#885CB0"
+                            );
+                            window.LikoNOIWelcomed = true;
+                        }
+                    }, 1000);
+                })
             });
         }
     }
