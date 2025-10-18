@@ -66,7 +66,7 @@
     };
 
     // 配置
-    const DEFAULT_BG_URL = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/refs/heads/main/Plugins/expand/Leonardo_Anime_XL_anime_style_outdoor_magical_wedding_backgrou_2.jpg";
+    const DEFAULT_BG_URL = "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/Leonardo_Anime_XL_anime_style_outdoor_magical_wedding_backgrou_2.jpg";
     const BUTTON_X = 1695;
     const BUTTON_Y = 190;
     const BUTTON_SIZE = 90;

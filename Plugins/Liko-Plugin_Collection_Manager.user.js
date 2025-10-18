@@ -58,7 +58,7 @@
             console.log("[PCM] ✅ bcModSdk 已載入");
 
             // 抓主程式碼
-            const url = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
+            const url = "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
             const code = await fetch(url).then(r => r.text());
 
             // 提供給主程式使用

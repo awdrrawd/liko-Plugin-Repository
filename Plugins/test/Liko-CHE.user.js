@@ -14,7 +14,7 @@
 // ==/UserScript==
 
 (function loadCHE() {
-  fetch("https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/test/Liko%20-%20CHE.main.user.js")
+  fetch("https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/test/Liko%20-%20CHE.main.user.js")
     .then(res => {
       if (!res.ok) throw new Error("HTTP error " + res.status);
       return res.text();

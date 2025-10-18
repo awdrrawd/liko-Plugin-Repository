@@ -54,7 +54,7 @@
 
     const CONFIG = {
         VERSION: "1.4.1",
-        DEFAULT_BG_URL: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/refs/heads/main/Plugins/expand/Leonardo_Anime_XL_anime_style_outdoor_magical_wedding_backgrou_2.jpg",
+        DEFAULT_BG_URL: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/Leonardo_Anime_XL_anime_style_outdoor_magical_wedding_backgrou_2.jpg",
         BUTTON_X: 600,
         BUTTON_Y: 25,
         BUTTON_SIZE: 90,
