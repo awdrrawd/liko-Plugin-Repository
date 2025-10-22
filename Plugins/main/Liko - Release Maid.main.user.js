@@ -228,7 +228,7 @@
             //  🎂 加入遊戲開始時間
             if (c.Creation) {
                 const creationTime = new Date(c.Creation);
-                output += ` 🎂 誕生日：${creationTime.toLocaleString()}\n`;
+                output += `🎂 誕生日：${creationTime.toLocaleString()}\n`;
             }
 
             // 主人
