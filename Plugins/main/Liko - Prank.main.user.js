@@ -97,6 +97,9 @@
             removedAndHoldSocks: "removed",
             holdSocks: "'s socks and held them in hand",
             holdOwnSocks: "removed their own socks and held them in hand",
+            pluckingOwnHair: "plucking own ahoge",
+            pluckingHair: "plucking",
+            pluckingHairSuffix: "'s ahoge",
             
             // Activity labels
             actCutClothes: "Cut Clothes",
@@ -106,6 +109,7 @@
             actRemoveHoldPanties: "Remove & Hold Panties",
             actStealSocks: "Steal Socks",
             actRemoveHoldSocks: "Remove & Hold Socks",
+            actPluckingHair: "Pluking ahoge",
             
             // Activity descriptions
             actCutClothesDesc: "SourceCharacter used scissors to cut TargetCharacter's clothes",
@@ -154,6 +158,9 @@
             removedAndHoldSocks: "脱下了",
             holdSocks: "的袜子并握在手中",
             holdOwnSocks: "脱下了自己的袜子并握在手中",
+            pluckingOwnHair: "拔下了自己的呆毛",
+            pluckingHair: "拔下了",
+            pluckingHairSuffix: "的呆毛",
             
             // Activity labels
             actCutClothes: "剪掉衣物",
@@ -163,7 +170,8 @@
             actRemoveHoldPanties: "脱下并握着内裤",
             actStealSocks: "偷袜子",
             actRemoveHoldSocks: "脱下并握着袜子",
-            
+            actPluckingHair: "拔呆毛",
+
             // Activity descriptions
             actCutClothesDesc: "SourceCharacter 用剪刀剪掉了 TargetCharacter 的衣物",
             actCutClothesSelf: "SourceCharacter 用剪刀剪掉了自己的衣物",
@@ -661,6 +669,21 @@
         return true;
     }
 
+    function pluckingHair(target) {
+        if (!hasBCItemPermission(target)) {
+            return chatSendLocal(getMessage('noPermission'));
+        }
+
+        try {
+            InventoryRemove(target, "额外头发_Luzi");
+            ChatRoomCharacterUpdate(target);
+        } catch (e) {
+            console.log("[prank] Error removing 额外头发_Luzi:", e);
+        }
+
+        return true;
+    }
+
     // ===== 注册活动 =====
     function registerActivities() {
         ImagePathHelper.clearCache();
@@ -692,6 +715,10 @@
 
         actData.CustomPrerequisiteFuncs.set("LikoHasSocks", function(target1, target2, group) {
             return !!(InventoryGet(target2, "Socks") || InventoryGet(target2, "SocksRight") || InventoryGet(target2, "SocksLeft"));
+        });
+
+        actData.CustomPrerequisiteFuncs.set("LikoHasAhoge", function(target1, target2, group) {
+            return !!(InventoryGet(target2, "额外头发_Luzi"))
         });
 
         const clothingTargets = [
@@ -968,6 +995,45 @@
                             chatSendCustomAction(getNickname(Player) + " " + getMessage('holdOwnSocks'));
                         } else {
                             chatSendCustomAction(getNickname(Player) + " " + getMessage('removedAndHoldSocks') + " " + getNickname(target) + getMessage('holdSocks'));
+                        }
+                    } else {
+                        ChatRoomSendLocal(getMessage('removeFailed'), 5000);
+                    }
+                }
+            },
+            CustomImage: ImagePathHelper.getAssetURL("Female3DCG/ItemHood/Preview/Pantyhose.png")
+        });
+
+        // 8. 拔呆毛
+        AddActivity({
+            Activity: {
+                Name: "PluckingHair_Razor",
+                MaxProgress: 40,
+                MaxProgressSelf: 40,
+                Prerequisite: []
+            },
+            Targets: [
+                { TargetLabel: getMessage('actPluckingHair'), Name: "ItemHead", SelfAllowed: true, TargetAction: getMessage('actPluckingHair'), TargetSelfAction: getMessage('actPluckingHair') },
+            ],
+            CustomPrereqs: [
+                { Name: "LikoCanInteract", Func: actData.CustomPrerequisiteFuncs.get("LikoCanInteract") },
+                { Name: "LikoHasBCItemPermission", Func: actData.CustomPrerequisiteFuncs.get("LikoHasBCItemPermission") },
+                { Name: "LikoHasAhoge", Func: actData.CustomPrerequisiteFuncs.get("LikoHasAhoge") }
+            ],
+            CustomAction: {
+                Func: (target, args, next) => {
+                    const hasAhoge = !!(InventoryGet(target, "额外头发_Luzi"));
+                    if (!hasAhoge) {
+                        chatSendCustomAction(getNickname(target) + " " + getMessage('hasAhoge'));
+                        return;
+                    }
+
+                    if (pluckingHair(target)) {
+                        const isSelf = target.MemberNumber === Player.MemberNumber;
+                        if (isSelf) {
+                            chatSendCustomAction(getNickname(Player) + " " + getMessage('pluckingOwnHair'));
+                        } else {
+                            chatSendCustomAction(getNickname(Player) + " " + getMessage('pluckingHair') + " " + getNickname(target) + getMessage('pluckingHairSuffix'));
                         }
                     } else {
                         ChatRoomSendLocal(getMessage('removeFailed'), 5000);
