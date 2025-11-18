@@ -33,12 +33,12 @@
             if (this._cachedBasePath) return this._cachedBasePath;
 
             let href = window.location.href;
-            
+
             // 确保结尾有斜线
             if (!href.endsWith('/')) {
                 href = href.substring(0, href.lastIndexOf('/') + 1);
             }
-            
+
             this._cachedBasePath = href;
             return href;
         },
@@ -73,7 +73,7 @@
             stealFailed: "Failed to steal",
             removeFailed: "Failed to remove",
             nothingToRemove: "has no removable clothing in this area",
-            
+
             // Actions
             stealUnderwear: "quietly stole",
             stealUnderwearSuffix: "'s underwear 💕",
@@ -100,7 +100,7 @@
             pluckingOwnHair: "plucked their own ahoge",
             pluckingHair: "plucked",
             pluckingHairSuffix: "'s ahoge",
-            
+
             // Activity labels
             actCutClothes: "Cut Clothes",
             actRemoveClothes: "Remove Clothes",
@@ -134,7 +134,7 @@
             stealFailed: "偷取失败",
             removeFailed: "脱下失败",
             nothingToRemove: "在这个部位没有可移除的衣物",
-            
+
             // Actions
             stealUnderwear: "悄悄偷走了",
             stealUnderwearSuffix: "的内裤 💕",
@@ -161,7 +161,7 @@
             pluckingOwnHair: "拔下了自己的呆毛",
             pluckingHair: "拔下了",
             pluckingHairSuffix: "的呆毛",
-            
+
             // Activity labels
             actCutClothes: "剪掉衣物",
             actRemoveClothes: "脱掉衣物",
@@ -338,8 +338,8 @@
             InventoryRemove(Player, "ItemHandheld");
 
             const isZh = detectLanguage();
-            const itemName = isZh ? 
-                  `${targetNick}刚脱下的内裤 💕` : 
+            const itemName = isZh ?
+                  `${targetNick}刚脱下的内裤 💕` :
                   `${targetNick}'s freshly removed panties 💕`;
             const itemDesc = isZh ?
                   `${targetNick}刚脱下的内裤，带有一点余温与气味💕` :
@@ -625,7 +625,7 @@
 
         let handheldItemName;
         const isZh = detectLanguage();
-        
+
         if (itemType === "panties") {
             handheldItemName = "Panties";
         } else {
@@ -633,19 +633,19 @@
         }
 
         const itemName = isZh ?
-              (itemType === "panties" ? 
-               `${targetNick}刚脱下的内裤 💕` : 
+              (itemType === "panties" ?
+               `${targetNick}刚脱下的内裤 💕` :
                `${targetNick}刚脱下的袜子 💕`) :
-              (itemType === "panties" ? 
-               `${targetNick}'s freshly removed panties 💕` : 
+              (itemType === "panties" ?
+               `${targetNick}'s freshly removed panties 💕` :
                `${targetNick}'s freshly removed socks 💕`);
 
         const itemDesc = isZh ?
-              (itemType === "panties" ? 
-               `${targetNick}刚脱下的内裤，带有一点余温与气味💕` : 
+              (itemType === "panties" ?
+               `${targetNick}刚脱下的内裤，带有一点余温与气味💕` :
                `${targetNick}刚脱下的袜子，带有一点余温与气味💕`) :
-              (itemType === "panties" ? 
-               `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕` : 
+              (itemType === "panties" ?
+               `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕` :
                `${targetNick}'s freshly removed socks, with a hint of warmth and scent 💕`);
 
         InventoryWear(Player, handheldItemName, "ItemHandheld", itemColor, 0, target.MemberNumber, {
@@ -1094,6 +1094,15 @@
             }
             return next(args);
         });
+
+        if (GameVersion !== "R121") {
+            modApi.hookFunction("PreferenceGetActivityFactor", 4, (args, next) => {
+                if (typeof args[1] === "string" && args[1].indexOf("Liko_") === 0) {
+                    return 2;
+                }
+                return next(args);
+            });
+        }
     }
 
     // ===== 初始化 =====
