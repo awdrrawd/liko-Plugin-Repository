@@ -360,8 +360,8 @@
             return null;
         }
 
-        // Cloudflare R2 限制 10MB
-        if (file.size > 10 * 1024 * 1024) {
+        // Cloudflare R2 限制 30MB
+        if (file.size > 30 * 1024 * 1024) {
             ChatRoomSendLocalStyled("❌ 圖片超過 10MB (Cloudflare R2 限制)", 5000, "#ff4444");
             return null;
         }
