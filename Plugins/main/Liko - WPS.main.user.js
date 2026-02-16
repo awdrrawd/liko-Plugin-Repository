@@ -146,11 +146,21 @@
                 const p = payload.profile;
                 const from = payload.from || {};
                 const isSelf = from.memberNumber === Player?.MemberNumber;
+                const seenDate = new Date(p.seen);
+                const seenText =
+                      seenDate.getFullYear() + "/" +
+                      (seenDate.getMonth() + 1) + "/" +
+                      seenDate.getDate();
                 if (isSelf) {
                     ChatRoomSendLocal(`📜 已分享 ${p.lastNick || p.name} (${p.memberNumber}) 的 Profile`, 0);
                 } else {
                     const fromName = from.name || from.memberNumber || "某人";
-                    ChatRoomSendLocal(`📜 ${fromName} 分享了 [${OPEN_MARK} ${payload.sharedAt} ${p.memberNumber}] ${p.lastNick || p.name} (${p.memberNumber}) 的 Profile`, 0);
+                    ChatRoomSendLocal(
+                        `📜 ${fromName} 分享了 [${OPEN_MARK} ${payload.sharedAt} ${p.memberNumber}] ` +
+                        `${p.lastNick || p.name} (${p.memberNumber}) 的 Profile ` +
+                        `save: ${seenText}`,
+                        0
+                    );
                 }
             }
         } catch (e) {
