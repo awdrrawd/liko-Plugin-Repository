@@ -12,11 +12,12 @@
 // ==/UserScript==
 
 (function () {
-    "use strict";
-    const script = document.createElement("script");
-    script.src = `https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20WPS.main.user.js?timestamp=${Date.now()}`;
-    script.type = "module";
-    script.crossOrigin = "anonymous";
-    document.head.appendChild(script);
-    console.log('[WPS] loadtime:', Date.now());
+  "use strict";
+  const script = document.createElement("script");
+  script.src =
+    "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20WPS.main.user.js" +
+    "?t=" + Date.now();
+  script.type = "text/javascript"; // ✅ 或直接不設
+  document.head.appendChild(script);
+  console.log("[WPS] loader loaded");
 })();
