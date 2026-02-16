@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likolisu.dev/
-// @version      1.3.4
+// @version      1.3.5
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.3.4";
+    const modversion = "1.3.5";
     let cachedViewingCharacter = null;
     let lastCharacterCheck = 0;
     let lastScreenCheck = null;
@@ -552,7 +552,7 @@ Recommend selectively enabling plugins for the best experience.`,
             en_description: "Convert chat history to HTML and provides message recovery for up to 7 days.(The caching feature requires manual activation.)",
             additionalInfo: "包含完整的聊天記錄、時間戳和角色信息，可以搭配Neocities等網站上傳分享",
             en_additionalInfo: "Includes complete chat logs, timestamps and character info, compatible with sites like Neocities for sharing",
-            icon: "📋",
+            icon: "📖",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CHE.main.user.js",
             enabled: pluginSettings["Liko-CHE"] ?? true,
             priority: 3
@@ -721,7 +721,7 @@ Recommend selectively enabling plugins for the best experience.`,
             en_description: "WCE Profile Share,need to enable WCE profile saving.",
             additionalInfo: "",
             en_additionalInfo: "",
-            icon: "🎵",
+            icon: "📋",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20WPS.main.user.js",
             enabled: pluginSettings["Liko-WPS"] ?? true,
             priority: 5
@@ -1305,6 +1305,16 @@ Recommend selectively enabling plugins for the best experience.`,
             opacity: 0;
             pointer-events: none;
             transform: translateX(420px) scale(0.8);
+        }
+        .bc-plugin-floating-btn,
+        .bc-plugin-floating-btn *,
+        .bc-plugin-panel,
+        .bc-plugin-panel * {
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+            -ms-user-select: none !important;
+            -webkit-user-drag: none !important;
         }
 
         @media (max-width: 480px) {
