@@ -221,7 +221,7 @@
             const memberNumber = Number(m[1]);
             const share = document.createElement("a");
             share.href = "#";
-            share.textContent = "分享";
+            share.textContent = "分享 ";
             share.style.marginLeft = "6px";
             share.style.color = "#885CB0";
             share.style.cursor = "pointer";
@@ -267,11 +267,12 @@
             });
         } else {
             // fallback：直接覆蓋 ChatRoomMessage
-            const _ChatRoomMessage = window.ChatRoomMessage;
+            /*const _ChatRoomMessage = window.ChatRoomMessage;
             window.ChatRoomMessage = function (data) {
                 if (handleShareMessage(data)) return;
                 return _ChatRoomMessage.apply(this, arguments);
-            };
+            };*/
+            console.warn("[LikoShare] bcModSdk not available, Chat hook disabled");
         }
 
         // 定時掃描 UI：保險機制，避免 UI 被覆蓋
