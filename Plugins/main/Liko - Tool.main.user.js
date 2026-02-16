@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.3.0
+// @version      1.3.1
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function() {
     let modApi = null;
-    const modversion = "1.3.0";
+    const modversion = "1.3.1";
 
     // RP 圖標配置
     const rpBtnX = 955;
@@ -174,10 +174,10 @@
             return ChatRoomCharacter?.find(c => c.MemberNumber === parseInt(identifier)) || Player;
         } else if (typeof identifier === "string") {
             return ChatRoomCharacter?.find(c =>
-                c.Name.toLowerCase() === identifier.toLowerCase() ||
-                c.Nickname?.toLowerCase() === identifier.toLowerCase() ||
-                c.AccountName.toLowerCase() === identifier.toLowerCase()
-            ) || Player;
+                                           c.Name.toLowerCase() === identifier.toLowerCase() ||
+                                           c.Nickname?.toLowerCase() === identifier.toLowerCase() ||
+                                           c.AccountName.toLowerCase() === identifier.toLowerCase()
+                                          ) || Player;
         }
         return Player;
     }
@@ -785,9 +785,9 @@
         await loadToastSystem();
 
         const gameLoaded = await waitFor(() =>
-            typeof Player?.MemberNumber === "number" &&
-            typeof CommandCombine === "function"
-        );
+                                         typeof Player?.MemberNumber === "number" &&
+                                         typeof CommandCombine === "function"
+                                        );
 
         if (!gameLoaded) {
             console.error("[LT] 遊戲載入超時");
@@ -795,7 +795,7 @@
         }
 
         initializeStorage();
-        setupHooks();
+        waitForChatRoomThenSetupHooks();
 
         try {
             CommandCombine([{
@@ -815,7 +815,20 @@
 
         console.log(`[LT] ✅ 插件已載入 (v${modversion})`);
     }
+    function waitForChatRoomThenSetupHooks() {
+        waitFor(() =>
+                CurrentScreen === "ChatRoom" &&
+                typeof CharacterSetCurrent === "function"
+                , 60000).then(success => {
+            if (!success) {
+                console.error("[LT] ChatRoom hook timeout");
+                return;
+            }
 
+            console.log("[LT] ChatRoom ready, setting up hooks");
+            setupHooks();
+        });
+    }
     // 卸載清理
     function setupUnloadHandler() {
         if (modApi && typeof modApi.onUnload === 'function') {
