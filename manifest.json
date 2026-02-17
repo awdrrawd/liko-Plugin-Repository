@@ -249,6 +249,25 @@
       ]
     },
     {
+      "id": "Liko_WPS",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "WCE的個人資料分享",
+      "description": "WCE的個人資料分享\nWCE Profile Share.",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20WPS.main.user.js"
+        }
+      ]
+    },
+    {
       "id": "Liko_CMC",
       "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
       "name": "Liko的聊天室音樂控制器 —— Liko's Music Controller.",
