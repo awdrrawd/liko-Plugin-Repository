@@ -65,8 +65,8 @@
             name: "YouTube"
         },
         bilibili: {
-            regex: /bilibili\.com\/video\/(BV[a-zA-Z0-9]{10})(?:[\/\?&].*)?/,
-            embedTemplate: (id) => `https://player.bilibili.com/player.html?bvid=${id}&autoplay=0`,
+            regex: /bilibili\.com\/video\/(BV[a-zA-Z0-9]+)/,
+            //embedTemplate: (id) => `https://player.bilibili.com/player.html?bvid=${id}&autoplay=0`,
             htmlTemplate: (id) =>
             /*`<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
@@ -97,7 +97,7 @@
         },
         instagram: {
             regex: /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/,
-            embedTemplate: (id) => `https://www.instagram.com/p/${id}/embed/`,
+            //embedTemplate: (id) => `https://www.instagram.com/p/${id}/embed/`,
             htmlTemplate: (id) =>
             /*`<div style="width: 100%; max-width: 400px; margin: 0.3em auto; background: #fff; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 500px;">
@@ -127,7 +127,7 @@
         },
         vimeo: {
             regex: /vimeo\.com\/([0-9]+)/,
-            embedTemplate: (id) => `https://player.vimeo.com/video/${id}`,
+            //embedTemplate: (id) => `https://player.vimeo.com/video/${id}`,
             htmlTemplate: (id) =>
             /*`<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
@@ -141,7 +141,7 @@
         },
         niconico: {
             regex: /nicovideo\.jp\/watch\/(sm[0-9]+)/,
-            embedTemplate: (id) => `https://embed.nicovideo.jp/watch/${id}`,
+            //embedTemplate: (id) => `https://embed.nicovideo.jp/watch/${id}`,
             htmlTemplate: (id) =>
             /*`<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
