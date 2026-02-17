@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Liko - WPS
 // @namespace    https://likulisu.dev/
-// @version      1.1
+// @version      1.1.1
 // @description  WCE Profile Share
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -22,7 +22,7 @@
     const PREFIX = "[LIKOSHARE]";
     const OPEN_MARK = "LIKOSHARE_OPEN";
     const CHUNK_SIZE = 800;
-    const VERSION = "1.1";
+    const VERSION = "1.1.1";
 
     const incoming = new Map();
     const cache = new Map();
@@ -213,9 +213,25 @@
             element.querySelectorAll(".likoShareOpen").forEach(el => {
                 if (el.dataset.bound) return;
                 el.dataset.bound = "1";
-                el.addEventListener("click", () => {
+
+                /* 防止被選取（關鍵在這） */
+                el.style.userSelect = "none";
+                el.style.webkitUserSelect = "none";
+                el.style.msUserSelect = "none";
+                el.onselectstart = () => false;
+
+                el.addEventListener("mousedown", e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+
+                el.addEventListener("click", e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
                     const payload = cache.get(el.dataset.key);
                     if (!payload) return;
+
                     const p = payload.profile;
                     const C = CharacterLoadOnline(JSON.parse(p.characterBundle), p.memberNumber);
                     InformationSheetLoadCharacter(C);
@@ -237,21 +253,21 @@
 
             const memberNumber = Number(m[1]);
             const btn = document.createElement("a");
-btn.href = "#";
-btn.textContent = getUILabel("share");
-btn.style.marginLeft = "6px";
-btn.style.color = "#885CB0";
-btn.style.userSelect = "none";
-btn.style.webkitUserSelect = "none";
-btn.style.msUserSelect = "none";
+            btn.href = "#";
+            btn.textContent = getUILabel("share");
+            btn.style.marginLeft = "6px";
+            btn.style.color = "#885CB0";
+            btn.style.userSelect = "none";
+            btn.style.webkitUserSelect = "none";
+            btn.style.msUserSelect = "none";
 
-btn.addEventListener("mousedown", e => e.preventDefault());
+            btn.addEventListener("mousedown", e => e.preventDefault());
 
-btn.addEventListener("click", e => {
-    e.preventDefault();
-    e.stopPropagation();
-    shareProfile(memberNumber);
-});
+            btn.addEventListener("click", e => {
+                e.preventDefault();
+                e.stopPropagation();
+                shareProfile(memberNumber);
+            });
 
             open.after(btn);
         });
