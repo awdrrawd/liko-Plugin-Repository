@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.1.3
+// @version      2.1.4
 // @description  聊天室紀錄匯出
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
     "use strict";
 
     let modApi;
-    const modversion = "2.1.3";
+    const modversion = "2.1.4";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5分钟保存一次碎片
     let autoSaveTimer = null;
@@ -2129,6 +2129,7 @@
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             font-size: 24px; display: flex; align-items: center; justify-content: center;
             backdrop-filter: blur(10px);
+            user-select: none;
         `;
         toggleButton.title = "聊天室記錄管理器 v2.1";
 
@@ -2173,6 +2174,7 @@
             box-shadow: 0 15px 35px rgba(0,0,0,0.3), 0 5px 15px rgba(0,0,0,0.2);
             flex-direction: column; gap: 10px; min-width: 160px;
             border: 1px solid rgba(255,255,255,0.1);
+            user-select: none;
         `;
 
         const createButton = (label, handler, gradient = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)") => {
@@ -2183,6 +2185,7 @@
                 background: ${gradient}; color: #fff; border: none; border-radius: 8px;
                 cursor: pointer; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
                 white-space: nowrap; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                user-select: none;
             `;
 
             btn.onmouseover = () => {
