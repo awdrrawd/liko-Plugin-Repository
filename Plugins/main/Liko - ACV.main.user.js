@@ -2,7 +2,7 @@
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.2
+// @version      1.2.1
 // @description  Advanced video player that auto-detects video links in chat and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -19,7 +19,7 @@
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
-    const modVersion = "1.2";
+    const modVersion = "1.2.1";
     let isEnabled = true;
     let scanInterval;
 
@@ -195,16 +195,18 @@
             name: "Facebook Reel"
         },
         spotify: {
-            regex: /open\.spotify\.com\/(track|album|playlist|episode|show)\/([a-zA-Z0-9]+)/,
+            regex: /open\.spotify\.com\/(track|album|playlist|episode|show|artist)\/([a-zA-Z0-9]+)/,
             htmlTemplate: (type, id) => {
-                const heights = {
+                const HEIGHT_MAP = {
                     track: 80,
                     album: 352,
                     playlist: 352,
+                    artist: 352,
                     episode: 152,
                     show: 232
                 };
-                return createSpotifyEmbed(`https://open.spotify.com/embed/${type}/${id}`, heights[type] || 80);},
+                const height = HEIGHT_MAP[type] ?? 80;
+                return createSpotifyEmbed(`https://open.spotify.com/embed/${type}/${id}`,height);},
             name: "Spotify"
         }
     };
@@ -314,7 +316,7 @@
                 } else if (platform === "spotify") {
                     return {
                         platform,
-                        type: match[1],
+                        type: match[1], // track / album / playlist / episode / show / artist
                         id: match[2],
                         originalUrl: url,
                         platformName: pattern.name
