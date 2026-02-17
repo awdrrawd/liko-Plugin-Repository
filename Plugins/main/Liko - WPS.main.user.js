@@ -237,15 +237,21 @@
 
             const memberNumber = Number(m[1]);
             const btn = document.createElement("a");
-            btn.href = "#";
-            btn.textContent = getUILabel("share");
-            btn.style.marginLeft = "6px";
-            btn.style.color = "#885CB0";
-            btn.addEventListener("click", e => {
-                e.preventDefault();
-                e.stopPropagation();
-                shareProfile(memberNumber);
-            });
+btn.href = "#";
+btn.textContent = getUILabel("share");
+btn.style.marginLeft = "6px";
+btn.style.color = "#885CB0";
+btn.style.userSelect = "none";
+btn.style.webkitUserSelect = "none";
+btn.style.msUserSelect = "none";
+
+btn.addEventListener("mousedown", e => e.preventDefault());
+
+btn.addEventListener("click", e => {
+    e.preventDefault();
+    e.stopPropagation();
+    shareProfile(memberNumber);
+});
 
             open.after(btn);
         });
@@ -280,6 +286,5 @@
         document.querySelectorAll(".ChatMessageLocalMessage").forEach(processShareText);
         enhanceProfilesUI();
     }, 500);
-
     //log("Liko-WPS", VERSION);
 })();
