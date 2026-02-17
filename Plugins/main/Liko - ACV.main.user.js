@@ -2,7 +2,7 @@
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.1
+// @version      1.2
 // @description  Advanced video player that auto-detects video links in chat and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -19,16 +19,17 @@
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
-    const modVersion = "1.1";
+    const modVersion = "1.2";
     let isEnabled = true;
     let scanInterval;
 
     // 支援的影音平台配置
     const videoPatterns = {
-        youtube: {
+        /*youtube: {
             regex: /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
             embedTemplate: (id) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0&modestbranding=1`,
-            htmlTemplate: (id) => `<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
+            htmlTemplate: (id) =>
+            `<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
                     <iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0&modestbranding=1"
                             frameborder="0" allowfullscreen
@@ -50,25 +51,36 @@
                 </div>
             </div>`,
             name: "YouTube"
+        },*/
+        youtubeShorts: {
+            regex: /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+            htmlTemplate: (id) =>
+            createResponsiveIframe(`https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0`,{ratio: "9:16", maxWidth: 320}),
+            name: "YouTube Shorts"
+        },
+        youtube: {
+            regex: /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+            htmlTemplate: (id) =>
+            createResponsiveIframe( `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0`,{ ratio: "16:9" } ),
+            name: "YouTube"
         },
         bilibili: {
             regex: /bilibili\.com\/video\/(BV[a-zA-Z0-9]{10})(?:[\/\?&].*)?/,
             embedTemplate: (id) => `https://player.bilibili.com/player.html?bvid=${id}&autoplay=0`,
-            htmlTemplate: (id) => `<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
+            htmlTemplate: (id) =>
+            /*`<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
                     <iframe src="https://player.bilibili.com/player.html?bvid=${id}&autoplay=0"
                             frameborder="0" allowfullscreen
                             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
                 </div>
-            </div>`,
+            </div>`,*/
+            createResponsiveIframe(`https://player.bilibili.com/player.html?bvid=${id}&autoplay=0`,{ratio: "16:9"}),
             name: "Bilibili"
         },
         douyin: {
             regex: /douyin\.com\/(?:video\/(\d+)|jingxuan\?modal_id=(\d+))/,
-            embedTemplate: (id1, id2) => {
-                const id = id1 || id2;
-                return `https://open.douyin.com/player/video?vid=${id}&autoplay=0`;
-            },
+            embedTemplate: (id1, id2) => {const id = id1 || id2; return `https://open.douyin.com/player/video?vid=${id}&autoplay=0`;},
             htmlTemplate: (id1, id2) => {
                 const id = id1 || id2;
                 return `<div style="width: 100%; max-width: 300px; margin: 0.3em auto; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
@@ -80,18 +92,21 @@
                     </div>
                 </div>`;
             },
+            //createResponsiveIframe(`https://open.douyin.com/player/video?vid=${id}&autoplay=0`,{ratio: "9:16",maxWidth: 360}),
             name: "抖音"
         },
         instagram: {
             regex: /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/,
             embedTemplate: (id) => `https://www.instagram.com/p/${id}/embed/`,
-            htmlTemplate: (id) => `<div style="width: 100%; max-width: 400px; margin: 0.3em auto; background: #fff; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
+            htmlTemplate: (id) =>
+            /*`<div style="width: 100%; max-width: 400px; margin: 0.3em auto; background: #fff; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 500px;">
                     <iframe src="https://www.instagram.com/p/${id}/embed/"
                             frameborder="0" allowfullscreen scrolling="no" allowtransparency="true"
                             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
                 </div>
-            </div>`,
+            </div>`,*/
+            createResponsiveIframe(`https://www.instagram.com/p/${id}/embed/`,{ratio: "9:16",maxWidth: 360}),
             name: "Instagram"
         },
         twitch: {
@@ -113,31 +128,36 @@
         vimeo: {
             regex: /vimeo\.com\/([0-9]+)/,
             embedTemplate: (id) => `https://player.vimeo.com/video/${id}`,
-            htmlTemplate: (id) => `<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
+            htmlTemplate: (id) =>
+            /*`<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
                     <iframe src="https://player.vimeo.com/video/${id}"
                             frameborder="0" allowfullscreen
                             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
                 </div>
-            </div>`,
+            </div>`,*/
+            createResponsiveIframe(`https://player.vimeo.com/video/${id}`,{ratio: "16:9"}),
             name: "Vimeo"
         },
         niconico: {
             regex: /nicovideo\.jp\/watch\/(sm[0-9]+)/,
             embedTemplate: (id) => `https://embed.nicovideo.jp/watch/${id}`,
-            htmlTemplate: (id) => `<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
+            htmlTemplate: (id) =>
+            /*`<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
                     <iframe src="https://embed.nicovideo.jp/watch/${id}"
                             frameborder="0" allowfullscreen
                             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
                 </div>
-            </div>`,
+            </div>`,*/
+            createResponsiveIframe(`https://embed.nicovideo.jp/watch/${id}`,{ratio: "16:9"}),
             name: "Niconico"
         },
         twitter: {
             regex: /(?:twitter\.com|x\.com)\/[^\/]+\/status\/(\d+)/,
             embedTemplate: (id) => `https://twitter.com/i/status/${id}`,
-            htmlTemplate: (id, username) => {
+            htmlTemplate: (id, username) =>
+            {
                 // 確保 widgets.js 已加載
                 if (!window.twttr) {
                     const script = document.createElement('script');
@@ -148,13 +168,44 @@
                 }
 
                 return `<div class="twitter-embed-container" style="width: 100%; max-width: 500px; margin: 0.3em auto;">
-            <blockquote class="twitter-tweet" data-media-max-width="500">
-                <a href="https://twitter.com/i/status/${id}"></a>
-            </blockquote>
-        </div>`;
+                        <blockquote class="twitter-tweet" data-media-max-width="500">
+                        <a href="https://twitter.com/i/status/${id}"></a>
+                        </blockquote>
+                        </div>`;
             },
             name: "Twitter/X",
             needsScriptReload: true // 標記需要重新加載腳本
+        },
+        facebook: {
+            regex: /facebook\.com\/(reel\/\d+|watch\/\?v=\d+|.*\/videos\/\d+)/,
+            htmlTemplate: (url) =>
+            /*`<div style="width:100%; max-width:560px; margin:0.3em 0;">
+                    <iframe
+                        src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false"
+                        width="100%"
+                        height="315"
+                        style="border:none;overflow:hidden"
+                        scrolling="no"
+                        frameborder="0"
+                        allowfullscreen
+                        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share">
+                    </iframe>
+                </div>`,*/
+            createResponsiveIframe(`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false`,{ratio: "9:16", maxWidth: 360 }),
+            name: "Facebook Reel"
+        },
+        spotify: {
+            regex: /open\.spotify\.com\/(track|album|playlist|episode|show)\/([a-zA-Z0-9]+)/,
+            htmlTemplate: (type, id) => {
+                const heights = {
+                    track: 80,
+                    album: 352,
+                    playlist: 352,
+                    episode: 152,
+                    show: 232
+                };
+                return createSpotifyEmbed(`https://open.spotify.com/embed/${type}/${id}`, heights[type] || 80);},
+            name: "Spotify"
         }
     };
 
@@ -231,7 +282,7 @@
                         id,
                         type,
                         originalUrl: url,
-                        embedUrl: pattern.embedTemplate(id, type),
+                        //embedUrl: pattern.embedTemplate(id, type),
                         platformName: pattern.name
                     };
                 } else if (platform === "douyin") {
@@ -242,18 +293,30 @@
                         id: id || shortCode,
                         shortCode: shortCode,
                         originalUrl: url,
-                        embedUrl: pattern.embedTemplate(match[1], match[2], match[3]),
+                        //embedUrl: pattern.embedTemplate(match[1], match[2], match[3]),
                         platformName: pattern.name
                     };
                 } else if (platform === "twitter") {
-                    const username = match[1];
-                    const id = match[2];
+                    const id = match[1];
                     return {
                         platform,
                         id,
-                        username,
                         originalUrl: url,
-                        embedUrl: pattern.embedTemplate(username, id),
+                        platformName: pattern.name
+                    };
+                } else if (platform === "facebook") {
+                    return {
+                        platform,
+                        url,              // ← 用完整 URL
+                        originalUrl: url,
+                        platformName: pattern.name
+                    };
+                } else if (platform === "spotify") {
+                    return {
+                        platform,
+                        type: match[1],
+                        id: match[2],
+                        originalUrl: url,
                         platformName: pattern.name
                     };
                 } else {
@@ -262,13 +325,74 @@
                         platform,
                         id,
                         originalUrl: url,
-                        embedUrl: pattern.embedTemplate(id),
+                        //embedUrl: pattern.embedTemplate(id),
                         platformName: pattern.name
                     };
                 }
             }
         }
         return null;
+    }
+    function createResponsiveIframe(src, {
+        ratio = "16:9",
+        maxWidth = null,
+        extraAttrs = ""
+    } = {}) {
+        const [w, h] = ratio.split(":").map(Number);
+
+        return `
+        <div style="
+            width: 100%;
+            ${maxWidth ? `max-width:${maxWidth}px;` : ""}
+            margin: 0.3em auto;
+        ">
+            <div style="
+                position: relative;
+                width: 100%;
+                aspect-ratio: ${w} / ${h};
+                background: #000;
+                border-radius: 6px;
+                overflow: hidden;
+            ">
+                <iframe
+                    src="${src}"
+                    style="
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        border: none;
+                    "
+                    scrolling="no"
+                    frameborder="0"
+                    allowfullscreen
+                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                    ${extraAttrs}
+                ></iframe>
+            </div>
+        </div>
+    `;
+    }
+
+    function createSpotifyEmbed(src, height) {
+        return `
+        <div style="
+            width: 100%;
+            max-width: 500px;
+            margin: 0.3em 0;
+        ">
+            <iframe
+                src="${src}"
+                width="100%"
+                height="${height}"
+                frameborder="0"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                style="border-radius: 12px;"
+                loading="lazy">
+            </iframe>
+        </div>
+    `;
     }
 
     // 創建視頻播放按鈕
@@ -309,7 +433,7 @@
             event.preventDefault();
             event.stopPropagation();
 
-            const messageElement = button.closest('.chat-room-message-content') || button.closest('[role="log"] div') || button.closest('div');
+            const messageElement = button.parentElement?.closest('.chat-room-message-content');
             if (!messageElement) return;
 
             let existingIframe = messageElement.querySelector('.likoVideoIframe');
@@ -334,12 +458,15 @@
                     htmlContent = pattern.htmlTemplate(videoInfo.id, null, videoInfo.shortCode);
                 } else if (videoInfo.platform === "twitch") {
                     htmlContent = pattern.htmlTemplate(videoInfo.id, videoInfo.type);
+                } else if (videoInfo.platform === "facebook") {
+                    htmlContent = pattern.htmlTemplate(videoInfo.originalUrl);
                 } else if (videoInfo.platform === "twitter") {
-                    htmlContent = pattern.htmlTemplate(videoInfo.username, videoInfo.id);
+                    htmlContent = pattern.htmlTemplate(videoInfo.id);
+                } else if (videoInfo.platform === "spotify") {
+                    htmlContent = pattern.htmlTemplate(videoInfo.type, videoInfo.id);
                 } else {
                     htmlContent = pattern.htmlTemplate(videoInfo.id);
                 }
-                iframeContainer.innerHTML = htmlContent;
 
                 const closeButton = document.createElement("button");
                 closeButton.textContent = "✕";
@@ -365,6 +492,7 @@
                     button.style.color = "#ff4757";
                 });
 
+                iframeContainer.innerHTML = htmlContent;
                 iframeContainer.style.position = "relative";
                 iframeContainer.appendChild(closeButton);
 
@@ -396,92 +524,32 @@
     // 處理文本內容
     function processTextContent(element) {
         if (!isEnabled) return;
-        if (element.dataset.likoVideoProcessed === "1") return;
 
-        if (element.querySelector('.likoVideoButton') ||
-            element.querySelector('.likoVideoIframe') ||
-            element.closest('.likoVideoIframe') ||
-            element.tagName === 'IFRAME' ||
-            element.closest('iframe')) {
-            return;
-        }
+        const links = element.querySelectorAll('a[href]:not([data-liko-processed])');
 
-        let hasChanges = false;
-
-        const existingLinks = element.querySelectorAll('a[href]:not([data-liko-processed])');
-        existingLinks.forEach(link => {
+        links.forEach(link => {
             const href = link.getAttribute('href');
+            if (!href) return;
+
             const videoInfo = detectVideoUrl(href);
-            if (videoInfo) {
-                const simplifiedUrl = simplifyUrl(href);
-                link.textContent = simplifiedUrl;
-                const button = createVideoButton(videoInfo, href);
-                link.appendChild(button);
-                link.style.cssText += `
-                    background: rgba(255, 71, 87, 0.1);
-                    padding: 3px 6px;
-                    border-radius: 4px;
-                    display: inline-block;
-                    text-decoration: none;
-                    margin: 2px 0;
-                `;
-                link.dataset.likoProcessed = "1";
-                hasChanges = true;
-            }
+            if (!videoInfo) return;
+
+            const button = createVideoButton(videoInfo, href);
+
+            // 插在 <a> 前面
+            link.before(button);
+            link.before(document.createTextNode(" "));
+
+            // 只標記這個 link
+            link.dataset.likoProcessed = "1";
         });
-
-        let innerHTML = element.innerHTML;
-
-        for (let platform in videoPatterns) {
-            const pattern = videoPatterns[platform];
-            if (!pattern || !pattern.regex) continue; // 安全檢查
-
-            const regex = new RegExp(pattern.regex.source, 'gi');
-
-            innerHTML = innerHTML.replace(regex, (match) => {
-                if (match.includes('<') || match.includes('>')) return match;
-
-                const videoInfo = detectVideoUrl(match);
-                if (videoInfo) {
-                    hasChanges = true;
-                    const simplifiedUrl = simplifyUrl(match);
-                    return `<span class="likoVideoLink" data-video-info='${JSON.stringify(videoInfo)}' data-original-url='${match}' style="background: rgba(255, 71, 87, 0.1); padding: 3px 6px; border-radius: 4px; display: inline-block; margin: 2px 0;">${simplifiedUrl}</span>`;
-                }
-                return match;
-            });
-        }
-
-        if (hasChanges && innerHTML !== element.innerHTML) {
-            element.innerHTML = innerHTML;
-
-            element.querySelectorAll('.likoVideoLink[data-video-info]:not([data-button-added])').forEach(span => {
-                try {
-                    const videoInfo = JSON.parse(span.dataset.videoInfo);
-                    const originalUrl = span.dataset.originalUrl;
-                    const button = createVideoButton(videoInfo, originalUrl);
-                    span.appendChild(button);
-                    span.dataset.buttonAdded = "1";
-                } catch (e) {
-                    console.error("Video Player: 添加按鈕失敗:", e);
-                }
-            });
-        }
-
-        element.dataset.likoVideoProcessed = "1";
     }
 
     // 掃描聊天消息
     function scanChatMessages() {
         if (!isEnabled) return;
-
         const messageContainers = document.querySelectorAll(".chat-room-message-content, [role='log'] > div");
-
-        messageContainers.forEach(container => {
-            if (container.querySelector('.likoVideoIframe')) {
-                return;
-            }
-            processTextContent(container);
-        });
+        messageContainers.forEach(container => {processTextContent(container);});
     }
 
     // 插件控制函數
@@ -570,22 +638,29 @@
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
             modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                return next(args).then(()=>{
-                    setTimeout(() => {
-                        if (!window.LikoVideoPlayerWelcomed && isEnabled) {
-                            const supportedPlatforms = Object.values(videoPatterns).map(p => p.name).join(", ");
-                            ChatRoomSendLocal(
-                                `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
-                            <b>🎬 Liko's ACV v${modVersion} 🎬</b>
-                            <br>- 自動檢測影片連結，添加 🎬 播放按鈕 | Auto-detect video links, add 🎬 play button.
-                            <br>- 支援平台(Supported): ${supportedPlatforms}
-                            <br>- 點擊 🎬 按鈕播放，再次點擊則隱藏 | Click 🎬 button to play, click again to hide
-                            </p>`.replace(/\s+/g, " "), 10000
-                            );
-                            window.LikoVideoPlayerWelcomed = true;
-                        }
-                    }, 1000);
-                })
+                const result = next(args);
+
+                // 不管 sync / async，都延後處理
+                setTimeout(() => {
+                    if (!window.LikoVideoPlayerWelcomed && isEnabled) {
+                        const supportedPlatforms = Object.values(videoPatterns)
+                        .map(p => p.name)
+                        .join(", ");
+
+                        ChatRoomSendLocal(
+                            `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
+                             <b>🎬 Liko's ACV v${modVersion} 🎬</b>
+                              <br>- 自動檢測影片連結，添加 🎬 播放按鈕
+                             <br>- 支援平台: ${supportedPlatforms}
+                             </p>`.replace(/\s+/g, " "),
+                            10000
+                        );
+
+                        window.LikoVideoPlayerWelcomed = true;
+                    }
+                }, 1000);
+
+                return result;
             });
 
             modApi.hookFunction("ChatRoomMessage", 0, (args, next) => {
