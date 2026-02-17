@@ -2,7 +2,7 @@
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.2.1
+// @version      1.2.2
 // @description  Advanced video player that auto-detects video links in chat and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -19,39 +19,24 @@
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
-    const modVersion = "1.2.1";
+    const modVersion = "1.2.2";
     let isEnabled = true;
     let scanInterval;
 
     // 支援的影音平台配置
+    const PLATFORM_DISPLAY_NAME = {
+        bilibiliVideo: "Bilibili",
+        bilibiliBangumi: "Bilibili",
+
+        youtube: "YouTube",
+        youtubeShorts: "YouTube",
+
+        facebook: "Facebook",
+        instagram: "Instagram",
+        spotify: "Spotify",
+        twitter: "Twitter/X"
+    };
     const videoPatterns = {
-        /*youtube: {
-            regex: /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-            embedTemplate: (id) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0&modestbranding=1`,
-            htmlTemplate: (id) =>
-            `<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
-                <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
-                    <iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0&modestbranding=1"
-                            frameborder="0" allowfullscreen
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            referrerpolicy="strict-origin-when-cross-origin"
-                            onload="this.style.display='block'"
-                            onerror="this.style.display='none'; this.nextElementSibling.style.display='block'"
-                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
-                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a1a; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center;">
-                        <div style="font-size: 2em; margin-bottom: 10px;">📺</div>
-                        <div style="margin-bottom: 15px;">無法嵌入此視頻</div>
-                        <div style="margin-bottom: 10px; font-size: 0.9em; color: #aaa;">建議在瀏覽器中觀看以獲得最佳體驗</div>
-                        <a href="https://www.youtube.com/watch?v=${id}" target="_blank"
-                           style="background: #ff0000; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold; margin-bottom: 10px; display: inline-block;">
-                           在 YouTube 觀看
-                        </a>
-                        <div style="font-size: 0.8em; color: #666;">或複製連結到瀏覽器: youtube.com/watch?v=${id}</div>
-                    </div>
-                </div>
-            </div>`,
-            name: "YouTube"
-        },*/
         youtubeShorts: {
             regex: /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
             htmlTemplate: (id) =>
@@ -64,23 +49,24 @@
             createResponsiveIframe( `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0`,{ ratio: "16:9" } ),
             name: "YouTube"
         },
-        bilibili: {
+        bilibiliVideo: {
             regex: /bilibili\.com\/video\/(BV[a-zA-Z0-9]+)/,
-            //embedTemplate: (id) => `https://player.bilibili.com/player.html?bvid=${id}&autoplay=0`,
             htmlTemplate: (id) =>
-            /*`<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
-                <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
-                    <iframe src="https://player.bilibili.com/player.html?bvid=${id}&autoplay=0"
-                            frameborder="0" allowfullscreen
-                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
-                </div>
-            </div>`,*/
-            createResponsiveIframe(`https://player.bilibili.com/player.html?bvid=${id}&autoplay=0`,{ratio: "16:9"}),
+            createResponsiveIframe(`https://player.bilibili.com/player.html?bvid=${id}&autoplay=0`,{ ratio: "16:9" }),
             name: "Bilibili"
+        },
+        bilibiliBangumi: {
+            regex: /bilibili\.com\/bangumi\/play\/(ep|ss)(\d+)/,
+            htmlTemplate: (type, id) => {
+                const param =
+                      type === "ep"
+                ? `ep_id=${id}`
+                : `season_id=${id}`;
+                return createResponsiveIframe(`https://player.bilibili.com/player.html?${param}&autoplay=0`,{ ratio: "16:9" });},
+            name: "Bilibili 番劇"
         },
         douyin: {
             regex: /douyin\.com\/(?:video\/(\d+)|jingxuan\?modal_id=(\d+))/,
-            embedTemplate: (id1, id2) => {const id = id1 || id2; return `https://open.douyin.com/player/video?vid=${id}&autoplay=0`;},
             htmlTemplate: (id1, id2) => {
                 const id = id1 || id2;
                 return `<div style="width: 100%; max-width: 300px; margin: 0.3em auto; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
@@ -97,23 +83,12 @@
         },
         instagram: {
             regex: /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/,
-            //embedTemplate: (id) => `https://www.instagram.com/p/${id}/embed/`,
             htmlTemplate: (id) =>
-            /*`<div style="width: 100%; max-width: 400px; margin: 0.3em auto; background: #fff; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
-                <div style="position: relative; width: 100%; height: 500px;">
-                    <iframe src="https://www.instagram.com/p/${id}/embed/"
-                            frameborder="0" allowfullscreen scrolling="no" allowtransparency="true"
-                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
-                </div>
-            </div>`,*/
             createResponsiveIframe(`https://www.instagram.com/p/${id}/embed/`,{ratio: "9:16",maxWidth: 360}),
             name: "Instagram"
         },
         twitch: {
             regex: /twitch\.tv\/(?:(?:videos\/([0-9]+)(?:[\/?].*)?)|([a-zA-Z0-9_]+)(?:[\/?].*)?)/,
-            embedTemplate: (id, type) => type === "video"
-            ? `https://player.twitch.tv/?video=${id}&parent=${window.location.hostname}&autoplay=false`
-            : `https://player.twitch.tv/?channel=${id}&parent=${window.location.hostname}&autoplay=false`,
             htmlTemplate: (id, type) => `<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
                 <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
                     <iframe src="${type === "video"
@@ -127,35 +102,18 @@
         },
         vimeo: {
             regex: /vimeo\.com\/([0-9]+)/,
-            //embedTemplate: (id) => `https://player.vimeo.com/video/${id}`,
             htmlTemplate: (id) =>
-            /*`<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
-                <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
-                    <iframe src="https://player.vimeo.com/video/${id}"
-                            frameborder="0" allowfullscreen
-                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
-                </div>
-            </div>`,*/
             createResponsiveIframe(`https://player.vimeo.com/video/${id}`,{ratio: "16:9"}),
             name: "Vimeo"
         },
         niconico: {
             regex: /nicovideo\.jp\/watch\/(sm[0-9]+)/,
-            //embedTemplate: (id) => `https://embed.nicovideo.jp/watch/${id}`,
             htmlTemplate: (id) =>
-            /*`<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
-                <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
-                    <iframe src="https://embed.nicovideo.jp/watch/${id}"
-                            frameborder="0" allowfullscreen
-                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
-                </div>
-            </div>`,*/
             createResponsiveIframe(`https://embed.nicovideo.jp/watch/${id}`,{ratio: "16:9"}),
             name: "Niconico"
         },
         twitter: {
             regex: /(?:twitter\.com|x\.com)\/[^\/]+\/status\/(\d+)/,
-            embedTemplate: (id) => `https://twitter.com/i/status/${id}`,
             htmlTemplate: (id, username) =>
             {
                 // 確保 widgets.js 已加載
@@ -179,18 +137,6 @@
         facebook: {
             regex: /facebook\.com\/(reel\/\d+|watch\/\?v=\d+|.*\/videos\/\d+)/,
             htmlTemplate: (url) =>
-            /*`<div style="width:100%; max-width:560px; margin:0.3em 0;">
-                    <iframe
-                        src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false"
-                        width="100%"
-                        height="315"
-                        style="border:none;overflow:hidden"
-                        scrolling="no"
-                        frameborder="0"
-                        allowfullscreen
-                        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share">
-                    </iframe>
-                </div>`,*/
             createResponsiveIframe(`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false`,{ratio: "9:16", maxWidth: 360 }),
             name: "Facebook Reel"
         },
@@ -242,32 +188,6 @@
         console.error("❌ Video Player Advanced 初始化失敗:", e.message);
     }
 
-    // 简化URL显示
-    function simplifyUrl(url) {
-        let simplified = url.replace(/^https?:\/\/(www\.)?/, '');
-
-        if (simplified.includes('bilibili.com/video/')) {
-            const match = simplified.match(/bilibili\.com\/video\/(BV[a-zA-Z0-9]{10})/);
-            if (match) return `bilibili.com/video/${match[1]}`;
-        }
-
-        if (simplified.includes('youtube.com/watch?v=')) {
-            const match = simplified.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
-            if (match) return `youtube.com/watch?v=${match[1]}`;
-        }
-
-        if (simplified.includes('youtube.com/shorts/')) {
-            const match = simplified.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/);
-            if (match) return `youtube.com/shorts/${match[1]}`;
-        }
-
-        if (simplified.length > 60) {
-            return simplified.substring(0, 57) + '...';
-        }
-
-        return simplified;
-    }
-
     // 檢測影片網址
     function detectVideoUrl(url) {
         for (let platform in videoPatterns) {
@@ -284,19 +204,16 @@
                         id,
                         type,
                         originalUrl: url,
-                        //embedUrl: pattern.embedTemplate(id, type),
-                        platformName: pattern.name
+                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
                     };
                 } else if (platform === "douyin") {
                     const id = match[1] || match[2];
                     const shortCode = match[3];
                     return {
                         platform,
-                        id: id || shortCode,
-                        shortCode: shortCode,
+                        id: id,
                         originalUrl: url,
-                        //embedUrl: pattern.embedTemplate(match[1], match[2], match[3]),
-                        platformName: pattern.name
+                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
                     };
                 } else if (platform === "twitter") {
                     const id = match[1];
@@ -304,19 +221,27 @@
                         platform,
                         id,
                         originalUrl: url,
-                        platformName: pattern.name
+                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
                     };
                 } else if (platform === "facebook") {
                     return {
                         platform,
                         url,              // ← 用完整 URL
                         originalUrl: url,
-                        platformName: pattern.name
+                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
                     };
                 } else if (platform === "spotify") {
                     return {
                         platform,
                         type: match[1], // track / album / playlist / episode / show / artist
+                        id: match[2],
+                        originalUrl: url,
+                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
+                    };
+                } else if (platform === "bilibiliBangumi") {
+                    return {
+                        platform,
+                        type: match[1], // ep / ss
                         id: match[2],
                         originalUrl: url,
                         platformName: pattern.name
@@ -327,8 +252,7 @@
                         platform,
                         id,
                         originalUrl: url,
-                        //embedUrl: pattern.embedTemplate(id),
-                        platformName: pattern.name
+                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
                     };
                 }
             }
@@ -466,6 +390,8 @@
                     htmlContent = pattern.htmlTemplate(videoInfo.id);
                 } else if (videoInfo.platform === "spotify") {
                     htmlContent = pattern.htmlTemplate(videoInfo.type, videoInfo.id);
+                } else if (videoInfo.platform === "bilibiliBangumi") {
+                    htmlContent = pattern.htmlTemplate(videoInfo.type, videoInfo.id);
                 } else {
                     htmlContent = pattern.htmlTemplate(videoInfo.id);
                 }
@@ -559,7 +485,7 @@
         isEnabled = true;
 
         if (!scanInterval) {
-            scanInterval = setInterval(scanChatMessages, 500);
+            scanInterval = setInterval(scanChatMessages, 1500);
             resources.intervals.push(scanInterval);
         }
 
@@ -645,9 +571,13 @@
                 // 不管 sync / async，都延後處理
                 setTimeout(() => {
                     if (!window.LikoVideoPlayerWelcomed && isEnabled) {
-                        const supportedPlatforms = Object.values(videoPatterns)
-                        .map(p => p.name)
-                        .join(", ");
+                        const supportedPlatforms = [
+                            ...new Set(
+                                Object.keys(videoPatterns).map(
+                                    key => PLATFORM_DISPLAY_NAME[key] || videoPatterns[key].name
+                                )
+                            )
+                        ].join(", ");
 
                         ChatRoomSendLocal(
                             `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
