@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likolisu.dev/
-// @version      1.3.5
+// @version      1.3.6
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,44 +18,63 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.3.5";
+    const modversion = "1.3.7";
     let cachedViewingCharacter = null;
     let lastCharacterCheck = 0;
     let lastScreenCheck = null;
     let lastScreenCheckTime = 0;
-    const CHARACTER_CACHE_TIME = 50; // 角色快取時間 (ms)
-    const SCREEN_CACHE_TIME = 100; // 屏幕檢查快取時間 (ms)
+    const CHARACTER_CACHE_TIME = 50;
+    const SCREEN_CACHE_TIME = 100;
 
     // --- PCM徽章配置 ---
     const PCM_BADGE_CONFIG = {
-        offsetX: 240,        // X軸偏移 (正數向右，負數向左)
-        offsetY: 25,         // Y軸偏移 (負數向上，正數向下)
-        size: 36,            // 徽章大小
-        showBackground: false, // 是否顯示背景
-        backgroundColor: "#7F53CD", // 背景顏色
-        borderColor: "#FFFFFF",     // 邊框顏色
-        borderWidth: 1              // 邊框寬度
+        offsetX: 240,
+        offsetY: 25,
+        size: 36,
+        showBackground: false,
+        backgroundColor: "#7F53CD",
+        borderColor: "#FFFFFF",
+        borderWidth: 1
     };
 
-    // 緩存PCM圖標，避免重複載入造成閃爍
+    // 緩存PCM圖標
     let pcmBadgeImage = null;
     let pcmImageLoaded = false;
 
+    // === Hover 追蹤 ===
+    // characterDrawPositions：由 DrawCharacter hook 在每幀更新真實座標
+    // hoveredCharacters：由 mousemove 根據真實座標判斷，避免估算錯誤
+    const hoveredCharacters = new Set();
+    const characterDrawPositions = new Map(); // MemberNumber -> { x, y, zoom }
+
+    function setupHoverTracking() {
+        document.addEventListener("mousemove", () => {
+            hoveredCharacters.clear();
+            try {
+                if (typeof CurrentScreen === 'undefined' || CurrentScreen !== "ChatRoom") return;
+                if (typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null) return;
+                if (typeof ChatRoomHideIconState !== 'undefined' && ChatRoomHideIconState !== 0) return;
+                if (typeof MouseHovering !== 'function') return;
+
+                for (const [memberNumber, pos] of characterDrawPositions) {
+                    if (MouseHovering(pos.x, pos.y, 400 * pos.zoom, 100 * pos.zoom)) {
+                        hoveredCharacters.add(memberNumber);
+                    }
+                }
+            } catch (e) {
+                // 靜默失敗
+            }
+        });
+    }
+
     // --- 語言檢測和多語言支持 ---
     function detectLanguage() {
-        // 檢查瀏覽器語言
         const browserLang = navigator.language || navigator.userLanguage;
-
-        // 檢查 BC 遊戲語言設置（如果存在）
         let gameLang = null;
         if (typeof TranslationLanguage !== 'undefined') {
             gameLang = TranslationLanguage;
         }
-
-        // 優先使用遊戲語言，其次瀏覽器語言
         const lang = gameLang || browserLang || 'en';
-
-        // 判斷是否為中文
         return lang.toLowerCase().startsWith('zh') || lang.toLowerCase().includes('cn') || lang.toLowerCase().includes('tw');
     }
 
@@ -115,39 +134,32 @@ Recommend selectively enabling plugins for the best experience.`,
         }
     };
 
-    // 獲取當前語言的信息
     function getMessage(key) {
         const isZh = detectLanguage();
         return messages[isZh ? 'zh' : 'en'][key];
     }
 
-    // 獲取插件名稱（根據語言）
     function getPluginName(plugin) {
         const isZh = detectLanguage();
         return isZh ? plugin.name : plugin.en_name;
     }
 
-    // 獲取插件描述（根據語言）
     function getPluginDescription(plugin) {
         const isZh = detectLanguage();
         return isZh ? plugin.description : plugin.en_description;
     }
 
-    // 獲取插件補充信息（根據語言）
     function getPluginAdditionalInfo(plugin) {
         const isZh = detectLanguage();
         return isZh ? plugin.additionalInfo : plugin.en_additionalInfo;
     }
 
     // --- PCM徽章相關功能 ---
-    // 初始化PCM圖標
     function initializePCMBadgeImage() {
         if (!pcmBadgeImage) {
             pcmBadgeImage = new Image();
             pcmBadgeImage.crossOrigin = "anonymous";
-            pcmBadgeImage.onload = function() {
-                pcmImageLoaded = true;
-            };
+            pcmBadgeImage.onload = function() { pcmImageLoaded = true; };
             pcmBadgeImage.onerror = function() {
                 console.warn("[PCM] ⚠️ PCM徽章圖片載入失敗");
                 pcmImageLoaded = false;
@@ -155,67 +167,27 @@ Recommend selectively enabling plugins for the best experience.`,
             pcmBadgeImage.src = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_4.png";
         }
     }
-    // 繪製PCM徽章
+
+    // 繪製PCM徽章（只在 hoveredCharacters Set 中的角色才繪製）
     function drawPCMBadge(character, x, y, zoom) {
         try {
-            // 參考BCTweaks的顯示條件邏輯
-            if (!character.OnlineSharedSettings || !character.OnlineSharedSettings.PCM) {
-                return;
-            }
+            // 快速查詢：只有 mousemove 預先判定懸停的角色才繼續
+            if (!hoveredCharacters.has(character.MemberNumber)) return;
 
-            // 檢查ChatRoomHideIconState (BC的圖標隱藏狀態)
-            if (typeof ChatRoomHideIconState !== 'undefined' && ChatRoomHideIconState !== 0) {
-                return;
-            }
-
-            // 只在聊天室顯示
-            if (CurrentScreen !== "ChatRoom") {
-                return;
-            }
-
-            // 檢查是否選中了特定角色 - 選中時不顯示徽章
-            if (typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null) {
-                return;
-            }
-
-            // 參考BCTweaks的懸停邏輯 - 使用BC內建的MouseHovering函數
-            const shouldShowOnHover = true; // 預設啟用懸停顯示，可以做成配置項
-            if (shouldShowOnHover) {
-                // 懸停範圍
-                const hoverWidth = 400 * zoom;   // 懸停寬度範圍
-                const hoverHeight = 100 * zoom;  // 懸停高度範圍
-
-                if (typeof MouseHovering === 'function') {
-                    if (!MouseHovering(x, y, hoverWidth, hoverHeight)) {
-                        return;
-                    }
-                } else {
-                    // 備用懸停檢測 - 也使用擴大的範圍
-                    if (!isCharacterMousedOverExtended(character, x, y, hoverWidth, hoverHeight)) {
-                        return;
-                    }
-                }
-            }
-
-            // 確保圖片已初始化
             if (!pcmBadgeImage) {
                 initializePCMBadgeImage();
                 return;
             }
 
-            // 計算徽章位置
             const badgeX = x + (PCM_BADGE_CONFIG.offsetX * zoom);
             const badgeY = y + (PCM_BADGE_CONFIG.offsetY * zoom);
             const badgeSize = PCM_BADGE_CONFIG.size * zoom;
 
-            // 繪製背景 (如果啟用)
             if (PCM_BADGE_CONFIG.showBackground) {
                 MainCanvas.fillStyle = PCM_BADGE_CONFIG.backgroundColor;
                 MainCanvas.beginPath();
-                MainCanvas.arc(badgeX, badgeY, badgeSize/2, 0, 2 * Math.PI);
+                MainCanvas.arc(badgeX, badgeY, badgeSize / 2, 0, 2 * Math.PI);
                 MainCanvas.fill();
-
-                // 繪製邊框
                 if (PCM_BADGE_CONFIG.borderWidth > 0) {
                     MainCanvas.strokeStyle = PCM_BADGE_CONFIG.borderColor;
                     MainCanvas.lineWidth = PCM_BADGE_CONFIG.borderWidth * zoom;
@@ -223,107 +195,31 @@ Recommend selectively enabling plugins for the best experience.`,
                 }
             }
 
-            // 繪製PCM圖標
             if (pcmImageLoaded && pcmBadgeImage.complete) {
-                const imgX = badgeX - badgeSize/2;
-                const imgY = badgeY - badgeSize/2;
-                MainCanvas.drawImage(pcmBadgeImage, imgX, imgY, badgeSize, badgeSize);
+                MainCanvas.drawImage(pcmBadgeImage, badgeX - badgeSize / 2, badgeY - badgeSize / 2, badgeSize, badgeSize);
             } else {
-                // 備用文字顯示
                 MainCanvas.save();
                 MainCanvas.fillStyle = "#FFFFFF";
-                MainCanvas.font = `bold ${Math.max(10, badgeSize/3)}px Arial`;
+                MainCanvas.font = `bold ${Math.max(10, badgeSize / 3)}px Arial`;
                 MainCanvas.textAlign = "center";
                 MainCanvas.textBaseline = "middle";
                 MainCanvas.fillText("PCM", badgeX, badgeY);
                 MainCanvas.restore();
             }
-
         } catch (e) {
             console.error("[PCM] ❌ 繪製PCM徽章失敗:", e.message);
         }
     }
 
-    // 擴展的鼠標懸停檢測（備用）
-    function isCharacterMousedOverExtended(character, charX, charY, width, height) {
-        try {
-            if (typeof MouseX !== 'undefined' && typeof MouseY !== 'undefined') {
-                // 檢查鼠標是否在擴大的範圍內
-                const halfWidth = width / 2;
-                const halfHeight = height / 2;
-
-                if (MouseX >= charX - halfWidth && MouseX <= charX + halfWidth &&
-                    MouseY >= charY - halfHeight && MouseY <= charY + halfHeight) {
-                    return true;
-                }
-            }
-            return false;
-        } catch (e) {
-            console.error("[PCM] ❌ 檢查擴展鼠標懸停狀態失敗:", e.message);
-            return false;
-        }
-    }
-
-    // 簡化的聊天室狀態檢查（保留作為備用）
-    function shouldShowBadgeInChatRoom() {
-        if (CurrentScreen !== "ChatRoom") {
-            return false;
-        }
-
-        if (typeof ChatRoomHideIconState !== 'undefined' && ChatRoomHideIconState !== 0) {
-            return false;
-        }
-
-        return true;
-    }
-
-    // 檢查角色是否被鼠標懸停
-    function isCharacterMousedOver(character) {
-        try {
-            // 檢查全局的鼠標懸停目標
-            if (typeof ChatRoomHoverObject !== 'undefined' && ChatRoomHoverObject) {
-                // 如果懸停對象是角色，檢查是否為目標角色
-                if (ChatRoomHoverObject.Type === "Character" &&
-                    ChatRoomHoverObject.Character &&
-                    ChatRoomHoverObject.Character.MemberNumber === character.MemberNumber) {
-                    return true;
-                }
-            }
-
-            // 備用方法：檢查MouseX/MouseY是否在角色範圍內
-            if (typeof MouseX !== 'undefined' && typeof MouseY !== 'undefined' &&
-                typeof ChatRoomCharacter !== 'undefined' && Array.isArray(ChatRoomCharacter)) {
-
-                const charIndex = ChatRoomCharacter.findIndex(c => c.MemberNumber === character.MemberNumber);
-                if (charIndex >= 0) {
-                    // 計算角色位置 (參考BC的角色繪製邏輯)
-                    const CharX = 250 + (charIndex % 6) * 250;
-                    const CharY = (charIndex < 6) ? 250 : 550;
-                    const CharWidth = 200;
-                    const CharHeight = 400;
-
-                    if (MouseX >= CharX - CharWidth/2 && MouseX <= CharX + CharWidth/2 &&
-                        MouseY >= CharY - CharHeight/2 && MouseY <= CharY + CharHeight/2) {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        } catch (e) {
-            console.error("[PCM] ❌ 檢查鼠標懸停狀態失敗:", e.message);
-            return false;
-        }
-    }
-
-    // 添加PCM標識到玩家
+    // 添加PCM標識到玩家（只寫記憶體，不持久化到伺服器）
     function addPCMBadgeToPlayer() {
         try {
-            // 等待Player物件完全載入
             const addBadge = () => {
-                if (typeof Player !== 'undefined' && Player && typeof Player.OnlineSharedSettings !== 'undefined') {
+                if (typeof Player !== 'undefined' && Player &&
+                    typeof Player.OnlineSharedSettings !== 'undefined') {
 
-                    // 檢查是否已經有PCM標識
+                    // 只寫入記憶體，不呼叫 ServerAccountUpdate
+                    // 卸載插件後下次登入就不會殘留
                     if (!Player.OnlineSharedSettings.PCM) {
                         Player.OnlineSharedSettings.PCM = {
                             name: "Liko's PCM",
@@ -331,28 +227,24 @@ Recommend selectively enabling plugins for the best experience.`,
                             badge: true,
                             timestamp: Date.now()
                         };
-
-                        //console.log("✅ [PCM] PCM標識已添加到OnlineSharedSettings");
-
-                        // 強制更新角色顯示
-                        if (typeof CharacterRefresh === 'function' && CurrentScreen === 'ChatRoom') {
-                            CharacterRefresh(Player, false);
-                        }
                     }
 
+                    if (typeof CharacterRefresh === 'function' && CurrentScreen === 'ChatRoom') {
+                        CharacterRefresh(Player, false);
+                    }
                 } else {
                     setTimeout(addBadge, 1000);
                 }
             };
-
             addBadge();
-
         } catch (e) {
             console.error("[PCM] ❌ 添加PCM標識失敗:", e.message);
         }
     }
 
-    // 掛鉤角色繪製函數來顯示其他玩家的PCM徽章
+    // 掛鉤角色繪製函數
+    // DrawCharacter 每幀呼叫時順帶記錄真實座標，
+    // 實際繪製判斷只做一次 Set.has() 查詢，非常輕量
     function hookCharacterDrawing() {
         try {
             if (!modApi || typeof modApi.hookFunction !== 'function') {
@@ -360,30 +252,26 @@ Recommend selectively enabling plugins for the best experience.`,
                 return;
             }
 
-            // 掛鉤DrawCharacter函數來繪製PCM徽章
             modApi.hookFunction('DrawCharacter', 5, (args, next) => {
-                const [character, x, y, zoom, invert] = args;
+                const [character, x, y, zoom] = args;
                 const result = next(args);
 
-                // 檢查角色是否有PCM標識並繪製徽章
-                if (character && character.OnlineSharedSettings && character.OnlineSharedSettings.PCM) {
+                if (character?.OnlineSharedSettings?.PCM && character.MemberNumber !== undefined) {
+                    // 記錄真實繪製座標，供 mousemove 使用
+                    characterDrawPositions.set(character.MemberNumber, { x, y, zoom });
+                    // 繪製徽章（只在 hover 時）
                     drawPCMBadge(character, x, y, zoom);
                 }
 
                 return result;
             });
 
-            // 掛鉤ChatRoom事件來檢測新玩家進入
-            modApi.hookFunction('ChatRoomSyncCharacter', 5, (args, next) => {
-                const result = next(args);
-                const [character] = args;
-
-                //if (character && character.OnlineSharedSettings && character.OnlineSharedSettings.PCM) console.log(`[PCM] 🎖️ 檢測到 ${character.Name} 使用PCM插件`);
-
-                return result;
+            // 離開聊天室時清空座標記錄
+            modApi.hookFunction('ChatRoomClearAllElements', 5, (args, next) => {
+                characterDrawPositions.clear();
+                hoveredCharacters.clear();
+                return next(args);
             });
-
-            //console.log("✅ [PCM] 角色繪製掛鉤設置完成");
 
         } catch (e) {
             console.error("[PCM] ❌ 設置角色繪製掛鉤失敗:", e.message);
@@ -393,37 +281,40 @@ Recommend selectively enabling plugins for the best experience.`,
     // 註冊PCM徽章
     function registerPCMBadge() {
         try {
-            // 等待modApi完全初始化
             const waitForModApi = () => {
                 if (modApi && typeof modApi.hookFunction === 'function') {
-                    //console.log("[PCM] 🎖️ 開始註冊PCM徽章");
-
-                    // 初始化徽章圖片
                     initializePCMBadgeImage();
-
-                    // 添加PCM標識到玩家
+                    setupHoverTracking();   // mousemove 追蹤
                     addPCMBadgeToPlayer();
-
-                    // 掛鉤角色載入函數來添加徽章
                     hookCharacterDrawing();
 
+                    // 卸載時清除 PCM 標識（避免移除插件後標誌殘留）
+                    if (typeof modApi.onUnload === 'function') {
+                        modApi.onUnload(() => {
+                            try {
+                                if (typeof Player !== 'undefined' && Player?.OnlineSharedSettings?.PCM) {
+                                    delete Player.OnlineSharedSettings.PCM;
+                                    console.log("[PCM] 🧹 PCM標識已清除");
+                                }
+                                hoveredCharacters.clear();
+                                characterDrawPositions.clear();
+                            } catch (e) {
+                                console.error("[PCM] ❌ 卸載清理失敗:", e.message);
+                            }
+                        });
+                    }
                 } else {
                     setTimeout(waitForModApi, 500);
                 }
             };
-
             waitForModApi();
-
         } catch (e) {
             console.error("[PCM] ❌ 註冊PCM徽章失敗:", e.message);
-            // 即使徽章註冊失敗，也嘗試備用方法
-            setTimeout(() => {
-                addPCMBadgeToPlayer();
-            }, 2000);
+            setTimeout(() => addPCMBadgeToPlayer(), 2000);
         }
     }
 
-    // 發送載入完成信息的函數
+    // 發送載入完成信息
     function sendLoadedMessage() {
         const waitForChatRoom = () => {
             return new Promise((resolve) => {
@@ -435,8 +326,6 @@ Recommend selectively enabling plugins for the best experience.`,
                     }
                 };
                 checkChatRoom();
-
-                // 60秒超時
                 setTimeout(() => resolve(false), 60000);
             });
         };
@@ -444,16 +333,10 @@ Recommend selectively enabling plugins for the best experience.`,
         waitForChatRoom().then((success) => {
             if (success) {
                 try {
-                    // 發送簡短的聊天室提醒信息
                     if (typeof ChatRoomSendLocal === 'function') {
                         ChatRoomSendLocal(getMessage('shortLoaded'), 60000);
                     }
-
-                    // 使用通知顯示詳細信息
                     showNotification("🐈‍⬛", "PCM", getMessage('loaded'));
-
-                    // 可選：也在控制台輸出
-                    //console.log(`[PCM] ${getMessage('loaded')}`);
                 } catch (e) {
                     console.log(`[PCM] ${getMessage('loaded')}`);
                 }
@@ -470,17 +353,9 @@ Recommend selectively enabling plugins for the best experience.`,
                 repository: 'Liko的插件管理器 | Plugin collection manager',
             });
 
-            // 註冊PCM徽章
             registerPCMBadge();
 
             console.log("✅ Liko's PCM 腳本啟動完成");
-            /*setTimeout(() => {
-                if (typeof inplugJS === 'function') {
-                    inplugJS();
-                } else {
-                    console.warn("[PCM] ⚠️ inplugJS 函數未定義");
-                }
-            }, 2000);*/
         } else {
             console.error("[PCM] ❌ bcModSdk 或 registerMod 不可用");
             return;
@@ -677,7 +552,7 @@ Recommend selectively enabling plugins for the best experience.`,
         {
             id: "XS-Activity",
             name: "小酥的動作拓展",
-            en_name: "Liko's Coordinate Drawing Tool",
+            en_name: "XS's Expansion on activity options",
             description: "小酥的動作拓展",
             en_description: "XS's Expansion on activity options",
             additionalInfo: "",
@@ -744,51 +619,46 @@ Recommend selectively enabling plugins for the best experience.`,
     // 根據優先度排序插件
     subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
 
-    // --- 載入插件（簡化版，移除時間戳） ---
+    // --- 載入插件 ---
     let loadedPlugins = new Set();
     let isLoadingPlugins = false;
     let hasStartedPluginLoading = false;
 
     function loadSubPlugin(plugin) {
         if (!plugin.enabled || loadedPlugins.has(plugin.id)) {
-            //console.log(`⚪ [PCM - SubPlugin] ${plugin.name} 已關閉或已載入`);
             return Promise.resolve();
         }
 
-        // 直接使用 URL，不添加時間戳
         return fetch(plugin.url)
             .then(res => {
-            if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-            return res.text();
-        })
+                if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+                return res.text();
+            })
             .then(code => {
-            try {
-                const script = document.createElement('script');
-                script.setAttribute('data-plugin', plugin.id);
-                script.textContent = code;
-                document.body.appendChild(script);
-                loadedPlugins.add(plugin.id);
-                console.log(`✅ [PCM - SubPlugin] ${plugin.name} 載入成功`);
-            } catch (e) {
-                console.error(`❌ [PCM - SubPlugin] 載入失敗: ${plugin.name}`, e);
-                showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                throw e;
-            }
-        })
+                try {
+                    const script = document.createElement('script');
+                    script.setAttribute('data-plugin', plugin.id);
+                    script.textContent = code;
+                    document.body.appendChild(script);
+                    loadedPlugins.add(plugin.id);
+                    console.log(`✅ [PCM - SubPlugin] ${plugin.name} 載入成功`);
+                } catch (e) {
+                    console.error(`❌ [PCM - SubPlugin] 載入失敗: ${plugin.name}`, e);
+                    showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
+                    throw e;
+                }
+            })
             .catch(err => {
-            console.error(`❌ [PCM - SubPlugin] 無法獲取 ${plugin.name} 的腳本`, err);
-            showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-            throw err;
-        });
+                console.error(`❌ [PCM - SubPlugin] 無法獲取 ${plugin.name} 的腳本`, err);
+                showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
+                throw err;
+            });
     }
 
-    // 等待Player載入後再開始背景載入插件
     async function waitForPlayerAndLoadPlugins() {
         if (hasStartedPluginLoading) return;
 
-        //console.log("🔍 [PCM] 檢查 Player 是否已載入...");
-
-        const maxWaitTime = 15*60*1000;
+        const maxWaitTime = 15 * 60 * 1000;
         const checkInterval = 1000;
         const logInterval = 5000;
         let waitTime = 0;
@@ -796,32 +666,25 @@ Recommend selectively enabling plugins for the best experience.`,
 
         while (!isPlayerLoaded() && waitTime < maxWaitTime) {
             if (waitTime === 0 || waitTime - lastLogTime >= logInterval) {
-                console.log(`⏳ [PCM] 等待 Player 載入... (${waitTime/1000}s)`);
+                console.log(`⏳ [PCM] 等待 Player 載入... (${waitTime / 1000}s)`);
                 lastLogTime = waitTime;
             }
-
             await new Promise(resolve => setTimeout(resolve, checkInterval));
             waitTime += checkInterval;
         }
 
         if (isPlayerLoaded()) {
-            //console.log("✅ [PCM] Player 已載入，開始載入插件");
             console.log(`[PCM] 🔢 插件載入順序:`, subPlugins.map(p => `${p.priority}:${getPluginName(p)}`));
-            hasStartedPluginLoading = true;
-            await loadSubPluginsInBackground();
         } else {
             console.warn("⚠️ [PCM] 等待 Player 載入超時，仍將嘗試載入插件");
-            hasStartedPluginLoading = true;
-            await loadSubPluginsInBackground();
         }
+        hasStartedPluginLoading = true;
+        await loadSubPluginsInBackground();
     }
 
-    // 背景自動載入所有啟用的插件
     async function loadSubPluginsInBackground() {
         if (isLoadingPlugins) return;
         isLoadingPlugins = true;
-
-        //console.log("🔄 [PCM] 開始背景載入啟用的插件...");
 
         try {
             const enabledPlugins = subPlugins.filter(plugin => plugin.enabled);
@@ -829,36 +692,30 @@ Recommend selectively enabling plugins for the best experience.`,
             let loadedCount = 0;
             let successCount = 0;
 
-            if (enabledPlugins.length === 0) {
-                //console.log("ℹ️ [PCM] 沒有啟用的插件需要載入");
-                return;
-            }
+            if (enabledPlugins.length === 0) return;
 
             for (let i = 0; i < enabledPlugins.length; i += batchSize) {
                 const batch = enabledPlugins.slice(i, i + batchSize);
 
-                console.log(`📦 [PCM] 正在載入批次 ${Math.floor(i/batchSize) + 1}/${Math.ceil(enabledPlugins.length/batchSize)}: ${batch.map(p => p.name).join(', ')}`);
+                console.log(`📦 [PCM] 正在載入批次 ${Math.floor(i / batchSize) + 1}/${Math.ceil(enabledPlugins.length / batchSize)}: ${batch.map(p => p.name).join(', ')}`);
 
                 const promises = batch.map(plugin =>
-                                           loadSubPlugin(plugin).catch(error => {
-                    console.warn(`⚠️ [PCM] 插件 ${plugin.name} 載入失敗:`, error.message);
-                    return { plugin, error };
-                })
-                                          );
+                    loadSubPlugin(plugin).catch(error => {
+                        console.warn(`⚠️ [PCM] 插件 ${plugin.name} 載入失敗:`, error.message);
+                        return { plugin, error };
+                    })
+                );
 
                 try {
                     const results = await Promise.allSettled(promises);
-
                     results.forEach((result, index) => {
                         const plugin = batch[index];
                         if (result.status === 'fulfilled' && !result.value?.error) {
                             successCount++;
-                            //console.log(`✅ [PCM] ${plugin.name} 載入成功`);
                         } else {
                             console.error(`❌ [PCM] ${plugin.name} 載入失敗:`, result.reason || result.value?.error);
                         }
                     });
-
                     loadedCount += batch.length;
                     console.log(`📈 [PCM] 進度: ${loadedCount}/${enabledPlugins.length} (成功: ${successCount})`);
                 } catch (error) {
@@ -866,7 +723,6 @@ Recommend selectively enabling plugins for the best experience.`,
                 }
 
                 if (i + batchSize < enabledPlugins.length) {
-                    console.log(`⏳ [PCM] 等待 800ms 後載入下一批次...`);
                     await new Promise(resolve => setTimeout(resolve, 800));
                 }
             }
@@ -889,53 +745,31 @@ Recommend selectively enabling plugins for the best experience.`,
         }
     }
 
-    // 獲取當前查看的角色
     function getCurrentViewingCharacter() {
         const now = Date.now();
-
-        // 快取檢查，減少重複計算
         if (now - lastCharacterCheck < CHARACTER_CACHE_TIME && cachedViewingCharacter !== null) {
             return cachedViewingCharacter;
         }
-
         try {
             let character = null;
-
-            // 方法1: 使用 InformationSheetCharacter (最直接的方法)
             if (typeof InformationSheetCharacter !== 'undefined' && InformationSheetCharacter) {
                 character = InformationSheetCharacter;
-            }
-            // 方法2: 檢查 InformationSheetSelection 是否就是角色對象
-            else if (typeof InformationSheetSelection !== 'undefined' && InformationSheetSelection !== null && typeof InformationSheetSelection === 'object') {
-                // 如果 InformationSheetSelection 本身就是一個角色對象
+            } else if (typeof InformationSheetSelection !== 'undefined' && InformationSheetSelection !== null && typeof InformationSheetSelection === 'object') {
                 if (InformationSheetSelection.Name && (InformationSheetSelection.MemberNumber || InformationSheetSelection.ID)) {
                     character = InformationSheetSelection;
-                }
-                // 如果有 ID 屬性，嘗試在 ChatRoomCharacter 中查找
-                else if (InformationSheetSelection.ID && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
+                } else if (InformationSheetSelection.ID && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
                     character = ChatRoomCharacter.find(c => c.ID === InformationSheetSelection.ID);
-                }
-                // 如果有 MemberNumber 屬性，嘗試在 ChatRoomCharacter 中查找
-                else if (InformationSheetSelection.MemberNumber && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
+                } else if (InformationSheetSelection.MemberNumber && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
                     character = ChatRoomCharacter.find(c => c.MemberNumber === InformationSheetSelection.MemberNumber);
                 }
-            }
-            // 方法3: 如果 InformationSheetSelection 是數字，當作 MemberNumber 處理
-            else if (typeof InformationSheetSelection !== 'undefined' && typeof InformationSheetSelection === 'number') {
+            } else if (typeof InformationSheetSelection !== 'undefined' && typeof InformationSheetSelection === 'number') {
                 if (CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
                     character = ChatRoomCharacter.find(c => c.MemberNumber === InformationSheetSelection);
                 }
             }
-
-            // 默認返回 Player
-            if (!character) {
-                character = Player;
-            }
-
-            // 更新快取
+            if (!character) character = Player;
             cachedViewingCharacter = character;
             lastCharacterCheck = now;
-
             return character;
         } catch (e) {
             console.error("[PCM] 獲取當前查看角色失敗:", e.message);
@@ -943,78 +777,45 @@ Recommend selectively enabling plugins for the best experience.`,
         }
     }
 
-    // 檢查是否為個人資料頁面
     function isProfilePage() {
         const now = Date.now();
-
-        // 快取屏幕檢查結果
         if (now - lastScreenCheckTime < SCREEN_CACHE_TIME && lastScreenCheck !== null) {
             return lastScreenCheck;
         }
-
         const result = CurrentScreen === "InformationSheet" &&
-              window.bcx?.inBcxSubscreen() !== true &&
-              window.LITTLISH_CLUB?.inModSubscreen() !== true &&
-              window.MPA?.menuLoaded !== true &&
-              window.LSCG_REMOTE_WINDOW_OPEN !== true;
-
+            window.bcx?.inBcxSubscreen() !== true &&
+            window.LITTLISH_CLUB?.inModSubscreen() !== true &&
+            window.MPA?.menuLoaded !== true &&
+            window.LSCG_REMOTE_WINDOW_OPEN !== true;
         lastScreenCheck = result;
         lastScreenCheckTime = now;
         return result;
     }
 
-    // --- UI显示检查函数 ---
     function shouldShowUI() {
-        // 首先檢查基本條件
         const isLoginPage = window.location.href.includes('/login') ||
-              window.location.href.includes('/Login') ||
-              window.location.href.includes('Login.html');
+            window.location.href.includes('/Login') ||
+            window.location.href.includes('Login.html');
+        if (isLoginPage) return true;
+        if (typeof Player === 'undefined' || !Player.Name) return true;
 
-        // 在登入頁面總是顯示
-        if (isLoginPage) {
-            return true;
-        }
-
-        // 如果 Player 未載入，顯示UI（登入前狀態）
-        if (typeof Player === 'undefined' || !Player.Name) {
-            return true;
-        }
-
-        // 檢查當前屏幕
         if (typeof CurrentScreen !== 'undefined') {
-            // 在個人資料頁面時，只有查看自己的才顯示
             if (CurrentScreen === 'InformationSheet') {
                 if (isProfilePage()) {
                     const viewingCharacter = getCurrentViewingCharacter();
-                    // 只有在查看自己的 profile 時才顯示按鈕
                     return viewingCharacter && viewingCharacter.MemberNumber === Player.MemberNumber;
                 }
                 return false;
             }
-
-            // 其他允許的頁面
-            const allowedScreens = [
-                'Preference',      // 設定頁面
-                'Login',           // 登入頁面
-                'Character',       // 角色創建頁面
-                'MainHall',        // 主大廳（首頁）
-                'Introduction'     // 介紹頁面（首頁的另一種）
-            ];
-
-            const isAllowedScreen = allowedScreens.includes(CurrentScreen);
-
-            if (isAllowedScreen) {
-                return true;
-            }
+            const allowedScreens = ['Preference', 'Login', 'Character', 'MainHall', 'Introduction'];
+            if (allowedScreens.includes(CurrentScreen)) return true;
         }
-
         return false;
     }
 
-    function isPlayerLoaded() {return typeof Player !== 'undefined'}
+    function isPlayerLoaded() { return typeof Player !== 'undefined'; }
 
     function loadCustomIcons() {
-        // 簡化的圖標載入 - 僅從設定中載入自訂圖標URL（如果有）
         subPlugins.forEach(plugin => {
             if (pluginSettings[`${plugin.id}_customIcon`]) {
                 plugin.customIcon = pluginSettings[`${plugin.id}_customIcon`];
@@ -1150,28 +951,10 @@ Recommend selectively enabling plugins for the best experience.`,
             -webkit-overflow-scrolling: touch;
         }
 
-        .bc-plugin-content::-webkit-scrollbar {
-            width: 8px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 4px;
-        }
-
-        .bc-plugin-content::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 4px;
-            margin: 4px;
-        }
-
-        .bc-plugin-content::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #7F53CD, #A78BFA);
-            border-radius: 4px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            min-height: 20px;
-        }
-
-        .bc-plugin-content::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, #6B46B2, #9577E3);
-        }
+        .bc-plugin-content::-webkit-scrollbar { width: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; }
+        .bc-plugin-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; margin: 4px; }
+        .bc-plugin-content::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #7F53CD, #A78BFA); border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); min-height: 20px; }
+        .bc-plugin-content::-webkit-scrollbar-thumb:hover { background: linear-gradient(135deg, #6B46B2, #9577E3); }
 
         .bc-plugin-footer {
             background: rgba(255, 255, 255, 0.02);
@@ -1203,10 +986,8 @@ Recommend selectively enabling plugins for the best experience.`,
         .bc-plugin-item.enabled::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 0;
-            height: 0;
+            top: 0; left: 0;
+            width: 0; height: 0;
             border-left: 20px solid #7F53CD;
             border-bottom: 20px solid transparent;
             z-index: 1;
@@ -1219,10 +1000,7 @@ Recommend selectively enabling plugins for the best experience.`,
             box-shadow: 0 8px 20px rgba(127, 83, 205, 0.15);
         }
 
-        .bc-plugin-item-header {
-            display: flex;
-            align-items: center;
-        }
+        .bc-plugin-item-header { display: flex; align-items: center; }
 
         .bc-plugin-icon {
             font-size: 24px;
@@ -1230,86 +1008,46 @@ Recommend selectively enabling plugins for the best experience.`,
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 40px;
-            height: 40px;
+            width: 40px; height: 40px;
             border-radius: 10px;
             background: rgba(255, 255, 255, 0.1);
         }
 
-        .bc-plugin-icon img {
-            width: 24px;
-            height: 24px;
-            border-radius: 4px;
-        }
-
-        .bc-plugin-info {
-            flex: 1;
-            color: white;
-        }
-
-        .bc-plugin-name {
-            font-size: 16px;
-            font-weight: 500;
-            margin: 0;
-            color: #fff;
-        }
-
-        .bc-plugin-desc {
-            font-size: 12px;
-            color: #a0a9c0;
-            margin: 4px 0 0 0;
-            line-height: 1.4;
-        }
+        .bc-plugin-icon img { width: 24px; height: 24px; border-radius: 4px; }
+        .bc-plugin-info { flex: 1; color: white; }
+        .bc-plugin-name { font-size: 16px; font-weight: 500; margin: 0; color: #fff; }
+        .bc-plugin-desc { font-size: 12px; color: #a0a9c0; margin: 4px 0 0 0; line-height: 1.4; }
 
         .bc-plugin-toggle {
             position: relative;
-            width: 50px;
-            height: 26px;
+            width: 50px; height: 26px;
             background: rgba(255, 255, 255, 0.2);
             border-radius: 13px;
             cursor: pointer;
             transition: all 0.3s ease;
-            border: none;
-            outline: none;
+            border: none; outline: none;
         }
 
-        .bc-plugin-toggle.active {
-            background: linear-gradient(135deg, #7F53CD, #A78BFA);
-        }
+        .bc-plugin-toggle.active { background: linear-gradient(135deg, #7F53CD, #A78BFA); }
 
         .bc-plugin-toggle::after {
             content: '';
             position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 22px;
-            height: 22px;
+            top: 2px; left: 2px;
+            width: 22px; height: 22px;
             background: white;
             border-radius: 50%;
             transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
 
-        .bc-plugin-toggle.active::after {
-            left: 26px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
+        .bc-plugin-toggle.active::after { left: 26px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
 
-        .bc-plugin-floating-btn.hidden {
-            opacity: 0;
-            pointer-events: none;
-            transform: translateX(100px) scale(0.8);
-        }
+        .bc-plugin-floating-btn.hidden { opacity: 0; pointer-events: none; transform: translateX(100px) scale(0.8); }
+        .bc-plugin-panel.hidden { opacity: 0; pointer-events: none; transform: translateX(420px) scale(0.8); }
 
-        .bc-plugin-panel.hidden {
-            opacity: 0;
-            pointer-events: none;
-            transform: translateX(420px) scale(0.8);
-        }
-        .bc-plugin-floating-btn,
-        .bc-plugin-floating-btn *,
-        .bc-plugin-panel,
-        .bc-plugin-panel * {
+        .bc-plugin-floating-btn, .bc-plugin-floating-btn *,
+        .bc-plugin-panel, .bc-plugin-panel * {
             user-select: none !important;
             -webkit-user-select: none !important;
             -moz-user-select: none !important;
@@ -1318,29 +1056,13 @@ Recommend selectively enabling plugins for the best experience.`,
         }
 
         @media (max-width: 480px) {
-            .bc-plugin-panel {
-                width: calc(100vw - 40px);
-                right: 20px;
-                max-height: calc(100vh - 100px);
-            }
-
-            .bc-plugin-floating-btn {
-                right: 10px;
-                width: 56px;
-                height: 56px;
-            }
-
-            .bc-plugin-floating-btn img {
-                width: 44px;
-                height: 44px;
-            }
+            .bc-plugin-panel { width: calc(100vw - 40px); right: 20px; max-height: calc(100vh - 100px); }
+            .bc-plugin-floating-btn { right: 10px; width: 56px; height: 56px; }
+            .bc-plugin-floating-btn img { width: 44px; height: 44px; }
         }
 
         @media (max-height: 600px) {
-            .bc-plugin-panel {
-                max-height: calc(100vh - 80px);
-                top: 10px;
-            }
+            .bc-plugin-panel { max-height: calc(100vh - 80px); top: 10px; }
         }
     `;
         document.head.appendChild(style);
@@ -1353,10 +1075,7 @@ Recommend selectively enabling plugins for the best experience.`,
         const existingBtn = document.getElementById("bc-plugin-floating-btn");
         const existingPanel = document.getElementById("bc-plugin-panel");
 
-        if (currentUIState === shouldShow) {
-            return;
-        }
-
+        if (currentUIState === shouldShow) return;
         currentUIState = shouldShow;
 
         if (!shouldShow) {
@@ -1403,14 +1122,12 @@ Recommend selectively enabling plugins for the best experience.`,
                 item.className = `bc-plugin-item ${plugin.enabled ? 'enabled' : ''}`;
 
                 const iconDisplay = plugin.customIcon ?
-                      `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />` :
-                plugin.icon;
+                    `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />` :
+                    plugin.icon;
 
                 item.innerHTML = `
                 <div class="bc-plugin-item-header">
-                    <div class="bc-plugin-icon">
-                        ${iconDisplay}
-                    </div>
+                    <div class="bc-plugin-icon">${iconDisplay}</div>
                     <div class="bc-plugin-info">
                         <h4 class="bc-plugin-name">${getPluginName(plugin)}</h4>
                         <p class="bc-plugin-desc">${getPluginDescription(plugin)}</p>
@@ -1421,7 +1138,6 @@ Recommend selectively enabling plugins for the best experience.`,
                     </button>
                 </div>
             `;
-
                 content.appendChild(item);
             });
 
@@ -1444,50 +1160,6 @@ Recommend selectively enabling plugins for the best experience.`,
             });
 
             content.addEventListener("click", (e) => {
-                const iconElement = e.target.closest(".bc-plugin-icon");
-                if (iconElement) {
-                    e.stopPropagation();
-                    const selector = iconElement.querySelector(".bc-plugin-icon-selector");
-                    document.querySelectorAll(".bc-plugin-icon-selector.show").forEach(s => {
-                        if (s !== selector) s.classList.remove("show");
-                    });
-                    selector.classList.toggle("show");
-                }
-
-                const iconOption = e.target.closest(".bc-plugin-icon-option");
-                if (iconOption) {
-                    e.stopPropagation();
-                    const pluginId = iconOption.closest(".bc-plugin-item").querySelector("[data-plugin]").getAttribute("data-plugin");
-                    const plugin = subPlugins.find(p => p.id === pluginId);
-                    const iconValue = iconOption.getAttribute("data-icon");
-
-                    if (iconValue === "url") {
-                        const customUrl = prompt("請輸入圖片網址：", "");
-                        if (customUrl && customUrl.trim() && customUrl.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif)$/i)) {
-                            plugin.customIcon = customUrl.trim();
-                            plugin.icon = "";
-                            pluginSettings[`${pluginId}_customIcon`] = customUrl.trim();
-                            saveSettings(pluginSettings);
-
-                            const iconContainer = iconOption.closest(".bc-plugin-icon");
-                            const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
-                            iconContainer.innerHTML = `<img src="${customUrl.trim()}" alt="${plugin.name} icon" />${selectorHTML}`;
-                        }
-                    } else {
-                        plugin.icon = iconValue;
-                        plugin.customIcon = "";
-                        pluginSettings[`${pluginId}_icon`] = iconValue;
-                        delete pluginSettings[`${pluginId}_customIcon`];
-                        saveSettings(pluginSettings);
-
-                        const iconContainer = iconOption.closest(".bc-plugin-icon");
-                        const selectorHTML = iconContainer.querySelector(".bc-plugin-icon-selector").outerHTML;
-                        iconContainer.innerHTML = iconValue + selectorHTML;
-                    }
-
-                    iconOption.closest(".bc-plugin-icon-selector").classList.remove("show");
-                }
-
                 const toggle = e.target.closest(".bc-plugin-toggle");
                 if (toggle) {
                     const pluginId = toggle.getAttribute("data-plugin");
@@ -1532,26 +1204,16 @@ Recommend selectively enabling plugins for the best experience.`,
             const notification = document.createElement("div");
             notification.className = "bc-liko-notification";
             notification.style.cssText = `
-                position: fixed;
-                top: 100px;
-                right: 20px;
+                position: fixed; top: 100px; right: 20px;
                 background: linear-gradient(135deg, #7F53CD 0%, #A78BFA 100%);
-                color: white;
-                padding: 16px 20px;
-                border-radius: 15px;
+                color: white; padding: 16px 20px; border-radius: 15px;
                 box-shadow: 0 8px 25px rgba(127, 83, 205, 0.3);
                 z-index: 2147483648;
-                font-family: 'Noto Sans TC', sans-serif;
-                font-size: 14px;
-                max-width: 300px;
-                transform: translateX(350px);
+                font-family: 'Noto Sans TC', sans-serif; font-size: 14px;
+                max-width: 300px; transform: translateX(350px);
                 transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
                 user-select: none;
-                -webkit-user-select: none;
-                -moz-user-select: none;
-                -ms-user-select: none;
             `;
-
             notification.innerHTML = `
                 <div style="display: flex; align-items: center; margin-bottom: 4px;">
                     <span style="font-size: 20px; margin-right: 8px;">${icon}</span>
@@ -1559,13 +1221,8 @@ Recommend selectively enabling plugins for the best experience.`,
                 </div>
                 <div style="font-size: 12px; opacity: 0.9;">${message}</div>
             `;
-
             document.body.appendChild(notification);
-
-            setTimeout(() => {
-                notification.style.transform = "translateX(0)";
-            }, 100);
-
+            setTimeout(() => { notification.style.transform = "translateX(0)"; }, 100);
             setTimeout(() => {
                 notification.style.transform = "translateX(350px)";
                 setTimeout(() => notification.remove(), 400);
@@ -1573,19 +1230,18 @@ Recommend selectively enabling plugins for the best experience.`,
         });
     }
 
-    // 添加語言變化監聽
+    // 語言變化監聽
     let lastDetectedLanguage = null;
 
     function checkLanguageChange() {
         const currentLang = detectLanguage();
         if (lastDetectedLanguage !== null && lastDetectedLanguage !== currentLang) {
             console.log("[PCM] 檢測到語言變化，重新創建UI");
-            // 強制重新創建UI
             const existingBtn = document.getElementById("bc-plugin-floating-btn");
             const existingPanel = document.getElementById("bc-plugin-panel");
             if (existingBtn) existingBtn.remove();
             if (existingPanel) existingPanel.remove();
-            currentUIState = null; // 重置UI狀態
+            currentUIState = null;
             createManagerUI();
         }
         lastDetectedLanguage = currentLang;
@@ -1596,9 +1252,8 @@ Recommend selectively enabling plugins for the best experience.`,
         const observer = new MutationObserver(() => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
-                checkLanguageChange(); // 檢查語言變化
+                checkLanguageChange();
                 createManagerUI();
-
                 if (isPlayerLoaded() && !hasStartedPluginLoading) {
                     console.log("🎯 [PCM] Player已載入，觸發插件載入");
                     waitForPlayerAndLoadPlugins();
@@ -1613,21 +1268,16 @@ Recommend selectively enabling plugins for the best experience.`,
                 lastUrl = window.location.href;
                 clearTimeout(debounceTimer);
                 debounceTimer = setTimeout(() => {
-                    checkLanguageChange(); // 檢查語言變化
+                    checkLanguageChange();
                     createManagerUI();
-
                     if (isPlayerLoaded() && !hasStartedPluginLoading) {
-                        //console.log("🎯 [PCM] URL變化後Player已載入，觸發插件載入");
                         waitForPlayerAndLoadPlugins();
                     }
                 }, 1000);
             }
         }, 1000);
 
-        // 定期檢查語言變化（例如用戶在遊戲中切換語言）
-        setInterval(() => {
-            checkLanguageChange();
-        }, 2000);
+        setInterval(() => { checkLanguageChange(); }, 2000);
 
         createManagerUI();
     }
@@ -1640,31 +1290,22 @@ Recommend selectively enabling plugins for the best experience.`,
 
         if (!sub || sub === "help") {
             const helpText = isZh ? generateChineseHelp() : generateEnglishHelp();
-
             if (typeof ChatRoomSendLocal === 'function') {
                 ChatRoomSendLocal(helpText, 60000);
-            } else {
-                //console.log(`[PCM] ${helpText}`);
             }
             return;
         } else if (sub === "list") {
             const listText = isZh ? generateChinesePluginList() : generateEnglishPluginList();
-
             if (typeof ChatRoomSendLocal === 'function') {
                 ChatRoomSendLocal(listText, 60000);
-            } else {
-                //console.log(`[PCM] ${listText}`);
             }
             return;
         } else {
             const errorText = isZh ?
-                  "請輸入 /pcm help 查看說明或 /pcm list 查看插件列表" :
-            "Please enter /pcm help for instructions or /pcm list to see plugin list";
-
+                "請輸入 /pcm help 查看說明或 /pcm list 查看插件列表" :
+                "Please enter /pcm help for instructions or /pcm list to see plugin list";
             if (typeof ChatRoomSendLocal === 'function') {
                 ChatRoomSendLocal(errorText);
-            } else {
-                //console.log(`[PCM] ${errorText}`);
             }
             return;
         }
@@ -1676,7 +1317,6 @@ Recommend selectively enabling plugins for the best experience.`,
 🎮 使用方法：
 • 點擊右上角的浮動按鈕開啟管理面板
 • 切換開關來啟用/停用插件
-• 點擊插件圖標可更換顯示圖標
 
 📝 可用指令：
 /pcm help - 顯示此說明書
@@ -1695,7 +1335,6 @@ Recommend selectively enabling plugins for the best experience.`,
 🎮 How to Use:
 • Click the floating button in the top right to open management panel
 • Toggle switches to enable/disable plugins
-• Click plugin icons to change display icons
 
 📝 Available Commands:
 /pcm help - Show this manual
@@ -1710,60 +1349,47 @@ Recommend selectively enabling plugins for the best experience.
 
     function generateChinesePluginList() {
         let listText = "🔌 可用插件列表：\n\n";
-
-        subPlugins.forEach((plugin, index) => {
+        subPlugins.forEach((plugin) => {
             const status = plugin.enabled ? "✅" : "⭕";
             const pluginName = getPluginName(plugin);
             const pluginDesc = getPluginDescription(plugin);
             const additionalInfo = getPluginAdditionalInfo(plugin);
-
             listText += `${status}${plugin.icon} ${pluginName}\n`;
             listText += `📄 ${pluginDesc}\n`;
-
-            // 只有當補充信息存在且不為空時才顯示
             if (additionalInfo && additionalInfo.trim() !== "") {
                 listText += ` ✦ ${additionalInfo}\n`;
             }
-
             listText += "\n";
         });
-
         listText += "💡 在管理面板中切換開關來啟用/停用插件";
         return listText;
     }
 
     function generateEnglishPluginList() {
         let listText = "🔌 Available Plugin List:\n\n";
-
-        subPlugins.forEach((plugin, index) => {
+        subPlugins.forEach((plugin) => {
             const status = plugin.enabled ? "✅" : "⭕";
             const pluginName = getPluginName(plugin);
             const pluginDesc = getPluginDescription(plugin);
             const additionalInfo = getPluginAdditionalInfo(plugin);
-
             listText += `${status}${plugin.icon} ${pluginName}\n`;
             listText += `📄 ${pluginDesc}\n`;
-
-            // 只有當補充信息存在且不為空時才顯示
             if (additionalInfo && additionalInfo.trim() !== "") {
                 listText += ` ✦ ${additionalInfo}\n`;
             }
-
             listText += "\n";
         });
-
         listText += "💡 Toggle switches in the management panel to enable/disable plugins";
         return listText;
     }
+
     function tryRegisterCommand() {
         try {
             if (typeof CommandCombine === "function") {
                 CommandCombine([{
                     Tag: "pcm",
                     Description: "Liko's Plugin Collection Manager Illustrate",
-                    Action: function(text) {
-                        handle_PCM_Command(text);
-                    }
+                    Action: function(text) { handle_PCM_Command(text); }
                 }]);
                 return true;
             }
@@ -1772,6 +1398,7 @@ Recommend selectively enabling plugins for the best experience.
         }
         return false;
     }
+
     function ChatRoomSendLocal(msg, sec = 0) {
         try {
             if (CurrentScreen !== "ChatRoom") return;
@@ -1790,7 +1417,6 @@ Recommend selectively enabling plugins for the best experience.
         }
     }
 
-    // 檢查並確保PCM標識存在
     function ensurePCMBadgeExists() {
         try {
             if (typeof Player !== 'undefined' && Player && Player.OnlineSharedSettings) {
@@ -1801,7 +1427,6 @@ Recommend selectively enabling plugins for the best experience.
                         badge: true,
                         timestamp: Date.now()
                     };
-                    //console.log("[PCM] 🔄 重新添加PCM標識到OnlineSharedSettings");
                 }
             }
         } catch (e) {
@@ -1812,19 +1437,13 @@ Recommend selectively enabling plugins for the best experience.
     async function initialize() {
         console.log("[PCM] 開始初始化...");
 
-        // 初始化語言檢測
+        // 初始化語言檢測（在所有函數定義後才呼叫）
         lastDetectedLanguage = detectLanguage();
 
-        // 載入自定義圖標設定
         loadCustomIcons();
-
-        // 設置頁面監控
         monitorPageChanges();
-
-        // 註冊命令
         tryRegisterCommand();
 
-        // 在進入聊天室時檢查PCM標識
         const originalChatRoomJoin = setInterval(() => {
             if (typeof Player !== 'undefined' && Player && CurrentScreen === 'ChatRoom') {
                 ensurePCMBadgeExists();
@@ -1832,20 +1451,9 @@ Recommend selectively enabling plugins for the best experience.
             }
         }, 1000);
 
-        // 延遲啟動插件載入檢查
-        setTimeout(() => {
-            //console.log("🔍 [PCM] 5秒後開始檢查Player狀態");
-            waitForPlayerAndLoadPlugins();
-        }, 5000);
+        setTimeout(() => { waitForPlayerAndLoadPlugins(); }, 5000);
 
-        // 延遲檢查語言設置，確保遊戲語言已載入
-        setTimeout(() => {
-            //console.log("[PCM] 檢查遊戲語言設置並更新UI");
-            checkLanguageChange();
-        }, 10000);
-
-        //console.log("[PCM] 初始化完成！插件將在Player載入後自動載入");
-        //console.log("[PCM] 可使用 /pcm 或 /pcm help 指令");
+        setTimeout(() => { checkLanguageChange(); }, 10000);
     }
 
     // 啟動初始化
