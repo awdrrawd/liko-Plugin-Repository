@@ -2,7 +2,7 @@
 // @name         Liko - Image Uploader
 // @name:zh      Liko的圖片上傳器
 // @namespace    https://likolisu.dev/
-// @version      1.3
+// @version      1.3.1
 // @description  Bondage Club - 上傳圖片到圖床並分享網址
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function () {
     let modApi = null;
-    const modversion = "1.3";
+    const modversion = "1.3.1";
     let imageHost = "litterbox"; // 預設圖床為 Litterbox（主力）
 
     // 等待 bcModSdk
@@ -623,24 +623,24 @@
     }
 
     // Hook ChatRoomLoad 來處理聊天室進入
-    function hookChatRoomLoad() {
-        if (modApi && typeof modApi.hookFunction === 'function') {
-            modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                return next(args).then(() => {
-                    setTimeout(() => {
-                        loadSettings();
-                        if (!window.LikoImageUploaderWelcomed) {
-                            ChatRoomSendLocalStyled(
-                                `🖼️ Liko 圖片上傳器 v${modversion} 載入！使用(use) /img help 查看說明`,
-                                5000
-                            );
-                            window.LikoImageUploaderWelcomed = true;
-                        }
-                    }, 1000);
-                })
-            });
-        }
+// === 替換整個 hookChatRoomLoad 函數 ===
+function hookChatRoomLoad() {
+    if (modApi && typeof modApi.hookFunction === 'function') {
+        modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
+            next(args); // 直接呼叫，不用 .then()
+            setTimeout(() => {
+                loadSettings();
+                if (!window.LikoImageUploaderWelcomed) {
+                    ChatRoomSendLocalStyled(
+                        `🖼️ Liko 圖片上傳器 v${modversion} 載入！使用(use) /img help 查看說明`,
+                        5000
+                    );
+                    window.LikoImageUploaderWelcomed = true;
+                }
+            }, 1000);
+        });
     }
+}
 
     // 初始化
     async function initialize() {
