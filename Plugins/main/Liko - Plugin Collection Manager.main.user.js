@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likolisu.dev/
-// @version      1.3.6
+// @version      1.3.7
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -19,6 +19,15 @@
     // --- modApi 初始化 ---
     let modApi;
     const modversion = "1.3.7";
+
+    // === 生命週期管理：統一存放所有需要清理的資源 ===
+    let isInitialized = false; // 防止重複初始化
+    const _lifecycle = {
+        intervals: [],          // setInterval IDs
+        observer: null,         // MutationObserver
+        mousemoveHandler: null, // mousemove listener（具名函數才能 removeEventListener）
+    };
+
     let cachedViewingCharacter = null;
     let lastCharacterCheck = 0;
     let lastScreenCheck = null;
@@ -48,23 +57,36 @@
     const characterDrawPositions = new Map(); // MemberNumber -> { x, y, zoom }
 
     function setupHoverTracking() {
-        document.addEventListener("mousemove", () => {
-            hoveredCharacters.clear();
-            try {
-                if (typeof CurrentScreen === 'undefined' || CurrentScreen !== "ChatRoom") return;
-                if (typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null) return;
-                if (typeof ChatRoomHideIconState !== 'undefined' && ChatRoomHideIconState !== 0) return;
-                if (typeof MouseHovering !== 'function') return;
+        // 用 requestAnimationFrame 節流：每次 rAF 最多執行一次，上限約 60fps
+        // 避免 mousemove 每秒觸發 200 次造成不必要的計算
+        let rafPending = false;
 
-                for (const [memberNumber, pos] of characterDrawPositions) {
-                    if (MouseHovering(pos.x, pos.y, 400 * pos.zoom, 100 * pos.zoom)) {
-                        hoveredCharacters.add(memberNumber);
+        function onMouseMove() {
+            if (rafPending) return;
+            rafPending = true;
+            requestAnimationFrame(() => {
+                rafPending = false;
+                hoveredCharacters.clear();
+                try {
+                    if (typeof CurrentScreen === 'undefined' || CurrentScreen !== "ChatRoom") return;
+                    if (typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null) return;
+                    if (typeof ChatRoomHideIconState !== 'undefined' && ChatRoomHideIconState !== 0) return;
+                    if (typeof MouseHovering !== 'function') return;
+
+                    for (const [memberNumber, pos] of characterDrawPositions) {
+                        if (MouseHovering(pos.x, pos.y, 400 * pos.zoom, 100 * pos.zoom)) {
+                            hoveredCharacters.add(memberNumber);
+                        }
                     }
+                } catch (e) {
+                    // 靜默失敗
                 }
-            } catch (e) {
-                // 靜默失敗
-            }
-        });
+            });
+        }
+
+        // 存具名函數 reference，onUnload 時可以正確 removeEventListener
+        _lifecycle.mousemoveHandler = onMouseMove;
+        document.addEventListener("mousemove", onMouseMove);
     }
 
     // --- 語言檢測和多語言支持 ---
@@ -242,40 +264,61 @@ Recommend selectively enabling plugins for the best experience.`,
         }
     }
 
+    // 同步 characterDrawPositions，移除已不在房間的幽靈角色
+    function syncDrawPositionsWithRoom() {
+        if (typeof ChatRoomCharacter === 'undefined' || !Array.isArray(ChatRoomCharacter)) return;
+        const currentIds = new Set(ChatRoomCharacter.map(c => c?.MemberNumber).filter(id => id !== undefined));
+        for (const id of characterDrawPositions.keys()) {
+            if (!currentIds.has(id)) {
+                characterDrawPositions.delete(id);
+                hoveredCharacters.delete(id);
+            }
+        }
+    }
+
     // 掛鉤角色繪製函數
     // DrawCharacter 每幀呼叫時順帶記錄真實座標，
     // 實際繪製判斷只做一次 Set.has() 查詢，非常輕量
     function hookCharacterDrawing() {
-        try {
-            if (!modApi || typeof modApi.hookFunction !== 'function') {
-                console.warn("[PCM] ⚠️ modApi.hookFunction 不可用，無法掛鉤角色繪製");
-                return;
-            }
-
-            modApi.hookFunction('DrawCharacter', 5, (args, next) => {
-                const [character, x, y, zoom] = args;
-                const result = next(args);
-
-                if (character?.OnlineSharedSettings?.PCM && character.MemberNumber !== undefined) {
-                    // 記錄真實繪製座標，供 mousemove 使用
-                    characterDrawPositions.set(character.MemberNumber, { x, y, zoom });
-                    // 繪製徽章（只在 hover 時）
-                    drawPCMBadge(character, x, y, zoom);
-                }
-
-                return result;
-            });
-
-            // 離開聊天室時清空座標記錄
-            modApi.hookFunction('ChatRoomClearAllElements', 5, (args, next) => {
-                characterDrawPositions.clear();
-                hoveredCharacters.clear();
-                return next(args);
-            });
-
-        } catch (e) {
-            console.error("[PCM] ❌ 設置角色繪製掛鉤失敗:", e.message);
+        if (!modApi || typeof modApi.hookFunction !== 'function') {
+            console.warn("[PCM] ⚠️ modApi.hookFunction 不可用，無法掛鉤角色繪製");
+            return;
         }
+
+        // 逐一嘗試 hook，互相獨立，一個失敗不影響其他
+        const safeHook = (fnName, priority, fn) => {
+            try {
+                modApi.hookFunction(fnName, priority, fn);
+            } catch (e) {
+                console.warn(`[PCM] ⚠️ 無法 hook ${fnName}（可能此版本不存在）:`, e.message);
+            }
+        };
+
+        // 每幀記錄真實座標並繪製徽章
+        safeHook('DrawCharacter', 5, (args, next) => {
+            const [character, x, y, zoom] = args;
+            const result = next(args);
+            if (character?.OnlineSharedSettings?.PCM && character.MemberNumber !== undefined) {
+                characterDrawPositions.set(character.MemberNumber, { x, y, zoom });
+                drawPCMBadge(character, x, y, zoom);
+            }
+            return result;
+        });
+
+        // 完全離開聊天室時清空
+        safeHook('ChatRoomClearAllElements', 5, (args, next) => {
+            characterDrawPositions.clear();
+            hoveredCharacters.clear();
+            return next(args);
+        });
+
+        // ChatRoomSync 在有人進出房間時都會被呼叫，用來清理幽靈角色
+        // 比 ChatRoomRemoveCharacter 更通用，且各版本 BC 都存在
+        safeHook('ChatRoomSync', 5, (args, next) => {
+            const result = next(args);
+            syncDrawPositionsWithRoom();
+            return result;
+        });
     }
 
     // 註冊PCM徽章
@@ -295,6 +338,11 @@ Recommend selectively enabling plugins for the best experience.`,
                                 if (typeof Player !== 'undefined' && Player?.OnlineSharedSettings?.PCM) {
                                     delete Player.OnlineSharedSettings.PCM;
                                     console.log("[PCM] 🧹 PCM標識已清除");
+                                }
+                                // 清除 mousemove listener
+                                if (_lifecycle.mousemoveHandler) {
+                                    document.removeEventListener("mousemove", _lifecycle.mousemoveHandler);
+                                    _lifecycle.mousemoveHandler = null;
                                 }
                                 hoveredCharacters.clear();
                                 characterDrawPositions.clear();
@@ -638,7 +686,8 @@ Recommend selectively enabling plugins for the best experience.`,
                 try {
                     const script = document.createElement('script');
                     script.setAttribute('data-plugin', plugin.id);
-                    script.textContent = code;
+                    // 用 IIFE 包裹，讓插件內的同步錯誤不會變成 uncaught error 污染 console
+                    script.textContent = `(function(){try{${code}}catch(e){console.error('[PCM] 子插件執行錯誤 (${plugin.id}):', e.message);}})();`;
                     document.body.appendChild(script);
                     loadedPlugins.add(plugin.id);
                     console.log(`✅ [PCM - SubPlugin] ${plugin.name} 載入成功`);
@@ -1249,7 +1298,9 @@ Recommend selectively enabling plugins for the best experience.`,
 
     function monitorPageChanges() {
         let debounceTimer;
-        const observer = new MutationObserver(() => {
+
+        // 儲存 observer reference 以便 onUnload 時 disconnect
+        _lifecycle.observer = new MutationObserver(() => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 checkLanguageChange();
@@ -1260,10 +1311,11 @@ Recommend selectively enabling plugins for the best experience.`,
                 }
             }, 300);
         });
-        observer.observe(document.body, { childList: true, subtree: true });
+        _lifecycle.observer.observe(document.body, { childList: true, subtree: true });
 
+        // 儲存 interval ID 以便 onUnload 時 clearInterval
         let lastUrl = window.location.href;
-        setInterval(() => {
+        const urlCheckId = setInterval(() => {
             if (window.location.href !== lastUrl) {
                 lastUrl = window.location.href;
                 clearTimeout(debounceTimer);
@@ -1276,8 +1328,11 @@ Recommend selectively enabling plugins for the best experience.`,
                 }, 1000);
             }
         }, 1000);
+        _lifecycle.intervals.push(urlCheckId);
 
-        setInterval(() => { checkLanguageChange(); }, 2000);
+        // 語言檢查 interval（頻率降低到 5 秒，因為語言不需要 2 秒就感知到）
+        const langCheckId = setInterval(() => { checkLanguageChange(); }, 5000);
+        _lifecycle.intervals.push(langCheckId);
 
         createManagerUI();
     }
@@ -1435,6 +1490,12 @@ Recommend selectively enabling plugins for the best experience.
     }
 
     async function initialize() {
+        // 防止重複初始化（例如 DOMContentLoaded 和直接執行路徑都觸發時）
+        if (isInitialized) {
+            console.warn("[PCM] ⚠️ 已初始化，跳過重複執行");
+            return;
+        }
+        isInitialized = true;
         console.log("[PCM] 開始初始化...");
 
         // 初始化語言檢測（在所有函數定義後才呼叫）
@@ -1450,26 +1511,48 @@ Recommend selectively enabling plugins for the best experience.
                 clearInterval(originalChatRoomJoin);
             }
         }, 1000);
+        _lifecycle.intervals.push(originalChatRoomJoin);
 
         setTimeout(() => { waitForPlayerAndLoadPlugins(); }, 5000);
-
         setTimeout(() => { checkLanguageChange(); }, 10000);
+
+        // 統一清理所有生命週期資源
+        if (modApi && typeof modApi.onUnload === 'function') {
+            modApi.onUnload(() => {
+                // 清除所有 interval
+                _lifecycle.intervals.forEach(id => clearInterval(id));
+                _lifecycle.intervals.length = 0;
+
+                // 停止 MutationObserver
+                if (_lifecycle.observer) {
+                    _lifecycle.observer.disconnect();
+                    _lifecycle.observer = null;
+                }
+
+                // mousemove listener 已在 registerPCMBadge 的 onUnload 清理
+                // 此處做二重保險
+                if (_lifecycle.mousemoveHandler) {
+                    document.removeEventListener("mousemove", _lifecycle.mousemoveHandler);
+                    _lifecycle.mousemoveHandler = null;
+                }
+
+                console.log("[PCM] 🧹 所有生命週期資源已清理");
+                isInitialized = false;
+            });
+        }
     }
 
     // 啟動初始化
+    // 使用單一入口：無論 readyState 為何，只呼叫一次 initialize()
+    // isInitialized guard 已防止重複執行，但這裡主動避免建立兩個非同步路徑
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                await initialize();
-                sendLoadedMessage();
-            } catch (e) {
+        document.addEventListener('DOMContentLoaded', () => {
+            initialize().then(() => sendLoadedMessage()).catch(e => {
                 console.error("[PCM] 初始化過程中發生錯誤:", e);
-            }
-        });
+            });
+        }, { once: true }); // once:true 確保 listener 只觸發一次後自動移除
     } else {
-        initialize().then(() => {
-            sendLoadedMessage();
-        }).catch((e) => {
+        initialize().then(() => sendLoadedMessage()).catch(e => {
             console.error("[PCM] 初始化過程中發生錯誤:", e);
         });
     }
