@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.3.1
+// @version      1.3.2
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function() {
     let modApi = null;
-    const modversion = "1.3.1";
+    const modversion = "1.3.2";
 
     // RP 圖標配置
     const rpBtnX = 955;
@@ -781,37 +781,70 @@
     async function initialize() {
         console.log("[LT] 開始初始化插件...");
 
-        modApi = await initializeModApi();
-        await loadToastSystem();
+        // 並行等待 SDK 與玩家登入
+        const [_, gameLoaded] = await Promise.all([
+            initializeModApi(),
+            waitFor(() => {
+                try {
+                    return typeof Player?.MemberNumber === "number";
+                } catch(e) {
+                    return false;
+                }
+            }, 90000)
+        ]);
 
-        const gameLoaded = await waitFor(() =>
-                                         typeof Player?.MemberNumber === "number" &&
-                                         typeof CommandCombine === "function"
-                                        );
+        // Toast 失敗不應阻斷初始化
+        try {
+            await loadToastSystem();
+        } catch (e) {
+            console.warn("[LT] Toast system 載入失敗，備用模式運行:", e.message);
+        }
 
         if (!gameLoaded) {
-            console.error("[LT] 遊戲載入超時");
+            console.error("[LT] 遊戲載入超時，插件停止初始化");
             return;
         }
 
         initializeStorage();
-        waitForChatRoomThenSetupHooks();
+        setupHooks();
 
-        try {
+        // CommandCombine 獨立處理，不阻斷初始化流程
+        const registerCommand = () => {
             CommandCombine([{
                 Tag: "lt",
                 Description: "執行莉柯莉絲工具命令",
                 Action: handleLtCommand
             }]);
+            console.log("[LT] /lt 指令註冊成功");
+        };
 
-            waitFor(() => CurrentScreen === "ChatRoom", 60000).then((success) => {
-                if (success) {
-                    ChatRoomSendLocal(`莉柯莉絲工具 v${modversion} 載入！使用 /lt help 查看說明`, 30000);
+        if (typeof CommandCombine === "function") {
+            try {
+                registerCommand();
+            } catch (e) {
+                console.error("[LT] 註冊命令錯誤:", e.message);
+            }
+        } else {
+            console.warn("[LT] CommandCombine 尚未就緒，等待中...");
+            waitFor(() => typeof CommandCombine === "function", 30000).then(ok => {
+                if (ok) {
+                    try {
+                        registerCommand();
+                    } catch (e) {
+                        console.error("[LT] 延遲註冊命令錯誤:", e.message);
+                    }
+                } else {
+                    console.warn("[LT] CommandCombine 無法載入，/lt 指令不可用");
                 }
             });
-        } catch (e) {
-            console.error("[LT] 註冊命令錯誤:", e.message);
         }
+
+        // 等進入聊天室後顯示載入訊息
+        waitFor(() => CurrentScreen === "ChatRoom", 60000).then(success => {
+            if (success) {
+                ChatRoomSendLocal(`莉柯莉絲工具 v${modversion} 載入！使用 /lt help 查看說明`, 30000);
+            }
+        });
 
         console.log(`[LT] ✅ 插件已載入 (v${modversion})`);
     }
