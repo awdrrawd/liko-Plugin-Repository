@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likolisu.dev/
-// @version      1.3.8.1
+// @version      1.3.9
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.3.8.1";
+    const modversion = "1.3.9";
 
     // === 生命週期管理：統一存放所有需要清理的資源 ===
     let isInitialized = false;
@@ -546,6 +546,16 @@
             icon: "📋",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20WPS.main.user.js",
             enabled: pluginSettings["Liko-WPS"] ?? true,
+            priority: 5
+        },
+        {
+            id: "Liko-MAT",
+            name: "Liko的自動翻譯", en_name: "Liko's Messages Auto Translator",
+            description: "自動翻譯(使用Google api)", en_description: "Auto translate BC chat messages using Google API",
+            additionalInfo: "", en_additionalInfo: "",
+            icon: "⚧️",
+            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
+            enabled: pluginSettings["Liko-MAT"] ?? false,
             priority: 5
         },
         {
