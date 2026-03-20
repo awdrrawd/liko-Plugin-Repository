@@ -581,7 +581,7 @@
             `,
             autoDisableAfterVersion: "R126",  // 版本號超過此值時自動跳過
             website: "https://gitgud.io/zorgjeanbe/bcextensions/",
-            enabled: pluginSettings["R126_hotfix"] ?? true,
+            enabled: pluginSettings["R126_hotfix"] ?? false,
             priority: 1
         }
     ];
