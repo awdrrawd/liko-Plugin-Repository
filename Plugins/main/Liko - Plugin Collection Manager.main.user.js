@@ -146,6 +146,31 @@
         return "off";
     }
 
+    // --- 版本比對輔助 ---
+    // 解析遊戲版本號，例如 "R126" → 126
+    function parseGameVersion(versionStr) {
+        if (!versionStr) return 0;
+        const match = String(versionStr).match(/R?(\d+)/i);
+        return match ? parseInt(match[1], 10) : 0;
+    }
+
+    // 取得目前遊戲版本號（數字）
+    function getCurrentGameVersion() {
+        try {
+            if (typeof GameVersion !== 'undefined') return parseGameVersion(GameVersion);
+        } catch(e) {}
+        return 0;
+    }
+
+    // 判斷某個 plugin 是否因版本過新而應跳過
+    function isPluginSkippedByVersion(plugin) {
+        if (!plugin.autoDisableAfterVersion) return false;
+        const currentVer = getCurrentGameVersion();
+        if (currentVer === 0) return false; // 無法判斷時不跳過，保守處理
+        const limitVer = parseGameVersion(plugin.autoDisableAfterVersion);
+        return currentVer > limitVer;
+    }
+
     // --- PCM徽章相關功能 ---
     function initializePCMBadgeImage() {
         if (!pcmBadgeImage) {
@@ -320,8 +345,10 @@
     // --- 子插件清單 ---
     // 三段開關插件：使用 state: "off"|"stable"|"beta" 取代 enabled
     // 普通插件：使用 enabled: boolean
-    // website：有值時顯示 ℹ️ 按鈕
+    // website：有值時顯示 🔗 按鈕
     // betaUrl：有值時啟用三段開關
+    // inlineCode：有值且 url 為空時，直接執行此段程式碼
+    // autoDisableAfterVersion：遊戲版本超過此值時自動跳過（例如 "R126"）
     const subPlugins = [
         {
             id: "Liko-Tool",
@@ -453,8 +480,6 @@
             priority: 10
         },
         {
-            // ★ 三段開關：state 取代 enabled
-            // TODO: 填入實際的 betaUrl（如 bc-cloth-beta.js 或對應 beta 分支路徑）
             id: "ECHO-Cloth",
             name: "ECHO的服裝拓展", en_name: "ECHO's Expansion on cloth options",
             description: "ECHO的服裝拓展",
@@ -468,8 +493,6 @@
             priority: 1
         },
         {
-            // ★ 三段開關
-            // TODO: 填入實際的 betaUrl
             id: "ECHO-Activity",
             name: "ECHO的動作拓展", en_name: "ECHO's Expansion on activity options",
             description: "ECHO的動作拓展",
@@ -534,6 +557,31 @@
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
             enabled: pluginSettings["Liko-Region_switch"] ?? true,
             priority: 10
+        },
+        {
+            id: "R126_hotfix",
+            name: "R126緊急修復包", en_name: "R126 hotfix",
+            description: "R126 角色資料崩潰臨時修復（R127+ 後自動停用）",
+            en_description: "R126 character data crash hotfix (auto-disabled after R127+)",
+            additionalInfo: "若遊戲版本超過R126會自動跳過此修復",
+            en_additionalInfo: "This fix will be skipped automatically if game version exceeds R126",
+            icon: "💊",
+            url: "",         // 無外部腳本，改為內嵌執行
+            inlineCode: `
+                try {
+                    SDK.patchFunction("ChatRoomCharacterItemUpdate", {
+                        "ChatRoomData.Character[characterIndex] = C;":
+                            "ChatRoomData.Character[characterIndex].Appearance = ServerAppearanceBundle(C.Appearance);"
+                    });
+                    console.log("✅ [PCM] R126_hotfix patch 已套用");
+                } catch(e) {
+                    console.warn("⚠️ [PCM] R126_hotfix patch 失敗（可能版本已修復或SDK不可用）:", e.message);
+                }
+            `,
+            autoDisableAfterVersion: "R126",  // 版本號超過此值時自動跳過
+            website: "https://gitgud.io/zorgjeanbe/bcextensions/",
+            enabled: pluginSettings["R126_hotfix"] ?? true,
+            priority: 1
         }
     ];
 
@@ -546,6 +594,38 @@
 
     function loadSubPlugin(plugin) {
         if (!isPluginEnabled(plugin) || loadedPlugins.has(plugin.id)) return Promise.resolve();
+
+        // ★ 版本自動跳過檢查
+        if (isPluginSkippedByVersion(plugin)) {
+            console.log(`⏭️ [PCM] ${plugin.name} 因遊戲版本已超過 ${plugin.autoDisableAfterVersion}，自動跳過`);
+            loadedPlugins.add(plugin.id); // 標記為已處理，避免重複嘗試
+            return Promise.resolve();
+        }
+
+        // ★ 內嵌程式碼路徑（url 為空但有 inlineCode 時直接執行）
+        if (!plugin.url && plugin.inlineCode) {
+            return new Promise((resolve) => {
+                try {
+                    const script = document.createElement('script');
+                    script.setAttribute('data-plugin', plugin.id);
+                    script.textContent = `(function(){try{${plugin.inlineCode}}catch(e){console.error('[PCM] 內嵌插件執行錯誤 (${plugin.id}):', e.message);}})();`;
+                    document.body.appendChild(script);
+                    loadedPlugins.add(plugin.id);
+                    console.log(`✅ [PCM - SubPlugin] ${plugin.name} 內嵌程式碼執行成功`);
+                } catch(e) {
+                    console.error(`❌ [PCM - SubPlugin] 內嵌載入失敗: ${plugin.name}`, e);
+                }
+                resolve();
+            });
+        }
+
+        // url 和 inlineCode 都沒有，直接略過
+        if (!plugin.url) {
+            console.warn(`⚠️ [PCM] ${plugin.name} 沒有 url 也沒有 inlineCode，跳過`);
+            return Promise.resolve();
+        }
+
+        // ★ 原有外部 URL 路徑
         const activeUrl = getActivePluginUrl(plugin);
 
         return fetch(activeUrl)
@@ -776,7 +856,6 @@
         .bc-plugin-content::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #7F53CD, #A78BFA); border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); min-height: 20px; }
         .bc-plugin-content::-webkit-scrollbar-thumb:hover { background: linear-gradient(135deg, #6B46B2, #9577E3); }
 
-        /* ★ Footer：可點擊連結 */
         .bc-plugin-footer {
             background: rgba(255, 255, 255, 0.02); padding: 12px 20px; text-align: center;
             color: #a0a9c0; font-size: 11px;
@@ -818,7 +897,6 @@
 
         .bc-plugin-item-header { display: flex; align-items: center; position: relative; }
 
-        /* ★ Info corner fold (bottom-right) */
         .bc-plugin-info-btn {
             position: absolute;
             bottom: 0;
@@ -830,7 +908,6 @@
             z-index: 2;
             border-radius: 0 0 12px 0;
         }
-        /* 三角形色塊 — 預設：低調灰白 */
         .bc-plugin-info-btn::before {
             content: '';
             position: absolute;
@@ -843,15 +920,12 @@
             border-color: transparent transparent rgba(255, 255, 255, 0.08) transparent;
             transition: border-color 0.2s ease;
         }
-        /* 穩定版啟用 → 紫色 */
         .bc-plugin-item.enabled .bc-plugin-info-btn::before {
             border-color: transparent transparent rgba(127, 83, 205, 0.4) transparent;
         }
-        /* 測試版啟用 → 橘色 */
         .bc-plugin-item.beta-enabled .bc-plugin-info-btn::before {
             border-color: transparent transparent rgba(205, 128, 53, 0.4) transparent;
         }
-        /* 🔗 圖示 */
         .bc-plugin-info-btn::after {
             content: '🔗';
             position: absolute;
@@ -862,7 +936,6 @@
             opacity: 0.6;
             transition: opacity 0.2s ease, transform 0.2s ease;
         }
-        /* Hover：三角加深 */
         .bc-plugin-info-btn:hover::before {
             border-color: transparent transparent rgba(255, 255, 255, 0.2) transparent;
         }
@@ -887,7 +960,6 @@
         .bc-plugin-name { font-size: 14px; font-weight: 500; margin: 0; color: #fff; }
         .bc-plugin-desc { font-size: 12px; color: #a0a9c0; margin: 4px 0 0 0; line-height: 1.4; }
 
-        /* ★ 普通二段開關（不變） */
         .bc-plugin-toggle {
             position: relative; width: 50px; height: 26px;
             background: rgba(255, 255, 255, 0.2); border-radius: 13px;
@@ -902,7 +974,6 @@
         }
         .bc-plugin-toggle.active::after { left: 26px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
 
-        /* ★ 三段開關 */
         .bc-plugin-toggle-tri {
             position: relative; width: 88px; height: 26px;
             background: rgba(255, 255, 255, 0.12);
@@ -914,7 +985,6 @@
         }
         .bc-plugin-toggle-tri:hover { border-color: rgba(196, 181, 253, 0.4); }
 
-        /* 滑動的背景色塊 */
         .bc-plugin-toggle-tri-track {
             position: absolute; top: 2px;
             width: 28px; height: 22px; border-radius: 11px;
@@ -932,7 +1002,6 @@
             background: linear-gradient(135deg, #CD8035, #FAB87A);
         }
 
-        /* 三個標籤 */
         .bc-plugin-toggle-tri-labels {
             position: relative; z-index: 1; display: flex;
             width: 100%; justify-content: space-around; align-items: center;
@@ -1028,12 +1097,10 @@
                     ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
                     : plugin.icon;
 
-                // ★ Info button：只有有 website 的插件才渲染
                 const infoBtnHtml = plugin.website
                     ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
                     : '';
 
-                // ★ 三段開關 vs 普通開關
                 const toggleHtml = isTriState
                     ? `<button class="bc-plugin-toggle-tri" data-plugin-tri="${plugin.id}" data-state="${currentState}" aria-label="${getPluginName(plugin)} 版本切換">
                           <div class="bc-plugin-toggle-tri-track"></div>
@@ -1062,7 +1129,6 @@
                 content.appendChild(item);
             });
 
-            // ★ Footer：可點擊連結
             const footer = document.createElement("div");
             footer.className = "bc-plugin-footer";
             footer.innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://github.com/awdrrawd/liko-Plugin-Repository/" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${modversion}</a> ❖ by Likolisu`;
@@ -1080,9 +1146,7 @@
                 panel.classList.toggle("show", isOpen);
             });
 
-            // ★ 統一點擊處理（普通開關 + 三段開關，info 按鈕由 <a> 的 href 自行處理）
             content.addEventListener("click", (e) => {
-                // 阻止 info 按鈕事件冒泡導致面板關閉
                 if (e.target.closest(".bc-plugin-info-btn")) {
                     e.stopPropagation();
                     return;
@@ -1110,7 +1174,7 @@
                     return;
                 }
 
-                // ★ 三段開關
+                // 三段開關
                 const triToggle = e.target.closest(".bc-plugin-toggle-tri");
                 if (triToggle) {
                     const pluginId = triToggle.getAttribute("data-plugin-tri");
@@ -1121,21 +1185,16 @@
                         pluginSettings[pluginId] = nextState;
                         saveSettings(pluginSettings);
 
-                        // 更新三段開關 UI
                         triToggle.setAttribute("data-state", nextState);
 
-                        // 更新卡片樣式
                         const item = triToggle.closest(".bc-plugin-item");
                         item.classList.remove("enabled", "beta-enabled");
                         if (nextState === "stable") item.classList.add("enabled");
                         if (nextState === "beta") item.classList.add("beta-enabled");
 
-                        // 通知
                         const notifMsg = nextState === "off"
                             ? getMessage('willNotStart')
-                            : nextState === "stable"
-                                ? getMessage('willTakeEffect')
-                                : getMessage('willTakeEffect');
+                            : getMessage('willTakeEffect');
                         const notifTitle = nextState === "off"
                             ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
                             : nextState === "stable"
@@ -1143,7 +1202,6 @@
                                 : `${getPluginName(plugin)} ${getMessage('betaEnabled')}`;
                         showNotification(nextState === "off" ? "🐾" : nextState === "stable" ? "🐈‍⬛" : "🧪", notifTitle, notifMsg);
 
-                        // 如果切換到有效狀態且尚未載入，立即載入
                         if (nextState !== "off" && !loadedPlugins.has(plugin.id) && isPlayerLoaded()) {
                             loadSubPlugin(plugin);
                         }
