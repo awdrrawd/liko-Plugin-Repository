@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likolisu.dev/
-// @version      1.3.8
+// @version      1.3.8.1
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.3.8";
+    const modversion = "1.3.8.1";
 
     // === 生命週期管理：統一存放所有需要清理的資源 ===
     let isInitialized = false;
@@ -568,15 +568,16 @@
             icon: "💊",
             url: "",         // 無外部腳本，改為內嵌執行
             inlineCode: `
-                try {
-                    SDK.patchFunction("ChatRoomCharacterItemUpdate", {
-                        "ChatRoomData.Character[characterIndex] = C;":
-                            "ChatRoomData.Character[characterIndex].Appearance = ServerAppearanceBundle(C.Appearance);"
-                    });
-                    console.log("✅ [PCM] R126_hotfix patch 已套用");
-                } catch(e) {
-                    console.warn("⚠️ [PCM] R126_hotfix patch 失敗（可能版本已修復或SDK不可用）:", e.message);
-                }
+                const _r126sdk = bcModSdk.registerMod({
+                    name: "R126-hotfix",
+                    version: "0.0.1",
+                    fullName: "R126 character data crash hotfix",
+                });
+                _r126sdk.patchFunction("ChatRoomCharacterItemUpdate", {
+                    "ChatRoomData.Character[characterIndex] = C;":
+                        "ChatRoomData.Character[characterIndex].Appearance = ServerAppearanceBundle(C.Appearance);"
+                });
+                console.log("✅ [PCM] R126_hotfix patch 已套用");
             `,
             autoDisableAfterVersion: "R126",  // 版本號超過此值時自動跳過
             website: "https://gitgud.io/zorgjeanbe/bcextensions/",
@@ -630,28 +631,28 @@
 
         return fetch(activeUrl)
             .then(res => {
-                if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-                return res.text();
-            })
+            if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+            return res.text();
+        })
             .then(code => {
-                try {
-                    const script = document.createElement('script');
-                    script.setAttribute('data-plugin', plugin.id);
-                    script.textContent = `(function(){try{${code}}catch(e){console.error('[PCM] 子插件執行錯誤 (${plugin.id}):', e.message);}})();`;
-                    document.body.appendChild(script);
-                    loadedPlugins.add(plugin.id);
-                    console.log(`✅ [PCM - SubPlugin] ${plugin.name} 載入成功`);
-                } catch (e) {
-                    console.error(`❌ [PCM - SubPlugin] 載入失敗: ${plugin.name}`, e);
-                    showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                    throw e;
-                }
-            })
-            .catch(err => {
-                console.error(`❌ [PCM - SubPlugin] 無法獲取 ${plugin.name} 的腳本`, err);
+            try {
+                const script = document.createElement('script');
+                script.setAttribute('data-plugin', plugin.id);
+                script.textContent = `(function(){try{${code}}catch(e){console.error('[PCM] 子插件執行錯誤 (${plugin.id}):', e.message);}})();`;
+                document.body.appendChild(script);
+                loadedPlugins.add(plugin.id);
+                console.log(`✅ [PCM - SubPlugin] ${plugin.name} 載入成功`);
+            } catch (e) {
+                console.error(`❌ [PCM - SubPlugin] 載入失敗: ${plugin.name}`, e);
                 showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                throw err;
-            });
+                throw e;
+            }
+        })
+            .catch(err => {
+            console.error(`❌ [PCM - SubPlugin] 無法獲取 ${plugin.name} 的腳本`, err);
+            showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
+            throw err;
+        });
     }
 
     async function waitForPlayerAndLoadPlugins() {
@@ -691,8 +692,8 @@
                 const batch = enabledPlugins.slice(i, i + batchSize);
                 console.log(`📦 [PCM] 正在載入批次 ${Math.floor(i / batchSize) + 1}/${Math.ceil(enabledPlugins.length / batchSize)}: ${batch.map(p => p.name).join(', ')}`);
                 const promises = batch.map(plugin =>
-                    loadSubPlugin(plugin).catch(error => ({ plugin, error }))
-                );
+                                           loadSubPlugin(plugin).catch(error => ({ plugin, error }))
+                                          );
                 try {
                     const results = await Promise.allSettled(promises);
                     results.forEach((result, index) => {
@@ -750,10 +751,10 @@
         const now = Date.now();
         if (now - lastScreenCheckTime < SCREEN_CACHE_TIME && lastScreenCheck !== null) return lastScreenCheck;
         const result = CurrentScreen === "InformationSheet" &&
-            window.bcx?.inBcxSubscreen() !== true &&
-            window.LITTLISH_CLUB?.inModSubscreen() !== true &&
-            window.MPA?.menuLoaded !== true &&
-            window.LSCG_REMOTE_WINDOW_OPEN !== true;
+              window.bcx?.inBcxSubscreen() !== true &&
+              window.LITTLISH_CLUB?.inModSubscreen() !== true &&
+              window.MPA?.menuLoaded !== true &&
+              window.LSCG_REMOTE_WINDOW_OPEN !== true;
         lastScreenCheck = result;
         lastScreenCheckTime = now;
         return result;
@@ -1094,15 +1095,15 @@
                 item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}`;
 
                 const iconDisplay = plugin.customIcon
-                    ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
-                    : plugin.icon;
+                ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
+                : plugin.icon;
 
                 const infoBtnHtml = plugin.website
-                    ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
-                    : '';
+                ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
+                : '';
 
                 const toggleHtml = isTriState
-                    ? `<button class="bc-plugin-toggle-tri" data-plugin-tri="${plugin.id}" data-state="${currentState}" aria-label="${getPluginName(plugin)} 版本切換">
+                ? `<button class="bc-plugin-toggle-tri" data-plugin-tri="${plugin.id}" data-state="${currentState}" aria-label="${getPluginName(plugin)} 版本切換">
                           <div class="bc-plugin-toggle-tri-track"></div>
                           <div class="bc-plugin-toggle-tri-labels">
                               <span class="bc-plugin-toggle-tri-label">OFF</span>
@@ -1110,7 +1111,7 @@
                               <span class="bc-plugin-toggle-tri-label">BETA</span>
                           </div>
                        </button>`
-                    : `<button class="bc-plugin-toggle ${isEnabled ? 'active' : ''}"
+                : `<button class="bc-plugin-toggle ${isEnabled ? 'active' : ''}"
                               data-plugin="${plugin.id}"
                               aria-label="${getPluginName(plugin)} 啟用開關">
                        </button>`;
@@ -1193,13 +1194,13 @@
                         if (nextState === "beta") item.classList.add("beta-enabled");
 
                         const notifMsg = nextState === "off"
-                            ? getMessage('willNotStart')
-                            : getMessage('willTakeEffect');
+                        ? getMessage('willNotStart')
+                        : getMessage('willTakeEffect');
                         const notifTitle = nextState === "off"
-                            ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
-                            : nextState === "stable"
-                                ? `${getPluginName(plugin)} ${getMessage('stableEnabled')}`
-                                : `${getPluginName(plugin)} ${getMessage('betaEnabled')}`;
+                        ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
+                        : nextState === "stable"
+                        ? `${getPluginName(plugin)} ${getMessage('stableEnabled')}`
+                        : `${getPluginName(plugin)} ${getMessage('betaEnabled')}`;
                         showNotification(nextState === "off" ? "🐾" : nextState === "stable" ? "🐈‍⬛" : "🧪", notifTitle, notifMsg);
 
                         if (nextState !== "off" && !loadedPlugins.has(plugin.id) && isPlayerLoaded()) {
@@ -1316,8 +1317,8 @@
             if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal(listText, 60000);
         } else {
             const errorText = isZh
-                ? "請輸入 /pcm help 查看說明或 /pcm list 查看插件列表"
-                : "Please enter /pcm help for instructions or /pcm list to see plugin list";
+            ? "請輸入 /pcm help 查看說明或 /pcm list 查看插件列表"
+            : "Please enter /pcm help for instructions or /pcm list to see plugin list";
             if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal(errorText);
         }
     }
