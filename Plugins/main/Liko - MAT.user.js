@@ -112,9 +112,9 @@
                 version: myversion,
                 repository: "Auto translate chat messages(Supports bio translation)",
             });
-            console.log("✅ BC Machine Translation v1.5 loaded");
+            console.log("[MAT]✅ v1.0 loaded");
         } catch (e) {
-            console.error("❌ BC Machine Translation failed to load:", e);
+            console.error("[MAT]❌ failed to load:", e);
             return;
         }
         // SDK 就緒後才啟動遊戲等待
@@ -951,7 +951,7 @@
                 }
             }
         }]);
-        ChatRoomSendLocal("🌐 BC Machine Translation v1.5 loaded! Use /mat help");
+        ChatRoomSendLocal("🌐 [MAT] v1.0 loaded! Use /mat help");
     }
 
     function showHelp() {
