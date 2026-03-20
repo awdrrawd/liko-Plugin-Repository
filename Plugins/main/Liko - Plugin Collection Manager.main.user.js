@@ -553,7 +553,7 @@
             name: "Liko的自動翻譯", en_name: "Liko's Messages Auto Translator",
             description: "自動翻譯(使用Google api)", en_description: "Auto translate BC chat messages using Google API",
             additionalInfo: "", en_additionalInfo: "",
-            icon: "⚧️",
+            icon: "🌐",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
             enabled: pluginSettings["Liko-MAT"] ?? false,
             priority: 5
