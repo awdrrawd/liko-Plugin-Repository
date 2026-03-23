@@ -870,10 +870,16 @@
 
                 // FIX 5 + 4: 只取訊息內容，排除 popup 和 metadata
                 let content = "";
+                let originContent = "";
                 const contentSpan = msg.querySelector(".chat-room-message-content");
+                const originContentSpan = msg.querySelector(".chat-room-message-original");
                 if (contentSpan) {
                     // 優先取 .chat-room-message-content（最乾淨）
                     content = (contentSpan.textContent || contentSpan.innerText || "").trim();
+                    if (originContentSpan) {
+                        originContent = (originContentSpan.textContent || originContentSpan.innerText || "").trim();
+                        content = content + '\n' + originContent
+                    }
                 } else {
                     // Fallback：clone 後移除 popup/metadata
                     const clone = msg.cloneNode(true);
@@ -1086,9 +1092,15 @@
 
                 // FIX 5: 先從 .chat-room-message-content 取乾淨內容
                 let rawText = "";
+                let originRawText = "";
                 const contentSpan = msg.querySelector(".chat-room-message-content");
+                const originContentSpan = msg.querySelector(".chat-room-message-original");
                 if (contentSpan) {
                     rawText = (contentSpan.textContent || contentSpan.innerText || "").trim();
+                    if (originContentSpan) {
+                        originRawText = (originContentSpan.textContent || originContentSpan.innerText || "").trim();
+                        rawText = rawText + '\n' + originRawText
+                    }
                 } else {
                     // Fallback：排除 popup + metadata + name button
                     const clonedMsg = msg.cloneNode(true);
