@@ -426,18 +426,6 @@
             priority: 5
         },
         {
-            id: "Liko-Bondage_renew",
-            name: "Liko的捆綁刷新", en_name: "Liko's Bondage Refresh",
-            description: "針對R120捆綁刷新不夠快的應急措施",
-            en_description: "Emergency fix for slow bondage refresh in R120",
-            additionalInfo: "修復版本更新後可能不再需要此插件",
-            en_additionalInfo: "May no longer be needed after version updates",
-            icon: "♻️",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Bondage%20renew.main.user.js",
-            enabled: pluginSettings["Liko-Bondage_renew"] ?? false,
-            priority: 10
-        },
-        {
             id: "Liko-Release_Maid",
             name: "Liko的解綁女僕", en_name: "Liko's Release Maid",
             description: "自動解綁女僕，不過有點天然，會在意外時觸發!",
@@ -575,8 +563,8 @@
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
             enabled: pluginSettings["Liko-Region_switch"] ?? true,
             priority: 10
-        },
-        {
+        }
+        /*{
             // 特殊插件：inlineCode + autoDisableAfterVersion
             id: "DialogLeave_hotfix",
             name: "人物崩潰修復", en_name: "Character crash hotfix",
@@ -615,7 +603,7 @@
             //website: "https://github.com/awdrrawd/liko-Plugin-Repository",
             enabled: pluginSettings["DialogLeave_hotfix"] ?? false,
             priority: 1
-        }
+        }*/
     ];
 
     subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
