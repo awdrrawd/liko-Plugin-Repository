@@ -613,7 +613,7 @@
             `,
             autoDisableAfterVersion: "R126",
             //website: "https://github.com/awdrrawd/liko-Plugin-Repository",
-            enabled: pluginSettings["DialogLeave_hotfix"] ?? true,
+            enabled: pluginSettings["DialogLeave_hotfix"] ?? false,
             priority: 1
         }
     ];
