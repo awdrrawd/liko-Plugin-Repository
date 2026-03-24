@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likolisu.dev/
-// @version      1.4
+// @version      1.4.1
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.4";
+    const modversion = "1.4.1";
 
     // === 生命週期管理：統一存放所有需要清理的資源 ===
     let isInitialized = false;
@@ -123,35 +123,6 @@
     function getPluginName(plugin) { return detectLanguage() ? plugin.name : plugin.en_name; }
     function getPluginDescription(plugin) { return detectLanguage() ? plugin.description : plugin.en_description; }
     function getPluginAdditionalInfo(plugin) { return detectLanguage() ? plugin.additionalInfo : plugin.en_additionalInfo; }
-
-    // ╔══════════════════════════════════════════════════════════╗
-    // ║              子插件欄位說明（速查）                          ║
-    // ╠══════════════════════════════════════════════════════════╣
-    // ║  id          必填，唯一識別碼                               ║
-    // ║  name        中文名稱                                      ║
-    // ║  en_name     英文名稱                                      ║
-    // ║  description / en_description    說明文字                  ║
-    // ║  additionalInfo / en_additionalInfo  補充說明              ║
-    // ║  icon        emoji 圖示                                   ║
-    // ║  priority    載入優先級，數字越小越早（預設 5）                ║
-    // ║  website     有值時顯示 🔗 按鈕（選填）                      ║
-    // ║                                                          ║
-    // ║  【普通插件（二段開關）】                                     ║
-    // ║  url         腳本 URL                                     ║
-    // ║  enabled     預設開關狀態（boolean）                        ║
-    // ║                                                          ║
-    // ║  【三段開關插件】← 有 altUrl 就是三段開關                     ║
-    // ║  url         第一個選項的 URL（stable 狀態載入此）            ║
-    // ║  altUrl      第二個選項的 URL（beta 狀態載入此）              ║
-    // ║  triLabels   自訂三個按鈕標籤（選填）                        ║
-    // ║              沒填 → 預設 ["OFF", "ON", "BETA"]            ║
-    // ║              有填 → 例如 ["OFF", "EN", "ZH"]              ║
-    // ║  state       預設狀態，"off" | "stable" | "beta"           ║
-    // ║                                                          ║
-    // ║  【特殊插件】                                               ║
-    // ║  inlineCode  無 url 時直接執行的內嵌程式碼                   ║
-    // ║  autoDisableAfterVersion  超過此版本自動跳過（如 "R126"）    ║
-    // ╚══════════════════════════════════════════════════════════╝
 
     // --- 三段開關輔助 ---
     // 判斷依據：有 altUrl → 三段開關；否則 → 普通二段開關
@@ -607,29 +578,42 @@
         },
         {
             // 特殊插件：inlineCode + autoDisableAfterVersion
-            id: "R126_hotfix",
-            name: "R126緊急修復包", en_name: "R126 hotfix",
-            description: "R126 角色資料崩潰臨時修復（R127+ 後自動停用）",
-            en_description: "R126 character data crash hotfix (auto-disabled after R127+)",
-            additionalInfo: "若遊戲版本超過R126會自動跳過此修復",
-            en_additionalInfo: "This fix will be skipped automatically if game version exceeds R126",
+            id: "DialogLeave_hotfix",
+            name: "人物崩潰修復", en_name: "Character crash hotfix",
+            description: "修復 DialogLeave Promise 鏈斷裂導致的錯誤（mod 相容性問題）",
+            en_description: "Fixes DialogLeave Promise chain break caused by mod incompatibility",
+            additionalInfo: "防止未回傳 Promise 的插件導致錯誤",
+            en_additionalInfo: "Prevents errors from mods that don't return a Promise",
             icon: "💊",
             url: "",
             inlineCode: `
-                const _r126sdk = bcModSdk.registerMod({
-                    name: "R126-hotfix",
-                    version: "0.0.1",
-                    fullName: "R126 character data crash hotfix",
-                });
-                _r126sdk.patchFunction("ChatRoomCharacterItemUpdate", {
-                    "ChatRoomData.Character[characterIndex] = C;":
-                        "ChatRoomData.Character[characterIndex].Appearance = ServerAppearanceBundle(C.Appearance);"
-                });
-                console.log("✅ [PCM] R126_hotfix patch 已套用");
+                (function () {
+                    try {
+                        if (typeof DialogLeave !== "function") return;
+                        const origDialogLeave = DialogLeave;
+                        DialogLeave = function (...args) {
+                            let result;
+                            try {
+                                result = origDialogLeave.apply(this, args);
+                            } catch (e) {
+                                console.error("[PCM Patch] DialogLeave sync crash:", e);
+                                return Promise.resolve();
+                            }
+                            if (!result || typeof result.then !== "function") {return Promise.resolve(result);}
+                            return result.catch(e => {
+                                console.error("[PCM Patch] DialogLeave async crash:", e);
+                                return;
+                            });
+                        };
+                        console.log("✅ [PCM] DialogLeave 完整防護補丁已套用");
+                    } catch (e) {
+                        console.error("[PCM Patch] 初始化失敗:", e);
+                    }
+                })();
             `,
             autoDisableAfterVersion: "R126",
-            website: "https://gitgud.io/zorgjeanbe/bcextensions/",
-            enabled: pluginSettings["R126_hotfix"] ?? false,
+            //website: "https://github.com/awdrrawd/liko-Plugin-Repository",
+            enabled: pluginSettings["DialogLeave_hotfix"] ?? true,
             priority: 1
         }
     ];
