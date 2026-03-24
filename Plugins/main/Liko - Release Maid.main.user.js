@@ -2,7 +2,7 @@
 // @name         Liko - Release Maid
 // @name:zh      Liko的解綁女僕
 // @namespace    https://likolisu.dev/
-// @version      1.3
+// @version      1.2
 // @description  自動回應「救我 / 救救 / help」來解除拘束，支援指定救人，新增保存與復原功能
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -37,9 +37,7 @@
     const lockWords = ["上鎖", "上锁", "lock"];
     const queryWords = ["查詢", "查询", "query", "info"];
     const helpWords = ["說明", "说明", "插件教程", "插件建议", "插件建議", "插件說明", "插件说明", "其他插件", "幫助"];
-    const saveWords = ["保存save"];
-    const undoWords = ["復原复原undo"];
-
+    
     // === 等待 bcModSdk 載入 ===
     function waitForBcModSdk(timeout = 30000) {
         const start = Date.now();
@@ -607,35 +605,6 @@
                     return;
                 }
             }
-
-            // 6. 保存功能 - 保存/save [對象]
-            for (let saveWord of saveWords) {
-                if (msg.startsWith(saveWord.toLowerCase())) {
-                    const keyword = msg.substring(saveWord.length).trim();
-                    const target = keyword ? findTarget(keyword) : sender;
-                    if (target) {
-                        saveAppearance(target);
-                    } else if (keyword) {
-                        sendSystemAction(`找不到玩家: ${keyword}`);
-                    }
-                    return;
-                }
-            }
-
-            // 7. 復原功能 - 復原/undo/還原 [對象]
-            for (let undoWord of undoWords) {
-                if (msg.startsWith(undoWord.toLowerCase())) {
-                    const keyword = msg.substring(undoWord.length).trim();
-                    const target = keyword ? findTarget(keyword) : sender;
-                    if (target) {
-                        undoAppearance(target);
-                    } else if (keyword) {
-                        sendSystemAction(`找不到玩家: ${keyword}`);
-                    }
-                    return;
-                }
-            }
-
         } catch (e) {
             console.error("[Release Bot] 訊息處理錯誤:", e.message);
         }
