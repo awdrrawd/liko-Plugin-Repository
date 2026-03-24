@@ -2,25 +2,29 @@
 // @name         Liko - Release Maid
 // @name:zh      Liko的解綁女僕
 // @namespace    https://likolisu.dev/
-// @version      1.2
-// @description  自動回應「救我 / 救救 / help」來解除拘束，支援指定救人，新增多種便利功能
+// @version      1.1
+// @description  自動回應「救我 / 救救 / help」來解除拘束，支援指定救人，新增保存與復原功能
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
-// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
-// @run-at       document-end
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // ==/UserScript==
 
 (function() {
     'use strict';
 
     let modApi = null;
-    let autoEnabled = false;   // 預設關閉
-    let socketListener = null; // 儲存監聽器引用
+    const modversion = "1.3";
+    let autoEnabled = false;
+    let socketListener = null;
     let isInitialized = false;
+    let SaveRecord = false;
     let retryCount = 0;
     const MAX_RETRIES = 3;
+    let savedAppearances = new Map();
+    let lastMessageTime = 0; // 新增：记录最后消息时间
+    let listenerHealthCheck = null; // 新增：监听器健康检查定时器
 
     // === 按鈕座標 ===
     const btnX = 0;
@@ -28,7 +32,7 @@
     const size = 45;
 
     // === 關鍵字 ===
-    const triggerWords = ["救救", "幫我", "幫幫", "帮我", "帮帮", "help", "heam", "heaf", "heap", "嗷呜", "哈咕", "恩我", "恩呜", "救嗷"];
+    const triggerWords = ["救救", "幫我", "幫幫", "帮我", "帮帮", "help", "heam", "heaf", "heap", "哈咕", "恩我", "恩呜", "救嗷", "救唔"];
     const unlockWords  = ["開鎖", "开锁", "解鎖", "解锁", "unlock"];
     const lockWords = ["上鎖", "上锁", "lock"];
     const queryWords = ["查詢", "查询", "query", "info"];
@@ -62,10 +66,10 @@
 
         try {
             modApi = bcModSdk.registerMod({
-                name: "Liko's Release Maid",
+                name: 'Liko Release Maid',
                 fullName: 'Bondage Club - Liko Auto Release Maid',
-                version: '1.2',
-                repository: "莉柯的自動解鎖女僕 | Liko's auto release maid",
+                version: modversion,
+                repository: '莉柯莉絲的自動解鎖女僕',
             });
             console.log("✅ Liko Release Bot 註冊成功");
             return modApi;
@@ -136,6 +140,49 @@
         } catch (e) {
             console.warn("[Release Bot] 權限檢查失敗:", e.message);
             return true;
+        }
+    }
+
+    // === 保存外觀 ===
+    function saveAppearance(target) {
+        if (!target || !target.MemberNumber) {
+            sendLocalMessage("⚠ 無效的保存目標");
+            return false;
+        }
+        try {
+            savedAppearances.set(target.MemberNumber, JSON.stringify(ServerAppearanceBundle(target.Appearance)));
+            if (SaveRecord){
+                SaveRecord = false;
+            } else {
+                sendSystemAction(`📌 已保存 ${target.Nickname || target.Name} 的當前狀態，可用「復原 ${target.Nickname || target.Name}」復原`);
+            }
+            return true;
+        } catch (e) {
+            console.error("[Release Bot] 保存外觀失敗:", e.message);
+            sendLocalMessage("⚠ 保存外觀失敗");
+            return false;
+        }
+    }
+
+    // === 復原外觀 ===
+    function undoAppearance(target) {
+        if (!target || !target.MemberNumber) {
+            sendLocalMessage("⚠ 無效的復原目標");
+            return;
+        }
+        const savedState = savedAppearances.get(target.MemberNumber);
+        if (!savedState) {
+            sendSystemAction(`⚠ 沒有 ${target.Nickname || target.Name} 的保存狀態，請先使用「保存 ${target.Nickname || target.Name}」`);
+            return;
+        }
+        try {
+            const bundle = JSON.parse(savedState);
+            ServerAppearanceLoadFromBundle(target, target.AssetFamily, bundle, target.MemberNumber);
+            ChatRoomCharacterUpdate(target);
+            sendSystemAction(`♻ 已復原 ${target.Nickname || target.Name} 的狀態`);
+        } catch (e) {
+            console.error("[Release Bot] 復原外觀失敗:", e.message);
+            sendSystemAction("⚠ 復原外觀失敗");
         }
     }
 
@@ -321,19 +368,21 @@
 
         const helpTexts = {
             "说明": "🧹 莉柯女仆教程 | Liko release maid illustrate\n" +
-            "1. 说'救我'、'救救'进行完全解放 | say 'help' Release All\n" +
-            "2. 说'解锁'只解开锁具 | say 'unlock' Unlock All\n" +
-            "3. 说'上锁'全身使用专属锁 | say 'lock' Use \n    'ExclusivePadlock' on your entire body\n" +
-            "4. 说'查询'查询主人&恋人时间 | say 'query'Check owner & \n    lover time\n" +
-            "5. '救'、'查询'+玩家 可指定目标 | 'help'、'query'+Player \n    Specifiable objects\n" +
-            "6. 其他说明请转至'插件教程'、'插件建议'、'其他插件'",
+            "• 说'救我'、'救救'进行完全解放 | say 'help' Release All\n" +
+            "• 说'解锁'只解开锁具 | say 'unlock' Unlock All\n" +
+            "• 说'上锁'全身使用专属锁 | say 'lock' Use \n   'ExclusivePadlock' on your entire body\n" +
+            "• 说'查询'查询主人&恋人时间 | say 'query' Check owner & \n   lover time\n" +
+            "• 说'保存'保存当前状态 | say 'save' Save current state\n" +
+            "• 说'复原'恢复保存状态 | say 'undo' Restore to saved state\n" +
+            "• '救'、'查询'、'保存'、'复原'+玩家 可指定目标 |\n   'help'、'query'、'save'、'undo'+Player Specifiable objects\n" +
+            "• 其他说明请转至'插件教程'、'插件建议'、'其他插件'",
 
             "插件教程": " 📖插件安装教程：\n" +
             "⭐以下以PC教程：\n" +
-            "1. 安装 油猴(tampermonkey)或 暴力猴(Violentmonkey)\n" +
-            "2-1. 油猴网址(https://www.tampermonkey.net/index.php?browser=chrome&locale=zh)\n" +
-            "⚠️油猴需开启'开发者模式[](https://www.tampermonkey.net/faq.php#Q209)⚠️\n" +
-            "2-2. 暴力猴网址(https://violentmonkey.github.io/)\n" +
+            "1. 安装油猴(tampermonkey)或暴力猴(Violentmonkey)\n" +
+            "2-1. 油猴(https://www.tampermonkey.net/index.php?browser=chrome&locale=zh)\n" +
+            "⚠️油猴需开启'开发者模式'(https://www.tampermonkey.net/faq.php#Q209)⚠️\n" +
+            "2-2. 暴力猴(https://violentmonkey.github.io/)\n" +
             "3. 安装FUSAM插件(https://wce.netlify.app/wce-fusam-loader.user.js)\n" +
             "4. 刷新游戏后上方会出现[插件管理器]或[addon manager]进去设定插件集\n" +
             "手机的安装请找支援插件的浏览器，安卓考虑VIA，苹果建议Userscripts\n" +
@@ -354,7 +403,7 @@
             "CHE可以把信息转HTML、Image Uploader可以用拖曳图片到聊天室分享图片\n" +
             "• CHE(https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CHE.user.js)\n" +
             "• Image Uploader(https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Image_Uploader.user.js)\n" +
-            "未来可能会更新更多插件请询问作者"
+            "未來可能會更新更多插件請詢問作者"
         };
 
         const helpText = helpTexts[helpType];
@@ -384,6 +433,8 @@
                 const count = UnlockAllLocks(target);
                 success = count > 0;
             } else {
+                // 在執行完全解放前保存外觀
+                saveAppearance(target);
                 if (typeof CharacterReleaseTotal === 'function') {
                     CharacterReleaseTotal(target);
                     success = true;
@@ -397,8 +448,8 @@
                 const botName = Player?.Nickname || Player?.Name || "Bot";
                 const displayName = target.Nickname || target.Name || "Unknown";
                 const systemMessage = mode === "unlock"
-                    ? `${botName}解開了${displayName}的鎖`
-                    : `${botName}解開了${displayName}的拘束`;
+                ? `${botName}解開了${displayName}的鎖`
+                : `${botName}解開了${displayName}的拘束，可用「復原 ${displayName}」復原`;
 
                 sendSystemAction(systemMessage);
                 console.log(`[Release Bot] 救援成功: ${displayName} (${mode})`);
@@ -421,9 +472,9 @@
             // 按名稱搜尋
             const lowerKeyword = keyword.toLowerCase();
             return ChatRoomCharacter.find(c =>
-                c?.Nickname?.toLowerCase() === lowerKeyword ||
-                c?.Name?.toLowerCase() === lowerKeyword
-            );
+                                          c?.Nickname?.toLowerCase() === lowerKeyword ||
+                                          c?.Name?.toLowerCase() === lowerKeyword
+                                         );
         } catch (e) {
             console.error("[Release Bot] 尋找目標失敗:", e.message);
             return null;
@@ -461,17 +512,16 @@
 
         // 處理不同類型的指令
         try {
-            // 2. 說明功能 - 只在訊息開頭匹配 helpWords 時觸發
+            // 1. 說明功能
             for (let helpWord of helpWords) {
                 const helpWordLower = helpWord.toLowerCase();
                 if (msg.startsWith(helpWordLower)) {
                     showHelp(helpWord);
-                    return; // 處理完說明後直接返回
+                    return;
                 }
             }
 
-            // 以下為原有的救援、上鎖、解鎖、查詢邏輯，保持不變
-            // 3. 指定救援功能（整合自救邏輯）
+            // 2. 指定救援功能（整合自救邏輯）
             let isRescueHandled = false;
             if (msg.startsWith("救")) {
                 const keyword = msg.substring(1).trim();
@@ -482,6 +532,7 @@
                     target = findTarget(keyword);
                 }
                 if (target) {
+                    SaveRecord = true;
                     rescue(target, "release");
                     isRescueHandled = true;
                 } else if (keyword) {
@@ -496,6 +547,7 @@
                     target = findTarget(keyword);
                 }
                 if (target) {
+                    SaveRecord = true;
                     rescue(target, "release");
                     isRescueHandled = true;
                 } else if (keyword) {
@@ -506,12 +558,13 @@
             // 自救其他 triggerWords（如果指定救援沒處理）
             if (!isRescueHandled && triggerWords.some(w => msg.includes(w))) {
                 if (sender) {
+                    SaveRecord = true;
                     rescue(sender, "release");
                 }
                 return;
             }
 
-            // 4. 解鎖功能 - 解鎖/解锁/unlock [對象]
+            // 3. 解鎖功能 - 解鎖/解锁/unlock [對象]
             for (let unlockWord of unlockWords) {
                 if (msg.startsWith(unlockWord.toLowerCase())) {
                     const keyword = msg.substring(unlockWord.length).trim();
@@ -525,7 +578,7 @@
                 }
             }
 
-            // 5. 上鎖功能 - 上鎖/上锁/lock [對象]
+            // 4. 上鎖功能 - 上鎖/上锁/lock [對象]
             for (let lockWord of lockWords) {
                 if (msg.startsWith(lockWord.toLowerCase())) {
                     const keyword = msg.substring(lockWord.length).trim();
@@ -539,7 +592,7 @@
                 }
             }
 
-            // 6. 查詢功能 - 查詢/查询/query [對象]
+            // 5. 查詢功能 - 查詢/查询/query [對象]
             for (let queryWord of queryWords) {
                 if (msg.startsWith(queryWord.toLowerCase())) {
                     const keyword = msg.substring(queryWord.length).trim();
@@ -552,48 +605,74 @@
                     return;
                 }
             }
-
-        } catch (e) {
-            console.error("[Release Bot] 訊息處理錯誤:", e.message);
-        }
     }
-    // === 重新綁定監聽器 ===
+
+    // === 改进的重新绑定监听器函数 ===
     function rebindListener() {
         try {
             if (!ServerSocket || typeof ServerSocket.on !== 'function') {
-                console.warn("[Release Bot] ServerSocket 不可用，無法重新綁定");
+                console.warn("[Release Bot] ServerSocket 不可用，无法重新绑定");
                 return false;
             }
 
-            // 移除舊監聽器
+            // 移除旧监听器（只在确实存在时才移除）
             if (socketListener) {
-                ServerSocket.off("ChatRoomMessage", socketListener);
-                console.log("[Release Bot] 舊監聽器已移除");
+                try {
+                    ServerSocket.off("ChatRoomMessage", socketListener);
+                    console.log("[Release Bot] 旧监听器已移除");
+                } catch (e) {
+                    console.warn("[Release Bot] 移除旧监听器时出现警告:", e.message);
+                }
             }
 
-            // 綁定新監聽器
+            // 绑定新监听器
             socketListener = (data) => {
                 try {
+                    lastMessageTime = Date.now(); // 更新最后消息时间
                     handleMessage(data);
                 } catch (e) {
-                    console.error("[Release Bot] 處理訊息時發生錯誤:", e.message);
-                    // 嘗試重新綁定監聽器
-                    if (retryCount < MAX_RETRIES) {
-                        retryCount++;
-                        console.log(`[Release Bot] 嘗試重新綁定監聽器 (${retryCount}/${MAX_RETRIES})`);
-                        setTimeout(rebindListener, 1000);
-                    }
+                    console.error("[Release Bot] 处理消息时发生错误:", e.message);
+                    // 移除自动重试逻辑，避免频繁重绑定
                 }
             };
 
             ServerSocket.on("ChatRoomMessage", socketListener);
-            console.log("[Release Bot] 訊息監聽器已重新綁定");
-            retryCount = 0; // 重置重試計數
+            console.log("[Release Bot] 消息监听器已重新绑定");
+            retryCount = 0;
+            // 启动监听器健康检查
+            startListenerHealthCheck();
             return true;
         } catch (e) {
-            console.error("[Release Bot] 重新綁定監聽器失敗:", e.message);
+            console.error("[Release Bot] 重新绑定监听器失败:", e.message);
             return false;
         }
+    }
+
+    // === 新增：监听器健康检查 ===
+    function startListenerHealthCheck() {
+        // 清除现有的健康检查
+        if (listenerHealthCheck) {
+            clearInterval(listenerHealthCheck);
+        }
+
+        // 启动新的健康检查（每30分钟检查一次）
+        listenerHealthCheck = setInterval(() => {
+            if (!autoEnabled || !socketListener) return;
+
+            const now = Date.now();
+            const timeSinceLastMessage = now - lastMessageTime;
+
+            // 如果超过10分钟没有收到任何消息，且在聊天室中，可能监听器失效
+            if (timeSinceLastMessage > 600000 && // 10分钟
+                typeof CurrentScreen !== 'undefined' &&
+                CurrentScreen === "ChatRoom" &&
+                Array.isArray(ChatRoomCharacter) &&
+                ChatRoomCharacter.length > 1) { // 确保聊天室有其他人
+
+                console.warn("[Release Bot] 检测到可能的监听器失效，尝试重新绑定");
+                rebindListener();
+            }
+        }, 30*60*1000); // 每30分钟检查一次
     }
 
     // === 安全的 Hook 函數 ===
@@ -611,54 +690,63 @@
         }
     }
 
-    // === 設置 Hook ===
     function setupHooks() {
-        // ChatRoom 載入時重新綁定監聽器
         safeHookFunction("ChatRoomLoad", 0, (args, next) => {
-            return next(args).then(() => {
+            let result;
+            try {
+                result = next(args);
                 setTimeout(() => {
-                    rebindListener();
+                    if (!socketListener || retryCount === 0) {
+                        console.log("[Release Bot] ChatRoomLoad 触发，设置监听器");
+                        rebindListener();
+                    }
                 }, 1000);
-            })
-        });
 
-        // 繪製按鈕
+            } catch (e) {
+                console.error("[Release Bot] ChatRoomLoad hook 错误:", e.message);
+            }
+            return result;
+        });
         safeHookFunction("ChatRoomMenuDraw", 4, (args, next) => {
+            let result;
             try {
                 if (typeof DrawButton === 'function') {
                     DrawButton(
                         btnX, btnY, size, size,
                         autoEnabled ? "🤖" : "⚙️",
                         autoEnabled ? "Orange" : "Gray",
-                        "", "自動解鎖開關"
+                        "", "自动解锁开关"
                     );
                 }
+                result = next(args);
             } catch (e) {
-                console.error("[Release Bot] 繪製按鈕失敗:", e.message);
+                console.error("[Release Bot] 绘制按钮失败:", e.message);
             }
-            next(args);
+            return result;
         });
 
-        // 處理按鈕點擊
         safeHookFunction("ChatRoomClick", 4, (args, next) => {
+            let result;
             try {
                 if (typeof MouseIn === 'function' && MouseIn(btnX, btnY, size, size)) {
                     autoEnabled = !autoEnabled;
-                    sendLocalMessage(autoEnabled ? "🔓 自動救援啟用" : "🔒 自動救援停用");
 
-                    // 如果啟用自動功能，檢查監聽器狀態
+                    sendLocalMessage(autoEnabled ? "🔓 自动救援启用" : "🔒 自动救援停用");
+
                     if (autoEnabled && !socketListener) {
                         rebindListener();
+                    } else if (!autoEnabled && listenerHealthCheck) {
+                        clearInterval(listenerHealthCheck);
+                        listenerHealthCheck = null;
                     }
-                    return;
                 }
+                result = next(args);
             } catch (e) {
-                console.error("[Release Bot] 按鈕點擊處理失敗:", e.message);
+                console.error("[Release Bot] 按钮点击处理失败:", e.message);
             }
-            next(args);
+            return result;
         });
     }
-
     // === 等待遊戲載入 ===
     function waitForGame(timeout = 30000) {
         const start = Date.now();
@@ -685,91 +773,98 @@
         });
     }
 
-    // === 健康檢查 ===
+    // === 改进的健康检查函数 ===
     function healthCheck() {
         if (!autoEnabled) return;
 
         try {
-            // 檢查監聽器是否還有效
-            if (!socketListener && autoEnabled) {
-                console.warn("[Release Bot] 監聽器遺失，嘗試重新綁定");
-                rebindListener();
-            }
-
-            // 檢查關鍵函數是否可用
+            // 检查关键函数是否可用
             const criticalFunctions = [
                 'ChatRoomCharacter', 'Player', 'ServerSocket',
-                'CharacterReleaseTotal', 'InventoryUnlock'
+                'CharacterReleaseTotal', 'InventoryUnlock', 'ServerAppearanceBundle'
             ];
 
+            let missingFunctions = [];
             for (let funcName of criticalFunctions) {
                 if (typeof window[funcName] === 'undefined') {
-                    console.warn(`[Release Bot] ${funcName} 不可用`);
+                    missingFunctions.push(funcName);
                 }
             }
+
+            if (missingFunctions.length > 0) {
+                console.warn(`[Release Bot] 以下函数不可用: ${missingFunctions.join(', ')}`);
+            }
+
+            // 检查监听器是否正常（但不频繁重绑定）
+            if (autoEnabled && !socketListener && ServerSocket) {
+                console.warn("[Release Bot] 监听器丢失，尝试重新绑定");
+                rebindListener();
+            }
         } catch (e) {
-            console.error("[Release Bot] 健康檢查失敗:", e.message);
+            console.error("[Release Bot] 健康检查失败:", e.message);
         }
     }
 
     // === 主初始化函數 ===
     async function initialize() {
         if (isInitialized) {
-            console.warn("[Release Bot] 已經初始化過了");
+            console.warn("[Release Bot] 已经初始化过了");
             return;
         }
 
-        console.log("[Release Bot] 開始初始化...");
+        console.log("[Release Bot] 开始初始化...");
 
         try {
-            // 初始化 modApi
             modApi = await initializeModApi();
-
-            // 等待遊戲載入
             const gameLoaded = await waitForGame();
             if (!gameLoaded) {
-                console.error("[Release Bot] 遊戲載入失敗");
+                console.error("[Release Bot] 游戏加载失败");
                 return;
             }
 
-            // 設置 Hook
             setupHooks();
 
-            // 設置定期健康檢查
-            setInterval(healthCheck, 30000); // 每30秒檢查一次
+            // 减少健康检查频率（为30分钟）
+            setInterval(healthCheck, 30*60*1000);
 
-            // 設置卸載處理
             if (modApi && typeof modApi.onUnload === 'function') {
                 modApi.onUnload(() => {
-                    console.log("[Release Bot] 插件卸載中...");
+                    console.log("[Release Bot] 插件卸载中...");
+
+                    // 清理监听器
                     if (socketListener && ServerSocket) {
                         try {
                             ServerSocket.off("ChatRoomMessage", socketListener);
                             socketListener = null;
-                            console.log("[Release Bot] 訊息監聽器已移除");
+                            console.log("[Release Bot] 消息监听器已移除");
                         } catch (e) {
-                            console.error("[Release Bot] 移除監聽器失敗:", e.message);
+                            console.error("[Release Bot] 移除监听器失败:", e.message);
                         }
                     }
+
+                    // 清理健康检查定时器
+                    if (listenerHealthCheck) {
+                        clearInterval(listenerHealthCheck);
+                        listenerHealthCheck = null;
+                    }
+
+                    savedAppearances.clear();
                     isInitialized = false;
                 });
             }
 
             isInitialized = true;
-            console.log("[Release Bot] 初始化完成 v1.2");
+            console.log(`[Release Bot] 初始化完成 v${modversion}`);
 
-            // 顯示載入訊息
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
-                sendLocalMessage("自動救援機器人已載入！輸入'插件說明'查看功能");
+                sendLocalMessage("自动救援机器人已加载！输入'插件说明'查看功能");
             }
 
         } catch (e) {
-            console.error("[Release Bot] 初始化失敗:", e.message);
+            console.error("[Release Bot] 初始化失败:", e.message);
             isInitialized = false;
         }
     }
-
     // === 啟動初始化 ===
     initialize();
-
 })();
