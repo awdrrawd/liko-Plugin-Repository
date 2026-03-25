@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.1.1
+// @version      1.1.2
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
     'use strict';
 
     let modApi;
-    let myversion = "1.1.1";
+    let myversion = "1.1.2";
     let observer = null;
 
     let config = {
@@ -159,11 +159,15 @@
         }
     };
 
+    // [FIX 1] 合併 data[0] 所有片段，解決句號後翻譯丟失問題
+    // 原本只取 data[0][0][0]，Google API 遇到句號會拆成多個片段
+    // 現在改為合併 data[0] 的所有 seg[0]，確保完整翻譯
     async function translateGoogle(text, target) {
         try {
             const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
             const data = await (await fetch(url)).json();
-            return { translated: data[0][0][0] || text, detectedLang: data[2] || null };
+            const translated = data[0]?.map(seg => seg?.[0] || '').join('') || text;
+            return { translated, detectedLang: data[2] || null };
         } catch (e) {
             console.error('Google Translate failed:', e);
             return { translated: text, detectedLang: null };
@@ -190,7 +194,6 @@
     // Bio 翻譯（逐行翻、空白行跳過、即時更新顯示）
     // ============================================================
 
-    // 不需送翻的行：空白、URL、純符號分隔線
     function isBioSkipLine(line) {
         if (!line.trim()) return true;
         if (/^https?:\/\//.test(line.trim())) return true;
@@ -200,27 +203,19 @@
 
     async function translateBioSmart(normalized, targetLang) {
         const lines = normalized.split('\n');
-        const resultLines = new Array(lines.length).fill('');
+        // [FIX 2] 初始值填原文而非空字串，避免逐行翻譯過程中出現空行/丟失段落
+        const resultLines = [...lines];
 
-        // 先把所有不需翻譯的行填進結果，讓 display 第一次更新時就有骨架
         for (let i = 0; i < lines.length; i++) {
-            if (isBioSkipLine(lines[i])) {
-                resultLines[i] = lines[i];
-            }
-        }
-
-        // 逐行翻譯，每翻完一行立即更新畫面
-        for (let i = 0; i < lines.length; i++) {
-            if (isBioSkipLine(lines[i])) continue; // 已處理，跳過
+            if (isBioSkipLine(lines[i])) continue;
 
             try {
                 const { translated } = await translateQueue.add(lines[i], targetLang);
                 resultLines[i] = translated;
             } catch (e) {
-                resultLines[i] = lines[i]; // 失敗保留原文
+                resultLines[i] = lines[i];
             }
 
-            // 每行翻完就即時刷新顯示框
             updateBioTranslationDisplay(resultLines.join('\n'));
         }
 
@@ -236,7 +231,6 @@
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     await handleReceivedMessage(node);
-                    // 手動翻譯按鈕：受 translateChat 控制
                     if (config.translateChat) addTranslateButtonToMessage(node);
                 }
             }
@@ -255,7 +249,6 @@
     }
 
     async function handleReceivedMessage(node) {
-        // 整句自動翻譯：需要 enabled 且 translateReceived
         if (!config.enabled || !config.translateReceived) return;
         if (!(node instanceof HTMLElement)) return;
         if (!node.classList.contains('ChatMessage')) return;
@@ -488,7 +481,6 @@
         const tip = getTip();
         if (tip) tip.textContent = isZH() ? '翻譯中...' : 'Translating...';
 
-        // 手動翻譯不受 config.enabled 影響，直接走 queue
         const { translated } = await translateQueue.add(message, lang);
 
         if (tip) tip.textContent = isZH() ? '點擊移除翻譯' : 'Click to remove';
@@ -608,7 +600,6 @@
         result.style.display = 'block';
         result.style.color = '#888';
         result.textContent = isZH() ? '翻譯中...' : 'Translating...';
-        // 選取翻譯不受 config.enabled 影響，直接走 queue
         const { translated } = await translateQueue.add(selected, lang);
         result.style.color = '#aeffae';
         result.textContent = `[${lang.toUpperCase()}] ${translated}`;
@@ -616,7 +607,6 @@
 
     function setupSelectionListener() {
         document.addEventListener('mouseup', (e) => {
-            // 選取翻譯：受 translateSelection 控制
             if (!config.translateSelection) return;
             if (selectionPopup?.contains(e.target)) return;
             clearTimeout(selectionTimer);
@@ -739,7 +729,7 @@
             const zh = isZH();
             const names = langNameNative;
             const T = {
-                title        : zh ? "機器翻譯設定  v1.1.1" : "Machine Translation Settings  v1.1.1",
+                title        : zh ? "機器翻譯設定  v1.1.2" : "Machine Translation Settings  v1.1.2",
                 secLeft      : zh ? "── 即時翻譯 ──" : "── Live Translation ──",
                 secRight     : zh ? "── 語言設定 ──" : "── Language Settings ──",
                 enabled      : zh ? "啟用"           : "Enable",
@@ -901,35 +891,25 @@
 
     // ============================================================
     // Bio 翻譯
-    //
-    // 快取設計：
-    //   key   = "{memberNumber}_{recvLang}"  （玩家ID + 目標語言）
-    //   value = { hash: strHash(Bio內容), translated: "...", ts: Date.now() }
-    //   命中條件：key 存在 AND hash 相符 AND 未超過 TTL
-    //   → Bio 更新後 hash 不同，自動重翻，不受 TTL 限制
-    //   → 同一 session 重複查同一人且 Bio 沒變，直接返回快取
-    //   TTL = 10 分鐘（正常不會重複查，到期自動清）
-    //   Max entries = 30（LRU 淘汰最舊）
     // ============================================================
     const BIO_TRANS_ID = 'mat-bio-translated';
     let bioTranslating = false;
-    let bioCurrentMemberNumber = null; // 當前查閱的玩家 ID，由 hook 設定
+    let bioCurrentMemberNumber = null;
     const bioCache = new Map();
-    const BIO_CACHE_TTL = 10 * 60 * 1000; // 10 分鐘
+    const BIO_CACHE_TTL = 10 * 60 * 1000;
 
     function bioCacheGet(memberNum, recvLang, contentHash) {
         const key = `${memberNum}_${recvLang}`;
         const e = bioCache.get(key);
         if (!e) return null;
-        if (Date.now() - e.ts > BIO_CACHE_TTL) { bioCache.delete(key); return null; } // TTL 過期
-        if (e.hash !== contentHash) { bioCache.delete(key); return null; }             // Bio 內容有變
+        if (Date.now() - e.ts > BIO_CACHE_TTL) { bioCache.delete(key); return null; }
+        if (e.hash !== contentHash) { bioCache.delete(key); return null; }
         return e.translated;
     }
 
     function bioCacheSet(memberNum, recvLang, contentHash, translated) {
         const key = `${memberNum}_${recvLang}`;
         if (bioCache.size >= 30) {
-            // LRU：淘汰最舊的一筆
             const oldest = [...bioCache.entries()].sort((a,b) => a[1].ts - b[1].ts)[0][0];
             bioCache.delete(oldest);
         }
@@ -978,22 +958,24 @@
         return input ? (input.value || '') : '';
     }
 
-    // 更新已存在的翻譯框；若不存在則建立
     function updateBioTranslationDisplay(text) {
         let div = document.getElementById(BIO_TRANS_ID);
         if (!div) {
             showBioTranslation(text);
             return;
         }
-        div.textContent = `[🌐 MAT]\n${text}`;
+        // 只更新文字，不重建整個 div，避免干擾使用者選取文字
+        div.firstChild.textContent = `[🌐 MAT]\n${text}`;
     }
 
+    // [FIX 3] Bio 翻譯框改為按鈕關閉，移除點擊整體關閉，方便複製文字
     function showBioTranslation(translatedText) {
         removeBioTranslation();
         const ref = document.getElementById('bceRichOnlineProfile') || document.getElementById('DescriptionInput');
         const div = document.createElement('div');
         div.id = BIO_TRANS_ID;
-        div.style.cssText = 'overflow-y:scroll;overflow-x:hidden;overflow-wrap:break-word;white-space:pre-wrap;background:rgb(220,240,220);color:rgb(27,45,27);border:2px solid #4CAF50;padding:2px;position:fixed;z-index:999;font-family:Arial,sans-serif;cursor:pointer;';
+        div.style.cssText = 'overflow-x:hidden;overflow-wrap:break-word;white-space:pre-wrap;background:rgb(220,240,220);color:rgb(27,45,27);border:2px solid #4CAF50;padding:2px;position:fixed;z-index:999;font-family:Arial,sans-serif;display:flex;flex-direction:column;';
+
         if (ref) {
             const cs = window.getComputedStyle(ref);
             div.style.fontSize = cs.fontSize;
@@ -1004,9 +986,13 @@
         } else {
             Object.assign(div.style, {fontSize:'8.4px', left:'23px', top:'256px', width:'415px', height:'174px'});
         }
-        div.title = isZH() ? '點擊關閉翻譯' : 'Click to close';
-        div.textContent = `[🌐 MAT]\n${translatedText}`;
-        div.addEventListener('click', removeBioTranslation);
+
+        // 文字內容區（可捲動、可選取複製）
+        const textNode = document.createElement('div');
+        textNode.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;user-select:text;cursor:text;';
+        textNode.textContent = `[🌐 MAT]\n${translatedText}`;
+        div.appendChild(textNode);
+
         document.body.appendChild(div);
     }
 
@@ -1019,7 +1005,6 @@
         const normalized = normalizeUnicodeText(raw);
         const contentHash = strHash(normalized);
 
-        // memberNumber 未知時 fallback 到 'unknown'，仍可正常運作
         const memberNum = bioCurrentMemberNumber ?? 'unknown';
         const cached = bioCacheGet(memberNum, config.recvLang, contentHash);
         if (cached) { showBioTranslation(cached); return; }
@@ -1028,24 +1013,34 @@
         try {
             const result = await translateBioSmart(normalized, config.recvLang);
             bioCacheSet(memberNum, config.recvLang, contentHash, result);
-            updateBioTranslationDisplay(result); // 最終完整版再刷一次確保正確
+            // 最終完整版強制用 showBioTranslation 重建，確保內容正確
+            showBioTranslation(result);
         } finally {
             bioTranslating = false;
         }
     }
 
+    // [FIX 4] OnlineProfileRun：按鈕圖示根據狀態切換（翻譯中/已開啟/未開啟）
+    //         OnlineProfileClick：只透過按鈕關閉，不再點選 div 關閉
     function hookOnlineProfile() {
         if (!modApi) return;
         try {
             modApi.hookFunction("OnlineProfileRun", 4, (args, next) => {
                 const result = next(args);
-                DrawButton(1415, 60, 90, 90, "", bioTranslating ? "Gray" : "White", "Icons/Chat.png",
-                    isZH() ? (bioTranslating ? "翻譯中..." : "翻譯Bio") : (bioTranslating ? "Translating..." : "Translate Bio"));
+                const isOpen = !!document.getElementById(BIO_TRANS_ID);
+                if (bioTranslating) {
+                    DrawButton(1415, 60, 90, 90, "", "Gray", "Icons/Chat.png",
+                        isZH() ? "翻譯中..." : "Translating...");
+                } else if (isOpen) {
+                    DrawButton(1415, 60, 90, 90, "", "White", "Icons/Cancel.png",
+                        isZH() ? "關閉翻譯" : "Close Translation");
+                } else {
+                    DrawButton(1415, 60, 90, 90, "", "White", "Icons/Chat.png",
+                        isZH() ? "翻譯Bio" : "Translate Bio");
+                }
                 return result;
             });
             modApi.hookFunction("OnlineProfileLoad", 4, (args, next) => {
-                // 記錄當前查閱的玩家 ID
-                // BC 慣例：CurrentCharacter 或 InspectCharacter 指向被查閱的角色
                 try {
                     const target = typeof InspectCharacter !== "undefined" ? InspectCharacter
                                  : typeof CurrentCharacter !== "undefined" ? CurrentCharacter
@@ -1056,6 +1051,7 @@
             });
             modApi.hookFunction("OnlineProfileClick", 4, (args, next) => {
                 if (MouseIn(1415, 60, 90, 90)) {
+                    if (bioTranslating) return; // 翻譯中不允許操作
                     document.getElementById(BIO_TRANS_ID) ? removeBioTranslation() : translateBio();
                     return;
                 }
@@ -1118,12 +1114,12 @@
                 }
             }
         }]);
-        ChatRoomSendLocal("🌐 [MAT] v1.1.1 loaded! Use /mat help");
+        ChatRoomSendLocal("🌐 [MAT] v1.1.2 loaded! Use /mat help");
     }
 
     function showHelp() {
         ChatRoomSendLocal(`<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
-            <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v1.1.1</h3>
+            <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v1.1.2</h3>
             <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
                 <b style='color:#FFD700;'>開關指令</b><br>
                 <b style='color:#87CEEB;'>/mat on/off</b> — 聊天室翻譯總開關<br>
@@ -1160,7 +1156,7 @@
 
     function showStatus() {
         ChatRoomSendLocal(`<div style='background:#1a1a2e;color:#eee;padding:8px;border-radius:5px;'>
-            <h4 style='color:#4CAF50;'>📊 MAT v1.1.1 狀態</h4>
+            <h4 style='color:#4CAF50;'>📊 MAT v1.1.2 狀態</h4>
             聊天室總開關: ${config.enabled ? '🟢' : '🔴'}<br>
             整句自動翻譯: ${config.translateReceived ? '✅' : '❌'} → ${getLangName(config.recvLang)}<br>
             發送翻譯: ${config.translateSent ? '✅' : '❌'} → ${getLangName(config.sendLang)}<br>
