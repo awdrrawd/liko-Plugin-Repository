@@ -467,7 +467,7 @@
             description: "ECHO的服裝拓展", en_description: "ECHO's Expansion on cloth options",
             additionalInfo: "", en_additionalInfo: "",
             icon: "🥐",
-            url: "https://SugarChain-Studio.github.io/echo-clothing-ext/bc-cloth.js",
+            url: "https://sugarchain-studio.github.io/echo-clothing-ext/bc-cloth.user.js",
             altUrl: "https://sugarchain-studio.github.io/echo-clothing-ext/bc-cloth-beta.user.js",
             website: "https://github.com/SugarChain-Studio/echo-clothing-ext",
             state: pluginSettings["ECHO-Cloth"] ?? "off",
