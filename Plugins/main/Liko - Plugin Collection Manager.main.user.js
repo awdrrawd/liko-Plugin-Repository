@@ -515,7 +515,7 @@
             additionalInfo: "", en_additionalInfo: "",
             icon: "🎵",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CMC.main.user.js",
-            enabled: pluginSettings["Liko-CMC"] ?? true,
+            enabled: pluginSettings["Liko-CMC"] ?? false,
             priority: 5
         },
         {
