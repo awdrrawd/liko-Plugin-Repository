@@ -1,40 +1,28 @@
 // ==UserScript==
 // @name         Liko - Release Maid
 // @name:zh      Liko的解綁女僕
-// @namespace    https://likolisu.dev/
-// @version      1.2
-// @description  自動回應「救我 / 救救 / help」來解除拘束，支援指定救人，新增多種便利功能
+// @namespace    https://likulisu.dev/
+// @version      1.1
+// @description  自動回應「救我 / 救救 / help」來解除拘束，支援指定救人
 // @author       莉柯莉絲(Likolisu)
-// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @match        https://bondageprojects.elementfx.com/*
+// @match        https://bondage-europe.com/*
+// @match        https://bondage-asia.com/*
+// @match        https://www.bondageprojects.elementfx.com/*
+// @match        https://www.bondage-europe.com/*
+// @match        https://www.bondage-asia.com/*
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
-// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
-// @run-at       document-end
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
+// @require      https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/expand/bcmodsdk.js
 // ==/UserScript==
 
 (function() {
     'use strict';
 
     let modApi = null;
-    let autoEnabled = false;   // 預設關閉
-    let socketListener = null; // 儲存監聽器引用
-    let isInitialized = false;
-    let retryCount = 0;
-    const MAX_RETRIES = 3;
 
-    // === 按鈕座標 ===
-    const btnX = 0;
-    const btnY = 35;
-    const size = 45;
-
-    // === 關鍵字 ===
-    const triggerWords = ["救救", "幫我", "幫幫", "帮我", "帮帮", "help", "heam", "heaf", "heap", "嗷呜", "哈咕", "恩我", "恩呜", "救嗷"];
-    const unlockWords  = ["開鎖", "开锁", "解鎖", "解锁", "unlock"];
-    const lockWords = ["上鎖", "上锁", "lock"];
-    const queryWords = ["查詢", "查询", "query", "info"];
-    const helpWords = ["說明", "说明", "插件教程", "插件建议", "插件建議", "插件說明", "插件说明", "其他插件", "幫助"];
-
-    // === 等待 bcModSdk 載入 ===
+    // 等待 bcModSdk 載入的函數
     function waitForBcModSdk(timeout = 30000) {
         const start = Date.now();
         return new Promise(resolve => {
@@ -52,7 +40,7 @@
         });
     }
 
-    // === 初始化 modApi ===
+    // 初始化 modApi
     async function initializeModApi() {
         const success = await waitForBcModSdk();
         if (!success) {
@@ -62,10 +50,10 @@
 
         try {
             modApi = bcModSdk.registerMod({
-                name: "Liko's Release Maid",
+                name: 'Liko Release Maid',
                 fullName: 'Bondage Club - Liko Auto Release Maid',
-                version: '1.2',
-                repository: "莉柯的自動解鎖女僕 | Liko's auto release maid",
+                version: '1.1',
+                repository: '莉柯莉絲的自動解鎖女僕',
             });
             console.log("✅ Liko Release Bot 註冊成功");
             return modApi;
@@ -75,80 +63,69 @@
         }
     }
 
-    // === 安全的本地訊息發送 ===
+    // 本地變數（避免全局汙染）
+    let autoEnabled = false;   // 預設關閉
+    let hookBound = false;
+    let socketListener = null; // 儲存監聽器引用以便清理
+
+    // === 按鈕座標 ===
+    const btnX = 0;
+    const btnY = 35;
+    const size = 45;
+
+    // === 關鍵字 ===
+    const triggerWords = ["救我", "救救", "幫我", "帮我", "help"];   // 完全解放
+    const unlockWords  = ["開鎖", "开锁", "解鎖", "解锁", "unlock"]; // 只解鎖
+
+    // === 本地訊息發送函數 ===
     function sendLocalMessage(message) {
         try {
-            if (typeof CurrentScreen === 'undefined' || CurrentScreen !== "ChatRoom") {
-                console.log("[Release Bot]", message);
+            if (CurrentScreen !== "ChatRoom") {
+                console.warn("[Release Bot] 不在聊天室，訊息可能不顯示");
                 return;
             }
-
-            if (typeof ChatRoomMessage === 'function') {
-                ChatRoomMessage({
-                    Content: `<font color="#00FF00">[Release Bot] ${message}</font>`,
-                    Type: "LocalMessage",
-                    Sender: Player?.MemberNumber || 0
-                });
-            }
+            ChatRoomMessage({
+                Content: `<font color="#00FF00">[Release Bot] ${message}</font>`,
+                Type: "LocalMessage",
+                Sender: Player.MemberNumber
+            });
         } catch (e) {
             console.error("[Release Bot] 發送本地訊息錯誤:", e.message);
         }
     }
 
-    // === 安全的系統動作訊息 ===
-    function sendSystemAction(message) {
-        try {
-            if (typeof ServerSend !== 'function') {
-                console.warn("[Release Bot] ServerSend 不可用");
-                return;
-            }
-
-            ServerSend("ChatRoomChat", {
-                Type: "Action",
-                Content: "CUSTOM_SYSTEM_ACTION",
-                Dictionary: [
-                    { Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: message }
-                ]
-            });
-        } catch (e) {
-            console.error("[Release Bot] 發送系統動作失敗:", e.message);
-        }
-    }
-
-    // === 正規化訊息 ===
+    // === 正規化訊息 (處理口吃 / 符號) ===
     function normalizeMessage(msg) {
-        if (typeof msg !== 'string') return '';
         return msg
             .toLowerCase()
-            .replace(/[-~.…。！!,?？]/g, "")
-            .replace(/(.)\1{3,}/g, "$1$1")
+            .replace(/[-~.…。！!,?？]/g, "") // 去掉符號
+            .replace(/(.)\1{3,}/g, "$1$1")  // 三次以上重複壓縮成兩次 (救救救救 -> 救救)
             .trim();
     }
 
-    // === 檢查權限 ===
+    // === 檢查權限函數 ===
     function hasPermission(target) {
         try {
-            if (!target || typeof target !== 'object') return false;
             if (typeof ServerChatRoomGetAllowItem === "function") {
                 return ServerChatRoomGetAllowItem(Player, target);
             }
-            return true;
+            return true; // 如果函數不存在，假設有權限
         } catch (e) {
             console.warn("[Release Bot] 權限檢查失敗:", e.message);
             return true;
         }
     }
 
-    // === 解鎖函數 ===
+    // === 解鎖函數 (不移除物品，只解鎖，保留 Owner/Lover 鎖) ===
     function UnlockAllLocks(C) {
-        if (!C || !Array.isArray(C.Appearance)) {
+        if (!C || !C.Appearance) {
             console.warn("[Release Bot] 無效的角色對象");
-            return 0;
+            return;
         }
 
         if (!hasPermission(C)) {
             console.warn("[Release Bot] 無權限操作角色:", C.Name);
-            return 0;
+            return;
         }
 
         const skipLocks = [
@@ -161,15 +138,14 @@
         let unlockedCount = 0;
         try {
             for (let a of C.Appearance) {
-                if (a.Property && a.Property.LockedBy && !skipLocks.includes(a.Property.LockedBy)) {
-                    if (typeof InventoryUnlock === 'function') {
-                        InventoryUnlock(C, a);
-                        unlockedCount++;
-                    }
+                if (a.Property && a.Property.LockedBy) {
+                    if (skipLocks.includes(a.Property.LockedBy)) continue;
+                    InventoryUnlock(C, a);
+                    unlockedCount++;
                 }
             }
 
-            if (unlockedCount > 0 && typeof ChatRoomCharacterUpdate === 'function') {
+            if (unlockedCount > 0) {
                 ChatRoomCharacterUpdate(C);
             }
         } catch (e) {
@@ -179,195 +155,9 @@
         return unlockedCount;
     }
 
-    // === 上鎖函數 ===
-    function lockAll(target) {
-        if (!target || !Array.isArray(target.Appearance)) {
-            console.warn("[Release Bot] 上鎖目標無效");
-            return 0;
-        }
-
-        if (!hasPermission(target)) {
-            console.warn("[Release Bot] 無權限上鎖:", target.Name);
-            return 0;
-        }
-
-        try {
-            let lockedCount = 0;
-            for (let a of target.Appearance) {
-                if (a.Asset && a.Asset.AllowLock && (!a.Property || !a.Property.LockedBy)) {
-                    if (typeof InventoryLock === 'function') {
-                        InventoryLock(target, a, "ExclusivePadlock", Player?.MemberNumber);
-                        lockedCount++;
-                    }
-                }
-            }
-
-            if (lockedCount > 0 && typeof ChatRoomCharacterUpdate === 'function') {
-                ChatRoomCharacterUpdate(target);
-                const botName = Player?.Nickname || Player?.Name || "Bot";
-                const targetName = target.Nickname || target.Name || "Unknown";
-                sendSystemAction(`${botName}為${targetName}全身上鎖`);
-            }
-
-            return lockedCount;
-        } catch (e) {
-            console.error("[Release Bot] 上鎖失敗:", e.message);
-            return 0;
-        }
-    }
-
-    // === 查詢關係函數 ===
-    function queryRelationship(target) {
-        const c = target;
-
-        if (!c) {
-            ChatRoomSendLocal("❌ 找不到目標角色。");
-        } else {
-            let output = `💠 ${c.Name} (${c.MemberNumber}) 的關係狀況：\n`;
-
-            //  🎂 加入遊戲開始時間
-            if (c.Creation) {
-                const creationTime = new Date(c.Creation);
-                output += `🎂 誕生日：${creationTime.toLocaleString()}\n`;
-            }
-
-            // 主人
-            if (c.Ownership) {
-                const owners = Array.isArray(c.Ownership) ? c.Ownership : [c.Ownership];
-                owners.forEach(owner => {
-                    const startTime = new Date(owner.Start); // UNIX 毫秒
-                    const now = new Date();
-                    const days = Math.floor((now - startTime) / (1000 * 60 * 60 * 24));
-
-                    // 主人階段：0=試用、1=認主
-                    const stageLabel = owner.Stage === 0 ? "試用期" :
-                    owner.Stage === 1 ? "認主" : "未知";
-
-                    output += `👑 主人：${owner.Name} (${owner.MemberNumber})\n`;
-                    output += `　${stageLabel}：${days} 天\n`;
-                    output += `　開始時間：${startTime.toLocaleString()}\n`;
-                });
-            } else {
-                output += `🚫 沒有主人\n`;
-            }
-
-            // 戀人
-            if (c.Lovership && c.Lovership.length > 0) {
-                c.Lovership.forEach(love => {
-                    const startTime = new Date(love.Start);
-                    const now = new Date();
-                    const days = Math.floor((now - startTime) / (1000 * 60 * 60 * 24));
-
-                    // 戀人階段：0=約會、1=訂婚、2=結婚
-                    const stageLabel = love.Stage === 0 ? "約會" :
-                    love.Stage === 1 ? "訂婚" :
-                    love.Stage === 2 ? "結婚" : "未知";
-
-                    output += `💞 戀人：${love.Name} (${love.MemberNumber})\n`;
-                    output += `　${stageLabel}：${days} 天\n`;
-                    output += `　開始時間：${startTime.toLocaleString()}\n`;
-                });
-            } else {
-                output += `🚫 沒有戀人\n`;
-            }
-
-            // 難度紀錄
-            if (c.Difficulty) {
-                const diff = c.Difficulty;
-                const lastChange = new Date(diff.LastChange);
-                const now = new Date();
-                const days = Math.floor((now - lastChange) / (1000 * 60 * 60 * 24));
-
-                // 難度階段對應
-                const diffLabel = diff.Level === 0 ? "角色扮演" :
-                diff.Level === 1 ? "普通" :
-                diff.Level === 2 ? "硬核" :
-                diff.Level === 3 ? "極限" : "未知";
-
-                output += `⚙️ 當前難度：${diffLabel}\n`;
-                output += `　最後變更：${lastChange.toLocaleString()}\n`;
-                output += `　維持天數：${days} 天\n`;
-            }
-
-            // 顯示在聊天
-            ServerSend("ChatRoomChat", {
-                Type: "Action",
-                Content: "CUSTOM_SYSTEM_RELATION_INFO",
-                Dictionary: [
-                    {
-                        Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_RELATION_INFO',
-                        Text: output
-                    }
-                ]
-            });
-        }
-    }
-
-    // === 顯示說明信息 ===
-    function showHelp(keyword = "") {
-        // 根據關鍵字決定顯示哪種說明
-        let helpType = "说明"; // 默認類型
-
-        const keywordLower = keyword.toLowerCase();
-        if (keywordLower === "插件教程" || keywordLower === "教程" || keywordLower === "安装" || keywordLower === "安裝") {
-            helpType = "插件教程";
-        } else if (keywordLower === "插件建议" || keywordLower === "插件建議" || keywordLower === "建议" || keywordLower === "建議" || keywordLower === "推荐") {
-            helpType = "插件建议";
-        } else if (keywordLower === "其他插件" || keywordLower === "其他" || keywordLower === "更多") {
-            helpType = "其他插件";
-        } else if (keywordLower === "說明" || keywordLower === "说明" || keywordLower === "help" || keywordLower === "幫助") {
-            helpType = "说明";
-        }
-
-        const helpTexts = {
-            "说明": "🧹 莉柯女仆教程 | Liko release maid illustrate\n" +
-            "1. 说'救我'、'救救'进行完全解放 | say 'help' Release All\n" +
-            "2. 说'解锁'只解开锁具 | say 'unlock' Unlock All\n" +
-            "3. 说'上锁'全身使用专属锁 | say 'lock' Use \n    'ExclusivePadlock' on your entire body\n" +
-            "4. 说'查询'查询主人&恋人时间 | say 'query'Check owner & \n    lover time\n" +
-            "5. '救'、'查询'+玩家 可指定目标 | 'help'、'query'+Player \n    Specifiable objects\n" +
-            "6. 其他说明请转至'插件教程'、'插件建议'、'其他插件'",
-
-            "插件教程": " 📖插件安装教程：\n" +
-            "⭐以下以PC教程：\n" +
-            "1. 安装 油猴(tampermonkey)或 暴力猴(Violentmonkey)\n" +
-            "2-1. 油猴网址(https://www.tampermonkey.net/index.php?browser=chrome&locale=zh)\n" +
-            "⚠️油猴需开启'开发者模式[](https://www.tampermonkey.net/faq.php#Q209)⚠️\n" +
-            "2-2. 暴力猴网址(https://violentmonkey.github.io/)\n" +
-            "3. 安装FUSAM插件(https://wce.netlify.app/wce-fusam-loader.user.js)\n" +
-            "4. 刷新游戏后上方会出现[插件管理器]或[addon manager]进去设定插件集\n" +
-            "手机的安装请找支援插件的浏览器，安卓考虑VIA，苹果建议Userscripts\n" +
-            "详细的查件资讯请输入[插件建议]",
-
-            "插件建议": "📚 插件建议：\n" +
-            "• 建议启用：[WCE]、[BCX]、[LSCG]、[Eli 的束缚俱乐部助手 (EBCH)]\n" +
-            "• 考虑启用：[MBCHC]、[NotifyPlus]、[Responsive(Legacy)]、[MBS]、[BCT]、[ULTRA]\n" +
-            "• 建议独立安装：[服装拓展]、[动作拓展]、[动作拓展以及其他易用性功能]\n" +
-            "⚠️不建议安装：[Maple 的 BC 癖好分享(个人资料拓展)]、[XTOY]、[ABCL]\n" +
-            "⭐动作扩展(https://sugarchain-studio.github.io/echo-activity-ext/bc-activity.user.js)\n" +
-            "⭐服装扩展(https://sugarchain-studio.github.io/echo-clothing-ext/bc-cloth.user.js)\n" +
-            "⭐小酥的动作拓展(https://iceriny.github.io/XiaoSuActivity/main/userLoad.user.js)\n" +
-            "⭐由于读取问题，拓展系列的插件建议独立安装，或是登入游戏时稍等一下\n" +
-            "⭐不建议安装的项目是因为体验较差、还有冲突问题，除非你有需求",
-
-            "其他插件": "🧰 莉柯莉絲(192263)寫的其他插件：\n" +
-            "CHE可以把信息转HTML、Image Uploader可以用拖曳图片到聊天室分享图片\n" +
-            "• CHE(https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CHE.user.js)\n" +
-            "• Image Uploader(https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Image_Uploader.user.js)\n" +
-            "未来可能会更新更多插件请询问作者"
-        };
-
-        const helpText = helpTexts[helpType];
-        if (helpText) {
-            sendSystemAction(helpText);
-        } else {
-            console.warn("[Release Bot] 未知的說明類型:", helpType);
-        }
-    }
-
     // === 救援函數 ===
     function rescue(target, mode = "release") {
-        if (!target || typeof target !== 'object') {
+        if (!target) {
             console.warn("[Release Bot] 救援目標無效");
             return;
         }
@@ -379,28 +169,31 @@
 
         try {
             let success = false;
-
             if (mode === "unlock") {
                 const count = UnlockAllLocks(target);
                 success = count > 0;
             } else {
-                if (typeof CharacterReleaseTotal === 'function') {
-                    CharacterReleaseTotal(target);
-                    success = true;
-                    if (typeof ChatRoomCharacterUpdate === 'function') {
-                        ChatRoomCharacterUpdate(target);
-                    }
-                }
+                CharacterReleaseTotal(target);
+                ChatRoomCharacterUpdate(target);
+                success = true;
             }
 
             if (success) {
-                const botName = Player?.Nickname || Player?.Name || "Bot";
-                const displayName = target.Nickname || target.Name || "Unknown";
-                const systemMessage = mode === "unlock"
-                    ? `${botName}解開了${displayName}的鎖`
-                    : `${botName}解開了${displayName}的拘束`;
+                const botName = Player.Nickname || Player.Name;
+                const displayName = target.Nickname || target.Name;
+                const systemMessage =
+                      mode === "unlock"
+                ? `${botName}解開了${displayName}的鎖`
+                : `${botName}解開了${displayName}的拘束`;
 
-                sendSystemAction(systemMessage);
+                ServerSend("ChatRoomChat", {
+                    Type: "Action",
+                    Content: "CUSTOM_SYSTEM_ACTION",
+                    Dictionary: [
+                        { Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: systemMessage }
+                    ]
+                });
+
                 console.log(`[Release Bot] 救援成功: ${displayName} (${mode})`);
             }
         } catch (e) {
@@ -408,195 +201,75 @@
         }
     }
 
-    // === 尋找目標角色 ===
-    function findTarget(keyword) {
-        if (!keyword || !Array.isArray(ChatRoomCharacter)) return null;
-
-        try {
-            // 按ID搜尋
-            if (/^\d+$/.test(keyword)) {
-                const id = parseInt(keyword);
-                return ChatRoomCharacter.find(c => c?.MemberNumber === id);
-            }
-            // 按名稱搜尋
-            const lowerKeyword = keyword.toLowerCase();
-            return ChatRoomCharacter.find(c =>
-                c?.Nickname?.toLowerCase() === lowerKeyword ||
-                c?.Name?.toLowerCase() === lowerKeyword
-            );
-        } catch (e) {
-            console.error("[Release Bot] 尋找目標失敗:", e.message);
-            return null;
-        }
-    }
-
-    // === 訊息處理函數（核心邏輯） ===
+    // === 訊息處理函數 ===
     function handleMessage(data) {
-        // 檢查基本條件
-        if (!autoEnabled || !data || typeof data !== 'object') {
-            return;
-        }
-
-        if ((data.Type !== "Chat" && data.Type !== "Emote") || typeof data.Content !== "string") {
-            return;
-        }
+        if (!autoEnabled) return;
+        if ((data.Type !== "Chat" && data.Type !== "Emote") || typeof data.Content !== "string") return;
 
         const rawMsg = data.Content.trim();
-        if (!rawMsg) return;
-
         const msg = normalizeMessage(rawMsg);
-        if (!msg) return;
-
         const senderID = data.Sender;
-        let sender = null;
 
         try {
-            if (Array.isArray(ChatRoomCharacter)) {
-                sender = ChatRoomCharacter.find(c => c?.MemberNumber === senderID);
-            }
-        } catch (e) {
-            console.error("[Release Bot] 尋找發送者失敗:", e.message);
-            return;
-        }
-
-        // 處理不同類型的指令
-        try {
-            // 2. 說明功能 - 只在訊息開頭匹配 helpWords 時觸發
-            for (let helpWord of helpWords) {
-                const helpWordLower = helpWord.toLowerCase();
-                if (msg.startsWith(helpWordLower)) {
-                    showHelp(helpWord);
-                    return; // 處理完說明後直接返回
-                }
-            }
-
-            // 以下為原有的救援、上鎖、解鎖、查詢邏輯，保持不變
-            // 3. 指定救援功能（整合自救邏輯）
-            let isRescueHandled = false;
-            if (msg.startsWith("救")) {
-                const keyword = msg.substring(1).trim();
-                let target = null;
-                if (keyword === "" || keyword === "我" || keyword === "救") {
-                    target = sender;
-                } else {
-                    target = findTarget(keyword);
-                }
-                if (target) {
-                    rescue(target, "release");
-                    isRescueHandled = true;
-                } else if (keyword) {
-                    sendSystemAction(`找不到玩家: ${keyword}`);
-                }
-            } else if (msg.startsWith("help")) {
-                const keyword = msg.substring(4).trim();
-                let target = null;
-                if (keyword === "" || keyword === "me") {
-                    target = sender;
-                } else {
-                    target = findTarget(keyword);
-                }
-                if (target) {
-                    rescue(target, "release");
-                    isRescueHandled = true;
-                } else if (keyword) {
-                    sendSystemAction(`找不到玩家: ${keyword}`);
-                }
-            }
-
-            // 自救其他 triggerWords（如果指定救援沒處理）
-            if (!isRescueHandled && triggerWords.some(w => msg.includes(w))) {
-                if (sender) {
-                    rescue(sender, "release");
-                }
+            // --- 自救 (完全解放) ---
+            if (triggerWords.some(w => msg.includes(w))) {
+                const target = ChatRoomCharacter.find(c => c.MemberNumber === senderID);
+                if (target) rescue(target, "release");
                 return;
             }
 
-            // 4. 解鎖功能 - 解鎖/解锁/unlock [對象]
-            for (let unlockWord of unlockWords) {
-                if (msg.startsWith(unlockWord.toLowerCase())) {
-                    const keyword = msg.substring(unlockWord.length).trim();
-                    const target = keyword ? findTarget(keyword) : sender;
-                    if (target) {
-                        rescue(target, "unlock");
-                    } else if (keyword) {
-                        sendSystemAction(`找不到玩家: ${keyword}`);
-                    }
-                    return;
-                }
+            // --- 自救 (只解鎖) ---
+            if (unlockWords.some(w => msg.includes(w))) {
+                const target = ChatRoomCharacter.find(c => c.MemberNumber === senderID);
+                if (target) rescue(target, "unlock");
+                return;
             }
 
-            // 5. 上鎖功能 - 上鎖/上锁/lock [對象]
-            for (let lockWord of lockWords) {
-                if (msg.startsWith(lockWord.toLowerCase())) {
-                    const keyword = msg.substring(lockWord.length).trim();
-                    const target = keyword ? findTarget(keyword) : sender;
-                    if (target) {
-                        lockAll(target);
-                    } else if (keyword) {
-                        sendSystemAction(`找不到玩家: ${keyword}`);
-                    }
-                    return;
+            // --- 指定救援 (完全解放) ---
+            if (msg.startsWith("救") || msg.startsWith("help")) {
+                const keyword = msg.replace(/^救|^help/i, "").trim();
+                if (!keyword) return;
+
+                let target = null;
+                if (/^\d+$/.test(keyword)) {
+                    const id = parseInt(keyword);
+                    target = ChatRoomCharacter.find(c => c.MemberNumber === id);
                 }
+                if (!target) {
+                    target = ChatRoomCharacter.find(c =>
+                                                    c.Nickname?.toLowerCase() === keyword.toLowerCase() ||
+                                                    c.Name?.toLowerCase() === keyword.toLowerCase()
+                                                   );
+                }
+
+                if (target) rescue(target, "release");
             }
 
-            // 6. 查詢功能 - 查詢/查询/query [對象]
-            for (let queryWord of queryWords) {
-                if (msg.startsWith(queryWord.toLowerCase())) {
-                    const keyword = msg.substring(queryWord.length).trim();
-                    const target = keyword ? findTarget(keyword) : sender;
-                    if (target) {
-                        queryRelationship(target);
-                    } else if (keyword) {
-                        sendSystemAction(`找不到玩家: ${keyword}`);
-                    }
-                    return;
-                }
-            }
+            // --- 指定解鎖 ---
+            if (msg.startsWith("解鎖") || msg.startsWith("解锁") || msg.startsWith("unlock")) {
+                const keyword = msg.replace(/^解鎖|^解锁|^unlock/i, "").trim();
+                if (!keyword) return;
 
+                let target = null;
+                if (/^\d+$/.test(keyword)) {
+                    const id = parseInt(keyword);
+                    target = ChatRoomCharacter.find(c => c.MemberNumber === id);
+                }
+                if (!target) {
+                    target = ChatRoomCharacter.find(c =>
+                                                    c.Nickname?.toLowerCase() === keyword.toLowerCase() ||
+                                                    c.Name?.toLowerCase() === keyword.toLowerCase()
+                                                   );
+                }
+
+                if (target) rescue(target, "unlock");
+            }
         } catch (e) {
             console.error("[Release Bot] 訊息處理錯誤:", e.message);
         }
     }
-    // === 重新綁定監聽器 ===
-    function rebindListener() {
-        try {
-            if (!ServerSocket || typeof ServerSocket.on !== 'function') {
-                console.warn("[Release Bot] ServerSocket 不可用，無法重新綁定");
-                return false;
-            }
 
-            // 移除舊監聽器
-            if (socketListener) {
-                ServerSocket.off("ChatRoomMessage", socketListener);
-                console.log("[Release Bot] 舊監聽器已移除");
-            }
-
-            // 綁定新監聽器
-            socketListener = (data) => {
-                try {
-                    handleMessage(data);
-                } catch (e) {
-                    console.error("[Release Bot] 處理訊息時發生錯誤:", e.message);
-                    // 嘗試重新綁定監聽器
-                    if (retryCount < MAX_RETRIES) {
-                        retryCount++;
-                        console.log(`[Release Bot] 嘗試重新綁定監聽器 (${retryCount}/${MAX_RETRIES})`);
-                        setTimeout(rebindListener, 1000);
-                    }
-                }
-            };
-
-            ServerSocket.on("ChatRoomMessage", socketListener);
-            console.log("[Release Bot] 訊息監聽器已重新綁定");
-            retryCount = 0; // 重置重試計數
-            return true;
-        } catch (e) {
-            console.error("[Release Bot] 重新綁定監聽器失敗:", e.message);
-            return false;
-        }
-    }
-
-    // === 安全的 Hook 函數 ===
+    // === 安全的 hook 函數包裝器 ===
     function safeHookFunction(functionName, priority, callback) {
         if (modApi && typeof modApi.hookFunction === 'function') {
             try {
@@ -611,51 +284,60 @@
         }
     }
 
-    // === 設置 Hook ===
+    // === 設置 Hook 函數 ===
     function setupHooks() {
-        // ChatRoom 載入時重新綁定監聽器
+        // === 綁定監聽 ===
         safeHookFunction("ChatRoomLoad", 0, (args, next) => {
-            return next(args).then(() => {
-                setTimeout(() => {
-                    rebindListener();
-                }, 1000);
-            })
+            const result = next(args);
+            if (!hookBound) {
+                hookBound = true;
+
+                try {
+                    if (ServerSocket && typeof ServerSocket.on === 'function') {
+                        // 移除舊的監聽器
+                        if (socketListener) {
+                            ServerSocket.off("ChatRoomMessage", socketListener);
+                        }
+
+                        // 添加新的監聽器
+                        socketListener = handleMessage;
+                        ServerSocket.on("ChatRoomMessage", socketListener);
+                        console.log("[Release Bot] 訊息監聽器已綁定");
+                    } else {
+                        console.error("[Release Bot] ServerSocket 不可用");
+                    }
+                } catch (e) {
+                    console.error("[Release Bot] 綁定訊息監聽器失敗:", e.message);
+                }
+            }
+            return result;
         });
 
-        // 繪製按鈕
+        // === 繪製按鈕 ===
         safeHookFunction("ChatRoomMenuDraw", 4, (args, next) => {
             try {
-                if (typeof DrawButton === 'function') {
-                    DrawButton(
-                        btnX, btnY, size, size,
-                        autoEnabled ? "🤖" : "⚙️",
-                        autoEnabled ? "Orange" : "Gray",
-                        "", "自動解鎖開關"
-                    );
-                }
+                DrawButton(
+                    btnX, btnY, size, size,
+                    autoEnabled ? "🤖" : "⚙️",
+                    autoEnabled ? "Orange" : "Gray", "", "自動解鎖開關"
+                );
             } catch (e) {
                 console.error("[Release Bot] 繪製按鈕失敗:", e.message);
             }
-            next(args);
+            return next(args);
         });
 
-        // 處理按鈕點擊
+        // === 點擊按鈕 ===
         safeHookFunction("ChatRoomClick", 4, (args, next) => {
             try {
-                if (typeof MouseIn === 'function' && MouseIn(btnX, btnY, size, size)) {
+                if (MouseIn(btnX, btnY, size, size)) {
                     autoEnabled = !autoEnabled;
                     sendLocalMessage(autoEnabled ? "🔓 自動救援啟用" : "🔒 自動救援停用");
-
-                    // 如果啟用自動功能，檢查監聽器狀態
-                    if (autoEnabled && !socketListener) {
-                        rebindListener();
-                    }
-                    return;
                 }
             } catch (e) {
                 console.error("[Release Bot] 按鈕點擊處理失敗:", e.message);
             }
-            next(args);
+            return next(args);
         });
     }
 
@@ -664,20 +346,14 @@
         const start = Date.now();
         return new Promise(resolve => {
             const check = () => {
-                try {
-                    if (typeof Player !== 'undefined' &&
-                        typeof ChatRoomCharacter !== 'undefined' &&
-                        typeof DrawButton === 'function' &&
-                        typeof MouseIn === 'function') {
-                        resolve(true);
-                    } else if (Date.now() - start > timeout) {
-                        console.error("[Release Bot] 遊戲載入超時");
-                        resolve(false);
-                    } else {
-                        setTimeout(check, 100);
-                    }
-                } catch (e) {
-                    console.error("[Release Bot] 等待遊戲載入時出錯:", e.message);
+                if (typeof Player !== 'undefined' &&
+                    typeof ChatRoomCharacter !== 'undefined' &&
+                    typeof DrawButton === 'function') {
+                    resolve(true);
+                } else if (Date.now() - start > timeout) {
+                    console.error("[Release Bot] 遊戲載入超時");
+                    resolve(false);
+                } else {
                     setTimeout(check, 100);
                 }
             };
@@ -685,40 +361,8 @@
         });
     }
 
-    // === 健康檢查 ===
-    function healthCheck() {
-        if (!autoEnabled) return;
-
-        try {
-            // 檢查監聽器是否還有效
-            if (!socketListener && autoEnabled) {
-                console.warn("[Release Bot] 監聽器遺失，嘗試重新綁定");
-                rebindListener();
-            }
-
-            // 檢查關鍵函數是否可用
-            const criticalFunctions = [
-                'ChatRoomCharacter', 'Player', 'ServerSocket',
-                'CharacterReleaseTotal', 'InventoryUnlock'
-            ];
-
-            for (let funcName of criticalFunctions) {
-                if (typeof window[funcName] === 'undefined') {
-                    console.warn(`[Release Bot] ${funcName} 不可用`);
-                }
-            }
-        } catch (e) {
-            console.error("[Release Bot] 健康檢查失敗:", e.message);
-        }
-    }
-
     // === 主初始化函數 ===
     async function initialize() {
-        if (isInitialized) {
-            console.warn("[Release Bot] 已經初始化過了");
-            return;
-        }
-
         console.log("[Release Bot] 開始初始化...");
 
         try {
@@ -735,9 +379,6 @@
             // 設置 Hook
             setupHooks();
 
-            // 設置定期健康檢查
-            setInterval(healthCheck, 30000); // 每30秒檢查一次
-
             // 設置卸載處理
             if (modApi && typeof modApi.onUnload === 'function') {
                 modApi.onUnload(() => {
@@ -745,31 +386,25 @@
                     if (socketListener && ServerSocket) {
                         try {
                             ServerSocket.off("ChatRoomMessage", socketListener);
-                            socketListener = null;
                             console.log("[Release Bot] 訊息監聽器已移除");
                         } catch (e) {
                             console.error("[Release Bot] 移除監聽器失敗:", e.message);
                         }
                     }
-                    isInitialized = false;
                 });
             }
 
-            isInitialized = true;
-            console.log("[Release Bot] 初始化完成 v1.2");
+            console.log("[Release Bot] 初始化完成 v1.1");
 
-            // 顯示載入訊息
+            // 如果在聊天室中，顯示載入訊息
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
-                sendLocalMessage("自動救援機器人已載入！輸入'插件說明'查看功能");
+                sendLocalMessage("自動救援機器人已載入！");
             }
 
         } catch (e) {
             console.error("[Release Bot] 初始化失敗:", e.message);
-            isInitialized = false;
         }
     }
-
     // === 啟動初始化 ===
     initialize();
-
 })();
