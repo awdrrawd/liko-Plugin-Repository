@@ -2,7 +2,7 @@
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.2.2
+// @version      1.2.3
 // @description  Advanced video player that auto-detects video links in chat and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -19,7 +19,7 @@
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
-    const modVersion = "1.2.2";
+    const modVersion = "1.2.3";
     let isEnabled = true;
     let scanInterval;
 
@@ -282,6 +282,7 @@
             ">
                 <iframe
                     src="${src}"
+                    referrerpolicy="strict-origin-when-cross-origin"
                     style="
                         position: absolute;
                         top: 0;
