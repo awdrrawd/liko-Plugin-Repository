@@ -526,7 +526,7 @@
             additionalInfo: "", en_additionalInfo: "",
             icon: "🆔",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20WPS.main.user.js",
-            enabled: pluginSettings["Liko-WPS"] ?? true,
+            enabled: pluginSettings["Liko-WPS"] ?? false,
             priority: 5
         },
         {
