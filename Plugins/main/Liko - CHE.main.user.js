@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.2.0
+// @version      2.2.1
 // @description  聊天室紀錄匯出
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
     "use strict";
 
     let modApi;
-    const modversion = "2.2.0";
+    const modversion = "2.2.1";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
     let autoSaveTimer = null;
@@ -636,8 +636,8 @@
             const potentialName = colonMatch[1].trim();
             // 排除看起來像時間的假名字（純數字+冒號、上午、下午等）
             const looksLikeTime = /^[\d]+$/.test(potentialName) ||
-                /[上下]午/.test(potentialName) ||
-                /^\d{1,2}$/.test(potentialName);
+                  /[上下]午/.test(potentialName) ||
+                  /^\d{1,2}$/.test(potentialName);
             if (!looksLikeTime) {
                 return {
                     isUser: true,
@@ -862,8 +862,8 @@
                 // FIX 6: 取得真實顯示名稱（非 ID）
                 const nameButton = msg.querySelector(".ChatMessageName");
                 const senderName = nameButton
-                    ? (nameButton.innerText || nameButton.textContent || "").trim()
-                    : "";
+                ? (nameButton.innerText || nameButton.textContent || "").trim()
+                : "";
 
                 // FIX 3: 取得 msgid 作為去重主鍵
                 const msgidAttr = msg.querySelector("span[msgid]")?.getAttribute("msgid") || "";
@@ -881,12 +881,21 @@
                         content = content + '\n' + originContent
                     }
                 } else {
-                    // Fallback：clone 後移除 popup/metadata
                     const clone = msg.cloneNode(true);
                     clone.querySelectorAll(
-                        '.chat-room-message-popup, .chat-room-metadata, .ChatMessageName'
+                        '.chat-room-message-popup, .chat-room-metadata, .ChatMessageName, .chat-room-message-original'
                     ).forEach(el => el.remove());
+                    // FIX IMG: 備援路徑同樣處理圖片
+                    clone.querySelectorAll('img[src]').forEach(img => {
+                        img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
+                    });
                     content = (clone.textContent || clone.innerText || "").trim();
+                }
+                // FIX GAG: 補抓堵嘴原始文字（.chat-room-message-original 是 content span 的兄弟節點）
+                const originalSpan = msg.querySelector(".chat-room-message-original");
+                if (originalSpan) {
+                    const originalText = (originalSpan.textContent || "").trim();
+                    if (originalText) content += ` ${originalText}`;
                 }
 
                 // FIX 4: [🌐] 自動翻譯 - 嘗試保留原文
@@ -1102,14 +1111,21 @@
                         rawText = rawText + '\n' + originRawText
                     }
                 } else {
-                    // Fallback：排除 popup + metadata + name button
                     const clonedMsg = msg.cloneNode(true);
                     clonedMsg.querySelectorAll(
-                        '.chat-room-metadata, .chat-room-message-popup, .ChatMessageName'
+                        '.chat-room-metadata, .chat-room-message-popup, .ChatMessageName, .chat-room-message-original'
                     ).forEach(meta => meta.remove());
+                    // FIX IMG: 備援路徑同樣處理圖片
+                    clonedMsg.querySelectorAll('img[src]').forEach(img => {
+                        img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
+                    });
                     rawText = extractFullTextContent(clonedMsg).trim();
                 }
-
+                const originalSpan = msg.querySelector(".chat-room-message-original");
+                if (originalSpan) {
+                    const originalText = (originalSpan.textContent || "").trim();
+                    if (originalText) rawText += ` ${originalText}`;
+                }
                 // FIX 4: 保留 [🌐] 翻譯原文
                 if (rawText === '[🌐]' || rawText.startsWith('[🌐] ')) {
                     const originalText = msg.getAttribute('bce-original-text');
@@ -1200,8 +1216,8 @@
                 `;
             } else {
                 buttons = options.map((opt) =>
-                    `<button data-value="${opt.value}" style="margin: 5px; padding: 8px 16px; cursor: pointer; background: #0066cc; color: #fff; border: none; border-radius: 4px;">${opt.text}</button>`
-                ).join('');
+                                      `<button data-value="${opt.value}" style="margin: 5px; padding: 8px 16px; cursor: pointer; background: #0066cc; color: #fff; border: none; border-radius: 4px;">${opt.text}</button>`
+                                     ).join('');
             }
 
             modal.innerHTML = `
@@ -1251,7 +1267,7 @@
             `;
 
             const dateOptions = availableDates.map(date =>
-                `<div class="date-option" data-value="${date.dateKey}" style="
+                                                   `<div class="date-option" data-value="${date.dateKey}" style="
                     position: relative; margin: 8px 0; cursor: pointer; padding: 12px; border-radius: 8px;
                     background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
                     border: 2px solid transparent; transition: all 0.3s ease;
@@ -1260,7 +1276,7 @@
                     <span style="font-size: 16px;">${date.display}</span>
                     <span style="color: #bdc3c7; margin-left: 8px;">(${date.count} 條訊息)</span>
                 </div>`
-            ).join('');
+                                                  ).join('');
 
             modal.innerHTML = `
                 <div style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
