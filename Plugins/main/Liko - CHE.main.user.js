@@ -870,14 +870,16 @@
 
                 // FIX 5 + 4: 只取訊息內容，排除 popup 和 metadata
                 let content = "";
+                let originContent = "";
                 const contentSpan = msg.querySelector(".chat-room-message-content");
+                const originContentSpan = msg.querySelector(".chat-room-message-original");
                 if (contentSpan) {
-                    const cClone = contentSpan.cloneNode(true);
-                    // FIX IMG: 把 <img> 換成 src URL 文字
-                    cClone.querySelectorAll('img[src]').forEach(img => {
-                        img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
-                    });
-                    content = (cClone.textContent || cClone.innerText || "").trim();
+                    // 優先取 .chat-room-message-content（最乾淨）
+                    content = (contentSpan.textContent || contentSpan.innerText || "").trim();
+                    if (originContentSpan) {
+                        originContent = (originContentSpan.textContent || originContentSpan.innerText || "").trim();
+                        content = content + '\n' + originContent
+                    }
                 } else {
                     const clone = msg.cloneNode(true);
                     clone.querySelectorAll(
@@ -1099,14 +1101,15 @@
 
                 // FIX 5: 先從 .chat-room-message-content 取乾淨內容
                 let rawText = "";
+                let originRawText = "";
                 const contentSpan = msg.querySelector(".chat-room-message-content");
+                const originContentSpan = msg.querySelector(".chat-room-message-original");
                 if (contentSpan) {
-                    const cClone = contentSpan.cloneNode(true);
-                    // FIX IMG: 把 <img> 換成 src URL 文字
-                    cClone.querySelectorAll('img[src]').forEach(img => {
-                        img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
-                    });
-                    rawText = (cClone.textContent || cClone.innerText || "").trim();
+                    rawText = (contentSpan.textContent || contentSpan.innerText || "").trim();
+                    if (originContentSpan) {
+                        originRawText = (originContentSpan.textContent || originContentSpan.innerText || "").trim();
+                        rawText = rawText + '\n' + originRawText
+                    }
                 } else {
                     const clonedMsg = msg.cloneNode(true);
                     clonedMsg.querySelectorAll(
