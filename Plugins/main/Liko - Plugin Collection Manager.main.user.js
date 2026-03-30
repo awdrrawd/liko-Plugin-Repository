@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
-// @namespace    https://likolisu.dev/
-// @version      1.4.1
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @version      1.4.2
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.4.1";
+    const modversion = "1.4.2";
 
     // === 生命週期管理：統一存放所有需要清理的資源 ===
     let isInitialized = false;
@@ -375,7 +375,7 @@
             en_additionalInfo: "If the image fails to upload, you can use /IMG or /IMG HELP to view the instructions.",
             icon: "🖼️",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
-            enabled: pluginSettings["Liko-Image_Uploader"] ?? true,
+            enabled: pluginSettings["Liko-Image_Uploader"] ?? false,
             priority: 3
         },
         {
@@ -387,7 +387,7 @@
             en_additionalInfo: "Includes complete chat logs, timestamps and character info, compatible with sites like Neocities for sharing",
             icon: "📖",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CHE.main.user.js",
-            enabled: pluginSettings["Liko-CHE"] ?? true,
+            enabled: pluginSettings["Liko-CHE"] ?? false,
             priority: 3
         },
         {
@@ -398,7 +398,7 @@
             additionalInfo: "現在多了替換姿勢的功能", en_additionalInfo: "Now there is a function to change posture",
             icon: "👗",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js",
-            enabled: pluginSettings["Liko-CDB"] ?? true,
+            enabled: pluginSettings["Liko-CDB"] ?? false,
             priority: 3
         },
         {
@@ -422,7 +422,7 @@
             en_additionalInfo: "For detailed usage instructions, please enter /NOI or /NOI help.",
             icon: "📧",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20NOI.main.user.js",
-            enabled: pluginSettings["Liko-NOI"] ?? true,
+            enabled: pluginSettings["Liko-NOI"] ?? false,
             priority: 5
         },
         {
@@ -504,7 +504,7 @@
             additionalInfo: "", en_additionalInfo: "",
             icon: "🎬",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20ACV.main.user.js",
-            enabled: pluginSettings["Liko-ACV"] ?? true,
+            enabled: pluginSettings["Liko-ACV"] ?? false,
             priority: 5
         },
         {
@@ -524,7 +524,7 @@
             description: "WCE的個人資料分享，需開啟WCE的個人資料保存",
             en_description: "WCE Profile Share, need to enable WCE profile saving.",
             additionalInfo: "", en_additionalInfo: "",
-            icon: "📋",
+            icon: "🆔",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20WPS.main.user.js",
             enabled: pluginSettings["Liko-WPS"] ?? true,
             priority: 5
@@ -561,8 +561,18 @@
             additionalInfo: "", en_additionalInfo: "",
             icon: "⚧️",
             url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
-            enabled: pluginSettings["Liko-Region_switch"] ?? true,
+            enabled: pluginSettings["Liko-Region_switch"] ?? false,
             priority: 10
+        },
+        {
+            id: "Liko-CFT",
+            name: "聊天室信息過濾器", en_name: "RChat Filter Tool",
+            description: "聊天室信息過濾", en_description: "Chat room message filtering",
+            additionalInfo: "", en_additionalInfo: "",
+            icon: "📋",
+            url: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CFT.main.user.js",
+            enabled: pluginSettings["Liko-CFT"] ?? false,
+            priority: 9
         }
         /*{
             // 特殊插件：inlineCode + autoDisableAfterVersion
