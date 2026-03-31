@@ -883,19 +883,13 @@
                 } else {
                     const clone = msg.cloneNode(true);
                     clone.querySelectorAll(
-                        '.chat-room-message-popup, .chat-room-metadata, .ChatMessageName, .chat-room-message-original'
+                        '.chat-room-message-popup, .chat-room-metadata, .ChatMessageName'
                     ).forEach(el => el.remove());
                     // FIX IMG: 備援路徑同樣處理圖片
                     clone.querySelectorAll('img[src]').forEach(img => {
                         img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
                     });
                     content = (clone.textContent || clone.innerText || "").trim();
-                }
-                // FIX GAG: 補抓堵嘴原始文字（.chat-room-message-original 是 content span 的兄弟節點）
-                const originalSpan = msg.querySelector(".chat-room-message-original");
-                if (originalSpan) {
-                    const originalText = (originalSpan.textContent || "").trim();
-                    if (originalText) content += ` ${originalText}`;
                 }
 
                 // FIX 4: [🌐] 自動翻譯 - 嘗試保留原文
@@ -1113,7 +1107,7 @@
                 } else {
                     const clonedMsg = msg.cloneNode(true);
                     clonedMsg.querySelectorAll(
-                        '.chat-room-metadata, .chat-room-message-popup, .ChatMessageName, .chat-room-message-original'
+                        '.chat-room-metadata, .chat-room-message-popup, .ChatMessageName'
                     ).forEach(meta => meta.remove());
                     // FIX IMG: 備援路徑同樣處理圖片
                     clonedMsg.querySelectorAll('img[src]').forEach(img => {
@@ -1121,11 +1115,7 @@
                     });
                     rawText = extractFullTextContent(clonedMsg).trim();
                 }
-                const originalSpan = msg.querySelector(".chat-room-message-original");
-                if (originalSpan) {
-                    const originalText = (originalSpan.textContent || "").trim();
-                    if (originalText) rawText += ` ${originalText}`;
-                }
+
                 // FIX 4: 保留 [🌐] 翻譯原文
                 if (rawText === '[🌐]' || rawText.startsWith('[🌐] ')) {
                     const originalText = msg.getAttribute('bce-original-text');
