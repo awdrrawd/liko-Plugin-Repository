@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.2.1
+// @version      2.2.2
 // @description  聊天室紀錄匯出
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
     "use strict";
 
     let modApi;
-    const modversion = "2.2.1";
+    const modversion = "2.2.2";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
     let autoSaveTimer = null;
@@ -891,12 +891,6 @@
                     });
                     content = (clone.textContent || clone.innerText || "").trim();
                 }
-                // FIX GAG: 補抓堵嘴原始文字（.chat-room-message-original 是 content span 的兄弟節點）
-                const originalSpan = msg.querySelector(".chat-room-message-original");
-                if (originalSpan) {
-                    const originalText = (originalSpan.textContent || "").trim();
-                    if (originalText) content += ` ${originalText}`;
-                }
 
                 // FIX 4: [🌐] 自動翻譯 - 嘗試保留原文
                 if (content === '[🌐]' || content.startsWith('[🌐] ')) {
@@ -1120,11 +1114,6 @@
                         img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
                     });
                     rawText = extractFullTextContent(clonedMsg).trim();
-                }
-                const originalSpan = msg.querySelector(".chat-room-message-original");
-                if (originalSpan) {
-                    const originalText = (originalSpan.textContent || "").trim();
-                    if (originalText) rawText += ` ${originalText}`;
                 }
                 // FIX 4: 保留 [🌐] 翻譯原文
                 if (rawText === '[🌐]' || rawText.startsWith('[🌐] ')) {
