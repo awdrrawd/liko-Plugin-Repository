@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.2.1
+// @version      2.2.2
 // @description  聊天室紀錄匯出
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
     "use strict";
 
     let modApi;
-    const modversion = "2.2.1";
+    const modversion = "2.2.2";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
     let autoSaveTimer = null;

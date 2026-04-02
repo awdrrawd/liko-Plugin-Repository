@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.1.2
+// @version      1.1.3
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
     'use strict';
 
     let modApi;
-    let myversion = "1.1.2";
+    let myversion = "1.1.3";
     let observer = null;
 
     let config = {
@@ -25,7 +25,8 @@
         translateReceived: true,
         translateSent: false,
         translateSelection: true,
-        translateChat: true
+        translateChat: true,
+        autoScroll: true          // [NEW] 翻譯後自動捲動到最新訊息
         // Bio 翻譯沒有總開關，永遠可用
     };
 
@@ -115,7 +116,8 @@
             translateReceived: true,
             translateSent: false,
             translateSelection: true,
-            translateChat: true
+            translateChat: true,
+            autoScroll: true          // [NEW]
         };
         if (!config || typeof config !== 'object') config = { ...defaults };
         for (const [key, val] of Object.entries(defaults)) {
@@ -159,9 +161,6 @@
         }
     };
 
-    // [FIX 1] 合併 data[0] 所有片段，解決句號後翻譯丟失問題
-    // 原本只取 data[0][0][0]，Google API 遇到句號會拆成多個片段
-    // 現在改為合併 data[0] 的所有 seg[0]，確保完整翻譯
     async function translateGoogle(text, target) {
         try {
             const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
@@ -191,6 +190,22 @@
     }
 
     // ============================================================
+    // [FIX 1] 自動捲動輔助函數
+    // 只在使用者已捲到底部（或接近底部）時才觸發捲動，
+    // 避免強制打斷使用者手動往上閱讀舊訊息。
+    // ============================================================
+    function scrollChatToBottom() {
+        if (!config.autoScroll) return;
+        const log = document.querySelector('#TextAreaChatLog');
+        if (!log) return;
+        // 距離底部 150px 以內才視為「在底部」
+        const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 150;
+        if (nearBottom) {
+            setTimeout(() => { log.scrollTop = log.scrollHeight; }, 60);
+        }
+    }
+
+    // ============================================================
     // Bio 翻譯（逐行翻、空白行跳過、即時更新顯示）
     // ============================================================
 
@@ -201,22 +216,26 @@
         return false;
     }
 
-    async function translateBioSmart(normalized, targetLang) {
+    // [FIX 2] abortToken：傳入取消令牌，每行翻譯前後都檢查
+    async function translateBioSmart(normalized, targetLang, abortToken) {
         const lines = normalized.split('\n');
-        // [FIX 2] 初始值填原文而非空字串，避免逐行翻譯過程中出現空行/丟失段落
         const resultLines = [...lines];
 
         for (let i = 0; i < lines.length; i++) {
+            if (abortToken.cancelled) break;        // ← 取消檢查
             if (isBioSkipLine(lines[i])) continue;
 
             try {
                 const { translated } = await translateQueue.add(lines[i], targetLang);
+                if (abortToken.cancelled) break;    // ← 取消檢查（await 之後）
                 resultLines[i] = translated;
             } catch (e) {
                 resultLines[i] = lines[i];
             }
 
-            updateBioTranslationDisplay(resultLines.join('\n'));
+            if (!abortToken.cancelled) {
+                updateBioTranslationDisplay(resultLines.join('\n'));
+            }
         }
 
         return resultLines.join('\n');
@@ -311,6 +330,7 @@
         return !['enablelianchat', 'reqroom'].includes(text.toLowerCase());
     }
 
+    // [FIX 1] createTranslatedDiv：插入後呼叫 scrollChatToBottom
     function createTranslatedDiv(originalNode, translatedText) {
         const div = document.createElement('div');
         const cls = [...originalNode.classList].find(c => c.startsWith('ChatMessage') && c !== 'ChatMessage');
@@ -319,6 +339,7 @@
         div.textContent = `[🌐] ${translatedText}`;
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
         originalNode.parentNode.insertBefore(div, originalNode.nextSibling);
+        scrollChatToBottom();   // ← 新增
     }
 
     // ============================================================
@@ -506,8 +527,8 @@
         }
         node.parentNode.insertBefore(div, insertAfter.nextSibling);
 
-        const log = document.querySelector('#TextAreaChatLog');
-        if (log) setTimeout(() => { log.scrollTop = log.scrollHeight; }, 50);
+        // [FIX 1] 手動翻譯後同樣觸發捲動
+        scrollChatToBottom();
     }
 
     // ============================================================
@@ -729,7 +750,7 @@
             const zh = isZH();
             const names = langNameNative;
             const T = {
-                title        : zh ? "機器翻譯設定  v1.1.2" : "Machine Translation Settings  v1.1.2",
+                title        : zh ? "機器翻譯設定  v1.1.3" : "Machine Translation Settings  v1.1.3",
                 secLeft      : zh ? "── 即時翻譯 ──" : "── Live Translation ──",
                 secRight     : zh ? "── 語言設定 ──" : "── Language Settings ──",
                 enabled      : zh ? "啟用"           : "Enable",
@@ -737,6 +758,7 @@
                 send         : zh ? "發送翻譯"        : "Translate Sent",
                 chat         : zh ? "手動翻譯按鈕"    : "Manual Translate Button",
                 selection    : zh ? "選取翻譯"        : "Selection Translate",
+                autoScroll   : zh ? "翻譯後自動捲動"  : "Auto-Scroll After Translate",  // [NEW]
                 recvLangLabel: zh ? "接收語言："       : "Recv Lang: ",
                 sendLangLabel: zh ? "發送語言："       : "Send Lang: ",
                 recvLangTip  : zh ? "接收語言"        : "Recv Lang",
@@ -758,10 +780,11 @@
 
             const secY       = 185;
             const enabledY   = 225;
-            const recvY      = 315;
-            const sendY      = 405;
-            const chatY      = 495;
-            const selectionY = 585;
+            const recvY      = 305;
+            const sendY      = 385;
+            const chatY      = 465;
+            const selectionY = 545;
+            const autoScrollY= 625;  // [NEW] 新增一行
 
             const withLeft = (fn) => {
                 const prev = MainCanvas.textAlign;
@@ -774,20 +797,22 @@
             DrawText(T.secLeft,  630,  secY, "#4CAF50", "Black");
             DrawText(T.secRight, 1300, secY, "#4CAF50", "Black");
 
-            DrawCheckbox(L_CB, enabledY,   CB_SZ, CB_SZ, "", config.enabled);
-            DrawCheckbox(L_CB, recvY,      CB_SZ, CB_SZ, "", config.translateReceived,  !config.enabled);
-            DrawCheckbox(L_CB, sendY,      CB_SZ, CB_SZ, "", config.translateSent,      !config.enabled);
-            DrawCheckbox(L_CB, chatY,      CB_SZ, CB_SZ, "", config.translateChat,      !config.enabled);
-            DrawCheckbox(L_CB, selectionY, CB_SZ, CB_SZ, "", config.translateSelection);
+            DrawCheckbox(L_CB, enabledY,    CB_SZ, CB_SZ, "", config.enabled);
+            DrawCheckbox(L_CB, recvY,       CB_SZ, CB_SZ, "", config.translateReceived,  !config.enabled);
+            DrawCheckbox(L_CB, sendY,       CB_SZ, CB_SZ, "", config.translateSent,      !config.enabled);
+            DrawCheckbox(L_CB, chatY,       CB_SZ, CB_SZ, "", config.translateChat,      !config.enabled);
+            DrawCheckbox(L_CB, selectionY,  CB_SZ, CB_SZ, "", config.translateSelection);
+            DrawCheckbox(L_CB, autoScrollY, CB_SZ, CB_SZ, "", config.autoScroll);         // [NEW]
 
             withLeft(() => {
                 const lx = L_TXT, lw = L_TXTW;
                 const rowMid = (y) => y + CB_SZ / 2 + 9;
-                DrawTextFit(T.enabled,   lx, rowMid(enabledY),   lw, "White");
-                DrawTextFit(T.recv,      lx, rowMid(recvY),      lw, config.enabled ? "White" : "Gray");
-                DrawTextFit(T.send,      lx, rowMid(sendY),      lw, config.enabled ? "White" : "Gray");
-                DrawTextFit(T.chat,      lx, rowMid(chatY),      lw, config.enabled ? "White" : "Gray");
-                DrawTextFit(T.selection, lx, rowMid(selectionY), lw, "White");
+                DrawTextFit(T.enabled,    lx, rowMid(enabledY),    lw, "White");
+                DrawTextFit(T.recv,       lx, rowMid(recvY),       lw, config.enabled ? "White" : "Gray");
+                DrawTextFit(T.send,       lx, rowMid(sendY),       lw, config.enabled ? "White" : "Gray");
+                DrawTextFit(T.chat,       lx, rowMid(chatY),       lw, config.enabled ? "White" : "Gray");
+                DrawTextFit(T.selection,  lx, rowMid(selectionY),  lw, "White");
+                DrawTextFit(T.autoScroll, lx, rowMid(autoScrollY), lw, "White");           // [NEW]
             });
 
             withLeft(() => {
@@ -798,11 +823,11 @@
             DrawButton(R_BTN, recvY, BTN_W, CB_SZ, names[uiRecvIdx], "White", "", T.recvLangTip);
             DrawButton(R_BTN, sendY, BTN_W, CB_SZ, names[uiSendIdx], "White", "", T.sendLangTip);
 
-            DrawRect(395, 665, 1180, 2, "rgba(255,255,255,0.15)");
+            DrawRect(395, 715, 1180, 2, "rgba(255,255,255,0.15)");
 
-            DrawText(T.desc12, 1000, 705, "Silver",  "Black");
-            DrawText(T.desc3,  1000, 760, "#aaffaa", "Black");
-            DrawText(T.desc4,  1000, 815, "Gray",    "Black");
+            DrawText(T.desc12, 1000, 745, "Silver",  "Black");
+            DrawText(T.desc3,  1000, 800, "#aaffaa", "Black");
+            DrawText(T.desc4,  1000, 855, "Gray",    "Black");
         },
         click() {
             if (MouseIn(1815, 75, 90, 90)) { closeLangSelect(); if (typeof PreferenceExit === "function") PreferenceExit(); return; }
@@ -810,10 +835,11 @@
             const L_CB = 400;
             const CB_SZ = 64;
             const enabledY   = 225;
-            const recvY      = 315;
-            const sendY      = 405;
-            const chatY      = 495;
-            const selectionY = 585;
+            const recvY      = 305;
+            const sendY      = 385;
+            const chatY      = 465;
+            const selectionY = 545;
+            const autoScrollY= 625;  // [NEW]
             const R_BTN = 1290, BTN_W = 280;
 
             if (MouseIn(L_CB, enabledY, CB_SZ, CB_SZ)) {
@@ -848,6 +874,11 @@
             if (MouseIn(L_CB, selectionY, CB_SZ, CB_SZ)) {
                 config.translateSelection = !config.translateSelection;
                 if (!config.translateSelection) hideSelectionPopup();
+                saveSettings(); return;
+            }
+            // [NEW] autoScroll toggle
+            if (MouseIn(L_CB, autoScrollY, CB_SZ, CB_SZ)) {
+                config.autoScroll = !config.autoScroll;
                 saveSettings(); return;
             }
         },
@@ -895,6 +926,7 @@
     const BIO_TRANS_ID = 'mat-bio-translated';
     let bioTranslating = false;
     let bioCurrentMemberNumber = null;
+    let bioAbortToken = null;          // [FIX 2] 取消令牌
     const bioCache = new Map();
     const BIO_CACHE_TTL = 10 * 60 * 1000;
 
@@ -964,11 +996,9 @@
             showBioTranslation(text);
             return;
         }
-        // 只更新文字，不重建整個 div，避免干擾使用者選取文字
         div.firstChild.textContent = `[🌐 MAT]\n${text}`;
     }
 
-    // [FIX 3] Bio 翻譯框改為按鈕關閉，移除點擊整體關閉，方便複製文字
     function showBioTranslation(translatedText) {
         removeBioTranslation();
         const ref = document.getElementById('bceRichOnlineProfile') || document.getElementById('DescriptionInput');
@@ -987,7 +1017,6 @@
             Object.assign(div.style, {fontSize:'8.4px', left:'23px', top:'256px', width:'415px', height:'174px'});
         }
 
-        // 文字內容區（可捲動、可選取複製）
         const textNode = document.createElement('div');
         textNode.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;user-select:text;cursor:text;';
         textNode.textContent = `[🌐 MAT]\n${translatedText}`;
@@ -997,6 +1026,13 @@
     }
 
     function removeBioTranslation() { document.getElementById(BIO_TRANS_ID)?.remove(); }
+
+    // [FIX 2] cancelBioTranslation：設定取消令牌並清理狀態
+    function cancelBioTranslation() {
+        if (bioAbortToken) bioAbortToken.cancelled = true;
+        bioTranslating = false;
+        removeBioTranslation();
+    }
 
     async function translateBio() {
         if (bioTranslating) return;
@@ -1009,19 +1045,26 @@
         const cached = bioCacheGet(memberNum, config.recvLang, contentHash);
         if (cached) { showBioTranslation(cached); return; }
 
+        // [FIX 2] 每次翻譯建立新令牌
+        const token = { cancelled: false };
+        bioAbortToken = token;
         bioTranslating = true;
+
         try {
-            const result = await translateBioSmart(normalized, config.recvLang);
-            bioCacheSet(memberNum, config.recvLang, contentHash, result);
-            // 最終完整版強制用 showBioTranslation 重建，確保內容正確
-            showBioTranslation(result);
+            const result = await translateBioSmart(normalized, config.recvLang, token);
+            if (!token.cancelled) {
+                bioCacheSet(memberNum, config.recvLang, contentHash, result);
+                showBioTranslation(result);
+            }
         } finally {
-            bioTranslating = false;
+            // 只有在令牌沒被替換（仍是本次任務）時才清除 flag
+            if (bioAbortToken === token) {
+                bioTranslating = false;
+            }
         }
     }
 
-    // [FIX 4] OnlineProfileRun：按鈕圖示根據狀態切換（翻譯中/已開啟/未開啟）
-    //         OnlineProfileClick：只透過按鈕關閉，不再點選 div 關閉
+    // [FIX 2] OnlineProfileRun：翻譯中按鈕改為「點擊取消」，顏色變黃
     function hookOnlineProfile() {
         if (!modApi) return;
         try {
@@ -1029,8 +1072,9 @@
                 const result = next(args);
                 const isOpen = !!document.getElementById(BIO_TRANS_ID);
                 if (bioTranslating) {
-                    DrawButton(1415, 60, 90, 90, "", "Gray", "Icons/Chat.png",
-                        isZH() ? "翻譯中..." : "Translating...");
+                    // [FIX 2] 翻譯中：黃色按鈕，可點擊取消
+                    DrawButton(1415, 60, 90, 90, "", "#FFD700", "Icons/Cancel.png",
+                        isZH() ? "點擊取消翻譯" : "Click to cancel");
                 } else if (isOpen) {
                     DrawButton(1415, 60, 90, 90, "", "White", "Icons/Cancel.png",
                         isZH() ? "關閉翻譯" : "Close Translation");
@@ -1051,15 +1095,19 @@
             });
             modApi.hookFunction("OnlineProfileClick", 4, (args, next) => {
                 if (MouseIn(1415, 60, 90, 90)) {
-                    if (bioTranslating) return; // 翻譯中不允許操作
+                    if (bioTranslating) {
+                        // [FIX 2] 翻譯中可點擊取消，不再鎖死
+                        cancelBioTranslation();
+                        return;
+                    }
                     document.getElementById(BIO_TRANS_ID) ? removeBioTranslation() : translateBio();
                     return;
                 }
                 return next(args);
             });
             modApi.hookFunction("OnlineProfileUnload", 4, (args, next) => {
-                removeBioTranslation();
-                bioTranslating = false;
+                // [FIX 2] 退出時取消正在進行的翻譯，防止 div 殘留
+                cancelBioTranslation();
                 bioCurrentMemberNumber = null;
                 return next(args);
             });
@@ -1102,24 +1150,25 @@
                     case "": case "help": showHelp(); break;
                     case "on":  config.enabled = true;  startObserver(); saveSettings(); ChatRoomSendLocal("✅ 聊天室翻譯已開啟"); break;
                     case "off": config.enabled = false; stopObserver();  saveSettings(); ChatRoomSendLocal("❌ 聊天室翻譯已關閉"); break;
-                    case "recv":      config.translateReceived  = !config.translateReceived;  saveSettings(); ChatRoomSendLocal(`整句自動翻譯: ${config.translateReceived  ? '✅' : '❌'}`); break;
-                    case "send":      config.translateSent      = !config.translateSent;      saveSettings(); ChatRoomSendLocal(`發送翻譯: ${config.translateSent      ? '✅' : '❌'}`); break;
-                    case "chat":      config.translateChat      = !config.translateChat;      stopObserver(); if(config.enabled) setTimeout(startObserver,100); saveSettings(); ChatRoomSendLocal(`手動翻譯按鈕: ${config.translateChat      ? '✅' : '❌'}`); break;
-                    case "selection": config.translateSelection = !config.translateSelection; if(!config.translateSelection) hideSelectionPopup(); saveSettings(); ChatRoomSendLocal(`選取翻譯: ${config.translateSelection ? '✅' : '❌'}`); break;
-                    case "sendlang":  handleLangCommand(args[1], 'send'); break;
-                    case "recvlang":  handleLangCommand(args[1], 'recv'); break;
+                    case "recv":       config.translateReceived  = !config.translateReceived;  saveSettings(); ChatRoomSendLocal(`整句自動翻譯: ${config.translateReceived  ? '✅' : '❌'}`); break;
+                    case "send":       config.translateSent      = !config.translateSent;      saveSettings(); ChatRoomSendLocal(`發送翻譯: ${config.translateSent      ? '✅' : '❌'}`); break;
+                    case "chat":       config.translateChat      = !config.translateChat;      stopObserver(); if(config.enabled) setTimeout(startObserver,100); saveSettings(); ChatRoomSendLocal(`手動翻譯按鈕: ${config.translateChat      ? '✅' : '❌'}`); break;
+                    case "selection":  config.translateSelection = !config.translateSelection; if(!config.translateSelection) hideSelectionPopup(); saveSettings(); ChatRoomSendLocal(`選取翻譯: ${config.translateSelection ? '✅' : '❌'}`); break;
+                    case "autoscroll": config.autoScroll = !config.autoScroll; saveSettings(); ChatRoomSendLocal(`翻譯後自動捲動: ${config.autoScroll ? '✅' : '❌'}`); break;  // [NEW]
+                    case "sendlang":   handleLangCommand(args[1], 'send'); break;
+                    case "recvlang":   handleLangCommand(args[1], 'recv'); break;
                     case "test":   testTranslation(args.slice(1).join(" ")); break;
                     case "status": showStatus(); break;
                     default: ChatRoomSendLocal("❓ 未知指令，使用 /mat help");
                 }
             }
         }]);
-        ChatRoomSendLocal("🌐 [MAT] v1.1.2 loaded! Use /mat help");
+        ChatRoomSendLocal("🌐 [MAT] v1.1.3 loaded! Use /mat help");
     }
 
     function showHelp() {
         ChatRoomSendLocal(`<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
-            <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v1.1.2</h3>
+            <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v1.1.3</h3>
             <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
                 <b style='color:#FFD700;'>開關指令</b><br>
                 <b style='color:#87CEEB;'>/mat on/off</b> — 聊天室翻譯總開關<br>
@@ -1127,6 +1176,7 @@
                 <b style='color:#87CEEB;'>/mat send</b> — 切換發送翻譯<br>
                 <b style='color:#87CEEB;'>/mat chat</b> — 切換手動翻譯按鈕<br>
                 <b style='color:#87CEEB;'>/mat selection</b> — 切換選取翻譯（獨立）<br>
+                <b style='color:#87CEEB;'>/mat autoscroll</b> — 切換翻譯後自動捲動<br>
                 <b style='color:#87CEEB;'>/mat recvlang/sendlang [代碼]</b> — 設定語言<br>
                 <b style='color:#87CEEB;'>/mat test [文字]</b> — 測試翻譯<br>
                 <b style='color:#87CEEB;'>/mat status</b> — 查看狀態
@@ -1135,7 +1185,7 @@
                 <b style='color:#FFD700;'>功能</b><br>
                 <span style='color:#aaa'>・ hover 訊息 → 🌐 翻譯 / ▾ 選語言（需手動按鈕開啟）</span><br>
                 <span style='color:#aaa'>・ 選取文字 → 氣泡翻譯（獨立開關）</span><br>
-                <span style='color:#aaa'>・ Bio 翻譯永遠可用，逐行顯示不卡頓</span><br>
+                <span style='color:#aaa'>・ Bio 翻譯：逐行顯示，翻譯中可點擊黃色按鈕取消</span><br>
                 <span style='color:#aaa'>・ 裝飾字體自動轉換（𝕙𝕖𝕝𝕝𝕠→hello）</span>
             </div>
             <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
@@ -1156,13 +1206,14 @@
 
     function showStatus() {
         ChatRoomSendLocal(`<div style='background:#1a1a2e;color:#eee;padding:8px;border-radius:5px;'>
-            <h4 style='color:#4CAF50;'>📊 MAT v1.1.2 狀態</h4>
+            <h4 style='color:#4CAF50;'>📊 MAT v1.1.3 狀態</h4>
             聊天室總開關: ${config.enabled ? '🟢' : '🔴'}<br>
             整句自動翻譯: ${config.translateReceived ? '✅' : '❌'} → ${getLangName(config.recvLang)}<br>
             發送翻譯: ${config.translateSent ? '✅' : '❌'} → ${getLangName(config.sendLang)}<br>
             手動翻譯按鈕: ${config.translateChat ? '✅' : '❌'}<br>
             選取翻譯（獨立）: ${config.translateSelection ? '✅' : '❌'}<br>
-            Bio翻譯: 🟢 永遠可用（逐行顯示）
+            翻譯後自動捲動: ${config.autoScroll ? '✅' : '❌'}<br>
+            Bio翻譯: 🟢 永遠可用（逐行顯示，可中途取消）
         </div>`);
     }
 
