@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.2
+// @version      1.5.0
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -12,15 +12,14 @@
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==
-
 (function() {
     "use strict";
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.4.2";
+    const modversion = "1.5.0";
 
-    // === 生命週期管理：統一存放所有需要清理的資源 ===
+    // === 生命週期管理 ===
     let isInitialized = false;
     const _lifecycle = {
         intervals: [],
@@ -32,26 +31,192 @@
     let lastCharacterCheck = 0;
     let lastScreenCheck = null;
     let lastScreenCheckTime = 0;
-    const CHARACTER_CACHE_TIME = 50;
-    const SCREEN_CACHE_TIME = 100;
+    const CHARACTER_CACHE_TIME = 200;
+    const SCREEN_CACHE_TIME = 200;
 
     // --- PCM徽章配置 ---
     const PCM_BADGE_CONFIG = {
-        offsetX: 240,
-        offsetY: 25,
-        size: 36,
+        offsetX: 240, offsetY: 25, size: 36,
         showBackground: false,
-        backgroundColor: "#7F53CD",
-        borderColor: "#FFFFFF",
-        borderWidth: 1
+        backgroundColor: "#7F53CD", borderColor: "#FFFFFF", borderWidth: 1
     };
 
     let pcmBadgeImage = null;
     let pcmImageLoaded = false;
-
     const hoveredCharacters = new Set();
     const characterDrawPositions = new Map();
 
+    // --- JSON 來源 ---
+    const PLUGINS_JSON_URLS = [
+        "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
+        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json"
+    ];
+
+    // --- 語言 ---
+    function detectLanguage() {
+        const browserLang = navigator.language || navigator.userLanguage;
+        let gameLang = null;
+        try { if (typeof TranslationLanguage !== 'undefined') gameLang = TranslationLanguage; } catch(e) {}
+        const lang = gameLang || browserLang || 'en';
+        return lang.toLowerCase().startsWith('zh') || lang.toLowerCase().includes('cn') || lang.toLowerCase().includes('tw');
+    }
+
+    const messages = {
+        en: {
+            loaded: `Liko's Plugin Collection Manager v${modversion} Loaded! Click the floating button to manage plugins.`,
+            shortLoaded: `📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button in the top right to open management panel\n• Toggle switches to enable/disable plugins\n\n📝 Available Commands:\n/pcm help - Show this manual\n/pcm list - View descriptions for all available plugins.\n\n💡 Tips:\nPlugins will auto-load after enabling, or take effect on next page refresh.\nRecommend selectively enabling plugins for the best experience.`,
+            welcomeTitle: "🐈‍⬛ Plugin Manager",
+            helpCommand: "Use floating button or /pcm help for more information",
+            pluginLoadComplete: "Plugin loading completed",
+            successLoaded: "Successfully loaded",
+            plugins: "plugins",
+            failed: "failed",
+            pluginEnabled: "enabled",
+            pluginDisabled: "disabled",
+            willTakeEffect: "Plugin loaded or will take effect on next refresh",
+            willNotStart: "Will not start on next load",
+            visitWebsite: "Visit website",
+            changelogTitle: "📋 Update Log",
+            changelogClose: "Close",
+            newVersionTitle: "✨ PCM Updated",
+            newVersionHint: "Click 📋 to view again anytime",
+            loadingPlugins: "Loading plugin list...",
+            loadPluginsFailed: "Failed to load plugin list, please refresh the page"
+        },
+        zh: {
+            loaded: `Liko的插件管理器 v${modversion} 載入完成！點擊浮動按鈕管理插件。`,
+            shortLoaded: `📋 Liko 插件管理器 說明書\n\n🎮 使用方法：\n• 點擊右上角的浮動按鈕開啟管理面板\n• 切換開關來啟用/停用插件\n\n📝 可用指令：\n/pcm help - 顯示此說明書\n/pcm list - 查看所有可用插件說明\n\n💡 小提示：\n插件啟用後會自動載入，或在下次刷新頁面時生效。\n建議根據需要選擇性啟用插件以獲得最佳體驗。`,
+            welcomeTitle: "🐈‍⬛ 插件管理器",
+            helpCommand: "使用浮動按鈕或 /pcm help 查看更多信息",
+            pluginLoadComplete: "插件載入完成",
+            successLoaded: "已成功載入",
+            plugins: "個插件",
+            failed: "個失敗",
+            pluginEnabled: "已啟用",
+            pluginDisabled: "已停用",
+            willTakeEffect: "插件已載入或將在下次刷新生效",
+            willNotStart: "下次載入時將不會啟動",
+            visitWebsite: "訪問網站",
+            changelogTitle: "📋 更新日誌",
+            changelogClose: "關閉",
+            newVersionTitle: "✨ PCM 已更新",
+            newVersionHint: "隨時點擊 📋 再次查看",
+            loadingPlugins: "正在載入插件清單...",
+            loadPluginsFailed: "插件清單載入失敗，請刷新頁面"
+        }
+    };
+
+    function getMessage(key) { return messages[detectLanguage() ? 'zh' : 'en'][key]; }
+    function getPluginName(plugin) { return detectLanguage() ? plugin.name : plugin.en_name; }
+    function getPluginDescription(plugin) { return detectLanguage() ? plugin.description : plugin.en_description; }
+    function getPluginAdditionalInfo(plugin) { return detectLanguage() ? plugin.additionalInfo : plugin.en_additionalInfo; }
+
+    // --- 三段開關輔助 ---
+    function isTriStatePlugin(plugin) { return !!plugin.altUrl; }
+    function isPluginEnabled(plugin) {
+        if (isTriStatePlugin(plugin)) return plugin.state !== "off";
+        return plugin.enabled;
+    }
+    function getActivePluginUrl(plugin) {
+        if (plugin.altUrl && plugin.state === "beta") return plugin.altUrl;
+        return plugin.url;
+    }
+    function getTriLabels(plugin) {
+        if (plugin.triLabels && plugin.triLabels.length === 3) return plugin.triLabels;
+        return ["OFF", "ON", "BETA"];
+    }
+    function cycleTriState(current) {
+        if (current === "off") return "stable";
+        if (current === "stable") return "beta";
+        return "off";
+    }
+
+    // --- 版本比對 ---
+    function parseGameVersion(versionStr) {
+        if (!versionStr) return 0;
+        const match = String(versionStr).match(/R?(\d+)/i);
+        return match ? parseInt(match[1], 10) : 0;
+    }
+    function getCurrentGameVersion() {
+        try { if (typeof GameVersion !== 'undefined') return parseGameVersion(GameVersion); } catch(e) {}
+        return 0;
+    }
+    function isPluginSkippedByVersion(plugin) {
+        if (!plugin.autoDisableAfterVersion) return false;
+        const currentVer = getCurrentGameVersion();
+        if (currentVer === 0) return false;
+        return currentVer > parseGameVersion(plugin.autoDisableAfterVersion);
+    }
+
+    // --- 設定保存 ---
+    let saveSettingsTimer;
+    function saveSettings(settings) {
+        clearTimeout(saveSettingsTimer);
+        saveSettingsTimer = setTimeout(() => {
+            localStorage.setItem("BC_PluginManager_Settings", JSON.stringify(settings));
+        }, 100);
+    }
+    function loadSettings() {
+        return JSON.parse(localStorage.getItem("BC_PluginManager_Settings") || "{}");
+    }
+    let pluginSettings = loadSettings();
+
+    // --- 版本更新檢查 ---
+    let remoteChangelog = [];
+    let remoteVersion = modversion;
+
+    function checkVersionUpdate() {
+        const savedVersion = pluginSettings["_pcm_version"];
+        if (savedVersion !== modversion) {
+            pluginSettings["_pcm_version"] = modversion;
+            saveSettings(pluginSettings);
+            return true; // 版本不同，需要顯示更新彈窗
+        }
+        return false;
+    }
+
+    function showChangelogModal() {
+        const existing = document.getElementById("pcm-changelog-modal");
+        if (existing) { existing.remove(); return; }
+
+        const overlay = document.createElement("div");
+        overlay.id = "pcm-changelog-modal";
+        overlay.style.cssText = `
+            position: fixed; inset: 0; z-index: 2147483648;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+        `;
+
+        const box = document.createElement("div");
+        box.style.cssText = `
+            background: rgba(26,32,46,0.98); border: 1px solid rgba(127,83,205,0.4);
+            border-radius: 16px; padding: 24px; max-width: 340px; width: 90%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            font-family: 'Noto Sans TC', sans-serif; color: #fff;
+        `;
+
+        const changelog = remoteChangelog.length > 0 ? remoteChangelog : ["載入更新日誌中..."];
+        const items = changelog.map(c => `<li style="margin:6px 0; font-size:13px; color:#d4c8f5;">${c}</li>`).join("");
+
+        box.innerHTML = `
+            <div style="font-size:16px; font-weight:600; margin-bottom:4px;">${getMessage('changelogTitle')}</div>
+            <div style="font-size:12px; color:#a0a9c0; margin-bottom:16px;">v${remoteVersion}</div>
+            <ul style="padding-left:18px; margin:0 0 20px 0; list-style:disc;">${items}</ul>
+            <button id="pcm-changelog-close" style="
+                width:100%; padding:10px; border:none; border-radius:10px;
+                background: linear-gradient(135deg, #7F53CD, #A78BFA);
+                color:white; font-size:14px; cursor:pointer; font-family:inherit;
+            ">${getMessage('changelogClose')}</button>
+        `;
+
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        document.getElementById("pcm-changelog-close").addEventListener("click", () => overlay.remove());
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+    }
+
+    // --- PCM徽章 ---
     function setupHoverTracking() {
         let rafPending = false;
         function onMouseMove() {
@@ -77,106 +242,12 @@
         document.addEventListener("mousemove", onMouseMove);
     }
 
-    // --- 語言檢測和多語言支持 ---
-    function detectLanguage() {
-        const browserLang = navigator.language || navigator.userLanguage;
-        let gameLang = null;
-        if (typeof TranslationLanguage !== 'undefined') gameLang = TranslationLanguage;
-        const lang = gameLang || browserLang || 'en';
-        return lang.toLowerCase().startsWith('zh') || lang.toLowerCase().includes('cn') || lang.toLowerCase().includes('tw');
-    }
-
-    const messages = {
-        en: {
-            loaded: `Liko's Plugin Collection Manager v${modversion} Loaded! Click the floating button to manage plugins.`,
-            shortLoaded: `📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button in the top right to open management panel\n• Toggle switches to enable/disable plugins\n\n📝 Available Commands:\n/pcm help - Show this manual\n/pcm list - View descriptions for all available plugins.\n\n💡 Tips:\nPlugins will auto-load after enabling, or take effect on next page refresh.\nRecommend selectively enabling plugins for the best experience.`,
-            welcomeTitle: "🐈‍⬛ Plugin Manager",
-            helpCommand: "Use floating button or /pcm help for more information",
-            pluginLoadComplete: "Plugin loading completed",
-            successLoaded: "Successfully loaded",
-            plugins: "plugins",
-            failed: "failed",
-            pluginEnabled: "enabled",
-            pluginDisabled: "disabled",
-            willTakeEffect: "Plugin loaded or will take effect on next refresh",
-            willNotStart: "Will not start on next load",
-            visitWebsite: "Visit website"
-        },
-        zh: {
-            loaded: `Liko的插件管理器 v${modversion} 載入完成！點擊浮動按鈕管理插件。`,
-            shortLoaded: `📋 Liko 插件管理器 說明書\n\n🎮 使用方法：\n• 點擊右上角的浮動按鈕開啟管理面板\n• 切換開關來啟用/停用插件\n\n📝 可用指令：\n/pcm help - 顯示此說明書\n/pcm list - 查看所有可用插件說明\n\n💡 小提示：\n插件啟用後會自動載入，或在下次刷新頁面時生效。\n建議根據需要選擇性啟用插件以獲得最佳體驗。`,
-            welcomeTitle: "🐈‍⬛ 插件管理器",
-            helpCommand: "使用浮動按鈕或 /pcm help 查看更多信息",
-            pluginLoadComplete: "插件載入完成",
-            successLoaded: "已成功載入",
-            plugins: "個插件",
-            failed: "個失敗",
-            pluginEnabled: "已啟用",
-            pluginDisabled: "已停用",
-            willTakeEffect: "插件已載入或將在下次刷新生效",
-            willNotStart: "下次載入時將不會啟動",
-            visitWebsite: "訪問網站"
-        }
-    };
-
-    function getMessage(key) { return messages[detectLanguage() ? 'zh' : 'en'][key]; }
-    function getPluginName(plugin) { return detectLanguage() ? plugin.name : plugin.en_name; }
-    function getPluginDescription(plugin) { return detectLanguage() ? plugin.description : plugin.en_description; }
-    function getPluginAdditionalInfo(plugin) { return detectLanguage() ? plugin.additionalInfo : plugin.en_additionalInfo; }
-
-    // --- 三段開關輔助 ---
-    // 判斷依據：有 altUrl → 三段開關；否則 → 普通二段開關
-    function isTriStatePlugin(plugin) { return !!plugin.altUrl; }
-
-    function isPluginEnabled(plugin) {
-        if (isTriStatePlugin(plugin)) return plugin.state !== "off";
-        return plugin.enabled;
-    }
-
-    // stable → url，beta → altUrl
-    function getActivePluginUrl(plugin) {
-        if (plugin.altUrl && plugin.state === "beta") return plugin.altUrl;
-        return plugin.url;
-    }
-
-    // triLabels 有值就用，沒有就預設 OFF/ON/BETA
-    function getTriLabels(plugin) {
-        if (plugin.triLabels && plugin.triLabels.length === 3) return plugin.triLabels;
-        return ["OFF", "ON", "BETA"];
-    }
-
-    function cycleTriState(current) {
-        if (current === "off") return "stable";
-        if (current === "stable") return "beta";
-        return "off";
-    }
-
-    // --- 版本比對輔助 ---
-    function parseGameVersion(versionStr) {
-        if (!versionStr) return 0;
-        const match = String(versionStr).match(/R?(\d+)/i);
-        return match ? parseInt(match[1], 10) : 0;
-    }
-
-    function getCurrentGameVersion() {
-        try { if (typeof GameVersion !== 'undefined') return parseGameVersion(GameVersion); } catch(e) {}
-        return 0;
-    }
-
-    function isPluginSkippedByVersion(plugin) {
-        if (!plugin.autoDisableAfterVersion) return false;
-        const currentVer = getCurrentGameVersion();
-        if (currentVer === 0) return false;
-        return currentVer > parseGameVersion(plugin.autoDisableAfterVersion);
-    }
-
-    // --- PCM徽章相關功能 ---
     function initializePCMBadgeImage() {
         if (!pcmBadgeImage) {
             pcmBadgeImage = new Image();
             pcmBadgeImage.crossOrigin = "anonymous";
             pcmBadgeImage.onload = function() { pcmImageLoaded = true; };
-            pcmBadgeImage.onerror = function() { console.warn("[PCM] ⚠️ PCM徽章圖片載入失敗"); pcmImageLoaded = false; };
+            pcmBadgeImage.onerror = function() { pcmImageLoaded = false; };
             pcmBadgeImage.src = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_4.png";
         }
     }
@@ -210,21 +281,21 @@
                 MainCanvas.fillText("PCM", badgeX, badgeY);
                 MainCanvas.restore();
             }
-        } catch (e) { console.error("[PCM] ❌ 繪製PCM徽章失敗:", e.message); }
+        } catch (e) {}
     }
 
     function addPCMBadgeToPlayer() {
-        try {
-            const addBadge = () => {
+        const addBadge = () => {
+            try {
                 if (typeof Player !== 'undefined' && Player && typeof Player.OnlineSharedSettings !== 'undefined') {
                     if (!Player.OnlineSharedSettings.PCM) {
                         Player.OnlineSharedSettings.PCM = { name: "Liko's PCM", version: modversion, badge: true, timestamp: Date.now() };
                     }
                     if (typeof CharacterRefresh === 'function' && CurrentScreen === 'ChatRoom') CharacterRefresh(Player, false);
                 } else { setTimeout(addBadge, 1000); }
-            };
-            addBadge();
-        } catch (e) { console.error("[PCM] ❌ 添加PCM標識失敗:", e.message); }
+            } catch(e) {}
+        };
+        addBadge();
     }
 
     function syncDrawPositionsWithRoom() {
@@ -236,13 +307,9 @@
     }
 
     function hookCharacterDrawing() {
-        if (!modApi || typeof modApi.hookFunction !== 'function') {
-            console.warn("[PCM] ⚠️ modApi.hookFunction 不可用，無法掛鉤角色繪製");
-            return;
-        }
+        if (!modApi || typeof modApi.hookFunction !== 'function') return;
         const safeHook = (fnName, priority, fn) => {
-            try { modApi.hookFunction(fnName, priority, fn); }
-            catch (e) { console.warn(`[PCM] ⚠️ 無法 hook ${fnName}:`, e.message); }
+            try { modApi.hookFunction(fnName, priority, fn); } catch (e) {}
         };
         safeHook('DrawCharacter', 5, (args, next) => {
             const [character, x, y, zoom] = args;
@@ -262,447 +329,173 @@
     }
 
     function registerPCMBadge() {
-        try {
-            const waitForModApi = () => {
-                if (modApi && typeof modApi.hookFunction === 'function') {
-                    initializePCMBadgeImage();
-                    setupHoverTracking();
-                    addPCMBadgeToPlayer();
-                    hookCharacterDrawing();
-                    if (typeof modApi.onUnload === 'function') {
-                        modApi.onUnload(() => {
-                            try {
-                                if (typeof Player !== 'undefined' && Player?.OnlineSharedSettings?.PCM) {
-                                    delete Player.OnlineSharedSettings.PCM;
-                                    console.log("[PCM] 🧹 PCM標識已清除");
-                                }
-                                if (_lifecycle.mousemoveHandler) {
-                                    document.removeEventListener("mousemove", _lifecycle.mousemoveHandler);
-                                    _lifecycle.mousemoveHandler = null;
-                                }
-                                hoveredCharacters.clear(); characterDrawPositions.clear();
-                            } catch (e) { console.error("[PCM] ❌ 卸載清理失敗:", e.message); }
-                        });
-                    }
-                } else { setTimeout(waitForModApi, 500); }
-            };
-            waitForModApi();
-        } catch (e) {
-            console.error("[PCM] ❌ 註冊PCM徽章失敗:", e.message);
-            setTimeout(() => addPCMBadgeToPlayer(), 2000);
-        }
-    }
-
-    function sendLoadedMessage() {
-        const waitForChatRoom = () => new Promise((resolve) => {
-            const checkChatRoom = () => {
-                if (CurrentScreen === "ChatRoom") resolve(true);
-                else setTimeout(checkChatRoom, 1000);
-            };
-            checkChatRoom();
-            setTimeout(() => resolve(false), 60000);
-        });
-        waitForChatRoom().then((success) => {
-            if (success) {
-                try {
-                    if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal(getMessage('shortLoaded'), 60000);
-                    showNotification("🐈‍⬛", "PCM", getMessage('loaded'));
-                } catch (e) { console.log(`[PCM] ${getMessage('loaded')}`); }
-            }
-        });
-    }
-
-    try {
-        if (bcModSdk?.registerMod) {
-            modApi = bcModSdk.registerMod({
-                name: "Liko's PCM",
-                fullName: 'Liko - Plugin Collection Manager',
-                version: modversion,
-                repository: 'Liko的插件管理器 | Plugin collection manager',
-            });
-            registerPCMBadge();
-            console.log("✅ Liko's PCM 腳本啟動完成");
-        } else {
-            console.error("[PCM] ❌ bcModSdk 或 registerMod 不可用");
-            return;
-        }
-    } catch (e) { console.error("[PCM] ❌ 初始化失敗:", e.message); return; }
-
-    // --- 設定保存 ---
-    let saveSettingsTimer;
-    function saveSettings(settings) {
-        clearTimeout(saveSettingsTimer);
-        saveSettingsTimer = setTimeout(() => {
-            localStorage.setItem("BC_PluginManager_Settings", JSON.stringify(settings));
-        }, 100);
-    }
-    function loadSettings() {
-        return JSON.parse(localStorage.getItem("BC_PluginManager_Settings") || "{}");
-    }
-    let pluginSettings = loadSettings();
-
-    // --- 子插件清單 ---
-    const subPlugins = [
-        {
-            id: "Liko-Tool",
-            name: "Liko的工具包", en_name: "Liko's Tool Kit",
-            description: "有許多小功能合集的工具包，但也有點不穩定",
-            en_description: "A collection of small utility functions, but somewhat unstable",
-            additionalInfo: "詳細使用說明請輸入/LT或/LT help查詢",
-            en_additionalInfo: "For detailed usage instructions, please enter /LT or /LT help.",
-            icon: "🧰",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Tool.main.user.js",
-            enabled: pluginSettings["Liko-Tool"] ?? false,
-            priority: 3
-        },
-        {
-            id: "Liko-CPB",
-            name: "Liko的自定義個人資料頁面背景", en_name: "Liko's Custom Profile Background",
-            description: "自定義個人資料頁面背景並分享給他人",
-            en_description: "Customize profile page background and share it with others.",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "🪪",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CPB.main.user.js",
-            enabled: pluginSettings["Liko-CPB"] ?? false,
-            priority: 3
-        },
-        {
-            id: "Liko-Image_Uploader",
-            name: "Liko的圖片上傳器", en_name: "Liko's Image Uploader",
-            description: "拖曳上傳圖片並分享到聊天室",
-            en_description: "Drag and drop image upload and share to chatroom",
-            additionalInfo: "圖片上傳失敗時，可以使用/IMG或/IMG HELP查閱說明",
-            en_additionalInfo: "If the image fails to upload, you can use /IMG or /IMG HELP to view the instructions.",
-            icon: "🖼️",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
-            enabled: pluginSettings["Liko-Image_Uploader"] ?? false,
-            priority: 3
-        },
-        {
-            id: "Liko-CHE",
-            name: "Liko的聊天室書記官", en_name: "Liko's Chat History Exporter",
-            description: "聊天室信息轉HTML，並且提供最多7天的信息救援(需要手動啟用緩存功能)",
-            en_description: "Convert chat history to HTML and provides message recovery for up to 7 days.(The caching feature requires manual activation.)",
-            additionalInfo: "包含完整的聊天記錄、時間戳和角色信息，可以搭配Neocities等網站上傳分享",
-            en_additionalInfo: "Includes complete chat logs, timestamps and character info, compatible with sites like Neocities for sharing",
-            icon: "📖",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CHE.main.user.js",
-            enabled: pluginSettings["Liko-CHE"] ?? false,
-            priority: 3
-        },
-        {
-            id: "Liko-CDB",
-            name: "Liko的自訂更衣室背景", en_name: "Liko's Custom Dressing Background",
-            description: "更衣室背景替換，並提供網格對焦",
-            en_description: "Replace wardrobe background with grid focus assistance",
-            additionalInfo: "現在多了替換姿勢的功能", en_additionalInfo: "Now there is a function to change posture",
-            icon: "👗",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js",
-            enabled: pluginSettings["Liko-CDB"] ?? false,
-            priority: 3
-        },
-        {
-            id: "Liko-Prank",
-            name: "Liko對朋友的惡作劇", en_name: "Liko's Friend Prank",
-            description: "內褲大盜鬧得BC社群人心惶惶！",
-            en_description: "The underwear thief causing panic in the BC community!",
-            additionalInfo: "注意：這是個惡作劇插件，請謹慎使用！指令 /偷取, /溶解, /传送",
-            en_additionalInfo: "Warning: This is a prank plugin, use with caution! Command /Steal, /dissolve, /Teleport",
-            icon: "🪄",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Prank.main.user.js",
-            enabled: pluginSettings["Liko-Prank"] ?? false,
-            priority: 5
-        },
-        {
-            id: "Liko-NOI",
-            name: "Liko的邀請通知器", en_name: "Liko's Notification of Invites",
-            description: "發出好友、白單、黑單的信息!",
-            en_description: "Customize the notification message when sending a friend, whitelist, or blacklist request.",
-            additionalInfo: "可以使用/NOI或/NOI HELP查閱說明",
-            en_additionalInfo: "For detailed usage instructions, please enter /NOI or /NOI help.",
-            icon: "📧",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20NOI.main.user.js",
-            enabled: pluginSettings["Liko-NOI"] ?? false,
-            priority: 5
-        },
-        {
-            id: "Liko-Release_Maid",
-            name: "Liko的解綁女僕", en_name: "Liko's Release Maid",
-            description: "自動解綁女僕，不過有點天然，會在意外時觸發!",
-            en_description: "Auto-release maid, but a bit naive and may trigger unexpectedly!",
-            additionalInfo: "請評估自己需求，避免降低遊戲樂趣",
-            en_additionalInfo: "Please consider your own needs to avoid diminishing the enjoyment of the game.",
-            icon: "🧹",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Release%20Maid.main.user.js",
-            enabled: pluginSettings["Liko-Release_Maid"] ?? false,
-            priority: 10
-        },
-        {
-            id: "Liko-Chat_TtoB",
-            name: "Liko的對話變按鈕", en_name: "Liko's Chat Text to Button",
-            description: "聊天室信息轉按鈕，現在還多了傳送門功能!",
-            en_description: "Convert chat messages to buttons, now with portal feature!",
-            additionalInfo: "使用/指令、!!說話、#房名#都會變成可以點擊的按鈕，#房名#提供傳送功能",
-            en_additionalInfo: "Commands starting with /, !! for speech, and #RoomName# will become clickable buttons. The #RoomName# button provides a teleport function.",
-            icon: "💬",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
-            enabled: pluginSettings["Liko-Chat_TtoB"] ?? false,
-            priority: 5
-        },
-        {
-            id: "Liko-CDT",
-            name: "Liko的座標繪製工具", en_name: "Liko's Coordinate Drawing Tool",
-            description: "BC的介面UI定位工具，有開發需求的可以使用!",
-            en_description: "BC interface UI positioning tool for developers!",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "🖌️",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDT.main.user.js",
-            enabled: pluginSettings["Liko-CDT"] ?? false,
-            priority: 10
-        },
-        {
-            // 三段開關，不寫 triLabels → 預設 OFF/ON/BETA
-            id: "ECHO-Cloth",
-            name: "ECHO的服裝拓展", en_name: "ECHO's Expansion on cloth options",
-            description: "ECHO的服裝拓展", en_description: "ECHO's Expansion on cloth options",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "🥐",
-            url: "https://sugarchain-studio.github.io/echo-clothing-ext/bc-cloth.user.js",
-            altUrl: "https://sugarchain-studio.github.io/echo-clothing-ext/bc-cloth-beta.user.js",
-            website: "https://github.com/SugarChain-Studio/echo-clothing-ext",
-            state: pluginSettings["ECHO-Cloth"] ?? "off",
-            priority: 1
-        },
-        {
-            // 三段開關，不寫 triLabels → 預設 OFF/ON/BETA
-            id: "ECHO-Activity",
-            name: "ECHO的動作拓展", en_name: "ECHO's Expansion on activity options",
-            description: "ECHO的動作拓展", en_description: "ECHO's Expansion on activity options",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "🥐",
-            url: "https://SugarChain-Studio.github.io/echo-activity-ext/bc-activity.js",
-            altUrl: "https://sugarchain-studio.github.io/echo-activity-ext/bc-activity-beta.user.js",
-            website: "https://github.com/SugarChain-Studio/echo-activity-ext",
-            state: pluginSettings["ECHO-Activity"] ?? "off",
-            priority: 1
-        },
-        {
-            id: "XS-Activity",
-            name: "小酥的動作拓展", en_name: "XS's Expansion on activity options",
-            description: "小酥的動作拓展", en_description: "XS's Expansion on activity options",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "🍪",
-            url: "https://iceriny.github.io/XiaoSuActivity/main/XSActivity.js",
-            website: "https://github.com/iceriny/XiaoSuActivity",
-            enabled: pluginSettings["XS-Activity"] ?? false,
-            priority: 10
-        },
-        {
-            id: "Liko-ACV",
-            name: "Liko的自動創建影片", en_name: "Liko's Automatically create video.",
-            description: "Liko的自動創建影片", en_description: "Liko's Automatically create video.",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "🎬",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20ACV.main.user.js",
-            enabled: pluginSettings["Liko-ACV"] ?? false,
-            priority: 5
-        },
-        {
-            id: "Liko-CMC",
-            name: "Liko的聊天室音樂控制器", en_name: "Liko's Music Controller.",
-            description: "支援歌詞(需要有曲名)、歌曲列表、flac等格式",
-            en_description: "Supports lyrics (must have song title), song list, flac and other formats.",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "🎵",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CMC.main.user.js",
-            enabled: pluginSettings["Liko-CMC"] ?? false,
-            priority: 5
-        },
-        {
-            id: "Liko-WPS",
-            name: "WCE的個人資料分享", en_name: "WCE Profile Share.",
-            description: "WCE的個人資料分享，需開啟WCE的個人資料保存",
-            en_description: "WCE Profile Share, need to enable WCE profile saving.",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "🆔",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20WPS.main.user.js",
-            enabled: pluginSettings["Liko-WPS"] ?? false,
-            priority: 5
-        },
-        {
-            id: "Liko-MAT",
-            name: "Liko的自動翻譯", en_name: "Liko's Messages Auto Translator",
-            description: "自動翻譯(使用Google api)", en_description: "Auto translate BC chat messages using Google API",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "🌐",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20MAT.main.user.js",
-            enabled: pluginSettings["Liko-MAT"] ?? false,
-            priority: 3
-        },
-        {
-            // 三段開關，寫 triLabels → 自訂 OFF/EN/ZH
-            id: "ULTRAbc",
-            name: "ULTRAbc", en_name: "ULTRAbc",
-            description: "有許多輔助功能，但考慮遊戲性請自行選擇是否啟用",
-            en_description: "A large collection of cheats, quality of life improvements, and a moaner script.",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "🐇",
-            url: "https://tetris245.github.io/ultrabc.github.io/ULTRAbcloader.user.js",
-            altUrl: "https://tetris245.github.io/ultrabc.github.io/ULTRAbcloader-ch.user.js",
-            triLabels: ["OFF", "EN", "ZH"],
-            website: "https://github.com/tetris245/ULTRAbc",
-            state: pluginSettings["ULTRAbc"] ?? "off",
-            priority: 2
-        },
-        {
-            id: "Liko-Region_switch",
-            name: "快速切換混合&女性區", en_name: "Region switch",
-            description: "快速切換混合&女性區", en_description: "Region switch",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "⚧️",
-            url: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
-            enabled: pluginSettings["Liko-Region_switch"] ?? false,
-            priority: 10
-        },
-        {
-            id: "Liko-CFT",
-            name: "聊天室信息過濾器", en_name: "RChat Filter Tool",
-            description: "聊天室信息過濾", en_description: "Chat room message filtering",
-            additionalInfo: "", en_additionalInfo: "",
-            icon: "📋",
-            url: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CFT.main.user.js",
-            enabled: pluginSettings["Liko-CFT"] ?? false,
-            priority: 9
-        }
-        /*{
-            // 特殊插件：inlineCode + autoDisableAfterVersion
-            id: "DialogLeave_hotfix",
-            name: "人物崩潰修復", en_name: "Character crash hotfix",
-            description: "修復 DialogLeave Promise 鏈斷裂導致的錯誤（mod 相容性問題）",
-            en_description: "Fixes DialogLeave Promise chain break caused by mod incompatibility",
-            additionalInfo: "防止未回傳 Promise 的插件導致錯誤",
-            en_additionalInfo: "Prevents errors from mods that don't return a Promise",
-            icon: "💊",
-            url: "",
-            inlineCode: `
-                (function () {
-                    try {
-                        if (typeof DialogLeave !== "function") return;
-                        const origDialogLeave = DialogLeave;
-                        DialogLeave = function (...args) {
-                            let result;
-                            try {
-                                result = origDialogLeave.apply(this, args);
-                            } catch (e) {
-                                console.error("[PCM Patch] DialogLeave sync crash:", e);
-                                return Promise.resolve();
+        const waitForModApi = () => {
+            if (modApi && typeof modApi.hookFunction === 'function') {
+                initializePCMBadgeImage();
+                setupHoverTracking();
+                addPCMBadgeToPlayer();
+                hookCharacterDrawing();
+                if (typeof modApi.onUnload === 'function') {
+                    modApi.onUnload(() => {
+                        try {
+                            if (typeof Player !== 'undefined' && Player?.OnlineSharedSettings?.PCM) {
+                                delete Player.OnlineSharedSettings.PCM;
                             }
-                            if (!result || typeof result.then !== "function") {return Promise.resolve(result);}
-                            return result.catch(e => {
-                                console.error("[PCM Patch] DialogLeave async crash:", e);
-                                return;
-                            });
-                        };
-                        console.log("✅ [PCM] DialogLeave 完整防護補丁已套用");
-                    } catch (e) {
-                        console.error("[PCM Patch] 初始化失敗:", e);
-                    }
-                })();
-            `,
-            autoDisableAfterVersion: "R126",
-            //website: "https://github.com/awdrrawd/liko-Plugin-Repository",
-            enabled: pluginSettings["DialogLeave_hotfix"] ?? false,
-            priority: 1
-        }*/
-    ];
+                            if (_lifecycle.mousemoveHandler) {
+                                document.removeEventListener("mousemove", _lifecycle.mousemoveHandler);
+                                _lifecycle.mousemoveHandler = null;
+                            }
+                            hoveredCharacters.clear(); characterDrawPositions.clear();
+                        } catch (e) {}
+                    });
+                }
+            } else { setTimeout(waitForModApi, 500); }
+        };
+        waitForModApi();
+    }
 
-    subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
+    // --- 子插件清單（動態載入） ---
+    let subPlugins = [];
+    let pluginsLoaded = false;
 
-    // --- 載入插件 ---
+    async function fetchPluginsJSON() {
+        for (const url of PLUGINS_JSON_URLS) {
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                console.log(`✅ [PCM] plugins.json 從 ${url} 載入成功`);
+                return data;
+            } catch (e) {
+                console.warn(`⚠️ [PCM] plugins.json 從 ${url} 載入失敗:`, e.message);
+            }
+        }
+        return null;
+    }
+
+    function applyPluginSettings(plugins) {
+        return plugins.map(plugin => {
+            const saved = pluginSettings[plugin.id];
+            if (isTriStatePlugin(plugin)) {
+                plugin.state = (saved !== undefined) ? saved : "off";
+            } else {
+                plugin.enabled = (saved !== undefined) ? saved : false;
+            }
+            if (pluginSettings[`${plugin.id}_customIcon`]) {
+                plugin.customIcon = pluginSettings[`${plugin.id}_customIcon`];
+            }
+            return plugin;
+        });
+    }
+
+    async function loadPluginsJSON() {
+        const data = await fetchPluginsJSON();
+        if (!data || !Array.isArray(data.plugins)) {
+            console.error("[PCM] ❌ plugins.json 格式錯誤或無法取得");
+            showNotification("❌", "PCM", getMessage('loadPluginsFailed'));
+            return false;
+        }
+        remoteVersion = data.version || modversion;
+        remoteChangelog = data.changelog || [];
+        subPlugins = applyPluginSettings(data.plugins);
+        subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
+
+        // DialogLeave_hotfix 維持內嵌支援，作為範例保留（不放進 JSON）
+        // {
+        //   id: "DialogLeave_hotfix",
+        //   inlineCode: `...`,
+        //   autoDisableAfterVersion: "R126",
+        //   enabled: false
+        // }
+
+        pluginsLoaded = true;
+        console.log(`[PCM] 📦 plugins.json v${remoteVersion}，共 ${subPlugins.length} 個插件`);
+        return true;
+    }
+
+    // --- 載入子插件 ---
     let loadedPlugins = new Set();
     let isLoadingPlugins = false;
     let hasStartedPluginLoading = false;
 
     function loadSubPlugin(plugin) {
         if (!isPluginEnabled(plugin) || loadedPlugins.has(plugin.id)) return Promise.resolve();
-
-        // 版本自動跳過
         if (isPluginSkippedByVersion(plugin)) {
-            console.log(`⏭️ [PCM] ${plugin.name} 因遊戲版本已超過 ${plugin.autoDisableAfterVersion}，自動跳過`);
+            console.log(`⏭️ [PCM] ${plugin.name} 版本過舊自動跳過`);
             loadedPlugins.add(plugin.id);
             return Promise.resolve();
         }
 
-        // 內嵌程式碼（url 為空但有 inlineCode）
+        // inlineCode 支援
         if (!plugin.url && plugin.inlineCode) {
             return new Promise((resolve) => {
                 try {
                     const script = document.createElement('script');
                     script.setAttribute('data-plugin', plugin.id);
-                    script.textContent = `(function(){try{${plugin.inlineCode}}catch(e){console.error('[PCM] 內嵌插件執行錯誤 (${plugin.id}):', e.message);}})();`;
+                    script.textContent = `(function(){try{${plugin.inlineCode}}catch(e){console.error('[PCM] inlineCode error (${plugin.id}):', e.message);}})();`;
                     document.body.appendChild(script);
                     loadedPlugins.add(plugin.id);
-                    console.log(`✅ [PCM - SubPlugin] ${plugin.name} 內嵌程式碼執行成功`);
-                } catch(e) {
-                    console.error(`❌ [PCM - SubPlugin] 內嵌載入失敗: ${plugin.name}`, e);
-                }
+                } catch(e) { console.error(`❌ [PCM] inlineCode 載入失敗: ${plugin.name}`, e); }
                 resolve();
             });
         }
 
-        // url 和 inlineCode 都沒有
-        if (!plugin.url) {
-            console.warn(`⚠️ [PCM] ${plugin.name} 沒有 url 也沒有 inlineCode，跳過`);
-            return Promise.resolve();
-        }
+        if (!plugin.url) return Promise.resolve();
 
-        // 外部 URL（含 altUrl 切換）
-        const activeUrl = getActivePluginUrl(plugin);
-        return fetch(activeUrl)
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-                return res.text();
-            })
-            .then(code => {
+        // RAW → CDN Fallback
+        const rawUrl = getActivePluginUrl(plugin);
+        const cdnUrl = rawUrl
+            .replace("https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/", "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/")
+            .replace("https://raw.githubusercontent.com/awdrrawd/", "https://cdn.jsdelivr.net/gh/awdrrawd/");
+
+        const urls = [rawUrl];
+        if (cdnUrl !== rawUrl) urls.push(cdnUrl);
+
+        const tryFetch = async (urlList) => {
+            for (const url of urlList) {
                 try {
-                    const script = document.createElement('script');
-                    script.setAttribute('data-plugin', plugin.id);
-                    script.textContent = `(function(){try{${code}}catch(e){console.error('[PCM] 子插件執行錯誤 (${plugin.id}):', e.message);}})();`;
-                    document.body.appendChild(script);
-                    loadedPlugins.add(plugin.id);
-                    console.log(`✅ [PCM - SubPlugin] ${plugin.name} 載入成功`);
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return await res.text();
                 } catch (e) {
-                    console.error(`❌ [PCM - SubPlugin] 載入失敗: ${plugin.name}`, e);
-                    showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                    throw e;
+                    console.warn(`⚠️ [PCM] ${plugin.name} 從 ${url} 取得失敗: ${e.message}`);
                 }
-            })
-            .catch(err => {
-                console.error(`❌ [PCM - SubPlugin] 無法獲取 ${plugin.name} 的腳本`, err);
-                showNotification("❌", `${plugin.name} 載入失敗`, "請檢查網絡或插件URL");
-                throw err;
-            });
+            }
+            return null;
+        };
+
+        return tryFetch(urls).then(code => {
+            if (!code) {
+                showNotification("❌", `${getPluginName(plugin)} 載入失敗`, "請檢查網絡或插件URL");
+                throw new Error("all urls failed");
+            }
+            const script = document.createElement('script');
+            script.setAttribute('data-plugin', plugin.id);
+            script.textContent = `(function(){try{${code}}catch(e){console.error('[PCM] plugin error (${plugin.id}):', e.message);}})();`;
+            document.body.appendChild(script);
+            loadedPlugins.add(plugin.id);
+            console.log(`✅ [PCM - SubPlugin] ${plugin.name} 載入成功`);
+        }).catch(err => {
+            console.error(`❌ [PCM] ${plugin.name} 無法載入:`, err);
+            throw err;
+        });
     }
+
+    function isPlayerLoaded() { return typeof Player !== 'undefined'; }
 
     async function waitForPlayerAndLoadPlugins() {
         if (hasStartedPluginLoading) return;
-        const maxWaitTime = 15 * 60 * 1000;
+        const maxWait = 15 * 60 * 1000;
         const checkInterval = 1000;
         const logInterval = 5000;
-        let waitTime = 0;
-        let lastLogTime = 0;
-        while (!isPlayerLoaded() && waitTime < maxWaitTime) {
-            if (waitTime === 0 || waitTime - lastLogTime >= logInterval) {
-                console.log(`⏳ [PCM] 等待 Player 載入... (${waitTime / 1000}s)`);
-                lastLogTime = waitTime;
+        let waited = 0, lastLog = 0;
+        while (!isPlayerLoaded() && waited < maxWait) {
+            if (waited === 0 || waited - lastLog >= logInterval) {
+                console.log(`⏳ [PCM] 等待 Player 載入... (${waited / 1000}s)`);
+                lastLog = waited;
             }
-            await new Promise(resolve => setTimeout(resolve, checkInterval));
-            waitTime += checkInterval;
-        }
-        if (isPlayerLoaded()) {
-            console.log(`[PCM] 🔢 插件載入順序:`, subPlugins.map(p => `${p.priority}:${getPluginName(p)}`));
-        } else {
-            console.warn("⚠️ [PCM] 等待 Player 載入超時，仍將嘗試載入插件");
+            await new Promise(r => setTimeout(r, checkInterval));
+            waited += checkInterval;
         }
         hasStartedPluginLoading = true;
         await loadSubPluginsInBackground();
@@ -712,41 +505,31 @@
         if (isLoadingPlugins) return;
         isLoadingPlugins = true;
         try {
-            const enabledPlugins = subPlugins.filter(plugin => isPluginEnabled(plugin));
-            const batchSize = 3;
-            let loadedCount = 0;
-            let successCount = 0;
+            const enabledPlugins = subPlugins.filter(p => isPluginEnabled(p));
             if (enabledPlugins.length === 0) return;
+            const batchSize = 3;
+            let successCount = 0;
             for (let i = 0; i < enabledPlugins.length; i += batchSize) {
                 const batch = enabledPlugins.slice(i, i + batchSize);
-                console.log(`📦 [PCM] 正在載入批次 ${Math.floor(i / batchSize) + 1}/${Math.ceil(enabledPlugins.length / batchSize)}: ${batch.map(p => p.name).join(', ')}`);
-                const promises = batch.map(plugin => loadSubPlugin(plugin).catch(error => ({ plugin, error })));
-                try {
-                    const results = await Promise.allSettled(promises);
-                    results.forEach((result, index) => {
-                        const plugin = batch[index];
-                        if (result.status === 'fulfilled' && !result.value?.error) { successCount++; }
-                        else { console.error(`❌ [PCM] ${plugin.name} 載入失敗:`, result.reason || result.value?.error); }
-                    });
-                    loadedCount += batch.length;
-                    console.log(`📈 [PCM] 進度: ${loadedCount}/${enabledPlugins.length} (成功: ${successCount})`);
-                } catch (error) { console.warn(`⚠️ [PCM] 批次載入時發生錯誤:`, error); }
-                if (i + batchSize < enabledPlugins.length) await new Promise(resolve => setTimeout(resolve, 800));
+                const results = await Promise.allSettled(batch.map(p => loadSubPlugin(p).catch(e => ({ error: e }))));
+                results.forEach((result, idx) => {
+                    if (result.status === 'fulfilled' && !result.value?.error) successCount++;
+                    else console.error(`❌ [PCM] ${batch[idx].name} 載入失敗`);
+                });
+                if (i + batchSize < enabledPlugins.length) await new Promise(r => setTimeout(r, 800));
             }
             const failedCount = enabledPlugins.length - successCount;
             if (failedCount > 0) {
-                console.warn(`⚠️ [PCM] 背景載入完成！成功: ${successCount}, 失敗: ${failedCount}`);
                 showNotification("⚠️", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}，${failedCount} ${getMessage('failed')}`);
-            } else {
-                console.log("✅ [PCM] 背景插件載入完成！所有插件都載入成功");
-                if (enabledPlugins.length > 0) showNotification("✅", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}`);
+            } else if (enabledPlugins.length > 0) {
+                showNotification("✅", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}`);
             }
-        } catch (error) {
-            console.error("❌ [PCM] 背景載入插件時發生嚴重錯誤:", error);
-            showNotification("❌", "載入錯誤", "背景載入插件時發生嚴重錯誤");
+        } catch (e) {
+            console.error("[PCM] ❌ 背景載入嚴重錯誤:", e);
         } finally { isLoadingPlugins = false; }
     }
 
+    // --- UI 顯示判斷 ---
     function getCurrentViewingCharacter() {
         const now = Date.now();
         if (now - lastCharacterCheck < CHARACTER_CACHE_TIME && cachedViewingCharacter !== null) return cachedViewingCharacter;
@@ -771,7 +554,7 @@
             cachedViewingCharacter = character;
             lastCharacterCheck = now;
             return character;
-        } catch (e) { console.error("[PCM] 獲取當前查看角色失敗:", e.message); return Player; }
+        } catch (e) { return Player; }
     }
 
     function isProfilePage() {
@@ -788,7 +571,7 @@
     }
 
     function shouldShowUI() {
-        const isLoginPage = window.location.href.includes('/login') || window.location.href.includes('/Login') || window.location.href.includes('Login.html');
+        const isLoginPage = window.location.href.includes('/login') || window.location.href.includes('Login.html');
         if (isLoginPage) return true;
         if (typeof Player === 'undefined' || !Player.Name) return true;
         if (typeof CurrentScreen !== 'undefined') {
@@ -805,14 +588,7 @@
         return false;
     }
 
-    function isPlayerLoaded() { return typeof Player !== 'undefined'; }
-
-    function loadCustomIcons() {
-        subPlugins.forEach(plugin => {
-            if (pluginSettings[`${plugin.id}_customIcon`]) plugin.customIcon = pluginSettings[`${plugin.id}_customIcon`];
-        });
-    }
-
+    // --- Styles ---
     function injectStyles() {
         if (document.getElementById("bc-plugin-styles")) return;
         const style = document.createElement("style");
@@ -822,13 +598,20 @@
 
         .bc-plugin-container * {
             font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;
+            user-select: none; -webkit-user-select: none;
+        }
+
+        /* 浮動按鈕群組 */
+        .bc-plugin-btn-group {
+            position: fixed; top: 60px; right: 20px;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 8px; z-index: 2147483647;
         }
 
         .bc-plugin-floating-btn {
-            position: fixed; top: 60px; right: 20px; width: 64px; height: 64px;
+            width: 60px; height: 60px;
             background: linear-gradient(135deg, #7F53CD 0%, #A78BFA 50%, #C4B5FD 100%);
-            border: none; border-radius: 50%; cursor: pointer; z-index: 2147483647;
+            border: none; border-radius: 50%; cursor: pointer;
             box-shadow: 0 6px 20px rgba(127, 83, 205, 0.3);
             transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             font-size: 24px; display: flex; align-items: center; justify-content: center;
@@ -839,7 +622,23 @@
             box-shadow: 0 8px 25px rgba(127, 83, 205, 0.4);
             background: linear-gradient(135deg, #6B46B2 0%, #9577E3 50%, #B7A3F5 100%);
         }
-        .bc-plugin-floating-btn img { width: 51px; height: 51px; border-radius: 50%; transform: scaleX(-1); }
+        .bc-plugin-floating-btn img { width: 48px; height: 48px; border-radius: 50%; transform: scaleX(-1); }
+
+        /* 📋 更新日誌按鈕 - 無浮動動畫 */
+        .bc-plugin-changelog-btn {
+            width: 60px; height: 60px;
+            background: rgba(26, 32, 46, 0.9);
+            border: 1px solid rgba(127, 83, 205, 0.4);
+            border-radius: 50%; cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            font-size: 22px; display: flex; align-items: center; justify-content: center;
+        }
+        .bc-plugin-changelog-btn:hover {
+            background: rgba(127, 83, 205, 0.3);
+            border-color: rgba(127, 83, 205, 0.8);
+            transform: scale(1.05);
+        }
 
         @keyframes float {
             0%, 100% { transform: translateY(0px) rotate(0deg); }
@@ -851,7 +650,7 @@
             max-height: calc(100vh - 120px); min-height: 300px;
             background: rgba(26, 32, 46, 0.95); backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px;
-            z-index: 2147483646; overflow: hidden;
+            z-index: 2147483646; overflow: hidden; display: flex; flex-direction: column;
             transform: translateX(420px) scale(0.8); opacity: 0;
             transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
@@ -864,12 +663,17 @@
             padding: 10px; color: white; text-align: center;
             position: relative; overflow: hidden; flex-shrink: 0;
         }
+        /* 修正光線動畫：完整從左穿到右 */
         .bc-plugin-header::before {
-            content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
-            background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
-            animation: slideGlow 2s ease-in-out infinite;
+            content: '';
+            position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.22), transparent);
+            animation: slideGlow 2.2s ease-in-out infinite;
         }
-        @keyframes slideGlow { 0% { transform: translateX(0); } 100% { transform: translateX(200%); } }
+        @keyframes slideGlow {
+            0%   { left: -60%; }
+            100% { left: 115%; }
+        }
 
         .bc-plugin-title { font-size: 16px; font-weight: 600; margin: 0; position: relative; z-index: 1; }
 
@@ -879,16 +683,16 @@
             scrollbar-width: thin; scrollbar-color: rgba(127, 83, 205, 0.8) rgba(255, 255, 255, 0.1);
             -webkit-overflow-scrolling: touch;
         }
-        .bc-plugin-content::-webkit-scrollbar { width: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; }
+        .bc-plugin-content::-webkit-scrollbar { width: 8px; }
         .bc-plugin-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; margin: 4px; }
-        .bc-plugin-content::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #7F53CD, #A78BFA); border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); min-height: 20px; }
+        .bc-plugin-content::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #7F53CD, #A78BFA); border-radius: 4px; min-height: 20px; }
         .bc-plugin-content::-webkit-scrollbar-thumb:hover { background: linear-gradient(135deg, #6B46B2, #9577E3); }
 
         .bc-plugin-footer {
             background: rgba(255, 255, 255, 0.02); padding: 12px 20px; text-align: center;
             color: #a0a9c0; font-size: 11px;
             border-top: 1px solid rgba(255, 255, 255, 0.05);
-            flex-shrink: 0; backdrop-filter: blur(10px);
+            flex-shrink: 0;
         }
         .bc-plugin-footer-link {
             color: #C4B5FD; text-decoration: none; transition: color 0.2s ease; cursor: pointer;
@@ -918,7 +722,6 @@
             background: rgba(255, 255, 255, 0.08); border-color: rgba(127, 83, 205, 0.3);
             transform: translateY(-2px); box-shadow: 0 8px 20px rgba(127, 83, 205, 0.15);
         }
-
         .bc-plugin-item-header { display: flex; align-items: center; position: relative; }
 
         .bc-plugin-info-btn {
@@ -932,26 +735,15 @@
             border-color: transparent transparent rgba(255, 255, 255, 0.08) transparent;
             transition: border-color 0.2s ease;
         }
-        .bc-plugin-item.enabled .bc-plugin-info-btn::before {
-            border-color: transparent transparent rgba(127, 83, 205, 0.4) transparent;
-        }
-        .bc-plugin-item.beta-enabled .bc-plugin-info-btn::before {
-            border-color: transparent transparent rgba(205, 128, 53, 0.4) transparent;
-        }
+        .bc-plugin-item.enabled .bc-plugin-info-btn::before { border-color: transparent transparent rgba(127, 83, 205, 0.4) transparent; }
+        .bc-plugin-item.beta-enabled .bc-plugin-info-btn::before { border-color: transparent transparent rgba(205, 128, 53, 0.4) transparent; }
         .bc-plugin-info-btn::after {
             content: '🔗'; position: absolute; bottom: 3px; right: 3px;
-            font-size: 9px; line-height: 1; opacity: 0.6;
-            transition: opacity 0.2s ease, transform 0.2s ease;
+            font-size: 9px; line-height: 1; opacity: 0.6; transition: opacity 0.2s ease, transform 0.2s ease;
         }
-        .bc-plugin-info-btn:hover::before {
-            border-color: transparent transparent rgba(255, 255, 255, 0.2) transparent;
-        }
-        .bc-plugin-item.enabled .bc-plugin-info-btn:hover::before {
-            border-color: transparent transparent rgba(127, 83, 205, 0.75) transparent;
-        }
-        .bc-plugin-item.beta-enabled .bc-plugin-info-btn:hover::before {
-            border-color: transparent transparent rgba(205, 128, 53, 0.75) transparent;
-        }
+        .bc-plugin-info-btn:hover::before { border-color: transparent transparent rgba(255, 255, 255, 0.2) transparent; }
+        .bc-plugin-item.enabled .bc-plugin-info-btn:hover::before { border-color: transparent transparent rgba(127, 83, 205, 0.75) transparent; }
+        .bc-plugin-item.beta-enabled .bc-plugin-info-btn:hover::before { border-color: transparent transparent rgba(205, 128, 53, 0.75) transparent; }
         .bc-plugin-info-btn:hover::after { opacity: 1; transform: scale(1.15); }
 
         .bc-plugin-icon {
@@ -976,61 +768,96 @@
             transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
-        .bc-plugin-toggle.active::after { left: 26px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .bc-plugin-toggle.active::after { left: 26px; }
 
         .bc-plugin-toggle-tri {
             position: relative; width: 88px; height: 26px;
-            background: rgba(255, 255, 255, 0.12);
-            border-radius: 13px; cursor: pointer;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            outline: none; display: flex; align-items: center;
-            padding: 0; overflow: hidden; flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.12); border-radius: 13px; cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.15); outline: none;
+            display: flex; align-items: center; padding: 0; overflow: hidden; flex-shrink: 0;
             transition: border-color 0.3s ease;
         }
         .bc-plugin-toggle-tri:hover { border-color: rgba(196, 181, 253, 0.4); }
-
         .bc-plugin-toggle-tri-track {
-            position: absolute; top: 2px;
-            width: 28px; height: 22px; border-radius: 11px;
+            position: absolute; top: 2px; width: 28px; height: 22px; border-radius: 11px;
             transition: left 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), background 0.3s ease;
             left: 2px; background: rgba(255,255,255,0.35);
         }
-        .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-track {
-            left: 30px; background: linear-gradient(135deg, #7F53CD, #A78BFA);
-        }
-        .bc-plugin-toggle-tri[data-state="beta"] .bc-plugin-toggle-tri-track {
-            left: 57px; background: linear-gradient(135deg, #CD8035, #FAB87A);
-        }
-
+        .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-track { left: 30px; background: linear-gradient(135deg, #7F53CD, #A78BFA); }
+        .bc-plugin-toggle-tri[data-state="beta"] .bc-plugin-toggle-tri-track { left: 57px; background: linear-gradient(135deg, #CD8035, #FAB87A); }
         .bc-plugin-toggle-tri-labels {
             position: relative; z-index: 1; display: flex;
             width: 100%; justify-content: space-around; align-items: center; height: 100%;
         }
         .bc-plugin-toggle-tri-label {
-            font-size: 9px; font-weight: 600; letter-spacing: 0.02em;
-            color: rgba(255,255,255,0.45); width: 29px; text-align: center;
-            transition: color 0.3s ease;
-            font-family: 'Noto Sans TC', sans-serif;
+            font-size: 9px; font-weight: 600; color: rgba(255,255,255,0.45);
+            width: 29px; text-align: center; transition: color 0.3s ease;
             user-select: none; pointer-events: none;
         }
         .bc-plugin-toggle-tri[data-state="off"]    .bc-plugin-toggle-tri-label:nth-child(1) { color: rgba(255,255,255,0.85); }
         .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-label:nth-child(2) { color: #fff; }
         .bc-plugin-toggle-tri[data-state="beta"]   .bc-plugin-toggle-tri-label:nth-child(3) { color: #fff; }
 
-        .bc-plugin-floating-btn.hidden { opacity: 0; pointer-events: none; transform: translateX(100px) scale(0.8); }
+        /* 載入中提示 */
+        .bc-plugin-loading {
+            text-align: center; padding: 40px 20px; color: #a0a9c0; font-size: 14px;
+        }
+        .bc-plugin-loading::after {
+            content: ''; display: block; width: 32px; height: 32px; margin: 16px auto 0;
+            border: 3px solid rgba(127,83,205,0.3); border-top-color: #A78BFA;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .bc-plugin-btn-group.hidden { opacity: 0; pointer-events: none; }
         .bc-plugin-panel.hidden { opacity: 0; pointer-events: none; transform: translateX(420px) scale(0.8); }
 
+        /* 開關插件提示（panel 底部下方往下展開） */
+        .bc-liko-toggle-notification {
+            position: fixed;
+            box-sizing: border-box;
+            background: linear-gradient(135deg, #7F53CD 0%, #A78BFA 100%);
+            color: white; padding: 12px 16px; border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(127, 83, 205, 0.25);
+            z-index: 2147483645;
+            font-family: 'Noto Sans TC', sans-serif; font-size: 13px;
+            transform: translateY(-6px); opacity: 0;
+            transition: transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.3s ease;
+            pointer-events: none; user-select: none;
+        }
+        .bc-liko-toggle-notification.show { transform: translateY(0); opacity: 1; }
+        .bc-liko-toggle-notification.hide { transform: translateY(-6px); opacity: 0; }
+
+        /* 系統/載入提示（右上角） */
+        .bc-liko-system-notification {
+            position: fixed; top: 20px; right: 20px;
+            background: rgba(26, 32, 46, 0.95);
+            border: 1px solid rgba(127, 83, 205, 0.4);
+            color: white; padding: 14px 18px; border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            z-index: 2147483648;
+            font-family: 'Noto Sans TC', sans-serif; font-size: 13px;
+            max-width: 280px;
+            transform: translateX(320px); opacity: 0;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+            user-select: none;
+        }
+        .bc-liko-system-notification.show { transform: translateX(0); opacity: 1; }
+        .bc-liko-system-notification.hide { transform: translateX(320px); opacity: 0; }
+
         .bc-plugin-floating-btn, .bc-plugin-floating-btn *,
+        .bc-plugin-changelog-btn, .bc-plugin-changelog-btn *,
         .bc-plugin-panel, .bc-plugin-panel * {
             user-select: none !important; -webkit-user-select: none !important;
-            -moz-user-select: none !important; -ms-user-select: none !important;
             -webkit-user-drag: none !important;
         }
 
         @media (max-width: 480px) {
             .bc-plugin-panel { width: calc(100vw - 40px); right: 20px; max-height: calc(100vh - 100px); }
-            .bc-plugin-floating-btn { right: 10px; width: 56px; height: 56px; }
-            .bc-plugin-floating-btn img { width: 44px; height: 44px; }
+            .bc-plugin-btn-group { right: 10px; }
+            .bc-plugin-floating-btn { width: 52px; height: 52px; }
+            .bc-plugin-floating-btn img { width: 42px; height: 42px; }
+            .bc-plugin-changelog-btn { width: 52px; height: 52px; font-size: 18px; }
         }
         @media (max-height: 600px) {
             .bc-plugin-panel { max-height: calc(100vh - 80px); top: 10px; }
@@ -1039,228 +866,302 @@
         document.head.appendChild(style);
     }
 
+    // --- UI 建立 ---
     let currentUIState = null;
+
+    function buildPluginItem(plugin) {
+        const item = document.createElement("div");
+        const isTri = isTriStatePlugin(plugin);
+        const currentState = isTri ? (plugin.state || "off") : null;
+        const isEnabled = isPluginEnabled(plugin);
+        const isBeta = isTri && currentState === "beta";
+
+        item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}`;
+
+        const iconDisplay = plugin.customIcon
+            ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
+            : plugin.icon;
+
+        const infoBtnHtml = plugin.website
+            ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
+            : '';
+
+        const buildTriToggle = (p, state) => {
+            const labels = getTriLabels(p);
+            return `<button class="bc-plugin-toggle-tri" data-plugin-tri="${p.id}" data-state="${state}" aria-label="${getPluginName(p)}">
+                <div class="bc-plugin-toggle-tri-track"></div>
+                <div class="bc-plugin-toggle-tri-labels">
+                    <span class="bc-plugin-toggle-tri-label">${labels[0]}</span>
+                    <span class="bc-plugin-toggle-tri-label">${labels[1]}</span>
+                    <span class="bc-plugin-toggle-tri-label">${labels[2]}</span>
+                </div>
+            </button>`;
+        };
+
+        const toggleHtml = isTri
+            ? buildTriToggle(plugin, currentState)
+            : `<button class="bc-plugin-toggle ${isEnabled ? 'active' : ''}" data-plugin="${plugin.id}" aria-label="${getPluginName(plugin)}"></button>`;
+
+        item.innerHTML = `
+            ${infoBtnHtml}
+            <div class="bc-plugin-item-header">
+                <div class="bc-plugin-icon">${iconDisplay}</div>
+                <div class="bc-plugin-info">
+                    <h4 class="bc-plugin-name">${getPluginName(plugin)}</h4>
+                    <p class="bc-plugin-desc">${getPluginDescription(plugin)}</p>
+                </div>
+                ${toggleHtml}
+            </div>
+        `;
+        return item;
+    }
 
     function createManagerUI() {
         const shouldShow = shouldShowUI();
-        const existingBtn = document.getElementById("bc-plugin-floating-btn");
+        const existingGroup = document.getElementById("bc-plugin-btn-group");
         const existingPanel = document.getElementById("bc-plugin-panel");
 
         if (currentUIState === shouldShow) return;
         currentUIState = shouldShow;
 
         if (!shouldShow) {
-            if (existingBtn) existingBtn.classList.add('hidden');
+            if (existingGroup) existingGroup.classList.add('hidden');
             if (existingPanel) { existingPanel.classList.add('hidden'); existingPanel.classList.remove('show'); }
             return;
         }
-        if (shouldShow && existingBtn && existingPanel) {
-            existingBtn.classList.remove('hidden');
+        if (existingGroup && existingPanel) {
+            existingGroup.classList.remove('hidden');
             existingPanel.classList.remove('hidden');
             return;
         }
-        if (shouldShow && (!existingBtn || !existingPanel)) {
-            if (existingBtn) existingBtn.remove();
-            if (existingPanel) existingPanel.remove();
 
-            injectStyles();
+        // 重建
+        if (existingGroup) existingGroup.remove();
+        if (existingPanel) existingPanel.remove();
+        injectStyles();
 
-            const floatingBtn = document.createElement("button");
-            floatingBtn.id = "bc-plugin-floating-btn";
-            floatingBtn.className = "bc-plugin-floating-btn";
-            floatingBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
-            floatingBtn.title = "插件管理器";
-            document.body.appendChild(floatingBtn);
+        // 按鈕群組
+        const btnGroup = document.createElement("div");
+        btnGroup.id = "bc-plugin-btn-group";
+        btnGroup.className = "bc-plugin-btn-group";
 
-            const panel = document.createElement("div");
-            panel.id = "bc-plugin-panel";
-            panel.className = "bc-plugin-panel";
+        const floatingBtn = document.createElement("button");
+        floatingBtn.className = "bc-plugin-floating-btn";
+        floatingBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
+        floatingBtn.title = "插件管理器";
 
-            const header = document.createElement("div");
-            header.className = "bc-plugin-header";
-            header.innerHTML = `<h3 class="bc-plugin-title">${getMessage('welcomeTitle')}</h3>`;
+        const changelogBtn = document.createElement("button");
+        changelogBtn.className = "bc-plugin-changelog-btn";
+        changelogBtn.innerHTML = "📋";
+        changelogBtn.title = getMessage('changelogTitle');
+        changelogBtn.style.display = "none"; // 預設隱藏
 
-            const content = document.createElement("div");
-            content.className = "bc-plugin-content";
+        btnGroup.appendChild(floatingBtn);
+        btnGroup.appendChild(changelogBtn);
+        document.body.appendChild(btnGroup);
 
-            subPlugins.forEach(plugin => {
-                const item = document.createElement("div");
-                const isTri = isTriStatePlugin(plugin);
-                const currentState = isTri ? (plugin.state || "off") : null;
-                const isEnabled = isPluginEnabled(plugin);
-                const isBeta = isTri && currentState === "beta";
+        // Panel
+        const panel = document.createElement("div");
+        panel.id = "bc-plugin-panel";
+        panel.className = "bc-plugin-panel";
 
-                item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}`;
+        const header = document.createElement("div");
+        header.className = "bc-plugin-header";
+        header.innerHTML = `<h3 class="bc-plugin-title">${getMessage('welcomeTitle')}</h3>`;
 
-                const iconDisplay = plugin.customIcon
-                    ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
-                    : plugin.icon;
+        const content = document.createElement("div");
+        content.className = "bc-plugin-content";
 
-                const infoBtnHtml = plugin.website
-                    ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
-                    : '';
-
-                const buildTriToggle = (p, state) => {
-                    const labels = getTriLabels(p);
-                    return `<button class="bc-plugin-toggle-tri" data-plugin-tri="${p.id}" data-state="${state}" aria-label="${getPluginName(p)} 版本切換">
-                        <div class="bc-plugin-toggle-tri-track"></div>
-                        <div class="bc-plugin-toggle-tri-labels">
-                            <span class="bc-plugin-toggle-tri-label">${labels[0]}</span>
-                            <span class="bc-plugin-toggle-tri-label">${labels[1]}</span>
-                            <span class="bc-plugin-toggle-tri-label">${labels[2]}</span>
-                        </div>
-                    </button>`;
-                };
-
-                const toggleHtml = isTri
-                    ? buildTriToggle(plugin, currentState)
-                    : `<button class="bc-plugin-toggle ${isEnabled ? 'active' : ''}"
-                              data-plugin="${plugin.id}"
-                              aria-label="${getPluginName(plugin)} 啟用開關">
-                       </button>`;
-
-                item.innerHTML = `
-                    ${infoBtnHtml}
-                    <div class="bc-plugin-item-header">
-                        <div class="bc-plugin-icon">${iconDisplay}</div>
-                        <div class="bc-plugin-info">
-                            <h4 class="bc-plugin-name">${getPluginName(plugin)}</h4>
-                            <p class="bc-plugin-desc">${getPluginDescription(plugin)}</p>
-                        </div>
-                        ${toggleHtml}
-                    </div>
-                `;
-                content.appendChild(item);
-            });
-
-            const footer = document.createElement("div");
-            footer.className = "bc-plugin-footer";
-            footer.innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://github.com/awdrrawd/liko-Plugin-Repository/" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${modversion}</a> ❖ by Likolisu`;
-
-            panel.appendChild(header);
-            panel.appendChild(content);
-            panel.appendChild(footer);
-            document.body.appendChild(panel);
-
-            let isOpen = false;
-
-            floatingBtn.addEventListener("click", (e) => {
-                e.preventDefault(); e.stopPropagation();
-                isOpen = !isOpen;
-                panel.classList.toggle("show", isOpen);
-            });
-
-            content.addEventListener("click", (e) => {
-                if (e.target.closest(".bc-plugin-info-btn")) { e.stopPropagation(); return; }
-
-                // 普通二段開關
-                const toggle = e.target.closest(".bc-plugin-toggle");
-                if (toggle) {
-                    const pluginId = toggle.getAttribute("data-plugin");
-                    const plugin = subPlugins.find(p => p.id === pluginId);
-                    if (plugin) {
-                        plugin.enabled = !plugin.enabled;
-                        pluginSettings[pluginId] = plugin.enabled;
-                        saveSettings(pluginSettings);
-                        toggle.classList.toggle("active", plugin.enabled);
-                        toggle.closest(".bc-plugin-item").classList.toggle("enabled", plugin.enabled);
-                        showNotification(
-                            plugin.enabled ? "🐈‍⬛" : "🐾",
-                            `${getPluginName(plugin)} ${plugin.enabled ? getMessage('pluginEnabled') : getMessage('pluginDisabled')}`,
-                            plugin.enabled ? getMessage('willTakeEffect') : getMessage('willNotStart')
-                        );
-                        if (plugin.enabled && !loadedPlugins.has(plugin.id) && isPlayerLoaded()) loadSubPlugin(plugin);
-                    }
-                    return;
-                }
-
-                // 三段開關
-                const triToggle = e.target.closest(".bc-plugin-toggle-tri");
-                if (triToggle) {
-                    const pluginId = triToggle.getAttribute("data-plugin-tri");
-                    const plugin = subPlugins.find(p => p.id === pluginId);
-                    if (plugin && isTriStatePlugin(plugin)) {
-                        const nextState = cycleTriState(plugin.state || "off");
-                        plugin.state = nextState;
-                        pluginSettings[pluginId] = nextState;
-                        saveSettings(pluginSettings);
-
-                        triToggle.setAttribute("data-state", nextState);
-
-                        const item = triToggle.closest(".bc-plugin-item");
-                        item.classList.remove("enabled", "beta-enabled");
-                        if (nextState === "stable") item.classList.add("enabled");
-                        if (nextState === "beta") item.classList.add("beta-enabled");
-
-                        const labels = getTriLabels(plugin);
-                        const notifTitle = nextState === "off"
-                            ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
-                            : `${getPluginName(plugin)} ${labels[nextState === "stable" ? 1 : 2]} ${getMessage('pluginEnabled')}`;
-                        showNotification(
-                            nextState === "off" ? "🐾" : nextState === "stable" ? "🐈‍⬛" : "🧪",
-                            notifTitle,
-                            nextState === "off" ? getMessage('willNotStart') : getMessage('willTakeEffect')
-                        );
-
-                        if (nextState !== "off" && !loadedPlugins.has(plugin.id) && isPlayerLoaded()) {
-                            loadSubPlugin(plugin);
-                        }
-                    }
-                    return;
-                }
-            });
-
-            document.addEventListener("click", (e) => {
-                if (!panel.contains(e.target) && !floatingBtn.contains(e.target) && isOpen) {
-                    isOpen = false;
-                    panel.classList.remove("show");
-                }
-            });
+        if (!pluginsLoaded) {
+            content.innerHTML = `<div class="bc-plugin-loading">${getMessage('loadingPlugins')}</div>`;
+        } else {
+            subPlugins.forEach(plugin => content.appendChild(buildPluginItem(plugin)));
         }
-    }
 
-    function showNotification(icon, title, message) {
-        requestAnimationFrame(() => {
-            const existing = document.querySelector(".bc-liko-notification");
-            if (existing) existing.remove();
-            const notification = document.createElement("div");
-            notification.className = "bc-liko-notification";
-            notification.style.cssText = `
-                position: fixed; top: 100px; right: 20px;
-                background: linear-gradient(135deg, #7F53CD 0%, #A78BFA 100%);
-                color: white; padding: 16px 20px; border-radius: 15px;
-                box-shadow: 0 8px 25px rgba(127, 83, 205, 0.3);
-                z-index: 2147483648;
-                font-family: 'Noto Sans TC', sans-serif; font-size: 14px;
-                max-width: 300px; transform: translateX(350px);
-                transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-                user-select: none;
-            `;
-            notification.innerHTML = `
-                <div style="display: flex; align-items: center; margin-bottom: 4px;">
-                    <span style="font-size: 20px; margin-right: 8px;">${icon}</span>
-                    <strong>${title}</strong>
-                </div>
-                <div style="font-size: 12px; opacity: 0.9;">${message}</div>
-            `;
-            document.body.appendChild(notification);
-            setTimeout(() => { notification.style.transform = "translateX(0)"; }, 100);
-            setTimeout(() => {
-                notification.style.transform = "translateX(350px)";
-                setTimeout(() => notification.remove(), 400);
-            }, 3000);
+        const footer = document.createElement("div");
+        footer.className = "bc-plugin-footer";
+        footer.innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://github.com/awdrrawd/liko-Plugin-Repository/" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${modversion}</a> ❖ by Likolisu`;
+
+        panel.appendChild(header);
+        panel.appendChild(content);
+        panel.appendChild(footer);
+        document.body.appendChild(panel);
+
+        let isOpen = false;
+
+        floatingBtn.addEventListener("click", (e) => {
+            e.preventDefault(); e.stopPropagation();
+            isOpen = !isOpen;
+            panel.classList.toggle("show", isOpen);
+            changelogBtn.style.display = isOpen ? "flex" : "none";
+            // 若 JSON 已載入但 content 還是 loading 狀態，補刷
+            if (isOpen && pluginsLoaded && content.querySelector('.bc-plugin-loading')) {
+                content.innerHTML = '';
+                subPlugins.forEach(plugin => content.appendChild(buildPluginItem(plugin)));
+            }
+        });
+
+        changelogBtn.addEventListener("click", (e) => {
+            e.preventDefault(); e.stopPropagation();
+            showChangelogModal();
+        });
+
+        content.addEventListener("click", (e) => {
+            if (e.target.closest(".bc-plugin-info-btn")) { e.stopPropagation(); return; }
+
+            // 二段開關
+            const toggle = e.target.closest(".bc-plugin-toggle");
+            if (toggle) {
+                const pluginId = toggle.getAttribute("data-plugin");
+                const plugin = subPlugins.find(p => p.id === pluginId);
+                if (plugin) {
+                    plugin.enabled = !plugin.enabled;
+                    pluginSettings[pluginId] = plugin.enabled;
+                    saveSettings(pluginSettings);
+                    toggle.classList.toggle("active", plugin.enabled);
+                    toggle.closest(".bc-plugin-item").classList.toggle("enabled", plugin.enabled);
+                    showToggleNotification(
+                        plugin.enabled ? "🐈‍⬛" : "🐾",
+                        `${getPluginName(plugin)} ${plugin.enabled ? getMessage('pluginEnabled') : getMessage('pluginDisabled')}`,
+                        plugin.enabled ? getMessage('willTakeEffect') : getMessage('willNotStart')
+                    );
+                    if (plugin.enabled && !loadedPlugins.has(plugin.id) && isPlayerLoaded()) loadSubPlugin(plugin);
+                }
+                return;
+            }
+
+            // 三段開關
+            const triToggle = e.target.closest(".bc-plugin-toggle-tri");
+            if (triToggle) {
+                const pluginId = triToggle.getAttribute("data-plugin-tri");
+                const plugin = subPlugins.find(p => p.id === pluginId);
+                if (plugin && isTriStatePlugin(plugin)) {
+                    const nextState = cycleTriState(plugin.state || "off");
+                    plugin.state = nextState;
+                    pluginSettings[pluginId] = nextState;
+                    saveSettings(pluginSettings);
+                    triToggle.setAttribute("data-state", nextState);
+                    const item = triToggle.closest(".bc-plugin-item");
+                    item.classList.remove("enabled", "beta-enabled");
+                    if (nextState === "stable") item.classList.add("enabled");
+                    if (nextState === "beta") item.classList.add("beta-enabled");
+                    const labels = getTriLabels(plugin);
+                    const notifTitle = nextState === "off"
+                        ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
+                        : `${getPluginName(plugin)} ${labels[nextState === "stable" ? 1 : 2]} ${getMessage('pluginEnabled')}`;
+                    showToggleNotification(
+                        nextState === "off" ? "🐾" : nextState === "stable" ? "🐈‍⬛" : "🧪",
+                        notifTitle,
+                        nextState === "off" ? getMessage('willNotStart') : getMessage('willTakeEffect')
+                    );
+                    if (nextState !== "off" && !loadedPlugins.has(plugin.id) && isPlayerLoaded()) loadSubPlugin(plugin);
+                }
+                return;
+            }
+        });
+
+        document.addEventListener("click", (e) => {
+            if (!panel.contains(e.target) && !btnGroup.contains(e.target) && isOpen) {
+                isOpen = false;
+                panel.classList.remove("show");
+                changelogBtn.style.display = "none";
+            }
         });
     }
 
+    // --- 開關插件提示（panel 底部往下展開） ---
+    let toggleNotifTimer = null;
+    function showToggleNotification(icon, title, message) {
+        let notif = document.getElementById("pcm-toggle-notif");
+        if (notif) {
+            notif.classList.remove('show');
+            clearTimeout(toggleNotifTimer);
+        } else {
+            notif = document.createElement("div");
+            notif.id = "pcm-toggle-notif";
+            notif.className = "bc-liko-toggle-notification";
+            document.body.appendChild(notif);
+        }
+
+        // 定位在 panel 底部，3px 間隙，完全對齊 panel 左右
+        const panel = document.getElementById("bc-plugin-panel");
+        if (panel) {
+            const rect = panel.getBoundingClientRect();
+            notif.style.top = (rect.bottom + 3) + "px";
+            notif.style.width = panel.clientWidth + "px";
+            notif.style.left = rect.left + "px";
+            notif.style.right = "auto";
+        }
+
+        notif.innerHTML = `
+            <div style="display:flex; align-items:center; margin-bottom:3px;">
+                <span style="font-size:18px; margin-right:8px;">${icon}</span>
+                <strong style="font-size:13px;">${title}</strong>
+            </div>
+            <div style="font-size:11px; opacity:0.88;">${message}</div>
+        `;
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => { notif.classList.add('show'); });
+        });
+
+        toggleNotifTimer = setTimeout(() => {
+            notif.classList.remove('show');
+            notif.classList.add('hide');
+            setTimeout(() => { if (notif.parentNode) notif.remove(); }, 350);
+        }, 2500);
+    }
+
+    // --- 系統/載入提示（右上角） ---
+    let systemNotifTimer = null;
+    function showNotification(icon, title, message) {
+        let notif = document.getElementById("pcm-system-notif");
+        if (notif) {
+            notif.classList.remove('show');
+            notif.classList.add('hide');
+            clearTimeout(systemNotifTimer);
+            setTimeout(() => createSystemNotif(icon, title, message), 300);
+            return;
+        }
+        createSystemNotif(icon, title, message);
+    }
+
+    function createSystemNotif(icon, title, message) {
+        let notif = document.getElementById("pcm-system-notif");
+        if (notif) notif.remove();
+
+        notif = document.createElement("div");
+        notif.id = "pcm-system-notif";
+        notif.className = "bc-liko-system-notification";
+        notif.innerHTML = `
+            <div style="display:flex; align-items:center; margin-bottom:3px;">
+                <span style="font-size:18px; margin-right:8px;">${icon}</span>
+                <strong style="font-size:13px;">${title}</strong>
+            </div>
+            <div style="font-size:11px; opacity:0.85;">${message}</div>
+        `;
+        document.body.appendChild(notif);
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => { notif.classList.add('show'); });
+        });
+
+        systemNotifTimer = setTimeout(() => {
+            notif.classList.remove('show');
+            notif.classList.add('hide');
+            setTimeout(() => { if (notif.parentNode) notif.remove(); }, 400);
+        }, 3000);
+    }
+
+    // --- 語言變化偵測 ---
     let lastDetectedLanguage = null;
 
     function checkLanguageChange() {
         const currentLang = detectLanguage();
         if (lastDetectedLanguage !== null && lastDetectedLanguage !== currentLang) {
-            console.log("[PCM] 檢測到語言變化，重新創建UI");
-            const existingBtn = document.getElementById("bc-plugin-floating-btn");
+            const existingGroup = document.getElementById("bc-plugin-btn-group");
             const existingPanel = document.getElementById("bc-plugin-panel");
-            if (existingBtn) existingBtn.remove();
+            if (existingGroup) existingGroup.remove();
             if (existingPanel) existingPanel.remove();
             currentUIState = null;
             createManagerUI();
@@ -1268,31 +1169,31 @@
         lastDetectedLanguage = currentLang;
     }
 
+    // --- MutationObserver（優化版） ---
     function monitorPageChanges() {
         let debounceTimer;
-        _lifecycle.observer = new MutationObserver(() => {
+
+        const handleChange = () => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 checkLanguageChange();
                 createManagerUI();
                 if (isPlayerLoaded() && !hasStartedPluginLoading) {
-                    console.log("🎯 [PCM] Player已載入，觸發插件載入");
                     waitForPlayerAndLoadPlugins();
                 }
             }, 300);
-        });
-        _lifecycle.observer.observe(document.body, { childList: true, subtree: true });
+        };
 
+        // 只監聽 childList，不監聽 attributes / characterData，減少觸發量
+        _lifecycle.observer = new MutationObserver(handleChange);
+        _lifecycle.observer.observe(document.body, { childList: true, subtree: false });
+
+        // URL 變化偵測
         let lastUrl = window.location.href;
         const urlCheckId = setInterval(() => {
             if (window.location.href !== lastUrl) {
                 lastUrl = window.location.href;
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(() => {
-                    checkLanguageChange();
-                    createManagerUI();
-                    if (isPlayerLoaded() && !hasStartedPluginLoading) waitForPlayerAndLoadPlugins();
-                }, 1000);
+                handleChange();
             }
         }, 1000);
         _lifecycle.intervals.push(urlCheckId);
@@ -1303,39 +1204,36 @@
         createManagerUI();
     }
 
+    // --- /pcm 指令 ---
     function handle_PCM_Command(text) {
         if (typeof text !== "string") text = String(text || "");
         const args = text.trim().split(/\s+/).filter(x => x !== "");
         const sub = (args[0] || "").toLowerCase();
         const isZh = detectLanguage();
         if (!sub || sub === "help") {
-            if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal(isZh ? generateChineseHelp() : generateEnglishHelp(), 60000);
+            try { ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${isZh ? generateChineseHelp() : generateEnglishHelp()}</font>`, Timeout: 60000 }); } catch(e) {}
         } else if (sub === "list") {
-            if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal(isZh ? generateChinesePluginList() : generateEnglishPluginList(), 60000);
+            try { ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${isZh ? generateChinesePluginList() : generateEnglishPluginList()}</font>`, Timeout: 60000 }); } catch(e) {}
         } else {
             const errorText = isZh ? "請輸入 /pcm help 查看說明或 /pcm list 查看插件列表" : "Please enter /pcm help for instructions or /pcm list to see plugin list";
-            if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal(errorText);
+            try { ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${errorText}</font>` }); } catch(e) {}
         }
     }
 
     function generateChineseHelp() {
-        return `📋 Liko 插件管理器 說明書\n\n🎮 使用方法：\n• 點擊右上角的浮動按鈕開啟管理面板\n• 切換開關來啟用/停用插件\n• 三段開關：OFF → 第一選項 → 第二選項\n\n📝 可用指令：\n/pcm help - 顯示此說明書\n/pcm list - 查看所有可用插件列表\n\n💡 小提示：\n插件啟用後會自動載入，或在下次刷新頁面時生效。\n建議根據需要選擇性啟用插件以獲得最佳體驗。\n\n❤️ 感謝使用 Liko 插件管理器！`;
+        return `📋 Liko 插件管理器 說明書\n\n🎮 使用方法：\n• 點擊右上角的浮動按鈕開啟管理面板\n• 切換開關來啟用/停用插件\n• 三段開關：OFF → 第一選項 → 第二選項\n\n📝 可用指令：\n/pcm help - 顯示此說明書\n/pcm list - 查看所有可用插件列表\n\n💡 小提示：\n插件啟用後會自動載入，或在下次刷新頁面時生效。\n❤️ 感謝使用 Liko 插件管理器！`;
     }
     function generateEnglishHelp() {
-        return `📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button in the top right to open management panel\n• Toggle switches to enable/disable plugins\n• Three-state toggle: OFF → First option → Second option\n\n📝 Available Commands:\n/pcm help - Show this manual\n/pcm list - View all available plugin list\n\n💡 Tips:\nPlugins will auto-load after enabling, or take effect on next page refresh.\nRecommend selectively enabling plugins for the best experience.\n\n❤️ Thank you for using Liko Plugin Collection Manager!`;
+        return `📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button in the top right to open management panel\n• Toggle switches to enable/disable plugins\n• Three-state toggle: OFF → First option → Second option\n\n📝 Available Commands:\n/pcm help - Show this manual\n/pcm list - View all available plugin list\n\n💡 Tips:\nPlugins will auto-load after enabling, or take effect on next page refresh.\n❤️ Thank you for using Liko Plugin Collection Manager!`;
     }
-
     function generateChinesePluginList() {
         let listText = "🔌 可用插件列表：\n\n";
         subPlugins.forEach((plugin) => {
             const isTri = isTriStatePlugin(plugin);
-            const status = isTri
-                ? (plugin.state === "stable" ? "✅" : plugin.state === "beta" ? "🧪" : "⭕")
-                : (plugin.enabled ? "✅" : "⭕");
-            listText += `${status}${plugin.icon} ${getPluginName(plugin)}\n`;
-            listText += `📄 ${getPluginDescription(plugin)}\n`;
-            const additionalInfo = getPluginAdditionalInfo(plugin);
-            if (additionalInfo && additionalInfo.trim() !== "") listText += ` ✦ ${additionalInfo}\n`;
+            const status = isTri ? (plugin.state === "stable" ? "✅" : plugin.state === "beta" ? "🧪" : "⭕") : (plugin.enabled ? "✅" : "⭕");
+            listText += `${status}${plugin.icon} ${getPluginName(plugin)}\n📄 ${getPluginDescription(plugin)}\n`;
+            const ai = getPluginAdditionalInfo(plugin);
+            if (ai?.trim()) listText += ` ✦ ${ai}\n`;
             listText += "\n";
         });
         listText += "💡 在管理面板中切換開關來啟用/停用插件";
@@ -1345,13 +1243,10 @@
         let listText = "🔌 Available Plugin List:\n\n";
         subPlugins.forEach((plugin) => {
             const isTri = isTriStatePlugin(plugin);
-            const status = isTri
-                ? (plugin.state === "stable" ? "✅" : plugin.state === "beta" ? "🧪" : "⭕")
-                : (plugin.enabled ? "✅" : "⭕");
-            listText += `${status}${plugin.icon} ${getPluginName(plugin)}\n`;
-            listText += `📄 ${getPluginDescription(plugin)}\n`;
-            const additionalInfo = getPluginAdditionalInfo(plugin);
-            if (additionalInfo && additionalInfo.trim() !== "") listText += ` ✦ ${additionalInfo}\n`;
+            const status = isTri ? (plugin.state === "stable" ? "✅" : plugin.state === "beta" ? "🧪" : "⭕") : (plugin.enabled ? "✅" : "⭕");
+            listText += `${status}${plugin.icon} ${getPluginName(plugin)}\n📄 ${getPluginDescription(plugin)}\n`;
+            const ai = getPluginAdditionalInfo(plugin);
+            if (ai?.trim()) listText += ` ✦ ${ai}\n`;
             listText += "\n";
         });
         listText += "💡 Toggle switches in the management panel to enable/disable plugins";
@@ -1361,49 +1256,93 @@
     function tryRegisterCommand() {
         try {
             if (typeof CommandCombine === "function") {
-                CommandCombine([{ Tag: "pcm", Description: "Liko's Plugin Collection Manager Illustrate", Action: function(text) { handle_PCM_Command(text); } }]);
+                CommandCombine([{ Tag: "pcm", Description: "Liko's Plugin Collection Manager", Action: (text) => handle_PCM_Command(text) }]);
                 return true;
             }
-        } catch (e) { console.warn("CommandCombine 註冊 /pcm 失敗：", e.message); }
+        } catch (e) {}
         return false;
-    }
-
-    function ChatRoomSendLocal(msg, sec = 0) {
-        try {
-            if (CurrentScreen !== "ChatRoom") return;
-            ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${msg}</font>`, Timeout: sec });
-        } catch (e) {
-            try { ServerSend("ChatRoomChat", { Content: `[PCM] ${msg}`, Type: "LocalMessage", Time: sec }); }
-            catch (e2) { console.error("無法發送本地訊息:", e2); }
-        }
     }
 
     function ensurePCMBadgeExists() {
         try {
-            if (typeof Player !== 'undefined' && Player && Player.OnlineSharedSettings) {
-                if (!Player.OnlineSharedSettings.PCM) {
-                    Player.OnlineSharedSettings.PCM = { name: "Liko's PCM", version: modversion, badge: true, timestamp: Date.now() };
-                }
+            if (typeof Player !== 'undefined' && Player?.OnlineSharedSettings && !Player.OnlineSharedSettings.PCM) {
+                Player.OnlineSharedSettings.PCM = { name: "Liko's PCM", version: modversion, badge: true, timestamp: Date.now() };
             }
-        } catch (e) { console.error("[PCM] ❌ 檢查PCM標識時出錯:", e.message); }
+        } catch (e) {}
     }
 
+    function sendLoadedMessage() {
+        const waitForChatRoom = () => new Promise((resolve) => {
+            const check = () => {
+                if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") resolve(true);
+                else setTimeout(check, 1000);
+            };
+            check();
+            setTimeout(() => resolve(false), 60000);
+        });
+        waitForChatRoom().then((success) => {
+            if (success) {
+                try {
+                    ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${getMessage('shortLoaded')}</font>`, Timeout: 60000 });
+                    showNotification("🐈‍⬛", "PCM", getMessage('loaded'));
+                } catch (e) {}
+            }
+        });
+    }
+
+    // --- 初始化 ---
+    try {
+        if (bcModSdk?.registerMod) {
+            modApi = bcModSdk.registerMod({
+                name: "Liko's PCM",
+                fullName: 'Liko - Plugin Collection Manager',
+                version: modversion,
+                repository: 'Liko的插件管理器 | Plugin collection manager',
+            });
+            registerPCMBadge();
+        } else {
+            console.error("[PCM] ❌ bcModSdk 不可用");
+            return;
+        }
+    } catch (e) { console.error("[PCM] ❌ 初始化失敗:", e.message); return; }
+
     async function initialize() {
-        if (isInitialized) { console.warn("[PCM] ⚠️ 已初始化，跳過重複執行"); return; }
+        if (isInitialized) return;
         isInitialized = true;
-        console.log("[PCM] 開始初始化...");
         lastDetectedLanguage = detectLanguage();
-        loadCustomIcons();
+
+        // 先建立 UI（顯示 loading 狀態）
+        injectStyles();
         monitorPageChanges();
         tryRegisterCommand();
 
-        const originalChatRoomJoin = setInterval(() => {
+        // 載入 JSON
+        await loadPluginsJSON();
+
+        // JSON 載入完成後刷新 content（如果 panel 已存在）
+        const content = document.querySelector(".bc-plugin-content");
+        if (content && pluginsLoaded) {
+            content.innerHTML = '';
+            subPlugins.forEach(plugin => content.appendChild(buildPluginItem(plugin)));
+        }
+
+        // 版本更新彈窗
+        const isNewVersion = checkVersionUpdate();
+        if (isNewVersion) {
+            setTimeout(() => {
+                showChangelogModal();
+                showNotification("✨", getMessage('newVersionTitle'), `v${remoteVersion} — ${getMessage('newVersionHint')}`);
+            }, 2000);
+        }
+
+        // 背景 badge 定期確認
+        const badgeCheckId = setInterval(() => {
             if (typeof Player !== 'undefined' && Player && CurrentScreen === 'ChatRoom') {
                 ensurePCMBadgeExists();
-                clearInterval(originalChatRoomJoin);
+                clearInterval(badgeCheckId);
             }
         }, 1000);
-        _lifecycle.intervals.push(originalChatRoomJoin);
+        _lifecycle.intervals.push(badgeCheckId);
 
         setTimeout(() => { waitForPlayerAndLoadPlugins(); }, 5000);
         setTimeout(() => { checkLanguageChange(); }, 10000);
@@ -1417,7 +1356,6 @@
                     document.removeEventListener("mousemove", _lifecycle.mousemoveHandler);
                     _lifecycle.mousemoveHandler = null;
                 }
-                console.log("[PCM] 🧹 所有生命週期資源已清理");
                 isInitialized = false;
             });
         }
@@ -1425,10 +1363,11 @@
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            initialize().then(() => sendLoadedMessage()).catch(e => { console.error("[PCM] 初始化過程中發生錯誤:", e); });
+            initialize().then(() => sendLoadedMessage()).catch(e => console.error("[PCM] 初始化錯誤:", e));
         }, { once: true });
     } else {
-        initialize().then(() => sendLoadedMessage()).catch(e => { console.error("[PCM] 初始化過程中發生錯誤:", e); });
+        initialize().then(() => sendLoadedMessage()).catch(e => console.error("[PCM] 初始化錯誤:", e));
     }
+
     console.log("[PCM] 腳本載入完成");
 })();
