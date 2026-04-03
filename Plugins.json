@@ -1,18 +1,20 @@
 {
   "updateId": "260403",
   "changelog": [
-    "v1.5.0 更新，之後有更新都會提示",
+    "v1.5.1 更新，之後有更新都會提示",
     "插件清單改為 JSON 外聯，支援 RAW + CDN 備援",
     "通知改為底部插入，不再遮擋操作按鈕",
-    "新增更新日誌懸浮按鈕（📋）",
+    "新增更新日誌懸浮功能（📋）",
+    "新增插件版本檢查功能（↻）",
     "浮動按鈕縮小",
     "優化效能"
   ],
   "en_changelog": [
-    "v1.5.0 Update, you will be notified of any future updates.",
+    "v1.5.1 Update, you will be notified of any future updates.",
     "Plugin list now loaded from external JSON with RAW + CDN fallback",
     "Notifications now slide in from bottom, no longer blocking buttons",
-    "Added changelog floating button (📋)",
+    "Added changelog floating Function (📋)",
+    "Added plugin version check Function (↻)",
     "Smaller floating button",
     "Performance improvements"
   ],
