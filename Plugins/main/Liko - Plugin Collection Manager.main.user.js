@@ -372,6 +372,7 @@
         }
         return null;
     }
+    const _pluginsJSONPromise = fetchPluginsJSON();
 
     function applyPluginSettings(plugins) {
         return plugins.map(plugin => {
@@ -389,7 +390,7 @@
     }
 
     async function loadPluginsJSON() {
-        const data = await fetchPluginsJSON();
+        const data = await _pluginsJSONPromise;
         if (!data || !Array.isArray(data.plugins)) {
             console.error("[PCM] ❌ plugins.json 格式錯誤或無法取得");
             showNotification("❌", "PCM", getMessage('loadPluginsFailed'));
