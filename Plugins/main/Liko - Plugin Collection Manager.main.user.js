@@ -672,12 +672,12 @@
         } finally { isLoadingPlugins = false; }
     }
 
-    // --- ⟳ 強制更新快取 ---
+    // --- ↻ 強制更新快取 ---
     let isRefreshing = false;
     async function forceRefreshCache() {
         if (isRefreshing) return;
         isRefreshing = true;
-        showNotification("⟳", getMessage('refreshTitle'), getMessage('refreshing'));
+        showNotification("↻", getMessage('refreshTitle'), getMessage('refreshing'));
 
         // 清除所有快取
         clearAllPluginCache();
@@ -798,7 +798,7 @@
         }
         .bc-plugin-floating-btn img { width: 48px; height: 48px; border-radius: 50%; transform: scaleX(-1); }
 
-        /* 📋 更新日誌 & ⟳ 強制更新 按鈕 */
+        /* 📋 更新日誌 & ↻ 插件更新 按鈕 */
         .bc-plugin-changelog-btn, .bc-plugin-refresh-btn {
             width: 60px; height: 60px;
             background: rgba(26, 32, 46, 0.9);
@@ -1113,7 +1113,7 @@
         if (existingPanel) existingPanel.remove();
         injectStyles();
 
-        // 按鈕群組（cat → ⟳ → 📋）
+        // 按鈕群組（cat → ↻ → 📋）
         const btnGroup = document.createElement("div");
         btnGroup.id = "bc-plugin-btn-group";
         btnGroup.className = "bc-plugin-btn-group";
@@ -1125,7 +1125,7 @@
 
         const refreshBtn = document.createElement("button");
         refreshBtn.className = "bc-plugin-refresh-btn";
-        refreshBtn.innerHTML = "⟳";
+        refreshBtn.innerHTML = "↻";
         refreshBtn.title = getMessage('refreshTitle');
         refreshBtn.style.display = "none";
 
