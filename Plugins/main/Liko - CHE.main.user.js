@@ -883,7 +883,7 @@
                 } else {
                     const clone = msg.cloneNode(true);
                     clone.querySelectorAll(
-                        '.chat-room-message-popup, .chat-room-metadata, .ChatMessageName, .chat-room-message-original'
+                        '.chat-room-message-popup, .chat-room-metadata, .ChatMessageName'
                     ).forEach(el => el.remove());
                     // FIX IMG: 備援路徑同樣處理圖片
                     clone.querySelectorAll('img[src]').forEach(img => {
@@ -1107,7 +1107,7 @@
                 } else {
                     const clonedMsg = msg.cloneNode(true);
                     clonedMsg.querySelectorAll(
-                        '.chat-room-metadata, .chat-room-message-popup, .ChatMessageName, .chat-room-message-original'
+                        '.chat-room-metadata, .chat-room-message-popup, .ChatMessageName'
                     ).forEach(meta => meta.remove());
                     // FIX IMG: 備援路徑同樣處理圖片
                     clonedMsg.querySelectorAll('img[src]').forEach(img => {
@@ -1115,6 +1115,7 @@
                     });
                     rawText = extractFullTextContent(clonedMsg).trim();
                 }
+
                 // FIX 4: 保留 [🌐] 翻譯原文
                 if (rawText === '[🌐]' || rawText.startsWith('[🌐] ')) {
                     const originalText = msg.getAttribute('bce-original-text');
