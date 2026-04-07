@@ -229,12 +229,15 @@
             showRemoteBackground: showRemoteBackground !== false
         };
 
-        if (typeof ServerAccountUpdate?.QueueData === 'function') {
-            ServerAccountUpdate.QueueData({
-                OnlineSharedSettings: Player.OnlineSharedSettings,
-                ExtensionSettings: Player.ExtensionSettings
-            });
-        }
+       if (typeof ServerAccountUpdate?.QueueData === 'function') {
+    ServerAccountUpdate.QueueData({
+        OnlineSharedSettings: Player.OnlineSharedSettings
+        // ← ExtensionSettings 不再一起送
+    });
+}
+if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+    ServerPlayerExtensionSettingsSync("CustomProfileBG");  // ← 改用這個單獨同步
+}
 
         if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             try {
