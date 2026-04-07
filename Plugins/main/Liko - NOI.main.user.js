@@ -2,7 +2,7 @@
 // @name         Liko - NOI
 // @name:zh      Liko的邀請通知器
 // @namespace    https://likulisu.dev/
-// @version      1.1
+// @version      1.2
 // @description  Notify on Invite - Optimized with hooks
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -54,7 +54,7 @@
 
     // ------------ mod 註冊 ------------
     let modApi = null;
-    const modversion = "1.1";
+    const modversion = "1.2";
 
     // ------------ 狀態管理 ------------
     let isInitialized = false;
@@ -66,40 +66,36 @@
 
     // ------------ 設定 / 儲存 ------------
     function ensureStorage() {
-        if (!Player || !Player.OnlineSettings) return;
-        if (!Player.OnlineSettings.NotifyOnInvite) {
-            Player.OnlineSettings.NotifyOnInvite = {
-                whiteMsg: "",
-                blackMsg: "",
-                friendMsg: ""
-            };
+        if (!Player || !Player.ExtensionSettings) return;
+        if (!Player.ExtensionSettings.NotifyOnInvite) {
+            Player.ExtensionSettings.NotifyOnInvite = { whiteMsg: "", blackMsg: "", friendMsg: "" };
             try {
-                ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
-                log("初始化 Player.OnlineSettings.NotifyOnInvite 並同步至伺服器");
+                ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
+                log("初始化 Player.ExtensionSettings.NotifyOnInvite 並同步至伺服器");
             } catch (e) {
-                error("無法同步 OnlineSettings:", e.message);
+                error("無法同步 ExtensionSettings:", e.message);
             }
         }
     }
 
     function getWhiteMsg() {
         ensureStorage();
-        return (Player.OnlineSettings?.NotifyOnInvite?.whiteMsg) || "";
+        return (Player.ExtensionSettings?.NotifyOnInvite?.whiteMsg) || "";
     }
     function getBlackMsg() {
         ensureStorage();
-        return (Player.OnlineSettings?.NotifyOnInvite?.blackMsg) || "";
+        return (Player.ExtensionSettings?.NotifyOnInvite?.blackMsg) || "";
     }
     function getFriendMsg() {
         ensureStorage();
-        return (Player.OnlineSettings?.NotifyOnInvite?.friendMsg) || "";
+        return (Player.ExtensionSettings?.NotifyOnInvite?.friendMsg) || "";
     }
     function setWhiteMsg(s) {
         ensureStorage();
-        if (Player.OnlineSettings?.NotifyOnInvite) {
-            Player.OnlineSettings.NotifyOnInvite.whiteMsg = s;
+        if (Player.ExtensionSettings?.NotifyOnInvite) {
+            Player.ExtensionSettings.NotifyOnInvite.whiteMsg = s;
             try {
-                ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
+                ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
             } catch (e) {
                 error("無法同步白名單訊息:", e.message);
             }
@@ -107,10 +103,10 @@
     }
     function setBlackMsg(s) {
         ensureStorage();
-        if (Player.OnlineSettings?.NotifyOnInvite) {
-            Player.OnlineSettings.NotifyOnInvite.blackMsg = s;
+        if (Player.ExtensionSettings?.NotifyOnInvite) {
+            Player.ExtensionSettings.NotifyOnInvite.blackMsg = s;
             try {
-                ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
+                ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
             } catch (e) {
                 error("無法同步黑名單訊息:", e.message);
             }
@@ -118,10 +114,10 @@
     }
     function setFriendMsg(s) {
         ensureStorage();
-        if (Player.OnlineSettings?.NotifyOnInvite) {
-            Player.OnlineSettings.NotifyOnInvite.friendMsg = s;
+        if (Player.ExtensionSettings?.NotifyOnInvite) {
+            Player.ExtensionSettings.NotifyOnInvite.friendMsg = s;
             try {
-                ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
+                ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
             } catch (e) {
                 error("無法同步好友訊息:", e.message);
             }
@@ -133,9 +129,7 @@
         if (!ChatRoomCharacter || !Array.isArray(ChatRoomCharacter)) {
             return false;
         }
-
-        const found = ChatRoomCharacter.some(c => c.MemberNumber === memberNumber);
-        return found;
+        return ChatRoomCharacter.some(c => c.MemberNumber === memberNumber);
     }
 
     // ------------ 通知邏輯 ------------
@@ -161,10 +155,6 @@
                 Type: "Emote",
                 Content: `*${finalMsg}`
             });
-
-            // 本地提示
-            const listNames = { white: "白名单", black: "黑名单", friend: "好友" };
-            //ChatRoomSendLocal(`${listNames[listType]}通知设置：${msg}`, 5000);
         } catch (e) {
             error("發送名單訊息失敗:", e.message);
         }
@@ -194,9 +184,7 @@
             if (added.length > 0) {
                 const m = getWhiteMsg();
                 if (m && m.trim() !== "") {
-                    added.forEach(id => {
-                        sendListMessage(m, id, "white");
-                    });
+                    added.forEach(id => sendListMessage(m, id, "white"));
                 }
             }
             lastWhiteList = [...curWhite];
@@ -208,9 +196,7 @@
             if (added.length > 0) {
                 const m = getBlackMsg();
                 if (m && m.trim() !== "") {
-                    added.forEach(id => {
-                        sendListMessage(m, id, "black");
-                    });
+                    added.forEach(id => sendListMessage(m, id, "black"));
                 }
             }
             lastBlackList = [...curBlack];
@@ -222,9 +208,7 @@
             if (added.length > 0) {
                 const m = getFriendMsg();
                 if (m && m.trim() !== "") {
-                    added.forEach(id => {
-                        sendListMessage(m, id, "friend");
-                    });
+                    added.forEach(id => sendListMessage(m, id, "friend"));
                 }
             }
             lastFriendList = [...curFriends];
@@ -379,20 +363,27 @@
     }
 
     // ------------ Hook ChatRoomLoad ------------
+    // 修正：ChatRoomLoad 不一定是 async，用相容寫法避免 .then() 報錯
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
             modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                return next(args).then(() => {
-                    setTimeout(() => {
-                        if (!window.LikoNOIWelcomed) {
-                            window.ChatRoomSendLocalStyled(" 📧 Liko的邀请通知器 v"+modversion+" 已載入！使用 /noi help 查看说明",
-                                5000,
-                                "#885CB0"
-                            );
-                            window.LikoNOIWelcomed = true;
-                        }
-                    }, 1000);
-                })
+                const result = next(args);
+                const show = () => {
+                    if (!window.LikoNOIWelcomed) {
+                        window.ChatRoomSendLocalStyled(
+                            " 📧 Liko的邀请通知器 v" + modversion + " 已載入！使用 /noi help 查看说明",
+                            5000,
+                            "#885CB0"
+                        );
+                        window.LikoNOIWelcomed = true;
+                    }
+                };
+                if (result && typeof result.then === 'function') {
+                    result.then(() => setTimeout(show, 1000));
+                } else {
+                    setTimeout(show, 1000);
+                }
+                return result;
             });
         }
     }
@@ -409,9 +400,7 @@
                         if (added.length > 0) {
                             const m = getWhiteMsg();
                             if (m && m.trim() !== "") {
-                                added.forEach(id => {
-                                    sendListMessage(m, id, "white");
-                                });
+                                added.forEach(id => sendListMessage(m, id, "white"));
                             }
                         }
                         lastWhiteList = [...data.WhiteList];
@@ -423,9 +412,7 @@
                         if (added.length > 0) {
                             const m = getBlackMsg();
                             if (m && m.trim() !== "") {
-                                added.forEach(id => {
-                                    sendListMessage(m, id, "black");
-                                });
+                                added.forEach(id => sendListMessage(m, id, "black"));
                             }
                         }
                         lastBlackList = [...data.BlackList];
@@ -437,9 +424,7 @@
                         if (added.length > 0) {
                             const m = getFriendMsg();
                             if (m && m.trim() !== "") {
-                                added.forEach(id => {
-                                    sendListMessage(m, id, "friend");
-                                });
+                                added.forEach(id => sendListMessage(m, id, "friend"));
                             }
                         }
                         lastFriendList = [...data.FriendList];
@@ -454,7 +439,7 @@
     async function initialize() {
         const ready = await waitFor(() =>
             typeof Player?.MemberNumber === "number" &&
-            typeof Player?.OnlineSettings !== "undefined"
+            typeof Player?.ExtensionSettings !== "undefined"
         , 30000);
 
         if (!ready) {
@@ -548,5 +533,17 @@
     })();
 
     // export for debug
-    window.NotifyOnInvite = {getWhiteMsg,getBlackMsg,getFriendMsg,setWhiteMsg,setBlackMsg,setFriendMsg,showCurrentSettings,isInitialized,isPlayerInChatRoom,checkListChangeAndNotify};
+    // 修正：isInitialized 用 getter，確保每次讀取都是最新值
+    window.NotifyOnInvite = {
+        getWhiteMsg,
+        getBlackMsg,
+        getFriendMsg,
+        setWhiteMsg,
+        setBlackMsg,
+        setFriendMsg,
+        showCurrentSettings,
+        get isInitialized() { return isInitialized; },
+        isPlayerInChatRoom,
+        checkListChangeAndNotify
+    };
 })();
