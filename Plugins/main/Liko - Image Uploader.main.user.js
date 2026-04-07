@@ -116,13 +116,13 @@
             ChatRoomSendLocalStyled("⚠️ 無法保存設定，請確保已登錄", 4000, "#FFA500");
             return;
         }
-        Player.ExtensionSettings.LikoImageUploader = { imageHost };
-        if (typeof ServerAccountUpdate?.QueueData === 'function') {
-            ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
-        } else {
-            console.warn("[IMG] ServerAccountUpdate.QueueData 不可用");
-            ChatRoomSendLocalStyled("⚠️ 無法同步設定，模組可能干擾", 4000, "#FFA500");
-        }
+        Player.ExtensionSettings.LikoImageUploader = JSON.stringify({ imageHost });
+if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+    ServerPlayerExtensionSettingsSync("LikoImageUploader");
+} else {
+    console.warn("[IMG] ServerPlayerExtensionSettingsSync 不可用");
+    ChatRoomSendLocalStyled("⚠️ 無法同步設定，模組可能干擾", 4000, "#FFA500");
+}
     }
 
     // ──────────────────────────────────────────
