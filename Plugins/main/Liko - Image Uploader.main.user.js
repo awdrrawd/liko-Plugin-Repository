@@ -104,9 +104,12 @@
     // ──────────────────────────────────────────
     function loadSettings() {
         if (Player?.ExtensionSettings?.LikoImageUploader) {
-            imageHost = Player.ExtensionSettings.LikoImageUploader.imageHost || "litterbox";
-        } else {
-            console.warn("[IMG] ExtensionSettings 不可用，使用預設設定");
+            try {
+                const saved = JSON.parse(Player.ExtensionSettings.LikoImageUploader);
+                imageHost = saved.imageHost || "litterbox";
+            } catch {
+                console.warn("[IMG] ExtensionSettings 解析失敗，使用預設設定");
+            }
         }
     }
 
@@ -117,12 +120,12 @@
             return;
         }
         Player.ExtensionSettings.LikoImageUploader = JSON.stringify({ imageHost });
-if (typeof ServerPlayerExtensionSettingsSync === 'function') {
-    ServerPlayerExtensionSettingsSync("LikoImageUploader");
-} else {
-    console.warn("[IMG] ServerPlayerExtensionSettingsSync 不可用");
-    ChatRoomSendLocalStyled("⚠️ 無法同步設定，模組可能干擾", 4000, "#FFA500");
-}
+        if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+            ServerPlayerExtensionSettingsSync("LikoImageUploader");
+        } else {
+            console.warn("[IMG] ServerPlayerExtensionSettingsSync 不可用");
+            ChatRoomSendLocalStyled("⚠️ 無法同步設定，模組可能干擾", 4000, "#FFA500");
+        }
     }
 
     // ──────────────────────────────────────────
