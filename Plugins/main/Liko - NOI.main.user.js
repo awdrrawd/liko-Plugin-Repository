@@ -2,7 +2,7 @@
 // @name         Liko - NOI
 // @name:zh      Liko的邀請通知器
 // @namespace    https://likulisu.dev/
-// @version      1.2
+// @version      1.1
 // @description  Notify on Invite - Optimized with hooks
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -54,7 +54,7 @@
 
     // ------------ mod 註冊 ------------
     let modApi = null;
-    const modversion = "1.2";
+    const modversion = "1.1";
 
     // ------------ 狀態管理 ------------
     let isInitialized = false;
@@ -68,9 +68,10 @@
     function ensureStorage() {
         if (!Player || !Player.ExtensionSettings) return;
         if (!Player.ExtensionSettings.NotifyOnInvite) {
-            Player.ExtensionSettings.NotifyOnInvite = { whiteMsg: "", blackMsg: "", friendMsg: "" };
+            Player.ExtensionSettings.NotifyOnInvite = JSON.stringify({ whiteMsg: "", blackMsg: "", friendMsg: "" });
             try {
-                ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
+                if (typeof ServerPlayerExtensionSettingsSync === 'function')
+                    ServerPlayerExtensionSettingsSync("NotifyOnInvite");
                 log("初始化 Player.ExtensionSettings.NotifyOnInvite 並同步至伺服器");
             } catch (e) {
                 error("無法同步 ExtensionSettings:", e.message);
@@ -78,49 +79,43 @@
         }
     }
 
-    function getWhiteMsg() {
+    function _readStorage() {
         ensureStorage();
-        return (Player.ExtensionSettings?.NotifyOnInvite?.whiteMsg) || "";
+        try { return JSON.parse(Player.ExtensionSettings?.NotifyOnInvite || "{}"); }
+        catch { return {}; }
     }
-    function getBlackMsg() {
-        ensureStorage();
-        return (Player.ExtensionSettings?.NotifyOnInvite?.blackMsg) || "";
+
+    function _writeStorage(data) {
+        if (!Player.ExtensionSettings) return;
+        Player.ExtensionSettings.NotifyOnInvite = JSON.stringify(data);
+        try {
+            if (typeof ServerPlayerExtensionSettingsSync === 'function')
+                ServerPlayerExtensionSettingsSync("NotifyOnInvite");
+        } catch (e) {
+            error("無法同步 ExtensionSettings:", e.message);
+        }
     }
-    function getFriendMsg() {
-        ensureStorage();
-        return (Player.ExtensionSettings?.NotifyOnInvite?.friendMsg) || "";
-    }
+
+    function getWhiteMsg() { return _readStorage().whiteMsg || ""; }
+    function getBlackMsg() { return _readStorage().blackMsg || ""; }
+    function getFriendMsg() { return _readStorage().friendMsg || ""; }
+
     function setWhiteMsg(s) {
         ensureStorage();
-        if (Player.ExtensionSettings?.NotifyOnInvite) {
-            Player.ExtensionSettings.NotifyOnInvite.whiteMsg = s;
-            try {
-                ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
-            } catch (e) {
-                error("無法同步白名單訊息:", e.message);
-            }
+        if (Player.ExtensionSettings?.NotifyOnInvite !== undefined) {
+            const data = _readStorage(); data.whiteMsg = s; _writeStorage(data);
         }
     }
     function setBlackMsg(s) {
         ensureStorage();
-        if (Player.ExtensionSettings?.NotifyOnInvite) {
-            Player.ExtensionSettings.NotifyOnInvite.blackMsg = s;
-            try {
-                ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
-            } catch (e) {
-                error("無法同步黑名單訊息:", e.message);
-            }
+        if (Player.ExtensionSettings?.NotifyOnInvite !== undefined) {
+            const data = _readStorage(); data.blackMsg = s; _writeStorage(data);
         }
     }
     function setFriendMsg(s) {
         ensureStorage();
-        if (Player.ExtensionSettings?.NotifyOnInvite) {
-            Player.ExtensionSettings.NotifyOnInvite.friendMsg = s;
-            try {
-                ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
-            } catch (e) {
-                error("無法同步好友訊息:", e.message);
-            }
+        if (Player.ExtensionSettings?.NotifyOnInvite !== undefined) {
+            const data = _readStorage(); data.friendMsg = s; _writeStorage(data);
         }
     }
 
