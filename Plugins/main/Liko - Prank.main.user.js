@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.5.1
+// @version      1.5.2
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -23,7 +23,7 @@
     window.LIKO_PRANK_LOADED = true;
 
     let modApi;
-    const modversion = "1.5.1";
+    const modversion = "1.5.2";
 
     // ===== 图片路径辅助工具 =====
     const ImagePathHelper = {
@@ -31,14 +31,10 @@
 
         getBasePath: function() {
             if (this._cachedBasePath) return this._cachedBasePath;
-
             let href = window.location.href;
-
-            // 确保结尾有斜线
             if (!href.endsWith('/')) {
                 href = href.substring(0, href.lastIndexOf('/') + 1);
             }
-
             this._cachedBasePath = href;
             return href;
         },
@@ -73,8 +69,6 @@
             stealFailed: "Failed to steal",
             removeFailed: "Failed to remove",
             nothingToRemove: "has no removable clothing in this area",
-
-            // Actions
             stealUnderwear: "discreetly steals",
             stealUnderwearSuffix: "'s underwear 💕",
             removedOwnUnderwear: "takes off their own underwear",
@@ -100,8 +94,6 @@
             pluckingOwnHair: "pluckes out their own ahoge",
             pluckingHair: "pluckes out",
             pluckingHairSuffix: "'s ahoge",
-
-            // Activity labels
             actCutClothes: "Cut Clothes",
             actRemoveClothes: "Remove Clothes",
             actDissolveClothes: "Dissolve Clothes",
@@ -110,8 +102,6 @@
             actStealSocks: "Steal Socks",
             actRemoveHoldSocks: "Take Socks",
             actPluckingHair: "Pluck Ahoge",
-            
-            // Activity descriptions
             actCutClothesDesc: "SourceCharacter cuts off TargetCharacter's clothes using scissors",
             actCutClothesSelf: "SourceCharacter cuts off their own clothes using scissors",
             actRemoveClothesDesc: "SourceCharacter removes TargetCharacter's clothes",
@@ -134,8 +124,6 @@
             stealFailed: "偷取失败",
             removeFailed: "脱下失败",
             nothingToRemove: "在这个部位没有可移除的衣物",
-
-            // Actions
             stealUnderwear: "悄悄偷走了",
             stealUnderwearSuffix: "的内裤 💕",
             removedOwnUnderwear: "脱下了自己的内裤",
@@ -161,8 +149,6 @@
             pluckingOwnHair: "拔下了自己的呆毛",
             pluckingHair: "拔下了",
             pluckingHairSuffix: "的呆毛",
-
-            // Activity labels
             actCutClothes: "剪掉衣物",
             actRemoveClothes: "脱掉衣物",
             actDissolveClothes: "溶解衣物",
@@ -171,8 +157,6 @@
             actStealSocks: "偷袜子",
             actRemoveHoldSocks: "脱下并握着袜子",
             actPluckingHair: "拔呆毛",
-
-            // Activity descriptions
             actCutClothesDesc: "SourceCharacter 用剪刀剪掉了 TargetCharacter 的衣物",
             actCutClothesSelf: "SourceCharacter 用剪刀剪掉了自己的衣物",
             actRemoveClothesDesc: "SourceCharacter 脱掉了 TargetCharacter 的衣物",
@@ -193,22 +177,9 @@
         return messages[isZh ? 'zh' : 'en'][key];
     }
 
-    try {
-        if (typeof bcModSdk === "object" && typeof bcModSdk.registerMod === "function") {
-            modApi = bcModSdk.registerMod({
-                name: "liko's prank",
-                fullName: "Likolisu's prank on her friends",
-                version: modversion,
-                repository: "Liko's prank"
-            });
-            console.log("[prank] Mod registered with bcModSdk");
-        }
-    } catch (error) {
-        console.error("[prank] Failed to initialize modApi", error);
-    }
-
-    // ===== 工具函数 =====
-    function waitFor(condition, timeout = 30000) {
+    // ===== 等待工具 =====
+    // 修正：timeout 從 30 秒提高到 120 秒，避免登入較慢時超時
+    function waitFor(condition, timeout = 120000) {
         const start = Date.now();
         return new Promise((resolve, reject) => {
             const check = () => {
@@ -224,6 +195,20 @@
         });
     }
 
+    // 修正：等待 bcModSdk 後再 registerMod，避免同步執行時 SDK 尚未載入
+    async function waitForBcModSdk(timeout = 30000) {
+        const start = Date.now();
+        return new Promise(resolve => {
+            const check = () => {
+                if (typeof bcModSdk !== 'undefined' && bcModSdk?.registerMod) resolve(true);
+                else if (Date.now() - start > timeout) resolve(false);
+                else setTimeout(check, 100);
+            };
+            check();
+        });
+    }
+
+    // ===== 工具函数 =====
     function getPlayer(identifier) {
         if (!ChatRoomCharacter) return null;
         if (typeof identifier === "number" || /^\d+$/.test(identifier)) {
@@ -339,11 +324,11 @@
 
             const isZh = detectLanguage();
             const itemName = isZh ?
-                  `${targetNick}刚脱下的内裤 💕` :
-                  `${targetNick}'s freshly removed panties 💕`;
+                `${targetNick}刚脱下的内裤 💕` :
+                `${targetNick}'s freshly removed panties 💕`;
             const itemDesc = isZh ?
-                  `${targetNick}刚脱下的内裤，带有一点余温与气味💕` :
-                  `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕`;
+                `${targetNick}刚脱下的内裤，带有一点余温与气味💕` :
+                `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕`;
 
             try {
                 InventoryWear(Player, "Panties", "ItemHandheld", itemColor, 0, target.MemberNumber, {
@@ -368,7 +353,6 @@
             } else {
                 chatSendCustomAction(playerNick + " " + getMessage('stealUnderwear') + " " + targetNick + getMessage('stealUnderwearSuffix'));
             }
-
         } catch (error) {
             console.error("Error in stealPanties:", error);
         }
@@ -620,33 +604,18 @@
             InventoryRemove(target, "SocksLeft");
         }
         ChatRoomCharacterUpdate(target);
-
         InventoryRemove(Player, "ItemHandheld");
 
-        let handheldItemName;
+        const handheldItemName = itemType === "panties" ? "Panties" : "LongSock";
         const isZh = detectLanguage();
 
-        if (itemType === "panties") {
-            handheldItemName = "Panties";
-        } else {
-            handheldItemName = "LongSock";
-        }
-
         const itemName = isZh ?
-              (itemType === "panties" ?
-               `${targetNick}刚脱下的内裤 💕` :
-               `${targetNick}刚脱下的袜子 💕`) :
-              (itemType === "panties" ?
-               `${targetNick}'s freshly removed panties 💕` :
-               `${targetNick}'s freshly removed socks 💕`);
+            (itemType === "panties" ? `${targetNick}刚脱下的内裤 💕` : `${targetNick}刚脱下的袜子 💕`) :
+            (itemType === "panties" ? `${targetNick}'s freshly removed panties 💕` : `${targetNick}'s freshly removed socks 💕`);
 
         const itemDesc = isZh ?
-              (itemType === "panties" ?
-               `${targetNick}刚脱下的内裤，带有一点余温与气味💕` :
-               `${targetNick}刚脱下的袜子，带有一点余温与气味💕`) :
-              (itemType === "panties" ?
-               `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕` :
-               `${targetNick}'s freshly removed socks, with a hint of warmth and scent 💕`);
+            (itemType === "panties" ? `${targetNick}刚脱下的内裤，带有一点余温与气味💕` : `${targetNick}刚脱下的袜子，带有一点余温与气味💕`) :
+            (itemType === "panties" ? `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕` : `${targetNick}'s freshly removed socks, with a hint of warmth and scent 💕`);
 
         InventoryWear(Player, handheldItemName, "ItemHandheld", itemColor, 0, target.MemberNumber, {
             Name: itemName,
@@ -691,34 +660,27 @@
         actData.CustomPrerequisiteFuncs.set("LikoCanInteract", function(target1, target2, group) {
             return target1.CanInteract();
         });
-
         actData.CustomPrerequisiteFuncs.set("LikoHasBCItemPermission", function(target1, target2, group) {
             return hasBCItemPermission(target2);
         });
-
         actData.CustomPrerequisiteFuncs.set("LikoHoldingScissors", function(target1, target2, group) {
             const handItem = InventoryGet(target1, "ItemHandheld");
             return handItem && handItem.Asset && handItem.Asset.Name === "Scissors";
         });
-
         actData.CustomPrerequisiteFuncs.set("LikoHasClothing", function(target1, target2, group) {
             return true;
         });
-
         actData.CustomPrerequisiteFuncs.set("LikoTargetHasClothing", function(target1, target2, group) {
             return hasRemovableClothing(target2, group?.Name);
         });
-
         actData.CustomPrerequisiteFuncs.set("LikoHasPanties", function(target1, target2, group) {
             return !!InventoryGet(target2, "Panties");
         });
-
         actData.CustomPrerequisiteFuncs.set("LikoHasSocks", function(target1, target2, group) {
             return !!(InventoryGet(target2, "Socks") || InventoryGet(target2, "SocksRight") || InventoryGet(target2, "SocksLeft"));
         });
-
         actData.CustomPrerequisiteFuncs.set("LikoHasAhoge", function(target1, target2, group) {
-            return !!(InventoryGet(target2, "额外头发_Luzi"))
+            return !!(InventoryGet(target2, "额外头发_Luzi"));
         });
 
         const clothingTargets = [
@@ -728,20 +690,11 @@
             "ItemBoots", "ItemLegs", "ItemFeet", "ItemMouth", "ItemMouth2", "ItemMouth3"
         ];
 
-        // 1. 剪衣服
         AddActivity({
-            Activity: {
-                Name: "CutClothes",
-                MaxProgress: 50,
-                MaxProgressSelf: 50,
-                Prerequisite: []
-            },
+            Activity: { Name: "CutClothes", MaxProgress: 50, MaxProgressSelf: 50, Prerequisite: [] },
             Targets: clothingTargets.map(t => ({
-                TargetLabel: getMessage('actCutClothes'),
-                Name: t,
-                SelfAllowed: true,
-                TargetAction: getMessage('actCutClothesDesc'),
-                TargetSelfAction: getMessage('actCutClothesSelf')
+                TargetLabel: getMessage('actCutClothes'), Name: t, SelfAllowed: true,
+                TargetAction: getMessage('actCutClothesDesc'), TargetSelfAction: getMessage('actCutClothesSelf')
             })),
             CustomPrereqs: [
                 { Name: "LikoCanInteract", Func: actData.CustomPrerequisiteFuncs.get("LikoCanInteract") },
@@ -770,20 +723,11 @@
             CustomImage: ImagePathHelper.getAssetURL("Female3DCG/ItemHandheld/Preview/Scissors.png")
         });
 
-        // 2. 脱衣服
         AddActivity({
-            Activity: {
-                Name: "RemoveClothes",
-                MaxProgress: 40,
-                MaxProgressSelf: 40,
-                Prerequisite: []
-            },
+            Activity: { Name: "RemoveClothes", MaxProgress: 40, MaxProgressSelf: 40, Prerequisite: [] },
             Targets: clothingTargets.map(t => ({
-                TargetLabel: getMessage('actRemoveClothes'),
-                Name: t,
-                SelfAllowed: true,
-                TargetAction: getMessage('actRemoveClothesDesc'),
-                TargetSelfAction: getMessage('actRemoveClothesSelf')
+                TargetLabel: getMessage('actRemoveClothes'), Name: t, SelfAllowed: true,
+                TargetAction: getMessage('actRemoveClothesDesc'), TargetSelfAction: getMessage('actRemoveClothesSelf')
             })),
             CustomPrereqs: [
                 { Name: "LikoCanInteract", Func: actData.CustomPrerequisiteFuncs.get("LikoCanInteract") },
@@ -811,20 +755,11 @@
             CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Activity/Caress.png")
         });
 
-        // 3. 溶解衣物
         AddActivity({
-            Activity: {
-                Name: "DissolveClothes",
-                MaxProgress: 60,
-                MaxProgressSelf: 60,
-                Prerequisite: []
-            },
+            Activity: { Name: "DissolveClothes", MaxProgress: 60, MaxProgressSelf: 60, Prerequisite: [] },
             Targets: [{
-                TargetLabel: getMessage('actDissolveClothes'),
-                Name: "ItemHead",
-                SelfAllowed: true,
-                TargetAction: getMessage('actDissolveClothesDesc'),
-                TargetSelfAction: getMessage('actDissolveClothesSelf')
+                TargetLabel: getMessage('actDissolveClothes'), Name: "ItemHead", SelfAllowed: true,
+                TargetAction: getMessage('actDissolveClothesDesc'), TargetSelfAction: getMessage('actDissolveClothesSelf')
             }],
             CustomPrereqs: [
                 { Name: "LikoCanInteract", Func: actData.CustomPrerequisiteFuncs.get("LikoCanInteract") },
@@ -834,13 +769,11 @@
                 Func: (target, args, next) => {
                     const noClothesFilter = (item) => !appearanceGroupNames.includes(item.Group);
                     const appearance = ServerAppearanceBundle(target.Appearance).filter(noClothesFilter);
-
                     ServerSend("ChatRoomCharacterUpdate", {
                         ID: target.ID === 0 ? target.OnlineID : target.AccountName.replace("Online-", ""),
                         ActivePose: target.ActivePose,
                         Appearance: appearance
                     });
-
                     const isSelf = target.MemberNumber === Player.MemberNumber;
                     if (isSelf) {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
@@ -852,14 +785,8 @@
             CustomImage: ImagePathHelper.getAssetURL("Female3DCG/ItemHandheld/Preview/PotionBottle.png")
         });
 
-        // 4. 偷内裤
         AddActivity({
-            Activity: {
-                Name: "StealPanties",
-                MaxProgress: 50,
-                MaxProgressSelf: 50,
-                Prerequisite: []
-            },
+            Activity: { Name: "StealPanties", MaxProgress: 50, MaxProgressSelf: 50, Prerequisite: [] },
             Targets: [
                 { TargetLabel: getMessage('actStealPanties'), Name: "ItemButt", SelfAllowed: false, TargetAction: getMessage('actStealPantiesDesc') },
                 { TargetLabel: getMessage('actStealPanties'), Name: "ItemVulvaPiercings", SelfAllowed: false, TargetAction: getMessage('actStealPantiesDesc') },
@@ -876,25 +803,18 @@
                         chatSendCustomAction(getNickname(target) + " " + getMessage('noUnderwear'));
                         return;
                     }
-
                     if (stealItem(target, "panties")) {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('stoleUnderwear') + " " + getNickname(target) + getMessage('stealUnderwearSuffix'));
                     } else {
-                        ChatRoomSendLocal(getMessage('stealFailed'), 5000);
+                        chatSendLocal(getMessage('stealFailed'), 5000);
                     }
                 }
             },
             CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Panties/Preview/Panties1.png")
         });
 
-        // 5. 脱下并握着内裤
         AddActivity({
-            Activity: {
-                Name: "RemoveAndHoldPanties",
-                MaxProgress: 40,
-                MaxProgressSelf: 40,
-                Prerequisite: []
-            },
+            Activity: { Name: "RemoveAndHoldPanties", MaxProgress: 40, MaxProgressSelf: 40, Prerequisite: [] },
             Targets: [
                 { TargetLabel: getMessage('actRemoveHoldPanties'), Name: "ItemButt", SelfAllowed: true, TargetAction: getMessage('actRemoveHoldPantiesDesc'), TargetSelfAction: getMessage('actRemoveHoldPantiesSelf') },
                 { TargetLabel: getMessage('actRemoveHoldPanties'), Name: "ItemVulvaPiercings", SelfAllowed: true, TargetAction: getMessage('actRemoveHoldPantiesDesc'), TargetSelfAction: getMessage('actRemoveHoldPantiesSelf') },
@@ -908,10 +828,9 @@
             CustomAction: {
                 Func: (target, args, next) => {
                     if (!InventoryGet(target, "Panties")) {
-                        ChatRoomSendLocal(getNickname(target) + " " + getMessage('noUnderwear'), 5000);
+                        chatSendLocal(getNickname(target) + " " + getMessage('noUnderwear'), 5000);
                         return;
                     }
-
                     if (stealItem(target, "panties")) {
                         const isSelf = target.MemberNumber === Player.MemberNumber;
                         if (isSelf) {
@@ -920,21 +839,15 @@
                             chatSendCustomAction(getNickname(Player) + " " + getMessage('removedAndHoldUnderwear') + " " + getNickname(target) + getMessage('holdUnderwear'));
                         }
                     } else {
-                        ChatRoomSendLocal(getMessage('removeFailed'), 5000);
+                        chatSendLocal(getMessage('removeFailed'), 5000);
                     }
                 }
             },
             CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Panties/Preview/Panties1.png")
         });
 
-        // 6. 偷袜子
         AddActivity({
-            Activity: {
-                Name: "StealSocks",
-                MaxProgress: 50,
-                MaxProgressSelf: 50,
-                Prerequisite: []
-            },
+            Activity: { Name: "StealSocks", MaxProgress: 50, MaxProgressSelf: 50, Prerequisite: [] },
             Targets: [
                 { TargetLabel: getMessage('actStealSocks'), Name: "ItemFeet", SelfAllowed: false, TargetAction: getMessage('actStealSocksDesc') },
                 { TargetLabel: getMessage('actStealSocks'), Name: "ItemLegs", SelfAllowed: false, TargetAction: getMessage('actStealSocksDesc') },
@@ -949,28 +862,21 @@
                 Func: (target, args, next) => {
                     const hasSocks = InventoryGet(target, "Socks") || InventoryGet(target, "SocksRight") || InventoryGet(target, "SocksLeft");
                     if (!hasSocks) {
-                        ChatRoomSendLocal(getNickname(target) + " " + getMessage('noSocks'), 5000);
+                        chatSendLocal(getNickname(target) + " " + getMessage('noSocks'), 5000);
                         return;
                     }
-
                     if (stealItem(target, "socks")) {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('stoleSocks') + " " + getNickname(target) + getMessage('socksSuffix'));
                     } else {
-                        ChatRoomSendLocal(getMessage('stealFailed'), 5000);
+                        chatSendLocal(getMessage('stealFailed'), 5000);
                     }
                 }
             },
             CustomImage: ImagePathHelper.getAssetURL("Female3DCG/ItemHood/Preview/Pantyhose.png")
         });
 
-        // 7. 脱下并握着袜子
         AddActivity({
-            Activity: {
-                Name: "RemoveAndHoldSocks",
-                MaxProgress: 40,
-                MaxProgressSelf: 40,
-                Prerequisite: []
-            },
+            Activity: { Name: "RemoveAndHoldSocks", MaxProgress: 40, MaxProgressSelf: 40, Prerequisite: [] },
             Targets: [
                 { TargetLabel: getMessage('actRemoveHoldSocks'), Name: "ItemFeet", SelfAllowed: true, TargetAction: getMessage('actRemoveHoldSocksDesc'), TargetSelfAction: getMessage('actRemoveHoldSocksSelf') },
                 { TargetLabel: getMessage('actRemoveHoldSocks'), Name: "ItemLegs", SelfAllowed: true, TargetAction: getMessage('actRemoveHoldSocksDesc'), TargetSelfAction: getMessage('actRemoveHoldSocksSelf') },
@@ -988,7 +894,6 @@
                         chatSendCustomAction(getNickname(target) + " " + getMessage('noSocks'));
                         return;
                     }
-
                     if (stealItem(target, "socks")) {
                         const isSelf = target.MemberNumber === Player.MemberNumber;
                         if (isSelf) {
@@ -997,23 +902,18 @@
                             chatSendCustomAction(getNickname(Player) + " " + getMessage('removedAndHoldSocks') + " " + getNickname(target) + getMessage('holdSocks'));
                         }
                     } else {
-                        ChatRoomSendLocal(getMessage('removeFailed'), 5000);
+                        chatSendLocal(getMessage('removeFailed'), 5000);
                     }
                 }
             },
             CustomImage: ImagePathHelper.getAssetURL("Female3DCG/ItemHood/Preview/Pantyhose.png")
         });
 
-        // 8. 拔呆毛
         AddActivity({
-            Activity: {
-                Name: "PluckingHair_Razor",
-                MaxProgress: 40,
-                MaxProgressSelf: 40,
-                Prerequisite: []
-            },
+            Activity: { Name: "PluckingHair_Razor", MaxProgress: 40, MaxProgressSelf: 40, Prerequisite: [] },
             Targets: [
-                { TargetLabel: getMessage('actPluckingHair'), Name: "ItemHead", SelfAllowed: true, TargetAction: getMessage('actPluckingHair'), TargetSelfAction: getMessage('actPluckingHair') },
+                { TargetLabel: getMessage('actPluckingHair'), Name: "ItemHead", SelfAllowed: true,
+                  TargetAction: getMessage('actPluckingHair'), TargetSelfAction: getMessage('actPluckingHair') }
             ],
             CustomPrereqs: [
                 { Name: "LikoCanInteract", Func: actData.CustomPrerequisiteFuncs.get("LikoCanInteract") },
@@ -1027,7 +927,6 @@
                         chatSendCustomAction(getNickname(target) + " " + getMessage('hasAhoge'));
                         return;
                     }
-
                     if (pluckingHair(target)) {
                         const isSelf = target.MemberNumber === Player.MemberNumber;
                         if (isSelf) {
@@ -1036,7 +935,7 @@
                             chatSendCustomAction(getNickname(Player) + " " + getMessage('pluckingHair') + " " + getNickname(target) + getMessage('pluckingHairSuffix'));
                         }
                     } else {
-                        ChatRoomSendLocal(getMessage('removeFailed'), 5000);
+                        chatSendLocal(getMessage('removeFailed'), 5000);
                     }
                 }
             },
@@ -1095,7 +994,7 @@
             return next(args);
         });
 
-        if (GameVersion !== "R121") {
+        if (typeof GameVersion !== 'undefined' && GameVersion !== "R121") {
             modApi.hookFunction("PreferenceGetActivityFactor", 4, (args, next) => {
                 if (typeof args[1] === "string" && args[1].indexOf("Liko_") === 0) {
                     return 2;
@@ -1106,30 +1005,60 @@
     }
 
     // ===== 初始化 =====
-    waitFor(() => typeof Player !== "undefined" && typeof Player.MemberNumber === "number")
-        .then(() => {
-        // 注册命令
-        if (typeof CommandCombine === "function") {
-            const isZh = detectLanguage();
-            CommandCombine([
-                { Tag: "steal", Description: isZh ? "偷取内裤" : "Steal panties", Action: (args) => stealPanties(args) },
-                { Tag: "偷取", Description: "偷取内裤", Action: (args) => stealPanties(args) },
-                { Tag: "dissolve", Description: isZh ? "溶解衣服" : "Dissolve clothes", Action: (args) => spillObscenePotion(args) },
-                { Tag: "溶解", Description: "溶解衣服", Action: (args) => spillObscenePotion(args) },
-                { Tag: "teleport", Description: isZh ? "传送" : "Teleport", Action: (args) => openPortal(args) },
-                { Tag: "傳送", Description: "传送", Action: (args) => openPortal(args) },
-                { Tag: "传送", Description: "传送", Action: (args) => openPortal(args) }
-            ]);
+    // 修正：先等 bcModSdk 載入再 registerMod，避免同步執行時 SDK 尚未就緒
+    // 修正：waitFor timeout 提高到 120 秒，避免登入較慢時超時
+    (async () => {
+        const sdkOk = await waitForBcModSdk();
+        if (sdkOk) {
+            try {
+                modApi = bcModSdk.registerMod({
+                    name: "liko's prank",
+                    fullName: "Likolisu's prank on her friends",
+                    version: modversion,
+                    repository: "Liko's prank"
+                });
+                console.log("[prank] Mod registered with bcModSdk");
+            } catch (error) {
+                console.error("[prank] Failed to initialize modApi", error);
+            }
+        } else {
+            console.warn("[prank] bcModSdk not available, continuing without modApi");
         }
 
-        // 等待活动系统
-        waitFor(() => typeof ActivityFemale3DCG !== "undefined" && typeof ActivityDictionary !== "undefined")
-            .then(() => {
+        try {
+            // 等待玩家登入完成（MemberNumber > 0 確認已成功登入）
+            await waitFor(() =>
+                typeof Player !== "undefined" &&
+                typeof Player.MemberNumber === "number" &&
+                Player.MemberNumber > 0
+            );
+
+            // 注册命令
+            if (typeof CommandCombine === "function") {
+                const isZh = detectLanguage();
+                CommandCombine([
+                    { Tag: "steal", Description: isZh ? "偷取内裤" : "Steal panties", Action: (args) => stealPanties(args) },
+                    { Tag: "偷取", Description: "偷取内裤", Action: (args) => stealPanties(args) },
+                    { Tag: "dissolve", Description: isZh ? "溶解衣服" : "Dissolve clothes", Action: (args) => spillObscenePotion(args) },
+                    { Tag: "溶解", Description: "溶解衣服", Action: (args) => spillObscenePotion(args) },
+                    { Tag: "teleport", Description: isZh ? "传送" : "Teleport", Action: (args) => openPortal(args) },
+                    { Tag: "傳送", Description: "传送", Action: (args) => openPortal(args) },
+                    { Tag: "传送", Description: "传送", Action: (args) => openPortal(args) }
+                ]);
+            }
+
+            // 等待活动系统
+            await waitFor(() =>
+                typeof ActivityFemale3DCG !== "undefined" &&
+                typeof ActivityDictionary !== "undefined"
+            );
+
             registerActivities();
             setupHooks();
             chatSendLocal(getMessage('loaded'));
-        })
-            .catch(err => console.error("[prank] Activity registration failed:", err));
-    })
-        .catch(error => console.error("[prank] Initialization failed:", error));
+
+        } catch (error) {
+            console.error("[prank] Initialization failed:", error);
+        }
+    })();
 })();
