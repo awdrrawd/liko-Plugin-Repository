@@ -251,11 +251,11 @@
                     version: CONFIG.VERSION
                 };
 
-                if (typeof ServerAccountUpdate !== 'undefined' && ServerAccountUpdate.QueueData) {
-                    ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
-                } else {
-                    safeLog("設定已更新到ExtensionSettings，但無法觸發同步");
-                }
+                if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+    ServerPlayerExtensionSettingsSync("CDBEnhanced");
+} else {
+    safeLog("設定已更新到ExtensionSettings，但無法觸發同步");
+}
             }
         } catch (e) {
             safeError("保存到ExtensionSettings失敗:", e);
