@@ -2,7 +2,7 @@
 // @name         Liko - CPB
 // @name:zh      Liko的自定義個人資料頁面背景
 // @namespace    https://likolisu.dev/
-// @version      1.2.1
+// @version      1.2.2
 // @description  自定義個人資料頁面背景 | Custom Profile Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
     'use strict';
 
     let modApi = null;
-    const modversion = "1.2.1";
+    const modversion = "1.2.2";
     let customBG = null;
     let buttonImage = null;
     let isInitialized = false;
@@ -184,69 +184,69 @@
     }
 
     function getSettings() {
-        try {
-            if (!Player?.OnlineSharedSettings?.CustomProfileBG) {
-                Player.OnlineSharedSettings.CustomProfileBG = {
-                    enabled: true,
-                    imageUrl: DEFAULT_BG_URL,
-                    lastUpdated: Date.now()
-                };
-            }
-
-            if (!Player?.OnlineSettings?.CustomProfileBG) {
-                Player.OnlineSettings.CustomProfileBG = {
-                    showRemoteBackground: true
-                };
-            }
-
-            return {
-                ...Player.OnlineSharedSettings.CustomProfileBG,
-                showRemoteBackground: Player.OnlineSettings.CustomProfileBG.showRemoteBackground
-            };
-        } catch (e) {
-            console.error("[CPB] 獲取設置失敗:", e.message);
-            return {
+    try {
+        if (!Player?.OnlineSharedSettings?.CustomProfileBG) {
+            Player.OnlineSharedSettings.CustomProfileBG = {
                 enabled: true,
                 imageUrl: DEFAULT_BG_URL,
-                showRemoteBackground: true,
                 lastUpdated: Date.now()
             };
         }
+
+        if (!Player?.ExtensionSettings?.CustomProfileBG) {
+            Player.ExtensionSettings.CustomProfileBG = {
+                showRemoteBackground: true
+            };
+        }
+
+        return {
+            ...Player.OnlineSharedSettings.CustomProfileBG,
+            showRemoteBackground: Player.ExtensionSettings.CustomProfileBG.showRemoteBackground
+        };
+    } catch (e) {
+        console.error("[CPB] 獲取設置失敗:", e.message);
+        return {
+            enabled: true,
+            imageUrl: DEFAULT_BG_URL,
+            showRemoteBackground: true,
+            lastUpdated: Date.now()
+        };
     }
+}
 
     function saveSettings(settings) {
-        try {
-            if (!Player?.OnlineSharedSettings || !Player?.OnlineSettings) return;
+    try {
+        if (!Player?.OnlineSharedSettings || !Player?.ExtensionSettings) return;
 
-            const { showRemoteBackground, ...sharedSettings } = settings;
+        const { showRemoteBackground, ...sharedSettings } = settings;
 
-            Player.OnlineSharedSettings.CustomProfileBG = {
-                ...sharedSettings,
-                lastUpdated: Date.now()
-            };
+        Player.OnlineSharedSettings.CustomProfileBG = {
+            ...sharedSettings,
+            lastUpdated: Date.now()
+        };
 
-            Player.OnlineSettings.CustomProfileBG = {
-                showRemoteBackground: showRemoteBackground !== false
-            };
+        Player.ExtensionSettings.CustomProfileBG = {
+            showRemoteBackground: showRemoteBackground !== false
+        };
 
-            if (typeof ServerAccountUpdate?.QueueData === 'function') {
-                ServerAccountUpdate.QueueData({
-                    OnlineSharedSettings: Player.OnlineSharedSettings
-                });
-            }
-
-            if (typeof ServerPlayerExtensionSettingsSync === 'function') {
-                try {
-                    ServerPlayerExtensionSettingsSync("CustomProfileBG");
-                } catch (syncError) {
-                }
-            }
-
-            console.log("[CPB] 設置已保存:", settings);
-        } catch (e) {
-            console.error("[CPB] 保存設置失敗:", e.message);
+        if (typeof ServerAccountUpdate?.QueueData === 'function') {
+            ServerAccountUpdate.QueueData({
+                OnlineSharedSettings: Player.OnlineSharedSettings,
+                ExtensionSettings: Player.ExtensionSettings
+            });
         }
+
+        if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+            try {
+                ServerPlayerExtensionSettingsSync("CustomProfileBG");
+            } catch (syncError) {}
+        }
+
+        console.log("[CPB] 設置已保存:", settings);
+    } catch (e) {
+        console.error("[CPB] 保存設置失敗:", e.message);
     }
+}
 
     function getPlayerCustomBackground(character) {
         if (!character || !character.OnlineSharedSettings) {
@@ -988,27 +988,27 @@
     }
 
     function waitForGame(timeout = 30000) {
-        const start = Date.now();
-        return new Promise(resolve => {
-            const check = () => {
-                if (typeof CurrentScreen !== 'undefined' &&
-                    typeof DrawImage === 'function' &&
-                    typeof DrawButton === 'function' &&
-                    typeof MouseIn === 'function' &&
-                    typeof Player !== 'undefined' &&
-                    Player?.OnlineSettings &&
-                    Player?.OnlineSharedSettings) {
-                    resolve(true);
-                } else if (Date.now() - start > timeout) {
-                    console.error("[CPB] 遊戲載入超時");
-                    resolve(false);
-                } else {
-                    setTimeout(check, 100);
-                }
-            };
-            check();
-        });
-    }
+    const start = Date.now();
+    return new Promise(resolve => {
+        const check = () => {
+            if (typeof CurrentScreen !== 'undefined' &&
+                typeof DrawImage === 'function' &&
+                typeof DrawButton === 'function' &&
+                typeof MouseIn === 'function' &&
+                typeof Player !== 'undefined' &&
+                Player?.ExtensionSettings &&
+                Player?.OnlineSharedSettings) {
+                resolve(true);
+            } else if (Date.now() - start > timeout) {
+                console.error("[CPB] 遊戲載入超時");
+                resolve(false);
+            } else {
+                setTimeout(check, 100);
+            }
+        };
+        check();
+    });
+}
 
     function setupHooks() {
         if (!modApi || typeof modApi.hookFunction !== 'function') {
