@@ -2,7 +2,7 @@
 // @name         Liko - Image Uploader
 // @name:zh      Liko的圖片上傳器
 // @namespace    https://likolisu.dev/
-// @version      1.4
+// @version      1.4.1
 // @description  Bondage Club - 上傳圖片到圖床並分享網址
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function () {
     let modApi = null;
-    const modversion = "1.3.3";
+    const modversion = "1.4.1";
     let imageHost = "litterbox";
 
     // ──────────────────────────────────────────
@@ -103,22 +103,22 @@
     // 設定：讀取 / 儲存
     // ──────────────────────────────────────────
     function loadSettings() {
-        if (Player?.OnlineSettings?.LikoImageUploader) {
-            imageHost = Player.OnlineSettings.LikoImageUploader.imageHost || "litterbox";
+        if (Player?.ExtensionSettings?.LikoImageUploader) {
+            imageHost = Player.ExtensionSettings.LikoImageUploader.imageHost || "litterbox";
         } else {
-            console.warn("[IMG] OnlineSettings 不可用，使用預設設定");
+            console.warn("[IMG] ExtensionSettings 不可用，使用預設設定");
         }
     }
 
     function saveSettings() {
-        if (!Player?.OnlineSettings) {
-            console.warn("[IMG] 無法訪問 OnlineSettings，設定未保存");
+        if (!Player?.ExtensionSettings) {
+            console.warn("[IMG] 無法訪問 ExtensionSettings，設定未保存");
             ChatRoomSendLocalStyled("⚠️ 無法保存設定，請確保已登錄", 4000, "#FFA500");
             return;
         }
-        Player.OnlineSettings.LikoImageUploader = { imageHost };
+        Player.ExtensionSettings.LikoImageUploader = { imageHost };
         if (typeof ServerAccountUpdate?.QueueData === 'function') {
-            ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
+            ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
         } else {
             console.warn("[IMG] ServerAccountUpdate.QueueData 不可用");
             ChatRoomSendLocalStyled("⚠️ 無法同步設定，模組可能干擾", 4000, "#FFA500");
@@ -267,8 +267,8 @@
             ChatRoomSendLocalStyled("🚫 請加入聊天室後重新上傳圖片", 4000, "#ff4444");
             return;
         }
-        const timeText  = { uguu: "3小時", tmpfiles: "60分鐘", cloudflare: "30分鐘", litterbox: "12小時", imgbb: "12小時" }[imageHost] || "12小時";
-        const hostText  = { litterbox: "Litterbox", cloudflare: "Cloudflare R2", uguu: "Uguu", imgbb: "ImgBB", tmpfiles: "TmpFiles" }[imageHost] || imageHost;
+        const timeText = { uguu: "3小時", tmpfiles: "60分鐘", cloudflare: "30分鐘", litterbox: "12小時", imgbb: "12小時" }[imageHost] || "12小時";
+        const hostText = { litterbox: "Litterbox", cloudflare: "Cloudflare R2", uguu: "Uguu", imgbb: "ImgBB", tmpfiles: "TmpFiles" }[imageHost] || imageHost;
         try {
             ServerSend("ChatRoomChat", { Content: `(${url})`, Type: "Chat" });
             ChatRoomSendLocalStyled(`✅ 圖片連結已發送\n存放於 ${hostText} | 保存時間 ${timeText}`, 5000, "#50C878");
@@ -312,9 +312,6 @@
 
     // ──────────────────────────────────────────
     // 拖曳上傳
-    // 修復：handler 改為同步，async 邏輯移入 IIFE
-    // 確保 preventDefault / stopPropagation 在同步階段呼叫
-    // 加上 stopPropagation 防止事件繼續傳給其他 mod
     // ──────────────────────────────────────────
     document.addEventListener("dragover", (e) => {
         if (CurrentScreen !== "ChatRoom") return;
@@ -335,11 +332,9 @@
             return;
         }
 
-        // 確認是圖片後才攔截，且在同步階段呼叫
         e.preventDefault();
         e.stopPropagation();
 
-        // async 上傳邏輯移入獨立 IIFE，不污染事件鏈
         (async () => {
             const url = await uploadImage(file);
             if (url) sendToChat(url);
@@ -348,8 +343,6 @@
 
     // ──────────────────────────────────────────
     // 貼上上傳
-    // 修復：handler 改為同步，async 邏輯移入 IIFE
-    // 加上 stopPropagation 防止事件繼續傳給其他 mod
     // ──────────────────────────────────────────
     document.addEventListener("paste", (e) => {
         if (CurrentScreen !== "ChatRoom") return;
@@ -358,17 +351,14 @@
 
         const items = Array.from(e.clipboardData.items || []);
         const hasImage = items.some(item => item.type.startsWith("image/"));
-        if (!hasImage) return; // 沒有圖片，完全不干涉 BC 原生流程
+        if (!hasImage) return;
 
-        // 確認有圖片後才攔截，且在同步階段呼叫
         e.preventDefault();
         e.stopPropagation();
 
-        // async 上傳邏輯移入獨立 IIFE，不污染事件鏈
         (async () => {
             const contents = [];
 
-            // 部分瀏覽器圖片會在 files 裡
             if (e.clipboardData.files && e.clipboardData.files.length > 0) {
                 for (const file of e.clipboardData.files) {
                     if (file.type.startsWith("image/")) {
@@ -378,7 +368,6 @@
                 }
             }
 
-            // 處理 items
             for (const item of items) {
                 if (item.type.startsWith("image/")) {
                     const file = item.getAsFile();
@@ -387,7 +376,6 @@
                         if (url) contents.push(url);
                     }
                 } else if (item.kind === "string") {
-                    // 只對 kind==="string" 呼叫 getAsString，避免永遠 pending 的 Promise
                     await new Promise(resolve => {
                         item.getAsString(text => {
                             if (text.trim()) contents.push(text.trim());
@@ -395,7 +383,6 @@
                         });
                     });
                 }
-                // kind==="file" 但非圖片：直接跳過
             }
 
             if (contents.length > 0) {
@@ -458,6 +445,7 @@
 
     // ──────────────────────────────────────────
     // Hook ChatRoomLoad
+    // 修正：ChatRoomLoad 不一定是 async，用相容寫法避免 .then() 報錯
     // ──────────────────────────────────────────
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
