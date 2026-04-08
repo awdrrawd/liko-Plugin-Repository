@@ -750,7 +750,7 @@
             const zh = isZH();
             const names = langNameNative;
             const T = {
-                title        : zh ? "機器翻譯設定  v1.1.3" : "Machine Translation Settings  v1.1.3",
+                title        : zh ? "機器翻譯設定  v1.1.4" : "Machine Translation Settings  v1.1.4",
                 secLeft      : zh ? "── 即時翻譯 ──" : "── Live Translation ──",
                 secRight     : zh ? "── 語言設定 ──" : "── Language Settings ──",
                 enabled      : zh ? "啟用"           : "Enable",
@@ -1163,12 +1163,12 @@
                 }
             }
         }]);
-        ChatRoomSendLocal("🌐 [MAT] v1.1.3 loaded! Use /mat help");
+        ChatRoomSendLocal("🌐 [MAT] v1.1.4 loaded! Use /mat help");
     }
 
     function showHelp() {
         ChatRoomSendLocal(`<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
-            <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v1.1.3</h3>
+            <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v1.1.4</h3>
             <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
                 <b style='color:#FFD700;'>開關指令</b><br>
                 <b style='color:#87CEEB;'>/mat on/off</b> — 聊天室翻譯總開關<br>
@@ -1206,7 +1206,7 @@
 
     function showStatus() {
         ChatRoomSendLocal(`<div style='background:#1a1a2e;color:#eee;padding:8px;border-radius:5px;'>
-            <h4 style='color:#4CAF50;'>📊 MAT v1.1.3 狀態</h4>
+            <h4 style='color:#4CAF50;'>📊 MAT v1.1.4 狀態</h4>
             聊天室總開關: ${config.enabled ? '🟢' : '🔴'}<br>
             整句自動翻譯: ${config.translateReceived ? '✅' : '❌'} → ${getLangName(config.recvLang)}<br>
             發送翻譯: ${config.translateSent ? '✅' : '❌'} → ${getLangName(config.sendLang)}<br>
