@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.1.3
+// @version      1.1.4
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
     'use strict';
 
     let modApi;
-    let myversion = "1.1.3";
+    let myversion = "1.1.4";
     let observer = null;
 
     let config = {
@@ -306,7 +306,7 @@
         if (contentEl) return contentEl.textContent.trim();
 
         const isAction = node.classList.contains('ChatMessageAction') ||
-                         node.classList.contains('ChatMessageNonDialogue');
+              node.classList.contains('ChatMessageNonDialogue');
         const clone = node.cloneNode(true);
         clone.querySelectorAll('.chat-room-metadata, .menubar, .mat-action-btn-wrap, .mat-translated, .mat-manual-translated').forEach(el => el.remove());
         let raw = clone.textContent || '';
@@ -720,7 +720,7 @@
     function isZH() {
         if (typeof TranslationLanguage !== "undefined") {
             const l = TranslationLanguage.toLowerCase();
-            return l.startsWith("zh") || l.includes("cn");
+            return l === 'tw' || l === 'cn';
         }
         return (navigator.language || "en").toLowerCase().startsWith("zh");
     }
@@ -969,10 +969,10 @@
         const map = new Map();
         for (const [from, to, len] of ranges) for (let i = 0; i < len; i++) map.set(from+i, to+i);
         const exc = {0x1D49E:0x43,0x1D4A0:0x45,0x1D4A1:0x46,0x1D4A3:0x48,0x1D4A4:0x49,
-            0x1D4A7:0x4C,0x1D4A8:0x4D,0x1D4AD:0x52,0x1D4BA:0x65,0x1D4BC:0x67,
-            0x1D4C4:0x6F,0x1D506:0x43,0x1D50B:0x48,0x1D50C:0x49,0x1D515:0x52,
-            0x1D51D:0x5A,0x1D53A:0x43,0x1D53F:0x48,0x1D545:0x4E,0x1D547:0x50,
-            0x1D548:0x51,0x1D551:0x5A};
+                     0x1D4A7:0x4C,0x1D4A8:0x4D,0x1D4AD:0x52,0x1D4BA:0x65,0x1D4BC:0x67,
+                     0x1D4C4:0x6F,0x1D506:0x43,0x1D50B:0x48,0x1D50C:0x49,0x1D515:0x52,
+                     0x1D51D:0x5A,0x1D53A:0x43,0x1D53F:0x48,0x1D545:0x4E,0x1D547:0x50,
+                     0x1D548:0x51,0x1D551:0x5A};
         for (const [k,v] of Object.entries(exc)) map.set(Number(k), v);
         let out = '';
         for (let i = 0; i < text.length; i++) {
@@ -1074,21 +1074,21 @@
                 if (bioTranslating) {
                     // [FIX 2] 翻譯中：黃色按鈕，可點擊取消
                     DrawButton(1415, 60, 90, 90, "", "#FFD700", "Icons/Cancel.png",
-                        isZH() ? "點擊取消翻譯" : "Click to cancel");
+                               isZH() ? "點擊取消翻譯" : "Click to cancel");
                 } else if (isOpen) {
                     DrawButton(1415, 60, 90, 90, "", "White", "Icons/Cancel.png",
-                        isZH() ? "關閉翻譯" : "Close Translation");
+                               isZH() ? "關閉翻譯" : "Close Translation");
                 } else {
                     DrawButton(1415, 60, 90, 90, "", "White", "Icons/Chat.png",
-                        isZH() ? "翻譯Bio" : "Translate Bio");
+                               isZH() ? "翻譯Bio" : "Translate Bio");
                 }
                 return result;
             });
             modApi.hookFunction("OnlineProfileLoad", 4, (args, next) => {
                 try {
                     const target = typeof InspectCharacter !== "undefined" ? InspectCharacter
-                                 : typeof CurrentCharacter !== "undefined" ? CurrentCharacter
-                                 : null;
+                    : typeof CurrentCharacter !== "undefined" ? CurrentCharacter
+                    : null;
                     bioCurrentMemberNumber = target?.MemberNumber ?? null;
                 } catch { bioCurrentMemberNumber = null; }
                 return next(args);
