@@ -53,14 +53,14 @@
     ];
 
     // --- 語言 ---
-    function detectLanguage() {
-        const browserLang = navigator.language || navigator.userLanguage;
-        let gameLang = null;
-        try { if (typeof TranslationLanguage !== 'undefined') gameLang = TranslationLanguage; } catch(e) {}
-        const lang = gameLang || browserLang || 'en';
-        return lang.toLowerCase().startsWith('zh') || lang.toLowerCase().includes('cn') || lang.toLowerCase().includes('tw');
+function detectLanguage() {
+    if (typeof TranslationLanguage !== 'undefined') {
+        const l = TranslationLanguage.toLowerCase();
+        return l === 'tw' || l === 'cn';
     }
-
+    return (navigator.language || 'en').toLowerCase().startsWith('zh');
+}
+let _isCN = detectLanguage();
     const messages = {
         en: {
             loaded: `Liko's Plugin Collection Manager v${modversion} Loaded! Click the floating button to manage plugins.`,
@@ -112,8 +112,8 @@
         }
     };
 
-    function getMessage(key) { return messages[detectLanguage() ? 'zh' : 'en'][key]; }
-    function getPluginName(plugin) { return detectLanguage() ? plugin.name : plugin.en_name; }
+    function getMessage(key) { return messages[_isCN ? 'zh' : 'en'][key]; }
+    function getPluginName(plugin) { return _isCN ? plugin.name : plugin.en_name; }
     function getPluginDescription(plugin) { return detectLanguage() ? plugin.description : plugin.en_description; }
     function getPluginAdditionalInfo(plugin) { return detectLanguage() ? plugin.additionalInfo : plugin.en_additionalInfo; }
 
@@ -1354,9 +1354,10 @@
     // --- 語言變化偵測 ---
     let lastDetectedLanguage = null;
 
-    function checkLanguageChange() {
-        const currentLang = detectLanguage();
-        if (lastDetectedLanguage !== null && lastDetectedLanguage !== currentLang) {
+function checkLanguageChange() {
+    const currentLang = detectLanguage();
+    if (lastDetectedLanguage !== null && lastDetectedLanguage !== currentLang) {
+        _isCN = currentLang;
             const existingGroup = document.getElementById("bc-plugin-btn-group");
             const existingPanel = document.getElementById("bc-plugin-panel");
             if (existingGroup) existingGroup.remove();
