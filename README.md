@@ -73,7 +73,7 @@ import(`https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Co
 </div>
 
 ### 🧰 Liko's Tool Kit · Liko的工具包
-> 🆔 `Liko-Tool`
+> 🆔 `Liko-Tool` · EN🔺
 
 有許多小功能合集的工具包，但也有點不穩定。  
 A collection of small utility functions, but somewhat unstable.
@@ -92,7 +92,7 @@ Customize profile page background and share it with others.
 ---
 
 ### 🖼️ Liko's Image Uploader · Liko的圖片上傳器
-> 🆔 `Liko-Image_Uploader`
+> 🆔 `Liko-Image_Uploader` · EN✔️
 
 拖曳上傳圖片並分享到聊天室。  
 Drag and drop image upload and share to chatroom.
@@ -114,7 +114,7 @@ Convert chat history to HTML and provides message recovery for up to 7 days. *(T
 ---
 
 ### 👗 Liko's Custom Dressing Background · Liko的自訂更衣室背景
-> 🆔 `Liko-CDB`
+> 🆔 `Liko-CDB` · EN✔️
 
 更衣室背景替換，並提供網格對焦。現在多了替換姿勢的功能。  
 Replace wardrobe background with grid focus assistance. Now includes a posture-change function.
@@ -122,7 +122,7 @@ Replace wardrobe background with grid focus assistance. Now includes a posture-c
 ---
 
 ### 🌐 Liko's Messages Auto Translator · Liko的自動翻譯
-> 🆔 `Liko-MAT`
+> 🆔 `Liko-MAT` · EN✔️
 
 自動翻譯（使用 Google API）。  
 Auto translate BC chat messages using Google API.
@@ -149,7 +149,7 @@ Convert chat messages to buttons, now with portal/teleport feature.
 ---
 
 ### 📧 Liko's Notification of Invites · Liko的邀請通知器
-> 🆔 `Liko-NOI`
+> 🆔 `Liko-NOI` · EN✔️
 
 發出好友、白單、黑單的通知信息！  
 Customize the notification message when sending a friend, whitelist, or blacklist request.
@@ -160,7 +160,7 @@ Customize the notification message when sending a friend, whitelist, or blacklis
 ---
 
 ### 🪄 Liko's Friend Prank · Liko對朋友的惡作劇
-> 🆔 `Liko-Prank`
+> 🆔 `Liko-Prank` · EN✔️
 
 內褲大盜鬧得 BC 社群人心惶惶！  
 The underwear thief causing panic in the BC community!
@@ -216,7 +216,7 @@ Quickly switch between mixed and female regions.
 ---
 
 ### 📋 Chat Filter Tool · 聊天室信息過濾器
-> 🆔 `Liko-CFT`
+> 🆔 `Liko-CFT` · EN✔️
 
 聊天室信息過濾。  
 Chat room message filtering.
@@ -233,7 +233,7 @@ Chat room message filtering.
 </div>
 
 ### 🥐 ECHO's Expansion on Cloth Options · ECHO的服裝拓展
-> 🆔 `ECHO-Cloth` · [GitHub](https://github.com/SugarChain-Studio/echo-clothing-ext) · by **SugarChain Studio**
+> 🆔 `ECHO-Cloth` · EN✔️ · [GitHub](https://github.com/SugarChain-Studio/echo-clothing-ext) · by **SugarChain Studio**
 
 ECHO 的服裝拓展（支援穩定版 / Beta 版切換）。  
 ECHO's Expansion on cloth options *(supports stable / beta toggle)*.
@@ -241,7 +241,7 @@ ECHO's Expansion on cloth options *(supports stable / beta toggle)*.
 ---
 
 ### 🥐 ECHO's Expansion on Activity Options · ECHO的動作拓展
-> 🆔 `ECHO-Activity` · [GitHub](https://github.com/SugarChain-Studio/echo-activity-ext) · by **SugarChain Studio**
+> 🆔 `ECHO-Activity` · EN✔️ · [GitHub](https://github.com/SugarChain-Studio/echo-activity-ext) · by **SugarChain Studio**
 
 ECHO 的動作拓展（支援穩定版 / Beta 版切換）。  
 ECHO's Expansion on activity options *(supports stable / beta toggle)*.
@@ -249,7 +249,7 @@ ECHO's Expansion on activity options *(supports stable / beta toggle)*.
 ---
 
 ### 🐇 ULTRAbc
-> 🆔 `ULTRAbc` · [GitHub](https://github.com/tetris245/ULTRAbc) · by **tetris245**
+> 🆔 `ULTRAbc` · EN✔️ · [GitHub](https://github.com/tetris245/ULTRAbc) · by **tetris245**
 
 有許多輔助功能，但考慮遊戲性請自行選擇是否啟用（支援 EN / ZH 版本切換）。  
 A large collection of cheats, quality of life improvements, and a moaner script *(supports EN / ZH toggle)*.
