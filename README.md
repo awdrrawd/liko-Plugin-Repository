@@ -184,7 +184,7 @@ Auto-release maid, but a bit naive and may trigger unexpectedly.
 ---
 
 ### 🆔 WCE Profile Share · WCE的個人資料分享
-> 🆔 `Liko-WPS`
+> 🆔 `Liko-WPS`· EN✔️
 
 WCE 的個人資料分享，需開啟 WCE 的個人資料保存。  
 WCE Profile Share — requires WCE profile saving to be enabled.
