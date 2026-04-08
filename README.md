@@ -1,14 +1,13 @@
-# 🐈‍⬛ Liko Plugin Repository
-
 <div align="center">
 
+## 🐈‍⬛ Liko Plugin Repository 🐈‍⬛
 [![Version](https://img.shields.io/badge/PCM-v1.5.1-7F53CD?style=for-the-badge&logo=github)](https://github.com/awdrrawd/liko-Plugin-Repository)
 [![License](https://img.shields.io/badge/License-MIT-A78BFA?style=for-the-badge)](LICENSE)
 [![BondageClub](https://img.shields.io/badge/BondageClub-Compatible-C4B5FD?style=for-the-badge)](https://bondageprojects.elementfx.com)
 
 **中文** | **English**
 
-*A collection of personal BondageClub plugins, managed via Liko's Plugin Collection Manager.*
+*A collection of personal BondageClub plugins, managed via Liko's Plugin Collection Manager.*  
 *彙整了一些個人開發的 BondageClub 小插件，透過 Liko 的插件管理器進行管理。*
 
 </div>
@@ -20,7 +19,11 @@
 > 使用 PCM 一鍵管理所有插件，支援啟用 / 停用、自動載入、快取加速。  
 > Use PCM to manage all plugins with one click — enable/disable, auto-load, and cache acceleration.
 
-### 🔧 Installation · 安裝方式
+<div align="center">
+
+### 🔧 安裝方式 · Installation
+
+</div>
 
 #### 1. Script Manager · 腳本管理器
 > Tampermonkey、Violentmonkey、Userscripts 等
@@ -57,7 +60,17 @@ import(`https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Co
 
 ---
 
-## 🔌 Plugin List · 插件列表
+<div align="center">
+
+## 🔌 插件列表 · Plugin List
+
+</div>
+
+<div align="center">
+
+### 🐈‍⬛ Liko 自製插件 · Liko's Own Plugins
+
+</div>
 
 ### 🧰 Liko's Tool Kit · Liko的工具包
 > 🆔 `Liko-Tool`
@@ -210,8 +223,17 @@ Chat room message filtering.
 
 ---
 
+<div align="center">
+
+### 🌟 社群推薦插件 · Community Featured Plugins
+
+*以下是取得同意開發者同意，透過 PCM 整合收錄，感謝各位作者的貢獻！*  
+*All of the following have been agreed to by the developer and integrated via PCM. Thanks to all authors!*
+
+</div>
+
 ### 🥐 ECHO's Expansion on Cloth Options · ECHO的服裝拓展
-> 🆔 `ECHO-Cloth` · [GitHub](https://github.com/SugarChain-Studio/echo-clothing-ext)
+> 🆔 `ECHO-Cloth` · [GitHub](https://github.com/SugarChain-Studio/echo-clothing-ext) · by **SugarChain Studio**
 
 ECHO 的服裝拓展（支援穩定版 / Beta 版切換）。  
 ECHO's Expansion on cloth options *(supports stable / beta toggle)*.
@@ -219,30 +241,26 @@ ECHO's Expansion on cloth options *(supports stable / beta toggle)*.
 ---
 
 ### 🥐 ECHO's Expansion on Activity Options · ECHO的動作拓展
-> 🆔 `ECHO-Activity` · [GitHub](https://github.com/SugarChain-Studio/echo-activity-ext)
+> 🆔 `ECHO-Activity` · [GitHub](https://github.com/SugarChain-Studio/echo-activity-ext) · by **SugarChain Studio**
 
 ECHO 的動作拓展（支援穩定版 / Beta 版切換）。  
 ECHO's Expansion on activity options *(supports stable / beta toggle)*.
 
 ---
 
-### 🍪 XS's Expansion on Activity Options · 小酥的動作拓展
-> 🆔 `XS-Activity` · [GitHub](https://github.com/iceriny/XiaoSuActivity)
-
-小酥的動作拓展。  
-XS's Expansion on activity options.
-
----
-
 ### 🐇 ULTRAbc
-> 🆔 `ULTRAbc` · [GitHub](https://github.com/tetris245/ULTRAbc)
+> 🆔 `ULTRAbc` · [GitHub](https://github.com/tetris245/ULTRAbc) · by **tetris245**
 
 有許多輔助功能，但考慮遊戲性請自行選擇是否啟用（支援 EN / ZH 版本切換）。  
 A large collection of cheats, quality of life improvements, and a moaner script *(supports EN / ZH toggle)*.
 
 ---
 
-## 📝 Notes · 注意事項
+<div align="center">
+
+## 📝 注意事項 · Notes
+
+</div>
 
 - 插件啟用後會自動載入，或在下次刷新頁面時生效
 - Plugins will auto-load after enabling, or take effect on next page refresh
