@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Liko - WPS
 // @namespace    https://likulisu.dev/
-// @version      1.1.1
+// @version      1.1.2
 // @description  WCE Profile Share
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -22,7 +22,7 @@
     const PREFIX = "[LIKOSHARE]";
     const OPEN_MARK = "LIKOSHARE_OPEN";
     const CHUNK_SIZE = 800;
-    const VERSION = "1.1.1";
+    const VERSION = "1.1.2";
 
     const incoming = new Map();
     const cache = new Map();
@@ -32,44 +32,30 @@
 
     /* ================= Language ================= */
     function detectLanguage() {
-        let gameLang = null;
-
         if (typeof TranslationLanguage !== "undefined") {
-            gameLang = TranslationLanguage;
+            const l = TranslationLanguage.toLowerCase();
+            return l === 'tw' || l === 'cn';
         }
-
-        const browserLang = navigator.language || navigator.userLanguage || "en";
-        const lang = gameLang || browserLang;
-
-        // 只把「簡中環境」當 CN
-        return lang.toLowerCase().startsWith("zh")
-        || lang.toLowerCase().includes("cn");
+        return (navigator.language || 'en').toLowerCase().startsWith('zh');
     }
+
     const isCN = detectLanguage();
 
     function getI18N() {
-        const isCN = detectLanguage();
-
         return {
             sharedSelf: isCN
             ? (name, id) => `📜 已分享 ${name} (${id}) 的 Profile`
             : (name, id) => `📜 Shared profile: ${name} (${id})`,
-
             sharedFrom: isCN
-            ? (from, display, date) =>
-            `📜 ${from} 分享了 ${display} 保存於: ${date}`
-            : (from, display, date) =>
-            `📜 ${from} shared a profile: ${display} saved: ${date}`
+            ? (from, display, date) => `📜 ${from} 分享了 ${display} 保存於: ${date}`
+            : (from, display, date) => `📜 ${from} shared a profile: ${display} saved: ${date}`
         };
     }
+
     function getUILabel(key) {
-        const isCN = detectLanguage();
-        const UI = {
-            share: isCN ? "分享 " : "Share "
-        };
+        const UI = { share: isCN ? "分享 " : "Share " };
         return UI[key] || key;
     }
-
     /* ================= IndexedDB（沿用你原本邏輯） ================= */
     let _dbPromise = null;
     function openBceDB() {
