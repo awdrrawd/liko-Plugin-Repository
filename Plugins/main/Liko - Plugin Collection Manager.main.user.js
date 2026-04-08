@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.1
+// @version      1.5.2
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.5.1";
+    const modversion = "1.5.2";
 
     // === 生命週期管理 ===
     let isInitialized = false;
@@ -242,11 +242,18 @@
     // --- 版本更新檢查 ---
     let remoteChangelog = [];
     let remoteVersion = modversion;
+    let remoteUpdateId = null;
 
     function checkVersionUpdate() {
         const savedVersion = pluginSettings["_pcm_version"];
-        if (savedVersion !== modversion) {
+        const savedUpdateId = pluginSettings["_pcm_updateId"];  // 新增
+
+        const versionChanged = savedVersion !== modversion;
+        const updateIdChanged = remoteUpdateId && savedUpdateId !== remoteUpdateId;  // 新增
+
+        if (versionChanged || updateIdChanged) {
             pluginSettings["_pcm_version"] = modversion;
+            if (remoteUpdateId) pluginSettings["_pcm_updateId"] = remoteUpdateId;  // 新增
             saveSettings(pluginSettings);
             return true;
         }
@@ -490,6 +497,7 @@
             return false;
         }
         remoteVersion = data.version || modversion;
+        remoteUpdateId = data.updateId || null;
         remoteChangelog = (detectLanguage() ? data.changelog : data.en_changelog) || data.changelog || [];
         subPlugins = applyPluginSettings(data.plugins);
         subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
@@ -527,10 +535,10 @@
     function buildFetchUrls(plugin) {
         const rawUrl = getActivePluginUrl(plugin);
         const cdnUrl = rawUrl
-            .replace("https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/",
-                     "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/")
-            .replace("https://raw.githubusercontent.com/awdrrawd/",
-                     "https://cdn.jsdelivr.net/gh/awdrrawd/");
+        .replace("https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/",
+                 "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/")
+        .replace("https://raw.githubusercontent.com/awdrrawd/",
+                 "https://cdn.jsdelivr.net/gh/awdrrawd/");
         return cdnUrl !== rawUrl ? [rawUrl, cdnUrl] : [rawUrl];
     }
 
@@ -735,10 +743,10 @@
         const now = Date.now();
         if (now - lastScreenCheckTime < SCREEN_CACHE_TIME && lastScreenCheck !== null) return lastScreenCheck;
         const result = CurrentScreen === "InformationSheet" &&
-            window.bcx?.inBcxSubscreen() !== true &&
-            window.LITTLISH_CLUB?.inModSubscreen() !== true &&
-            window.MPA?.menuLoaded !== true &&
-            window.LSCG_REMOTE_WINDOW_OPEN !== true;
+              window.bcx?.inBcxSubscreen() !== true &&
+              window.LITTLISH_CLUB?.inModSubscreen() !== true &&
+              window.MPA?.menuLoaded !== true &&
+              window.LSCG_REMOTE_WINDOW_OPEN !== true;
         lastScreenCheck = result;
         lastScreenCheckTime = now;
         return result;
@@ -1053,12 +1061,12 @@
         item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}`;
 
         const iconDisplay = plugin.customIcon
-            ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
-            : plugin.icon;
+        ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
+        : plugin.icon;
 
         const infoBtnHtml = plugin.website
-            ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
-            : '';
+        ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
+        : '';
 
         const buildTriToggle = (p, state) => {
             const labels = getTriLabels(p);
@@ -1073,8 +1081,8 @@
         };
 
         const toggleHtml = isTri
-            ? buildTriToggle(plugin, currentState)
-            : `<button class="bc-plugin-toggle ${isEnabled ? 'active' : ''}" data-plugin="${plugin.id}" aria-label="${getPluginName(plugin)}"></button>`;
+        ? buildTriToggle(plugin, currentState)
+        : `<button class="bc-plugin-toggle ${isEnabled ? 'active' : ''}" data-plugin="${plugin.id}" aria-label="${getPluginName(plugin)}"></button>`;
 
         item.innerHTML = `
             ${infoBtnHtml}
@@ -1241,8 +1249,8 @@
                     if (nextState === "beta") item.classList.add("beta-enabled");
                     const labels = getTriLabels(plugin);
                     const notifTitle = nextState === "off"
-                        ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
-                        : `${getPluginName(plugin)} ${labels[nextState === "stable" ? 1 : 2]} ${getMessage('pluginEnabled')}`;
+                    ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
+                    : `${getPluginName(plugin)} ${labels[nextState === "stable" ? 1 : 2]} ${getMessage('pluginEnabled')}`;
                     showToggleNotification(
                         nextState === "off" ? "🐾" : nextState === "stable" ? "🐈‍⬛" : "🧪",
                         notifTitle,
