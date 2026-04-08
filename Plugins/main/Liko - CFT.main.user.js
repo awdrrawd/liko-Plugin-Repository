@@ -2,7 +2,7 @@
 // @name         Liko - Chat Filter Tool
 // @name:zh      Liko的聊天室信息過濾器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1
+// @version      1.1.1
 // @description  聊天室信息過濾
 // @author       Liko
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -16,7 +16,7 @@
     'use strict';
 
     let modApi = null;
-    const modversion = "1.1";
+    const modversion = "1.1.1";
     const BtnX = 955, BtnY = 900, BtnSize = 45;
 
     modApi = bcModSdk.registerMod({
@@ -28,14 +28,12 @@
 
     // ===== 語言偵測 =====
     function isZh() {
-        try {
-            if (typeof TranslationLanguage !== 'undefined' && TranslationLanguage) {
-                const l = TranslationLanguage.toLowerCase();
-                if (l.startsWith('zh') || l === 'cn' || l === 'tw') return true;
-            }
-        } catch (e) {}
-        return (navigator.language || '').toLowerCase().startsWith('zh');
+    if (typeof TranslationLanguage !== 'undefined' && TranslationLanguage) {
+        const l = TranslationLanguage.toLowerCase();
+        return l === 'cn' || l === 'tw';
     }
+    return (navigator.language || '').toLowerCase().startsWith('zh');
+}
 
     const LANG = {
         zh: {
