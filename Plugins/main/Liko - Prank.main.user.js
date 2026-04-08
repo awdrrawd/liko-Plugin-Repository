@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.5.2
+// @version      1.5.3
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -23,7 +23,7 @@
     window.LIKO_PRANK_LOADED = true;
 
     let modApi;
-    const modversion = "1.5.2";
+    const modversion = "1.5.3";
 
     // ===== 图片路径辅助工具 =====
     const ImagePathHelper = {
@@ -50,13 +50,11 @@
 
     // ===== 多语言支持 =====
     function detectLanguage() {
-        const browserLang = navigator.language || navigator.userLanguage;
-        let gameLang = null;
         if (typeof TranslationLanguage !== 'undefined') {
-            gameLang = TranslationLanguage;
+            const l = TranslationLanguage.toLowerCase();
+            return l === 'tw' || l === 'cn';
         }
-        const lang = gameLang || browserLang || 'en';
-        return lang.toLowerCase().startsWith('zh') || lang.toLowerCase().includes('cn') || lang.toLowerCase().includes('tw');
+        return (navigator.language || 'en').toLowerCase().startsWith('zh');
     }
 
     const messages = {
@@ -216,10 +214,10 @@
         } else if (typeof identifier === "string") {
             const lower = identifier.toLowerCase();
             return ChatRoomCharacter.find(c =>
-                c.Name?.toLowerCase() === lower ||
-                c.Nickname?.toLowerCase() === lower ||
-                c.AccountName?.toLowerCase() === lower
-            ) || null;
+                                          c.Name?.toLowerCase() === lower ||
+                                          c.Nickname?.toLowerCase() === lower ||
+                                          c.AccountName?.toLowerCase() === lower
+                                         ) || null;
         }
         return null;
     }
@@ -253,7 +251,7 @@
     function hasBCItemPermission(target) {
         return typeof ServerChatRoomGetAllowItem === "function"
             ? ServerChatRoomGetAllowItem(Player, target)
-            : true;
+        : true;
     }
 
     function getRandomColor() {
@@ -324,11 +322,11 @@
 
             const isZh = detectLanguage();
             const itemName = isZh ?
-                `${targetNick}刚脱下的内裤 💕` :
-                `${targetNick}'s freshly removed panties 💕`;
+                  `${targetNick}刚脱下的内裤 💕` :
+            `${targetNick}'s freshly removed panties 💕`;
             const itemDesc = isZh ?
-                `${targetNick}刚脱下的内裤，带有一点余温与气味💕` :
-                `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕`;
+                  `${targetNick}刚脱下的内裤，带有一点余温与气味💕` :
+            `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕`;
 
             try {
                 InventoryWear(Player, "Panties", "ItemHandheld", itemColor, 0, target.MemberNumber, {
@@ -610,12 +608,12 @@
         const isZh = detectLanguage();
 
         const itemName = isZh ?
-            (itemType === "panties" ? `${targetNick}刚脱下的内裤 💕` : `${targetNick}刚脱下的袜子 💕`) :
-            (itemType === "panties" ? `${targetNick}'s freshly removed panties 💕` : `${targetNick}'s freshly removed socks 💕`);
+              (itemType === "panties" ? `${targetNick}刚脱下的内裤 💕` : `${targetNick}刚脱下的袜子 💕`) :
+        (itemType === "panties" ? `${targetNick}'s freshly removed panties 💕` : `${targetNick}'s freshly removed socks 💕`);
 
         const itemDesc = isZh ?
-            (itemType === "panties" ? `${targetNick}刚脱下的内裤，带有一点余温与气味💕` : `${targetNick}刚脱下的袜子，带有一点余温与气味💕`) :
-            (itemType === "panties" ? `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕` : `${targetNick}'s freshly removed socks, with a hint of warmth and scent 💕`);
+              (itemType === "panties" ? `${targetNick}刚脱下的内裤，带有一点余温与气味💕` : `${targetNick}刚脱下的袜子，带有一点余温与气味💕`) :
+        (itemType === "panties" ? `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕` : `${targetNick}'s freshly removed socks, with a hint of warmth and scent 💕`);
 
         InventoryWear(Player, handheldItemName, "ItemHandheld", itemColor, 0, target.MemberNumber, {
             Name: itemName,
@@ -913,7 +911,7 @@
             Activity: { Name: "PluckingHair_Razor", MaxProgress: 40, MaxProgressSelf: 40, Prerequisite: [] },
             Targets: [
                 { TargetLabel: getMessage('actPluckingHair'), Name: "ItemHead", SelfAllowed: true,
-                  TargetAction: getMessage('actPluckingHair'), TargetSelfAction: getMessage('actPluckingHair') }
+                 TargetAction: getMessage('actPluckingHair'), TargetSelfAction: getMessage('actPluckingHair') }
             ],
             CustomPrereqs: [
                 { Name: "LikoCanInteract", Func: actData.CustomPrerequisiteFuncs.get("LikoCanInteract") },
@@ -1028,10 +1026,10 @@
         try {
             // 等待玩家登入完成（MemberNumber > 0 確認已成功登入）
             await waitFor(() =>
-                typeof Player !== "undefined" &&
-                typeof Player.MemberNumber === "number" &&
-                Player.MemberNumber > 0
-            );
+                          typeof Player !== "undefined" &&
+                          typeof Player.MemberNumber === "number" &&
+                          Player.MemberNumber > 0
+                         );
 
             // 注册命令
             if (typeof CommandCombine === "function") {
@@ -1049,9 +1047,9 @@
 
             // 等待活动系统
             await waitFor(() =>
-                typeof ActivityFemale3DCG !== "undefined" &&
-                typeof ActivityDictionary !== "undefined"
-            );
+                          typeof ActivityFemale3DCG !== "undefined" &&
+                          typeof ActivityDictionary !== "undefined"
+                         );
 
             registerActivities();
             setupHooks();
