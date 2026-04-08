@@ -1,4 +1,4 @@
-# 🐈‍⬛ Liko - Plugin Collection Manager
+# 🐈‍⬛ Liko Plugin Repository
 
 <div align="center">
 
