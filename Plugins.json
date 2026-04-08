@@ -1,22 +1,20 @@
 {
-  "updateId": "260403",
+  "updateId": "260408",
   "changelog": [
-    "v1.5.1 更新，之後有更新都會提示",
-    "插件清單改為 JSON 外聯，支援 RAW + CDN 備援",
-    "通知改為底部插入，不再遮擋操作按鈕",
-    "新增更新日誌懸浮功能（📋）",
-    "新增插件版本檢查功能（↻）",
-    "浮動按鈕縮小",
-    "優化效能"
+    "將部分插件的保存位置改到ExtensionSettings",
+    "CDB v1.5更新",
+    "支援英文語言",
+    "現在網格可以任意設置在角色前或後",
+    "現在背景替換顏色等設定時，會即時更新放大鏡的畫面",
+    "使用放大鏡時，修復更改顏色與座標時會重製位置的問題"
   ],
   "en_changelog": [
-    "v1.5.1 Update, you will be notified of any future updates.",
-    "Plugin list now loaded from external JSON with RAW + CDN fallback",
-    "Notifications now slide in from bottom, no longer blocking buttons",
-    "Added changelog floating Function (📋)",
-    "Added plugin version check Function (↻)",
-    "Smaller floating button",
-    "Performance improvements"
+    "Some plugin save locations have been moved to ExtensionSettings.",
+    "CDB v1.5 Update",
+    "English language support is now available.",
+    "The grid can now be placed arbitrarily in front of or behind the character.",
+    "The magnifying glass view now updates instantly when changing background colors or other settings.",
+    "Fixed an issue where the magnifying glass would reset its position when changing colors and coordinates."
   ],
   "plugins": [
     {
