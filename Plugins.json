@@ -189,6 +189,19 @@
       "priority": 10
     },
     {
+      "id": "Vivian-PWB",
+      "name": "Vivian 的 BC 随身衣柜",
+      "en_name": "Vivian's Portable Wardrobe for BC.",
+      "description": "本脚本为 BC 游戏提供 随身衣柜，内置预览镜和高级服装管理功能。",
+      "en_description": "A BC script that adds a portable wardrobe system with a preview mirror and advanced outfit management.",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "👘",
+      "url": "https://vivianmoonlight.github.io/Vivians-Portable-Wardrobe/ViviansPortableWardrobeLoader.user.js",
+      "website": "https://github.com/VivianMoonlight/Vivians-Portable-Wardrobe",
+      "priority": 3
+    },
+    {
       "id": "Liko-ACV",
       "name": "Liko的自動創建影片",
       "en_name": "Liko's Automatically create video.",
