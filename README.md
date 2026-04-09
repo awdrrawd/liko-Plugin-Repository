@@ -5,13 +5,13 @@
 [![License](https://img.shields.io/badge/License-MIT-A78BFA?style=for-the-badge)](LICENSE)
 [![BondageClub](https://img.shields.io/badge/BondageClub-Compatible-C4B5FD?style=for-the-badge)](https://bondageprojects.elementfx.com)
 
-**[中文](#-中文說明)** | **[English](#-english-guide)**
+**[中文](#zh)** | **[English](#en)**
 
 </div>
 
 ---
 
-<div id="中文說明"></div>
+<a name="zh"></a>
 
 # 🐈‍⬛ 中文說明
 
@@ -236,7 +236,7 @@ ECHO 的動作拓展（支援穩定版 / Beta 版切換）。
 
 ---
 
-<div id="english-guide"></div>
+<a name="en"></a>
 
 # 🐈‍⬛ English Guide
 
