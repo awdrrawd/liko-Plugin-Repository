@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.3.0
+// @version      2.4.0
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
     "use strict";
 
     let modApi;
-    const modversion = "2.3.0";
+    const modversion = "2.4.0";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
     let autoSaveTimer = null;
@@ -45,6 +45,14 @@
     }
 
     // =====================================================================
+    // Dynamic game asset URL (version-safe)
+    // =====================================================================
+    function gameAsset(path) {
+        const m = window.location.href.match(/(https?:\/\/[^/]+\/R\d+\/BondageClub\/)/);
+        return m ? m[1] + path : path;
+    }
+
+    // =====================================================================
     // UI i18n — plugin side (has game context)
     // =====================================================================
     const UI = {
@@ -56,7 +64,7 @@
             btnCache:        "💾 緩存管理",
             btnModeCache:    "💾 緩存中",
             btnModeStopped:  "⏸️ 停用",
-            tooltipTitle:    "聊天室記錄管理器 v2.3",
+            tooltipTitle:    "聊天室記錄管理器 v2.4",
             // Prompts
             promptPrivate:   "請問是否保存包含\n悄悄話(whisper)與私信(beep)的信息?",
             promptClear:     "確定要清空當前聊天室的訊息嗎？\n（緩存數據庫不會被清空）",
@@ -107,7 +115,7 @@
             btnCache:        "💾 Cache Manager",
             btnModeCache:    "💾 Caching",
             btnModeStopped:  "⏸️ Stopped",
-            tooltipTitle:    "Chat History Export v2.3",
+            tooltipTitle:    "Chat History Export v2.4",
             promptPrivate:   "Include whisper and beep messages in export?",
             promptClear:     "Clear current chat log?\n(Cache database will not be cleared)",
             promptNoCache:   "No cached data. Save current chat messages?",
@@ -447,23 +455,27 @@
     function isFilteredMessage(content, messageType, includePrivate = true) {
         const basicFilters = ["BCX commands tutorial", "BCX also provides", "(输入 /help 查看命令列表)"];
         if (basicFilters.some(f => content.includes(f))) return true;
-        // "beep" type covers two distinct things:
-        //   1. System in-room notification (好友私聊来自 / BEEP keyword) → always filter (noisy)
-        //   2. BCE display of sent beep (Beep to / Beep from)            → respect includePrivate
-        if (messageType === "beep") {
-            const isSystemBeep = content.includes("好友私聊来自") ||
-                content.includes("好友私聊") ||
-                /\bBEEP\b/.test(content);
-            if (isSystemBeep) return true;           // system noise, always hide
-            if (!includePrivate) return true;        // user opted out of private
-            return false;                            // BCE beep → show
-        }
+
+        // Detect beep/whisper by content pattern as fallback for old cached data
+        // where type may have been stored as "normal" before detectMessageType was fixed
+        const isBceBeepContent = /^\(Beep (to|from)\b/i.test(content);
+        const isSystemBeep = content.includes("好友私聊来自") ||
+            content.includes("好友私聊") ||
+            /\bBEEP\b/.test(content);
+
+        // System beep (好友私聊来自 / BEEP keyword): always hide regardless of setting
+        if (isSystemBeep) return true;
+
+        const effectiveType = (messageType === "beep" || isBceBeepContent) ? "beep"
+            : messageType;
+
         if (!includePrivate) {
-            if (messageType === "whisper") return true;
+            if (effectiveType === "beep" || effectiveType === "whisper") return true;
             if (content.includes("↩️")) return true;
             const privateKeywords = ["悄悄話", "悄悄话"];
             if (privateKeywords.some(k => content.includes(k))) return true;
         }
+
         return false;
     }
 
@@ -712,7 +724,7 @@ body.del-mode .chat-row.soft-deleted .row-del {
 /* row2 layout: chips centered, edit buttons at end */
 .row2 { display:flex; align-items:center; margin-top:6px; gap:0; }
 .row2-center { flex:1; display:flex; justify-content:center; flex-wrap:wrap; gap:5px; }
-.row2-right  { display:flex; gap:6px; align-items:center; margin-left:20px; flex-shrink:0; }
+.row2-right  { display:flex; gap:6px; align-items:center; margin-left:auto; padding-left:16px; flex-shrink:0; }
 /* Delete-mode toggle */
 #toggleDelMode {
     padding:4px 10px; border-radius:20px; border:1px solid rgba(231,76,60,0.4);
@@ -1424,14 +1436,13 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     }
 
     async function exportChatAsHTML() {
-        const includePrivate = await showCustomPrompt(ui('promptPrivate'));
         const log = DOMCache.getChatLog();
-        if (!log || log.querySelectorAll(".ChatMessage, a.beep-link, .chat-room-sep-div").length === 0) {
-            window.ChatRoomSendLocalStyled(ui('toastNoContainer'), 5000, "#ff0000");
+        const messages = log ? Array.from(log.querySelectorAll(".ChatMessage, a.beep-link, .chat-room-sep-div")) : [];
+        if (messages.length === 0) {
+            window.ChatRoomSendLocalStyled(ui('toastNoMsgEx'), 3000, "#ffa500");
             return;
         }
-        const messages = Array.from(log.querySelectorAll(".ChatMessage, a.beep-link, .chat-room-sep-div"));
-        if (messages.length === 0) { window.ChatRoomSendLocalStyled(ui('toastNoMsgEx'), 5000, "#ff0000"); return; }
+        const includePrivate = await showCustomPrompt(ui('promptPrivate'));
         await generateChatHTML(messages, includePrivate);
     }
 
@@ -1686,6 +1697,265 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     // =====================================================================
     // UI
     // =====================================================================
+    // =====================================================================
+    // CHE Settings (localStorage)
+    // =====================================================================
+    const CHE_SETTINGS_KEY = "che_settings_v1";
+    let cheSettings = { showBall: true, cacheEnabled: true };
+
+    function loadCHESettings() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(CHE_SETTINGS_KEY) || "{}");
+            cheSettings = Object.assign({ showBall: true, cacheEnabled: true }, saved);
+            // Sync cacheEnabled → currentMode on load
+            if (!cheSettings.cacheEnabled && currentMode === "cache") {
+                currentMode = "stopped";
+                localStorage.setItem("chatlogger_mode", "stopped");
+            }
+        } catch {}
+    }
+
+    function saveCHESettings() {
+        localStorage.setItem(CHE_SETTINGS_KEY, JSON.stringify(cheSettings));
+    }
+
+    function applyBallVisibility() {
+        const el = document.querySelector("#chatlogger-container");
+        if (!el) return;
+        el.style.display = cheSettings.showBall ? "" : "none";
+    }
+
+    // =====================================================================
+    // Extension Settings Screen (BC Preference panel)
+    // =====================================================================
+    function waitForPreference() {
+        return new Promise(resolve => {
+            const check = () => {
+                if (typeof PreferenceRegisterExtensionSetting === "function" && typeof TranslationLanguage !== "undefined") resolve();
+                else setTimeout(check, 500);
+            };
+            check();
+        });
+    }
+
+    const EXT_SCREEN = {
+        // BC canvas: 2000x1000. Use MAT-style two-column layout.
+        // Left col centre ~650, Right col centre ~1350
+        CB: 64,
+        // Shared Y positions
+        Y: {
+            back:    60,
+            help:    60,
+            title:  105,
+            secL:   180,   // "── 顯示 ──"
+            secR:   180,   // "── 匯出 ──"
+            cb1:    220,   // showBall checkbox
+            cb2:    310,   // cacheEnabled checkbox
+            btn1:   220,   // Export HTML button
+            btn2:   310,   // Export Excel button
+            btn3:   400,   // Cache manager button
+            divider:500,
+            desc1:  545,
+            desc2:  595,
+            desc3:  645,
+        },
+        // Column centres
+        LC: 650,   // left column centre
+        RC: 1350,  // right column centre
+        LCB_X: 460, // left checkbox X
+
+        load() {},
+
+        run() {
+            const zh = isZh();
+            const T = {
+                title:    zh ? "書記官設定  v" + modversion : "CHE Settings  v" + modversion,
+                back:     zh ? "返回" : "Back",
+                helpTip:  zh ? "顯示說明" : "Show guide",
+                secL:     zh ? "── 顯示 ──"  : "── Display ──",
+                secR:     zh ? "── 匯出 ──"  : "── Export ──",
+                showBall: zh ? "顯示浮懸球"  : "Show floating ball",
+                cacheOn:  zh ? "啟用緩存"    : "Enable cache",
+                btnHTML:  zh ? "匯出成 HTML" : "Export HTML",
+                btnExcel: zh ? "匯出成 Excel": "Export Excel",
+                btnCache: zh ? "緩存管理"    : "Cache manager",
+                desc1: zh
+                    ? "氣球顯示與否不影響緩存，緩存設定為獨立開關"
+                    : "Ball visibility does not affect caching — they are independent",
+                desc2: zh
+                    ? "緩存資料存於 IndexedDB，超過 7 天自動清除，停用後不再記錄新訊息（現有資料保留）"
+                    : "Cache is stored in IndexedDB, auto-cleaned after 7 days. Disabling stops new recording; existing data is kept.",
+                desc3: zh
+                    ? "HTML 匯出支援搜尋、過濾、類型分類及逐行刪除等便利功能"
+                    : "HTML export supports search, filtering, type categories, and per-row deletion",
+            };
+
+            const y = this.Y; const cb = this.CB;
+            const lc = this.LC; const rc = this.RC; const lx = this.LCB_X;
+            const btnW = 380; const btnH = 64;
+
+            // Top row: back + help
+            DrawButton(1815, y.back, 90, 90, "", "White", "Icons/Exit.png", T.back);
+            DrawButton(1710, y.help, 90, 90, "", "White", gameAsset("Icons/Question.png"), T.helpTip);
+
+            // Title
+            DrawText(T.title, 1000, y.title, "White", "Black");
+
+            // ── Left: Display ──
+            DrawText(T.secL, lc, y.secL, "#4CAF50", "Black");
+            DrawCheckbox(lx, y.cb1, cb, cb, "", cheSettings.showBall);
+            DrawCheckbox(lx, y.cb2, cb, cb, "", cheSettings.cacheEnabled);
+            const prev = MainCanvas.textAlign;
+            MainCanvas.textAlign = "left";
+            DrawTextFit(T.showBall, lx + cb + 12, y.cb1 + cb/2 + 10, 420, "White");
+            DrawTextFit(T.cacheOn,  lx + cb + 12, y.cb2 + cb/2 + 10, 420,
+                cheSettings.cacheEnabled ? "White" : "#888888");
+            MainCanvas.textAlign = prev;
+
+            // ── Right: Export ──
+            DrawText(T.secR, rc, y.secR, "#4CAF50", "Black");
+            const bx = rc - btnW/2;
+            DrawButton(bx, y.btn1, btnW, btnH, T.btnHTML,  "White", "", "");
+            DrawButton(bx, y.btn2, btnW, btnH, T.btnExcel, "White", "", "");
+            DrawButton(bx, y.btn3, btnW, btnH, T.btnCache, "White", "", "");
+
+            // Divider
+            DrawRect(395, y.divider, 1215, 2, "rgba(255,255,255,0.1)");
+
+            // Description
+            DrawText(T.desc1, 1000, y.desc1, "#cccccc", "Black");
+            DrawText(T.desc2, 1000, y.desc2, "#aaaaaa", "Black");
+            DrawText(T.desc3, 1000, y.desc3, "#aaaaaa", "Black");
+        },
+
+        click() {
+            const y = this.Y; const cb = this.CB;
+            const lx = this.LCB_X; const rc = this.RC;
+            const btnW = 380; const btnH = 64;
+
+            if (MouseIn(1815, y.back, 90, 90)) {
+                if (typeof PreferenceExit === "function") PreferenceExit(); return;
+            }
+            if (MouseIn(1710, y.help, 90, 90)) { showHelpPopup(); return; }
+
+            // Toggle: Show ball
+            if (MouseIn(lx, y.cb1, cb, cb)) {
+                cheSettings.showBall = !cheSettings.showBall;
+                saveCHESettings(); applyBallVisibility(); return;
+            }
+            // Toggle: Enable cache
+            if (MouseIn(lx, y.cb2, cb, cb)) {
+                cheSettings.cacheEnabled = !cheSettings.cacheEnabled;
+                saveCHESettings();
+                if (cheSettings.cacheEnabled) {
+                    currentMode = "cache";
+                    localStorage.setItem("chatlogger_mode", "cache");
+                    initMessageObserver();
+                } else {
+                    currentMode = "stopped";
+                    localStorage.setItem("chatlogger_mode", "stopped");
+                    stopMessageObserver();
+                }
+                if (window.updateCHEModeBtn) window.updateCHEModeBtn();
+                return;
+            }
+
+            const bx = rc - btnW/2;
+            if (MouseIn(bx, y.btn1, btnW, btnH)) { exportChatAsHTML(); return; }
+            if (MouseIn(bx, y.btn2, btnW, btnH)) { exportExcel();      return; }
+            if (MouseIn(bx, y.btn3, btnW, btnH)) { export_DB_HTML();   return; }
+        },
+
+        unload() {},
+        exit() {}
+    };
+
+    // =====================================================================
+    // Onboarding (first-time guide)
+    // =====================================================================
+    const ONBOARD_KEY = "che_onboarded_v1";
+
+    function showOnboarding() {
+        if (localStorage.getItem(ONBOARD_KEY)) return;
+        const zh = isZh();
+
+        const overlay = document.createElement("div");
+        overlay.id = "che-onboarding";
+        overlay.style.cssText = `
+            position:fixed;inset:0;z-index:99999;
+            background:rgba(0,0,0,0.72);backdrop-filter:blur(4px);
+            display:flex;align-items:center;justify-content:center;
+            font-family:'Noto Sans TC',sans-serif;
+        `;
+
+        const card = document.createElement("div");
+        card.style.cssText = `
+            background:rgba(26,32,46,0.98);border:1px solid rgba(127,83,205,0.4);
+            border-radius:18px;padding:30px 36px;max-width:420px;width:90%;
+            box-shadow:0 24px 60px rgba(0,0,0,0.5);color:#eee;position:relative;
+            user-select:none;-webkit-user-select:none;
+        `;
+
+        const lines = zh ? [
+            ["💾", "點擊浮懸球展開工具列"],
+            ["📥", "匯出當前聊天記錄為 HTML 或 Excel"],
+            ["🗄️", "緩存最多 7 天記錄，隨時匯出"],
+            ["🗑️", "可清除聊天室畫面（不影響緩存）"],
+            ["⚙️", "浮懸球可隱藏，並在拓展設定頁重新顯示"],
+        ] : [
+            ["💾", "Click the floating ball to open the toolbar"],
+            ["📥", "Export current chat as HTML or Excel"],
+            ["🗄️", "Cache up to 7 days of logs for later export"],
+            ["🗑️", "Clear the chat view (cache is unaffected)"],
+            ["⚙️", "The ball can be hidden / re-shown in Extension Settings"],
+        ];
+
+        const title = zh ? "🐈‍⬛ 聊天室書記官說明 🐈‍⬛" : "🐈‍⬛ Chat History Exporter illustrate 🐈‍⬛";
+        const btnText = zh ? "了解了，開始使用！" : "Got it, let's go!";
+
+        card.innerHTML = `
+            <h3 style="margin:0 0 16px;font-size:17px;color:#C4B5FD;">${title}</h3>
+            ${lines.map(([icon, text]) => `
+                <div style="display:flex;align-items:center;gap:12px;margin:10px 0;">
+                    <span style="font-size:20px;flex-shrink:0;">${icon}</span>
+                    <span style="font-size:13px;color:#d4c8f5;">${text}</span>
+                </div>`).join('')}
+            <button id="che-onboard-close" style="
+                margin-top:20px;width:100%;padding:11px;border:none;border-radius:10px;
+                background:linear-gradient(135deg,#7F53CD,#A78BFA);color:#fff;
+                font-size:14px;cursor:pointer;font-family:inherit;font-weight:600;
+            ">${btnText}</button>
+        `;
+
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+
+        // Pulse the ball to draw attention
+        const ball = document.querySelector("#chatlogger-container button");
+        if (ball) {
+            ball.style.animation = "che-pulse 1s ease-in-out infinite";
+            const st = document.createElement("style");
+            st.id = "che-pulse-style";
+            st.textContent = "@keyframes che-pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.18);}}";
+            document.head.appendChild(st);
+        }
+
+        card.querySelector("#che-onboard-close").onclick = () => {
+            overlay.remove();
+            localStorage.setItem(ONBOARD_KEY, "1");
+            if (ball) ball.style.animation = "";
+            document.getElementById("che-pulse-style")?.remove();
+        };
+    }
+
+    function showHelpPopup() {
+        localStorage.removeItem(ONBOARD_KEY);
+        showOnboarding();
+    }
+
+    // =====================================================================
+    // addUI
+    // =====================================================================
     function addUI() {
         const existingContainer = document.querySelector("#chatlogger-container");
         if (existingContainer) existingContainer.remove();
@@ -1723,10 +1993,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             btn.style.cssText = `padding:10px 15px;font-size:14px;text-align:left;font-weight:600;background:${gradient};color:#fff;border:none;border-radius:8px;cursor:pointer;transition:all 0.3s;white-space:nowrap;box-shadow:0 4px 15px rgba(0,0,0,0.2);user-select:none;`;
             btn.onmouseover = () => { btn.style.transform='translateY(-2px) scale(1.02)'; btn.style.boxShadow='0 8px 25px rgba(0,0,0,0.3)'; };
             btn.onmouseout  = () => { btn.style.transform='translateY(0) scale(1)'; btn.style.boxShadow='0 4px 15px rgba(0,0,0,0.2)'; };
-            btn.onclick = () => {
-                if (!DOMCache.getChatLog()) { window.ChatRoomSendLocalStyled(ui('toastNotLoaded'), 3000, "#ff0000"); return; }
-                handler();
-            };
+            btn.onclick = () => { handler(); };
             return btn;
         };
 
@@ -1734,6 +2001,19 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         const btnExcel = createButton(ui('btnExcel'), exportExcel,             "linear-gradient(135deg,#27ae60 0%,#2ecc71 100%)");
         const btnClear = createButton(ui('btnClear'), clearCache,              "linear-gradient(135deg,#e74c3c 0%,#c0392b 100%)");
         const btnCache = createButton(ui('btnCache'), export_DB_HTML,          "linear-gradient(135deg,#f39c12 0%,#e67e22 100%)");
+
+        // ⚙️ Hide button (in toolbar, replaces old ? position)
+        const btnHide = document.createElement("button");
+        btnHide.textContent = isZh() ? "⚙️ 隱藏氣球" : "⚙️ Hide ball";
+        btnHide.style.cssText = `padding:10px 15px;font-size:14px;text-align:left;font-weight:600;background:rgba(100,100,100,0.2);color:#aaa;border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;transition:all 0.3s;white-space:nowrap;user-select:none;`;
+        btnHide.onmouseover = () => { btnHide.style.background='rgba(231,76,60,0.15)'; btnHide.style.color='#e74c3c'; };
+        btnHide.onmouseout  = () => { btnHide.style.background='rgba(100,100,100,0.2)'; btnHide.style.color='#aaa'; };
+        btnHide.onclick = () => {
+            cheSettings.showBall = false;
+            saveCHESettings();
+            applyBallVisibility();
+        };
+
         const btnMode  = document.createElement("button");
         btnMode.style.cssText = `padding:10px 15px;font-size:14px;text-align:left;font-weight:600;border:none;border-radius:8px;cursor:pointer;transition:all 0.3s;white-space:nowrap;box-shadow:0 4px 15px rgba(0,0,0,0.2);user-select:none;color:#fff;`;
         btnMode.onmouseover = () => { btnMode.style.transform='translateY(-2px) scale(1.02)'; };
@@ -1750,18 +2030,49 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             }
         }
         updateModeButton(btnMode);
+        window.updateCHEModeBtn = () => updateModeButton(btnMode);
 
-        [btnHTML, btnExcel, btnClear, btnCache, btnMode].forEach(btn => toolbar.appendChild(btn));
-        container.appendChild(toggleButton);
+        [btnHTML, btnExcel, btnClear, btnCache, btnMode, btnHide].forEach(btn => toolbar.appendChild(btn));
+
+        // Ball row: [💾 ball] [? question icon]
+        const ballRow = document.createElement("div");
+        ballRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+
+        const questionBtn = document.createElement("button");
+        questionBtn.title = isZh() ? "顯示說明" : "Show guide";
+        const qImg = document.createElement("img");
+        qImg.src = gameAsset("Icons/Question.png");
+        qImg.style.cssText = "width:28px;height:28px;pointer-events:none;";
+        questionBtn.style.cssText = "width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,0.1);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0.7;transition:opacity 0.2s,background 0.2s;padding:0;flex-shrink:0;";
+        questionBtn.appendChild(qImg);
+        questionBtn.onmouseover = () => { questionBtn.style.opacity="1"; questionBtn.style.background="rgba(127,83,205,0.3)"; };
+        questionBtn.onmouseout  = () => { questionBtn.style.opacity="0.7"; questionBtn.style.background="rgba(255,255,255,0.1)"; };
+        questionBtn.onclick = (e) => { e.stopPropagation(); toolbar.style.display="none"; showHelpPopup(); };
+
+        // Question button hidden until toolbar opens
+        questionBtn.style.display = "none";
+
+        ballRow.appendChild(toggleButton);
+        ballRow.appendChild(questionBtn);
+
         container.appendChild(toolbar);
+        container.appendChild(ballRow);
         document.body.appendChild(container);
 
-        toggleButton.onclick = () => {
+        // Apply saved ball visibility
+        applyBallVisibility();
+
+        toggleButton.onclick = (e) => {
+            e.stopPropagation();
             const isVisible = toolbar.style.display === "flex";
             toolbar.style.display = isVisible ? "none" : "flex";
+            questionBtn.style.display = isVisible ? "none" : "flex";
         };
         document.addEventListener("click", (e) => {
-            if (!container.contains(e.target) && toolbar.style.display === "flex") toolbar.style.display = "none";
+            if (!container.contains(e.target) && toolbar.style.display === "flex") {
+                toolbar.style.display = "none";
+                questionBtn.style.display = "none";
+            }
         });
 
         updateButtonColors(currentMode);
@@ -1792,6 +2103,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     // =====================================================================
     async function init() {
         try {
+            loadCHESettings();
             await loadToastSystem();
             setupDataBackup();
             const waitForPlayer = setInterval(() => {
@@ -1802,6 +2114,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                     CacheManager.cleanOldData().catch(e => logError("init.cleanOldData", e));
                     addUI();
                     if (currentMode === "cache") initMessageObserver();
+                    // Show onboarding on first load
+                    setTimeout(showOnboarding, 800);
                     console.log("[CHE] Init complete, mode:", currentMode);
                 }
             }, 1000);
@@ -1809,11 +2123,25 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             if (typeof bcModSdk !== "undefined" && bcModSdk?.registerMod) {
                 modApi = bcModSdk.registerMod({
                     name: "Liko's CHE",
-                    fullName: "Chat History Export v2.3",
+                    fullName: "Chat History Exporter",
                     version: modversion,
                     repository: "Chat room history export with 7-day cache",
                 });
             }
+
+            // Register extension settings page
+            waitForPreference().then(() => {
+                PreferenceRegisterExtensionSetting({
+                    Identifier: "CHE",
+                    ButtonText: isZh() ? "CHE設定" : "CHE Settings",
+                    Image: gameAsset("Icons/Changelog.png"),
+                    load:   () => EXT_SCREEN.load(),
+                    run:    () => EXT_SCREEN.run(),
+                    click:  () => EXT_SCREEN.click(),
+                    unload: () => EXT_SCREEN.unload(),
+                    exit:   () => EXT_SCREEN.exit(),
+                });
+            });
         } catch (e) {
             logError("init", e);
             window.ChatRoomSendLocalStyled?.(ui('toastInitFail'), 3000, "#ff0000");
