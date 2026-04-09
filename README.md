@@ -222,7 +222,7 @@ ECHO 的動作拓展（支援穩定版 / Beta 版切換）。
 ---
 
 #### 🐇 Vivian's Portable Wardrobe for Bondage Club · Vivian 的 BC 随身衣柜
-> 👘 `Vivian's Portable Wardrobe for BC.` · EN✔️ · [GitHub]([https://github.com/tetris245/ULTRAbc](https://github.com/VivianMoonlight/Vivians-Portable-Wardrobe)) · by **VivianMoonlight**
+> 👘 `Vivian's Portable Wardrobe for BC.` · EN✔️ · [GitHub](https://github.com/VivianMoonlight/Vivians-Portable-Wardrobe) · by **VivianMoonlight**
 
 本脚本为 BC 游戏提供 随身衣柜，内置预览镜和高级服装管理功能。
 
@@ -461,7 +461,7 @@ A large collection of cheats, quality-of-life improvements, and a moaner script 
 ---
 
 #### 🐇 Vivian's Portable Wardrobe for Bondage Club
-> 👘 `Vivian's Portable Wardrobe for BC.` · EN✔️ · [GitHub]([https://github.com/tetris245/ULTRAbc](https://github.com/VivianMoonlight/Vivians-Portable-Wardrobe)) · by **VivianMoonlight**
+> 👘 `Vivian's Portable Wardrobe for BC.` · EN✔️ · [GitHub](https://github.com/VivianMoonlight/Vivians-Portable-Wardrobe) · by **VivianMoonlight**
 
 A BC script that adds a portable wardrobe system with a preview mirror and advanced outfit management.
 
