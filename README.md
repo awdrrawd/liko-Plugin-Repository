@@ -113,7 +113,7 @@ Convert chat history to HTML and provides message recovery for up to 7 days. *(T
 
 ---
 
-### 👗 Liko's Custom Dressing Background · Liko的自訂更衣室背景
+### 👗 Liko's Custom Dressing Room Background · Liko的自訂更衣室背景
 > 🆔 `Liko-CDB` · EN✔️
 
 更衣室背景替換，並提供網格對焦。現在多了替換姿勢的功能。  
