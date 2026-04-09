@@ -1,8 +1,11 @@
 {
-  "updateId": "260408",
+  "updateId": "260409",
   "changelog": [
     "將部分插件的保存位置改到ExtensionSettings",
-    "CDB v1.5更新",
+    "CHE(聊天室書記官) v2.3更新",
+    "支援英文語言",
+    "HTML可以做更細緻的信息過濾，且可以刪除信息並匯出",
+    "CDB(更衣室背景) v1.5更新",
     "支援英文語言",
     "現在網格可以任意設置在角色前或後",
     "現在背景替換顏色等設定時，會即時更新放大鏡的畫面",
@@ -10,8 +13,11 @@
   ],
   "en_changelog": [
     "Some plugin save locations have been moved to ExtensionSettings.",
-    "CDB v1.5 Update",
-    "English language support is now available.",
+    "⭐CHE(Chat History Exporter) v2.3 Update",
+    "Add English language.",
+    "HTML allows for more granular information filtering, and it can also delete information and export it.",
+    "⭐CDB(Custom Dressing Room) v1.5 Update",
+    "Add English language.",
     "The grid can now be placed arbitrarily in front of or behind the character.",
     "The magnifying glass view now updates instantly when changing background colors or other settings.",
     "Fixed an issue where the magnifying glass would reset its position when changing colors and coordinates."
