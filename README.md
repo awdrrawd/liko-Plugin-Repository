@@ -29,13 +29,13 @@
 
 ### 方式一：Plugin Collection Manager (PCM) · 插件管理器
 
-#### 1. 腳本管理器（Tampermonkey / Violentmonkey / Userscripts）
+#### A. 腳本管理器（Tampermonkey / Violentmonkey / Userscripts）
 
 [👉 點此安裝 PCM](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js)
 
 ---
 
-#### 2. 書籤
+#### B. 書籤
 
 建立一個新書籤，將網址欄貼上以下程式碼：
 
@@ -51,7 +51,7 @@ javascript:(function(){
 
 ---
 
-#### 3. 瀏覽器控制台
+#### C. 瀏覽器控制台
 
 開啟 F12 開發者工具，在 Console 貼上：
 
@@ -261,13 +261,13 @@ ECHO 的動作拓展（支援穩定版 / Beta 版切換）。
 
 ### Option 1: Plugin Collection Manager (PCM)
 
-#### 1. Script Manager (Tampermonkey / Violentmonkey / Userscripts)
+#### A. Script Manager (Tampermonkey / Violentmonkey / Userscripts)
 
 [👉 Click to Install PCM](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js)
 
 ---
 
-#### 2. Bookmark
+#### B. Bookmark
 
 Create a new bookmark and paste the following as the URL:
 
@@ -283,7 +283,7 @@ javascript:(function(){
 
 ---
 
-#### 3. Browser Console
+#### C. Browser Console
 
 Open F12 DevTools and paste in the Console tab:
 
