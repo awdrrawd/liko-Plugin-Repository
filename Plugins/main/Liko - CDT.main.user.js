@@ -23,12 +23,12 @@
                 version: modversion,
                 repository: '座標繪製工具 | Coordinate adjustment tool',
             });
-            console.log("[CDT]✅ Universal 腳本啟動完成");
+            console.log("✅ [CDT]Universal 腳本啟動完成");
         } else {
-            console.error("[CDT] ❌ bcModSdk 或 registerMod 不可用");
+            console.error("❌ [CDT] bcModSdk 或 registerMod 不可用");
         }
     } catch (e) {
-        console.error("[CDT] ❌ 初始化失敗:", e.message);
+        console.error("❌ [CDT] 初始化失敗:", e.message);
     }
 
     if (window.BCUIDebugger) return;
@@ -237,15 +237,13 @@
                             });
                             hookCount++;
                         } catch (e) {
-                            console.warn(`[CDT] 無法 hook ${funcName}:`, e.message);
+                            console.warn(`❌ [CDT] 無法 hook ${funcName}:`, e.message);
                         }
                     }
                 });
-
-                console.log(`[CDT]✅ 使用 ModSDK 成功 hook ${hookCount} 個函數`);
                 this.isHooked = true;
             } catch (e) {
-                console.warn("[CDT] ModSDK hook 失敗，嘗試使用備用方案:", e.message);
+                console.warn("❗ [CDT] ModSDK hook 失敗，嘗試使用備用方案:", e.message);
                 this.fallbackHook();
             }
         },
@@ -369,7 +367,7 @@
     // 初始化 hook 系統
     BCUIDebugger.initializeHooks();
 
-    console.log("[CDT]✅ Universal v1.4 - BCUIDebugger 已載入");
+    console.log("✅ [CDT]Universal v1.4 - BCUIDebugger 已載入");
     console.log("使用說明:");
     console.log("• 點擊右上角 🖌️ 按鈕開關調試模式");
     console.log("• BCUIDebugger.toggle() - 開關調試模式");
