@@ -385,14 +385,14 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
 
                 img.onerror = () => {
                     cleanupBlobUrl(blobUrl);
-                    console.error("[CPB] 圖片載入失敗:", url);
+                    console.error("❌ [CPB] 圖片載入失敗:", url);
                     reject(new Error("圖片載入失敗"));
                 };
 
                 img.src = blobUrl;
             });
         } catch (error) {
-            console.error("[CPB] 載入圖片時發生錯誤:", error.message);
+            console.error("❌ [CPB] 載入圖片時發生錯誤:", error.message);
             throw error;
         }
     }
@@ -773,14 +773,12 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 preview.style.backgroundImage = `url("${previewUrl}")`;
                 preview.textContent = '';
                 preview.className = 'cpbg-preview';
-
-                console.log("[CPB] 預覽載入成功");
             } catch (error) {
                 showError(errorDiv, error.message);
                 preview.className = 'cpbg-preview';
                 preview.textContent = '預覽失敗';
                 preview.style.backgroundImage = '';
-                console.error("[CPB] 預覽載入失敗:", error.message);
+                console.error("❌ [CPB] 預覽載入失敗:", error.message);
             }
         };
 
@@ -921,7 +919,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                     }
                 }
             } catch (e) {
-                console.error("[CPB] drawImage 處理失敗:", e.message);
+                console.error("❌ [CPB] drawImage 處理失敗:", e.message);
             }
             return originalDrawImage.call(this, img, ...args);
         };
@@ -938,10 +936,10 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             if (buttonImage.src && buttonImage.complete) {
                 DrawImage(buttonImage.src, BUTTON_X, BUTTON_Y, BUTTON_SIZE, BUTTON_SIZE);
             } else {
-                console.warn("[CPB] 按鈕圖片未載入完成或無效");
+                console.warn("❌ [CPB] 按鈕圖片未載入完成或無效");
             }
         } catch (e) {
-            console.error("[CPB] 按鈕繪製失敗:", e.message);
+            console.error("❌ [CPB] 按鈕繪製失敗:", e.message);
         }
     }
 
@@ -961,7 +959,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 if (typeof bcModSdk !== 'undefined' && bcModSdk?.registerMod) {
                     resolve(true);
                 } else if (Date.now() - start > timeout) {
-                    console.error("[CPB] bcModSdk 載入超時");
+                    console.error("❌ [CPB] bcModSdk 載入超時");
                     resolve(false);
                 } else {
                     setTimeout(check, 100);
@@ -982,10 +980,10 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 version: modversion,
                 repository: '自訂個人資料頁面背景 | Custom Profile Background'
             });
-            console.log("[CPB] ✅ 模組註冊成功");
+            console.log("✅ [CPB] 模組註冊成功");
             return modApi;
         } catch (e) {
-            console.error("[CPB] ❌ 初始化 modApi 失敗:", e.message);
+            console.error("❌ [CPB] 初始化 modApi 失敗:", e.message);
             return null;
         }
     }
@@ -1003,7 +1001,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 Player?.OnlineSharedSettings) {
                 resolve(true);
             } else if (Date.now() - start > timeout) {
-                console.error("[CPB] 遊戲載入超時");
+                console.error("❌ [CPB] 遊戲載入超時");
                 resolve(false);
             } else {
                 setTimeout(check, 100);
@@ -1015,7 +1013,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
 
     function setupHooks() {
         if (!modApi || typeof modApi.hookFunction !== 'function') {
-            console.error("[CPB] modApi 未正確初始化，無法設置 hooks");
+            console.error("❌ [CPB] modApi 未正確初始化，無法設置 hooks");
             return;
         }
 
@@ -1070,7 +1068,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                     cpbControllingBackground = false;
                     return next(args);
                 } catch (e) {
-                    console.error("[CPB] DrawRoomBackground hook 失敗:", e.message);
+                    console.error("❌ [CPB] DrawRoomBackground hook 失敗:", e.message);
                     cpbControllingBackground = false;
                     return next(args);
                 }
@@ -1085,13 +1083,13 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                         Width >= 2000 && Height >= 1000 &&
                         (typeof Color === 'string' && Color.includes('main'))) {
 
-                        console.log("[CPB] 阻止 Themed 颜色叠加");
+                        console.log("❗ [CPB] 阻止 Themed 颜色叠加");
                         return;
                     }
 
                     return next(args);
                 } catch (e) {
-                    console.error("[CPB] DrawRect hook 失敗:", e.message);
+                    console.error("❌ [CPB] DrawRect hook 失敗:", e.message);
                     return next(args);
                 }
             });
@@ -1112,7 +1110,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
 
                 return result;
             } catch (e) {
-                console.error("[CPB] InformationSheetRun 處理失敗:", e.message);
+                console.error("❌ [CPB] InformationSheetRun 處理失敗:", e.message);
                 return next(args);
             }
         });
@@ -1127,7 +1125,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 }, 100);
                 return result;
             } catch (e) {
-                console.error("[CPB] InformationSheetLoad 處理失敗:", e.message);
+                console.error("❌ [CPB] InformationSheetLoad 處理失敗:", e.message);
                 return next(args);
             }
         });
@@ -1139,7 +1137,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 }
                 return next(args);
             } catch (e) {
-                console.error("[CPB] InformationSheetClick 處理失敗:", e.message);
+                console.error("❌ [CPB] InformationSheetClick 處理失敗:", e.message);
                 return next(args);
             }
         });
@@ -1159,14 +1157,14 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 }
                 return next(args);
             } catch (e) {
-                console.error("[CPB] InformationSheetExit 處理失敗:", e.message);
+                console.error("❌ [CPB] InformationSheetExit 處理失敗:", e.message);
                 return next(args);
             }
         });
     }
 
     function cleanup() {
-        console.log("[CPB] 開始資源清理...");
+        console.log("⌛ [CPB] 開始資源清理...");
 
         try {
             stopInterfaceMonitoring();
@@ -1217,27 +1215,27 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             isUIOpen = false;
             lastButtonState = false;
 
-            console.log("[CPB] ✅ 資源清理完成");
+            console.log("🗑️ [CPB] 資源清理完成");
         } catch (e) {
-            console.error("[CPB] 清理過程中出錯:", e.message);
+            console.error("❌ [CPB] 清理過程中出錯:", e.message);
         }
     }
 
     async function initialize() {
         if (isInitialized) return;
 
-        console.log("[CPB] 開始初始化...");
+        console.log("⌛ [CPB] 開始初始化...");
 
         try {
             modApi = await initializeModApi();
             if (!modApi) {
-                console.error("[CPB] modApi 初始化失敗，無法繼續");
+                console.error("❌ [CPB] modApi 初始化失敗，無法繼續");
                 return;
             }
 
             const gameLoaded = await waitForGame();
             if (!gameLoaded) {
-                console.error("[CPB] 遊戲載入失敗，無法繼續");
+                console.error("❌ [CPB] 遊戲載入失敗，無法繼續");
                 return;
             }
 
@@ -1247,13 +1245,13 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 try {
                     customBG = await loadImage(settings.imageUrl, true);
                 } catch (error) {
-                    console.warn("[CPB] 載入保存的背景失敗:", error.message);
+                    console.warn("❌ [CPB] 載入保存的背景失敗:", error.message);
                     try {
                         customBG = await loadImage(DEFAULT_BG_URL, true);
                         const newSettings = { ...settings, imageUrl: DEFAULT_BG_URL };
                         saveSettings(newSettings);
                     } catch (defaultError) {
-                        console.error("[CPB] 默認背景載入也失敗:", defaultError.message);
+                        console.error("❌ [CPB] 默認背景載入也失敗:", defaultError.message);
                     }
                 }
             } else if (!settings.imageUrl) {
@@ -1262,7 +1260,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                     const newSettings = { ...settings, imageUrl: DEFAULT_BG_URL };
                     saveSettings(newSettings);
                 } catch (error) {
-                    console.error("[CPB] 載入默認背景失敗:", error.message);
+                    console.error("❌ [CPB] 載入默認背景失敗:", error.message);
                 }
             }
 
@@ -1270,12 +1268,12 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 const buttonImageURL = getButtonImageURL();
                 if (buttonImageURL) {
                     buttonImage = await loadImage(buttonImageURL, true);
-                    console.log("[CPB] ✅ 按鈕圖標載入成功");
+                    console.log("✅ [CPB] 按鈕圖標載入成功");
                 } else {
                     throw new Error("無法獲取按鈕圖標路徑");
                 }
             } catch (error) {
-                console.warn("[CPB] 載入按鈕圖標失敗:", error.message);
+                console.warn("❌ [CPB] 載入按鈕圖標失敗:", error.message);
                 buttonImage = null;
             }
 
@@ -1294,9 +1292,9 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             startInterfaceMonitoring();
 
             isInitialized = true;
-            console.log("[CPB] ✅ 初始化完成");
+            console.log("✅ [CPB] 初始化完成");
         } catch (e) {
-            console.error("[CPB] 初始化失敗:", e.message);
+            console.error("❌ [CPB] 初始化失敗:", e.message);
             cleanup();
         }
     }
