@@ -18,13 +18,13 @@
     // ------------ 日誌控制 ------------
     const debugMode = false;
     function log(...args) {
-        if (debugMode) console.log('[NOI]', ...args);
+        if (debugMode) console.log('🐈‍⬛ [NOI]', ...args);
     }
     function warn(...args) {
-        console.warn('[NOI]', ...args);
+        console.warn('🐈‍⬛ [NOI]', ...args);
     }
     function error(...args) {
-        console.error('[NOI]', ...args);
+        console.error('🐈‍⬛ [NOI]', ...args);
     }
 
     // ------------ 初始與等待工具 ------------
