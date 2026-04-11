@@ -198,7 +198,7 @@ let _isCN = detectLanguage();
             const meta = JSON.parse(localStorage.getItem(CACHE_META_KEY) || "{}");
             meta[pluginId] = { time: Date.now() };
             localStorage.setItem(CACHE_META_KEY, JSON.stringify(meta));
-        } catch(e) { console.warn("[PCM] ⚠️ 插件快取寫入失敗:", e.message); }
+        } catch(e) { console.warn("⚠️ [PCM] 插件快取寫入失敗:", e.message); }
     }
 
     function _clearCachedPlugin(pluginId) {
@@ -216,7 +216,7 @@ let _isCN = detectLanguage();
             Object.keys(meta).forEach(id => localStorage.removeItem(CACHE_PREFIX + id));
             localStorage.removeItem(CACHE_META_KEY);
             localStorage.removeItem(JSON_CACHE_KEY);
-            console.log("[PCM] 🗑️ 所有快取已清除");
+            console.log("🗑️ [PCM] 所有快取已清除");
         } catch(e) {}
     }
 
@@ -492,7 +492,7 @@ let _isCN = detectLanguage();
     async function loadPluginsJSON() {
         const data = await _pluginsJSONPromise;
         if (!data || !Array.isArray(data.plugins)) {
-            console.error("[PCM] ❌ plugins.json 格式錯誤或無法取得");
+            console.error("❌ [PCM] plugins.json 格式錯誤或無法取得");
             showNotification("❌", "PCM", getMessage('loadPluginsFailed'));
             return false;
         }
@@ -502,7 +502,7 @@ let _isCN = detectLanguage();
         subPlugins = applyPluginSettings(data.plugins);
         subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
         pluginsLoaded = true;
-        console.log(`[PCM] 📦 plugins.json 共 ${subPlugins.length} 個插件`);
+        console.log(`📦 [PCM] plugins.json 共 ${subPlugins.length} 個插件`);
         return true;
     }
 
@@ -621,7 +621,7 @@ let _isCN = detectLanguage();
             console.log("⏳ [PCM] 等待 plugins.json 處理...");
             if (_pluginsProcessPromise) await _pluginsProcessPromise;
             if (!pluginsLoaded) {
-                console.error("[PCM] ❌ plugins.json 載入失敗，放棄載入插件");
+                console.error("❗ [PCM] plugins.json 載入失敗，放棄載入插件");
                 return;
             }
         }
@@ -629,7 +629,7 @@ let _isCN = detectLanguage();
         // 有啟用插件才鎖旗標，避免空跑後永遠不再執行
         const enabledCheck = subPlugins.filter(p => isPluginEnabled(p));
         if (enabledCheck.length === 0) {
-            console.log("[PCM] 沒有啟用的插件，跳過載入");
+            console.log("⏭️ [PCM] 沒有啟用的插件，跳過載入");
             return;
         }
 
@@ -676,7 +676,7 @@ let _isCN = detectLanguage();
                 showNotification("✅", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}`);
             }
         } catch (e) {
-            console.error("[PCM] ❌ 背景載入嚴重錯誤:", e);
+            console.error("❌ [PCM] 背景載入嚴重錯誤:", e);
         } finally { isLoadingPlugins = false; }
     }
 
@@ -1498,10 +1498,10 @@ function checkLanguageChange() {
             });
             registerPCMBadge();
         } else {
-            console.error("[PCM] ❌ bcModSdk 不可用");
+            console.error("❌ [PCM] bcModSdk 不可用");
             return;
         }
-    } catch (e) { console.error("[PCM] ❌ 初始化失敗:", e.message); return; }
+    } catch (e) { console.error("❌ [PCM] 初始化失敗:", e.message); return; }
 
     async function initialize() {
         if (isInitialized) return;
@@ -1561,11 +1561,11 @@ function checkLanguageChange() {
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            initialize().then(() => sendLoadedMessage()).catch(e => console.error("[PCM] 初始化錯誤:", e));
+            initialize().then(() => sendLoadedMessage()).catch(e => console.error("❌ [PCM] 初始化錯誤:", e));
         }, { once: true });
     } else {
-        initialize().then(() => sendLoadedMessage()).catch(e => console.error("[PCM] 初始化錯誤:", e));
+        initialize().then(() => sendLoadedMessage()).catch(e => console.error("❌ [PCM] 初始化錯誤:", e));
     }
 
-    console.log("[PCM] v1.5.2 腳本載入完成");
+    console.log("✅ [PCM] v1.5.2 腳本載入完成");
 })();
