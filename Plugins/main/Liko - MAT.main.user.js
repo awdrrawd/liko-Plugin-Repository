@@ -83,7 +83,7 @@
                 waited += 200;
                 if (waited >= 10000) {
                     clearInterval(timer);
-                    console.warn("[MAT] bcModSdk 等待超時，插件無法載入");
+                    console.warn("❌ [MAT] bcModSdk 等待超時，插件無法載入");
                     resolve(null);
                 }
             }, 200);
@@ -99,9 +99,9 @@
                 version: myversion,
                 repository: "Auto translate chat messages(Supports bio translation)",
             });
-            console.log("✅[MAT] loaded");
+            console.log("✅ [MAT] loaded");
         } catch (e) {
-            console.error("❌[MAT] failed to load:", e);
+            console.error("❌ [MAT] failed to load:", e);
             return;
         }
         waitForGame();
@@ -153,7 +153,7 @@
                 }
                 //console.log("[MAT] 已從 OnlineSettings 遷移至 ExtensionSettings");
             } catch (e) {
-                console.warn("[MAT] 遷移 OnlineSettings 失敗:", e);
+                console.warn("❗ [MAT] 遷移 OnlineSettings 失敗:", e);
             }
         }
     }
@@ -189,7 +189,7 @@
             if (typeof ServerAccountUpdate?.QueueData === "function") {
                 ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
             }
-            console.log("[MAT] 批量遷移完成");
+            console.log("✅ [MAT] 批量遷移完成");
         }
     }
 
@@ -249,7 +249,7 @@
             const { translated } = await translateQueue.add(text, targetLang);
             return translated;
         } catch (e) {
-            console.error('[MAT] Error:', e);
+            console.error('❌ [MAT] Error:', e);
             return text;
         }
     }
@@ -317,7 +317,7 @@
         if (config.translateChat) {
             log.querySelectorAll('.ChatMessage').forEach(addTranslateButtonToMessage);
         }
-        console.log("[MAT] Observer started");
+        //console.log("[MAT] Observer started");
     }
 
     function stopObserver() {
@@ -768,8 +768,7 @@
             }
             return next(args);
         });
-
-        console.log("[MAT] Send hooks installed");
+        //console.log("[MAT] Send hooks installed");
     }
 
     // === 語言 ===
@@ -1162,14 +1161,14 @@
                 return next(args);
             });
             //console.log("[MAT] OnlineProfile hook installed");
-        } catch(e) { console.warn("[MAT] OnlineProfile hook failed:", e); }
+        } catch(e) { console.warn("❌ [MAT] OnlineProfile hook failed:", e); }
     }
 
     // === 初始化 ===
     function waitForSettings(callback, retries = 30) {
         if (Player?.ExtensionSettings !== undefined) callback();
         else if (retries > 0) setTimeout(() => waitForSettings(callback, retries - 1), 500);
-        else { console.warn("[MAT] ExtensionSettings timeout, forcing init"); callback(); }
+        else { console.warn("❌ [MAT] ExtensionSettings timeout, forcing init"); callback(); }
     }
 
     function waitForGame() {
