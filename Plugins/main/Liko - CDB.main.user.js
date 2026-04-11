@@ -281,16 +281,16 @@
     // 工具函數
     // ================================
     function safeLog(message) {
-        try { console.log('[CDB] ' + message); } catch (e) {}
+        try { console.log(message); } catch (e) {}
     }
 
     function safeError(message, error) {
-        try { console.error('❌ [CDB] ' + message, error); } catch (e) {}
+        try { console.error(message, error); } catch (e) {}
     }
 
     function safeCall(fn, fallbackValue) {
         try { return fn(); } catch (e) {
-            safeError("safeCall failed:", e);
+            safeError("🐈‍⬛ [CDB] ❌ safeCall 失敗:", e);
             return (fallbackValue !== undefined) ? fallbackValue : undefined;
         }
     }
@@ -338,11 +338,11 @@
                 state.gridOpacity = saved.gridOpacity !== undefined ? saved.gridOpacity : state.gridOpacity;
                 poseState.enabled = saved.poseChangerEnabled !== undefined ? saved.poseChangerEnabled : poseState.enabled;
                 state.currentPoseIndex = saved.currentPoseIndex || 0;
-                safeLog("已從ExtensionSettings載入設定");
+                safeLog("🐈‍⬛ [CDB] ✅ 已從 ExtensionSettings 載入設定");
                 Lang.reset();
                 return true;
             }
-        } catch (e) { safeError("載入ExtensionSettings失敗:", e); }
+        } catch (e) { safeError("🐈‍⬛ [CDB] ❌ 載入 ExtensionSettings 失敗:", e); }
         return false;
     }
 
@@ -365,7 +365,7 @@
                     ServerPlayerExtensionSettingsSync("CDBEnhanced");
                 }
             }
-        } catch (e) { safeError("保存到ExtensionSettings失敗:", e); }
+        } catch (e) { safeError("🐈‍⬛ [CDB] ❌ 保存至 ExtensionSettings 失敗:", e); }
     }
 
     // ================================
@@ -374,7 +374,7 @@
     function changePose(poseIndex) {
         const now = Date.now();
         try {
-            if (typeof CharacterSetActivePose === 'undefined') { safeError("CharacterSetActivePose不存在"); return false; }
+            if (typeof CharacterSetActivePose === 'undefined') { safeError("🐈‍⬛ [CDB] ❌ CharacterSetActivePose 不存在"); return false; }
 
             let target = Player;
             try {
@@ -388,13 +388,13 @@
                         if (found) target = found;
                     }
                 }
-            } catch (e) { safeError("獲取目標角色失敗:", e); }
+            } catch (e) { safeError("🐈‍⬛ [CDB] ❌ 獲取目標角色失敗:", e); }
 
             const poses = CONFIG.POSES;
             if (poseIndex !== null && poseIndex !== undefined) {
                 if (poseIndex >= 0 && poseIndex < poses.length) {
                     state.currentPoseIndex = poseIndex;
-                } else { safeError("無效的姿勢索引: " + poseIndex); return false; }
+                } else { safeError("🐈‍⬛ [CDB] ❌ 無效的姿勢索引: " + poseIndex); return false; }
             } else {
                 state.currentPoseIndex = (state.currentPoseIndex + 1) % poses.length;
             }
@@ -412,7 +412,7 @@
             state.lastPoseChangeTime = now;
             saveToOnlineSettings();
             return true;
-        } catch (e) { safeError("姿勢更換失敗:", e); state.currentPoseIndex = 0; return false; }
+        } catch (e) { safeError("🐈‍⬛ [CDB] ❌ 姿勢更換失敗:", e); state.currentPoseIndex = 0; return false; }
     }
 
     // ================================
@@ -424,7 +424,7 @@
         return new Promise(function(resolve) {
             function check() {
                 if (typeof bcModSdk !== 'undefined' && bcModSdk && bcModSdk.registerMod) { resolve(true); }
-                else if (Date.now() - start > timeout) { safeError("bcModSdk 載入超時"); resolve(false); }
+                else if (Date.now() - start > timeout) { safeError("🐈‍⬛ [CDB] ❗ bcModSdk 載入超時"); resolve(false); }
                 else { addManagedTimeout(check, 100); }
             }
             check();
@@ -437,7 +437,7 @@
         return new Promise(function(resolve) {
             function check() {
                 if (typeof CurrentScreen !== 'undefined' && typeof DrawButton === 'function' && typeof Player !== 'undefined') { resolve(true); }
-                else if (Date.now() - start > timeout) { safeError("遊戲載入超時"); resolve(false); }
+                else if (Date.now() - start > timeout) { safeError("🐈‍⬛ [CDB] ❗ 遊戲載入超時"); resolve(false); }
                 else { addManagedTimeout(check, 100); }
             }
             check();
@@ -528,7 +528,7 @@
                 img.src = blobUrl;
             });
         })
-            .catch(function(e) { safeError("背景載入失敗:", e); return null; });
+            .catch(function(e) { safeError("🐈‍⬛ [CDB] ❌ 背景載入失敗:", e); return null; });
     }
 
     // ================================
@@ -723,7 +723,6 @@
                 setMode(btn.getAttribute('data-mode'));
                 updateUIState();
                 saveToOnlineSettings();
-                // FIX 3：模式改變時立即更新放大鏡
                 if (zoomPreviewState.active) updateZoomPreview(true);
             });
         });
@@ -733,7 +732,6 @@
                 state.gridMode = btn.getAttribute('data-grid');
                 updateUIState();
                 saveToOnlineSettings();
-                // FIX 3：格線改變時立即更新放大鏡
                 if (zoomPreviewState.active) updateZoomPreview(true);
             });
         });
@@ -743,7 +741,6 @@
                 state.gridLayer = btn.getAttribute('data-layer');
                 updateUIState();
                 saveToOnlineSettings();
-                // FIX 3：圖層改變時立即更新放大鏡
                 if (zoomPreviewState.active) updateZoomPreview(true);
             });
         });
@@ -753,7 +750,6 @@
         if (bgColorInput) addManagedEventListener(bgColorInput, 'input', function(e) {
             setBgColor(e.target.value);
             saveToOnlineSettings();
-            // FIX 3：顏色拖動時即時更新放大鏡
             if (zoomPreviewState.active) updateZoomPreview(true);
         });
         if (bgColorText) {
@@ -811,7 +807,6 @@
                     setMode('custom');
                     updateUIState();
                     saveToOnlineSettings();
-                    // FIX 3：載入新圖片後立即更新放大鏡
                     if (zoomPreviewState.active) updateZoomPreview(false);
                 });
             }
@@ -1031,7 +1026,7 @@
                 for (let y = 0; y < canvas.height; y += 50) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
             }
             ctx.restore();
-        } catch (e) { safeError("繪製格線失敗:", e); try { ctx.restore(); } catch(_) {} }
+        } catch (e) { safeError("🐈‍⬛ [CDB] ❌ 繪製格線失敗:", e); try { ctx.restore(); } catch(_) {} }
     }
 
     // ================================
@@ -1111,47 +1106,31 @@
         const zoomValue = document.getElementById('bc-zoom-value');
         const resizer = document.getElementById('bc-zoom-resizer');
 
-        // ── FIX 2：以角色視覺中心為錨點縮放
-        // 角色在 canvas 中通常頭頂在畫布上方約 15% 處，臉部約在上方 25% 附近
-        // 我們以「容器可視區域中心對應到角色身體偏上位置」為縮放中心
-        // 具體做法：縮放前記錄容器中心點對應到 canvas 上的座標比例，縮放後還原
         function zoomAroundCharacterCenter(newZoom) {
             const c = document.getElementById('bc-zoom-container');
             const cvs = document.getElementById('bc-zoom-canvas');
             if (!c || !cvs) return;
 
-            const oldZoom = zoomPreviewState.zoom;
+            const CHAR_FACE_RATIO_Y = 0.19;
+            const CHAR_FACE_RATIO_X = 0.50;
 
-            // 角色臉部在 canvas 上的比例位置（垂直方向）
-            // topPadding = 250px（原始），sourceHeight 約 1000px
-            // 臉部大約在 topPadding + sourceHeight * 0.12 附近
-            // 即整體 canvas 高度 (topPadding + sourceHeight) 中的 (250 + 120) / (250 + 1000) ≈ 0.296
-            const CHAR_FACE_RATIO_Y = 0.19;   // 臉部在放大 canvas 中的垂直比例
-            const CHAR_FACE_RATIO_X = 0.50;   // 臉部水平居中
-
-            // 臉部在舊 canvas 中的絕對像素位置
             const oldFaceX = cvs.width * CHAR_FACE_RATIO_X;
             const oldFaceY = cvs.height * CHAR_FACE_RATIO_Y;
 
-            // 臉部在容器視窗中的相對位置
             const faceInViewX = oldFaceX - c.scrollLeft;
             const faceInViewY = oldFaceY - c.scrollTop;
 
-            // 更新縮放
             zoomPreviewState.zoom = newZoom;
-            updateZoomPreview(false);  // 重繪（不還原舊捲動）
+            updateZoomPreview(false);
 
-            // 重繪後還原以臉為錨點的捲動位置
             addManagedTimeout(function() {
                 const c2 = document.getElementById('bc-zoom-container');
                 const cvs2 = document.getElementById('bc-zoom-canvas');
                 if (!c2 || !cvs2) return;
 
-                // 臉部在新 canvas 中的像素位置
                 const newFaceX = cvs2.width * CHAR_FACE_RATIO_X;
                 const newFaceY = cvs2.height * CHAR_FACE_RATIO_Y;
 
-                // 捲動使臉部仍在視窗中的相同位置
                 c2.scrollLeft = newFaceX - faceInViewX;
                 c2.scrollTop  = newFaceY - faceInViewY;
 
@@ -1160,7 +1139,6 @@
             }, 15);
         }
 
-        // 滾輪縮放（FIX 2：以角色為中心）
         addManagedEventListener(container, 'wheel', function(e) {
             e.preventDefault();
             const delta = e.deltaY > 0 ? -10 : 10;
@@ -1188,7 +1166,6 @@
 
         makeDraggable(previewUI, header);
 
-        // 拖曳內容捲動
         addManagedEventListener(container, 'mousedown', function(e) {
             if (e.button === 0) {
                 zoomPreviewState.isDragging = true;
@@ -1220,7 +1197,6 @@
             }
         });
 
-        // 調整大小
         let isResizing = false, resizeStartX, resizeStartY, resizeStartW, resizeStartH;
         addManagedEventListener(resizer, 'mousedown', function(e) {
             isResizing = true;
@@ -1268,7 +1244,6 @@
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 背景
             if (state.currentMode === 'solid') {
                 ctx.fillStyle = state.bgColor;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1279,22 +1254,18 @@
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
 
-            // 格線（人物下）
             if (state.gridLayer === 'below') {
                 drawGrid(ctx, canvas, 'below');
             }
 
-            // 人物
             ctx.save();
             ctx.drawImage(C.Canvas, 0, 0, sourceWidth, sourceHeight, 0, topPadding * zoom, sourceWidth * zoom, sourceHeight * zoom);
             ctx.restore();
 
-            // 格線（人物上）
             if (state.gridLayer === 'above') {
                 drawGrid(ctx, canvas, 'above');
             }
 
-            // 還原捲動位置
             addManagedTimeout(function() {
                 const c = document.getElementById('bc-zoom-container');
                 if (!c) return;
@@ -1302,11 +1273,7 @@
                     c.scrollTop  = zoomPreviewState.savedScrollTop;
                     c.scrollLeft = zoomPreviewState.savedScrollLeft;
                 } else if (!preserveScroll && zoomPreviewState.savedScrollTop === null) {
-                    // 首次開啟：預設置中偏上（臉部可見）
-                    const totalH = c.scrollHeight;
                     const totalW = c.scrollWidth;
-                    // topPadding * zoom 是「空白區」，再加上角色頭部約 12% 的源高
-                    // 目標：讓臉部出現在容器垂直中央偏上
                     const facePixelY = (topPadding + sourceHeight * 0.12) * zoomPreviewState.zoom;
                     c.scrollTop  = Math.max(0, facePixelY - c.clientHeight * 0.35);
                     c.scrollLeft = Math.max(0, (totalW - c.clientWidth) / 2);
@@ -1314,7 +1281,7 @@
                     zoomPreviewState.savedScrollLeft = c.scrollLeft;
                 }
             }, 10);
-        } catch (e) { safeError("updateZoomPreview 失敗:", e); }
+        } catch (e) { safeError("🐈‍⬛ [CDB] ❌ updateZoomPreview 失敗:", e); }
     }
 
     function openZoomPreview() {
@@ -1324,7 +1291,6 @@
             previewUI = createZoomPreviewUI();
         }
         previewUI.style.display = 'block';
-        // 重新開啟時清除捲動記憶，讓畫面回到臉部位置
         zoomPreviewState.savedScrollTop  = null;
         zoomPreviewState.savedScrollLeft = null;
         updateZoomPreview(false);
@@ -1387,7 +1353,7 @@
                 }
             } catch(e) {
                 performance.drawImageErrors++;
-                safeError("drawImage hook 錯誤:", e);
+                safeError("🐈‍⬛ [CDB] ❌ drawImage hook 錯誤:", e);
                 try { this.restore(); } catch(_) {}
             }
 
@@ -1412,7 +1378,7 @@
                                     const ctx = mainCanvas.getContext('2d');
                                     drawGrid(ctx, mainCanvas, 'above');
                                 }
-                            } catch(e) { safeError("above 格線繪製失敗:", e); }
+                            } catch(e) { safeError("🐈‍⬛ [CDB] ❌ above 格線繪製失敗:", e); }
                         }
                         drawMainButton();
                         drawZoomPreviewButton();
@@ -1475,7 +1441,7 @@
                 return result;
             });
 
-        } catch (e) { safeError("設置BC hooks失敗:", e); }
+        } catch (e) { safeError("🐈‍⬛ [CDB] ❌ 設置 BC hooks 失敗:", e); }
     }
 
     // ================================
@@ -1492,7 +1458,7 @@
                     repository: '自訂更衣室背景 | Custom Dressing Background'
                 });
                 return modApi;
-            } catch (e) { safeError("初始化 modApi 失敗:", e); return null; }
+            } catch (e) { safeError("🐈‍⬛ [CDB] ❌ 初始化 modApi 失敗:", e); return null; }
         });
     }
 
@@ -1540,17 +1506,17 @@
             isInitialized = false;
 
             if (window.CDBEnhanced) delete window.CDBEnhanced;
-            safeLog("插件已完全清理");
-        } catch (e) { safeError("清理失敗:", e); }
+            safeLog("🐈‍⬛ [CDB] 🧹 插件已完全清理");
+        } catch (e) { safeError("🐈‍⬛ [CDB] ❌ 清理失敗:", e); }
     }
 
     function initialize() {
         if (isInitialized) return;
         isInitialized = true;
-        safeLog("初始化 v" + CONFIG.VERSION + "...");
+        safeLog("🐈‍⬛ [CDB] ⌛ 初始化 v" + CONFIG.VERSION + "...");
 
         waitForGame().then(function(gameLoaded) {
-            if (!gameLoaded) safeError("遊戲載入失敗，使用簡化模式");
+            if (!gameLoaded) safeError("🐈‍⬛ [CDB] ⚠️ 遊戲載入失敗，使用簡化模式");
             Lang.reset();
             loadFromOnlineSettings();
             return initializeModApi();
@@ -1561,7 +1527,7 @@
                 setupBCHooks();
                 return loadCustomBackground();
             } else {
-                safeLog("ModAPI初始化失敗，但UI仍可使用");
+                safeLog("🐈‍⬛ [CDB] ⚠️ ModAPI 初始化失敗，但 UI 仍可使用");
                 return Promise.resolve();
             }
         }).then(function() {
@@ -1579,18 +1545,18 @@
                 closeZoom: closeZoomPreview,
                 refreshZoom: function() { updateZoomPreview(true); },
                 test: function() {
-                    safeLog("=== CDB v" + CONFIG.VERSION + " ===");
-                    safeLog("語言: " + Lang.get());
-                    safeLog("當前畫面: " + (typeof CurrentScreen !== 'undefined' ? CurrentScreen : '未知'));
-                    safeLog("在更衣室主畫面: " + isMainAppearanceMode());
-                    safeLog("格線模式: " + state.gridMode + " / 格線圖層: " + state.gridLayer);
-                    safeLog("放大鏡: " + (zoomPreviewState.active ? '開啟' : '關閉'));
+                    safeLog("📋 CDB v" + CONFIG.VERSION);
+                    safeLog("🌐 語言: " + Lang.get());
+                    safeLog("🖥️ 當前畫面: " + (typeof CurrentScreen !== 'undefined' ? CurrentScreen : '未知'));
+                    safeLog("👗 在更衣室主畫面: " + isMainAppearanceMode());
+                    safeLog("📐 格線模式: " + state.gridMode + " / 格線圖層: " + state.gridLayer);
+                    safeLog("🔍 放大鏡: " + (zoomPreviewState.active ? '開啟' : '關閉'));
                 }
             };
 
-            safeLog("✅ [CDB] 初始化完成 v" + CONFIG.VERSION);
+            safeLog("🐈‍⬛ [CDB] ✅ 初始化完成 v" + CONFIG.VERSION);
         }).catch(function(e) {
-            safeError("❌ [CDB] 初始化失敗:", e);
+            safeError("🐈‍⬛ [CDB] ❌ 初始化失敗:", e);
             isInitialized = false;
         });
     }
