@@ -281,11 +281,11 @@
     // 工具函數
     // ================================
     function safeLog(message) {
-        try { console.log('[CDB] ' + message); } catch (e) {}
+        try { console.log('❌ [CDB] ' + message); } catch (e) {}
     }
 
     function safeError(message, error) {
-        try { console.error('[CDB] ' + message, error); } catch (e) {}
+        try { console.error('❌ [CDB] ' + message, error); } catch (e) {}
     }
 
     function safeCall(fn, fallbackValue) {
@@ -1588,9 +1588,9 @@
                 }
             };
 
-            safeLog("✅ 初始化完成 v" + CONFIG.VERSION);
+            safeLog("✅ [CDB] 初始化完成 v" + CONFIG.VERSION);
         }).catch(function(e) {
-            safeError("初始化失敗:", e);
+            safeError("❌ [CDB] 初始化失敗:", e);
             isInitialized = false;
         });
     }
