@@ -55,7 +55,7 @@
     // ──────────────────────────────────────────
     function ChatRoomSendLocal(message, sec = 0) {
         if (CurrentScreen !== "ChatRoom") {
-            console.warn("[IMG] 不在聊天室，訊息可能不顯示");
+            console.warn("❗ [IMG] 不在聊天室，訊息可能不顯示");
             return;
         }
         try {
@@ -66,7 +66,7 @@
                 Timeout: sec
             });
         } catch (e) {
-            console.error("[IMG] 發送本地訊息錯誤:", e.message);
+            console.error("❌ [IMG] 發送本地訊息錯誤:", e.message);
         }
     }
 
@@ -108,14 +108,14 @@
                 const saved = JSON.parse(Player.ExtensionSettings.LikoImageUploader);
                 imageHost = saved.imageHost || "litterbox";
             } catch {
-                console.warn("[IMG] ExtensionSettings 解析失敗，使用預設設定");
+                console.warn("❗ [IMG] ExtensionSettings 解析失敗，使用預設設定");
             }
         }
     }
 
     function saveSettings() {
         if (!Player?.ExtensionSettings) {
-            console.warn("[IMG] 無法訪問 ExtensionSettings，設定未保存");
+            console.warn("⚠️ [IMG] 無法訪問 ExtensionSettings，設定未保存");
             ChatRoomSendLocalStyled("⚠️ 無法保存設定，請確保已登錄", 4000, "#FFA500");
             return;
         }
@@ -123,7 +123,7 @@
         if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             ServerPlayerExtensionSettingsSync("LikoImageUploader");
         } else {
-            console.warn("[IMG] ServerPlayerExtensionSettingsSync 不可用");
+            console.warn("⚠️ [IMG] ServerPlayerExtensionSettingsSync 不可用");
             ChatRoomSendLocalStyled("⚠️ 無法同步設定，模組可能干擾", 4000, "#FFA500");
         }
     }
@@ -164,7 +164,7 @@
             if (!text.startsWith("http")) throw new Error(`Litterbox API 返回錯誤: ${text}`);
             return text;
         } catch (err) {
-            console.error("[IMG] Litterbox 上傳失敗:", err);
+            console.error("❗ [IMG] Litterbox 上傳失敗:", err);
             ChatRoomSendLocalStyled(`❌ 上傳失敗: ${err.message}`, 5000, "#ff4444");
             return null;
         }
@@ -182,7 +182,7 @@
             if (!json.success || !json.files?.[0]?.url) throw new Error(`Uguu API 返回錯誤: ${json.description || '未知錯誤'}`);
             return json.files[0].url;
         } catch (err) {
-            console.error("[IMG] Uguu 上傳失敗:", err);
+            console.error("❗ [IMG] Uguu 上傳失敗:", err);
             ChatRoomSendLocalStyled(`❌ 上傳失敗: ${err.message}`, 5000, "#ff4444");
             return null;
         }
@@ -206,7 +206,7 @@
             if (!json.success || !json.link) throw new Error(`ImgBB API 失敗: ${json.error || '未知錯誤'}`);
             return json.link;
         } catch (err) {
-            console.error("[IMG] ImgBB 上傳失敗:", err);
+            console.error("❗ [IMG] ImgBB 上傳失敗:", err);
             ChatRoomSendLocalStyled(`❌ ImgBB 上傳失敗: ${err.message}`, 5000, "#ff4444");
             return null;
         }
@@ -224,7 +224,7 @@
             if (!json.data?.url) throw new Error("TmpFiles API 返回錯誤: 未獲取到 URL");
             return json.data.url.replace("tmpfiles.org/", "tmpfiles.org/dl/");
         } catch (err) {
-            console.error("[IMG] TmpFiles 上傳失敗:", err);
+            console.error("❗ [IMG] TmpFiles 上傳失敗:", err);
             ChatRoomSendLocalStyled(`❌ TmpFiles 上傳失敗: ${err.message}`, 5000, "#ff4444");
             return null;
         }
@@ -242,7 +242,7 @@
             if (!json.success || !json.url) throw new Error(`R2 上傳失敗: ${json.error || '未知錯誤'}`);
             return json.url;
         } catch (err) {
-            console.error("[IMG] Cloudflare R2 上傳失敗:", err);
+            console.error("❗ [IMG] Cloudflare R2 上傳失敗:", err);
             ChatRoomSendLocalStyled(`❌ R2 上傳失敗: ${err.message}`, 5000, "#ff4444");
             return null;
         }
@@ -276,7 +276,7 @@
             ServerSend("ChatRoomChat", { Content: `(${url})`, Type: "Chat" });
             ChatRoomSendLocalStyled(`✅ 圖片連結已發送\n存放於 ${hostText} | 保存時間 ${timeText}`, 5000, "#50C878");
         } catch (e) {
-            console.error("[IMG] 發送訊息失敗:", e);
+            console.error("❌ [IMG] 發送訊息失敗:", e);
             ChatRoomSendLocalStyled("❌ 發送失敗，請重試", 3000, "#ff4444");
         }
     }
@@ -465,7 +465,7 @@
                             window.LikoImageUploaderWelcomed = true;
                         }
                     } catch (e) {
-                        console.error("[IMG] ChatRoomLoad 延遲處理錯誤:", e);
+                        console.error("❌ [IMG] ChatRoomLoad 延遲處理錯誤:", e);
                     }
                 }, 1000);
                 return result;
@@ -477,10 +477,10 @@
     // 初始化
     // ──────────────────────────────────────────
     async function initialize() {
-        console.log("[IMG] 插件啟動中...");
+        console.log("⌛ [IMG] 插件啟動中...");
         const ok = await waitForBcModSdk();
         if (!ok) {
-            console.error("[IMG] bcModSdk 載入失敗");
+            console.error("❌ [IMG] bcModSdk 載入失敗");
             return;
         }
         await loadToastSystem();
@@ -492,7 +492,7 @@
                 repository: '圖片拖曳上傳並分享 | Image to litterbox/uguu/imgbb/tmpfiles and share'
             });
         } catch (e) {
-            console.error("[IMG] 初始化 modApi 失敗:", e.message);
+            console.error("❌ [IMG] 初始化 modApi 失敗:", e.message);
         }
         loadSettings();
         CommandCombine([{
@@ -501,7 +501,7 @@
             Action: handleImgCommand
         }]);
         hookChatRoomLoad();
-        console.log("[IMG] ✅ 插件已載入完成");
+        console.log("✅ [IMG] 插件已載入完成");
     }
 
     initialize();
