@@ -198,7 +198,7 @@ let _isCN = detectLanguage();
             const meta = JSON.parse(localStorage.getItem(CACHE_META_KEY) || "{}");
             meta[pluginId] = { time: Date.now() };
             localStorage.setItem(CACHE_META_KEY, JSON.stringify(meta));
-        } catch(e) { console.warn("⚠️ [PCM] 插件快取寫入失敗:", e.message); }
+        } catch(e) { console.warn("🐈‍⬛ [PCM] ⚠️ 插件快取寫入失敗:", e.message); }
     }
 
     function _clearCachedPlugin(pluginId) {
@@ -216,7 +216,7 @@ let _isCN = detectLanguage();
             Object.keys(meta).forEach(id => localStorage.removeItem(CACHE_PREFIX + id));
             localStorage.removeItem(CACHE_META_KEY);
             localStorage.removeItem(JSON_CACHE_KEY);
-            console.log("🗑️ [PCM] 所有快取已清除");
+            console.log("🐈‍⬛ [PCM] 🗑️ 所有快取已清除");
         } catch(e) {}
     }
 
@@ -451,10 +451,10 @@ let _isCN = detectLanguage();
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 setCachedJSON(data);
-                console.log(`✅ [PCM] plugins.json 從網路載入成功 (${url})`);
+                console.log(`🐈‍⬛ [PCM] ✅ plugins.json 從網路載入成功 (${url})`);
                 return data;
             } catch(e) {
-                console.warn(`⚠️ [PCM] plugins.json 從 ${url} 載入失敗:`, e.message);
+                console.warn(`🐈‍⬛ [PCM] ⚠️ plugins.json 從 ${url} 載入失敗:`, e.message);
             }
         }
         return null;
@@ -464,7 +464,7 @@ let _isCN = detectLanguage();
     async function fetchPluginsJSON() {
         const cached = getCachedJSON();
         if (cached) {
-            console.log("⚡ [PCM] plugins.json 從快取載入");
+            console.log("🐈‍⬛ [PCM] ⚡ plugins.json 從快取載入");
             // 背景更新，不阻塞
             setTimeout(() => fetchJSONFromNetwork(), 0);
             return cached;
@@ -492,7 +492,7 @@ let _isCN = detectLanguage();
     async function loadPluginsJSON() {
         const data = await _pluginsJSONPromise;
         if (!data || !Array.isArray(data.plugins)) {
-            console.error("❌ [PCM] plugins.json 格式錯誤或無法取得");
+            console.error("🐈‍⬛ [PCM] ❌ plugins.json 格式錯誤或無法取得");
             showNotification("❌", "PCM", getMessage('loadPluginsFailed'));
             return false;
         }
@@ -502,7 +502,7 @@ let _isCN = detectLanguage();
         subPlugins = applyPluginSettings(data.plugins);
         subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
         pluginsLoaded = true;
-        console.log(`📦 [PCM] plugins.json 共 ${subPlugins.length} 個插件`);
+        console.log(`🐈‍⬛ [PCM] 📦 plugins.json 共 ${subPlugins.length} 個插件`);
         return true;
     }
 
@@ -514,7 +514,7 @@ let _isCN = detectLanguage();
     function injectScript(pluginId, code) {
         const script = document.createElement('script');
         script.setAttribute('data-plugin', pluginId);
-        script.textContent = `(function(){try{${code}}catch(e){console.error('[PCM] plugin error (${pluginId}):', e.message);}})();`;
+        script.textContent = `(function(){try{${code}}catch(e){console.error('🐈‍⬛ [PCM] plugin error (${pluginId}):', e.message);}})();`;
         document.body.appendChild(script);
     }
 
@@ -526,7 +526,7 @@ let _isCN = detectLanguage();
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return await res.text();
             } catch(e) {
-                console.warn(`⚠️ [PCM] 從 ${url} 取得失敗: ${e.message}`);
+                console.warn(`🐈‍⬛ [PCM] ⚠️ 從 ${url} 取得失敗: ${e.message}`);
             }
         }
         return null;
@@ -545,7 +545,7 @@ let _isCN = detectLanguage();
     function loadSubPlugin(plugin) {
         if (!isPluginEnabled(plugin) || loadedPlugins.has(plugin.id)) return Promise.resolve();
         if (isPluginSkippedByVersion(plugin)) {
-            console.log(`⏭️ [PCM] ${plugin.name} 版本過舊自動跳過`);
+            console.log(`🐈‍⬛ [PCM] ⏭️ ${plugin.name} 版本過舊自動跳過`);
             loadedPlugins.add(plugin.id);
             return Promise.resolve();
         }
@@ -556,7 +556,7 @@ let _isCN = detectLanguage();
                 try {
                     injectScript(plugin.id, plugin.inlineCode);
                     loadedPlugins.add(plugin.id);
-                } catch(e) { console.error(`❌ [PCM] inlineCode 載入失敗: ${plugin.name}`, e); }
+                } catch(e) { console.error(`🐈‍⬛ [PCM] ❌ inlineCode 載入失敗: ${plugin.name}`, e); }
                 resolve();
             });
         }
@@ -573,9 +573,9 @@ let _isCN = detectLanguage();
                 try {
                     injectScript(plugin.id, cached);
                     loadedPlugins.add(plugin.id);
-                    console.log(`⚡ [PCM] ${plugin.name} 從快取秒載`);
+                    console.log(`🐈‍⬛ [PCM] ⚡ ${plugin.name} 從快取秒載`);
                 } catch(e) {
-                    console.error(`❌ [PCM] ${plugin.name} 快取執行失敗，清除並重新抓取`, e);
+                    console.error(`🐈‍⬛ [PCM] ❌ ${plugin.name} 快取執行失敗，清除並重新抓取`, e);
                     _clearCachedPlugin(plugin.id);
                     // fall through 到下方正常抓取
                 }
@@ -585,7 +585,7 @@ let _isCN = detectLanguage();
                     tryFetch(urls).then(newCode => {
                         if (newCode && newCode !== cached) {
                             setCachedPlugin(plugin.id, newCode);
-                            console.log(`🔄 [PCM] ${plugin.name} 背景快取已更新（下次生效）`);
+                            console.log(`🐈‍⬛ [PCM] 🔄 ${plugin.name} 背景快取已更新（下次生效）`);
                         }
                     }).catch(() => {});
                     return Promise.resolve();
@@ -597,15 +597,15 @@ let _isCN = detectLanguage();
         return tryFetch(urls).then(code => {
             if (!code) {
                 showNotification("❌", `${getPluginName(plugin)} 載入失敗`, "請檢查網絡或插件URL");
-                throw new Error("all urls failed");
+                throw new Error("🐈‍⬛ [PCM] ❌ all urls failed");
             }
             injectScript(plugin.id, code);
             loadedPlugins.add(plugin.id);
-            console.log(`✅ [PCM - SubPlugin] ${plugin.name} 載入成功`);
+            console.log(`🐈‍⬛ [PCM] ✅ -SubPlugin- ${plugin.name} 載入成功`);
             // 需要快取的存起來
             if (shouldUseCache(plugin)) setCachedPlugin(plugin.id, code);
         }).catch(err => {
-            console.error(`❌ [PCM] ${plugin.name} 無法載入:`, err);
+            console.error(`🐈‍⬛ [PCM] ❌ ${plugin.name} 無法載入:`, err);
             throw err;
         });
     }
@@ -618,10 +618,10 @@ let _isCN = detectLanguage();
 
         // 確保 JSON 已處理完畢
         if (!pluginsLoaded) {
-            console.log("⏳ [PCM] 等待 plugins.json 處理...");
+            console.log("🐈‍⬛ [PCM] ⏳ 等待 plugins.json 處理...");
             if (_pluginsProcessPromise) await _pluginsProcessPromise;
             if (!pluginsLoaded) {
-                console.error("❗ [PCM] plugins.json 載入失敗，放棄載入插件");
+                console.error("🐈‍⬛ [PCM] ❗ plugins.json 載入失敗，放棄載入插件");
                 return;
             }
         }
@@ -629,7 +629,7 @@ let _isCN = detectLanguage();
         // 有啟用插件才鎖旗標，避免空跑後永遠不再執行
         const enabledCheck = subPlugins.filter(p => isPluginEnabled(p));
         if (enabledCheck.length === 0) {
-            console.log("⏭️ [PCM] 沒有啟用的插件，跳過載入");
+            console.log("🐈‍⬛ [PCM] ⏭️ 沒有啟用的插件，跳過載入");
             return;
         }
 
@@ -642,7 +642,7 @@ let _isCN = detectLanguage();
 
         while (!isPlayerLoaded() && waited < maxWait) {
             if (waited === 0 || waited - lastLog >= logInterval) {
-                console.log(`⏳ [PCM] 等待 Player 載入... (${waited / 1000}s)`);
+                console.log(`🐈‍⬛ [PCM] ⏳ 等待 Player 載入... (${waited / 1000}s)`);
                 lastLog = waited;
             }
             await new Promise(r => setTimeout(r, checkInterval));
@@ -665,7 +665,7 @@ let _isCN = detectLanguage();
                 const results = await Promise.allSettled(batch.map(p => loadSubPlugin(p).catch(e => ({ error: e }))));
                 results.forEach((result, idx) => {
                     if (result.status === 'fulfilled' && !result.value?.error) successCount++;
-                    else console.error(`❌ [PCM] ${batch[idx].name} 載入失敗`);
+                    else console.error(`🐈‍⬛ [PCM] ❌ ${batch[idx].name} 載入失敗`);
                 });
                 if (i + batchSize < enabledPlugins.length) await new Promise(r => setTimeout(r, 800));
             }
@@ -676,7 +676,7 @@ let _isCN = detectLanguage();
                 showNotification("✅", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}`);
             }
         } catch (e) {
-            console.error("❌ [PCM] 背景載入嚴重錯誤:", e);
+            console.error("🐈‍⬛ [PCM] ❌ 背景載入嚴重錯誤:", e);
         } finally { isLoadingPlugins = false; }
     }
 
@@ -701,7 +701,7 @@ let _isCN = detectLanguage();
                 return tryFetch(urls).then(code => {
                     if (code) {
                         setCachedPlugin(plugin.id, code);
-                        console.log(`🔄 [PCM] ${plugin.name} 強制更新快取完成`);
+                        console.log(`🐈‍⬛ [PCM] 🔄 ${plugin.name} 強制更新快取完成`);
                     }
                 }).catch(() => {});
             }));
@@ -1498,10 +1498,10 @@ function checkLanguageChange() {
             });
             registerPCMBadge();
         } else {
-            console.error("❌ [PCM] bcModSdk 不可用");
+            console.error("🐈‍⬛ [PCM] ❌ bcModSdk 不可用");
             return;
         }
-    } catch (e) { console.error("❌ [PCM] 初始化失敗:", e.message); return; }
+    } catch (e) { console.error("🐈‍⬛ [PCM] ❌ 初始化失敗:", e.message); return; }
 
     async function initialize() {
         if (isInitialized) return;
@@ -1561,11 +1561,11 @@ function checkLanguageChange() {
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            initialize().then(() => sendLoadedMessage()).catch(e => console.error("❌ [PCM] 初始化錯誤:", e));
+            initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
         }, { once: true });
     } else {
-        initialize().then(() => sendLoadedMessage()).catch(e => console.error("❌ [PCM] 初始化錯誤:", e));
+        initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
     }
 
-    console.log("✅ [PCM] v1.5.2 腳本載入完成");
+    console.log("🐈‍⬛ [PCM] ✅ v1.5.2 腳本載入完成");
 })();
