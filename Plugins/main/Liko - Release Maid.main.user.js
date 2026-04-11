@@ -30,7 +30,7 @@
                 if (typeof bcModSdk !== 'undefined' && bcModSdk?.registerMod) {
                     resolve(true);
                 } else if (Date.now() - start > timeout) {
-                    console.error("[Release Bot] bcModSdk 載入超時");
+                    console.error("❌ [Release Maid] bcModSdk 載入超時");
                     resolve(false);
                 } else {
                     setTimeout(check, 100);
@@ -44,7 +44,7 @@
     async function initializeModApi() {
         const success = await waitForBcModSdk();
         if (!success) {
-            console.error("[Release Bot] ❌ bcModSdk 無法載入，插件將以兼容模式運行");
+            console.error("❌ [Release Maid] bcModSdk 無法載入，插件將以兼容模式運行");
             return null;
         }
 
@@ -55,10 +55,10 @@
                 version: '1.1',
                 repository: '莉柯莉絲的自動解鎖女僕',
             });
-            console.log("✅ Liko Release Bot 註冊成功");
+            console.log("✅ [Release Maid] 註冊成功");
             return modApi;
         } catch (e) {
-            console.error("[Release Bot] ❌ 初始化 modApi 失敗:", e.message);
+            console.error("❌ [Release Maid] 初始化 modApi 失敗:", e.message);
             return null;
         }
     }
@@ -81,16 +81,16 @@
     function sendLocalMessage(message) {
         try {
             if (CurrentScreen !== "ChatRoom") {
-                console.warn("[Release Bot] 不在聊天室，訊息可能不顯示");
+                console.warn("❗ [Release Maid] 不在聊天室，訊息可能不顯示");
                 return;
             }
             ChatRoomMessage({
-                Content: `<font color="#00FF00">[Release Bot] ${message}</font>`,
+                Content: `<font color="#00FF00">[Release Maid] ${message}</font>`,
                 Type: "LocalMessage",
                 Sender: Player.MemberNumber
             });
         } catch (e) {
-            console.error("[Release Bot] 發送本地訊息錯誤:", e.message);
+            console.error("❌ [Release Maid] 發送本地訊息錯誤:", e.message);
         }
     }
 
@@ -111,7 +111,7 @@
             }
             return true; // 如果函數不存在，假設有權限
         } catch (e) {
-            console.warn("[Release Bot] 權限檢查失敗:", e.message);
+            console.warn("❗ [Release Maid] 權限檢查失敗:", e.message);
             return true;
         }
     }
@@ -119,12 +119,12 @@
     // === 解鎖函數 (不移除物品，只解鎖，保留 Owner/Lover 鎖) ===
     function UnlockAllLocks(C) {
         if (!C || !C.Appearance) {
-            console.warn("[Release Bot] 無效的角色對象");
+            console.warn("❗ [Release Maid] 無效的角色對象");
             return;
         }
 
         if (!hasPermission(C)) {
-            console.warn("[Release Bot] 無權限操作角色:", C.Name);
+            console.warn("❗ [Release Maid] 無權限操作角色:", C.Name);
             return;
         }
 
@@ -149,7 +149,7 @@
                 ChatRoomCharacterUpdate(C);
             }
         } catch (e) {
-            console.error("[Release Bot] 解鎖失敗:", e.message);
+            console.error("❌ [Release Maid] 解鎖失敗:", e.message);
         }
 
         return unlockedCount;
@@ -158,12 +158,12 @@
     // === 救援函數 ===
     function rescue(target, mode = "release") {
         if (!target) {
-            console.warn("[Release Bot] 救援目標無效");
+            console.warn("❌ [Release Maid 救援目標無效");
             return;
         }
 
         if (!hasPermission(target)) {
-            console.warn("[Release Bot] 無權限救援:", target.Name);
+            console.warn("❗ [Release Maid] 無權限救援:", target.Name);
             return;
         }
 
@@ -193,11 +193,9 @@
                         { Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: systemMessage }
                     ]
                 });
-
-                console.log(`[Release Bot] 救援成功: ${displayName} (${mode})`);
             }
         } catch (e) {
-            console.error("[Release Bot] 救援操作失敗:", e.message);
+            console.error("❌ [Release Maid] 救援操作失敗:", e.message);
         }
     }
 
@@ -265,7 +263,7 @@
                 if (target) rescue(target, "unlock");
             }
         } catch (e) {
-            console.error("[Release Bot] 訊息處理錯誤:", e.message);
+            console.error("❌ [Release Maid] 訊息處理錯誤:", e.message);
         }
     }
 
@@ -275,11 +273,11 @@
             try {
                 return modApi.hookFunction(functionName, priority, callback);
             } catch (e) {
-                console.error(`[Release Bot] Hook ${functionName} 失敗:`, e.message);
+                console.error(`❌ [Release Maid] Hook ${functionName} 失敗:`, e.message);
                 return false;
             }
         } else {
-            console.warn(`[Release Bot] 無法 hook ${functionName}，modApi 不可用`);
+            console.warn(`❌ [Release Maid] 無法 hook ${functionName}，modApi 不可用`);
             return false;
         }
     }
@@ -302,12 +300,12 @@
                         // 添加新的監聽器
                         socketListener = handleMessage;
                         ServerSocket.on("ChatRoomMessage", socketListener);
-                        console.log("[Release Bot] 訊息監聽器已綁定");
+                        console.log("✅ [Release Maid] 訊息監聽器已綁定");
                     } else {
-                        console.error("[Release Bot] ServerSocket 不可用");
+                        console.error("❌ [Release Maid] ServerSocket 不可用");
                     }
                 } catch (e) {
-                    console.error("[Release Bot] 綁定訊息監聽器失敗:", e.message);
+                    console.error("❌ [Release Maid 綁定訊息監聽器失敗:", e.message);
                 }
             }
             return result;
@@ -318,11 +316,11 @@
             try {
                 DrawButton(
                     btnX, btnY, size, size,
-                    autoEnabled ? "🤖" : "⚙️",
+                    autoEnabled ? "🧹" : "⚙️",
                     autoEnabled ? "Orange" : "Gray", "", "自動解鎖開關"
                 );
             } catch (e) {
-                console.error("[Release Bot] 繪製按鈕失敗:", e.message);
+                console.error("❌ [Release Maid] 繪製按鈕失敗:", e.message);
             }
             return next(args);
         });
@@ -335,7 +333,7 @@
                     sendLocalMessage(autoEnabled ? "🔓 自動救援啟用" : "🔒 自動救援停用");
                 }
             } catch (e) {
-                console.error("[Release Bot] 按鈕點擊處理失敗:", e.message);
+                console.error("❌ [Release Maid] 按鈕點擊處理失敗:", e.message);
             }
             return next(args);
         });
@@ -351,7 +349,7 @@
                     typeof DrawButton === 'function') {
                     resolve(true);
                 } else if (Date.now() - start > timeout) {
-                    console.error("[Release Bot] 遊戲載入超時");
+                    console.error("❌ [Release Maid] 遊戲載入超時");
                     resolve(false);
                 } else {
                     setTimeout(check, 100);
@@ -363,7 +361,7 @@
 
     // === 主初始化函數 ===
     async function initialize() {
-        console.log("[Release Bot] 開始初始化...");
+        console.log("⌛ [Release Maid] 開始初始化...");
 
         try {
             // 初始化 modApi
@@ -372,7 +370,7 @@
             // 等待遊戲載入
             const gameLoaded = await waitForGame();
             if (!gameLoaded) {
-                console.error("[Release Bot] 遊戲載入失敗");
+                console.error("[Release Maid] 遊戲載入失敗");
                 return;
             }
 
@@ -382,27 +380,27 @@
             // 設置卸載處理
             if (modApi && typeof modApi.onUnload === 'function') {
                 modApi.onUnload(() => {
-                    console.log("[Release Bot] 插件卸載中...");
+                    console.log("⌛ [Release Maid] 插件卸載中...");
                     if (socketListener && ServerSocket) {
                         try {
                             ServerSocket.off("ChatRoomMessage", socketListener);
-                            console.log("[Release Bot] 訊息監聽器已移除");
+                            console.log("🗑️ [Release Maid] 訊息監聽器已移除");
                         } catch (e) {
-                            console.error("[Release Bot] 移除監聽器失敗:", e.message);
+                            console.error("❌ [Release Maid] 移除監聽器失敗:", e.message);
                         }
                     }
                 });
             }
 
-            console.log("[Release Bot] 初始化完成 v1.1");
+            console.log("✅ [Release Maid] 初始化完成 v1.1");
 
             // 如果在聊天室中，顯示載入訊息
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
-                sendLocalMessage("自動救援機器人已載入！");
+                sendLocalMessage("自動解綁女僕已載入！");
             }
 
         } catch (e) {
-            console.error("[Release Bot] 初始化失敗:", e.message);
+            console.error("❌ [Release Maid] 初始化失敗:", e.message);
         }
     }
     // === 啟動初始化 ===
