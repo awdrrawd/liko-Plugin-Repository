@@ -31,7 +31,7 @@
         return new Promise(resolve => {
             const check = () => {
                 if (typeof bcModSdk !== 'undefined' && bcModSdk?.registerMod) resolve(true);
-                else if (Date.now() - start > timeout) { console.error("[LT] bcModSdk 載入超時"); resolve(false); }
+                else if (Date.now() - start > timeout) { console.error("🐈‍⬛ [LT] ❌ bcModSdk 載入超時"); resolve(false); }
                 else setTimeout(check, 100);
             };
             check();
@@ -59,7 +59,7 @@
     async function initializeModApi() {
         const success = await waitForBcModSdk();
         if (!success) {
-            console.error("❌ [LT] bcModSdk 無法載入");
+            console.error("🐈‍⬛ [LT] ❌ bcModSdk 無法載入");
             return null;
         }
         try {
@@ -69,10 +69,10 @@
                 version: modversion,
                 repository: '莉柯莉絲的工具包'
             });
-            console.log("✅ [LT] modApi 初始化完成");
+            console.log("🐈‍⬛ [LT] ❌ ✅ modApi 初始化完成");
             return modApi;
         } catch (e) {
-            console.error("❌ [LT] 初始化 modApi 失敗:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ 初始化 modApi 失敗:", e.message);
             return null;
         }
     }
@@ -159,7 +159,7 @@
     // 工具函數
     // ──────────────────────────────────────────
     function ChatRoomSendLocal(message, sec = 0) {
-        if (CurrentScreen !== "ChatRoom") { console.warn("❗ [LT] 不在聊天室"); return; }
+        if (CurrentScreen !== "ChatRoom") { console.warn("🐈‍⬛ [LT] ❗ 不在聊天室"); return; }
         try {
             ChatRoomMessage({
                 Type: "LocalMessage",
@@ -168,7 +168,7 @@
                 Timeout: sec
             });
         } catch (e) {
-            console.error("❌ [LT] 發送本地訊息錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ 發送本地訊息錯誤:", e.message);
         }
     }
 
@@ -197,7 +197,7 @@
                 Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: message }]
             });
         } catch (e) {
-            console.error("❌ [LT] 自訂動作發送錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ 自訂動作發送錯誤:", e.message);
             ChatRoomSendLocal("自訂動作發送失敗，可能有插件衝突。");
         }
     }
@@ -283,7 +283,7 @@
                         const ctx = previewCanvas.getContext("2d");
                         if (ctx) DrawCharacter(btn.preview, 0, 0, 0.2, false, ctx);
                     } catch (e) {
-                        console.error("❌ [LT] 預覽渲染錯誤:", e.message);
+                        console.error("🐈‍⬛ [LT] ❌ 預覽渲染錯誤:", e.message);
                     }
                     button.prepend(previewCanvas);
                 }
@@ -327,10 +327,10 @@
             try {
                 modApi.hookFunction(functionName, priority, callback);
             } catch (e) {
-                console.error(`❌ [LT] Hook ${functionName} 失敗:`, e.message);
+                console.error(`🐈‍⬛ [LT] ❌ Hook ${functionName} 失敗:`, e.message);
             }
         } else {
-            console.warn(`❌ [LT] 無法 hook ${functionName}，modApi 不可用`);
+            console.warn(`🐈‍⬛ [LT] ❌ 無法 hook ${functionName}，modApi 不可用`);
         }
     }
 
@@ -439,7 +439,7 @@
             ChatRoomCharacterUpdate(target);
             chatSendCustomAction(`${getNickname(Player)} 完全解除了 ${getNickname(target)} 的所有束縛！`);
         } catch (e) {
-            console.error("❌ [LT] freetotal 錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ freetotal 錯誤:", e.message);
             ChatRoomSendLocal("無法解除束縛。");
         }
         return true;
@@ -485,7 +485,7 @@
             ChatRoomCharacterUpdate(target);
             chatSendCustomAction(`${getNickname(Player)} 解除了 ${getNickname(target)} 的 ${selected.join("、")}`);
         } catch (e) {
-            console.error("❌ [LT] free 錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ free 錯誤:", e.message);
             ChatRoomSendLocal("無法移除束縛。");
         }
         return true;
@@ -505,7 +505,7 @@
         try {
             bcxCode = await navigator.clipboard.readText();
         } catch (e) {
-            console.error("❌ [LT] bcxImport 剪貼簿讀取錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ bcxImport 剪貼簿讀取錯誤:", e.message);
             ChatRoomSendLocal("無法讀取剪貼簿。");
             return true;
         }
@@ -516,7 +516,7 @@
             ChatRoomCharacterUpdate(target);
             chatSendCustomAction(`${getNickname(Player)} 為 ${getNickname(target)} 導入了 BCX 外觀！`);
         } catch (e) {
-            console.error("❌ [LT] bcxImport 解析錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ bcxImport 解析錯誤:", e.message);
             ChatRoomSendLocal("無效的 BCX 代碼。");
         }
         return true;
@@ -559,7 +559,7 @@
             ChatRoomCharacterUpdate(target);
             chatSendCustomAction(`${getNickname(Player)} 移除了 ${getNickname(target)} 的所有鎖！`);
         } catch (e) {
-            console.error("❌ [LT] fullUnlock 錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ fullUnlock 錯誤:", e.message);
             ChatRoomSendLocal("無法移除鎖。");
         }
         return true;
@@ -602,7 +602,7 @@
                 ChatRoomSendLocal("所有技能已升至 10 級！");
             }
         } catch (e) {
-            console.error("❌ [LT] getEverything 錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ getEverything 錯誤:", e.message);
             ChatRoomSendLocal("無法執行增強功能。");
         }
         return true;
@@ -617,7 +617,7 @@
             ChatRoomAppearanceLoadCharacter(Player);
             ChatRoomSendLocal("已開啟衣櫃！");
         } catch (e) {
-            console.error("❌ [LT] wardrobe 錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ wardrobe 錯誤:", e.message);
             ChatRoomSendLocal("無法開啟衣櫃。");
         }
         return true;
@@ -679,7 +679,7 @@
             ChatRoomCharacterUpdate(target);
             chatSendCustomAction(`${getNickname(Player)} 為 ${getNickname(target)} 的 ${lockedCount} 個束縛添加了 ${lock.Description} 鎖！`);
         } catch (e) {
-            console.error("❌ [LT] fullLock 錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ fullLock 錯誤:", e.message);
             ChatRoomSendLocal("無法添加鎖。");
         }
         return true;
@@ -750,7 +750,7 @@
             try {
                 commands[subCommand](commandText);
             } catch (e) {
-                console.error(`❌ [LT] 命令 ${subCommand} 執行錯誤:`, e.message);
+                console.error(`🐈‍⬛ [LT] ❌ 命令 ${subCommand} 執行錯誤:`, e.message);
                 ChatRoomSendLocal(`執行 /lt ${subCommand} 失敗。`);
             }
         } else {
@@ -763,14 +763,14 @@
     // 主初始化
     // ──────────────────────────────────────────
     async function initialize() {
-        console.log("⌛ [LT] 開始初始化插件...");
+        console.log("🐈‍⬛ [LT] ⌛ 開始初始化插件...");
 
         await initializeModApi();
 
         try {
             await loadToastSystem();
         } catch (e) {
-            console.warn("❌ [LT] Toast system 載入失敗，備用模式運行:", e.message);
+            console.warn("🐈‍⬛ [LT] ❌ Toast system 載入失敗，備用模式運行:", e.message);
         }
 
         // 等待玩家登入
@@ -780,7 +780,7 @@
         }, 90000);
 
         if (!gameLoaded) {
-            console.error("❌ [LT] 遊戲載入超時，插件停止初始化");
+            console.error("🐈‍⬛ [LT] ❌ 遊戲載入超時，插件停止初始化");
             return;
         }
 
@@ -794,20 +794,20 @@
                 Description: "執行莉柯莉絲工具命令",
                 Action: handleLtCommand
             }]);
-            console.log("✅ [LT] /lt 指令註冊成功");
+            console.log("🐈‍⬛ [LT] ✅ /lt 指令註冊成功");
         };
 
         if (typeof CommandCombine === "function") {
             try { registerCommand(); }
-            catch (e) { console.error("❌ [LT] 註冊命令錯誤:", e.message); }
+            catch (e) { console.error("🐈‍⬛ [LT] ❌ 註冊命令錯誤:", e.message); }
         } else {
             console.warn("⌛ [LT] CommandCombine 尚未就緒，等待中...");
             waitFor(() => typeof CommandCombine === "function", 30000).then(ok => {
                 if (ok) {
                     try { registerCommand(); }
-                    catch (e) { console.error("❌ [LT] 延遲註冊命令錯誤:", e.message); }
+                    catch (e) { console.error("🐈‍⬛ [LT] ❌ 延遲註冊命令錯誤:", e.message); }
                 } else {
-                    console.warn("❌ [LT] CommandCombine 無法載入，/lt 指令不可用");
+                    console.warn("🐈‍⬛ [LT] ❌ CommandCombine 無法載入，/lt 指令不可用");
                 }
             });
         }
@@ -817,7 +817,7 @@
             if (success) ChatRoomSendLocal(`莉柯莉絲工具 v${modversion} 載入！使用 /lt help 查看說明`, 30000);
         });
 
-        console.log(`✅ [LT] 插件已載入 (v${modversion})`);
+        console.log(`🐈‍⬛ [LT] ❌ ✅ 插件已載入 (v${modversion})`);
     }
 
     // ──────────────────────────────────────────
@@ -826,7 +826,7 @@
     function setupUnloadHandler() {
         if (modApi && typeof modApi.onUnload === 'function') {
             modApi.onUnload(() => {
-                console.log("🗑️ [LT] 插件卸載...");
+                console.log("🐈‍⬛ [LT] 🗑️ 插件卸載...");
             });
         }
     }
@@ -834,7 +834,7 @@
     initialize().then(() => {
         setupUnloadHandler();
     }).catch(error => {
-        console.error("❌ [LT] 初始化失敗:", error);
+        console.error("🐈‍⬛ [LT] ❌ 初始化失敗:", error);
     });
 
 })();
