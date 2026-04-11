@@ -28,7 +28,7 @@
     const cache = new Map();
     window.__LIKOSHARE_CACHE__ = cache;
 
-    const log = (...a) => console.log("[Liko-WPS]", ...a);
+    const log = (...a) => console.log("🐈‍⬛ [Liko-WPS]", ...a);
 
     /* ================= Language ================= */
     function detectLanguage() {
@@ -81,7 +81,7 @@
                 }
             };
         } catch (e) {
-            log("save error", e);
+            log("❌ save error", e);
         }
     }
 
@@ -171,7 +171,7 @@
 
             }
         } catch (e) {
-            log("parse error", e);
+            log("❌ parse error", e);
         }
         return true;
     }
@@ -288,5 +288,5 @@
         document.querySelectorAll(".ChatMessageLocalMessage").forEach(processShareText);
         enhanceProfilesUI();
     }, 500);
-    //log("Liko-WPS", VERSION);
+    log("✅", VERSION," Loading completed!");
 })();
