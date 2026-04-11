@@ -281,7 +281,7 @@
     // 工具函數
     // ================================
     function safeLog(message) {
-        try { console.log('❌ [CDB] ' + message); } catch (e) {}
+        try { console.log('[CDB] ' + message); } catch (e) {}
     }
 
     function safeError(message, error) {
