@@ -69,7 +69,7 @@
                 version: modversion,
                 repository: '莉柯莉絲的工具包'
             });
-            console.log("🐈‍⬛ [LT] ❌ ✅ modApi 初始化完成");
+            console.log("🐈‍⬛ [LT] ✅ modApi 初始化完成");
             return modApi;
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ 初始化 modApi 失敗:", e.message);
