@@ -17,7 +17,7 @@
 
     // 檢查是否已經載入過，避免重複載入
     if (window.LikoChatTtoBInstance) {
-        console.warn("⚠️ Liko Chat TtoB 已經載入，跳過重複載入");
+        console.warn("🐈‍⬛ [CtoB] ⚠️ 已經載入，跳過重複載入");
         return;
     }
 
@@ -396,7 +396,7 @@
 
     function enablePlugin() {
         isEnabled = true;
-        console.log("✅ Liko Chat TtoB 已啟用");
+        console.log("🐈‍⬛ [CtoB] ✅ 已啟用");
         if (!scanInterval) {
             scanInterval = setInterval(scanChat, 500);
             resources.intervals.push(scanInterval);
@@ -409,7 +409,7 @@
 
     function disablePlugin() {
         isEnabled = false;
-        console.log("❌ Liko Chat TtoB 已停用");
+        console.log("🐈‍⬛ [CtoB] ❌ 已停用");
         hideDesc();
         if (scanInterval) {
             clearInterval(scanInterval);
@@ -431,7 +431,7 @@
 
     // 完全銷毀插件 - 供外部載入器使用
     function destroyPlugin() {
-        console.log("🔥 正在銷毀 Liko Chat TtoB...");
+        console.log("🐈‍⬛ [CtoB] 🔥 正在銷毀...");
 
         // 停用功能
         disablePlugin();
@@ -469,7 +469,7 @@
         delete window.LikoChatTtoBInstance;
         delete window.LikoChatTtoBWelcomed;
 
-        console.log("✅ Liko Chat TtoB 已完全銷毀");
+        console.log("🐈‍⬛ [CtoB] 🗑️ 已完全銷毀");
     }
 
     function restoreOriginalText() {
@@ -515,7 +515,7 @@
             // 提供清理函數
             hookCleanup = () => {
                 // bcModSdk 通常不提供直接的 unhook 方法，但我們可以標記
-                console.log("🧹 清理 ChatRoomLoad Hook");
+                console.log("🐈‍⬛ [CtoB] 🧹 清理 ChatRoomLoad Hook");
             };
         }
     }
@@ -525,8 +525,7 @@
     hookChatRoomLoad();
     enablePlugin();
 
-    console.log("🎛️ Liko Chat TtoB 載入完成");
-    console.log("  - 外部載入器可使用 window.LikoChatTtoBInstance.destroy() 完全銷毀");
+    console.log("🐈‍⬛ [CtoB] ✅ 載入完成");
 
     // 監聽頁面卸載事件，自動清理
     window.addEventListener('beforeunload', destroyPlugin);
