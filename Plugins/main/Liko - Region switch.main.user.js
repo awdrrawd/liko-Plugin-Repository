@@ -32,7 +32,7 @@
                 if (typeof bcModSdk !== 'undefined' && bcModSdk?.registerMod) {
                     resolve(true);
                 } else if (Date.now() - start > timeout) {
-                    console.error("[Region switch] bcModSdk 載入超時");
+                    console.error("🐈‍⬛ [Region switch] ❌ bcModSdk 載入超時");
                     resolve(false);
                 } else {
                     setTimeout(check, 100);
@@ -50,7 +50,7 @@
                 if (space === "") return false;
             }
         } catch (e) {
-            console.warn("[Region switch] 無法判定區域:", e);
+            console.warn("🐈‍⬛ [Region switch] ❌ 無法判定區域:", e);
         }
         return true;
     }
@@ -78,7 +78,7 @@
             // 重新搜索
             ChatSearchQuery(ChatSearchQueryString);
         } catch (error) {
-            console.error("[Region switch] 搜索執行錯誤:", error);
+            console.error("🐈‍⬛ [Region switch] ❌ 搜索執行錯誤:", error);
         }
     }
 
@@ -159,7 +159,7 @@
 
                     setTimeout(createSwitchButton, 50);
                 } catch (error) {
-                    console.error("[Region switch] ChatSearchLoad Hook 錯誤:", error);
+                    console.error("🐈‍⬛ [Region switch] ❌ ChatSearchLoad Hook 錯誤:", error);
                 }
                 return result;
             });
@@ -175,7 +175,7 @@
             });
 
         } catch (error) {
-            console.error("[Region switch] 初始化失敗:", error);
+            console.error("🐈‍⬛ [Region switch] ❌ 初始化失敗:", error);
         }
     }
 
