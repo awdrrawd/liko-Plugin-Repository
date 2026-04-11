@@ -43,7 +43,7 @@
       "en_additionalInfo": "",
       "icon": "🪪",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CPB.main.user.js",
-      "priority": 3
+      "priority": 9
     },
     {
       "id": "Liko-Image_Uploader",
@@ -217,7 +217,7 @@
       "en_additionalInfo": "",
       "icon": "🎵",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CMC.main.user.js",
-      "priority": 5
+      "priority": 6
     },
     {
       "id": "Liko-WPS",
@@ -268,7 +268,7 @@
       "en_additionalInfo": "",
       "icon": "⚧️",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
-      "priority": 10
+      "priority": 8
     },
     {
       "id": "Liko-CFT",
@@ -280,7 +280,7 @@
       "en_additionalInfo": "",
       "icon": "📋",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CFT.main.user.js",
-      "priority": 9
+      "priority": 8
     }
   ]
 }
