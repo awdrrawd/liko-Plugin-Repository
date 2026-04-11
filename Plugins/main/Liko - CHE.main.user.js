@@ -81,29 +81,29 @@
             cacheMsgCount:   n => `(${n} 條訊息)`,
             // Toasts
             toastXlsxFail:   "[CHE] ❌ XLSX庫未載入",
-            toastNoMsg:      "[CHE] 沒有訊息可匯出",
-            toastExcelWait:  "[CHE] 正在生成Excel，請稍候...",
-            toastExcelDone:  n => `[CHE] Excel匯出完成！${n} 條訊息`,
+            toastNoMsg:      "[CHE] ❗ 沒有訊息可匯出",
+            toastExcelWait:  "[CHE] 💾 正在生成Excel，請稍候...",
+            toastExcelDone:  n => `[CHE] ✅ Excel匯出完成！${n} 條訊息`,
             toastExcelFail:  "[CHE] ❌ Excel匯出失敗",
             toastClearFail:  "[CHE] ❌ 找不到聊天室容器",
-            toastCleared:    "[CHE] 當前聊天室已清空！",
+            toastCleared:    "[CHE] 🗑️ 當前聊天室已清空！",
             toastClearErr:   "[CHE] ❌ 清空失敗",
-            toastHTMLWait:   "[CHE] 正在匯出HTML，請稍候...",
-            toastHTMLDone:   n => `[CHE] HTML匯出完成，${n} 條訊息`,
+            toastHTMLWait:   "[CHE] 💾 正在匯出HTML，請稍候...",
+            toastHTMLDone:   n => `[CHE] ✅ HTML匯出完成，${n} 條訊息`,
             toastHTMLFail:   "[CHE] ❌ HTML匯出失敗，請重試",
-            toastCacheWait:  "[CHE] 正在匯出緩存HTML，請稍候...",
-            toastCacheDone:  n => `[CHE] 緩存HTML匯出完成，${n} 條訊息`,
+            toastCacheWait:  "[CHE] 💾 正在匯出緩存HTML，請稍候...",
+            toastCacheDone:  n => `[CHE] ✅ 緩存HTML匯出完成，${n} 條訊息`,
             toastCacheFail:  "[CHE] ❌ 緩存HTML匯出失敗",
             toastNoContainer:"[CHE] ❌ 找不到聊天室容器或無訊息可匯出",
             toastNoMsgEx:    "[CHE] ❌ 沒有訊息可匯出",
             toastSaveFail:   "[CHE] ❌ 緩存保存失敗",
-            toastDeleteN:    n => `[CHE] 已刪除 ${n} 個日期的數據`,
-            toastDeleteNone: "[CHE] 沒有數據被刪除",
+            toastDeleteN:    n => `[CHE] ✅ 已刪除 ${n} 個日期的數據`,
+            toastDeleteNone: "[CHE] ❗ 沒有數據被刪除",
             toastDeleteFail: "[CHE] ❌ 刪除操作失敗",
-            toastSaved:      "[CHE] 已保存當前訊息到緩存",
-            toastNoCacheData:"[CHE] 選中日期沒有數據",
+            toastSaved:      "[CHE] ✅ 已保存當前訊息到緩存",
+            toastNoCacheData:"[CHE] ❗ 選中日期沒有數據",
             toastAutoFail:   "[CHE] ❌ 自動保存失敗",
-            toastRestore:    n => `[CHE] 恢復了 ${n} 條未保存的訊息`,
+            toastRestore:    n => `[CHE] ✅ 恢復了 ${n} 條未保存的訊息`,
             toastRestoreFail:"[CHE] ❌ 恢復數據保存失敗",
             toastInitFail:   "[CHE] ❌ 初始化失敗",
             toastNotLoaded:  "❌ 聊天室尚未載入",
@@ -129,29 +129,29 @@
             cacheAlertDelete:"Please select dates to delete",
             cacheMsgCount:   n => `(${n} messages)`,
             toastXlsxFail:   "[CHE] ❌ XLSX library not loaded",
-            toastNoMsg:      "[CHE] No messages to export",
-            toastExcelWait:  "[CHE] Generating Excel, please wait...",
-            toastExcelDone:  n => `[CHE] Excel export complete! ${n} messages`,
+            toastNoMsg:      "[CHE] ❗ No messages to export",
+            toastExcelWait:  "[CHE] 💾 Generating Excel, please wait...",
+            toastExcelDone:  n => `[CHE] ✅ Excel export complete! ${n} messages`,
             toastExcelFail:  "[CHE] ❌ Excel export failed",
             toastClearFail:  "[CHE] ❌ Chat log container not found",
-            toastCleared:    "[CHE] Chat log cleared!",
+            toastCleared:    "[CHE] 🗑️ Chat log cleared!",
             toastClearErr:   "[CHE] ❌ Clear failed",
-            toastHTMLWait:   "[CHE] Exporting HTML, please wait...",
-            toastHTMLDone:   n => `[CHE] HTML export complete, ${n} messages`,
+            toastHTMLWait:   "[CHE] 💾 Exporting HTML, please wait...",
+            toastHTMLDone:   n => `[CHE] ✅ HTML export complete, ${n} messages`,
             toastHTMLFail:   "[CHE] ❌ HTML export failed, please retry",
-            toastCacheWait:  "[CHE] Exporting cached HTML, please wait...",
-            toastCacheDone:  n => `[CHE] Cache HTML export complete, ${n} messages`,
+            toastCacheWait:  "[CHE] 💾 Exporting cached HTML, please wait...",
+            toastCacheDone:  n => `[CHE] ✅ Cache HTML export complete, ${n} messages`,
             toastCacheFail:  "[CHE] ❌ Cache HTML export failed",
             toastNoContainer:"[CHE] ❌ Chat log not found or no messages",
             toastNoMsgEx:    "[CHE] ❌ No messages to export",
             toastSaveFail:   "[CHE] ❌ Cache save failed",
-            toastDeleteN:    n => `[CHE] Deleted ${n} date(s)`,
-            toastDeleteNone: "[CHE] No data was deleted",
+            toastDeleteN:    n => `[CHE] ✅ Deleted ${n} date(s)`,
+            toastDeleteNone: "[CHE] ❗ No data was deleted",
             toastDeleteFail: "[CHE] ❌ Delete operation failed",
-            toastSaved:      "[CHE] Current messages saved to cache",
-            toastNoCacheData:"[CHE] No data for selected dates",
+            toastSaved:      "[CHE] ✅ Current messages saved to cache",
+            toastNoCacheData:"[CHE] ❗ No data for selected dates",
             toastAutoFail:   "[CHE] ❌ Auto-save failed",
-            toastRestore:    n => `[CHE] Restored ${n} unsaved messages`,
+            toastRestore:    n => `[CHE] ✅ Restored ${n} unsaved messages`,
             toastRestoreFail:"[CHE] ❌ Failed to save restored data",
             toastInitFail:   "[CHE] ❌ Initialization failed",
             toastNotLoaded:  "❌ Chat room not loaded yet",
@@ -2109,14 +2109,14 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             const waitForPlayer = setInterval(() => {
                 if (window.Player?.Name) {
                     clearInterval(waitForPlayer);
-                    console.log(`[CHE] Player loaded (${getAccountPrefix()}), initializing...`);
+                    console.log(`🐈‍⬛ [CHE] ⌛ Player loaded (${getAccountPrefix()}), initializing...`);
                     checkTempData().catch(e => logError("init.checkTempData", e));
                     CacheManager.cleanOldData().catch(e => logError("init.cleanOldData", e));
                     addUI();
                     if (currentMode === "cache") initMessageObserver();
                     // Show onboarding on first load
                     setTimeout(showOnboarding, 800);
-                    console.log("[CHE] Init complete, mode:", currentMode);
+                    console.log("🐈‍⬛ [CHE] ✅ Init complete, mode:", currentMode);
                 }
             }, 1000);
 
