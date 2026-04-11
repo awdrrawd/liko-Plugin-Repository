@@ -1,30 +1,24 @@
 {
-  "updateId": "260409",
+  "updateId": "260411",
   "changelog": [
-    "將部分插件的保存位置改到ExtensionSettings",
-    "⭐CHE(聊天室書記官) v2.4更新",
-    "支援英文語言",
-    "現在能隱藏氣球，並在拓展組件內進行顯示氣球或信息匯出",
-    "HTML現在過濾信息時，順便隱藏多餘的房間信息",
-    "HTML可以做更細緻的信息過濾，且可以刪除信息並匯出",
     "⭐CDB(更衣室背景) v1.5更新",
     "支援英文語言",
     "現在網格可以任意設置在角色前或後",
     "現在背景替換顏色等設定時，會即時更新放大鏡的畫面",
-    "使用放大鏡時，修復更改顏色與座標時會重製位置的問題"
+    "使用放大鏡時，修復更改顏色與座標時會重製位置的問題",
+    "⭐MAT(機器翻譯) v1.1.5更新",
+    "修正拓展組件內白色主題下無法顯示文字的問題",
+    "改進，聊天室信息如果是純網址的情況下，跳過翻譯"
   ],
   "en_changelog": [
-    "Some plugin save locations have been moved to ExtensionSettings.",
-    "⭐CHE(Chat History Exporter) v2.3 Update",
-    "Add English language.",
-    "The ball can be hidden, and display ball or export message within the Extensions.",
-    "HTML now filters information and hides unnecessary room information.",
-    "HTML allows for more granular information filtering, and it can also delete information and export it.",
     "⭐CDB(Custom Dressing Room) v1.5 Update",
     "Add English language.",
     "The grid can now be placed arbitrarily in front of or behind the character.",
     "The magnifying glass view now updates instantly when changing background colors or other settings.",
-    "Fixed an issue where the magnifying glass would reset its position when changing colors and coordinates."
+    "Fixed an issue where the magnifying glass would reset its position when changing colors and coordinates.",
+    "⭐MAT(Messages Auto Translator) v1.1.5 Update",
+    "Fixed the issue where text was not displayed on Extensions pages in a white theme.",
+    "If the chat room message is a pure URL, skip the translation."
   ],
   "plugins": [
     {
