@@ -14,10 +14,8 @@
 
 (function() {
     'use strict';
-
+    //不再更新，也不會除錯
     let modApi = null;
-
-    // 等待 bcModSdk 載入的函數
     function waitForBcModSdk(timeout = 30000) {
         const start = Date.now();
         return new Promise(resolve => {
@@ -25,7 +23,7 @@
                 if (typeof bcModSdk !== 'undefined' && bcModSdk?.registerMod) {
                     resolve(true);
                 } else if (Date.now() - start > timeout) {
-                    console.error("[PAT All] bcModSdk 載入超時");
+                    console.error("🐈‍⬛ [PAT All] bcModSdk 載入超時");
                     resolve(false);
                 } else {
                     setTimeout(check, 100);
@@ -39,7 +37,7 @@
     async function initializeModApi() {
         const success = await waitForBcModSdk();
         if (!success) {
-            console.error("[PAT All] ❌ bcModSdk 無法載入，插件將以兼容模式運行");
+            console.error("🐈‍⬛ [PAT All] ❌ bcModSdk 無法載入，插件將以兼容模式運行");
             return null;
         }
 
@@ -50,10 +48,10 @@
                 version: '2.0',
                 repository: '對房內的朋友互動',
             });
-            console.log("✅ PAT All 註冊成功");
+            console.log("🐈‍⬛ [PAT All] ✅ 註冊成功");
             return modApi;
         } catch (e) {
-            console.error("[PAT All] ❌ 初始化 modApi 失敗:", e.message);
+            console.error("🐈‍⬛ [PAT All] ❌ 初始化 modApi 失敗:", e.message);
             return null;
         }
     }
@@ -82,7 +80,7 @@
     function sendLocalMessage(message) {
         try {
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen !== "ChatRoom") {
-                console.warn("[PAT All] 不在聊天室，訊息可能不顯示");
+                console.warn("🐈‍⬛ [PAT All] 不在聊天室，訊息可能不顯示");
                 return;
             }
             if (typeof ChatRoomMessage === 'function') {
@@ -93,7 +91,7 @@
                 });
             }
         } catch (e) {
-            console.error("[PAT All] 發送本地訊息錯誤:", e.message);
+            console.error("🐈‍⬛ [PAT All] 發送本地訊息錯誤:", e.message);
         }
     }
 
@@ -110,7 +108,7 @@
                 ]
             };
         } catch (e) {
-            console.error("[PAT All] 創建活動包錯誤:", e.message);
+            console.error("🐈‍⬛ [PAT All] 創建活動包錯誤:", e.message);
             return null;
         }
     }
@@ -134,7 +132,7 @@
 
             return true;
         } catch (e) {
-            console.error("[PAT All] 權限檢查錯誤:", e.message);
+            console.error("🐈‍⬛ [PAT All] 權限檢查錯誤:", e.message);
             return false;
         }
     }
@@ -142,7 +140,7 @@
     function sendActivityToAll(group, name) {
         try {
             if (!Array.isArray(ChatRoomCharacter)) {
-                console.warn("[PAT All] ChatRoomCharacter 不是陣列");
+                console.warn("🐈‍⬛ [PAT All] ChatRoomCharacter 不是陣列");
                 return;
             }
 
@@ -163,14 +161,14 @@
                         }
                         await delay(delayTime);
                     } catch (e) {
-                        console.error(`[PAT All] 對 ${C.Name} 執行活動失敗:`, e.message);
+                        console.error(`🐈‍⬛ [PAT All] 對 ${C.Name} 執行活動失敗:`, e.message);
                     }
                 }
                 sendLocalMessage(`對 ${successCount} 個目標執行了 ${name}`);
             })();
 
         } catch (e) {
-            console.error("[PAT All] sendActivityToAll 錯誤:", e.message);
+            console.error("🐈‍⬛ [PAT All] sendActivityToAll 錯誤:", e.message);
             sendLocalMessage("執行活動時發生錯誤");
         }
     }
@@ -181,11 +179,11 @@
             try {
                 return modApi.hookFunction(functionName, priority, callback);
             } catch (e) {
-                console.error(`[PAT All] Hook ${functionName} 失敗:`, e.message);
+                console.error(`🐈‍⬛ [PAT All] Hook ${functionName} 失敗:`, e.message);
                 return false;
             }
         } else {
-            console.warn(`[PAT All] 無法 hook ${functionName}，modApi 不可用`);
+            console.warn(`🐈‍⬛ [PAT All] 無法 hook ${functionName}，modApi 不可用`);
             return false;
         }
     }
@@ -224,7 +222,7 @@
                     }
                 }
             } catch (e) {
-                console.error("[PAT All] 繪製按鈕失敗:", e.message);
+                console.error("🐈‍⬛ [PAT All] 繪製按鈕失敗:", e.message);
             }
             next(args);
         });
@@ -262,7 +260,7 @@
                     }
                 }
             } catch (e) {
-                console.error("[PAT All] 按鈕點擊處理失敗:", e.message);
+                console.error("🐈‍⬛ [PAT All] 按鈕點擊處理失敗:", e.message);
             }
             next(args);
         });
@@ -280,7 +278,7 @@
                     typeof ServerSend === 'function') {
                     resolve(true);
                 } else if (Date.now() - start > timeout) {
-                    console.error("[PAT All] 遊戲載入超時");
+                    console.error("🐈‍⬛ [PAT All] 遊戲載入超時");
                     resolve(false);
                 } else {
                     setTimeout(check, 100);
@@ -292,7 +290,7 @@
 
     // === 主初始化函數 ===
     async function initialize() {
-        console.log("[PAT All] 開始初始化...");
+        console.log("🐈‍⬛ [PAT All] 開始初始化...");
 
         try {
             // 初始化 modApi
@@ -301,7 +299,7 @@
             // 等待遊戲載入
             const gameLoaded = await waitForGame();
             if (!gameLoaded) {
-                console.error("[PAT All] 遊戲載入失敗");
+                console.error("🐈‍⬛ [PAT All] 遊戲載入失敗");
                 return;
             }
 
@@ -311,13 +309,13 @@
             // 設置卸載處理
             if (modApi && typeof modApi.onUnload === 'function') {
                 modApi.onUnload(() => {
-                    console.log("[PAT All] 插件卸載中...");
+                    console.log("🐈‍⬛ [PAT All] 插件卸載中...");
                     expanded = false;
                     checkEnabled = true;
                 });
             }
 
-            console.log("[PAT All] 初始化完成 v2.0");
+            console.log("🐈‍⬛ [PAT All] 初始化完成 v2.0");
 
             // 如果在聊天室中，顯示載入訊息
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
@@ -325,7 +323,7 @@
             }
 
         } catch (e) {
-            console.error("[PAT All] 初始化失敗:", e.message);
+            console.error("🐈‍⬛ [PAT All] 初始化失敗:", e.message);
         }
     }
 
