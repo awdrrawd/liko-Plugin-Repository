@@ -55,7 +55,7 @@
     // ──────────────────────────────────────────
     function ChatRoomSendLocal(message, sec = 0) {
         if (CurrentScreen !== "ChatRoom") {
-            console.warn("❗ [IMG] 不在聊天室，訊息可能不顯示");
+            console.warn("🐈‍⬛ [IMG] ❗ 不在聊天室，訊息可能不顯示");
             return;
         }
         try {
@@ -66,7 +66,7 @@
                 Timeout: sec
             });
         } catch (e) {
-            console.error("❌ [IMG] 發送本地訊息錯誤:", e.message);
+            console.error("🐈‍⬛ [IMG] ❌ 發送本地訊息錯誤:", e.message);
         }
     }
 
@@ -108,14 +108,14 @@
                 const saved = JSON.parse(Player.ExtensionSettings.LikoImageUploader);
                 imageHost = saved.imageHost || "litterbox";
             } catch {
-                console.warn("❗ [IMG] ExtensionSettings 解析失敗，使用預設設定");
+                console.warn("🐈‍⬛ [IMG] ❗ ExtensionSettings 解析失敗，使用預設設定");
             }
         }
     }
 
     function saveSettings() {
         if (!Player?.ExtensionSettings) {
-            console.warn("⚠️ [IMG] 無法訪問 ExtensionSettings，設定未保存");
+            console.warn("🐈‍⬛ [IMG] ⚠️ 無法訪問 ExtensionSettings，設定未保存");
             ChatRoomSendLocalStyled("⚠️ 無法保存設定，請確保已登錄", 4000, "#FFA500");
             return;
         }
@@ -123,7 +123,7 @@
         if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             ServerPlayerExtensionSettingsSync("LikoImageUploader");
         } else {
-            console.warn("⚠️ [IMG] ServerPlayerExtensionSettingsSync 不可用");
+            console.warn("🐈‍⬛ [IMG] ⚠️ ServerPlayerExtensionSettingsSync 不可用");
             ChatRoomSendLocalStyled("⚠️ 無法同步設定，模組可能干擾", 4000, "#FFA500");
         }
     }
@@ -465,7 +465,7 @@
                             window.LikoImageUploaderWelcomed = true;
                         }
                     } catch (e) {
-                        console.error("❌ [IMG] ChatRoomLoad 延遲處理錯誤:", e);
+                        console.error("🐈‍⬛ [IMG] ❌ ChatRoomLoad 延遲處理錯誤:", e);
                     }
                 }, 1000);
                 return result;
@@ -477,10 +477,10 @@
     // 初始化
     // ──────────────────────────────────────────
     async function initialize() {
-        console.log("⌛ [IMG] 插件啟動中...");
+        console.log("🐈‍⬛ [IMG] ⌛ 插件啟動中...");
         const ok = await waitForBcModSdk();
         if (!ok) {
-            console.error("❌ [IMG] bcModSdk 載入失敗");
+            console.error("🐈‍⬛ [IMG] ❌ bcModSdk 載入失敗");
             return;
         }
         await loadToastSystem();
@@ -492,7 +492,7 @@
                 repository: '圖片拖曳上傳並分享 | Image to litterbox/uguu/imgbb/tmpfiles and share'
             });
         } catch (e) {
-            console.error("❌ [IMG] 初始化 modApi 失敗:", e.message);
+            console.error("🐈‍⬛ [IMG] ❌ 初始化 modApi 失敗:", e.message);
         }
         loadSettings();
         CommandCombine([{
@@ -501,7 +501,7 @@
             Action: handleImgCommand
         }]);
         hookChatRoomLoad();
-        console.log("✅ [IMG] 插件已載入完成");
+        console.log("🐈‍⬛ [IMG] ✅ 插件已載入完成");
     }
 
     initialize();
