@@ -28,7 +28,7 @@
     const cache = new Map();
     window.__LIKOSHARE_CACHE__ = cache;
 
-    const log = (...a) => console.log("🐈‍⬛ [Liko-WPS]", ...a);
+    const log = (...a) => console.log("🐈‍⬛ [WPS]", ...a);
 
     /* ================= Language ================= */
     function detectLanguage() {
