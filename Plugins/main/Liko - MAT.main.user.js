@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.1.4
+// @version      1.1.5
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
     'use strict';
 
     let modApi;
-    let myversion = "1.1.4";
+    let myversion = "1.1.5";
     let observer = null;
 
     let config = {
@@ -26,8 +26,7 @@
         translateSent: false,
         translateSelection: true,
         translateChat: true,
-        autoScroll: true          // [NEW] 翻譯後自動捲動到最新訊息
-        // Bio 翻譯沒有總開關，永遠可用
+        autoScroll: true
     };
 
     // === CSS ===
@@ -100,9 +99,9 @@
                 version: myversion,
                 repository: "Auto translate chat messages(Supports bio translation)",
             });
-            console.log("[MAT]✅ loaded");
+            console.log("✅[MAT] loaded");
         } catch (e) {
-            console.error("[MAT]❌ failed to load:", e);
+            console.error("❌[MAT] failed to load:", e);
             return;
         }
         waitForGame();
@@ -117,7 +116,7 @@
             translateSent: false,
             translateSelection: true,
             translateChat: true,
-            autoScroll: true          // [NEW]
+            autoScroll: true
         };
         if (!config || typeof config !== 'object') config = { ...defaults };
         for (const [key, val] of Object.entries(defaults)) {
@@ -125,17 +124,72 @@
         }
     }
 
+    // ============================================================
+    // [FIX 1] 改用 ExtensionSettings 儲存，參考 PAT ALL 實作
+    // ============================================================
     function saveSettings() {
-        if (!Player?.OnlineSettings) { ChatRoomSendLocal("⚠️ 未登入，無法保存翻譯設定"); return; }
-        Player.OnlineSettings.BCMachineTranslation = config;
-        if (typeof ServerAccountUpdate?.QueueData === "function") {
-            ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
+        if (!Player?.ExtensionSettings) {
+            ChatRoomSendLocal("⚠️ 未登入，無法保存翻譯設定");
+            return;
+        }
+        Player.ExtensionSettings.BCMachineTranslation = { ...config };
+        if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+            ServerPlayerExtensionSettingsSync("BCMachineTranslation");
         }
     }
 
     function loadSettings() {
+        if (Player?.ExtensionSettings?.BCMachineTranslation) {
+            config = { ...config, ...Player.ExtensionSettings.BCMachineTranslation };
+            return;
+        }
         if (Player?.OnlineSettings?.BCMachineTranslation) {
             config = { ...config, ...Player.OnlineSettings.BCMachineTranslation };
+            saveSettings();
+            try {
+                delete Player.OnlineSettings.BCMachineTranslation;
+                if (typeof ServerAccountUpdate?.QueueData === "function") {
+                    ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
+                }
+                //console.log("[MAT] 已從 OnlineSettings 遷移至 ExtensionSettings");
+            } catch (e) {
+                console.warn("[MAT] 遷移 OnlineSettings 失敗:", e);
+            }
+        }
+    }
+
+    // ============================================================
+    // [MIGRATE] 批量遷移其他插件的 OnlineSettings → ExtensionSettings
+    // 僅搬移已知的安全 key，不動 OnlineSettings 自身必要欄位
+    // ============================================================
+    const MIGRATE_KEYS = [
+        'LCData', 'PatAll', 'PatAllImproved', 'NotifyOnInvite',
+        'BCS', 'CustomProfileBG', 'CDBEnhanced', 'BCEnhancedMusic',
+        'LikoImageUploader', 'BCMachineTranslation', 'EchoCache'
+    ];
+
+    function migrateOnlineToExtensionSettings() {
+        if (!Player?.OnlineSettings || !Player?.ExtensionSettings) return;
+        let migrated = false;
+        for (const key of MIGRATE_KEYS) {
+            if (Player.OnlineSettings[key] !== undefined &&
+                Player.ExtensionSettings[key] === undefined) {
+                Player.ExtensionSettings[key] = Player.OnlineSettings[key];
+                delete Player.OnlineSettings[key];
+                migrated = true;
+                console.log(`[MAT] 已遷移 ${key}: OnlineSettings → ExtensionSettings`);
+            }
+        }
+        if (migrated) {
+            if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+                // 同步 ExtensionSettings（BC 的 API 會同步整個物件）
+                // 無法只同步部分 key，此處呼叫一次代表性 key 即可觸發同步
+                ServerPlayerExtensionSettingsSync("BCMachineTranslation");
+            }
+            if (typeof ServerAccountUpdate?.QueueData === "function") {
+                ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
+            }
+            console.log("[MAT] 批量遷移完成");
         }
     }
 
@@ -175,11 +229,22 @@
 
     const TRANSLATE_MARKER = '[MAT]';
 
+    // [FIX 3] 純連結判斷：整段文字若為單一 URL 則跳過翻譯
+    function isPureUrl(text) {
+        if (!text) return false;
+        const trimmed = text.trim();
+        // 若整段文字只有一個 token 且為合法 URL
+        if (/\s/.test(trimmed)) return false; // 含空白代表有其他文字
+        return /^https?:\/\/[^\s]+$/i.test(trimmed);
+    }
+
     // 聊天室翻譯（受 config.enabled 影響）
     async function smartTranslate(text, targetLang) {
         if (!config.enabled || !text) return text;
         if (text.includes('BCX_') || text.match(/^[\d\s:]+$/) ||
             text.includes(TRANSLATE_MARKER) || text.includes('[🌐]')) return text;
+        // [FIX 3] 跳過純連結
+        if (isPureUrl(text)) return text;
         try {
             const { translated } = await translateQueue.add(text, targetLang);
             return translated;
@@ -189,16 +254,11 @@
         }
     }
 
-    // ============================================================
-    // [FIX 1] 自動捲動輔助函數
-    // 只在使用者已捲到底部（或接近底部）時才觸發捲動，
-    // 避免強制打斷使用者手動往上閱讀舊訊息。
-    // ============================================================
+    // 自動捲動輔助函數
     function scrollChatToBottom() {
         if (!config.autoScroll) return;
         const log = document.querySelector('#TextAreaChatLog');
         if (!log) return;
-        // 距離底部 150px 以內才視為「在底部」
         const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 150;
         if (nearBottom) {
             setTimeout(() => { log.scrollTop = log.scrollHeight; }, 60);
@@ -216,18 +276,17 @@
         return false;
     }
 
-    // [FIX 2] abortToken：傳入取消令牌，每行翻譯前後都檢查
     async function translateBioSmart(normalized, targetLang, abortToken) {
         const lines = normalized.split('\n');
         const resultLines = [...lines];
 
         for (let i = 0; i < lines.length; i++) {
-            if (abortToken.cancelled) break;        // ← 取消檢查
+            if (abortToken.cancelled) break;
             if (isBioSkipLine(lines[i])) continue;
 
             try {
                 const { translated } = await translateQueue.add(lines[i], targetLang);
-                if (abortToken.cancelled) break;    // ← 取消檢查（await 之後）
+                if (abortToken.cancelled) break;
                 resultLines[i] = translated;
             } catch (e) {
                 resultLines[i] = lines[i];
@@ -330,7 +389,6 @@
         return !['enablelianchat', 'reqroom'].includes(text.toLowerCase());
     }
 
-    // [FIX 1] createTranslatedDiv：插入後呼叫 scrollChatToBottom
     function createTranslatedDiv(originalNode, translatedText) {
         const div = document.createElement('div');
         const cls = [...originalNode.classList].find(c => c.startsWith('ChatMessage') && c !== 'ChatMessage');
@@ -339,7 +397,7 @@
         div.textContent = `[🌐] ${translatedText}`;
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
         originalNode.parentNode.insertBefore(div, originalNode.nextSibling);
-        scrollChatToBottom();   // ← 新增
+        scrollChatToBottom();
     }
 
     // ============================================================
@@ -526,8 +584,6 @@
             insertAfter = insertAfter.nextElementSibling;
         }
         node.parentNode.insertBefore(div, insertAfter.nextSibling);
-
-        // [FIX 1] 手動翻譯後同樣觸發捲動
         scrollChatToBottom();
     }
 
@@ -725,10 +781,10 @@
         return (navigator.language || "en").toLowerCase().startsWith("zh");
     }
 
-    const langCodes   = ['zh','en','ja','ko','de','fr','es','ru','it','pt','ar','th','vi','id','pl','nl','tr','sv'];
-    const langNameZH  = ['中文','英文','日文','韓文','德文','法文','西文','俄文','義大利文','葡文','阿拉伯文','泰文','越文','印尼文','波蘭文','荷文','土耳其文','瑞典文'];
-    const langNameEN  = ['Chinese','English','Japanese','Korean','German','French','Spanish','Russian','Italian','Portuguese','Arabic','Thai','Vietnamese','Indonesian','Polish','Dutch','Turkish','Swedish'];
-    const langNameNative = ['中文','English','日本語','한국어','Deutsch','Français','Español','Русский','Italiano','Português','العربية','ภาษาไทย','Tiếng Việt','Bahasa Indonesia','Polski','Nederlands','Türkçe','Svenska'];
+    const langCodes = ['zh-TW','zh-CN','en','ja','ko','de','fr','es','ru','it','pt','pl','nl','tr','sv','uk','cs','hu','ro','ar','th','vi','id','ms'];
+    const langNameEN = ['Chinese (Traditional)','Chinese (Simplified)','English','Japanese','Korean','German','French','Spanish','Russian','Italian','Portuguese','Polish','Dutch','Turkish','Swedish','Ukrainian','Czech','Hungarian','Romanian','Arabic','Thai','Vietnamese','Indonesian','Malay'];
+    const langNameZH = ['繁體中文','簡體中文','英文','日文','韓文','德文','法文','西班牙文','俄文','義大利文','葡萄牙文','波蘭文','荷蘭文','土耳其文','瑞典文','烏克蘭文','捷克文','匈牙利文','羅馬尼亞文','阿拉伯文','泰文','越南文','印尼文','馬來文'];
+    const langNameNative = ['繁體中文','简体中文','English','日本語','한국어','Deutsch','Français','Español','Русский','Italiano','Português','Polski','Nederlands','Türkçe','Svenska','Українська','Čeština','Magyar','Română','العربية','ภาษาไทย','Tiếng Việt','Bahasa Indonesia','Bahasa Melayu'];
     let uiSendIdx = 0;
     let uiRecvIdx = 0;
 
@@ -738,9 +794,6 @@
         return isZH() ? langNameZH[idx] : langNameEN[idx];
     }
 
-    // ============================================================
-    // 設定頁
-    // ============================================================
     const matSettingsScreen = {
         load() {
             uiSendIdx = Math.max(0, langCodes.indexOf(config.sendLang));
@@ -750,7 +803,7 @@
             const zh = isZH();
             const names = langNameNative;
             const T = {
-                title        : zh ? "機器翻譯設定  v1.1.4" : "Machine Translation Settings  v1.1.4",
+                title        : zh ? "機器翻譯設定  v1.1.5" : "Machine Translation Settings  v1.1.5",
                 secLeft      : zh ? "── 即時翻譯 ──" : "── Live Translation ──",
                 secRight     : zh ? "── 語言設定 ──" : "── Language Settings ──",
                 enabled      : zh ? "啟用"           : "Enable",
@@ -758,15 +811,15 @@
                 send         : zh ? "發送翻譯"        : "Translate Sent",
                 chat         : zh ? "手動翻譯按鈕"    : "Manual Translate Button",
                 selection    : zh ? "選取翻譯"        : "Selection Translate",
-                autoScroll   : zh ? "翻譯後自動捲動"  : "Auto-Scroll After Translate",  // [NEW]
+                autoScroll   : zh ? "翻譯後自動捲動"  : "Auto-Scroll After Translate",
                 recvLangLabel: zh ? "接收語言："       : "Recv Lang: ",
                 sendLangLabel: zh ? "發送語言："       : "Send Lang: ",
                 recvLangTip  : zh ? "接收語言"        : "Recv Lang",
                 sendLangTip  : zh ? "發送語言"        : "Send Lang",
-                desc12: zh ? "該插件為聊天室即時翻譯插件，支援 Bio 翻譯，使用 Google 翻譯 API" : "Chat room live translation plugin with Bio support, powered by Google Translate API",
-                desc3 : zh ? "插件停用時不影響 Bio 與選取翻譯（需開啟）的功能" : "Disabling does not affect Bio or Selection translate (if enabled)",
-                desc4 : zh ? "請依照需求設定語言與功能，另外也支援 /mat 即時設定" : "Configure as needed. You can also use /mat for live settings",
-                back  : zh ? "返回" : "Back",
+                desc1: zh ? "該插件為聊天室即時翻譯插件，支援 Bio 翻譯，使用 Google 翻譯 API" : "Chat room live translation plugin with Bio support, powered by Google Translate API",
+                desc2: zh ? "插件停用時不影響 Bio 與選取翻譯（需開啟）的功能" : "Disabling does not affect Bio or Selection translate (if enabled)",
+                desc3: zh ? "請依照需求設定語言與功能，另外也支援聊天室指令 /mat 即時設定" : "Configure as needed. You can also use chatroom commands /mat for live settings",
+                back : zh ? "返回" : "Back",
             };
 
             const L_CB   = 400;
@@ -784,8 +837,9 @@
             const sendY      = 385;
             const chatY      = 465;
             const selectionY = 545;
-            const autoScrollY= 625;  // [NEW] 新增一行
+            const autoScrollY= 625;
 
+            // [FIX 2] 改用 withLeftAlign 輔助，文字色改為 "Black"（背景為白色）
             const withLeft = (fn) => {
                 const prev = MainCanvas.textAlign;
                 MainCanvas.textAlign = "left";
@@ -793,41 +847,45 @@
             };
 
             DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", T.back);
-            DrawText(T.title, 1000, 105, "White", "Black");
-            DrawText(T.secLeft,  630,  secY, "#4CAF50", "Black");
-            DrawText(T.secRight, 1300, secY, "#4CAF50", "Black");
+            // [FIX 2] 標題用 "Black" 取代 "White"
+            DrawText(T.title, 1000, 105, "Black", "Gray");
+            DrawText(T.secLeft,  630,  secY, "#2e7d32", "Gray");
+            DrawText(T.secRight, 1300, secY, "#2e7d32", "Gray");
 
+            // 停用狀態的勾選框：enabled 永遠可點；其他受 enabled 控制的加上 disabled 參數
             DrawCheckbox(L_CB, enabledY,    CB_SZ, CB_SZ, "", config.enabled);
             DrawCheckbox(L_CB, recvY,       CB_SZ, CB_SZ, "", config.translateReceived,  !config.enabled);
             DrawCheckbox(L_CB, sendY,       CB_SZ, CB_SZ, "", config.translateSent,      !config.enabled);
             DrawCheckbox(L_CB, chatY,       CB_SZ, CB_SZ, "", config.translateChat,      !config.enabled);
             DrawCheckbox(L_CB, selectionY,  CB_SZ, CB_SZ, "", config.translateSelection);
-            DrawCheckbox(L_CB, autoScrollY, CB_SZ, CB_SZ, "", config.autoScroll);         // [NEW]
+            DrawCheckbox(L_CB, autoScrollY, CB_SZ, CB_SZ, "", config.autoScroll);
 
             withLeft(() => {
                 const lx = L_TXT, lw = L_TXTW;
                 const rowMid = (y) => y + CB_SZ / 2 + 9;
-                DrawTextFit(T.enabled,    lx, rowMid(enabledY),    lw, "White");
-                DrawTextFit(T.recv,       lx, rowMid(recvY),       lw, config.enabled ? "White" : "Gray");
-                DrawTextFit(T.send,       lx, rowMid(sendY),       lw, config.enabled ? "White" : "Gray");
-                DrawTextFit(T.chat,       lx, rowMid(chatY),       lw, config.enabled ? "White" : "Gray");
-                DrawTextFit(T.selection,  lx, rowMid(selectionY),  lw, "White");
-                DrawTextFit(T.autoScroll, lx, rowMid(autoScrollY), lw, "White");           // [NEW]
+                // [FIX 2] 全部改為 "Black"；停用時改為 "Gray"（與 PAT ALL 一致）
+                DrawTextFit(T.enabled,    lx, rowMid(enabledY),    lw, "Black");
+                DrawTextFit(T.recv,       lx, rowMid(recvY),       lw, config.enabled ? "Black" : "Gray");
+                DrawTextFit(T.send,       lx, rowMid(sendY),       lw, config.enabled ? "Black" : "Gray");
+                DrawTextFit(T.chat,       lx, rowMid(chatY),       lw, config.enabled ? "Black" : "Gray");
+                DrawTextFit(T.selection,  lx, rowMid(selectionY),  lw, "Black");
+                DrawTextFit(T.autoScroll, lx, rowMid(autoScrollY), lw, "Black");
             });
 
             withLeft(() => {
                 const rowMid = (y) => y + CB_SZ / 2 + 9;
-                DrawTextFit(T.recvLangLabel, R_LBL, rowMid(recvY), R_LBLW, "White");
-                DrawTextFit(T.sendLangLabel, R_LBL, rowMid(sendY), R_LBLW, "White");
+                DrawTextFit(T.recvLangLabel, R_LBL, rowMid(recvY), R_LBLW, "Black");
+                DrawTextFit(T.sendLangLabel, R_LBL, rowMid(sendY), R_LBLW, "Black");
             });
             DrawButton(R_BTN, recvY, BTN_W, CB_SZ, names[uiRecvIdx], "White", "", T.recvLangTip);
             DrawButton(R_BTN, sendY, BTN_W, CB_SZ, names[uiSendIdx], "White", "", T.sendLangTip);
 
-            DrawRect(395, 715, 1180, 2, "rgba(255,255,255,0.15)");
+            DrawRect(395, 715, 1180, 2, "rgba(0,0,0,0.15)");
 
-            DrawText(T.desc12, 1000, 745, "Silver",  "Black");
-            DrawText(T.desc3,  1000, 800, "#aaffaa", "Black");
-            DrawText(T.desc4,  1000, 855, "Gray",    "Black");
+            // [FIX 2] 說明文字也改為深色
+            DrawText(T.desc1,  1000, 745, "Gray", "Silver");
+            DrawText(T.desc2,  1000, 800, "Gray", "Silver");
+            DrawText(T.desc3,  1000, 855, "Gray", "Silver");
         },
         click() {
             if (MouseIn(1815, 75, 90, 90)) { closeLangSelect(); if (typeof PreferenceExit === "function") PreferenceExit(); return; }
@@ -839,7 +897,7 @@
             const sendY      = 385;
             const chatY      = 465;
             const selectionY = 545;
-            const autoScrollY= 625;  // [NEW]
+            const autoScrollY= 625;
             const R_BTN = 1290, BTN_W = 280;
 
             if (MouseIn(L_CB, enabledY, CB_SZ, CB_SZ)) {
@@ -876,7 +934,6 @@
                 if (!config.translateSelection) hideSelectionPopup();
                 saveSettings(); return;
             }
-            // [NEW] autoScroll toggle
             if (MouseIn(L_CB, autoScrollY, CB_SZ, CB_SZ)) {
                 config.autoScroll = !config.autoScroll;
                 saveSettings(); return;
@@ -926,7 +983,7 @@
     const BIO_TRANS_ID = 'mat-bio-translated';
     let bioTranslating = false;
     let bioCurrentMemberNumber = null;
-    let bioAbortToken = null;          // [FIX 2] 取消令牌
+    let bioAbortToken = null;
     const bioCache = new Map();
     const BIO_CACHE_TTL = 10 * 60 * 1000;
 
@@ -1027,7 +1084,6 @@
 
     function removeBioTranslation() { document.getElementById(BIO_TRANS_ID)?.remove(); }
 
-    // [FIX 2] cancelBioTranslation：設定取消令牌並清理狀態
     function cancelBioTranslation() {
         if (bioAbortToken) bioAbortToken.cancelled = true;
         bioTranslating = false;
@@ -1045,7 +1101,6 @@
         const cached = bioCacheGet(memberNum, config.recvLang, contentHash);
         if (cached) { showBioTranslation(cached); return; }
 
-        // [FIX 2] 每次翻譯建立新令牌
         const token = { cancelled: false };
         bioAbortToken = token;
         bioTranslating = true;
@@ -1057,14 +1112,12 @@
                 showBioTranslation(result);
             }
         } finally {
-            // 只有在令牌沒被替換（仍是本次任務）時才清除 flag
             if (bioAbortToken === token) {
                 bioTranslating = false;
             }
         }
     }
 
-    // [FIX 2] OnlineProfileRun：翻譯中按鈕改為「點擊取消」，顏色變黃
     function hookOnlineProfile() {
         if (!modApi) return;
         try {
@@ -1072,7 +1125,6 @@
                 const result = next(args);
                 const isOpen = !!document.getElementById(BIO_TRANS_ID);
                 if (bioTranslating) {
-                    // [FIX 2] 翻譯中：黃色按鈕，可點擊取消
                     DrawButton(1415, 60, 90, 90, "", "#FFD700", "Icons/Cancel.png",
                                isZH() ? "點擊取消翻譯" : "Click to cancel");
                 } else if (isOpen) {
@@ -1096,7 +1148,6 @@
             modApi.hookFunction("OnlineProfileClick", 4, (args, next) => {
                 if (MouseIn(1415, 60, 90, 90)) {
                     if (bioTranslating) {
-                        // [FIX 2] 翻譯中可點擊取消，不再鎖死
                         cancelBioTranslation();
                         return;
                     }
@@ -1106,26 +1157,26 @@
                 return next(args);
             });
             modApi.hookFunction("OnlineProfileUnload", 4, (args, next) => {
-                // [FIX 2] 退出時取消正在進行的翻譯，防止 div 殘留
                 cancelBioTranslation();
                 bioCurrentMemberNumber = null;
                 return next(args);
             });
-            console.log("[MAT] OnlineProfile hook installed");
+            //console.log("[MAT] OnlineProfile hook installed");
         } catch(e) { console.warn("[MAT] OnlineProfile hook failed:", e); }
     }
 
     // === 初始化 ===
     function waitForSettings(callback, retries = 30) {
-        if (Player?.OnlineSettings) callback();
+        if (Player?.ExtensionSettings !== undefined) callback();
         else if (retries > 0) setTimeout(() => waitForSettings(callback, retries - 1), 500);
-        else { console.warn("[MAT] OnlineSettings timeout, forcing init"); callback(); }
+        else { console.warn("[MAT] ExtensionSettings timeout, forcing init"); callback(); }
     }
 
     function waitForGame() {
         if (typeof Player?.MemberNumber === "number" && typeof CommandCombine === "function") {
             initializeConfig();
             waitForSettings(() => {
+                migrateOnlineToExtensionSettings(); // [FIX 1] 批量遷移
                 loadSettings();
                 registerCommands();
                 hookSendFunctions();
@@ -1154,7 +1205,7 @@
                     case "send":       config.translateSent      = !config.translateSent;      saveSettings(); ChatRoomSendLocal(`發送翻譯: ${config.translateSent      ? '✅' : '❌'}`); break;
                     case "chat":       config.translateChat      = !config.translateChat;      stopObserver(); if(config.enabled) setTimeout(startObserver,100); saveSettings(); ChatRoomSendLocal(`手動翻譯按鈕: ${config.translateChat      ? '✅' : '❌'}`); break;
                     case "selection":  config.translateSelection = !config.translateSelection; if(!config.translateSelection) hideSelectionPopup(); saveSettings(); ChatRoomSendLocal(`選取翻譯: ${config.translateSelection ? '✅' : '❌'}`); break;
-                    case "autoscroll": config.autoScroll = !config.autoScroll; saveSettings(); ChatRoomSendLocal(`翻譯後自動捲動: ${config.autoScroll ? '✅' : '❌'}`); break;  // [NEW]
+                    case "autoscroll": config.autoScroll = !config.autoScroll; saveSettings(); ChatRoomSendLocal(`翻譯後自動捲動: ${config.autoScroll ? '✅' : '❌'}`); break;
                     case "sendlang":   handleLangCommand(args[1], 'send'); break;
                     case "recvlang":   handleLangCommand(args[1], 'recv'); break;
                     case "test":   testTranslation(args.slice(1).join(" ")); break;
@@ -1163,12 +1214,12 @@
                 }
             }
         }]);
-        ChatRoomSendLocal("🌐 [MAT] v1.1.4 loaded! Use /mat help");
+        ChatRoomSendLocal("🌐 [MAT] v1.1.5 loaded! Use /mat help");
     }
 
     function showHelp() {
         ChatRoomSendLocal(`<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
-            <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v1.1.4</h3>
+            <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v1.1.5</h3>
             <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
                 <b style='color:#FFD700;'>開關指令</b><br>
                 <b style='color:#87CEEB;'>/mat on/off</b> — 聊天室翻譯總開關<br>
@@ -1186,7 +1237,8 @@
                 <span style='color:#aaa'>・ hover 訊息 → 🌐 翻譯 / ▾ 選語言（需手動按鈕開啟）</span><br>
                 <span style='color:#aaa'>・ 選取文字 → 氣泡翻譯（獨立開關）</span><br>
                 <span style='color:#aaa'>・ Bio 翻譯：逐行顯示，翻譯中可點擊黃色按鈕取消</span><br>
-                <span style='color:#aaa'>・ 裝飾字體自動轉換（𝕙𝕖𝕝𝕝𝕠→hello）</span>
+                <span style='color:#aaa'>・ 裝飾字體自動轉換（𝕙𝕖𝕝𝕝𝕠→hello）</span><br>
+                <span style='color:#aaa'>・ 純連結自動跳過翻譯</span>
             </div>
             <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
                 <b style='color:#FFD700;'>18 種語言</b><br>
@@ -1206,23 +1258,26 @@
 
     function showStatus() {
         ChatRoomSendLocal(`<div style='background:#1a1a2e;color:#eee;padding:8px;border-radius:5px;'>
-            <h4 style='color:#4CAF50;'>📊 MAT v1.1.4 狀態</h4>
+            <h4 style='color:#4CAF50;'>📊 MAT v1.1.5 狀態</h4>
             聊天室總開關: ${config.enabled ? '🟢' : '🔴'}<br>
             整句自動翻譯: ${config.translateReceived ? '✅' : '❌'} → ${getLangName(config.recvLang)}<br>
             發送翻譯: ${config.translateSent ? '✅' : '❌'} → ${getLangName(config.sendLang)}<br>
             手動翻譯按鈕: ${config.translateChat ? '✅' : '❌'}<br>
             選取翻譯（獨立）: ${config.translateSelection ? '✅' : '❌'}<br>
             翻譯後自動捲動: ${config.autoScroll ? '✅' : '❌'}<br>
-            Bio翻譯: 🟢 永遠可用（逐行顯示，可中途取消）
+            純連結跳過翻譯: ✅ 永遠啟用<br>
+            Bio翻譯: 🟢 永遠可用（逐行顯示，可中途取消）<br>
+            設定儲存位置: ExtensionSettings ✅
         </div>`);
     }
 
     async function testTranslation(text) {
         if (!text) { ChatRoomSendLocal("請提供要測試的文字"); return; }
+        // [FIX 3] 測試時也顯示是否為純連結
+        if (isPureUrl(text)) { ChatRoomSendLocal("⚠️ 此文字為純連結，會跳過翻譯"); return; }
         ChatRoomSendLocal("翻譯中...");
         const r1 = await translateQueue.add(text, config.recvLang);
         const r2 = await translateQueue.add(text, config.sendLang);
         ChatRoomSendLocal(`接收翻譯: ${r1.translated}<br>發送翻譯: ${r2.translated}`);
     }
-
 })();
