@@ -300,7 +300,7 @@
                 InventoryRemove(target, "Panties");
                 ChatRoomCharacterUpdate(target);
             } catch (e) {
-                console.log("❌ [prank] Error removing panties:", e);
+                console.log("🐈‍⬛ [prank] ❌ Error removing panties:", e);
             }
 
             let itemColor = "Default";
@@ -339,7 +339,7 @@
                     MemberName: targetNick
                 });
             } catch (e) {
-                console.log("❌ [prank] InventoryWear error:", e);
+                console.log("🐈‍⬛ [prank] ❌ InventoryWear error:", e);
                 chatSendLocal(getMessage('stealFailed'));
                 return;
             }
@@ -629,7 +629,7 @@
 
         const finalHandItem = InventoryGet(Player, "ItemHandheld");
         if (!finalHandItem) {
-            console.error("❌ [prank] Item failed to persist in hand!");
+            console.error("🐈‍⬛ [prank] ❌ Item failed to persist in hand!");
             return false;
         }
 
@@ -645,7 +645,7 @@
             InventoryRemove(target, "额外头发_Luzi");
             ChatRoomCharacterUpdate(target);
         } catch (e) {
-            console.log("❌ [prank] Error removing 额外头发_Luzi:", e);
+            console.log("🐈‍⬛ [prank] ❌ Error removing 额外头发_Luzi:", e);
         }
 
         return true;
@@ -952,7 +952,7 @@
                 try {
                     return func(args[1], args[2], args[3]);
                 } catch (error) {
-                    console.error("❌ [prank] Prerequisite error:", error);
+                    console.error("🐈‍⬛ [prank] ❌ Prerequisite error:", error);
                 }
             }
             return next(args);
@@ -1015,12 +1015,12 @@
                     version: modversion,
                     repository: "Liko's prank"
                 });
-                console.log("✅ [prank] Mod registered with bcModSdk");
+                console.log("🐈‍⬛ [prank] ✅ Mod registered with bcModSdk");
             } catch (error) {
-                console.error("❌ [prank] Failed to initialize modApi", error);
+                console.error("🐈‍⬛ [prank] ❌ Failed to initialize modApi", error);
             }
         } else {
-            console.warn("❌ [prank] bcModSdk not available, continuing without modApi");
+            console.warn("🐈‍⬛ [prank] ❌ bcModSdk not available, continuing without modApi");
         }
 
         try {
@@ -1056,7 +1056,7 @@
             chatSendLocal(getMessage('loaded'));
 
         } catch (error) {
-            console.error("❌ [prank] Initialization failed:", error);
+            console.error("🐈‍⬛ [prank] ❌ Initialization failed:", error);
         }
     })();
 })();
