@@ -817,7 +817,7 @@
             if (success) ChatRoomSendLocal(`莉柯莉絲工具 v${modversion} 載入！使用 /lt help 查看說明`, 30000);
         });
 
-        console.log(`🐈‍⬛ [LT] ❌ ✅ 插件已載入 (v${modversion})`);
+        console.log(`🐈‍⬛ [LT] ✅ 插件已載入 (v${modversion})`);
     }
 
     // ──────────────────────────────────────────
