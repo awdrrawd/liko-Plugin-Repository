@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.3.4
+// @version      1.4.0
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function () {
     let modApi = null;
-    const modversion = "1.3.4";
+    const modversion = "1.4.0";
 
     const rpBtnX    = 955;
     const rpBtnY    = 855;
@@ -23,7 +23,177 @@
     const rpIconUrl = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/likorp.png";
 
     // ──────────────────────────────────────────
-    // 等待 bcModSdk
+    // 雙語言系統
+    // ──────────────────────────────────────────
+    function isZh() {
+        if (typeof TranslationLanguage !== 'undefined' && TranslationLanguage) {
+            const l = TranslationLanguage.toLowerCase();
+            return l === 'cn' || l === 'tw';
+        }
+        return (navigator.language || '').toLowerCase().startsWith('zh');
+    }
+
+    const LANG = {
+        zh: {
+            // 通用
+            close:        "關閉",
+            confirm:      "確認",
+            cancel:       "取消",
+            noPermission: "無權限互動",
+            notInRoom:    "不在房間內",
+            unknown:      "未知",
+            notInChat:    "不在聊天室",
+
+            // Undo 面板
+            undoTitle:       "外觀回滾",
+            undoNoRecord:    "沒有外觀變更紀錄",
+            undoChangedAt:   "變更時間",
+            undoChangedBy:   "操作者",
+            undoPrev:        "◀ 上一筆",
+            undoNext:        "下一筆 ▶",
+            undoApply:       "套用此狀態",
+            undoCount:       "共",
+            undoCountUnit:   "筆紀錄",
+            undoApplyDone:   "外觀已回滾",
+            undoApplySize:   "變更大小",
+
+            // 指令訊息
+            freeNoItem:      "沒有束縛物品",
+            freeDone:        "解除束縛",
+            freetotalDone:   "完全解除了所有束縛",
+            unlockNone:      "沒有可移除的鎖",
+            unlockDone:      "移除了所有鎖",
+            lockNone:        "沒有可鎖定的束縛",
+            lockDone:        "個束縛添加了",
+            lockInvalid:     "無效的鎖名稱",
+            lockAvailable:   "可用鎖",
+            lockSpecify:     "請指定目標（例如 /lt fulllock [目標] [鎖名稱]）",
+            wardrobeDone:    "已開啟衣櫃",
+            clipboardFail:   "無法讀取剪貼簿",
+            bcxInvalid:      "無效的 BCX 代碼",
+            bcxDone:         "導入了 BCX 外觀",
+            rpOn:            "RP模式已开啟",
+            rpOff:           "RP模式已关閉",
+            heightOn:        "身高劫持功能已啟用",
+            heightOff:       "身高劫持功能已停用",
+            sendFail:        "自訂動作發送失敗，可能有插件衝突",
+            cmdFail:         "執行失敗",
+            unknownCmd:      "未知指令",
+
+            // getEverything
+            geTitle:      "選擇增強功能",
+            geItems:      "獲得所有道具",
+            geMoney:      "設置金錢為 999,999",
+            geSkills:     "所有技能升至 10 級",
+            geItemsDone:  "個新物品已添加",
+            geMoneyDone:  "金錢已設置為 999,999",
+            geSkillsDone: "所有技能已升至 10 級",
+
+            // free 選單
+            freeTitle:    "選擇要移除的束縛",
+            password:     "密碼",
+
+            // help
+            helpText: `莉柯莉絲工具 使用說明\n\n` +
+            `/lt help              - 顯示此說明\n` +
+            `/lt free [目標]       - 選擇移除束縛\n` +
+            `/lt freetotal [目標]  - 移除所有束縛\n` +
+            `/lt bcximport [目標]  - 導入 BCX 外觀\n` +
+            `/lt fullunlock [目標] - 移除所有鎖\n` +
+            `/lt fulllock [目標] [鎖名稱] - 添加鎖\n` +
+            `/lt undo [目標]       - 外觀回滾\n\n` +
+            `/lt rpmode            - 切換 RP 模式\n` +
+            `/lt height            - 切換身高固定\n` +
+            `/lt geteverything     - 增強功能\n` +
+            `/lt wardrobe          - 開啟衣櫃\n` +
+            `提示：點擊右上角 🔰 快速切換 RP 模式`,
+
+            // 載入訊息
+            loaded: "莉柯莉絲工具 v{v} 載入！使用 /lt help 查看說明",
+        },
+        en: {
+            close:        "Close",
+            confirm:      "Confirm",
+            cancel:       "Cancel",
+            noPermission: "No permission to interact with",
+            notInRoom:    "is not in the room",
+            unknown:      "Unknown",
+            notInChat:    "Not in chat room",
+
+            undoTitle:       "Appearance Rollback",
+            undoNoRecord:    "No appearance change records",
+            undoChangedAt:   "Changed at",
+            undoChangedBy:   "Changed by",
+            undoPrev:        "◀ Previous",
+            undoNext:        "Next ▶",
+            undoApply:       "Apply this state",
+            undoCount:       "",
+            undoCountUnit:   "records",
+            undoApplyDone:   "Appearance rolled back",
+            undoApplySize:   "Change size",
+
+            freeNoItem:      "has no restrained items",
+            freeDone:        "removed restraints",
+            freetotalDone:   "fully released all restraints of",
+            unlockNone:      "has no removable locks",
+            unlockDone:      "removed all locks from",
+            lockNone:        "has no lockable restraints",
+            lockDone:        "restraints locked with",
+            lockInvalid:     "Invalid lock name",
+            lockAvailable:   "Available locks",
+            lockSpecify:     "Please specify a target (e.g. /lt fulllock [target] [lock name])",
+            wardrobeDone:    "Wardrobe opened",
+            clipboardFail:   "Cannot read clipboard",
+            bcxInvalid:      "Invalid BCX code",
+            bcxDone:         "imported BCX appearance for",
+            rpOn:            "RP Mode enabled",
+            rpOff:           "RP Mode disabled",
+            heightOn:        "Height hijack enabled",
+            heightOff:       "Height hijack disabled",
+            sendFail:        "Custom action failed, possible plugin conflict",
+            cmdFail:         "Command failed",
+            unknownCmd:      "Unknown command",
+
+            geTitle:      "Select enhancement",
+            geItems:      "Get all items",
+            geMoney:      "Set money to 999,999",
+            geSkills:     "Max all skills to level 10",
+            geItemsDone:  "new items added",
+            geMoneyDone:  "Money set to 999,999",
+            geSkillsDone: "All skills maxed to level 10",
+
+            freeTitle:    "Select restraints to remove",
+            password:     "Password",
+
+            helpText: `Liko Tool Help\n\n` +
+            `/lt help              - Show this help\n` +
+            `/lt free [target]     - Select restraints to remove\n` +
+            `/lt freetotal [target]- Remove all restraints\n` +
+            `/lt bcximport [target]- Import BCX appearance\n` +
+            `/lt fullunlock [target]-Remove all locks\n` +
+            `/lt fulllock [target] [lock] - Add lock\n` +
+            `/lt undo [target]     - Rollback appearance\n\n` +
+            `/lt rpmode            - Toggle RP mode\n` +
+            `/lt height            - Toggle height hijack\n` +
+            `/lt geteverything     - Enhancement menu\n` +
+            `/lt wardrobe          - Open wardrobe\n` +
+            `Tip: Click 🔰 in the top-right to toggle RP mode`,
+
+            loaded: "Liko Tool v{v} loaded! Use /lt help for help",
+        }
+    };
+
+    function t(key, vars = {}) {
+        const lang = isZh() ? LANG.zh : LANG.en;
+        let str = lang[key] || key;
+        for (const [k, v] of Object.entries(vars)) {
+            str = str.replace(`{${k}}`, v);
+        }
+        return str;
+    }
+
+    // ──────────────────────────────────────────
+    // 等待系列（無超時）
     // ──────────────────────────────────────────
     function waitForBcModSdk() {
         return new Promise(resolve => {
@@ -35,9 +205,6 @@
         });
     }
 
-    // ──────────────────────────────────────────
-    // 等待任意條件（無超時，永遠等到成功）
-    // ──────────────────────────────────────────
     function waitFor(condition) {
         return new Promise(resolve => {
             const check = () => {
@@ -122,13 +289,12 @@
     }
 
     // ──────────────────────────────────────────
-    // 身高劫持：直接覆寫值，確保物品跟隨
+    // 身高劫持
     // ──────────────────────────────────────────
     function hijackCharacterHeight(C) {
         if (!C || C._heightHijacked) return;
         C._realHeightRatio    = C.HeightRatio;
         C._realHeightModifier = C.HeightModifier;
-        // 直接賦值讓所有渲染系統讀到同一個數值，物品才不會錯位
         if (C.HeightRatio < 0.81 || C.HeightRatio > 1) {
             C.HeightRatio = 1.0;
         }
@@ -158,7 +324,7 @@
     // 工具函數
     // ──────────────────────────────────────────
     function ChatRoomSendLocal(message, sec = 0) {
-        if (CurrentScreen !== "ChatRoom") { console.warn("🐈‍⬛ [LT] ❗ 不在聊天室"); return; }
+        if (CurrentScreen !== "ChatRoom") { console.warn("🐈‍⬛ [LT] ❗", t('notInChat')); return; }
         try {
             ChatRoomMessage({
                 Type: "LocalMessage",
@@ -184,7 +350,7 @@
     }
 
     function getNickname(character) {
-        return character?.Nickname || character?.Name || character?.AccountName || "未知";
+        return character?.Nickname || character?.Name || character?.AccountName || t('unknown');
     }
 
     function chatSendCustomAction(message) {
@@ -197,7 +363,7 @@
             });
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ 自訂動作發送錯誤:", e.message);
-            ChatRoomSendLocal("自訂動作發送失敗，可能有插件衝突。");
+            ChatRoomSendLocal(t('sendFail'));
         }
     }
 
@@ -208,106 +374,283 @@
         : true;
     }
 
-    async function requestButtons(prompt, width, height, buttons, multiSelect = false) {
+    // ──────────────────────────────────────────
+    // UI 樣式注入（CFT 風格）
+    // ──────────────────────────────────────────
+    function injectLtStyles() {
+        if (document.getElementById("lt-styles")) return;
+        const s = document.createElement("style");
+        s.id = "lt-styles";
+        s.textContent = `
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600&display=swap');
+
+        .lt-panel, .lt-panel * {
+            box-sizing: border-box;
+            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            user-select: none; -webkit-user-select: none;
+        }
+
+        /* ── 面板 ── */
+        .lt-panel {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            min-width: 340px; max-width: 600px; max-height: 90vh;
+            background: rgba(16,20,32,0.97);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 20px; z-index: 99999;
+            display: flex; flex-direction: column;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(180,100,220,0.08);
+            color: #d8e6f8; font-size: 13px; overflow: hidden;
+        }
+
+        /* ── Header ── */
+        .lt-header {
+            background: linear-gradient(135deg, #4a1280 0%, #9b3dd4 100%);
+            padding: 13px 15px; display: flex; align-items: center;
+            justify-content: space-between; cursor: grab; flex-shrink: 0;
+            position: relative; overflow: hidden;
+        }
+        .lt-header:active { cursor: grabbing; }
+        .lt-header::before {
+            content:''; position:absolute; top:0; left:-100%; width:40%; height:100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+            animation: lt-shimmer 5s ease-in-out infinite; pointer-events:none;
+        }
+        @keyframes lt-shimmer { 0%{transform:translateX(0)} 100%{transform:translateX(600%)} }
+        .lt-title { font-size:14px; font-weight:600; color:#fff; position:relative; z-index:1; letter-spacing:0.02em; }
+        .lt-hclose {
+            background:rgba(255,255,255,0.14); border:none; border-radius:7px; color:#fff;
+            width:27px; height:27px; cursor:pointer; font-size:14px;
+            display:flex; align-items:center; justify-content:center;
+            transition:background 0.18s; position:relative; z-index:1; flex-shrink:0;
+        }
+        .lt-hclose:hover { background:rgba(255,255,255,0.26); }
+
+        /* ── Content ── */
+        .lt-content {
+            padding: 14px 15px 4px; overflow-y:auto; overflow-x:hidden; flex:1;
+            scrollbar-width:thin; scrollbar-color:rgba(155,61,212,0.6) rgba(255,255,255,0.04);
+        }
+        .lt-content::-webkit-scrollbar { width:5px; }
+        .lt-content::-webkit-scrollbar-thumb { background:linear-gradient(135deg,#4a1280,#9b3dd4); border-radius:3px; }
+
+        .lt-section { margin-bottom:12px; }
+        .lt-hr { height:1px; background:rgba(255,255,255,0.06); margin:4px 0 12px; }
+
+        /* ── 通用按鈕列表 ── */
+        .lt-btn-list { display:flex; flex-direction:column; gap:6px; }
+        .lt-list-btn {
+            width:100%; padding:10px 14px; text-align:left;
+            background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+            border-radius:10px; color:#c0ccee; font-size:13px; cursor:pointer;
+            display:flex; align-items:center; justify-content:space-between;
+            transition:all 0.18s; font-family:inherit;
+        }
+        .lt-list-btn:hover { background:rgba(155,61,212,0.12); border-color:rgba(155,61,212,0.35); color:#d8b8ff; }
+        .lt-list-btn.selected { background:rgba(155,61,212,0.2); border-color:rgba(155,61,212,0.6); color:#e0c8ff; }
+        .lt-list-btn .lt-check { font-size:16px; color:rgba(155,61,212,0.4); transition:color 0.18s; }
+        .lt-list-btn.selected .lt-check { color:#b070ff; }
+
+        /* ── Undo 面板特有 ── */
+        .lt-undo-layout { display:flex; gap:14px; }
+        .lt-undo-canvas-wrap {
+            flex-shrink:0; width:160px; background:rgba(255,255,255,0.06);
+            border:1px solid rgba(255,255,255,0.1); border-radius:12px; overflow:hidden;
+            display:flex; align-items:center; justify-content:center;
+        }
+        .lt-undo-canvas-wrap canvas { display:block; width:200px; height:400px; }
+        .lt-undo-info { flex:1; display:flex; flex-direction:column; gap:8px; min-width:0; overflow:hidden; }
+        .lt-undo-info { flex:1; display:flex; flex-direction:column; gap:8px; min-width:0; justify-content:space-between; }
+        .lt-undo-meta {
+            background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07);
+            border-radius:10px; padding:10px 12px;
+        }
+        .lt-undo-meta-row { font-size:11px; color:#7a9cc0; margin-bottom:4px; }
+        .lt-undo-meta-row:last-child { margin-bottom:0; }
+        .lt-undo-meta-row span { color:#b0ccf0; font-weight:500; }
+        .lt-undo-counter {
+            text-align:center; font-size:12px; color:#9b3dd4; font-weight:600;
+        }
+        .lt-undo-nav { display:flex; gap:6px; }
+        .lt-nav-btn {
+            flex:1; padding:8px 4px;
+            background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09);
+            border-radius:9px; color:#7a7aaa; font-size:11px; cursor:pointer;
+            transition:all 0.18s; font-family:inherit;
+        }
+        .lt-nav-btn:hover:not(:disabled) { background:rgba(155,61,212,0.12); border-color:rgba(155,61,212,0.35); color:#c090ff; }
+        .lt-nav-btn:disabled { opacity:0.3; cursor:not-allowed; }
+        .lt-undo-apply {
+            width:100%; padding:10px;
+            background:linear-gradient(135deg,#4a1280,#9b3dd4); border:none;
+            border-radius:10px; color:#fff; font-size:13px; font-weight:600;
+            cursor:pointer; transition:all 0.2s; font-family:inherit; margin-top:auto;
+        }
+        .lt-undo-apply:hover { background:linear-gradient(135deg,#5e20a0,#b050e8); transform:translateY(-1px); box-shadow:0 4px 16px rgba(155,61,212,0.4); }
+
+        /* ── Footer ── */
+        .lt-footer {
+            display:flex; gap:8px; padding:11px 15px;
+            background:rgba(0,0,0,0.18); flex-shrink:0;
+            border-top:1px solid rgba(255,255,255,0.05);
+        }
+        .lt-btn { flex:1; padding:9px; border:none; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s; font-family:inherit; }
+        .lt-btn-primary { background:linear-gradient(135deg,#4a1280,#9b3dd4); color:#fff; }
+        .lt-btn-primary:hover { background:linear-gradient(135deg,#5e20a0,#b050e8); box-shadow:0 4px 16px rgba(155,61,212,0.35); transform:translateY(-1px); }
+        .lt-btn-secondary { background:rgba(255,255,255,0.06); color:#607898; border:1px solid rgba(255,255,255,0.08); }
+        .lt-btn-secondary:hover { background:rgba(255,255,255,0.1); color:#90a8c0; }
+
+        /* 無障礙 */
+        .lt-empty { text-align:center; color:#5a7a9a; font-size:13px; padding:20px 0; }
+        `;
+        document.head.appendChild(s);
+    }
+
+    // ──────────────────────────────────────────
+    // 通用面板建構器（拖曳 + 關閉）
+    // ──────────────────────────────────────────
+    function createPanel(titleText, contentEl, footerEl) {
+        injectLtStyles();
+        const panel = document.createElement("div");
+        panel.className = "lt-panel";
+
+        // Header
+        const header = document.createElement("div");
+        header.className = "lt-header";
+        const title = document.createElement("span");
+        title.className = "lt-title";
+        title.textContent = titleText;
+        const hClose = document.createElement("button");
+        hClose.className = "lt-hclose";
+        hClose.textContent = "✕";
+        hClose.onclick = () => panel.remove();
+        header.appendChild(title);
+        header.appendChild(hClose);
+        panel.appendChild(header);
+
+        // 拖曳
+        let drag = { on: false, sx: 0, sy: 0, px: 0, py: 0 };
+        header.addEventListener("mousedown", e => {
+            if (e.target === hClose) return;
+            drag.on = true; drag.sx = e.clientX; drag.sy = e.clientY;
+            const r = panel.getBoundingClientRect();
+            drag.px = r.left; drag.py = r.top;
+            panel.style.transform = "none";
+            panel.style.left = drag.px + "px";
+            panel.style.top  = drag.py + "px";
+            e.preventDefault();
+        });
+        const onMove = e => {
+            if (!drag.on) return;
+            panel.style.left = (drag.px + e.clientX - drag.sx) + "px";
+            panel.style.top  = (drag.py + e.clientY - drag.sy) + "px";
+        };
+        const onUp = () => { drag.on = false; };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+        panel.addEventListener("remove", () => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+        });
+
+        // Content
+        const content = document.createElement("div");
+        content.className = "lt-content";
+        content.appendChild(contentEl);
+        panel.appendChild(content);
+
+        // Footer
+        if (footerEl) {
+            const footer = document.createElement("div");
+            footer.className = "lt-footer";
+            footer.appendChild(footerEl);
+            panel.appendChild(footer);
+        }
+
+        // 點擊外部關閉
+        const clickOut = e => {
+            if (!panel.contains(e.target)) {
+                panel.remove();
+                document.removeEventListener("mousedown", clickOut);
+            }
+        };
+        setTimeout(() => document.addEventListener("mousedown", clickOut), 0);
+
+        document.body.appendChild(panel);
+        return panel;
+    }
+
+    // ──────────────────────────────────────────
+    // 通用按鈕選單（取代舊 requestButtons）
+    // ──────────────────────────────────────────
+    function requestButtons(promptText, buttons, multiSelect = false) {
         return new Promise(resolve => {
-            const container = document.createElement("div");
-            container.style.cssText = `
-                position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-                background: #1a1a1a; color: #ffffff; padding: 20px; z-index: 1000;
-                width: ${width}px; height: ${height}px; overflow: auto;
-                border: 2px solid #444; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.5);
-                display: flex; flex-direction: column;
-            `;
+            const listEl = document.createElement("div");
+            listEl.className = "lt-btn-list";
 
-            const promptDiv = document.createElement("div");
-            promptDiv.innerText = prompt;
-            promptDiv.style.cssText = "margin-bottom: 15px; font-size: 18px; text-align: center;";
-            container.appendChild(promptDiv);
-
-            const closeButton = document.createElement("button");
-            closeButton.innerText = "X";
-            closeButton.style.cssText = `
-                position: absolute; top: 10px; right: 10px; width: 30px; height: 30px;
-                background: #ff4444; color: #ffffff; border: none; border-radius: 5px;
-                font-size: 16px; cursor: pointer;
-            `;
-            closeButton.onclick = () => {
-                document.body.removeChild(container);
-                resolve(multiSelect ? [] : null);
-            };
-            container.appendChild(closeButton);
-
-            const buttonContainer = document.createElement("div");
-            buttonContainer.style.cssText = "flex-grow: 1; overflow-y: auto; margin-bottom: 10px;";
-            let selected = [];
-
-            buttons.forEach(btn => {
-                const button = document.createElement("button");
-                button.innerText = btn.text;
-                button.style.cssText = `
-                    margin: 5px; padding: 10px 20px; font-size: ${btn.fontSize || '16px'};
-                    background: #333; color: #ffffff; border: 1px solid #555;
-                    border-radius: 5px; cursor: pointer; width: 90%; text-align: left;
-                `;
-                button.onmouseover = () => button.style.background = selected.includes(btn.text) ? "#00ff00" : "#FFA500";
-                button.onmouseout  = () => button.style.background = selected.includes(btn.text) ? "#00ff00" : "#333";
-                button.onclick = () => {
-                    if (multiSelect) {
-                        if (selected.includes(btn.text)) {
-                            selected = selected.filter(s => s !== btn.text);
-                            button.style.background = "#333";
-                        } else {
-                            selected.push(btn.text);
-                            button.style.background = "#00ff00";
-                        }
-                    } else {
-                        document.body.removeChild(container);
-                        resolve(btn.text);
-                    }
-                };
-
-                if (btn.preview) {
-                    const previewCanvas = document.createElement("canvas");
-                    previewCanvas.width  = 100;
-                    previewCanvas.height = 200;
-                    previewCanvas.style.cssText = "margin: 5px; vertical-align: middle;";
-                    try {
-                        const ctx = previewCanvas.getContext("2d");
-                        if (ctx) DrawCharacter(btn.preview, 0, 0, 0.2, false, ctx);
-                    } catch (e) {
-                        console.error("🐈‍⬛ [LT] ❌ 預覽渲染錯誤:", e.message);
-                    }
-                    button.prepend(previewCanvas);
-                }
-                buttonContainer.appendChild(button);
-            });
-            container.appendChild(buttonContainer);
-
-            if (multiSelect) {
-                const confirmButton = document.createElement("button");
-                confirmButton.innerText = "確認";
-                confirmButton.style.cssText = `
-                    padding: 10px 20px; font-size: 16px;
-                    background: #50C878; color: #ffffff; border: none;
-                    border-radius: 5px; cursor: pointer; width: 90%; align-self: center;
-                `;
-                confirmButton.onclick = () => {
-                    document.body.removeChild(container);
-                    resolve(selected);
-                };
-                container.appendChild(confirmButton);
+            if (!buttons.length) {
+                const empty = document.createElement("div");
+                empty.className = "lt-empty";
+                empty.textContent = promptText;
+                listEl.appendChild(empty);
             }
 
-            document.body.appendChild(container);
+            let selected = new Set();
+            const btnEls = [];
 
-            const handleKeydown = (e) => {
+            buttons.forEach(btn => {
+                const el = document.createElement("button");
+                el.className = "lt-list-btn";
+                const textSpan = document.createElement("span");
+                textSpan.textContent = btn.text;
+                const check = document.createElement("span");
+                check.className = "lt-check";
+                check.textContent = "●";
+                el.appendChild(textSpan);
+                el.appendChild(check);
+
+                if (multiSelect) {
+                    el.onclick = () => {
+                        if (selected.has(btn.text)) { selected.delete(btn.text); el.classList.remove("selected"); }
+                        else { selected.add(btn.text); el.classList.add("selected"); }
+                    };
+                } else {
+                    el.onclick = () => { panel.remove(); resolve(btn.text); };
+                }
+                listEl.appendChild(el);
+                btnEls.push(el);
+            });
+
+            // Footer
+            let footerEl = null;
+            if (multiSelect) {
+                footerEl = document.createElement("div");
+                footerEl.style.cssText = "display:flex;gap:8px;width:100%;";
+                const cancelBtn = document.createElement("button");
+                cancelBtn.className = "lt-btn lt-btn-secondary";
+                cancelBtn.textContent = t('cancel');
+                cancelBtn.onclick = () => { panel.remove(); resolve([]); };
+                const confirmBtn = document.createElement("button");
+                confirmBtn.className = "lt-btn lt-btn-primary";
+                confirmBtn.textContent = t('confirm');
+                confirmBtn.onclick = () => { panel.remove(); resolve([...selected]); };
+                footerEl.appendChild(cancelBtn);
+                footerEl.appendChild(confirmBtn);
+            }
+
+            const panel = createPanel(promptText, listEl, footerEl);
+
+            // ESC 關閉
+            const onKey = e => {
                 if (e.key === "Escape") {
-                    document.body.removeChild(container);
+                    panel.remove();
                     resolve(multiSelect ? [] : null);
-                    document.removeEventListener("keydown", handleKeydown);
+                    document.removeEventListener("keydown", onKey);
                 }
             };
-            document.addEventListener("keydown", handleKeydown);
+            document.addEventListener("keydown", onKey);
+            panel.addEventListener("remove", () => document.removeEventListener("keydown", onKey));
         });
     }
 
@@ -316,14 +659,233 @@
     // ──────────────────────────────────────────
     function safeHookFunction(functionName, priority, callback) {
         if (modApi && typeof modApi.hookFunction === 'function') {
-            try {
-                modApi.hookFunction(functionName, priority, callback);
-            } catch (e) {
-                console.error(`🐈‍⬛ [LT] ❌ Hook ${functionName} 失敗:`, e.message);
-            }
+            try { modApi.hookFunction(functionName, priority, callback); }
+            catch (e) { console.error(`🐈‍⬛ [LT] ❌ Hook ${functionName} 失敗:`, e.message); }
         } else {
             console.warn(`🐈‍⬛ [LT] ❌ 無法 hook ${functionName}，modApi 不可用`);
         }
+    }
+
+    // ──────────────────────────────────────────
+    // Undo 系統
+    // ──────────────────────────────────────────
+    const UNDO_MAX_PER_CHARACTER = 20;
+    const undoHistory = {}; // { memberNumber: [ { timestamp, changedBy, bundle }, ... ] }
+
+    function saveUndoSnapshot(target, changedByNumber) {
+        const id = target?.MemberNumber;
+        if (!id) return;
+
+        const bundle = ServerAppearanceBundle(target.Appearance);
+        if (!bundle?.length) return;
+
+        // 跟上一筆相同就跳過
+        if (undoHistory[id]?.length > 0) {
+            const last = undoHistory[id].slice(-1)[0];
+            if (JSON.stringify(last.bundle) === JSON.stringify(bundle)) return;
+        }
+
+        if (!undoHistory[id]) undoHistory[id] = [];
+        undoHistory[id].push({
+            timestamp: Date.now(),
+            changedBy: changedByNumber ?? null,
+            bundle
+        });
+
+        // 超過上限刪最舊
+        if (undoHistory[id].length > UNDO_MAX_PER_CHARACTER) {
+            undoHistory[id].shift();
+        }
+    }
+
+    // 進房時掃描所有角色
+    function scanAllCharacters() {
+        if (!Array.isArray(ChatRoomCharacter)) return;
+        ChatRoomCharacter.forEach(c => {
+            if (c?.MemberNumber) saveUndoSnapshot(c, null);
+        });
+    }
+
+    // ──────────────────────────────────────────
+    // Undo 外觀預覽面板
+    // ──────────────────────────────────────────
+    async function openUndoPanel(target) {
+        const id = target?.MemberNumber;
+        const history = undoHistory[id];
+
+        if (!history?.length) {
+            ChatRoomSendLocal(`${getNickname(target)}：${t('undoNoRecord')}`);
+            return;
+        }
+
+        injectLtStyles();
+
+        let canvasCharacter = null;
+        try {
+            canvasCharacter = CharacterCreate(target.AssetFamily, CharacterType.NPC, "LT_UndoPreview");
+        } catch (e) {
+            console.error("🐈‍⬛ [LT] ❌ 建立預覽角色失敗:", e.message);
+        }
+
+        let currentIndex = history.length - 1;
+
+        // ── 頂部導航列 ──
+        const topNavEl = document.createElement("div");
+        topNavEl.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:10px;";
+
+        const prevBtn = document.createElement("button");
+        prevBtn.className = "lt-nav-btn";
+        prevBtn.textContent = t('undoPrev');
+        prevBtn.style.flex = "1";
+
+        const counterEl = document.createElement("div");
+        counterEl.style.cssText = "flex:1;text-align:center;font-size:12px;color:#9b3dd4;font-weight:600;white-space:nowrap;";
+
+        const nextBtn = document.createElement("button");
+        nextBtn.className = "lt-nav-btn";
+        nextBtn.textContent = t('undoNext');
+        nextBtn.style.flex = "1";
+
+        // 時間資訊列
+        const metaEl = document.createElement("div");
+        metaEl.className = "lt-undo-meta";
+        metaEl.style.marginBottom = "8px";
+
+        const timeRow = document.createElement("div");
+        timeRow.className = "lt-undo-meta-row";
+        const byRow = document.createElement("div");
+        byRow.className = "lt-undo-meta-row";
+        metaEl.appendChild(timeRow);
+        metaEl.appendChild(byRow);
+
+        topNavEl.appendChild(prevBtn);
+        topNavEl.appendChild(counterEl);
+        topNavEl.appendChild(nextBtn);
+
+        // ── Canvas 人物預覽（置中大圖） ──
+        const canvasWrap = document.createElement("div");
+        canvasWrap.style.cssText = `
+            width:100%; display:flex; justify-content:center; align-items:center;
+            background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+            border-radius:12px; overflow:hidden; margin-bottom:10px;
+            height:360px; position:relative;
+        `;
+
+        const canvas = document.createElement("canvas");
+        canvas.width  = 500;
+        canvas.height = 1000;
+        canvas.style.cssText = "width:220px;height:440px;display:block;";
+        canvasWrap.appendChild(canvas);
+
+        // ── 底部按鈕 ──
+        const footerBtns = document.createElement("div");
+        footerBtns.style.cssText = "width:100%;display:flex;gap:8px;";
+
+        const applyBtn = document.createElement("button");
+        applyBtn.className = "lt-btn lt-btn-primary";
+        applyBtn.textContent = t('undoApply');
+        applyBtn.style.flex = "1";
+
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "lt-btn lt-btn-secondary";
+        closeBtn.textContent = t('close');
+        closeBtn.style.flex = "1";
+
+        footerBtns.appendChild(applyBtn);
+        footerBtns.appendChild(closeBtn);
+
+        // ── 組合 content ──
+        const contentEl = document.createElement("div");
+        contentEl.appendChild(topNavEl);
+        contentEl.appendChild(metaEl);
+        contentEl.appendChild(canvasWrap);
+
+        const panel = createPanel(
+            `${t('undoTitle')} — ${getNickname(target)}`,
+            contentEl,
+            footerBtns
+        );
+        panel.style.width = "320px";
+
+        // 關閉按鈕
+        closeBtn.onclick = () => panel.remove();
+
+        function renderPreview() {
+            if (!canvasCharacter) return;
+            try {
+                const entry = history[currentIndex];
+                const ctx = canvas.getContext("2d");
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                canvasCharacter.Appearance = entry.bundle.map(b =>
+                                                              ServerBundledItemToAppearanceItem(target.AssetFamily, b)
+                                                             );
+                CharacterRefresh(canvasCharacter);
+                DrawCharacter(canvasCharacter, 40, 100, 0.85, false, ctx);
+            } catch (e) {
+                console.error("🐈‍⬛ [LT] ❌ 預覽渲染失敗:", e.message);
+            }
+        }
+
+        const renderInterval = setInterval(renderPreview, 200);
+
+        function updateMeta() {
+            const entry = history[currentIndex];
+            const timeStr = new Date(entry.timestamp).toLocaleString();
+            const byChar = entry.changedBy
+            ? ChatRoomCharacter?.find(c => c.MemberNumber === entry.changedBy)
+            : null;
+            const byName = byChar
+            ? getNickname(byChar)
+            : entry.changedBy ? `#${entry.changedBy}` : "—";
+
+            timeRow.innerHTML = `${t('undoChangedAt')}：<span>${timeStr}</span>`;
+            byRow.innerHTML   = `${t('undoChangedBy')}：<span>${byName}</span>`;
+            counterEl.textContent = `${currentIndex + 1} / ${history.length} ${t('undoCountUnit')}`;
+            prevBtn.disabled = currentIndex <= 0;
+            nextBtn.disabled = currentIndex >= history.length - 1;
+        }
+
+        prevBtn.onclick = () => {
+            if (currentIndex > 0) { currentIndex--; updateMeta(); renderPreview(); }
+        };
+        nextBtn.onclick = () => {
+            if (currentIndex < history.length - 1) { currentIndex++; updateMeta(); renderPreview(); }
+        };
+
+        applyBtn.onclick = () => {
+            if (!hasBCItemPermission(target)) {
+                ChatRoomSendLocal(`${t('noPermission')} ${getNickname(target)}。`);
+                return;
+            }
+            const entry = history[currentIndex];
+            const oldBundle = ServerAppearanceBundle(target.Appearance);
+            ServerSend("ChatRoomCharacterUpdate", {
+                ID: target.ID === 0 ? target.OnlineID : target.AccountName.replace("Online-", ""),
+                ActivePose: target.ActivePose,
+                Appearance: entry.bundle
+            });
+            const sizeDiff = Math.abs(
+                JSON.stringify(oldBundle).length - JSON.stringify(entry.bundle).length
+            );
+            const sizeKb = (sizeDiff / 1024).toFixed(1);
+            ChatRoomSendLocal(`${getNickname(target)} ${t('undoApplyDone')}（${t('undoApplySize')}: ${sizeKb}kB）`);
+            chatSendCustomAction(`${getNickname(Player)} 將 ${getNickname(target)} 的外觀回滾到 ${new Date(entry.timestamp).toLocaleTimeString()} 的狀態！`);
+            undoHistory[id].splice(currentIndex + 1);
+            panel.remove();
+        };
+
+        // 清理
+        const obs = new MutationObserver(() => {
+            if (!document.body.contains(panel)) {
+                clearInterval(renderInterval);
+                try { if (canvasCharacter) CharacterDelete(canvasCharacter.ID); } catch (e) {}
+                obs.disconnect();
+            }
+        });
+        obs.observe(document.body, { childList: true });
+
+        updateMeta();
+        renderPreview();
     }
 
     // ──────────────────────────────────────────
@@ -331,17 +893,15 @@
     // ──────────────────────────────────────────
     function setupHooks() {
 
+        // RP 模式：攔截 Action 訊息
         safeHookFunction("ServerSend", 20, (args, next) => {
-            if (!getRpMode(Player) || CurrentScreen !== "ChatRoom") {
-                return next(args);
-            }
+            if (!getRpMode(Player) || CurrentScreen !== "ChatRoom") return next(args);
             const [messageType, data] = args;
-            if (messageType === "ChatRoomChat" && data.Type === "Action") {
-                return;
-            }
+            if (messageType === "ChatRoomChat" && data.Type === "Action") return;
             return next(args);
         });
 
+        // 繪製 RP 圖標
         safeHookFunction("ChatRoomCharacterViewDrawOverlay", 10, (args, next) => {
             const result = next(args);
             const [C, CharX, CharY, Zoom] = args;
@@ -353,6 +913,7 @@
             return result;
         });
 
+        // 繪製 RP 按鈕
         safeHookFunction("ChatRoomMenuDraw", 4, (args, next) => {
             const result = next(args);
             if (!Player.LikoTool) initializeStorage();
@@ -361,21 +922,22 @@
             return result;
         });
 
+        // 點擊 RP 按鈕
         safeHookFunction("ChatRoomClick", 4, (args, next) => {
             if (!Player.LikoTool) initializeStorage();
             if (MouseIn(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize)) {
                 const newRpMode = !getRpMode(Player);
                 setRpMode(newRpMode);
                 if (typeof ChatRoomSendLocalStyled === 'function') {
-                    ChatRoomSendLocalStyled(newRpMode ? "🔰 RP模式启用" : "🔰 RP模式停用", 3000);
+                    ChatRoomSendLocalStyled(newRpMode ? `🔰 ${t('rpOn')}` : `🔰 ${t('rpOff')}`, 3000);
                 } else {
-                    ChatRoomSendLocal(newRpMode ? "RP模式已启用" : "RP模式已停用");
+                    ChatRoomSendLocal(newRpMode ? t('rpOn') : t('rpOff'));
                 }
             }
             return next(args);
         });
 
-        // 身高劫持：改為直接覆寫，確保物品渲染跟隨
+        // 身高劫持：選取角色時
         safeHookFunction("CharacterSetCurrent", 10, (args, next) => {
             const [C] = args;
             const result = next(args);
@@ -384,52 +946,97 @@
             }
             return result;
         });
-        // 在 setupHooks() 裡加入這個
+
+        // 身高劫持：角色刷新時重新劫持
         safeHookFunction("CharacterRefresh", 10, (args, next) => {
             const [C] = args;
             const result = next(args);
-
-            // 如果身高劫持功能開啟，且刷新的角色就是當前選取的角色，重新劫持
             if (
                 Player.OnlineSharedSettings?.LikoTOOL?.height === 1 &&
                 C?.MemberNumber &&
                 CurrentCharacter?.MemberNumber === C.MemberNumber
             ) {
-                // 清除舊標記，讓 hijack 可以重新執行
                 delete C._heightHijacked;
                 hijackCharacterHeight(C);
             }
-
             return result;
         });
+
+        // 身高劫持：離開對話框時還原
         safeHookFunction("DialogLeave", 10, (args, next) => {
             restoreCharacterHeight(CurrentCharacter);
             return next(args);
         });
+
+        // ── Undo：進房時掃描所有人 ──
+        safeHookFunction("ChatRoomSync", -10, (args, next) => {
+            const result = next(args);
+            // 等一個 tick 讓 ChatRoomCharacter 填入資料後再掃描
+            setTimeout(scanAllCharacters, 0);
+            return result;
+        });
+
+        // ── Undo：新人加入時記錄 ──
+        safeHookFunction("ChatRoomSyncMemberJoin", -10, (args, next) => {
+            const result = next(args);
+            const [data] = args;
+            const newChar = ChatRoomCharacter?.find(c => c.MemberNumber === data?.Character?.MemberNumber);
+            if (newChar) saveUndoSnapshot(newChar, null);
+            return result;
+        });
+
+        // ── Undo：本地物品更新 ──
+        safeHookFunction("ChatRoomCharacterItemUpdate", -10, (args, next) => {
+            const result = next(args);
+            const [target] = args;
+            saveUndoSnapshot(target, Player.MemberNumber);
+            return result;
+        });
+
+        // ── Undo：收到伺服器單一物品同步 ──
+        safeHookFunction("ChatRoomSyncItem", -10, (args, next) => {
+            const result = next(args);
+            const [data] = args;
+            const target = ChatRoomCharacter?.find(c => c.MemberNumber === data?.Item?.Target);
+            if (target) saveUndoSnapshot(target, data?.Source);
+            return result;
+        });
+
+        // ── Undo：收到伺服器整體角色同步 ──
+        safeHookFunction("ChatRoomSyncSingle", -10, (args, next) => {
+            const result = next(args);
+            const [data] = args;
+            const target = ChatRoomCharacter?.find(c => c.MemberNumber === data?.Character?.MemberNumber);
+            if (target) saveUndoSnapshot(target, data?.SourceMemberNumber);
+            return result;
+        });
     }
 
     // ──────────────────────────────────────────
-    // 指令實作（與原版相同，略）
+    // 指令：freetotal
     // ──────────────────────────────────────────
     function freetotal(args) {
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`); return true; }
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`${t('noPermission')} ${getNickname(target)}。`); return true; }
         try {
             CharacterReleaseTotal(target);
             ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(`${getNickname(Player)} 完全解除了 ${getNickname(target)} 的所有束縛！`);
+            chatSendCustomAction(`${getNickname(Player)} ${t('freetotalDone')} ${getNickname(target)}！`);
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ freetotal 錯誤:", e.message);
-            ChatRoomSendLocal("無法解除束縛。");
         }
         return true;
     }
 
+    // ──────────────────────────────────────────
+    // 指令：free
+    // ──────────────────────────────────────────
     async function free(args) {
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`); return true; }
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`${t('noPermission')} ${getNickname(target)}。`); return true; }
+
         const restraints = [];
         for (const group of AssetGroup) {
             if (group.Name.startsWith("Item")) {
@@ -437,99 +1044,108 @@
                 if (item) {
                     const lock     = item.Property?.LockedBy ? `🔒${item.Property.LockedBy}` : "";
                     const password = item.Property?.Password || item.Property?.CombinationNumber || "";
-                    const itemName = item.Craft?.Name || item.Asset?.Description || item.Asset?.Name || '未知物品';
+                    const itemName = item.Craft?.Name || item.Asset?.Description || item.Asset?.Name || t('unknown');
                     restraints.push({
-                        text: `${lock ? lock + " " : ""}${itemName} (${group.Description}${password ? `, 密碼: ${password}` : ""})`,
-                        fontSize: "16px",
+                        text: `${lock ? lock + " " : ""}${itemName} (${group.Description}${password ? `, ${t('password')}: ${password}` : ""})`,
                         group: group.Name
                     });
                 }
             }
         }
-        if (!restraints.length) { ChatRoomSendLocal(`${getNickname(target)} 沒有束縛物品！`); return true; }
-        const selected = await requestButtons(`選擇要移除的 ${getNickname(target)} 的束縛`, 400, 500, restraints, true);
+        if (!restraints.length) { ChatRoomSendLocal(`${getNickname(target)} ${t('freeNoItem')}！`); return true; }
+
+        const selected = await requestButtons(`${t('freeTitle')} — ${getNickname(target)}`, restraints, true);
         if (!selected.length) return true;
+
         try {
             selected.forEach(itemText => {
                 const group = restraints.find(r => r.text === itemText)?.group;
                 if (group) InventoryRemove(target, group);
             });
             ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(`${getNickname(Player)} 解除了 ${getNickname(target)} 的 ${selected.join("、")}`);
+            chatSendCustomAction(`${getNickname(Player)} ${t('freeDone')} ${getNickname(target)} 的 ${selected.join("、")}`);
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ free 錯誤:", e.message);
-            ChatRoomSendLocal("無法移除束縛。");
         }
         return true;
     }
 
+    // ──────────────────────────────────────────
+    // 指令：bcximport
+    // ──────────────────────────────────────────
     async function bcxImport(args) {
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`); return true; }
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`${t('noPermission')} ${getNickname(target)}。`); return true; }
+
         let bcxCode;
-        try {
-            bcxCode = await navigator.clipboard.readText();
-        } catch (e) {
-            console.error("🐈‍⬛ [LT] ❌ bcxImport 剪貼簿讀取錯誤:", e.message);
-            ChatRoomSendLocal("無法讀取剪貼簿。");
-            return true;
-        }
+        try { bcxCode = await navigator.clipboard.readText(); }
+        catch (e) { ChatRoomSendLocal(t('clipboardFail')); return true; }
+
         try {
             const appearance = JSON.parse(LZString.decompressFromBase64(bcxCode));
-            if (!Array.isArray(appearance)) throw new Error("無效的外觀數據");
+            if (!Array.isArray(appearance)) throw new Error("invalid");
             ServerAppearanceLoadFromBundle(target, target.AssetFamily, appearance, Player.MemberNumber);
             ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(`${getNickname(Player)} 為 ${getNickname(target)} 導入了 BCX 外觀！`);
+            chatSendCustomAction(`${getNickname(Player)} ${t('bcxDone')} ${getNickname(target)}！`);
         } catch (e) {
-            console.error("🐈‍⬛ [LT] ❌ bcxImport 解析錯誤:", e.message);
-            ChatRoomSendLocal("無效的 BCX 代碼。");
+            ChatRoomSendLocal(t('bcxInvalid'));
         }
         return true;
     }
 
+    // ──────────────────────────────────────────
+    // 指令：rpmode
+    // ──────────────────────────────────────────
     function rpmode() {
         if (!Player.LikoTool) initializeStorage();
         const newRpMode = !getRpMode(Player);
         setRpMode(newRpMode);
-        ChatRoomSendLocal(`RP模式已 ${newRpMode ? "开启" : "关闭"}！`);
+        ChatRoomSendLocal(newRpMode ? t('rpOn') : t('rpOff'));
         return true;
     }
 
+    // ──────────────────────────────────────────
+    // 指令：fullunlock
+    // ──────────────────────────────────────────
     function fullUnlock(args) {
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`); return true; }
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`${t('noPermission')} ${getNickname(target)}。`); return true; }
+
         try {
             const skipLocks = ["OwnerPadlock", "OwnerTimerPadlock", "LoversPadlock", "LoversTimerPadlock"];
-            let unlockedCount = 0;
+            let count = 0;
             for (const a of target.Appearance) {
                 if (a.Property?.LockedBy && !skipLocks.includes(a.Property.LockedBy)) {
                     InventoryUnlock(target, a);
-                    unlockedCount++;
+                    count++;
                 }
             }
-            if (unlockedCount === 0) { ChatRoomSendLocal(`${getNickname(target)} 沒有可移除的鎖！`); return true; }
+            if (!count) { ChatRoomSendLocal(`${getNickname(target)} ${t('unlockNone')}！`); return true; }
             ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(`${getNickname(Player)} 移除了 ${getNickname(target)} 的所有鎖！`);
+            chatSendCustomAction(`${getNickname(Player)} ${t('unlockDone')} ${getNickname(target)}！`);
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ fullUnlock 錯誤:", e.message);
-            ChatRoomSendLocal("無法移除鎖。");
         }
         return true;
     }
 
+    // ──────────────────────────────────────────
+    // 指令：geteverything
+    // ──────────────────────────────────────────
     async function getEverything() {
         if (!Player.LikoTool) initializeStorage();
         const options = [
-            { text: "獲得所有道具",        fontSize: "16px" },
-            { text: "設置金錢為 999,999",  fontSize: "16px" },
-            { text: "所有技能升至 10 級",  fontSize: "16px" }
+            { text: t('geItems') },
+            { text: t('geMoney') },
+            { text: t('geSkills') }
         ];
-        const selected = await requestButtons("選擇增強功能", 300, 400, options, true);
+        const selected = await requestButtons(t('geTitle'), options, true);
         if (!selected.length) return true;
+
         try {
-            if (selected.includes("獲得所有道具")) {
+            if (selected.includes(t('geItems'))) {
                 const ids = [];
                 AssetFemale3DCG.forEach(group => {
                     group.Asset.forEach(item => {
@@ -540,37 +1156,41 @@
                     });
                 });
                 ServerPlayerInventorySync();
-                ChatRoomSendLocal(`已添加 ${ids.length} 個新物品！`);
+                ChatRoomSendLocal(`${ids.length} ${t('geItemsDone')}！`);
             }
-            if (selected.includes("設置金錢為 999,999")) {
+            if (selected.includes(t('geMoney'))) {
                 Player.Money = 999999;
                 ServerPlayerSync();
-                ChatRoomSendLocal("金錢已設置為 999,999！");
+                ChatRoomSendLocal(`${t('geMoneyDone')}！`);
             }
-            if (selected.includes("所有技能升至 10 級")) {
+            if (selected.includes(t('geSkills'))) {
                 ["LockPicking", "Evasion", "Willpower", "Bondage", "SelfBondage", "Dressage", "Infiltration"]
                     .forEach(skill => SkillChange(Player, skill, 10, 0, true));
-                ChatRoomSendLocal("所有技能已升至 10 級！");
+                ChatRoomSendLocal(`${t('geSkillsDone')}！`);
             }
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ getEverything 錯誤:", e.message);
-            ChatRoomSendLocal("無法執行增強功能。");
         }
         return true;
     }
 
+    // ──────────────────────────────────────────
+    // 指令：wardrobe
+    // ──────────────────────────────────────────
     function wardrobe() {
         if (!Player.LikoTool) initializeStorage();
         try {
             ChatRoomAppearanceLoadCharacter(Player);
-            ChatRoomSendLocal("已開啟衣櫃！");
+            ChatRoomSendLocal(t('wardrobeDone'));
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ wardrobe 錯誤:", e.message);
-            ChatRoomSendLocal("無法開啟衣櫃。");
         }
         return true;
     }
 
+    // ──────────────────────────────────────────
+    // 指令：fulllock
+    // ──────────────────────────────────────────
     function fullLock(args) {
         if (!Player.LikoTool) initializeStorage();
         const params           = args.trim().split(/\s+/);
@@ -578,65 +1198,68 @@
         const lockName         = params[1] || "";
         const target           = getPlayer(targetIdentifier);
 
-        if (target === Player && !targetIdentifier) {
-            ChatRoomSendLocal("請指定目標（例如 /lt fulllock [目標] [鎖名稱]）！");
-            return true;
-        }
+        if (target === Player && !targetIdentifier) { ChatRoomSendLocal(t('lockSpecify')); return true; }
         if (!ChatRoomCharacter?.find(c => c.MemberNumber === target.MemberNumber)) {
-            ChatRoomSendLocal(`目標 ${getNickname(target)} 不在房間內！`);
-            return true;
+            ChatRoomSendLocal(`${getNickname(target)} ${t('notInRoom')}！`); return true;
         }
-        if (!hasBCItemPermission(target)) {
-            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`);
-            return true;
-        }
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`${t('noPermission')} ${getNickname(target)}。`); return true; }
 
         const itemMiscGroup = AssetGroupGet(Player.AssetFamily, "ItemMisc");
-        if (!itemMiscGroup) { ChatRoomSendLocal("無法獲取 ItemMisc 群組。"); return true; }
+        if (!itemMiscGroup) return true;
+
         const validLocks = itemMiscGroup.Asset
-        .filter(asset => asset.IsLock)
-        .map(asset => ({ Name: asset.Name, Description: asset.Description || asset.Name }));
+        .filter(a => a.IsLock)
+        .map(a => ({ Name: a.Name, Description: a.Description || a.Name }));
         const lock = validLocks.find(l =>
-                                     l.Name.toLowerCase()        === lockName.toLowerCase() ||
+                                     l.Name.toLowerCase() === lockName.toLowerCase() ||
                                      l.Description.toLowerCase() === lockName.toLowerCase()
                                     );
         if (!lock) {
-            ChatRoomSendLocal(`無效的鎖名稱：${lockName}。\n可用鎖：${validLocks.map(l => l.Description).join("、")}`);
+            ChatRoomSendLocal(`${t('lockInvalid')}：${lockName}。${t('lockAvailable')}：${validLocks.map(l => l.Description).join("、")}`);
             return true;
         }
 
         try {
-            let lockedCount = 0;
+            let count = 0;
             for (const item of target.Appearance) {
                 const groupName = item.Asset?.Group?.Name || "";
                 if (groupName.startsWith("Item") && item.Asset?.AllowLock !== false && !item.Property?.LockedBy) {
                     InventoryLock(target, item, { Asset: AssetGet(Player.AssetFamily, "ItemMisc", lock.Name) }, Player.MemberNumber);
-                    lockedCount++;
+                    count++;
                 }
             }
-            if (lockedCount === 0) { ChatRoomSendLocal(`${getNickname(target)} 沒有可鎖定的束縛！`); return true; }
+            if (!count) { ChatRoomSendLocal(`${getNickname(target)} ${t('lockNone')}！`); return true; }
             ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(`${getNickname(Player)} 為 ${getNickname(target)} 的 ${lockedCount} 個束縛添加了 ${lock.Description} 鎖！`);
+            chatSendCustomAction(`${getNickname(Player)} 為 ${getNickname(target)} 的 ${count} ${t('lockDone')} ${lock.Description}！`);
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ fullLock 錯誤:", e.message);
-            ChatRoomSendLocal("無法添加鎖。");
         }
         return true;
     }
 
+    // ──────────────────────────────────────────
+    // 指令：height
+    // ──────────────────────────────────────────
     function heightCommand() {
         if (!Player.OnlineSharedSettings)           Player.OnlineSharedSettings = {};
         if (!Player.OnlineSharedSettings.LikoTOOL) Player.OnlineSharedSettings.LikoTOOL = {};
-
         const enabled = Player.OnlineSharedSettings.LikoTOOL.height !== 1;
         Player.OnlineSharedSettings.LikoTOOL.height = enabled ? 1 : 0;
-
         if (typeof ServerAccountUpdate?.QueueData === 'function') {
             ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
         }
-
-        ChatRoomSendLocal(`身高劫持功能已 ${enabled ? "啟用" : "停用"}！`);
+        ChatRoomSendLocal(enabled ? t('heightOn') : t('heightOff'));
         if (!enabled) restoreCharacterHeight(CurrentCharacter);
+        return true;
+    }
+
+    // ──────────────────────────────────────────
+    // 指令：undo
+    // ──────────────────────────────────────────
+    async function undoCommand(args) {
+        if (!Player.LikoTool) initializeStorage();
+        const target = getPlayer(args.trim());
+        await openUndoPanel(target);
         return true;
     }
 
@@ -650,21 +1273,7 @@
         const commandText = args.slice(1).join(" ");
 
         if (!subCommand || subCommand === "help") {
-            ChatRoomSendLocal(
-                `莉柯莉絲工具使用說明書(Manual)\n\n` +
-                `可用指令列表(Commands)：\n` +
-                `/lt help - 顯示說明書(Show Manual)\n` +
-                `/lt free [目標] - 移除束縛(Unbundle)\n` +
-                `/lt freetotal [目標] - 移除所有束縛(all Unbundle)\n` +
-                `/lt bcximport [目標] - 導入 BCX 外觀(Import BCX appearance)\n` +
-                `/lt fulllock  [目標] [鎖名稱] - 添加鎖([Target] [Lock Type]Add lock)\n` +
-                `/lt fullunlock [目標] - 移除所有鎖(Unlock all)\n` +
-                `/lt rpmode - RP模式(Switch to RP mode)\n` +
-                `/lt height - 選擇角色時身高固定(Fixed height when selecting a character)\n` +
-                `/lt geteverything - 增強功能(Enhanced functionality)\n` +
-                `/lt wardrobe - 開啟衣櫃(Open wardrobe)\n\n` +
-                `提示：🔰 按鈕能快速切換 RP 模式！(🔰quickly switch RP mode!)`
-            );
+            ChatRoomSendLocal(t('helpText'));
             return true;
         }
 
@@ -677,18 +1286,18 @@
             geteverything: getEverything,
             wardrobe,
             fulllock:      fullLock,
-            height:        heightCommand
+            height:        heightCommand,
+            undo:          undoCommand,
         };
 
         if (commands[subCommand]) {
-            try {
-                commands[subCommand](commandText);
-            } catch (e) {
+            try { commands[subCommand](commandText); }
+            catch (e) {
                 console.error(`🐈‍⬛ [LT] ❌ 命令 ${subCommand} 執行錯誤:`, e.message);
-                ChatRoomSendLocal(`執行 /lt ${subCommand} 失敗。`);
+                ChatRoomSendLocal(`${t('cmdFail')}：/lt ${subCommand}`);
             }
         } else {
-            ChatRoomSendLocal(`未知指令：/lt ${subCommand}`);
+            ChatRoomSendLocal(`${t('unknownCmd')}：/lt ${subCommand}`);
         }
         return true;
     }
@@ -701,13 +1310,9 @@
 
         await initializeModApi();
 
-        try {
-            await loadToastSystem();
-        } catch (e) {
-            console.warn("🐈‍⬛ [LT] ❌ Toast system 載入失敗，備用模式運行:", e.message);
-        }
+        try { await loadToastSystem(); }
+        catch (e) { console.warn("🐈‍⬛ [LT] ❌ Toast system 載入失敗，備用模式運行:", e.message); }
 
-        // 等待玩家登入，無超時
         console.log("🐈‍⬛ [LT] ⌛ 等待玩家登入...");
         await waitFor(() => {
             try { return typeof Player?.MemberNumber === "number"; }
@@ -720,7 +1325,7 @@
         const registerCommand = () => {
             CommandCombine([{
                 Tag: "lt",
-                Description: "執行莉柯莉絲工具命令",
+                Description: "Execute Liko Tool command",
                 Action: handleLtCommand
             }]);
             console.log("🐈‍⬛ [LT] ✅ /lt 指令註冊成功");
@@ -737,7 +1342,7 @@
         }
 
         waitFor(() => CurrentScreen === "ChatRoom").then(() => {
-            ChatRoomSendLocal(`莉柯莉絲工具 v${modversion} 載入！使用 /lt help 查看說明`, 30000);
+            ChatRoomSendLocal(t('loaded', { v: modversion }), 30000);
         });
 
         console.log(`🐈‍⬛ [LT] ✅ 插件已載入 (v${modversion})`);
