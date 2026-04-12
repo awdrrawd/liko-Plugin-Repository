@@ -101,7 +101,7 @@
             `/lt bcximport [目標]  - 導入 BCX 外觀\n` +
             `/lt fullunlock [目標] - 移除所有鎖\n` +
             `/lt fulllock [目標] [鎖名稱] - 添加鎖\n` +
-            `/lt undo [目標]       - 外觀回滾\n\n` +
+            `/lt undo [目標]       - 外觀回滾\n` +
             `/lt rpmode            - 切換 RP 模式\n` +
             `/lt height            - 切換身高固定\n` +
             `/lt geteverything     - 增強功能\n` +
@@ -172,7 +172,7 @@
             `/lt bcximport [target]- Import BCX appearance\n` +
             `/lt fullunlock [target]-Remove all locks\n` +
             `/lt fulllock [target] [lock] - Add lock\n` +
-            `/lt undo [target]     - Rollback appearance\n\n` +
+            `/lt undo [target]     - Rollback appearance\n` +
             `/lt rpmode            - Toggle RP mode\n` +
             `/lt height            - Toggle height hijack\n` +
             `/lt geteverything     - Enhancement menu\n` +
@@ -291,6 +291,8 @@
     // ──────────────────────────────────────────
     // 身高劫持
     // ──────────────────────────────────────────
+    const heightRestoreCounter = {}; // { memberNumber: { timestamps: [] } }
+
     function hijackCharacterHeight(C) {
         if (!C || C._heightHijacked) return;
         C._realHeightRatio    = C.HeightRatio;
@@ -309,6 +311,11 @@
         delete C._realHeightRatio;
         delete C._realHeightModifier;
         delete C._heightHijacked;
+        // 清除計數器
+        const id = C.MemberNumber;
+        if (heightRestoreCounter[id]) {
+            delete heightRestoreCounter[id];
+        }
     }
 
     // ──────────────────────────────────────────
@@ -948,17 +955,50 @@
         });
 
         // 身高劫持：角色刷新時重新劫持
+        const heightRestoreCounter = {}; // { memberNumber: { timestamps: [] } }
+
         safeHookFunction("CharacterRefresh", 10, (args, next) => {
             const [C] = args;
             const result = next(args);
+
             if (
-                Player.OnlineSharedSettings?.LikoTOOL?.height === 1 &&
-                C?.MemberNumber &&
-                CurrentCharacter?.MemberNumber === C.MemberNumber
-            ) {
+                Player.OnlineSharedSettings?.LikoTOOL?.height !== 1 ||
+                !C?.MemberNumber ||
+                CurrentCharacter?.MemberNumber !== C.MemberNumber
+            ) return result;
+
+            const id = C.MemberNumber;
+
+            if (C._heightHijacked) {
+                if (C.HeightRatio === C._realHeightRatio && C.HeightModifier === C._realHeightModifier) {
+                    if (!heightRestoreCounter[id]) {
+                        heightRestoreCounter[id] = { timestamps: [] };
+                    }
+
+                    const now = Date.now();
+                    const windowMs = 200; // 只看最近 500ms
+
+                    // 清掉過期的紀錄
+                    heightRestoreCounter[id].timestamps = heightRestoreCounter[id].timestamps
+                        .filter(t => now - t < windowMs);
+
+                    // 加入這次
+                    heightRestoreCounter[id].timestamps.push(now);
+
+                    // 500ms 內超過 5 次才判定為抖動
+                    if (heightRestoreCounter[id].timestamps.length >= 3) {
+                        console.log(`🐈‍⬛ [LT] ⚠️ 身高劫持：${getNickname(C)} 短時間復原過多，暫停補正`);
+                        return result;
+                    }
+                }
+
                 delete C._heightHijacked;
                 hijackCharacterHeight(C);
+
+            } else {
+                hijackCharacterHeight(C);
             }
+
             return result;
         });
 
