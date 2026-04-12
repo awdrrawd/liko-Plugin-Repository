@@ -1,24 +1,24 @@
 {
   "updateId": "260411",
   "changelog": [
-    "⭐CDB(更衣室背景) v1.5更新",
-    "支援英文語言",
-    "現在網格可以任意設置在角色前或後",
-    "現在背景替換顏色等設定時，會即時更新放大鏡的畫面",
-    "使用放大鏡時，修復更改顏色與座標時會重製位置的問題",
     "⭐MAT(機器翻譯) v1.1.5更新",
     "修正拓展組件內白色主題下無法顯示文字的問題",
-    "改進，聊天室信息如果是純網址的情況下，跳過翻譯"
+    "改進，聊天室信息如果是純網址的情況下，跳過翻譯",
+    "⭐LT(Liko的工具包) v1.4更新",
+    "支援英文語言",
+    "增加外觀回滾功能",
+    "修正逾時登入後初始化失敗問題",
+    "修正劫持身高時，道具位置錯誤問題"
   ],
   "en_changelog": [
-    "⭐CDB(Custom Dressing Room) v1.5 Update",
-    "Add English language.",
-    "The grid can now be placed arbitrarily in front of or behind the character.",
-    "The magnifying glass view now updates instantly when changing background colors or other settings.",
-    "Fixed an issue where the magnifying glass would reset its position when changing colors and coordinates.",
     "⭐MAT(Messages Auto Translator) v1.1.5 Update",
     "Fixed the issue where text was not displayed on Extensions pages in a white theme.",
-    "If the chat room message is a pure URL, skip the translation."
+    "If the chat room message is a pure URL, skip the translation.",
+    "⭐LT(Liko tool) v1.4 Update",
+    "Add English language.",
+    "Added appearance rollback function.",
+    "Fixed the issue of initialization failure after timeout login.",
+    "Fixed the issue of incorrect item placement when hijacking height.",
   ],
   "plugins": [
     {
