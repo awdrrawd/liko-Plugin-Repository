@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.3.3
+// @version      1.3.4
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,9 +15,8 @@
 
 (function () {
     let modApi = null;
-    const modversion = "1.3.3";
+    const modversion = "1.3.4";
 
-    // RP 圖標配置
     const rpBtnX    = 955;
     const rpBtnY    = 855;
     const rpBtnSize = 45;
@@ -26,12 +25,10 @@
     // ──────────────────────────────────────────
     // 等待 bcModSdk
     // ──────────────────────────────────────────
-    function waitForBcModSdk(timeout = 30000) {
-        const start = Date.now();
+    function waitForBcModSdk() {
         return new Promise(resolve => {
             const check = () => {
                 if (typeof bcModSdk !== 'undefined' && bcModSdk?.registerMod) resolve(true);
-                else if (Date.now() - start > timeout) { console.error("🐈‍⬛ [LT] ❌ bcModSdk 載入超時"); resolve(false); }
                 else setTimeout(check, 100);
             };
             check();
@@ -39,14 +36,12 @@
     }
 
     // ──────────────────────────────────────────
-    // 等待任意條件
+    // 等待任意條件（無超時，永遠等到成功）
     // ──────────────────────────────────────────
-    function waitFor(condition, timeout = 30000) {
-        const start = Date.now();
+    function waitFor(condition) {
         return new Promise(resolve => {
             const check = () => {
-                if (condition()) resolve(true);
-                else if (Date.now() - start > timeout) resolve(false);
+                if (condition()) resolve();
                 else setTimeout(check, 500);
             };
             check();
@@ -57,11 +52,7 @@
     // 初始化 modApi
     // ──────────────────────────────────────────
     async function initializeModApi() {
-        const success = await waitForBcModSdk();
-        if (!success) {
-            console.error("🐈‍⬛ [LT] ❌ bcModSdk 無法載入");
-            return null;
-        }
+        await waitForBcModSdk();
         try {
             modApi = bcModSdk.registerMod({
                 name: "Liko's tool",
@@ -70,10 +61,8 @@
                 repository: '莉柯莉絲的工具包'
             });
             console.log("🐈‍⬛ [LT] ✅ modApi 初始化完成");
-            return modApi;
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ 初始化 modApi 失敗:", e.message);
-            return null;
         }
     }
 
@@ -133,12 +122,22 @@
     }
 
     // ──────────────────────────────────────────
-    // 身高劫持：還原單一角色
+    // 身高劫持：直接覆寫值，確保物品跟隨
     // ──────────────────────────────────────────
+    function hijackCharacterHeight(C) {
+        if (!C || C._heightHijacked) return;
+        C._realHeightRatio    = C.HeightRatio;
+        C._realHeightModifier = C.HeightModifier;
+        // 直接賦值讓所有渲染系統讀到同一個數值，物品才不會錯位
+        if (C.HeightRatio < 0.81 || C.HeightRatio > 1) {
+            C.HeightRatio = 1.0;
+        }
+        C.HeightModifier  = 0;
+        C._heightHijacked = true;
+    }
+
     function restoreCharacterHeight(C) {
         if (!C?._heightHijacked) return;
-        delete C.HeightRatio;
-        delete C.HeightModifier;
         C.HeightRatio    = C._realHeightRatio;
         C.HeightModifier = C._realHeightModifier;
         delete C._realHeightRatio;
@@ -178,10 +177,10 @@
             return ChatRoomCharacter?.find(c => c.MemberNumber === parseInt(identifier)) || Player;
         }
         return ChatRoomCharacter?.find(c =>
-            c.Name.toLowerCase()         === identifier.toLowerCase() ||
-            c.Nickname?.toLowerCase()    === identifier.toLowerCase() ||
-            c.AccountName.toLowerCase()  === identifier.toLowerCase()
-        ) || Player;
+                                       c.Name.toLowerCase()         === identifier.toLowerCase() ||
+                                       c.Nickname?.toLowerCase()    === identifier.toLowerCase() ||
+                                       c.AccountName.toLowerCase()  === identifier.toLowerCase()
+                                      ) || Player;
     }
 
     function getNickname(character) {
@@ -206,14 +205,7 @@
         if (Player.LikoTool?.bypassActivities) return true;
         return typeof ServerChatRoomGetAllowItem === "function"
             ? ServerChatRoomGetAllowItem(Player, target)
-            : true;
-    }
-
-    async function requestInput(prompt) {
-        return new Promise(resolve => {
-            const result = window.prompt(prompt);
-            resolve(result === null ? false : result);
-        });
+        : true;
     }
 
     async function requestButtons(prompt, width, height, buttons, multiSelect = false) {
@@ -339,21 +331,17 @@
     // ──────────────────────────────────────────
     function setupHooks() {
 
-        // RP 模式：阻止 Action 類型訊息送出
-        // 修復：攔截時回傳 undefined 是正確行為（阻止送出）
-        // 但需確保非 RP 模式時正確回傳 next(args)
         safeHookFunction("ServerSend", 20, (args, next) => {
             if (!getRpMode(Player) || CurrentScreen !== "ChatRoom") {
                 return next(args);
             }
             const [messageType, data] = args;
             if (messageType === "ChatRoomChat" && data.Type === "Action") {
-                return; // 故意不回傳，阻止動作訊息
+                return;
             }
             return next(args);
         });
 
-        // 繪製 RP 圖標（角色頭上）
         safeHookFunction("ChatRoomCharacterViewDrawOverlay", 10, (args, next) => {
             const result = next(args);
             const [C, CharX, CharY, Zoom] = args;
@@ -365,16 +353,14 @@
             return result;
         });
 
-        // 繪製 RP 模式切換按鈕
         safeHookFunction("ChatRoomMenuDraw", 4, (args, next) => {
             const result = next(args);
             if (!Player.LikoTool) initializeStorage();
             DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, "🔰",
-                getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
+                       getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
             return result;
         });
 
-        // 處理 RP 模式按鈕點擊
         safeHookFunction("ChatRoomClick", 4, (args, next) => {
             if (!Player.LikoTool) initializeStorage();
             if (MouseIn(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize)) {
@@ -389,35 +375,33 @@
             return next(args);
         });
 
-        // 身高劫持：開啟對話框時劫持角色身高
-        // 修復：移除 setTimeout，改為同步執行避免閃爍
-        // 修復：正確解構 args 取得 C
+        // 身高劫持：改為直接覆寫，確保物品渲染跟隨
         safeHookFunction("CharacterSetCurrent", 10, (args, next) => {
             const [C] = args;
             const result = next(args);
+            if (Player.OnlineSharedSettings?.LikoTOOL?.height === 1 && C?.MemberNumber) {
+                hijackCharacterHeight(C);
+            }
+            return result;
+        });
+        // 在 setupHooks() 裡加入這個
+        safeHookFunction("CharacterRefresh", 10, (args, next) => {
+            const [C] = args;
+            const result = next(args);
 
-            if (Player.OnlineSharedSettings?.LikoTOOL?.height === 1 && C?.MemberNumber && !C._heightHijacked) {
-                C._realHeightRatio    = C.HeightRatio;
-                C._realHeightModifier = C.HeightModifier;
-
-                Object.defineProperty(C, 'HeightRatio', {
-                    get() { return (this._realHeightRatio < 0.81 || this._realHeightRatio > 1) ? 1.0 : this._realHeightRatio; },
-                    set(v) { this._realHeightRatio = v; },
-                    configurable: true
-                });
-                Object.defineProperty(C, 'HeightModifier', {
-                    get() { return 0; },
-                    set(v) { this._realHeightModifier = v; },
-                    configurable: true
-                });
-
-                C._heightHijacked = true;
+            // 如果身高劫持功能開啟，且刷新的角色就是當前選取的角色，重新劫持
+            if (
+                Player.OnlineSharedSettings?.LikoTOOL?.height === 1 &&
+                C?.MemberNumber &&
+                CurrentCharacter?.MemberNumber === C.MemberNumber
+            ) {
+                // 清除舊標記，讓 hijack 可以重新執行
+                delete C._heightHijacked;
+                hijackCharacterHeight(C);
             }
 
             return result;
         });
-
-        // 身高劫持：關閉對話框時還原身高
         safeHookFunction("DialogLeave", 10, (args, next) => {
             restoreCharacterHeight(CurrentCharacter);
             return next(args);
@@ -425,15 +409,12 @@
     }
 
     // ──────────────────────────────────────────
-    // 指令：freetotal
+    // 指令實作（與原版相同，略）
     // ──────────────────────────────────────────
     function freetotal(args) {
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) {
-            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`);
-            return true;
-        }
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`); return true; }
         try {
             CharacterReleaseTotal(target);
             ChatRoomCharacterUpdate(target);
@@ -445,16 +426,10 @@
         return true;
     }
 
-    // ──────────────────────────────────────────
-    // 指令：free（選擇性移除束縛）
-    // ──────────────────────────────────────────
     async function free(args) {
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) {
-            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`);
-            return true;
-        }
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`); return true; }
         const restraints = [];
         for (const group of AssetGroup) {
             if (group.Name.startsWith("Item")) {
@@ -471,10 +446,7 @@
                 }
             }
         }
-        if (!restraints.length) {
-            ChatRoomSendLocal(`${getNickname(target)} 沒有束縛物品！`);
-            return true;
-        }
+        if (!restraints.length) { ChatRoomSendLocal(`${getNickname(target)} 沒有束縛物品！`); return true; }
         const selected = await requestButtons(`選擇要移除的 ${getNickname(target)} 的束縛`, 400, 500, restraints, true);
         if (!selected.length) return true;
         try {
@@ -491,16 +463,10 @@
         return true;
     }
 
-    // ──────────────────────────────────────────
-    // 指令：bcximport
-    // ──────────────────────────────────────────
     async function bcxImport(args) {
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) {
-            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`);
-            return true;
-        }
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`); return true; }
         let bcxCode;
         try {
             bcxCode = await navigator.clipboard.readText();
@@ -522,9 +488,6 @@
         return true;
     }
 
-    // ──────────────────────────────────────────
-    // 指令：rpmode
-    // ──────────────────────────────────────────
     function rpmode() {
         if (!Player.LikoTool) initializeStorage();
         const newRpMode = !getRpMode(Player);
@@ -533,16 +496,10 @@
         return true;
     }
 
-    // ──────────────────────────────────────────
-    // 指令：fullunlock
-    // ──────────────────────────────────────────
     function fullUnlock(args) {
         if (!Player.LikoTool) initializeStorage();
         const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) {
-            ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`);
-            return true;
-        }
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(`無權限互動 ${getNickname(target)}。`); return true; }
         try {
             const skipLocks = ["OwnerPadlock", "OwnerTimerPadlock", "LoversPadlock", "LoversTimerPadlock"];
             let unlockedCount = 0;
@@ -552,10 +509,7 @@
                     unlockedCount++;
                 }
             }
-            if (unlockedCount === 0) {
-                ChatRoomSendLocal(`${getNickname(target)} 沒有可移除的鎖！`);
-                return true;
-            }
+            if (unlockedCount === 0) { ChatRoomSendLocal(`${getNickname(target)} 沒有可移除的鎖！`); return true; }
             ChatRoomCharacterUpdate(target);
             chatSendCustomAction(`${getNickname(Player)} 移除了 ${getNickname(target)} 的所有鎖！`);
         } catch (e) {
@@ -565,9 +519,6 @@
         return true;
     }
 
-    // ──────────────────────────────────────────
-    // 指令：geteverything
-    // ──────────────────────────────────────────
     async function getEverything() {
         if (!Player.LikoTool) initializeStorage();
         const options = [
@@ -608,9 +559,6 @@
         return true;
     }
 
-    // ──────────────────────────────────────────
-    // 指令：wardrobe
-    // ──────────────────────────────────────────
     function wardrobe() {
         if (!Player.LikoTool) initializeStorage();
         try {
@@ -623,12 +571,9 @@
         return true;
     }
 
-    // ──────────────────────────────────────────
-    // 指令：fulllock
-    // ──────────────────────────────────────────
     function fullLock(args) {
         if (!Player.LikoTool) initializeStorage();
-        const params          = args.trim().split(/\s+/);
+        const params           = args.trim().split(/\s+/);
         const targetIdentifier = params[0] || "";
         const lockName         = params[1] || "";
         const target           = getPlayer(targetIdentifier);
@@ -647,17 +592,14 @@
         }
 
         const itemMiscGroup = AssetGroupGet(Player.AssetFamily, "ItemMisc");
-        if (!itemMiscGroup) {
-            ChatRoomSendLocal("無法獲取 ItemMisc 群組。");
-            return true;
-        }
+        if (!itemMiscGroup) { ChatRoomSendLocal("無法獲取 ItemMisc 群組。"); return true; }
         const validLocks = itemMiscGroup.Asset
-            .filter(asset => asset.IsLock)
-            .map(asset => ({ Name: asset.Name, Description: asset.Description || asset.Name }));
+        .filter(asset => asset.IsLock)
+        .map(asset => ({ Name: asset.Name, Description: asset.Description || asset.Name }));
         const lock = validLocks.find(l =>
-            l.Name.toLowerCase()        === lockName.toLowerCase() ||
-            l.Description.toLowerCase() === lockName.toLowerCase()
-        );
+                                     l.Name.toLowerCase()        === lockName.toLowerCase() ||
+                                     l.Description.toLowerCase() === lockName.toLowerCase()
+                                    );
         if (!lock) {
             ChatRoomSendLocal(`無效的鎖名稱：${lockName}。\n可用鎖：${validLocks.map(l => l.Description).join("、")}`);
             return true;
@@ -666,16 +608,13 @@
         try {
             let lockedCount = 0;
             for (const item of target.Appearance) {
-                const groupName  = item.Asset?.Group?.Name || "";
+                const groupName = item.Asset?.Group?.Name || "";
                 if (groupName.startsWith("Item") && item.Asset?.AllowLock !== false && !item.Property?.LockedBy) {
                     InventoryLock(target, item, { Asset: AssetGet(Player.AssetFamily, "ItemMisc", lock.Name) }, Player.MemberNumber);
                     lockedCount++;
                 }
             }
-            if (lockedCount === 0) {
-                ChatRoomSendLocal(`${getNickname(target)} 沒有可鎖定的束縛！`);
-                return true;
-            }
+            if (lockedCount === 0) { ChatRoomSendLocal(`${getNickname(target)} 沒有可鎖定的束縛！`); return true; }
             ChatRoomCharacterUpdate(target);
             chatSendCustomAction(`${getNickname(Player)} 為 ${getNickname(target)} 的 ${lockedCount} 個束縛添加了 ${lock.Description} 鎖！`);
         } catch (e) {
@@ -685,9 +624,6 @@
         return true;
     }
 
-    // ──────────────────────────────────────────
-    // 指令：height（切換身高劫持）
-    // ──────────────────────────────────────────
     function heightCommand() {
         if (!Player.OnlineSharedSettings)           Player.OnlineSharedSettings = {};
         if (!Player.OnlineSharedSettings.LikoTOOL) Player.OnlineSharedSettings.LikoTOOL = {};
@@ -700,8 +636,6 @@
         }
 
         ChatRoomSendLocal(`身高劫持功能已 ${enabled ? "啟用" : "停用"}！`);
-
-        // 停用時立刻還原當前對話角色
         if (!enabled) restoreCharacterHeight(CurrentCharacter);
         return true;
     }
@@ -711,25 +645,25 @@
     // ──────────────────────────────────────────
     function handleLtCommand(text) {
         if (!Player.LikoTool) initializeStorage();
-        const args       = text.trim().split(/\s+/);
-        const subCommand = args[0]?.toLowerCase() || "";
+        const args        = text.trim().split(/\s+/);
+        const subCommand  = args[0]?.toLowerCase() || "";
         const commandText = args.slice(1).join(" ");
 
         if (!subCommand || subCommand === "help") {
             ChatRoomSendLocal(
-                `莉柯莉絲工具使用說明書\n\n` +
-                `可用指令列表：\n` +
-                `/lt help - 顯示此說明書\n` +
-                `/lt free [目標] - 移除束縛\n` +
-                `/lt freetotal [目標] - 移除所有束縛\n` +
-                `/lt bcximport [目標] - 導入 BCX 外觀\n` +
-                `/lt fullunlock [目標] - 移除所有鎖\n` +
-                `/lt fulllock [目標] [鎖名稱] - 添加鎖\n` +
-                `/lt rpmode - 切換RP模式\n` +
-                `/lt height - 切換選中角色時身高固定\n` +
-                `/lt geteverything - 增強功能\n` +
-                `/lt wardrobe - 開啟衣櫃\n\n` +
-                `提示：點擊聊天室右上角的 🔰 按鈕快速切換 RP 模式！`
+                `莉柯莉絲工具使用說明書(Manual)\n\n` +
+                `可用指令列表(Commands)：\n` +
+                `/lt help - 顯示說明書(Show Manual)\n` +
+                `/lt free [目標] - 移除束縛(Unbundle)\n` +
+                `/lt freetotal [目標] - 移除所有束縛(all Unbundle)\n` +
+                `/lt bcximport [目標] - 導入 BCX 外觀(Import BCX appearance)\n` +
+                `/lt fulllock  [目標] [鎖名稱] - 添加鎖([Target] [Lock Type]Add lock)\n` +
+                `/lt fullunlock [目標] - 移除所有鎖(Unlock all)\n` +
+                `/lt rpmode - RP模式(Switch to RP mode)\n` +
+                `/lt height - 選擇角色時身高固定(Fixed height when selecting a character)\n` +
+                `/lt geteverything - 增強功能(Enhanced functionality)\n` +
+                `/lt wardrobe - 開啟衣櫃(Open wardrobe)\n\n` +
+                `提示：🔰 按鈕能快速切換 RP 模式！(🔰quickly switch RP mode!)`
             );
             return true;
         }
@@ -737,13 +671,13 @@
         const commands = {
             freetotal,
             free,
-            bcximport:    bcxImport,
+            bcximport:     bcxImport,
             rpmode,
-            fullunlock:   fullUnlock,
+            fullunlock:    fullUnlock,
             geteverything: getEverything,
             wardrobe,
-            fulllock:     fullLock,
-            height:       heightCommand
+            fulllock:      fullLock,
+            height:        heightCommand
         };
 
         if (commands[subCommand]) {
@@ -773,21 +707,16 @@
             console.warn("🐈‍⬛ [LT] ❌ Toast system 載入失敗，備用模式運行:", e.message);
         }
 
-        // 等待玩家登入
-        const gameLoaded = await waitFor(() => {
+        // 等待玩家登入，無超時
+        console.log("🐈‍⬛ [LT] ⌛ 等待玩家登入...");
+        await waitFor(() => {
             try { return typeof Player?.MemberNumber === "number"; }
             catch { return false; }
-        }, 90000);
-
-        if (!gameLoaded) {
-            console.error("🐈‍⬛ [LT] ❌ 遊戲載入超時，插件停止初始化");
-            return;
-        }
+        });
 
         initializeStorage();
         setupHooks();
 
-        // 註冊 /lt 指令
         const registerCommand = () => {
             CommandCombine([{
                 Tag: "lt",
@@ -801,20 +730,14 @@
             try { registerCommand(); }
             catch (e) { console.error("🐈‍⬛ [LT] ❌ 註冊命令錯誤:", e.message); }
         } else {
-            console.warn("⌛ [LT] CommandCombine 尚未就緒，等待中...");
-            waitFor(() => typeof CommandCombine === "function", 30000).then(ok => {
-                if (ok) {
-                    try { registerCommand(); }
-                    catch (e) { console.error("🐈‍⬛ [LT] ❌ 延遲註冊命令錯誤:", e.message); }
-                } else {
-                    console.warn("🐈‍⬛ [LT] ❌ CommandCombine 無法載入，/lt 指令不可用");
-                }
+            waitFor(() => typeof CommandCombine === "function").then(() => {
+                try { registerCommand(); }
+                catch (e) { console.error("🐈‍⬛ [LT] ❌ 延遲註冊命令錯誤:", e.message); }
             });
         }
 
-        // 進入聊天室後顯示載入訊息
-        waitFor(() => CurrentScreen === "ChatRoom", 60000).then(success => {
-            if (success) ChatRoomSendLocal(`莉柯莉絲工具 v${modversion} 載入！使用 /lt help 查看說明`, 30000);
+        waitFor(() => CurrentScreen === "ChatRoom").then(() => {
+            ChatRoomSendLocal(`莉柯莉絲工具 v${modversion} 載入！使用 /lt help 查看說明`, 30000);
         });
 
         console.log(`🐈‍⬛ [LT] ✅ 插件已載入 (v${modversion})`);
