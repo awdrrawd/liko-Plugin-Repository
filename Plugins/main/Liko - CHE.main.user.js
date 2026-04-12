@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.4.0
+// @version      2.4.1
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
     "use strict";
 
     let modApi;
-    const modversion = "2.4.0";
+    const modversion = "2.4.1";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
     let autoSaveTimer = null;
@@ -1799,21 +1799,21 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             DrawButton(1710, y.help, 90, 90, "", "White", gameAsset("Icons/Question.png"), T.helpTip);
 
             // Title
-            DrawText(T.title, 1000, y.title, "White", "Black");
+            DrawText(T.title, 1000, y.title, "Black", "White");
 
             // ── Left: Display ──
-            DrawText(T.secL, lc, y.secL, "#4CAF50", "Black");
+            DrawText(T.secL, lc, y.secL, "Black", "White");
             DrawCheckbox(lx, y.cb1, cb, cb, "", cheSettings.showBall);
             DrawCheckbox(lx, y.cb2, cb, cb, "", cheSettings.cacheEnabled);
             const prev = MainCanvas.textAlign;
             MainCanvas.textAlign = "left";
-            DrawTextFit(T.showBall, lx + cb + 12, y.cb1 + cb/2 + 10, 420, "White");
+            DrawTextFit(T.showBall, lx + cb + 12, y.cb1 + cb/2 + 10, 420, "Black", "White");
             DrawTextFit(T.cacheOn,  lx + cb + 12, y.cb2 + cb/2 + 10, 420,
-                cheSettings.cacheEnabled ? "White" : "#888888");
+                cheSettings.cacheEnabled ? "Black" : "White");
             MainCanvas.textAlign = prev;
 
             // ── Right: Export ──
-            DrawText(T.secR, rc, y.secR, "#4CAF50", "Black");
+            DrawText(T.secR, rc, y.secR, "Black", "White");
             const bx = rc - btnW/2;
             DrawButton(bx, y.btn1, btnW, btnH, T.btnHTML,  "White", "", "");
             DrawButton(bx, y.btn2, btnW, btnH, T.btnExcel, "White", "", "");
@@ -1823,9 +1823,9 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             DrawRect(395, y.divider, 1215, 2, "rgba(255,255,255,0.1)");
 
             // Description
-            DrawText(T.desc1, 1000, y.desc1, "#cccccc", "Black");
-            DrawText(T.desc2, 1000, y.desc2, "#aaaaaa", "Black");
-            DrawText(T.desc3, 1000, y.desc3, "#aaaaaa", "Black");
+            DrawText(T.desc1, 1000, y.desc1, "Black", "White");
+            DrawText(T.desc2, 1000, y.desc2, "Black", "White");
+            DrawText(T.desc3, 1000, y.desc3, "Black", "White");
         },
 
         click() {
