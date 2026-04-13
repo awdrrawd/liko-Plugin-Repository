@@ -1,6 +1,7 @@
 // ==UserScript==
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
+// @name:zh      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  Likolisu's Appearance editing extension.
