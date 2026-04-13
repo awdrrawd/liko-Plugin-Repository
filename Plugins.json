@@ -209,8 +209,8 @@
     },
     {
       "id": "Liko-CMC",
-      "name": "Liko的聊天室音樂控制器",
-      "en_name": "Liko's Music Controller.",
+      "name": "Liko的聊天室音樂控制器(測試中)",
+      "en_name": "Liko's Music Controller.(testing)",
       "description": "支援歌詞(需要有曲名)、歌曲列表、flac等格式",
       "en_description": "Supports lyrics (must have song title), song list, flac and other formats.",
       "additionalInfo": "",
