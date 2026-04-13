@@ -341,7 +341,7 @@ Export chat history to HTML with message recovery for up to 7 days *(caching mus
 
 ---
 
-#### 👗 Liko's Custom Dressing Room Background
+#### 👗 Liko's Custom Dressroom  Background
 > 🆔 `Liko-CDB` · EN✔️
 
 Replace the wardrobe background with grid focus assistance. Now includes a posture-change function.
