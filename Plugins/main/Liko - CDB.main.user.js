@@ -2,7 +2,7 @@
 // @name         Liko - CDB
 // @name:zh      Liko的自訂更衣室背景
 // @namespace    https://likolisu.dev/
-// @version      1.5.0
+// @version      1.5.1
 // @description  自訂更衣室背景 | Custom Dressing Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -182,18 +182,12 @@
     };
 
     const CONFIG = {
-        VERSION: "1.5.0",
+        VERSION: "1.5.1",
         DEFAULT_BG_URL: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/Leonardo_Anime_XL_anime_style_outdoor_magical_wedding_backgrou_2.jpg",
 
-        BUTTON_X: 600,
-        BUTTON_Y: 25,
-        BUTTON_SIZE: 90,
         POSE_BUTTON_X: 30,
-        POSE_BUTTON_Y: 25,
+        POSE_BUTTON_Y: 870,
         POSE_BUTTON_SIZE: 90,
-        ZOOM_BUTTON_X: 145,
-        ZOOM_BUTTON_Y: 25,
-        ZOOM_BUTTON_SIZE: 90,
 
         TIMEOUTS: {
             BC_MOD_SDK: 30000,
@@ -947,57 +941,6 @@
     }
 
     // ================================
-    // 姿勢按鈕繪製
-    // ================================
-    function drawPoseButtons() {
-        if (!poseState.enabled) return;
-        if (typeof DrawButton !== 'function') return;
-        const color = poseState.expanded ? "#5323a1" : "White";
-        DrawButton(CONFIG.POSE_BUTTON_X, CONFIG.POSE_BUTTON_Y, CONFIG.POSE_BUTTON_SIZE, CONFIG.POSE_BUTTON_SIZE, Lang.t('pose'), color, "", Lang.t('poseTooltip'));
-
-        if (poseState.expanded) {
-            const poses = CONFIG.POSES;
-            poses.forEach(function(pose, index) {
-                let bx, by;
-                if (index < 6) {
-                    bx = CONFIG.POSE_BUTTON_X + index * (CONFIG.POSE_BUTTON_SIZE + 10);
-                    by = CONFIG.POSE_BUTTON_Y + CONFIG.POSE_BUTTON_SIZE + 5;
-                } else {
-                    bx = CONFIG.POSE_BUTTON_X + 100 + (index - 6) * (CONFIG.POSE_BUTTON_SIZE + 10);
-                    by = CONFIG.POSE_BUTTON_Y + 2 * (CONFIG.POSE_BUTTON_SIZE + 5);
-                }
-                DrawButton(bx, by, CONFIG.POSE_BUTTON_SIZE, CONFIG.POSE_BUTTON_SIZE, "", "White", CONFIG.getPoseIconURL(pose.name), pose.display);
-            });
-        }
-    }
-
-    function handlePoseButtonsClick() {
-        if (!poseState.enabled || typeof MouseIn !== 'function') return false;
-        if (MouseIn(CONFIG.POSE_BUTTON_X, CONFIG.POSE_BUTTON_Y, CONFIG.POSE_BUTTON_SIZE, CONFIG.POSE_BUTTON_SIZE)) {
-            poseState.expanded = !poseState.expanded;
-            return true;
-        }
-        if (poseState.expanded) {
-            const poses = CONFIG.POSES;
-            for (let i = 0; i < poses.length; i++) {
-                let bx, by;
-                if (i < 6) {
-                    bx = CONFIG.POSE_BUTTON_X + i * (CONFIG.POSE_BUTTON_SIZE + 10);
-                    by = CONFIG.POSE_BUTTON_Y + CONFIG.POSE_BUTTON_SIZE + 5;
-                } else {
-                    bx = CONFIG.POSE_BUTTON_X + 100 + (i - 6) * (CONFIG.POSE_BUTTON_SIZE + 10);
-                    by = CONFIG.POSE_BUTTON_Y + 2 * (CONFIG.POSE_BUTTON_SIZE + 5);
-                }
-                if (MouseIn(bx, by, CONFIG.POSE_BUTTON_SIZE, CONFIG.POSE_BUTTON_SIZE)) {
-                    if (changePose(i)) poseState.expanded = false;
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    // ================================
     // 格線繪製
     // ================================
     function drawGrid(ctx, canvas, forceLayer) {
@@ -1027,40 +970,6 @@
             }
             ctx.restore();
         } catch (e) { safeError("🐈‍⬛ [CDB] ❌ 繪製格線失敗:", e); try { ctx.restore(); } catch(_) {} }
-    }
-
-    // ================================
-    // 按鈕繪製
-    // ================================
-    function drawMainButton() {
-        if (typeof DrawButton !== 'function') return;
-        const color = state.uiVisible ? "#5323a1" : (state.currentMode === 'disabled' ? "White" : "#5323a1");
-        DrawButton(CONFIG.BUTTON_X, CONFIG.BUTTON_Y, CONFIG.BUTTON_SIZE, CONFIG.BUTTON_SIZE, "", color, CONFIG.getIconURL('Extensions'), Lang.t('mainBtnTooltip'));
-    }
-
-    function handleMainButtonClick() {
-        if (typeof MouseIn !== 'function') return false;
-        if (MouseIn(CONFIG.BUTTON_X, CONFIG.BUTTON_Y, CONFIG.BUTTON_SIZE, CONFIG.BUTTON_SIZE)) {
-            toggleUI();
-            return true;
-        }
-        return false;
-    }
-
-    function drawZoomPreviewButton() {
-        if (typeof DrawButton !== 'function') return;
-        const color = zoomPreviewState.active ? "#5323a1" : "White";
-        DrawButton(CONFIG.ZOOM_BUTTON_X, CONFIG.ZOOM_BUTTON_Y, CONFIG.ZOOM_BUTTON_SIZE, CONFIG.ZOOM_BUTTON_SIZE, "", color, CONFIG.getIconURL('Search'), Lang.t('zoomTooltip'));
-    }
-
-    function handleZoomPreviewButtonClick() {
-        if (typeof MouseIn !== 'function') return false;
-        if (MouseIn(CONFIG.ZOOM_BUTTON_X, CONFIG.ZOOM_BUTTON_Y, CONFIG.ZOOM_BUTTON_SIZE, CONFIG.ZOOM_BUTTON_SIZE)) {
-            if (zoomPreviewState.active) closeZoomPreview();
-            else openZoomPreview();
-            return true;
-        }
-        return false;
     }
 
     // ================================
@@ -1362,32 +1271,331 @@
     }
 
     // ================================
+    // BCX 格式的匯出 / 匯入
+    // ================================
+    function bcxExport(C) {
+        try {
+            const bundle = [];
+            for (const item of C.Appearance) {
+                if (item.Asset && item.Asset.Group && item.Asset.Group.Category === "Appearance") {
+                    const entry = {
+                        Group: item.Asset.Group.Name,
+                        Name: item.Asset.Name,
+                    };
+                    if (item.Color != null) entry.Color = item.Color;
+                    if (item.Property != null) entry.Property = item.Property;
+                    if (item.Difficulty != null) entry.Difficulty = item.Difficulty;
+                    bundle.push(entry);
+                }
+            }
+            const compressed = LZString.compressToBase64(JSON.stringify(bundle));
+            navigator.clipboard.writeText(compressed).then(function() {
+                if (typeof CharacterAppearanceChatRoomMessage === 'function') {
+                    CharacterAppearanceChatRoomMessage("AppCopyDone");
+                }
+                safeLog("🐈‍⬛ [CDB] ✅ BCX格式外觀已複製到剪貼板");
+            }).catch(function(e) {
+                safeError("🐈‍⬛ [CDB] ❌ 複製到剪貼板失敗:", e);
+            });
+        } catch (e) {
+            safeError("🐈‍⬛ [CDB] ❌ BCX匯出失敗:", e);
+        }
+    }
+
+    async function bcxImport(C) {
+        let bcxCode;
+        try {
+            bcxCode = await navigator.clipboard.readText();
+        } catch (e) {
+            safeError("🐈‍⬛ [CDB] ❌ 讀取剪貼板失敗:", e);
+            if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal("❌ 無法讀取剪貼板");
+            return;
+        }
+        try {
+            const appearance = JSON.parse(LZString.decompressFromBase64(bcxCode));
+            if (!Array.isArray(appearance)) throw new Error("invalid format");
+
+            if (typeof ServerAppearanceLoadFromBundle === 'function') {
+                ServerAppearanceLoadFromBundle(C, C.AssetFamily, appearance, Player.MemberNumber);
+                CharacterRefresh(C, false);
+                if (typeof ChatRoomCharacterUpdate === 'function' && typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
+                    ChatRoomCharacterUpdate(C);
+                }
+            } else {
+                for (const entry of appearance) {
+                    if (entry.Group && entry.Name && AppearanceGroupAllowed(C, entry.Group)) {
+                        InventoryWear(C, entry.Name, entry.Group, entry.Color || null, null, null, entry.Property || null, false);
+                    }
+                }
+                CharacterRefresh(C, false);
+            }
+            if (typeof CharacterAppearanceChatRoomMessage === 'function') {
+                CharacterAppearanceChatRoomMessage("AppPasteDone");
+            }
+            safeLog("🐈‍⬛ [CDB] ✅ BCX格式外觀已匯入");
+        } catch (e) {
+            safeError("🐈‍⬛ [CDB] ❌ BCX匯入失敗 (可能不是BCX格式):", e);
+            try {
+                if (typeof CharacterAppearancePaste === 'function') {
+                    CharacterAppearancePaste(C, bcxCode, false);
+                }
+            } catch (_) {}
+        }
+    }
+
+    // ================================
     // BC Hooks
     // ================================
     function setupBCHooks() {
         if (!modApi) return;
         try {
+
+            // ── Hook 1: AppearanceMenuBuild ──
+            modApi.hookFunction("AppearanceMenuBuild", 10, function(args, next) {
+                next(args);
+
+                // 模式不是 Color → 清掉 color-picker 注入的按鈕
+                if (typeof CharacterAppearanceMode !== 'undefined' && CharacterAppearanceMode !== 'Color') {
+                    removeColorPickerMenuButtons();
+                }
+                // Layering 不再啟用 → 清掉 layering 注入的按鈕
+                if (typeof Layering !== 'undefined' && !Layering.IsActive()) {
+                    removeLayeringDOMButtons();
+                }
+
+                // 主模式：移除 CDB_Pose（不加入 AppearanceMenu，改由左下角 canvas 繪製）
+                // 替換 Copy/Paste，移除 WearRandom/Random，加入 CDB_Zoom 和 CDB_Extension
+                if (typeof CharacterAppearanceMode !== 'undefined' && CharacterAppearanceMode === "") {
+                    // 移除 WearRandom / Random
+                    AppearanceMenu = AppearanceMenu.filter(btn => btn !== "WearRandom" && btn !== "Random");
+
+                    // 替換 Copy / Paste 為 BCX 版本
+                    AppearanceMenu = AppearanceMenu.map(btn => {
+                        if (btn === "Copy") return "CDB_BCXExport";
+                        if (btn === "Paste") return "CDB_BCXImport";
+                        return btn;
+                    });
+
+                    // 移除現有的 CDB 按鈕（先全部拔掉，重新排列）
+                    // 注意：不加 CDB_Pose，POSE 只由左下角 canvas 繪製
+                    AppearanceMenu = AppearanceMenu.filter(btn =>
+                        btn !== "CDB_BCXExport" && btn !== "CDB_BCXImport" &&
+                        btn !== "CDB_Pose" && btn !== "CDB_Zoom" && btn !== "CDB_Extension"
+                    );
+
+                    // 目標由左至右：CDB_Zoom → CDB_Extension → Wardrobe → BCXExport → BCXImport → ...
+                    const wardrobeIdx = AppearanceMenu.findIndex(btn => btn === "Wardrobe" || btn === "WardrobeDisabled");
+                    if (wardrobeIdx >= 0) {
+                        AppearanceMenu.splice(wardrobeIdx + 1, 0, "CDB_BCXExport", "CDB_BCXImport");
+                        AppearanceMenu.unshift("CDB_Zoom", "CDB_Extension");
+                    } else {
+                        AppearanceMenu.unshift("CDB_Zoom", "CDB_Extension", "CDB_BCXExport", "CDB_BCXImport");
+                    }
+                }
+            });
+
+            // ── Hook 2: AppearanceMenuDraw ──
+            modApi.hookFunction("AppearanceMenuDraw", 10, function(args, next) {
+                const menu = AppearanceMenu;
+                const X = 2000 - menu.length * 117;
+
+                for (let B = 0; B < menu.length; B++) {
+                    const rawName = menu[B];
+                    const btnX = X + 117 * B;
+
+                    if (rawName === "CDB_Extension") {
+                        const color = state.uiVisible ? "#5323a1" : (state.currentMode === 'disabled' ? "White" : "#5323a1");
+                        DrawButton(btnX, 25, 90, 90, "", color, CONFIG.getIconURL('Extensions'), Lang.t('mainBtnTooltip'));
+                        continue;
+                    }
+                    if (rawName === "CDB_Zoom") {
+                        const color = zoomPreviewState.active ? "#5323a1" : "White";
+                        DrawButton(btnX, 25, 90, 90, "", color, CONFIG.getIconURL('Search'), Lang.t('zoomTooltip'));
+                        continue;
+                    }
+                    if (rawName === "CDB_BCXExport") {
+                        DrawButton(btnX, 25, 90, 90, "", "White", "Icons/Copy.png", "BCX 匯出外觀");
+                        continue;
+                    }
+                    if (rawName === "CDB_BCXImport") {
+                        DrawButton(btnX, 25, 90, 90, "", "White", "Icons/Paste.png", "BCX 匯入外觀");
+                        continue;
+                    }
+
+                    // 原版按鈕邏輯
+                    const ButtonName = rawName.replace(/Disabled$/, "");
+                    const ButtonSuffix = rawName === "Character" && typeof AppearanceUseCharacterInPreviewsSetting !== 'undefined' && !AppearanceUseCharacterInPreviewsSetting ? "Off" : "";
+                    const ButtonColor = typeof DialogGetMenuButtonColor === 'function' ? DialogGetMenuButtonColor(rawName) : "White";
+                    const ButtonDisabled = typeof DialogIsMenuButtonDisabled === 'function' ? DialogIsMenuButtonDisabled(rawName) : false;
+                    DrawButton(btnX, 25, 90, 90, "", ButtonColor, "Icons/" + ButtonName + ButtonSuffix + ".png", typeof TextGet === 'function' ? TextGet(rawName) : rawName, ButtonDisabled);
+                }
+            });
+
+            // ── Hook 3: AppearanceMenuClick ──
+            modApi.hookFunction("AppearanceMenuClick", 10, function(args, next) {
+                const C = CharacterAppearanceSelection;
+                const menu = AppearanceMenu;
+                const X = 2000 - menu.length * 117;
+
+                for (let B = 0; B < menu.length; B++) {
+                    if (!MouseXIn(X + 117 * B, 90)) continue;
+                    const rawName = menu[B];
+
+                    if (rawName === "CDB_Extension") { toggleUI(); return; }
+                    if (rawName === "CDB_Zoom") {
+                        if (zoomPreviewState.active) closeZoomPreview(); else openZoomPreview();
+                        return;
+                    }
+                    if (rawName === "CDB_BCXExport") { bcxExport(C); return; }
+                    if (rawName === "CDB_BCXImport") { bcxImport(C); return; }
+                }
+
+                return next(args);
+            });
+
+            // ── Hook 4: AppearanceRun ──
+            // 繪製格線（above layer）、POSE 展開選單（左下角，所有模式）
             modApi.hookFunction("AppearanceRun", 4, function(args, next) {
                 const result = next(args);
                 safeCall(function() {
-                    if (isMainAppearanceMode()) {
-                        if (state.gridLayer === 'above' && state.gridMode !== 'disabled' && state.currentMode !== 'disabled') {
-                            try {
-                                const mainCanvas = document.getElementById('MainCanvas') || document.querySelector('canvas');
-                                if (mainCanvas) {
-                                    const ctx = mainCanvas.getContext('2d');
-                                    drawGrid(ctx, mainCanvas, 'above');
-                                }
-                            } catch(e) { safeError("🐈‍⬛ [CDB] ❌ above 格線繪製失敗:", e); }
+                    if (!isInAppearanceScreen()) return;
+
+                    // 格線（above layer）- 僅主模式
+                    if (isMainAppearanceMode() &&
+                        state.gridLayer === 'above' &&
+                        state.gridMode !== 'disabled' &&
+                        state.currentMode !== 'disabled') {
+                        try {
+                            const mainCanvas = document.getElementById('MainCanvas') || document.querySelector('canvas');
+                            if (mainCanvas) {
+                                const ctx = mainCanvas.getContext('2d');
+                                drawGrid(ctx, mainCanvas, 'above');
+                            }
+                        } catch(e) { safeError("🐈‍⬛ [CDB] ❌ above 格線繪製失敗:", e); }
+                    }
+
+                    // ── Color 模式：注入 color-picker-menu ──
+                    if (typeof CharacterAppearanceMode !== 'undefined' && CharacterAppearanceMode === 'Color') {
+                        injectColorPickerMenuButtons();
+                    } else {
+                        if (document.getElementById('cdb-cp-ext')) removeColorPickerMenuButtons();
+                    }
+
+                    // ── Layering 頁面 ──
+                    if (typeof Layering !== 'undefined' && Layering.IsActive()) {
+                        injectLayeringDOMButtons();
+                    } else {
+                        if (document.getElementById('cdb-layer-ext')) removeLayeringDOMButtons();
+                    }
+
+                    // ── POSE 按鈕（左下角，所有模式持續顯示）──
+                    // 只在這裡繪製，不在 AppearanceMenuDraw 裡重複
+                    if (poseState.enabled && typeof DrawButton === 'function') {
+                        const PX = CONFIG.POSE_BUTTON_X;
+                        const PY = CONFIG.POSE_BUTTON_Y;
+                        const PS = CONFIG.POSE_BUTTON_SIZE;
+                        const poseColor = poseState.expanded ? "#5323a1" : "White";
+                        DrawButton(PX, PY, PS, PS, Lang.t('pose'), poseColor, "", Lang.t('poseTooltip'));
+
+                        // ── POSE 展開選單：L形排列 ──
+                        // 向上一排（6個）+ 向右一排（剩餘，最多5個）
+                        // 向上：從 (PX, PY-PS-5) 開始，往上排列
+                        // 向右：從 (PX+PS+5, PY) 開始，往右排列
+                        if (poseState.expanded) {
+                            const poses = CONFIG.POSES;
+                            // 向上的按鈕數（上方一欄，最多6個）
+                            const upCount = Math.min(6, poses.length);
+                            // 向右的按鈕數（其餘）
+                            const rightCount = poses.length - upCount;
+
+                            // 向上排列（index 0 ~ upCount-1）：最底的是 index 0，最頂的是 index upCount-1
+                            for (let i = 0; i < upCount; i++) {
+                                const bx = PX;
+                                const by = PY - (i + 1) * (PS + 5);
+                                DrawButton(bx, by, PS, PS, "", "White", CONFIG.getPoseIconURL(poses[i].name), poses[i].display);
+                            }
+
+                            // 向右排列（index upCount ~ poses.length-1）
+                            for (let i = 0; i < rightCount; i++) {
+                                const bx = PX + PS + 5 + i * (PS + 5);
+                                const by = PY;
+                                DrawButton(bx, by, PS, PS, "", "White", CONFIG.getPoseIconURL(poses[upCount + i].name), poses[upCount + i].display);
+                            }
                         }
-                        drawMainButton();
-                        drawZoomPreviewButton();
-                        drawPoseButtons();
                     }
                 });
                 return result;
             });
 
+            // ── Hook 5: AppearanceClick ──
+            modApi.hookFunction("AppearanceClick", 4, function(args, next) {
+                // 攔截：滑鼠在任何 HTML overlay 上時直接 return
+                const htmlUiIds = ['color-picker-menu', 'layering', 'bc-colorpicker-ui', 'bc-zoom-preview'];
+                for (const id of htmlUiIds) {
+                    const el = document.getElementById(id);
+                    if (!el) continue;
+                    const style = window.getComputedStyle(el);
+                    if (style.display === 'none' || style.visibility === 'hidden') continue;
+                    const rect = el.getBoundingClientRect();
+                    try {
+                        const canvas = document.getElementById('MainCanvas') || document.querySelector('canvas');
+                        if (canvas) {
+                            const cr = canvas.getBoundingClientRect();
+                            const scaleX = cr.width / 2000;
+                            const scaleY = cr.height / 1000;
+                            const pageX = cr.left + MouseX * scaleX;
+                            const pageY = cr.top  + MouseY * scaleY;
+                            if (pageX >= rect.left && pageX <= rect.right && pageY >= rect.top && pageY <= rect.bottom) {
+                                return;
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                // 處理 POSE 按鈕（左下角）點擊 + 展開選單點擊
+                if (poseState.enabled && typeof MouseIn === 'function') {
+                    const PX = CONFIG.POSE_BUTTON_X;
+                    const PY = CONFIG.POSE_BUTTON_Y;
+                    const PS = CONFIG.POSE_BUTTON_SIZE;
+
+                    // POSE 主按鈕
+                    if (MouseIn(PX, PY, PS, PS)) {
+                        poseState.expanded = !poseState.expanded;
+                        return;
+                    }
+
+                    // 展開選單點擊（L形）
+                    if (poseState.expanded) {
+                        const poses = CONFIG.POSES;
+                        const upCount = Math.min(6, poses.length);
+                        const rightCount = poses.length - upCount;
+
+                        // 向上的按鈕
+                        for (let i = 0; i < upCount; i++) {
+                            const bx = PX;
+                            const by = PY - (i + 1) * (PS + 5);
+                            if (MouseIn(bx, by, PS, PS)) {
+                                if (changePose(i)) poseState.expanded = false;
+                                return;
+                            }
+                        }
+
+                        // 向右的按鈕
+                        for (let i = 0; i < rightCount; i++) {
+                            const bx = PX + PS + 5 + i * (PS + 5);
+                            const by = PY;
+                            if (MouseIn(bx, by, PS, PS)) {
+                                if (changePose(upCount + i)) poseState.expanded = false;
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                return next(args);
+            });
+
+            // ── Hook 6: CharacterLoadCanvas ──
             modApi.hookFunction("CharacterLoadCanvas", 4, function(args, next) {
                 const result = next(args);
                 if (args[0] === CharacterAppearanceSelection && zoomPreviewState.active) {
@@ -1396,19 +1604,14 @@
                 return result;
             });
 
-            modApi.hookFunction("AppearanceClick", 4, function(args, next) {
-                const handled = safeCall(function() {
-                    if (!isMainAppearanceMode()) return false;
-                    return handleMainButtonClick() || handleZoomPreviewButtonClick() || handlePoseButtonsClick();
-                }, false);
-                if (handled) return;
-                return next(args);
-            });
-
+            // ── Hook 7: 退出更衣室清理 ──
             function onExitAppearance() {
                 closeZoomPreview();
                 poseState.expanded = false;
                 hideUI();
+                removeLayeringDOMButtons();
+                removeColorPickerMenuButtons();
+                removePoseExpandDOM();
             }
 
             modApi.hookFunction("AppearanceExit", 4, function(args, next) {
@@ -1445,6 +1648,254 @@
     }
 
     // ================================
+    // 工具：建立符合遊戲風格的 DOM 按鈕
+    // ================================
+    function makeGameStyleButton(id, iconSrc, tooltipText, onClick) {
+        const tooltipId = id + '-tooltip';
+
+        const btn = document.createElement('button');
+        btn.id = id;
+        btn.setAttribute('aria-labelledby', tooltipId);
+        btn.setAttribute('screen-generated', 'Appearance');
+        btn.setAttribute('type', 'button');
+        btn.setAttribute('role', 'menuitem');
+        btn.setAttribute('tabindex', '-1');
+        btn.className = 'blank-button button button-styling HideOnPopup';
+
+        const tooltip = document.createElement('div');
+        tooltip.id = tooltipId;
+        tooltip.setAttribute('role', 'tooltip');
+        tooltip.className = 'button-tooltip button-tooltip-left';
+        tooltip.textContent = tooltipText;
+        // ── 修正：tooltip 預設隱藏，只在 hover 時顯示 ──
+        tooltip.style.cssText = 'visibility:hidden;opacity:0;transition:opacity 0.15s;pointer-events:none;';
+
+        const img = document.createElement('div');
+        img.id = id + '-image';
+        img.setAttribute('aria-hidden', 'true');
+        img.setAttribute('src', iconSrc);
+        img.setAttribute('role', 'img');
+        img.className = 'button-image';
+        img.style.backgroundImage = 'url("' + iconSrc + '")';
+        img.style.maskImage = 'url("' + iconSrc + '")';
+        img.style.backgroundColor = 'rgb(255,255,255)';
+
+        btn.appendChild(tooltip);
+        btn.appendChild(img);
+
+        // ── 修正：用 mouseenter/mouseleave 控制 tooltip 顯示 ──
+        btn.addEventListener('mouseenter', function() {
+            tooltip.style.visibility = 'visible';
+            tooltip.style.opacity = '1';
+        });
+        btn.addEventListener('mouseleave', function() {
+            tooltip.style.visibility = 'hidden';
+            tooltip.style.opacity = '0';
+        });
+
+        btn.addEventListener('click', function(e) {
+            // 點擊後強制隱藏 tooltip
+            tooltip.style.visibility = 'hidden';
+            tooltip.style.opacity = '0';
+            e.stopPropagation();
+            onClick();
+        });
+
+        return btn;
+    }
+
+    // 設置按鈕的 active 狀態色
+    function setGameBtnActive(btnId, active) {
+        const img = document.getElementById(btnId + '-image');
+        if (!img) return;
+        img.style.backgroundColor = active ? 'rgb(68,1,113)' : 'rgb(255,255,255)';
+    }
+
+    // ================================
+    // Color Picker Menu DOM 注入
+    // ================================
+    function injectColorPickerMenuButtons() {
+        if (document.getElementById('cdb-cp-ext')) {
+            updateColorPickerMenuStates();
+            return;
+        }
+        const menu = document.getElementById('color-picker-menu');
+        if (!menu) return;
+
+        const extBtn = makeGameStyleButton(
+            'cdb-cp-ext',
+            CONFIG.getIconURL('Extensions'),
+            Lang.t('mainBtnTooltip'),
+            function() { toggleUI(); updateColorPickerMenuStates(); }
+        );
+        const zoomBtn = makeGameStyleButton(
+            'cdb-cp-zoom',
+            CONFIG.getIconURL('Search'),
+            Lang.t('zoomTooltip'),
+            function() { if (zoomPreviewState.active) closeZoomPreview(); else openZoomPreview(); updateColorPickerMenuStates(); }
+        );
+
+        // RTL menubar：appendChild = 視覺最左邊
+        menu.appendChild(extBtn);
+        menu.appendChild(zoomBtn);
+
+        updateColorPickerMenuStates();
+    }
+
+    function updateColorPickerMenuStates() {
+        setGameBtnActive('cdb-cp-ext', state.uiVisible || state.currentMode !== 'disabled');
+        setGameBtnActive('cdb-cp-zoom', zoomPreviewState.active);
+    }
+
+    function removeColorPickerMenuButtons() {
+        ['cdb-cp-ext', 'cdb-cp-zoom'].forEach(function(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        });
+    }
+
+    // ================================
+    // Layering DOM 按鈕注入
+    // ── 修正：改用 prepend 插在最前面（RTL 視覺最右邊）
+    //    然後讓 CSS flex-direction 讓我們的按鈕出現在原有按鈕左邊
+    //    實際上：RTL menubar 中 prepend = DOM 最前 = 視覺最右，
+    //    appendChild = DOM 最後 = 視覺最左
+    //    用戶要求「往左排列」= 在現有按鈕左邊 = 視覺最左 = appendChild ✓
+    //    但用戶說現在已經是 appendChild 且在下面…
+    //    問題可能是 layering-button-grid 是 flex row 非 RTL，
+    //    所以我們改用 insertBefore(menu.firstChild) 把按鈕插在最前面（視覺最左）
+    // ================================
+    function injectLayeringDOMButtons() {
+        // 隱藏 layering-asset-header
+        const assetHeader = document.getElementById('layering-asset-header');
+        if (assetHeader && !assetHeader.dataset.cdbHidden) {
+            assetHeader.dataset.cdbHidden = '1';
+            assetHeader.style.display = 'none';
+        }
+
+        if (document.getElementById('cdb-layer-ext')) {
+            updateLayeringDOMButtonStates();
+            return;
+        }
+
+        const btnGrid = document.getElementById('layering-button-grid');
+        if (!btnGrid) return;
+
+        const extBtn = makeGameStyleButton(
+            'cdb-layer-ext',
+            CONFIG.getIconURL('Extensions'),
+            Lang.t('mainBtnTooltip'),
+            function() { toggleUI(); updateLayeringDOMButtonStates(); }
+        );
+        const zoomBtn = makeGameStyleButton(
+            'cdb-layer-zoom',
+            CONFIG.getIconURL('Search'),
+            Lang.t('zoomTooltip'),
+            function() { if (zoomPreviewState.active) closeZoomPreview(); else openZoomPreview(); updateLayeringDOMButtonStates(); }
+        );
+
+        // ── 修正：RTL menubar 中 prepend = 視覺最右邊（右邊第一個）
+        // 要讓 CDB 按鈕出現在所有原有按鈕的「左邊」
+        // RTL 排列：DOM 順序越後 = 視覺越左
+        // 所以用 appendChild 讓 CDB 按鈕在視覺上排在最左邊
+        // 但現在的問題是按鈕「往下排列」，這可能是因為 layering-button-grid
+        // 的 flex 排列方向或 wrap 設定。
+        // 檢查：data-direction="rtl" + class="menubar" 通常是 flex-direction: row-reverse
+        // 所以 DOM 最後的元素顯示在視覺最左邊 ✓
+        // 「往下排列」可能是因為外層容器寬度不夠，發生了 wrap
+        // 解法：設定按鈕 flex-shrink:0 防止被擠壓
+        extBtn.style.flexShrink = '0';
+        zoomBtn.style.flexShrink = '0';
+
+        btnGrid.appendChild(extBtn);
+        btnGrid.appendChild(zoomBtn);
+
+        updateLayeringDOMButtonStates();
+    }
+
+    function updateLayeringDOMButtonStates() {
+        setGameBtnActive('cdb-layer-ext', state.uiVisible || state.currentMode !== 'disabled');
+        setGameBtnActive('cdb-layer-zoom', zoomPreviewState.active);
+    }
+
+    function removeLayeringDOMButtons() {
+        const assetHeader = document.getElementById('layering-asset-header');
+        if (assetHeader && assetHeader.dataset.cdbHidden) {
+            delete assetHeader.dataset.cdbHidden;
+            assetHeader.style.display = '';
+        }
+        ['cdb-layer-ext', 'cdb-layer-zoom'].forEach(function(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        });
+    }
+
+    // ================================
+    // POSE 展開 DOM 面板（Color / Layering overlay 上使用）
+    // ================================
+    function injectPoseExpandDOM() {
+        if (document.getElementById('cdb-pose-expand-dom')) {
+            return;
+        }
+        const poses = CONFIG.POSES;
+        const COLS = 6;
+        const BTN = 52;
+        const GAP = 4;
+
+        const panel = document.createElement('div');
+        panel.id = 'cdb-pose-expand-dom';
+        panel.style.cssText = [
+            'position:fixed;left:4px;top:130px;',
+            'display:flex;flex-wrap:wrap;gap:' + GAP + 'px;',
+            'padding:6px;',
+            'background:rgba(20,20,20,0.92);',
+            'border:1px solid rgba(157,78,221,0.6);',
+            'border-radius:8px;',
+            'z-index:10002;',
+            'pointer-events:auto;',
+            'width:' + (COLS * (BTN + GAP) - GAP + 12) + 'px;'
+        ].join('');
+
+        poses.forEach(function(pose, index) {
+            const btn = document.createElement('button');
+            btn.title = pose.display;
+            btn.style.cssText = [
+                'width:' + BTN + 'px;height:' + BTN + 'px;',
+                'background:rgba(255,255,255,0.08);',
+                'border:1px solid rgba(255,255,255,0.2);',
+                'border-radius:6px;cursor:pointer;padding:2px;',
+                'display:flex;align-items:center;justify-content:center;',
+                'transition:background .15s;'
+            ].join('');
+            const img = document.createElement('img');
+            img.src = CONFIG.getPoseIconURL(pose.name);
+            img.alt = pose.display;
+            img.style.cssText = 'width:44px;height:44px;object-fit:contain;pointer-events:none;';
+            img.onerror = function() { img.style.display = 'none'; btn.textContent = pose.display.slice(0, 4); btn.style.fontSize = '10px'; btn.style.color = '#fff'; };
+            btn.appendChild(img);
+            btn.addEventListener('mouseenter', function() { btn.style.background = 'rgba(83,35,161,0.5)'; });
+            btn.addEventListener('mouseleave', function() { btn.style.background = 'rgba(255,255,255,0.08)'; });
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (changePose(index)) {
+                    poseState.expanded = false;
+                    removePoseExpandDOM();
+                    updateColorPickerMenuStates();
+                    updateLayeringDOMButtonStates();
+                }
+            });
+            panel.appendChild(btn);
+        });
+
+        document.body.appendChild(panel);
+    }
+
+    function removePoseExpandDOM() {
+        const el = document.getElementById('cdb-pose-expand-dom');
+        if (el) el.remove();
+    }
+
+    // ================================
     // 初始化和清理
     // ================================
     function initializeModApi() {
@@ -1467,6 +1918,9 @@
             closeZoomPreview();
             poseState.expanded = false;
             hideUI();
+            removeLayeringDOMButtons();
+            removeColorPickerMenuButtons();
+            removePoseExpandDOM();
 
             if (originalDrawImage) {
                 CanvasRenderingContext2D.prototype.drawImage = originalDrawImage;
@@ -1544,6 +1998,8 @@
                 openZoom: openZoomPreview,
                 closeZoom: closeZoomPreview,
                 refreshZoom: function() { updateZoomPreview(true); },
+                bcxExport: bcxExport,
+                bcxImport: bcxImport,
                 test: function() {
                     safeLog("📋 CDB v" + CONFIG.VERSION);
                     safeLog("🌐 語言: " + Lang.get());
@@ -1551,6 +2007,7 @@
                     safeLog("👗 在更衣室主畫面: " + isMainAppearanceMode());
                     safeLog("📐 格線模式: " + state.gridMode + " / 格線圖層: " + state.gridLayer);
                     safeLog("🔍 放大鏡: " + (zoomPreviewState.active ? '開啟' : '關閉'));
+                    safeLog("🔲 Layering 啟用: " + (typeof Layering !== 'undefined' && Layering.IsActive() ? '是' : '否'));
                 }
             };
 
