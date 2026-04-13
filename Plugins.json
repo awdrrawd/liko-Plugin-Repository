@@ -293,6 +293,18 @@
       "icon": "🎮",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20TRC.main.user.js",
       "priority": 7
+    },
+    {
+      "id": "Liko-AEE",
+      "name": "Liko的外觀編輯拓展(測試中)",
+      "en_name": "Liko's Appearance editing extension.(testing)",
+      "description": "更強大的編輯器，並且支援更多的服裝編輯(測試中)",
+      "en_description": "A more powerful editor, and support for more clothing editing.(testing)",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "🐈‍⬛",
+      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20AEE.main.user.js",
+      "priority": 99
     }
   ]
 }
