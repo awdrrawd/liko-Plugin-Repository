@@ -10,8 +10,6 @@
 // @require      https://cdn.jsdelivr.net/gh/Jomshir98/bondage-club-mod-sdk@0.3.3/dist/bcmodsdk.js
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @run-at       document-end
-// @downloadURL  https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20TRC.main.user.js
-// @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20TRC.main.user.js
 // ==/UserScript==
 
 (function () {
@@ -147,11 +145,11 @@
 
 
         const hasRemote = ae.includes('UseRemote')
-            && ('Mode' in prop || 'Intensity' in prop || 'TypeRecord' in prop);
+        && ('Mode' in prop || 'Intensity' in prop || 'TypeRecord' in prop);
 
 
         const hasShockControl = 'Luzi_ManualShock' in prop
-            || (typeof prop.TriggerValues === 'string' && prop.TriggerValues.includes('Shock'));
+        || (typeof prop.TriggerValues === 'string' && prop.TriggerValues.includes('Shock'));
 
         return hasVibEffect || hasShockEffect || hasRemote || hasShockControl;
     }
@@ -163,9 +161,9 @@
 
     function canInteractWithChar(C) {
         try { return typeof ServerChatRoomGetAllowItem === 'function'
-                     ? ServerChatRoomGetAllowItem(Player, C)
-                     : true; // 找不到函式時預設允許
-        } catch { return true; }
+            ? ServerChatRoomGetAllowItem(Player, C)
+        : true; // 找不到函式時預設允許
+            } catch { return true; }
     }
 
     function scanRoom() {
@@ -173,45 +171,45 @@
         return ChatRoomCharacter
             .filter(C => C.MemberNumber !== Player.MemberNumber)
             .map(C => ({
-                char: C,
-                canInteract: canInteractWithChar(C),
-                items: C.Appearance
-                    .filter(item => isVibratingItem(item))
-                    .map(item => {
-                        const bcInt = item.Property?.Intensity ?? -1;
-                        return {
-                            item,
-                            canControl:       canControlItem(C, item),
-                            displayName:      item.Craft?.Name || item.Asset.Description || item.Asset.Name,
-                            assetName:        item.Asset.Name,
-                            group:            item.Asset.Group.Name,
-                            currentMode:      item.Property?.Mode ?? 'Off',
-                            // 把 BC 的 -1~3 轉成 slider 的 0~4
-                            currentSlider:    BC_INT_TO_SLIDER[bcInt] ?? 0,
-                            allowEffect:      item.Asset.AllowEffect ?? [],
-                            hasCraft:         !!item.Craft?.Name,
+            char: C,
+            canInteract: canInteractWithChar(C),
+            items: C.Appearance
+            .filter(item => isVibratingItem(item))
+            .map(item => {
+                const bcInt = item.Property?.Intensity ?? -1;
+                return {
+                    item,
+                    canControl:       canControlItem(C, item),
+                    displayName:      item.Craft?.Name || item.Asset.Description || item.Asset.Name,
+                    assetName:        item.Asset.Name,
+                    group:            item.Asset.Group.Name,
+                    currentMode:      item.Property?.Mode ?? 'Off',
+                    // 把 BC 的 -1~3 轉成 slider 的 0~4
+                    currentSlider:    BC_INT_TO_SLIDER[bcInt] ?? 0,
+                    allowEffect:      item.Asset.AllowEffect ?? [],
+                    hasCraft:         !!item.Craft?.Name,
 
-                            hasVibrate:       (item.Asset.AllowEffect ?? []).some(e => e === 'Vibrating' || e === 'Egged'),
-                            isSimpleVibrator: 'vibrating' in (item.Property?.TypeRecord ?? {}),
+                    hasVibrate:       (item.Asset.AllowEffect ?? []).some(e => e === 'Vibrating' || e === 'Egged'),
+                    isSimpleVibrator: 'vibrating' in (item.Property?.TypeRecord ?? {}),
 
-                            hasOrgasmCtrl:    'o' in (item.Property?.TypeRecord ?? {}),
+                    hasOrgasmCtrl:    'o' in (item.Property?.TypeRecord ?? {}),
 
-                            hasShock:         'Luzi_ManualShock' in (item.Property ?? {})
-                                              || ('typed' in (item.Property?.TypeRecord ?? {}) && 'TriggerCount' in (item.Property ?? {}))
-                                              || (typeof item.Property?.TriggerValues === 'string' && item.Property.TriggerValues.includes('Shock') && 'TriggerCount' in (item.Property ?? {})),
+                    hasShock:         'Luzi_ManualShock' in (item.Property ?? {})
+                    || ('typed' in (item.Property?.TypeRecord ?? {}) && 'TriggerCount' in (item.Property ?? {}))
+                    || (typeof item.Property?.TriggerValues === 'string' && item.Property.TriggerValues.includes('Shock') && 'TriggerCount' in (item.Property ?? {})),
 
-                            hasChastityShield:'c' in (item.Property?.TypeRecord ?? {}),
+                    hasChastityShield:'c' in (item.Property?.TypeRecord ?? {}),
 
-                            currentCVal:      item.Property?.TypeRecord?.c ?? 0,
+                    currentCVal:      item.Property?.TypeRecord?.c ?? 0,
 
-                            cachedFrontHideItem: ('c' in (item.Property?.TypeRecord ?? {}) && (item.Property?.TypeRecord?.c ?? 0) & 1)
-                                              ? [...(item.Property?.HideItem ?? [])]
-                                              : [],
-                        };
-                    })
+                    cachedFrontHideItem: ('c' in (item.Property?.TypeRecord ?? {}) && (item.Property?.TypeRecord?.c ?? 0) & 1)
+                    ? [...(item.Property?.HideItem ?? [])]
+                    : [],
+                };
+            })
 
-                    .filter(idata => idata.hasVibrate || idata.hasShock || idata.hasOrgasmCtrl || idata.hasChastityShield),
-            }))
+            .filter(idata => idata.hasVibrate || idata.hasShock || idata.hasOrgasmCtrl || idata.hasChastityShield),
+        }))
             .filter(e => e.items.length > 0);
     }
 
@@ -339,7 +337,7 @@
             const allowEff = Array.isArray(liveItem.Asset.AllowEffect) ? liveItem.Asset.AllowEffect : [];
             const assetAllowsVibrating = allowEff.includes('Vibrating');
             const baseEffect = Array.isArray(liveItem.Property?.Effect)
-                ? [...liveItem.Property.Effect] : [];
+            ? [...liveItem.Property.Effect] : [];
             let newEffect;
             if (assetAllowsVibrating) {
                 if (isOff || forceNoVibe) {
@@ -699,19 +697,19 @@
             ChatRoomCharacter
                 .filter(C => C.MemberNumber !== Player.MemberNumber && !entries.find(e => e.char === C))
                 .forEach(C => {
-                    const name = charDisplayName(C);
-                    const row  = document.createElement('div');
-                    row.className = 'bcr-char-row no-items';
-                    const av = makeAvatarEl(C); av.style.opacity = '0.3';
-                    const metaDiv = document.createElement('div');
-                    metaDiv.className = 'bcr-char-meta';
-                    metaDiv.innerHTML = `<div class="bcr-char-name" style="color:#3a1a40">${name}</div><div class="bcr-char-id">#${C.MemberNumber}</div>`;
-                    const badge = document.createElement('div');
-                    badge.className = 'bcr-cbadge bcr-cbadge-off';
-                    badge.textContent = T('zeroItems');
-                    row.appendChild(av); row.appendChild(metaDiv); row.appendChild(badge);
-                    list.appendChild(row);
-                });
+                const name = charDisplayName(C);
+                const row  = document.createElement('div');
+                row.className = 'bcr-char-row no-items';
+                const av = makeAvatarEl(C); av.style.opacity = '0.3';
+                const metaDiv = document.createElement('div');
+                metaDiv.className = 'bcr-char-meta';
+                metaDiv.innerHTML = `<div class="bcr-char-name" style="color:#3a1a40">${name}</div><div class="bcr-char-id">#${C.MemberNumber}</div>`;
+                const badge = document.createElement('div');
+                badge.className = 'bcr-cbadge bcr-cbadge-off';
+                badge.textContent = T('zeroItems');
+                row.appendChild(av); row.appendChild(metaDiv); row.appendChild(badge);
+                list.appendChild(row);
+            });
         }
     }
 
@@ -857,7 +855,7 @@
                 });
                 advGrid.appendChild(btn);
             });
-        }
+        } 
 
         // ── Effects 區塊 ──
         const effGrid = document.getElementById('bcr-eff-grid');
@@ -874,7 +872,7 @@
             // ── 高潮控制（o key）：正常/寸止/拒絕 ──
             if (idata.hasOrgasmCtrl) {
                 const orgLbl = document.createElement('div');
-                orgLbl.className = 'bcr-ctrl-lbl'; orgLbl.textContent = t("ORGASM");
+                orgLbl.className = 'bcr-ctrl-lbl'; orgLbl.textContent = T('orgasm');
                 effGrid.appendChild(orgLbl);
                 const curO = idata.item.Property?.TypeRecord?.o ?? 0;
                 const orgRow = document.createElement('div');
@@ -899,7 +897,7 @@
                 const shdLbl = document.createElement('div');
                 shdLbl.className = 'bcr-ctrl-lbl';
                 shdLbl.style.marginTop = idata.hasOrgasmCtrl ? '8px' : '0';
-                shdLbl.textContent = t("SHIELD");
+                shdLbl.textContent = T('shield');
                 effGrid.appendChild(shdLbl);
                 const curC = idata.currentCVal ?? (idata.item.Property?.TypeRecord?.c ?? 0);
                 const shdRow = document.createElement('div');
@@ -969,8 +967,8 @@
             ServerSend('ChatRoomCharacterItemUpdate', pkt);
 
             const actionKey = oVal === 2 ? 'VibeModeActionDeny'
-                            : oVal === 1 ? 'VibeModeActionEdge'
-                            :              'VibeModeActionIncreaseTo' + (SLIDER_TO_BC_INT[itemData.currentSlider] ?? 0);
+            : oVal === 1 ? 'VibeModeActionEdge'
+            :              'VibeModeActionIncreaseTo' + (SLIDER_TO_BC_INT[itemData.currentSlider] ?? 0);
             ServerSend('ChatRoomChat', {
                 Content: actionKey, Type: 'Action',
                 Dictionary: [
@@ -997,8 +995,8 @@
             // 前板的 HideItem：若前板目前啟用就從 liveItem 取，否則用快取
             const frontWasActive = (currentC & 1) === 1;
             let frontHideItem = frontWasActive
-                ? [...(liveItem.Property?.HideItem ?? [])]
-                : (itemData.cachedFrontHideItem?.length ? itemData.cachedFrontHideItem : []);
+            ? [...(liveItem.Property?.HideItem ?? [])]
+            : (itemData.cachedFrontHideItem?.length ? itemData.cachedFrontHideItem : []);
 
             // 若現在要啟用前板且有新的 HideItem，更新快取
             if (frontActive && frontHideItem.length) {
@@ -1017,7 +1015,7 @@
 
             // 更新 Effect（Chaste / ButtChaste）
             let newEffect = [...(liveItem.Property?.Effect ?? [])]
-                .filter(e => e !== 'Chaste' && e !== 'ButtChaste');
+            .filter(e => e !== 'Chaste' && e !== 'ButtChaste');
             if (frontActive) newEffect = newEffect.includes('Chaste')     ? newEffect : [...newEffect, 'Chaste'];
             if (backActive)  newEffect = newEffect.includes('ButtChaste') ? newEffect : [...newEffect, 'ButtChaste'];
 
@@ -1075,7 +1073,7 @@
         if (mb) mb.classList.remove('visible');
         phoneOpen = false; miniVisible = false;
     }
-    // 📱 BC 按鈕：展開中 or mini 中 → 完全關閉；完全關閉 → 展開
+    //🎮 BC 按鈕：展開中 or mini 中 → 完全關閉；完全關閉 → 展開
     function togglePhone() {
         if (phoneOpen || miniVisible) closePhone();
         else openPhone();
@@ -1175,7 +1173,7 @@
 
         const mini = document.createElement('div');
         mini.id = 'bcr-mini';
-        mini.innerHTML = `<span class="mini-icon">📱</span><div class="mini-pill"></div><span class="mini-label">${T('tapOpen')}</span>`;
+        mini.innerHTML = `<span class="mini-icon">🎮</span><div class="mini-pill"></div><span class="mini-label">${T('tapOpen')}</span>`;
         document.body.appendChild(mini);
 
         let drag = { on: false, sx: 0, sy: 0, px: 0, py: 0 };
@@ -1281,7 +1279,7 @@
 
     modApi.hookFunction('ChatRoomMenuDraw', 10, (args, next) => {
         next(args);
-        DrawButton(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE, '📱', (phoneOpen || miniVisible) ? 'Pink' : 'Gray', '', 'Remote Control');
+        DrawButton(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE, '🎮', (phoneOpen || miniVisible) ? 'Pink' : 'Gray', '', 'Remote Control');
     });
     modApi.hookFunction('ChatRoomClick', 10, (args, next) => {
         if (MouseIn(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE)) {
