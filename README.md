@@ -69,7 +69,7 @@ import(`https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Co
 
 ## 🔌 插件列表
 
-> 語言標示說明：**EN✔️** = 完整英文支援　**EN🔺** = 部分英文支援（主要為中文介面）
+> 語言標示說明：**EN✔️** = 完整英文支援
 
 ---
 
@@ -301,7 +301,7 @@ If you don't want to use PCM, head to the [`/Plugins`](./Plugins) folder and ins
 
 ## 🔌 Plugin List
 
-> Language support: **EN✔️** = full English support　**EN🔺** = partial English support (primarily Chinese UI)
+> Language support: **EN✔️** = full English support
 
 ---
 
