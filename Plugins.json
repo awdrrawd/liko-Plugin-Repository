@@ -281,6 +281,18 @@
       "icon": "📋",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CFT.main.user.js",
       "priority": 8
+    },
+    {
+      "id": "Liko-TRC",
+      "name": "Liko的玩具遙控器",
+      "en_name": "Liko's Toy remote control",
+      "description": "聊天室玩具控制",
+      "en_description": "Chat room Toy remote control",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "🕹️",
+      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20TRC.main.user.js",
+      "priority": 7
     }
   ]
 }
