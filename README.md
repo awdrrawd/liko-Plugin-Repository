@@ -76,7 +76,7 @@ import(`https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Co
 ### 🐈‍⬛ Liko 自製插件
 
 #### 🧰 Liko's Tool Kit · Liko的工具包
-> 🆔 `Liko-Tool` · EN🔺
+> 🆔 `Liko-Tool` · EN✔️
 
 有許多小功能合集的工具包，但也有點不穩定。
 
@@ -308,7 +308,7 @@ If you don't want to use PCM, head to the [`/Plugins`](./Plugins) folder and ins
 ### 🐈‍⬛ Liko's Own Plugins
 
 #### 🧰 Liko's Tool Kit
-> 🆔 `Liko-Tool` · EN🔺
+> 🆔 `Liko-Tool` · EN✔️
 
 A collection of small utility functions — handy but somewhat unstable.
 
