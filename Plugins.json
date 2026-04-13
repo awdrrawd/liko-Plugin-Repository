@@ -1,24 +1,24 @@
 {
-  "updateId": "260412",
+  "updateId": "260413",
   "changelog": [
-    "⭐MAT(機器翻譯) v1.1.5更新",
-    "修正拓展組件內白色主題下無法顯示文字的問題",
-    "改進，聊天室信息如果是純網址的情況下，跳過翻譯",
     "⭐LT(Liko的工具包) v1.4更新",
     "支援英文語言",
     "增加外觀回滾功能",
     "修正逾時登入後初始化失敗問題",
-    "修正劫持身高時，道具位置錯誤問題"
+    "修正劫持身高時，道具位置錯誤問題",
+    "⭐CDB(自訂更衣室背景) v1.5.1 更新",
+    "現在更衣室的導出導入按鈕是用BCX的邏輯，能保留透明度與座標的參數",
+    "按鈕的位置替換，現在更改顏色時，也能及時呼叫放大鏡"
   ],
   "en_changelog": [
-    "⭐MAT(Messages Auto Translator) v1.1.5 Update",
-    "Fixed the issue where text was not displayed on Extensions pages in a white theme.",
-    "If the chat room message is a pure URL, skip the translation.",
     "⭐LT(Liko tool) v1.4 Update",
     "Add English language.",
     "Added appearance rollback function.",
     "Fixed the issue of initialization failure after timeout login.",
     "Fixed the issue of incorrect item placement when hijacking height.",
+    "⭐CDB (Custom Dressroom Background) v1.5.1 Update",
+    "The import/export buttons for the dressing room now use BCX logic, preserving transparency and coordinate parameters.",
+    "The button positions have been replaced; Now, you can also call up the magnifying glass when changing colors."
   ],
   "plugins": [
     {
@@ -72,7 +72,7 @@
     {
       "id": "Liko-CDB",
       "name": "Liko的自訂更衣室背景",
-      "en_name": "Liko's Custom Dressroom Background",
+      "en_name": "Liko's Custom Dressing Background",
       "description": "更衣室背景替換，並提供網格對焦",
       "en_description": "Replace wardrobe background with grid focus assistance",
       "additionalInfo": "現在多了替換姿勢的功能",
