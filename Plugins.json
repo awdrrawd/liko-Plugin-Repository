@@ -1,26 +1,32 @@
 {
-  "updateId": "260413",
+  "updateId": "260414",
   "changelog": [
-    "⭐LT(Liko的工具包) v1.4更新",
-    "支援英文語言",
-    "增加外觀回滾功能",
-    "修正逾時登入後初始化失敗問題",
-    "修正劫持身高時，道具位置錯誤問題",
-    "⭐CDB(自訂更衣室背景) v1.5.1 更新",
-    "現在更衣室的導出導入按鈕是用BCX的邏輯，能保留透明度與座標的參數",
-    "按鈕的位置替換，現在更改顏色時，也能及時呼叫放大鏡"
+    "⭐AEE (Liko的外觀編輯拓展-測試版) v0.6.2更新",
+    "自製的服裝調整UI",
+    "提供修改服裝、拘束的旋轉、縮放、鏡射功能",
+    "提供迷你模式可以在小畫面上進行服裝編輯",
+    "提供染色、圖層調整"
   ],
   "en_changelog": [
-    "⭐LT(Liko tool) v1.4 Update",
-    "Add English language.",
-    "Added appearance rollback function.",
-    "Fixed the issue of initialization failure after timeout login.",
-    "Fixed the issue of incorrect item placement when hijacking height.",
-    "⭐CDB (Custom Dressroom Background) v1.5.1 Update",
-    "The import/export buttons for the dressing room now use BCX logic, preserving transparency and coordinate parameters.",
-    "The button positions have been replaced; Now, you can also call up the magnifying glass when changing colors."
+    "⭐AEE (Liko's Appearance editing extensio - Beta) v0.6.2 Update",
+    "Custom-designed clothing adjustment UI",
+    "Provides clothing modification, constraint rotation, scaling, and mirroring functions",
+    "Provides a mini mode for clothing editing on a smaller screen",
+    "Provides dyeing and layer adjustment functions"
   ],
   "plugins": [
+    {
+      "id": "Liko-AEE",
+      "name": "Liko的外觀編輯拓展(測試中)",
+      "en_name": "Liko's Appearance editing extension.(testing)",
+      "description": "更強大的編輯器，並且支援更多的服裝編輯(測試中)",
+      "en_description": "A more powerful editor, and support for more clothing editing.(testing)",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "🐈‍⬛",
+      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20AEE.main.user.js",
+      "priority": 3
+    },
     {
       "id": "Liko-Tool",
       "name": "Liko的工具包",
@@ -293,18 +299,6 @@
       "icon": "🎮",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20TRC.main.user.js",
       "priority": 7
-    },
-    {
-      "id": "Liko-AEE",
-      "name": "Liko的外觀編輯拓展(測試中)",
-      "en_name": "Liko's Appearance editing extension.(testing)",
-      "description": "更強大的編輯器，並且支援更多的服裝編輯(測試中)",
-      "en_description": "A more powerful editor, and support for more clothing editing.(testing)",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
-      "icon": "🐈‍⬛",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20AEE.main.user.js",
-      "priority": 99
     }
   ]
 }
