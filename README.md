@@ -138,7 +138,7 @@ Auto-translate BC chat messages using the Google Translate API.
 ---
 
 #### 🎮 Liko's Toy remote control · 玩具遙控器
-> 🆔 `Liko-TRC` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-TRC.user.js)
+> 🆔 `Liko-TRC`· EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-TRC.user.js)
 
 入侵房間內其他人身上的玩具並控制它(你需要有對方的觸碰權限)  
 Hacking into the toys on other people in the room and taking control of them.  
