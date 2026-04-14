@@ -14,6 +14,7 @@
 // @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20AEE.main.user.js
 // ==/UserScript==
 
+
 (function () {
   'use strict';
 
@@ -102,20 +103,17 @@
     });
 
     // Build transform data from LayerOverrides
-    // Key = "${group}/${assetName}/${layerName}" to isolate per-item transforms
     C.Appearance?.forEach(item => {
-      const group     = item.Asset?.Group?.Name;
-      const assetName = item.Asset?.Name;
-      const layers    = item.Asset?.Layer;
-      const los       = item.Property?.LayerOverrides;
-      if (!group || !assetName || !Array.isArray(los)) return;
+      const group = item.Asset?.Group?.Name;
+      const layers = item.Asset?.Layer;
+      const los = item.Property?.LayerOverrides;
+      if (!group || !Array.isArray(los)) return;
       los.forEach((lo, i) => {
         if (!lo) return;
         const hasT = lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV || lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null;
         if (!hasT) return;
         const layerName = layers?.[i]?.Name ?? null;
-        // Include asset name in key so different items with same layer names never share transforms
-        const key = layerName ? `${group}/${assetName}/${layerName}` : `${group}/${assetName}/*`;
+        const key = layerName ? `${group}/${layerName}` : `${group}/*`;
         transformData.set(key, {
           flipX:!!lo.FlipX, flipY:!!lo.FlipY,
           mirrorCopy:!!lo.MirrorCopy, mirrorCopyV:!!lo.MirrorCopyV,
@@ -172,9 +170,8 @@
     assetGroupMap.forEach((group, asset) => {
       if (!filename.startsWith(asset)) return;
       const layerName = parseLayerName(filename, asset);
-      // Use asset-scoped key to prevent transforms bleeding across different items
-      const key = layerName ? `${group}/${asset}/${layerName}` : null;
-      const match = (key && transformData.get(key)) || transformData.get(`${group}/${asset}/*`);
+      const key = layerName ? `${group}/${layerName}` : null;
+      const match = (key && transformData.get(key)) || transformData.get(`${group}/*`);
       if (match) currentTransform = match;
     });
     if (!currentTransform) return next(args);
