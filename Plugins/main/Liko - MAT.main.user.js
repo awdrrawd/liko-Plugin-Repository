@@ -233,9 +233,7 @@
     function isPureUrl(text) {
         if (!text) return false;
         const trimmed = text.trim();
-        // 若整段文字只有一個 token 且為合法 URL
-        if (/\s/.test(trimmed)) return false; // 含空白代表有其他文字
-        return /^https?:\/\/[^\s]+$/i.test(trimmed);
+        return /^(\()?https?:\/\//i.test(trimmed);
     }
 
     // 聊天室翻譯（受 config.enabled 影響）
