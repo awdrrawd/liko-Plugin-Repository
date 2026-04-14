@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6.0
+// @version      0.6.1
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,12 +14,11 @@
 // @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20AEE.main.user.js
 // ==/UserScript==
 
-
 (function () {
   'use strict';
 
   const MOD_NAME = "Liko - AEE";
-  const MOD_Version = "0.6.0";
+  const MOD_Version = "0.6.1";
   if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
   const modApi = bcModSdk.registerMod({
     name: MOD_NAME, fullName: "Liko - Appearance Editor",
@@ -82,70 +81,53 @@
   // ============================================================
 
   let assetGroupMap = new Map();
-  let transformData = new Map();
-  let currentTransform = null;
-  let isMirrorCopyPass = false;
-  let isMirrorCopyVPass = false;
+  const charTransformCache = new Map();
+  let currentRenderChar = null;
 
-  function parseLayerName(filename, assetName) {
-    const rest = filename.slice(assetName.length);
-    const parts = rest.split('_').filter(Boolean);
-    const sizeTags = new Set(['XLarge','Large','Medium','Small','Normal','White']);
-    return parts.filter(p => !sizeTags.has(p)).join('_') || null;
-  }
+  // ── WebGL prototype patch state ──
+  // BC 的 GLDrawAppearanceBuild 閉包持有原始 GLDrawImage 引用，
+  // 真正的渲染（約 90%）完全繞過 BCModSDK hook。
+  // 解法：在 uniformMatrix4fv 層面套用旋轉/縮放，在 drawArrays 層面做 MirrorCopy。
+  let _matIdx = 0;           // 每次 GLDrawAppearanceBuild 重置
+  let _matTransformMap = new Map(); // matIndex → TransformData（在 next() 前建立）
+  let _lastMatLoc  = null;   // 最後一次有 transform 的矩陣 uniform location
+  let _lastMatData = null;   // Float32Array，保存已套用 transform 的矩陣
+  let _lastGl      = null;   // WebGL context 參考（避免跨 canvas 污染）
+
+  // ── DEBUG ──
+  const AEE_DEBUG = false;
+  function aeeLog(...a) { if (AEE_DEBUG) console.log("🐈‍⬛[AEE]", ...a); }
+
+  // ============================================================
+  // GLDrawAppearanceBuild HOOK
+  // ============================================================
 
   modApi.hookFunction("GLDrawAppearanceBuild", 1, (args, next) => {
     const C = args[0];
-    assetGroupMap.clear(); transformData.clear();
-    C.AppearanceLayers?.forEach(layer => {
-      const asset = layer.Asset?.Name, group = layer.Asset?.Group?.Name;
-      if (asset && group) assetGroupMap.set(asset, group);
-    });
+    currentRenderChar = C;
+    assetGroupMap.clear();
 
-    // Build transform data from LayerOverrides
-    C.Appearance?.forEach(item => {
-      const group = item.Asset?.Group?.Name;
-      const layers = item.Asset?.Layer;
-      const los = item.Property?.LayerOverrides;
-      if (!group || !Array.isArray(los)) return;
-      los.forEach((lo, i) => {
-        if (!lo) return;
-        const hasT = lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV || lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null;
-        if (!hasT) return;
-        const layerName = layers?.[i]?.Name ?? null;
-        const key = layerName ? `${group}/${layerName}` : `${group}/*`;
-        transformData.set(key, {
-          flipX:!!lo.FlipX, flipY:!!lo.FlipY,
-          mirrorCopy:!!lo.MirrorCopy, mirrorCopyV:!!lo.MirrorCopyV,
-          scaleX:lo.ScaleX??1, scaleY:lo.ScaleY??1, rotation:lo.Rotation??0
-        });
-      });
-    });
+    // 重置 WebGL patch 狀態
+    _matIdx = 0;
+    _matTransformMap.clear();
+    _lastMatData = null;
 
-    // ── Priority: use BC's own OverridePriority system + save/restore ─────
-    // Property.OverridePriority can be:
-    //   number  → whole-item absolute priority (same for all layers)
-    //   object  → {LayerName: priority} per-layer absolute overrides
-    // We temporarily write to layer objects, BC sorts, then we restore.
+    // ── PHASE 1：套用 opacity + priority（在 BC build 前） ──
     const savedPri = [];
     C.Appearance?.forEach(item => {
       const assetLayers = item.Asset?.Layer;
       const los  = item.Property?.LayerOverrides;
-      const over = item.Property?.OverridePriority; // BC's official API
+      const over = item.Property?.OverridePriority;
 
-      // Apply opacity override
       if (Array.isArray(los)) {
         los.forEach((lo, i) => {
           if (lo?.Opacity != null && assetLayers?.[i]) assetLayers[i].Opacity = lo.Opacity;
         });
       }
-
-      // Apply OverridePriority (BC format)
       if (over != null) {
-        assetLayers?.forEach((layer) => {
-          const newPri = typeof over === 'number'
-            ? over
-            : (typeof over === 'object' && over[layer.Name] != null ? over[layer.Name] : null);
+        assetLayers?.forEach(layer => {
+          const newPri = typeof over === 'number' ? over :
+            (typeof over === 'object' && over[layer.Name] != null ? over[layer.Name] : null);
           if (newPri != null) {
             savedPri.push({ layer, original: layer.Priority });
             layer.Priority = newPri;
@@ -154,71 +136,203 @@
       }
     });
 
-    const result = next(args); // BC builds C.AppearanceLayers and sorts
+    // ── PHASE 2a：在 next() 前建立 matTransformMap ──
+    // （uniformMatrix4fv 在 next() 內部執行，必須提前準備好 map）
+    // AppearanceLayers 從上一次 build 保留，順序與渲染一致。
+    // 每個 layer 對應 2 次 uniformMatrix4fv 呼叫（正常渲染 + 遮罩）。
+    C.AppearanceLayers?.forEach((layer, i) => {
+      const assetName = layer.Asset?.Name;
+      const groupName = layer.Asset?.Group?.Name;
+      if (!assetName || !groupName) return;
 
-    // Restore shared asset layer priorities
+      const item = C.Appearance?.find(it =>
+        it.Asset?.Name === assetName && it.Asset?.Group?.Name === groupName
+      );
+      const los = item?.Property?.LayerOverrides;
+      if (!Array.isArray(los)) return;
+
+      const assetLayers = item.Asset?.Layer ?? [];
+      const layerIdx = layer.Name != null
+        ? assetLayers.findIndex(l => l.Name === layer.Name)
+        : assetLayers.findIndex(l => l.Name == null);
+      if (layerIdx < 0) return;
+
+      const lo = los[layerIdx];
+      if (!lo) return;
+
+      const hasT = lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV ||
+                   lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null;
+      if (!hasT) return;
+
+      const t = {
+        flipX: !!lo.FlipX, flipY: !!lo.FlipY,
+        mirrorCopy: !!lo.MirrorCopy, mirrorCopyV: !!lo.MirrorCopyV,
+        scaleX: lo.ScaleX ?? 1, scaleY: lo.ScaleY ?? 1,
+        rotation: lo.Rotation ?? 0
+      };
+      // layer index i → mat index i*2（正常）和 i*2+1（遮罩）
+      _matTransformMap.set(i * 2,     t);
+      _matTransformMap.set(i * 2 + 1, t);
+      aeeLog(`matMap: Layer[${i}] ${assetName}/${layer.Name} → mat ${i*2},${i*2+1} rot:${lo.Rotation}`);
+    });
+
+    // ── next()：BC 在這裡執行所有渲染，uniformMatrix4fv 在此被呼叫 ──
+    const result = next(args);
+
+    // ── PHASE 2b：還原 priority + 建立 charTransformCache（供 GLDrawImage hook 用） ──
     savedPri.forEach(({ layer, original }) => { layer.Priority = original; });
 
+    C.AppearanceLayers?.forEach(layer => {
+      const asset = layer.Asset?.Name, group = layer.Asset?.Group?.Name;
+      if (asset && group) assetGroupMap.set(asset, group);
+    });
+
+    const sequence = [];
+    const seqLayers = [];
+    C.AppearanceLayers?.forEach(layer => {
+      seqLayers.push(layer);
+      const assetName = layer.Asset?.Name;
+      const groupName = layer.Asset?.Group?.Name;
+      if (!assetName || !groupName) { sequence.push(null); return; }
+
+      const item = C.Appearance?.find(i =>
+        i.Asset?.Name === assetName && i.Asset?.Group?.Name === groupName
+      );
+      if (!item) { sequence.push(null); return; }
+
+      const los = item.Property?.LayerOverrides;
+      if (!Array.isArray(los)) { sequence.push(null); return; }
+
+      const assetLayers = item.Asset?.Layer ?? [];
+      const layerIdx = layer.Name != null
+        ? assetLayers.findIndex(l => l.Name === layer.Name)
+        : assetLayers.findIndex(l => l.Name == null);
+      if (layerIdx < 0) { sequence.push(null); return; }
+
+      const lo = los[layerIdx];
+      if (!lo) { sequence.push(null); return; }
+
+      const hasT = lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV ||
+                   lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null;
+      sequence.push(hasT ? {
+        flipX: !!lo.FlipX, flipY: !!lo.FlipY,
+        mirrorCopy: !!lo.MirrorCopy, mirrorCopyV: !!lo.MirrorCopyV,
+        scaleX: lo.ScaleX ?? 1, scaleY: lo.ScaleY ?? 1, rotation: lo.Rotation ?? 0
+      } : null);
+    });
+
+    charTransformCache.set(C, { sequence, seqLayers, idx: 0 });
+    const nonNull = sequence.filter(Boolean).length;
+    if (nonNull > 0) aeeLog(`Build cache for C#${C.MemberNumber}: ${sequence.length} layers, ${nonNull} with transforms`);
     return result;
   });
+
+  // ============================================================
+  // GLDrawImage HOOK（僅處理 BCModSDK 攔截到的少數呼叫）
+  // 注意：大部分渲染走原始閉包，由下方 WebGL patch 負責。
+  // 這裡保留是為了相容性，但不再處理 mirror/transform。
+  // ============================================================
 
   modApi.hookFunction("GLDrawImage", 1, (args, next) => {
-    if (isMirrorCopyPass || isMirrorCopyVPass) return next(args);
-    currentTransform = null;
-    if (typeof args[0] !== 'string') return next(args);
-    const filename = args[0].split('/').pop().replace('.png','');
-    assetGroupMap.forEach((group, asset) => {
-      if (!filename.startsWith(asset)) return;
-      const layerName = parseLayerName(filename, asset);
-      const key = layerName ? `${group}/${layerName}` : null;
-      const match = (key && transformData.get(key)) || transformData.get(`${group}/*`);
-      if (match) currentTransform = match;
-    });
-    if (!currentTransform) return next(args);
-    const t2 = currentTransform;
-    args[4] = { ...args[4], Mirror: t2.flipX ? true : args[4].Mirror, Invert: t2.flipY ? true : args[4].Invert };
-    const result = next(args);
-    if (t2.mirrorCopy) {
-      isMirrorCopyPass = true;
-      next([...args.slice(0,4), { ...args[4], Mirror: !t2.flipX }, args[5]]);
-      isMirrorCopyPass = false;
-    }
-    if (t2.mirrorCopyV) {
-      isMirrorCopyVPass = true;
-      next([...args.slice(0,4), { ...args[4], Invert: !t2.flipY }, args[5]]);
-      isMirrorCopyVPass = false;
-    }
-    currentTransform = null;
-    return result;
+    return next(args);
   });
 
-  const _origMat = WebGL2RenderingContext.prototype.uniformMatrix4fv;
+  // ============================================================
+  // WebGL PROTOTYPE PATCH
+  // uniformMatrix4fv：套用旋轉 / 縮放 / flip
+  // drawArrays：執行 MirrorCopy 額外 draw call
+  // ============================================================
+
+  const _origMat  = WebGL2RenderingContext.prototype.uniformMatrix4fv;
+  const _origDraw = WebGL2RenderingContext.prototype.drawArrays;
+
   WebGL2RenderingContext.prototype.uniformMatrix4fv = function(loc, tp, data) {
-    if (currentTransform && data instanceof Float32Array && data.length === 16) {
-      const { scaleX, scaleY, rotation } = currentTransform;
-      if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
+    if (data instanceof Float32Array && data.length === 16) {
+      const t = _matTransformMap.get(_matIdx);
+      _matIdx++;
+
+      if (t) {
         const m = new Float32Array(data);
-        const cos = Math.cos(rotation * Math.PI / 180), sin = Math.sin(rotation * Math.PI / 180);
-        const sx = Math.sqrt(m[0]**2 + m[1]**2) * scaleX, sy = Math.sqrt(m[4]**2 + m[5]**2) * scaleY;
-        const sgx = m[0] < 0 ? -1 : 1, sgy = m[5] < 0 ? -1 : 1;
-        m[0]=cos*sx*sgx; m[1]=sin*sx*sgx; m[4]=-sin*sy*sgy; m[5]=cos*sy*sgy;
+
+        // 旋轉 + 縮放
+        if (t.rotation !== 0 || t.scaleX !== 1 || t.scaleY !== 1) {
+          const cos = Math.cos(t.rotation * Math.PI / 180);
+          const sin = Math.sin(t.rotation * Math.PI / 180);
+          const sx  = Math.sqrt(m[0]**2 + m[1]**2) * t.scaleX;
+          const sy  = Math.sqrt(m[4]**2 + m[5]**2) * t.scaleY;
+          const sgx = m[0] < 0 ? -1 : 1;
+          const sgy = m[5] < 0 ? -1 : 1;
+          m[0] =  cos * sx * sgx;
+          m[1] =  sin * sx * sgx;
+          m[4] = -sin * sy * sgy;
+          m[5] =  cos * sy * sgy;
+        }
+
+        // FlipX（水平鏡射，不複製）
+        if (t.flipX) { m[0] = -m[0]; m[1] = -m[1]; }
+        // FlipY（垂直鏡射，不複製）
+        if (t.flipY) { m[4] = -m[4]; m[5] = -m[5]; }
+
+        // 儲存供 drawArrays 使用
+        _lastMatData = m;
+        _lastMatLoc  = loc;
+        _lastGl      = this;
+        aeeLog(`mat[${_matIdx-1}] applied rot:${t.rotation} sx:${t.scaleX} sy:${t.scaleY} flipX:${t.flipX} flipY:${t.flipY}`);
         return _origMat.call(this, loc, tp, m);
       }
+
+      // 無 transform，清除殘留
+      _lastMatData = null;
     }
     return _origMat.call(this, loc, tp, data);
+  };
+
+  WebGL2RenderingContext.prototype.drawArrays = function(mode, first, count) {
+    // 先執行正常 draw
+    const result = _origDraw.call(this, mode, first, count);
+
+    // 取得對應這個 draw call 的 transform（對應最後一次 uniformMatrix4fv）
+    const t = (_lastMatData && _lastGl === this) ? _matTransformMap.get(_matIdx - 1) : null;
+
+    if (t) {
+      // MirrorCopy：水平複製（X 軸對稱）
+      if (t.mirrorCopy) {
+        const mM = new Float32Array(_lastMatData);
+        // 翻轉 X 旋轉分量
+        mM[0] = -mM[0];
+        mM[1] = -mM[1];
+        // X 位移對稱（BC normalized space 中心在 0）
+        mM[12] = -mM[12];
+        _origMat.call(this, _lastMatLoc, false, mM);
+        _origDraw.call(this, mode, first, count);
+        aeeLog(`MirrorCopy draw for mat[${_matIdx - 1}]`);
+      }
+
+      // MirrorCopyV：垂直複製（Y 軸對稱）
+      if (t.mirrorCopyV) {
+        const mV = new Float32Array(_lastMatData);
+        // 翻轉 Y 旋轉分量
+        mV[4] = -mV[4];
+        mV[5] = -mV[5];
+        // Y 位移對稱
+        mV[13] = -mV[13];
+        _origMat.call(this, _lastMatLoc, false, mV);
+        _origDraw.call(this, mode, first, count);
+        aeeLog(`MirrorCopyV draw for mat[${_matIdx - 1}]`);
+      }
+    }
+
+    return result;
   };
 
   // ============================================================
   // DATA HELPERS
   // ============================================================
 
-  // Resolve current item from either wardrobe or dialog (restraint) context
   function getCurrentItem() {
-    // Primary: wardrobe appearance screen
     if (typeof CharacterAppearanceMode !== 'undefined' && CharacterAppearanceMode === 'Color') {
       return InventoryGet(CharacterAppearanceSelection, CharacterAppearanceColorPickerGroupName);
     }
-    // Secondary: ItemColor screen (restraints / accessories via dialog)
     if (_aeeItemColorItem) return _aeeItemColorItem;
     return null;
   }
@@ -261,9 +375,6 @@
     return item?.Property?.LayerOverrides?.[i] || {};
   }
 
-  // BC layer display name: try ItemColorLayerNames (BC's own LayerNames.csv)
-  // Format used by BC: DynamicGroupName + AssetName + LayerName
-  // e.g. "Cloth" + "小西装T" + "C1" = "Cloth小西装TC1"
   function getLayerDisplayName(layer, i) {
     if (!layer) return `Layer ${i}`;
     try {
@@ -271,17 +382,14 @@
         const asset = layer.Asset;
         const key   = (asset?.DynamicGroupName ?? '') + (asset?.Name ?? '') + (layer.Name ?? '');
         const text  = ItemColorLayerNames.get(key);
-        // TextCache.get returns the key itself if missing ("MISSING TEXT..." or the key)
         if (text && !text.startsWith('MISSING') && text !== key) return text;
       }
     } catch(e) {}
     return layer.Name || `Layer ${i}`;
   }
 
-  // Get current color of layer (from BC's color system)
   function getLayerColor(item, layerIdx) {
     if (!item) return null;
-    // Prefer Property.Color, fall back to item.Color
     const colors = item.Property?.Color ?? item.Color;
     if (!colors) return null;
     const idx = layerIdx === 'all' ? 0 : parseInt(layerIdx);
@@ -289,7 +397,6 @@
     return typeof colors === 'string' ? colors : null;
   }
 
-  // FIX: update both item.Color and item.Property.Color so BC renders correctly
   function setLayerColor(item, layerIdx, hexColor) {
     if (!item) return;
     const layers = item.Asset?.Layer;
@@ -297,7 +404,6 @@
     const idx = layerIdx === 'all' ? 'all' : parseInt(layerIdx);
     if (!item.Property) item.Property = {};
 
-    // Initialize a color array from an existing color source
     function initColorArr(src) {
       if (Array.isArray(src)) return src.slice();
       const base = typeof src === 'string' ? src : '#FFFFFF';
@@ -585,13 +691,12 @@
   }
 
   // ============================================================
-  // COLOR PICKER — matching editor theme, i18n, canvas-scaled position
+  // COLOR PICKER
   // ============================================================
 
   let colorPickerHostEl = null;
   let colorPickerShadow = null;
 
-  // Theme matches panel: --bg:#0d0d0f  --accent:#7c6af7  --accent2:#4ecdc4
   const CP_CSS = `
 :host { all:initial; display:block; }
 *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none}
@@ -686,7 +791,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     document.body.appendChild(colorPickerHostEl);
     colorPickerShadow = colorPickerHostEl.attachShadow({ mode: 'open' });
 
-    // Build HTML using t() so translations are baked in at construction time
     colorPickerShadow.innerHTML = `<style>${CP_CSS}</style>
 <div id="cp-outer">
   <div id="cp-backdrop"></div>
@@ -894,13 +998,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       sd.getElementById('cp-a-v').value=aPct+'%';
       setTT('cp-h-tt',cpH/360*100);setTT('cp-s-tt',cpS);setTT('cp-v-v2',cpV);setTT('cp-a-tt',cpA/255*100);
       updTracks();drawSV();rHarm();rShade();
-      // Live preview: fire on every color change
       const lc = colorPickerHostEl?._cpOnLiveChange;
       if (lc) lc(hex);
     }
     function setC(h,s,v,a){cpH=h;cpS=s;cpV=v;cpA=(a===undefined?cpA:a);updAll();}
 
-    // Track interactions
     function trk(id,cb){
       const el=sd.getElementById(id);let drag=false;
       function pick(e){
@@ -979,25 +1081,22 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       });
     });
 
-    // CONFIRM: save live-change ref before close (close nulls it), then commit final value
     sd.getElementById('cp-confirm').addEventListener('click',()=>{
       const[r,g,b]=h2r(cpH,cpS,cpV);
       const hex=r2x(r,g,b);
       const lc = colorPickerHostEl?._cpOnLiveChange;
       closeColorPicker();
-      if (lc) lc(hex); // ensure final color is committed
+      if (lc) lc(hex);
     });
-    // CANCEL / BACKDROP: revert to original color
     function doCancel() {
       const initHex = colorPickerHostEl?._cpInitialHex;
       const lc = colorPickerHostEl?._cpOnLiveChange;
       closeColorPicker();
-      if (lc && initHex) lc(initHex); // revert
+      if (lc && initHex) lc(initHex);
     }
     sd.getElementById('cp-cancel').addEventListener('click', doCancel);
     sd.getElementById('cp-backdrop').addEventListener('click', doCancel);
 
-    // Expose setC for opening with initial color
     colorPickerHostEl._cpSetColor = (hex) => {
       if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
         const{h,s,v}=x2h(hex);setC(h,s,v,255);
@@ -1008,8 +1107,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     rSaved(); updAll();
   }
 
-  // Position the color picker relative to the BC canvas, scaled appropriately
-  // positionColorPicker: scale by canvas width / 1500, origin top-left
   function positionColorPicker() {
     if (!colorPickerShadow) return;
     const outer = colorPickerShadow.getElementById('cp-outer');
@@ -1024,12 +1121,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       return;
     }
 
-    // Scale so picker matches BC canvas zoom (divisor 1500 = user-calibrated size)
     const scale = r.width / 1500;
     wrap.style.transform = `scale(${scale})`;
     wrap.style.transformOrigin = 'top left';
 
-    // Scaled picker screen width; position right edge near canvas right edge
     const pickerScreenW = 500 * scale;
     const left = Math.max(8, Math.min(r.right - pickerScreenW - 10, window.innerWidth - pickerScreenW - 8));
     const top  = Math.max(r.top + 60, r.top + 130);
@@ -1037,18 +1132,15 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     outer.style.top  = top  + 'px';
   }
 
-  // openColorPicker(initialHex, onLiveChange)
-  //   onLiveChange(hex) called on every color change for live preview
-  //   cancel reverts via onLiveChange(initialHex); confirm keeps current
   function openColorPicker(initialHex, onLiveChange) {
     buildColorPicker();
     if (colorPickerHostEl) {
       colorPickerHostEl._cpInitialHex = initialHex || '#FFFFFF';
-      colorPickerHostEl._cpOnLiveChange = null; // disable during initial set
+      colorPickerHostEl._cpOnLiveChange = null;
     }
     colorPickerHostEl._cpSetColor?.(initialHex || '#FFFFFF');
     if (colorPickerHostEl) {
-      colorPickerHostEl._cpOnLiveChange = onLiveChange; // enable after set
+      colorPickerHostEl._cpOnLiveChange = onLiveChange;
     }
     positionColorPicker();
     colorPickerShadow.getElementById('cp-outer').classList.add('open');
@@ -1090,7 +1182,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 }
 #panel.collapsed { display:none; }
 
-/* ── TOGGLE: 25px wide; collapsed shows 5 icons + arrow, expanded shows arrow ── */
 #toggle {
   position:absolute; top:50%; transform:translateY(-50%);
   width:25px;
@@ -1141,7 +1232,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 #item-name-text {
   flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-/* ── item-name right buttons ── */
 .iname-btn {
   flex-shrink:0; width:34px; height:34px;
   background:transparent; border:1px solid var(--border); border-radius:50%;
@@ -1151,7 +1241,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 .iname-btn:hover { border-color:var(--accent); color:var(--accent); }
 #parts-toggle-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(124,106,247,0.12); }
 
-/* ── FLOATING PARTS PANEL ── */
 #parts-float {
   position:absolute; width:200px; min-height:80px; max-height:260px;
   background:var(--bg); border:1px solid var(--border); border-radius:8px;
@@ -1186,21 +1275,18 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 #content::-webkit-scrollbar { width:3px; }
 #content::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
 
-/* ── SECTIONS ── */
 .section { padding:8px 10px; border-bottom:1px solid var(--border); }
 .sec-title {
   font-size:13px; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
   color:var(--text); text-align:center; margin-bottom:6px;
 }
 
-/* ── EDIT HEADER (layer name + color button) ── */
 .edit-header {
   display:flex; align-items:flex-start; justify-content:space-between;
   gap:8px; margin-bottom:8px;
 }
 .edit-header-left { flex:1; min-width:0; }
 
-/* Color edit button — 2:3 ratio, right of layer name, above opacity */
 .color-edit-btn {
   width:36px; height:54px;
   border:1.5px solid var(--border); border-radius:5px;
@@ -1218,7 +1304,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   text-transform:uppercase; letter-spacing:.04em;
 }
 
-/* ── LAYER BUTTONS ── */
 .layer-btn-row {
   display:flex; align-items:center; gap:6px; margin-bottom:4px;
 }
@@ -1233,7 +1318,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 .layer-btn:hover { border-color:var(--accent); }
 .layer-btn.selected { background:#17143a; border-color:var(--accent); color:var(--accent); }
 
-/* ── PROP GROUP ── */
 .prop-group { margin-bottom:10px; }
 .prop-group-header {
   display:flex; align-items:center; justify-content:space-between;
@@ -1252,7 +1336,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 .drag-check-label.active { border-color:var(--accent2); color:var(--accent2); background:rgba(78,205,196,0.08); }
 .drag-check-label input { display:none; }
 
-/* ── PROP ROW ── */
 .prop-row { margin-bottom:5px; }
 .prop-row-label {
   display:flex; align-items:center; justify-content:space-between;
@@ -1283,7 +1366,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 .step-reset:hover { background:#3a1a1a; border-color:#f87; color:#f87; }
 .step-reset:active { opacity:.8; }
 
-/* ── OPACITY RANGE ── */
 .op-group { margin-bottom:10px; }
 .op-row-label {
   display:flex; justify-content:space-between; align-items:center;
@@ -1299,7 +1381,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   background:var(--accent); cursor:pointer; border:2px solid var(--bg);
 }
 
-/* ── MIRROR: 2-column grid ── */
 .mirror-grid { display:flex; gap:8px; margin-top:4px; }
 .mirror-group { flex:1; }
 .mirror-group-title {
@@ -1317,7 +1398,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 .mirror-btn:hover { border-color:var(--accent); }
 .mirror-btn.active { background:#17143a; border-color:var(--accent); color:var(--accent); }
 
-/* ── OPACITY TAB ── */
 .op-tab-row { padding:6px 10px; border-bottom:1px solid var(--border); }
 .op-tab-name {
   display:flex; justify-content:space-between;
@@ -1325,12 +1405,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 }
 .op-tab-val { color:var(--accent2); font-variant-numeric:tabular-nums; }
 
-/* ── SEC TITLE ROW: title + small color chip ── */
 .sec-title-row {
   display:flex; align-items:center; justify-content:space-between;
   margin-bottom:6px;
 }
-/* Color chip — same height as drag-check-label (~22px), no text */
 .color-chip {
   width:40px; height:22px;
   border:1px solid var(--border); border-radius:3px;
@@ -1341,7 +1419,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 .color-chip:hover { border-color:var(--accent2); }
 .color-chip-inner { position:absolute; inset:0; }
 
-/* ── LAYERS TAB (priority) ── */
 .layer-pri-row {
   display:flex; align-items:center; gap:6px;
   padding:6px 10px; border-bottom:1px solid var(--border);
@@ -1382,7 +1459,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     styleEl.textContent = CSS;
     shadowRoot.appendChild(styleEl);
 
-    // ── Toggle with collapse-mode icons ──
     const toggleEl = document.createElement('div');
     toggleEl.id = 'toggle';
     toggleEl.style.pointerEvents = 'auto';
@@ -1421,7 +1497,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     `;
     toggleEl.querySelector('#toggle-arrow').addEventListener('click', toggleCollapse);
     toggleEl.querySelector('#toggle-icons').addEventListener('click', e => {
-      // Handle drag-toggle icons
       const dragIcon = e.target.closest('[data-drag-toggle]');
       if (dragIcon) {
         const mode = dragIcon.dataset.dragToggle;
@@ -1430,12 +1505,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         updateToggleIcons();
         return;
       }
-      // Handle action icons
       const actionIcon = e.target.closest('[data-tgl-action]');
       if (!actionIcon) return;
       const action = actionIcon.dataset.tglAction;
       if (action === 'open-panel') {
-        // Toggle floating parts panel (same as parts-toggle-btn)
         const pf  = shadowRoot?.getElementById('parts-float');
         const btn = shadowRoot?.getElementById('parts-toggle-btn');
         if (!pf) return;
@@ -1448,7 +1521,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
           updatePartsPanel();
         }
       } else if (action === 'reset-transform') {
-        // Reset all transforms for selected layer
         const item = getCurrentItem();
         if (!item || state.selectedLayer === null) return;
         const idx = state.selectedLayer;
@@ -1462,7 +1534,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     });
     shadowRoot.appendChild(toggleEl);
 
-    // ── Floating parts panel ──
     const partsFloat = document.createElement('div');
     partsFloat.id = 'parts-float';
     partsFloat.style.pointerEvents = 'auto';
@@ -1475,7 +1546,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     `;
     shadowRoot.appendChild(partsFloat);
 
-    // Floating panel drag
     let _pfDrag = null;
     partsFloat.querySelector('#parts-float-header').addEventListener('mousedown', e => {
       if (e.target.closest('#parts-float-close')) return;
@@ -1495,17 +1565,13 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       shadowRoot.getElementById('parts-toggle-btn')?.classList.remove('active');
     });
 
-    // Event delegation for layer selection inside floating panel
     partsFloat.querySelector('#parts-float-body').addEventListener('click', e => {
       const btn = e.target.closest('[data-select-layer]');
       if (!btn) return;
       state.selectedLayer = btn.dataset.selectLayer;
-      // Update highlights in both panel locations without full re-render
       partsFloat.querySelectorAll('[data-select-layer]').forEach(b =>
         b.classList.toggle('selected', b.dataset.selectLayer === state.selectedLayer));
-      // Full render to update edit section
       renderContent();
-      // Reopen floating panel after render (renderContent rebuilds content)
       partsFloat.classList.add('open');
       shadowRoot.getElementById('parts-toggle-btn')?.classList.add('active');
     });
@@ -1542,7 +1608,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         updatePartsPanel();
       }
     });
-
 
     panel.querySelector('#tabs').addEventListener('click', e => {
       const tab = e.target.closest('.tab'); if (!tab) return;
@@ -1616,8 +1681,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   // ============================================================
 
   function onContentClick(e) {
-    // Color edit button (in edit section header)
-    // Color chip → live-preview picker
     const colorEditBtn = e.target.closest('[data-color-edit]');
     if (colorEditBtn) {
       const layerIdx = colorEditBtn.dataset.colorEdit;
@@ -1630,24 +1693,19 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       });
       return;
     }
-    // Priority step buttons (layers tab)
     const priStep  = e.target.closest('[data-pri-step]');
     if (priStep)  { handlePriorityStep(priStep);  return; }
     const priReset = e.target.closest('[data-pri-reset]');
     if (priReset) { handlePriorityReset(priReset); return; }
-    // Layer select
     const layerBtn = e.target.closest('[data-select-layer]');
     if (layerBtn) {
       state.selectedLayer = layerBtn.dataset.selectLayer;
       renderContent(); return;
     }
-    // Step buttons
     const stepBtn = e.target.closest('[data-step]');
     if (stepBtn) { handleStep(stepBtn); return; }
-    // Reset buttons
     const resetBtn = e.target.closest('[data-reset]');
     if (resetBtn) { handleReset(resetBtn.dataset.reset); return; }
-    // Mirror toggle buttons
     const mirrorBtn = e.target.closest('[data-mirror]');
     if (mirrorBtn) { handleMirror(mirrorBtn.dataset.mirror); return; }
   }
@@ -1813,7 +1871,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     else if (state.tab === 'layers')  content.innerHTML = renderLayersTab(item, layers);
     else content.innerHTML = `<div class="settings-empty">${t('settingsEmpty')}</div>`;
 
-    // Bind prop-val direct input listeners
     content.querySelectorAll('[data-prop-input]').forEach(input => {
       input.addEventListener('change', () => onPropValInput(input));
       input.addEventListener('keydown', e => { if (e.key === 'Enter') { onPropValInput(input); input.blur(); } });
@@ -1821,7 +1878,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       input.addEventListener('click', e => e.stopPropagation());
     });
 
-    // Bind priority inputs (layers tab)
     content.querySelectorAll('[data-pri-input]').forEach(input => {
       input.addEventListener('change', () => handlePriorityInput(input));
       input.addEventListener('keydown', e => { if (e.key === 'Enter') { handlePriorityInput(input); input.blur(); } });
@@ -1833,7 +1889,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     else hideRotOverlay();
   }
 
-  // Update the floating parts panel content (called once on open, not on every render)
   function updatePartsPanel() {
     if (!shadowRoot) return;
     const item   = getCurrentItem(); if (!item) return;
@@ -1843,7 +1898,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     body.innerHTML =
       layerBtnRow('all', t('allParts')) +
       layers.map((l, i) => layerBtnRow(String(i), getLayerDisplayName(l, i))).join('');
-    // Highlight currently selected layer
     body.querySelectorAll('[data-select-layer]').forEach(btn => {
       btn.classList.toggle('selected', btn.dataset.selectLayer === state.selectedLayer);
     });
@@ -1872,13 +1926,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     </div>
   </div>
 
-  <!-- 透明度 -->
   <div class="op-group">
     <div class="op-row-label">${t('opacity')} <span id="edit-op-val">${op}%</span></div>
     <input type="range" class="range" data-edit-op="1" min="0" max="100" step="1" value="${op}">
   </div>
 
-  <!-- 座標 -->
   <div class="prop-group">
     <div class="prop-group-header">
       <span class="prop-group-title">${t('coord')}</span>
@@ -1888,7 +1940,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     ${propRow('Y', y, 'y', [-5,-1,1,5])}
   </div>
 
-  <!-- 旋轉 -->
   <div class="prop-group">
     <div class="prop-group-header">
       <span class="prop-group-title">${t('rotate')}</span>
@@ -1897,7 +1948,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     ${propRow('°', rot, 'rot', [-5,-1,1,5])}
   </div>
 
-  <!-- 縮放 -->
   <div class="prop-group">
     <div class="prop-group-header">
       <span class="prop-group-title">${t('scale')}</span>
@@ -1907,7 +1957,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     ${propRow('Y', sy.toFixed(2), 'sy', [-0.3,-0.1,0.1,0.3])}
   </div>
 
-  <!-- 鏡射 -->
   <div class="prop-group">
     <div class="prop-group-header">
       <span class="prop-group-title">${t('mirror')}</span>
@@ -2008,24 +2057,23 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 </div>`;
   }
 
-  // Layer button row — no color swatch (color button is now in the edit section header)
-  // ── LAYERS TAB helpers ─────────────────────────────────────
+  function layerBtnRow(idx, name) {
+    return `<div class="layer-btn-row">
+  <button class="layer-btn ${state.selectedLayer===idx?'selected':''}" data-select-layer="${idx}">${name}</button>
+</div>`;
+  }
+
   function clampPri(v) { return Math.max(-99, Math.min(99, v)); }
 
-  // Use BC's own Property.OverridePriority:
-  //   whole-item ('all') → number  (same priority for all layers)
-  //   per-layer          → object  {LayerName: priority}
   function applyPriority(item, rawIdx, newVal) {
     newVal = clampPri(newVal);
     if (!item.Property) item.Property = {};
     const layers = item.Asset?.Layer || [];
     if (rawIdx === 'all') {
-      // Number form: overrides all layers uniformly
       item.Property.OverridePriority = newVal;
     } else {
       const layerName = layers[parseInt(rawIdx)]?.Name;
       if (!layerName) return newVal;
-      // Convert to object form if needed
       if (typeof item.Property.OverridePriority !== 'object' || item.Property.OverridePriority == null) {
         item.Property.OverridePriority = {};
       }
@@ -2037,9 +2085,8 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
   function handlePriorityStep(btn) {
     const item = getCurrentItem(); if (!item) return;
-    const rawIdx = btn.dataset.priStep;                // 'all' or '0','1',...
+    const rawIdx = btn.dataset.priStep;
     const delta  = parseInt(btn.dataset.priDelta);
-
     const layers = item.Asset?.Layer || [];
     let current;
     if (rawIdx === 'all') {
@@ -2072,7 +2119,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     const rawIdx = btn.dataset.priReset;
     const layers = item.Asset?.Layer || [];
     if (rawIdx === 'all') {
-      // Remove entire OverridePriority → revert to asset default
       if (item.Property) delete item.Property.OverridePriority;
       const base  = item.Asset?.DrawingPriority ?? 0;
       const input = shadowRoot?.querySelector('[data-pri-input="all"]');
@@ -2099,7 +2145,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     const itemCurrent = typeof overPri === 'number' ? overPri : itemBase;
     const allOverride = typeof overPri === 'number';
 
-    // Whole-item row: absolute priority (BC OverridePriority = number)
     const allRow = `<div class="layer-pri-row" style="border-bottom:2px solid var(--border)">
   <span class="layer-pri-name" style="font-weight:700;${allOverride ? 'color:var(--accent2)' : ''}">
     ${t('allParts')} <span style="font-size:10px;color:var(--text-dim)">(base:${itemBase})</span>
@@ -2110,7 +2155,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   <button class="step-reset" data-pri-reset="all" title="↺" style="width:22px">↺</button>
 </div>`;
 
-    // Per-layer rows
     const layerRows = layers.map((layer, i) => {
       const basePri     = layer?.Priority ?? 0;
       const op          = item.Property?.OverridePriority;
@@ -2132,12 +2176,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     return allRow + layerRows;
   }
 
-    function layerBtnRow(idx, name) {
-    return `<div class="layer-btn-row">
-  <button class="layer-btn ${state.selectedLayer===idx?'selected':''}" data-select-layer="${idx}">${name}</button>
-</div>`;
-  }
-
   // ============================================================
   // MAIN LOOP
   // ============================================================
@@ -2157,12 +2195,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         state.selectedLayer = null;
         state.activeDrag = null;
         hideRotOverlay();
-        updateToggleIcons(); // sync toggle icon active state
+        updateToggleIcons();
         const pf  = shadowRoot?.getElementById('parts-float');
         const btn = shadowRoot?.getElementById('parts-toggle-btn');
         if (pf)  { pf.classList.remove('open'); }
         if (btn) { btn.classList.remove('active'); }
-        // Schedule ONE name-reload retry after TextCache loads (only on item change)
         setTimeout(() => {
           if (shadowRoot && hostEl?.style.display !== 'none') renderContent();
         }, 350);
@@ -2174,15 +2211,18 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     }
   }
 
+  try {
+    modApi.hookFunction("CharacterLoadCanvas", 0, (args, next) => {
+      if (args[0]) currentRenderChar = args[0];
+      return next(args);
+    });
+  } catch(e) {}
+
   modApi.hookFunction("AppearanceRun", 1, (args, next) => {
     aeeCheckAndRender();
     return next(args);
   });
 
-  // Additional hooks for dialog/restraint screens
-  // DialogRun + DialogDraw cover the restraint color picker UI loop
-  // DrawAppearance covers general character renders
-  // Track ItemColor screen item + character for restraint support
   let _aeeItemColorChar = null;
   let _aeeItemColorItem = null;
 
@@ -2192,7 +2232,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       _aeeItemColorItem = args[1];
       const result = next(args);
       aeeCheckAndRender();
-      // ItemColorLayerNames is async (TextCache) - re-render once names loaded
       Promise.resolve(result).then(() => {
         setTimeout(() => {
           if (shadowRoot && hostEl?.style.display !== 'none') renderContent();
@@ -2204,18 +2243,15 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
   try {
     modApi.hookFunction("ItemColorDraw", 0, (args, next) => {
-      // Keep item in sync (called every frame, cheap)
       if (args[0]) _aeeItemColorChar = args[0];
       if (args[0] && args[1]) _aeeItemColorItem = InventoryGet(args[0], args[1]);
       return next(args);
     });
   } catch(e) {}
 
-  // ItemColorFireExit is the single common exit point for all close paths
-  // (Save, Cancel, ExitClick all funnel through here → then ItemColorReset)
   try {
     modApi.hookFunction("ItemColorFireExit", 0, (args, next) => {
-      const result = next(args); // Let BC close first
+      const result = next(args);
       _aeeItemColorChar = null;
       _aeeItemColorItem = null;
       aeeCheckAndRender();
@@ -2223,12 +2259,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     });
   } catch(e) {}
 
-  // DialogRun fires when dialog opens
   try { modApi.hookFunction("DialogRun", 0, (args, next) => { aeeCheckAndRender(); return next(args); }); } catch(e) {}
 
   window.addEventListener('resize', () => {
     alignHost(); updateTogglePos(); alignRotOverlay();
-    positionColorPicker(); // reposition/rescale picker when window resizes
+    positionColorPicker();
     if (state.activeDrag === 'rot') {
       const item = getCurrentItem();
       if (item && state.selectedLayer !== null) {
