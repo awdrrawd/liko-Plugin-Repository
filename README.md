@@ -100,14 +100,6 @@ A collection of small utility functions — handy but somewhat unstable.
 
 ---
 
-#### 🪪 Liko's Custom Profile Background · 自定義個人資料頁面背景
-> 🆔 `Liko-CPB` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CPB.user.js)
-
-自定義個人資料頁面背景並分享給他人。  
-Customize your profile page background and share it with others.
-
----
-
 #### 🖼️ Liko's Image Uploader · 圖片上傳器
 > 🆔 `Liko-Image_Uploader` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Image_Uploader.user.js)
 
@@ -145,22 +137,20 @@ Auto-translate BC chat messages using the Google Translate API.
 
 ---
 
+#### 🎮 Liko's Toy remote control · 玩具遙控器
+> 🆔 `Liko-TRC` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-TRC.user.js)
+
+入侵房間內其他人身上的玩具並控制它(你需要有對方的觸碰權限)  
+Hacking into the toys on other people in the room and taking control of them.  
+(You need to have the other party's touch permission.)  
+
+---
+
 #### 🎵 Liko's Music Controller · 聊天室音樂控制器
 > 🆔 `Liko-CMC` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CMC.user.js)
 
 支援歌詞（需要有曲名）、歌曲列表、FLAC 等格式。  
 Supports lyrics (song title required), playlists, FLAC, and other audio formats.
-
----
-
-#### 💬 Liko's Chat Text to Button · 對話變按鈕
-> 🆔 `Liko-Chat_TtoB` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Chat_TtoB.user.js)
-
-聊天室信息轉按鈕，現在還多了傳送門功能。  
-Converts chat messages into clickable buttons, with a room teleport feature.
-
-- 使用 `/指令`、`!!說話`、`#房名#` 都會變成可以點擊的按鈕，`#房名#` 提供傳送功能  
-  Messages starting with `/`, `!!`, or wrapped in `#RoomName#` become buttons. `#RoomName#` teleports you to that room.
 
 ---
 
@@ -186,16 +176,6 @@ The underwear thief causing panic across the BC community!
 
 ---
 
-#### 🧹 Liko's Release Maid · 解綁女僕
-> 🆔 `Liko-Release_Maid` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Release_Maid.user.js)
-
-自動解綁女僕，不過有點天然，會在意外時觸發。  
-An auto-release maid, though a bit naive — may trigger unexpectedly.
-
-- 請評估自己需求，避免降低遊戲樂趣 · Consider whether this suits your playstyle before enabling
-
----
-
 #### 🆔 WCE Profile Share · WCE個人資料分享
 > 🆔 `Liko-WPS` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-WPS.user.js)
 
@@ -212,14 +192,6 @@ Automatically create a video recording.
 
 ---
 
-#### 🖌️ Liko's Coordinate Drawing Tool · 座標繪製工具
-> 🆔 `Liko-CDT` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CDT.user.js)
-
-BC 的介面 UI 定位工具，有開發需求的可以使用。  
-A BC interface UI positioning tool — useful for plugin developers.
-
----
-
 #### ⚧️ Region Switch · 快速切換混合&女性區
 > 🆔 `Liko-Region_switch` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Region_switch.user.js)
 
@@ -233,6 +205,43 @@ Quickly switch between the mixed and female regions.
 
 聊天室信息過濾。  
 Filter messages in the chatroom.
+
+---
+
+#### 💬 Liko's Chat Text to Button · 對話變按鈕
+> 🆔 `Liko-Chat_TtoB` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Chat_TtoB.user.js)
+
+聊天室信息轉按鈕，現在還多了傳送門功能。  
+Converts chat messages into clickable buttons, with a room teleport feature.
+
+- 使用 `/指令`、`!!說話`、`#房名#` 都會變成可以點擊的按鈕，`#房名#` 提供傳送功能  
+  Messages starting with `/`, `!!`, or wrapped in `#RoomName#` become buttons. `#RoomName#` teleports you to that room.
+
+---
+
+#### 🧹 Liko's Release Maid · 解綁女僕
+> 🆔 `Liko-Release_Maid` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Release_Maid.user.js)
+
+自動解綁女僕，不過有點天然，會在意外時觸發。  
+An auto-release maid, though a bit naive — may trigger unexpectedly.
+
+- 請評估自己需求，避免降低遊戲樂趣 · Consider whether this suits your playstyle before enabling
+
+---
+
+#### 🪪 Liko's Custom Profile Background · 自定義個人資料頁面背景
+> 🆔 `Liko-CPB` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CPB.user.js)
+
+自定義個人資料頁面背景並分享給他人。  
+Customize your profile page background and share it with others.
+
+---
+
+#### 🖌️ Liko's Coordinate Drawing Tool · 座標繪製工具
+> 🆔 `Liko-CDT` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CDT.user.js)
+
+BC 的介面 UI 定位工具，有開發需求的可以使用。  
+A BC interface UI positioning tool — useful for plugin developers.
 
 ---
 
