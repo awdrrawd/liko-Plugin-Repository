@@ -82,13 +82,16 @@ If you don't want to use PCM, head to the [`/Plugins`](./Plugins) folder and ins
 > 🆔 `Liko-AEE` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-AEE.user.js)
 
 新的服裝編輯UI，並且提供旋轉、縮放、鏡像編輯功能。
-有收納模式,方便在手機的螢幕小的場合下使用。
-此外，它還提供顏色和圖層調整功能，無需頻繁切換選單。
-The new clothing editing UI offers rotation, scaling, and mirroring editing functions.
-It has a mini mode, which is convenient for use in situations where the phone screen is small.
-Additionally, it offers coloring and layer adjustments, eliminating the need to constantly switch menus.
 
-- 詳細使用說明請輸入 `/LT` 或 `/LT help` 查詢 · For usage instructions, enter `/LT` or `/LT help`
+有收納模式,方便在手機的螢幕小的場合下使用。
+
+此外，它還提供顏色和圖層調整功能，無需頻繁切換選單。
+
+The new clothing editing UI offers rotation, scaling, and mirroring editing functions.
+
+It has a mini mode, which is convenient for use in situations where the phone screen is small.
+
+Additionally, it offers coloring and layer adjustments, eliminating the need to constantly switch menus.
 
 ---
 
