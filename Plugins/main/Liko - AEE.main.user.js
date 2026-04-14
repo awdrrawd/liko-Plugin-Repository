@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.1
+// @version      0.6.0
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,11 +14,12 @@
 // @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20AEE.main.user.js
 // ==/UserScript==
 
+
 (function () {
   'use strict';
 
   const MOD_NAME = "Liko - AEE";
-  const MOD_Version = "0.5.1";
+  const MOD_Version = "0.6.0";
   if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
   const modApi = bcModSdk.registerMod({
     name: MOD_NAME, fullName: "Liko - Appearance Editor",
@@ -39,7 +40,7 @@
 
   const LANG = {
     zh: {
-      tabEdit: '編輯', tabOpacity: '透明度', tabSettings: '設定',
+      tabEdit: '編輯', tabOpacity: '透明度', tabLayers: '圖層', tabSettings: '設定',
       secPart: '部件', allParts: '整件衣服',
       opacity: '透明度',
       coord: '座標', coordDrag: '拖移',
@@ -47,16 +48,16 @@
       scale: '縮放', scaleDrag: '拖移',
       mirror: '鏡射', mirrorH: '水平', mirrorV: '垂直', mirrorCopy: '水平複製', mirrorCopyV: '垂直複製',
       rotHint: '拖動把手旋轉',
-      colorEdit: '顏色',
       colorPickerTitle: '選色器',
       colorPickerConfirm: '確認', colorPickerCancel: '取消',
       harmSec: '和諧色', shadesSec: '漸層', savedSec: '已儲存',
       harmCompl: '互補', harmTriadic: '三角', harmAnalog: '類比', harmSplit: '分裂', harmTetr: '四角',
       colorSave: '儲存', colorClear: '清除',
+      layerPriority: '優先度', noLayers: '此物品無可編輯圖層',
       settingsEmpty: '⚙️ 設定\n功能擴充中',
     },
     en: {
-      tabEdit: 'Edit', tabOpacity: 'Opacity', tabSettings: 'Settings',
+      tabEdit: 'Edit', tabOpacity: 'Opacity', tabLayers: 'Layers', tabSettings: '⚙',
       secPart: 'Layers', allParts: 'Whole Item',
       opacity: 'Opacity',
       coord: 'Position', coordDrag: 'Drag',
@@ -64,12 +65,12 @@
       scale: 'Scale', scaleDrag: 'Drag',
       mirror: 'Mirror', mirrorH: 'Horiz.', mirrorV: 'Vert.', mirrorCopy: 'Copy H', mirrorCopyV: 'Copy V',
       rotHint: 'Drag handle to rotate',
-      colorEdit: 'Color',
       colorPickerTitle: 'Color Picker',
       colorPickerConfirm: 'Confirm', colorPickerCancel: 'Cancel',
       harmSec: 'Harmony', shadesSec: 'Shades', savedSec: 'Saved',
       harmCompl: 'Compl.', harmTriadic: 'Triadic', harmAnalog: 'Analog.', harmSplit: 'Split', harmTetr: 'Tetr.',
       colorSave: 'Save', colorClear: 'Clear',
+      layerPriority: 'Priority', noLayers: 'No editable layers',
       settingsEmpty: '⚙️ Settings\nMore features coming soon',
     }
   };
@@ -100,12 +101,13 @@
       const asset = layer.Asset?.Name, group = layer.Asset?.Group?.Name;
       if (asset && group) assetGroupMap.set(asset, group);
     });
+
+    // Build transform data from LayerOverrides
     C.Appearance?.forEach(item => {
       const group = item.Asset?.Group?.Name;
       const layers = item.Asset?.Layer;
       const los = item.Property?.LayerOverrides;
       if (!group || !Array.isArray(los)) return;
-      los.forEach((lo, i) => { if (lo?.Opacity != null && layers?.[i]) layers[i].Opacity = lo.Opacity; });
       los.forEach((lo, i) => {
         if (!lo) return;
         const hasT = lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV || lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null;
@@ -119,7 +121,45 @@
         });
       });
     });
-    return next(args);
+
+    // ── Priority: use BC's own OverridePriority system + save/restore ─────
+    // Property.OverridePriority can be:
+    //   number  → whole-item absolute priority (same for all layers)
+    //   object  → {LayerName: priority} per-layer absolute overrides
+    // We temporarily write to layer objects, BC sorts, then we restore.
+    const savedPri = [];
+    C.Appearance?.forEach(item => {
+      const assetLayers = item.Asset?.Layer;
+      const los  = item.Property?.LayerOverrides;
+      const over = item.Property?.OverridePriority; // BC's official API
+
+      // Apply opacity override
+      if (Array.isArray(los)) {
+        los.forEach((lo, i) => {
+          if (lo?.Opacity != null && assetLayers?.[i]) assetLayers[i].Opacity = lo.Opacity;
+        });
+      }
+
+      // Apply OverridePriority (BC format)
+      if (over != null) {
+        assetLayers?.forEach((layer) => {
+          const newPri = typeof over === 'number'
+            ? over
+            : (typeof over === 'object' && over[layer.Name] != null ? over[layer.Name] : null);
+          if (newPri != null) {
+            savedPri.push({ layer, original: layer.Priority });
+            layer.Priority = newPri;
+          }
+        });
+      }
+    });
+
+    const result = next(args); // BC builds C.AppearanceLayers and sorts
+
+    // Restore shared asset layer priorities
+    savedPri.forEach(({ layer, original }) => { layer.Priority = original; });
+
+    return result;
   });
 
   modApi.hookFunction("GLDrawImage", 1, (args, next) => {
@@ -172,9 +212,22 @@
   // DATA HELPERS
   // ============================================================
 
+  // Resolve current item from either wardrobe or dialog (restraint) context
   function getCurrentItem() {
-    if (typeof CharacterAppearanceMode === 'undefined' || CharacterAppearanceMode !== 'Color') return null;
-    return InventoryGet(CharacterAppearanceSelection, CharacterAppearanceColorPickerGroupName);
+    // Primary: wardrobe appearance screen
+    if (typeof CharacterAppearanceMode !== 'undefined' && CharacterAppearanceMode === 'Color') {
+      return InventoryGet(CharacterAppearanceSelection, CharacterAppearanceColorPickerGroupName);
+    }
+    // Secondary: ItemColor screen (restraints / accessories via dialog)
+    if (_aeeItemColorItem) return _aeeItemColorItem;
+    return null;
+  }
+
+  function getCurrentGroup() {
+    if (typeof CharacterAppearanceColorPickerGroupName !== 'undefined' && CharacterAppearanceColorPickerGroupName)
+      return CharacterAppearanceColorPickerGroupName;
+    if (_aeeItemColorItem) return _aeeItemColorItem.Asset?.Group?.Name || null;
+    return null;
   }
 
   function ensureLO(item) {
@@ -206,6 +259,23 @@
   function getLO(item, idx) {
     const i = idx === 'all' ? 0 : parseInt(idx);
     return item?.Property?.LayerOverrides?.[i] || {};
+  }
+
+  // BC layer display name: try ItemColorLayerNames (BC's own LayerNames.csv)
+  // Format used by BC: DynamicGroupName + AssetName + LayerName
+  // e.g. "Cloth" + "小西装T" + "C1" = "Cloth小西装TC1"
+  function getLayerDisplayName(layer, i) {
+    if (!layer) return `Layer ${i}`;
+    try {
+      if (typeof ItemColorLayerNames !== 'undefined' && ItemColorLayerNames) {
+        const asset = layer.Asset;
+        const key   = (asset?.DynamicGroupName ?? '') + (asset?.Name ?? '') + (layer.Name ?? '');
+        const text  = ItemColorLayerNames.get(key);
+        // TextCache.get returns the key itself if missing ("MISSING TEXT..." or the key)
+        if (text && !text.startsWith('MISSING') && text !== key) return text;
+      }
+    } catch(e) {}
+    return layer.Name || `Layer ${i}`;
   }
 
   // Get current color of layer (from BC's color system)
@@ -520,7 +590,6 @@
 
   let colorPickerHostEl = null;
   let colorPickerShadow = null;
-  let colorPickerCallback = null;
 
   // Theme matches panel: --bg:#0d0d0f  --accent:#7c6af7  --accent2:#4ecdc4
   const CP_CSS = `
@@ -532,7 +601,7 @@
 }
 #cp-outer.open { display:block; }
 #cp-backdrop {
-  position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:-1;
+  position:fixed; inset:0; background:transparent; z-index:-1;
 }
 #cp-wrap {
   display:inline-flex; flex-direction:column; align-items:flex-start; gap:0; position:relative;
@@ -549,10 +618,9 @@
   --border-radius-lg:12px;
   --font-sans:'Segoe UI',system-ui,-apple-system,sans-serif;
   --font-mono:'SF Mono','Fira Mono',monospace;
-  transform-origin: top left;
 }
 #cp {
-  width:480px;
+  width:500px;
   background:var(--color-background-primary);
   border:1px solid var(--color-border-secondary);
   border-radius:var(--border-radius-lg);
@@ -650,7 +718,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             <span class="lbl" style="width:auto;font-size:10px">B</span><span id="cp-bv" class="rgb-val">000</span>
           </div>
         </div>
-        <canvas id="cp-sv-canvas" width="240" height="140" style="border-radius:7px;border:1px solid var(--color-border-tertiary);cursor:crosshair;flex-shrink:0;margin-left:2px"></canvas>
+        <canvas id="cp-sv-canvas" width="260" height="140" style="border-radius:7px;border:1px solid var(--color-border-tertiary);cursor:crosshair;flex-shrink:0;margin-left:2px"></canvas>
       </div>
       <div class="row"><span class="lbl">H</span>
         <div class="tw" id="cp-h-tr" style="background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)"><div class="tt" id="cp-h-tt"></div></div>
@@ -826,6 +894,9 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       sd.getElementById('cp-a-v').value=aPct+'%';
       setTT('cp-h-tt',cpH/360*100);setTT('cp-s-tt',cpS);setTT('cp-v-v2',cpV);setTT('cp-a-tt',cpA/255*100);
       updTracks();drawSV();rHarm();rShade();
+      // Live preview: fire on every color change
+      const lc = colorPickerHostEl?._cpOnLiveChange;
+      if (lc) lc(hex);
     }
     function setC(h,s,v,a){cpH=h;cpS=s;cpV=v;cpA=(a===undefined?cpA:a);updAll();}
 
@@ -908,14 +979,23 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       });
     });
 
+    // CONFIRM: save live-change ref before close (close nulls it), then commit final value
     sd.getElementById('cp-confirm').addEventListener('click',()=>{
       const[r,g,b]=h2r(cpH,cpS,cpV);
       const hex=r2x(r,g,b);
+      const lc = colorPickerHostEl?._cpOnLiveChange;
       closeColorPicker();
-      if (colorPickerCallback) colorPickerCallback(hex);
+      if (lc) lc(hex); // ensure final color is committed
     });
-    sd.getElementById('cp-cancel').addEventListener('click',()=>closeColorPicker());
-    sd.getElementById('cp-backdrop').addEventListener('click',()=>closeColorPicker());
+    // CANCEL / BACKDROP: revert to original color
+    function doCancel() {
+      const initHex = colorPickerHostEl?._cpInitialHex;
+      const lc = colorPickerHostEl?._cpOnLiveChange;
+      closeColorPicker();
+      if (lc && initHex) lc(initHex); // revert
+    }
+    sd.getElementById('cp-cancel').addEventListener('click', doCancel);
+    sd.getElementById('cp-backdrop').addEventListener('click', doCancel);
 
     // Expose setC for opening with initial color
     colorPickerHostEl._cpSetColor = (hex) => {
@@ -929,6 +1009,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   }
 
   // Position the color picker relative to the BC canvas, scaled appropriately
+  // positionColorPicker: scale by canvas width / 1500, origin top-left
   function positionColorPicker() {
     if (!colorPickerShadow) return;
     const outer = colorPickerShadow.getElementById('cp-outer');
@@ -937,38 +1018,38 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
     const r = getCanvasRect();
     if (!r) {
-      outer.style.left = '50%';
-      outer.style.top  = '50%';
-      wrap.style.transform = 'translate(-50%,-50%)';
-      wrap.style.transformOrigin = 'top left';
+      wrap.style.transform = '';
+      outer.style.left = Math.max(8, (window.innerWidth - 510) / 2) + 'px';
+      outer.style.top  = '130px';
       return;
     }
 
-    // Scale factor: canvas screen width / BC logical width (2000)
-    const scale = r.width / 2000;
-
-    // Apply scale to picker content so it matches BC's zoom level
+    // Scale so picker matches BC canvas zoom (divisor 1500 = user-calibrated size)
+    const scale = r.width / 1500;
     wrap.style.transform = `scale(${scale})`;
     wrap.style.transformOrigin = 'top left';
 
-    // Picker logical position: right 1/4 of BC canvas (logical x ≈ 1520), y ≥ 100
-    const logLeft = 1520; // right side, leaving 480px of picker width (2000-480=1520)
-    const logTop  = 110;
-    const screenLeft = r.left + logLeft  * (r.width  / 2000);
-    const screenTop  = r.top  + logTop   * (r.height / 1000);
-
-    // Clamp so it doesn't overflow viewport
-    const pickerScreenW = 480 * scale;
-    const clampedLeft = Math.min(screenLeft, window.innerWidth - pickerScreenW - 8);
-
-    outer.style.left = Math.max(clampedLeft, r.left + r.width * 0.5) + 'px';
-    outer.style.top  = Math.max(screenTop, r.top + 60) + 'px';
+    // Scaled picker screen width; position right edge near canvas right edge
+    const pickerScreenW = 500 * scale;
+    const left = Math.max(8, Math.min(r.right - pickerScreenW - 10, window.innerWidth - pickerScreenW - 8));
+    const top  = Math.max(r.top + 60, r.top + 130);
+    outer.style.left = left + 'px';
+    outer.style.top  = top  + 'px';
   }
 
-  function openColorPicker(initialHex, callback) {
+  // openColorPicker(initialHex, onLiveChange)
+  //   onLiveChange(hex) called on every color change for live preview
+  //   cancel reverts via onLiveChange(initialHex); confirm keeps current
+  function openColorPicker(initialHex, onLiveChange) {
     buildColorPicker();
-    colorPickerCallback = callback;
+    if (colorPickerHostEl) {
+      colorPickerHostEl._cpInitialHex = initialHex || '#FFFFFF';
+      colorPickerHostEl._cpOnLiveChange = null; // disable during initial set
+    }
     colorPickerHostEl._cpSetColor?.(initialHex || '#FFFFFF');
+    if (colorPickerHostEl) {
+      colorPickerHostEl._cpOnLiveChange = onLiveChange; // enable after set
+    }
     positionColorPicker();
     colorPickerShadow.getElementById('cp-outer').classList.add('open');
     colorPickerHostEl.style.pointerEvents = 'auto';
@@ -976,8 +1057,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
   function closeColorPicker() {
     colorPickerShadow?.getElementById('cp-outer')?.classList.remove('open');
-    if (colorPickerHostEl) colorPickerHostEl.style.pointerEvents = 'none';
-    colorPickerCallback = null;
+    if (colorPickerHostEl) {
+      colorPickerHostEl.style.pointerEvents = 'none';
+      colorPickerHostEl._cpOnLiveChange = null;
+      colorPickerHostEl._cpInitialHex   = null;
+    }
   }
 
   // ============================================================
@@ -999,43 +1083,104 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
 #panel {
   position:absolute; left:0; top:0;
-  width:14vw; min-width:300px; max-width:380px; height:100%;
+  width:14vw; min-width:270px; max-width:350px; height:100%;
   background:var(--bg); border-right:1px solid var(--border);
   color:var(--text); display:flex; flex-direction:column;
-  z-index:999999; overflow:hidden;
-  user-select:none;
+  z-index:999999; overflow:hidden; user-select:none;
 }
 #panel.collapsed { display:none; }
 
+/* ── TOGGLE: 25px wide; collapsed shows 5 icons + arrow, expanded shows arrow ── */
 #toggle {
   position:absolute; top:50%; transform:translateY(-50%);
-  width:18px; height:48px;
+  width:25px;
   background:var(--bg); border:1px solid var(--border); border-left:none;
-  border-radius:0 5px 5px 0; cursor:pointer;
-  display:flex; align-items:center; justify-content:center;
-  color:var(--text-dim); font-size:10px; z-index:1000000;
-  transition:background .15s, color .15s;
+  border-radius:0 6px 6px 0;
+  display:flex; flex-direction:column; align-items:center;
+  padding:5px 0; gap:4px;
+  z-index:1000000;
 }
-#toggle:hover { background:var(--bg3); color:var(--accent); }
+#toggle-icons {
+  display:none; flex-direction:column; align-items:center; gap:5px;
+  margin-bottom:2px;
+}
+#toggle.show-icons #toggle-icons { display:flex; }
+.tgl-icon {
+  width:28px; height:28px; border-radius:4px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color:var(--text-dim);
+  transition:color .12s, background .12s;
+}
+.tgl-icon:hover { color:var(--accent2); background:rgba(78,205,196,0.1); }
+.tgl-icon.active { color:var(--accent2); background:rgba(78,205,196,0.15); }
+#toggle-arrow {
+  width:22px; height:22px; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color:var(--text-dim); font-size:11px;
+  transition:color .12s;
+}
+#toggle-arrow:hover { color:var(--accent); }
 
 #tabs {
   display:flex; border-bottom:1px solid var(--border); flex-shrink:0;
 }
 .tab {
   flex:1; height:34px; display:flex; align-items:center; justify-content:center;
-  cursor:pointer; color:var(--text-dim); font-size:13px; font-weight:600;
-  letter-spacing:.04em; border-bottom:2px solid transparent;
+  cursor:pointer; color:var(--text-dim); font-size:12px; font-weight:600;
+  letter-spacing:.03em; border-bottom:2px solid transparent;
   transition:color .15s, border-color .15s;
 }
 .tab:hover { color:var(--text); }
 .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
 
 #item-name {
-  padding:7px 12px; font-size:14px; font-weight:700; color:var(--text);
-  text-align:center;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  padding:5px 10px; font-size:13px; font-weight:700; color:var(--text);
+  display:flex; align-items:center; gap:8px;
   background:var(--bg2); border-bottom:1px solid var(--border); flex-shrink:0;
+  min-width:0;
 }
+#item-name-text {
+  flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+/* ── item-name right buttons ── */
+.iname-btn {
+  flex-shrink:0; width:34px; height:34px;
+  background:transparent; border:1px solid var(--border); border-radius:50%;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  color:var(--text-dim); transition:border-color .12s, color .12s, background .12s;
+}
+.iname-btn:hover { border-color:var(--accent); color:var(--accent); }
+#parts-toggle-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(124,106,247,0.12); }
+
+/* ── FLOATING PARTS PANEL ── */
+#parts-float {
+  position:absolute; width:200px; min-height:80px; max-height:260px;
+  background:var(--bg); border:1px solid var(--border); border-radius:8px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.7);
+  display:none; flex-direction:column;
+  z-index:1000001; pointer-events:auto; overflow:hidden;
+  top:60px; left:10px;
+}
+#parts-float.open { display:flex; }
+#parts-float-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:5px 8px; background:var(--bg2); border-bottom:1px solid var(--border);
+  cursor:grab; flex-shrink:0;
+  font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--text-dim);
+}
+#parts-float-header:active { cursor:grabbing; }
+#parts-float-close {
+  width:16px; height:16px; border-radius:3px; border:none; background:transparent;
+  cursor:pointer; color:var(--text-dim); font-size:13px; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  transition:color .1s, background .1s;
+}
+#parts-float-close:hover { color:#f87; background:rgba(255,80,80,0.1); }
+#parts-float-body {
+  overflow-y:auto; flex:1; padding:5px 6px;
+}
+#parts-float-body::-webkit-scrollbar { width:3px; }
+#parts-float-body::-webkit-scrollbar-thumb { background:var(--border); }
 
 #content { flex:1; overflow-y:auto; }
 #content::-webkit-scrollbar { width:3px; }
@@ -1044,8 +1189,8 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 /* ── SECTIONS ── */
 .section { padding:8px 10px; border-bottom:1px solid var(--border); }
 .sec-title {
-  font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
-  color:var(--text-dim); margin-bottom:6px;
+  font-size:13px; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--text); text-align:center; margin-bottom:6px;
 }
 
 /* ── EDIT HEADER (layer name + color button) ── */
@@ -1055,6 +1200,23 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 }
 .edit-header-left { flex:1; min-width:0; }
 
+/* Color edit button — 2:3 ratio, right of layer name, above opacity */
+.color-edit-btn {
+  width:36px; height:54px;
+  border:1.5px solid var(--border); border-radius:5px;
+  cursor:pointer; overflow:hidden; flex-shrink:0;
+  position:relative;
+  background:repeating-conic-gradient(#1a1a1a 0% 25%,#111 0% 50%) 0 0/6px 6px;
+  transition:border-color .12s;
+}
+.color-edit-btn:hover { border-color:var(--accent2); }
+.color-edit-inner { position:absolute; inset:0; }
+.color-edit-label {
+  position:absolute; bottom:0; left:0; right:0;
+  font-size:8px; color:rgba(255,255,255,0.75); text-align:center;
+  background:rgba(0,0,0,0.5); padding:2px 0; line-height:1.2;
+  text-transform:uppercase; letter-spacing:.04em;
+}
 
 /* ── LAYER BUTTONS ── */
 .layer-btn-row {
@@ -1125,7 +1287,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 .op-group { margin-bottom:10px; }
 .op-row-label {
   display:flex; justify-content:space-between; align-items:center;
-  font-size:12px; color:var(--text-sec); margin-bottom:3px;
+  font-size:12px; color:var(--text); margin-bottom:3px;
 }
 .op-row-label span { color:var(--accent2); font-variant-numeric:tabular-nums; }
 .range {
@@ -1137,15 +1299,19 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   background:var(--accent); cursor:pointer; border:2px solid var(--bg);
 }
 
-/* ── MIRROR BUTTONS — taller for two-line text ── */
-.mirror-row { display:flex; gap:6px; margin-top:2px; flex-wrap:wrap; }
+/* ── MIRROR: 2-column grid ── */
+.mirror-grid { display:flex; gap:8px; margin-top:4px; }
+.mirror-group { flex:1; }
+.mirror-group-title {
+  font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--text-dim); text-align:center; margin-bottom:4px;
+}
+.mirror-pair { display:flex; gap:4px; }
 .mirror-btn {
-  flex:1; min-width:52px; min-height:44px; height:auto;
+  flex:1; height:28px;
   background:var(--bg2); border:1.5px solid var(--border);
-  border-radius:4px; color:var(--text-sec); font-size:12px; font-weight:600;
+  border-radius:4px; color:var(--text-sec); font-size:11px; font-weight:600;
   cursor:pointer; display:flex; align-items:center; justify-content:center;
-  text-align:center; white-space:normal; word-break:keep-all; line-height:1.3;
-  padding:6px 4px;
   transition:border-color .12s, color .12s, background .12s;
 }
 .mirror-btn:hover { border-color:var(--accent); }
@@ -1158,6 +1324,39 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   font-size:14px; font-weight:600; color:var(--text); margin-bottom:4px;
 }
 .op-tab-val { color:var(--accent2); font-variant-numeric:tabular-nums; }
+
+/* ── SEC TITLE ROW: title + small color chip ── */
+.sec-title-row {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:6px;
+}
+/* Color chip — same height as drag-check-label (~22px), no text */
+.color-chip {
+  width:40px; height:22px;
+  border:1px solid var(--border); border-radius:3px;
+  cursor:pointer; flex-shrink:0; position:relative; overflow:hidden;
+  background:repeating-conic-gradient(#1a1a1a 0% 25%,#111 0% 50%) 0 0/5px 5px;
+  transition:border-color .12s;
+}
+.color-chip:hover { border-color:var(--accent2); }
+.color-chip-inner { position:absolute; inset:0; }
+
+/* ── LAYERS TAB (priority) ── */
+.layer-pri-row {
+  display:flex; align-items:center; gap:6px;
+  padding:6px 10px; border-bottom:1px solid var(--border);
+}
+.layer-pri-name {
+  flex:1; font-size:13px; color:var(--text);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.pri-input {
+  width:44px; text-align:center;
+  background:var(--bg3); border:1px solid var(--border); border-radius:3px;
+  color:var(--accent2); font-size:12px; padding:3px 4px;
+  outline:none; user-select:text; -webkit-user-select:text;
+}
+.pri-input:focus { border-color:var(--accent2); }
 
 .settings-empty {
   padding:28px 14px; text-align:center;
@@ -1183,11 +1382,133 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     styleEl.textContent = CSS;
     shadowRoot.appendChild(styleEl);
 
+    // ── Toggle with collapse-mode icons ──
     const toggleEl = document.createElement('div');
-    toggleEl.id = 'toggle'; toggleEl.textContent = '◀';
+    toggleEl.id = 'toggle';
     toggleEl.style.pointerEvents = 'auto';
-    toggleEl.addEventListener('click', toggleCollapse);
+    toggleEl.innerHTML = `
+      <div id="toggle-icons">
+        <div class="tgl-icon" id="tgl-open" data-tgl-action="open-panel" title="${isZh()?'部件':'Layers'}">
+          <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <rect x="1" y="1" width="12" height="3" rx="1"/><rect x="1" y="5.5" width="12" height="3" rx="1"/><rect x="1" y="10" width="12" height="3" rx="1"/>
+          </svg>
+        </div>
+        <div class="tgl-icon" id="tgl-xy" data-drag-toggle="xy" title="${isZh()?'座標':'Position'}">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <path d="M8 2v12M2 8h12M8 2L6 4M8 2l2 2M8 14l-2-2M8 14l2-2M2 8l2-2M2 8l2 2M14 8l-2-2M14 8l-2 2"/>
+          </svg>
+        </div>
+        <div class="tgl-icon" id="tgl-rot" data-drag-toggle="rot" title="${isZh()?'旋轉':'Rotate'}">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 5A6 6 0 1 0 13.5 9"/>
+            <path d="M13.5 1v4h-4"/>
+          </svg>
+        </div>
+        <div class="tgl-icon" id="tgl-scale" data-drag-toggle="scale" title="${isZh()?'縮放':'Scale'}">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 6V1h5M10 1h5v5M15 10v5h-5M6 15H1v-5"/>
+          </svg>
+        </div>
+        <div class="tgl-icon" id="tgl-reset" data-tgl-action="reset-transform" title="${isZh()?'重置座標/旋轉/縮放':'Reset transforms'}">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 8A5 5 0 1 0 4 4.5"/>
+            <path d="M1 2v3h3"/>
+            <line x1="8" y1="5" x2="8" y2="8"/><line x1="8" y1="8" x2="10" y2="10"/>
+          </svg>
+        </div>
+      </div>
+      <div id="toggle-arrow">◀</div>
+    `;
+    toggleEl.querySelector('#toggle-arrow').addEventListener('click', toggleCollapse);
+    toggleEl.querySelector('#toggle-icons').addEventListener('click', e => {
+      // Handle drag-toggle icons
+      const dragIcon = e.target.closest('[data-drag-toggle]');
+      if (dragIcon) {
+        const mode = dragIcon.dataset.dragToggle;
+        state.activeDrag = (state.activeDrag === mode) ? null : mode;
+        if (state.activeDrag === 'rot') showRotOverlay(); else hideRotOverlay();
+        updateToggleIcons();
+        return;
+      }
+      // Handle action icons
+      const actionIcon = e.target.closest('[data-tgl-action]');
+      if (!actionIcon) return;
+      const action = actionIcon.dataset.tglAction;
+      if (action === 'open-panel') {
+        // Toggle floating parts panel (same as parts-toggle-btn)
+        const pf  = shadowRoot?.getElementById('parts-float');
+        const btn = shadowRoot?.getElementById('parts-toggle-btn');
+        if (!pf) return;
+        if (pf.classList.contains('open')) {
+          pf.classList.remove('open');
+          btn?.classList.remove('active');
+        } else {
+          pf.classList.add('open');
+          btn?.classList.add('active');
+          updatePartsPanel();
+        }
+      } else if (action === 'reset-transform') {
+        // Reset all transforms for selected layer
+        const item = getCurrentItem();
+        if (!item || state.selectedLayer === null) return;
+        const idx = state.selectedLayer;
+        setLO(item, idx, 'DrawingLeft', {"": 0});
+        setLO(item, idx, 'DrawingTop',  {"": 0});
+        setLO(item, idx, 'ScaleX', 1);
+        setLO(item, idx, 'ScaleY', 1);
+        setLO(item, idx, 'Rotation', 0);
+        if (state.activeDrag === 'rot') updateRotOverlay(0);
+      }
+    });
     shadowRoot.appendChild(toggleEl);
+
+    // ── Floating parts panel ──
+    const partsFloat = document.createElement('div');
+    partsFloat.id = 'parts-float';
+    partsFloat.style.pointerEvents = 'auto';
+    partsFloat.innerHTML = `
+      <div id="parts-float-header">
+        <span>${isZh()?'部件':'Layers'}</span>
+        <button id="parts-float-close">✕</button>
+      </div>
+      <div id="parts-float-body"></div>
+    `;
+    shadowRoot.appendChild(partsFloat);
+
+    // Floating panel drag
+    let _pfDrag = null;
+    partsFloat.querySelector('#parts-float-header').addEventListener('mousedown', e => {
+      if (e.target.closest('#parts-float-close')) return;
+      const r = partsFloat.getBoundingClientRect();
+      _pfDrag = { ox: e.clientX - r.left, oy: e.clientY - r.top };
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!_pfDrag) return;
+      const hr = getCanvasRect(); if (!hr) return;
+      partsFloat.style.left = Math.max(0, Math.min(e.clientX - hr.left - _pfDrag.ox, hr.width - 210)) + 'px';
+      partsFloat.style.top  = Math.max(0, Math.min(e.clientY - hr.top  - _pfDrag.oy, hr.height - 100)) + 'px';
+    });
+    document.addEventListener('mouseup', () => { _pfDrag = null; });
+    partsFloat.querySelector('#parts-float-close').addEventListener('click', () => {
+      partsFloat.classList.remove('open');
+      shadowRoot.getElementById('parts-toggle-btn')?.classList.remove('active');
+    });
+
+    // Event delegation for layer selection inside floating panel
+    partsFloat.querySelector('#parts-float-body').addEventListener('click', e => {
+      const btn = e.target.closest('[data-select-layer]');
+      if (!btn) return;
+      state.selectedLayer = btn.dataset.selectLayer;
+      // Update highlights in both panel locations without full re-render
+      partsFloat.querySelectorAll('[data-select-layer]').forEach(b =>
+        b.classList.toggle('selected', b.dataset.selectLayer === state.selectedLayer));
+      // Full render to update edit section
+      renderContent();
+      // Reopen floating panel after render (renderContent rebuilds content)
+      partsFloat.classList.add('open');
+      shadowRoot.getElementById('parts-toggle-btn')?.classList.add('active');
+    });
 
     const panel = document.createElement('div');
     panel.id = 'panel';
@@ -1196,12 +1517,32 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       <div id="tabs">
         <div class="tab active" data-tab="edit">${t('tabEdit')}</div>
         <div class="tab" data-tab="opacity">${t('tabOpacity')}</div>
+        <div class="tab" data-tab="layers">${t('tabLayers')}</div>
         <div class="tab" data-tab="settings">${t('tabSettings')}</div>
       </div>
-      <div id="item-name">—</div>
+      <div id="item-name">
+        <span id="item-name-text">—</span>
+        <button id="parts-toggle-btn" class="iname-btn" title="${isZh()?'部件':'Layers'}">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <rect x="1" y="1" width="12" height="3" rx="1"/><rect x="1" y="5.5" width="12" height="3" rx="1"/><rect x="1" y="10" width="12" height="3" rx="1"/>
+          </svg>
+        </button>
+      </div>
       <div id="content"></div>
     `;
     shadowRoot.appendChild(panel);
+
+    panel.querySelector('#parts-toggle-btn').addEventListener('click', () => {
+      const btn = panel.querySelector('#parts-toggle-btn');
+      const pf  = shadowRoot.getElementById('parts-float');
+      if (pf.classList.contains('open')) {
+        pf.classList.remove('open'); btn.classList.remove('active');
+      } else {
+        pf.classList.add('open'); btn.classList.add('active');
+        updatePartsPanel();
+      }
+    });
+
 
     panel.querySelector('#tabs').addEventListener('click', e => {
       const tab = e.target.closest('.tab'); if (!tab) return;
@@ -1229,31 +1570,42 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     if (state.collapsed) {
       toggleEl.style.left = '0px';
     } else {
-      const w = panel.offsetWidth || parseInt(getComputedStyle(panel).width) || 300;
+      const w = panel.offsetWidth || parseInt(getComputedStyle(panel).width) || 270;
       toggleEl.style.left = w + 'px';
     }
   }
 
+  function updateToggleIcons() {
+    if (!shadowRoot) return;
+    ['xy','rot','scale'].forEach(mode => {
+      const el = shadowRoot.getElementById('tgl-' + mode);
+      if (el) el.classList.toggle('active', state.activeDrag === mode);
+    });
+  }
+
   function toggleCollapse() {
-    const panel = shadowRoot?.getElementById('panel');
+    const panel    = shadowRoot?.getElementById('panel');
     const toggleEl = shadowRoot?.getElementById('toggle');
+    const arrow    = shadowRoot?.getElementById('toggle-arrow');
     if (!panel || !toggleEl) return;
 
     if (!state.collapsed) {
       panel.classList.add('collapsed');
-      toggleEl.textContent = '▶';
+      toggleEl.classList.add('show-icons');
+      if (arrow) arrow.textContent = '▶';
       state.collapsed = true;
       toggleEl.style.left = '0px';
     } else {
       toggleEl.style.display = 'none';
       panel.classList.remove('collapsed');
+      toggleEl.classList.remove('show-icons');
       state.collapsed = false;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           toggleEl.style.display = '';
-          const w = panel.offsetWidth || 300;
+          const w = panel.offsetWidth || 270;
           toggleEl.style.left = w + 'px';
-          toggleEl.textContent = '◀';
+          if (arrow) arrow.textContent = '◀';
         });
       });
     }
@@ -1265,19 +1617,24 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
   function onContentClick(e) {
     // Color edit button (in edit section header)
+    // Color chip → live-preview picker
     const colorEditBtn = e.target.closest('[data-color-edit]');
     if (colorEditBtn) {
       const layerIdx = colorEditBtn.dataset.colorEdit;
-      const item = getCurrentItem(); if (!item) return;
-      const curColor = getLayerColor(item, layerIdx) || '#FFFFFF';
-      openColorPicker(curColor, (newHex) => {
-        setLayerColor(item, layerIdx, newHex);
-        // Update the swatch immediately without full re-render
-        const inner = shadowRoot?.querySelector(`[data-color-edit="${layerIdx}"] .color-edit-inner`);
-        if (inner) inner.style.background = newHex;
+      const curColor = getLayerColor(getCurrentItem(), layerIdx) || '#FFFFFF';
+      openColorPicker(curColor, (hex) => {
+        const item = getCurrentItem(); if (!item) return;
+        setLayerColor(item, layerIdx, hex);
+        shadowRoot?.querySelectorAll(`[data-color-edit="${layerIdx}"] .color-chip-inner`)
+          .forEach(el => el.style.background = hex);
       });
       return;
     }
+    // Priority step buttons (layers tab)
+    const priStep  = e.target.closest('[data-pri-step]');
+    if (priStep)  { handlePriorityStep(priStep);  return; }
+    const priReset = e.target.closest('[data-pri-reset]');
+    if (priReset) { handlePriorityReset(priReset); return; }
     // Layer select
     const layerBtn = e.target.closest('[data-select-layer]');
     if (layerBtn) {
@@ -1302,6 +1659,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       if (el.checked) {
         if (state.activeDrag === 'rot' && mode !== 'rot') hideRotOverlay();
         state.activeDrag = mode;
+        updateToggleIcons();
         if (mode === 'rot') showRotOverlay();
         shadowRoot.querySelectorAll('[data-drag-mode]').forEach(cb => {
           if (cb !== el) cb.checked = false;
@@ -1310,6 +1668,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         el.closest('.drag-check-label')?.classList.add('active');
       } else {
         state.activeDrag = null;
+        updateToggleIcons();
         if (mode === 'rot') hideRotOverlay();
         el.closest('.drag-check-label')?.classList.remove('active');
       }
@@ -1431,10 +1790,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   function renderContent() {
     if (!shadowRoot) return;
     const item  = getCurrentItem();
-    const group = typeof CharacterAppearanceColorPickerGroupName !== 'undefined' ? CharacterAppearanceColorPickerGroupName : null;
-    const mode  = typeof CharacterAppearanceMode !== 'undefined' ? CharacterAppearanceMode : null;
+    const group = getCurrentGroup();
+    const isWardrobeColor = (typeof CharacterAppearanceMode !== 'undefined' && CharacterAppearanceMode === 'Color');
+    const isItemColor     = !!_aeeItemColorItem;
 
-    if (!item || !group || mode !== 'Color') {
+    if (!item || !group || (!isWardrobeColor && !isItemColor)) {
       hostEl.style.display = 'none';
       hideRotOverlay();
       return;
@@ -1442,13 +1802,15 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     hostEl.style.display = 'block';
     alignHost(); updateTogglePos();
 
-    shadowRoot.getElementById('item-name').textContent = `${group} / ${item.Asset?.Name||''}`;
+    const _nameEl = shadowRoot.getElementById('item-name-text');
+    if (_nameEl) _nameEl.textContent = `${group} / ${item.Asset?.Description || item.Asset?.Name || ''}`;
 
     const layers  = item.Asset?.Layer || [];
     const content = shadowRoot.getElementById('content');
 
-    if (state.tab === 'edit')         content.innerHTML = renderEditTab(item, layers);
+    if      (state.tab === 'edit')    content.innerHTML = renderEditTab(item, layers);
     else if (state.tab === 'opacity') content.innerHTML = renderOpacityTab(item, layers);
+    else if (state.tab === 'layers')  content.innerHTML = renderLayersTab(item, layers);
     else content.innerHTML = `<div class="settings-empty">${t('settingsEmpty')}</div>`;
 
     // Bind prop-val direct input listeners
@@ -1459,8 +1821,32 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       input.addEventListener('click', e => e.stopPropagation());
     });
 
+    // Bind priority inputs (layers tab)
+    content.querySelectorAll('[data-pri-input]').forEach(input => {
+      input.addEventListener('change', () => handlePriorityInput(input));
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') { handlePriorityInput(input); input.blur(); } });
+      input.addEventListener('mousedown', e => e.stopPropagation());
+      input.addEventListener('click',     e => e.stopPropagation());
+    });
+
     if (state.activeDrag === 'rot') showRotOverlay();
     else hideRotOverlay();
+  }
+
+  // Update the floating parts panel content (called once on open, not on every render)
+  function updatePartsPanel() {
+    if (!shadowRoot) return;
+    const item   = getCurrentItem(); if (!item) return;
+    const layers = item.Asset?.Layer || [];
+    const body   = shadowRoot.getElementById('parts-float-body');
+    if (!body) return;
+    body.innerHTML =
+      layerBtnRow('all', t('allParts')) +
+      layers.map((l, i) => layerBtnRow(String(i), getLayerDisplayName(l, i))).join('');
+    // Highlight currently selected layer
+    body.querySelectorAll('[data-select-layer]').forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.selectLayer === state.selectedLayer);
+    });
   }
 
   function renderEditTab(item, layers) {
@@ -1469,7 +1855,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
     if (idx !== null) {
       const lo    = getLO(item, idx);
-      const label = idx==='all' ? t('allParts') : (layers[parseInt(idx)]?.Name || `Layer ${idx}`);
+      const label = idx==='all' ? t('allParts') : getLayerDisplayName(layers[parseInt(idx)], idx);
       const x     = lo.DrawingLeft?.[""] ?? 0;
       const y     = lo.DrawingTop?.[""]  ?? 0;
       const sx    = lo.ScaleX ?? 1;
@@ -1477,10 +1863,14 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       const rot   = lo.Rotation ?? 0;
       const op    = Math.round((lo.Opacity??1)*100);
       const color = getLayerColor(item, idx);
-      const colorStyle = color ? `background:${color}` : '';
 
-            editHtml = `<div class="section" id="edit-section">
-  <div class="sec-title">✦ ${label}</div>
+      editHtml = `<div class="section" id="edit-section">
+  <div class="sec-title-row">
+    <span class="sec-title">✦ ${label}</span>
+    <div class="color-chip" data-color-edit="${idx}">
+      <div class="color-chip-inner" style="${color ? `background:${color}` : ''}"></div>
+    </div>
+  </div>
 
   <!-- 透明度 -->
   <div class="op-group">
@@ -1522,11 +1912,21 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     <div class="prop-group-header">
       <span class="prop-group-title">${t('mirror')}</span>
     </div>
-    <div class="mirror-row">
-      <button class="mirror-btn ${lo.FlipX?'active':''}" data-mirror="FlipX">${t('mirrorH')}</button>
-      <button class="mirror-btn ${lo.FlipY?'active':''}" data-mirror="FlipY">${t('mirrorV')}</button>
-      <button class="mirror-btn ${lo.MirrorCopy?'active':''}" data-mirror="MirrorCopy">${t('mirrorCopy')}</button>
-      <button class="mirror-btn ${lo.MirrorCopyV?'active':''}" data-mirror="MirrorCopyV">${t('mirrorCopyV')}</button>
+    <div class="mirror-grid">
+      <div class="mirror-group">
+        <div class="mirror-group-title">${isZh()?'鏡射':'Mirror'}</div>
+        <div class="mirror-pair">
+          <button class="mirror-btn ${lo.FlipX?'active':''}" data-mirror="FlipX">${t('mirrorH')}</button>
+          <button class="mirror-btn ${lo.FlipY?'active':''}" data-mirror="FlipY">${t('mirrorV')}</button>
+        </div>
+      </div>
+      <div class="mirror-group">
+        <div class="mirror-group-title">${isZh()?'複製':'Copy'}</div>
+        <div class="mirror-pair">
+          <button class="mirror-btn ${lo.MirrorCopy?'active':''}" data-mirror="MirrorCopy">${t('mirrorH')}</button>
+          <button class="mirror-btn ${lo.MirrorCopyV?'active':''}" data-mirror="MirrorCopyV">${t('mirrorV')}</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>`;
@@ -1534,21 +1934,23 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
     return editHtml + `<div class="section">
   <div class="sec-title">${t('secPart')}</div>
-  ${layerBtnRow('all', t('allParts'), item)}
-  ${layers.map((l,i)=>layerBtnRow(String(i), l.Name||`Layer ${i}`, item)).join('')}
+  ${layerBtnRow('all', t('allParts'))}
+  ${layers.map((l,i)=>layerBtnRow(String(i), getLayerDisplayName(l, i))).join('')}
 </div>`;
   }
 
   function renderOpacityTab(item, layers) {
-    const opAll = Math.round((item.Property?.Opacity ?? getLO(item,0).Opacity ?? 1)*100);
+    const _rawOp = item.Property?.Opacity;
+    const opAll = Math.round((typeof _rawOp === 'number' ? _rawOp : (getLO(item,0).Opacity ?? 1)) * 100);
     let html = `<div class="op-tab-row">
       <div class="op-tab-name">${t('allParts')} <span class="op-tab-val" data-op-val id="op-val-all">${opAll}%</span></div>
       <input type="range" class="range" data-op-layer="all" min="0" max="100" step="1" value="${opAll}">
     </div>`;
     layers.forEach((layer,i) => {
       const op = Math.round((getLO(item,i).Opacity??1)*100);
+      const layName = getLayerDisplayName(layer, i);
       html += `<div class="op-tab-row">
-        <div class="op-tab-name">${layer.Name||`Layer ${i}`} <span class="op-tab-val" data-op-val id="op-val-${i}">${op}%</span></div>
+        <div class="op-tab-name">${layName} <span class="op-tab-val" data-op-val id="op-val-${i}">${op}%</span></div>
         <input type="range" class="range" data-op-layer="${i}" min="0" max="100" step="1" value="${op}">
       </div>`;
     });
@@ -1607,7 +2009,130 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   }
 
   // Layer button row — no color swatch (color button is now in the edit section header)
-  function layerBtnRow(idx, name, item) {
+  // ── LAYERS TAB helpers ─────────────────────────────────────
+  function clampPri(v) { return Math.max(-99, Math.min(99, v)); }
+
+  // Use BC's own Property.OverridePriority:
+  //   whole-item ('all') → number  (same priority for all layers)
+  //   per-layer          → object  {LayerName: priority}
+  function applyPriority(item, rawIdx, newVal) {
+    newVal = clampPri(newVal);
+    if (!item.Property) item.Property = {};
+    const layers = item.Asset?.Layer || [];
+    if (rawIdx === 'all') {
+      // Number form: overrides all layers uniformly
+      item.Property.OverridePriority = newVal;
+    } else {
+      const layerName = layers[parseInt(rawIdx)]?.Name;
+      if (!layerName) return newVal;
+      // Convert to object form if needed
+      if (typeof item.Property.OverridePriority !== 'object' || item.Property.OverridePriority == null) {
+        item.Property.OverridePriority = {};
+      }
+      item.Property.OverridePriority[layerName] = newVal;
+    }
+    CharacterRefresh(CharacterAppearanceSelection, false, false);
+    return newVal;
+  }
+
+  function handlePriorityStep(btn) {
+    const item = getCurrentItem(); if (!item) return;
+    const rawIdx = btn.dataset.priStep;                // 'all' or '0','1',...
+    const delta  = parseInt(btn.dataset.priDelta);
+
+    const layers = item.Asset?.Layer || [];
+    let current;
+    if (rawIdx === 'all') {
+      const op = item.Property?.OverridePriority;
+      current = typeof op === 'number' ? op : (item.Asset?.DrawingPriority ?? 0);
+    } else {
+      const i  = parseInt(rawIdx);
+      const layerName = layers[i]?.Name;
+      const op = item.Property?.OverridePriority;
+      current = (typeof op === 'object' && op?.[layerName] != null)
+        ? op[layerName]
+        : (layers[i]?.Priority ?? 0);
+    }
+    const newVal = applyPriority(item, rawIdx, current + delta);
+    const input  = shadowRoot?.querySelector(`[data-pri-input="${rawIdx}"]`);
+    if (input) input.value = newVal;
+  }
+
+  function handlePriorityInput(input) {
+    const item = getCurrentItem(); if (!item) return;
+    const rawIdx = input.dataset.priInput;
+    const val    = parseInt(input.value);
+    if (isNaN(val)) return;
+    applyPriority(item, rawIdx, val);
+    input.value = clampPri(val);
+  }
+
+  function handlePriorityReset(btn) {
+    const item = getCurrentItem(); if (!item) return;
+    const rawIdx = btn.dataset.priReset;
+    const layers = item.Asset?.Layer || [];
+    if (rawIdx === 'all') {
+      // Remove entire OverridePriority → revert to asset default
+      if (item.Property) delete item.Property.OverridePriority;
+      const base  = item.Asset?.DrawingPriority ?? 0;
+      const input = shadowRoot?.querySelector('[data-pri-input="all"]');
+      if (input) input.value = base;
+    } else {
+      const i = parseInt(rawIdx);
+      const layerName = layers[i]?.Name;
+      if (layerName && typeof item.Property?.OverridePriority === 'object') {
+        delete item.Property.OverridePriority[layerName];
+        if (Object.keys(item.Property.OverridePriority).length === 0)
+          delete item.Property.OverridePriority;
+      }
+      const base  = layers[i]?.Priority ?? 0;
+      const input = shadowRoot?.querySelector(`[data-pri-input="${rawIdx}"]`);
+      if (input) input.value = base;
+    }
+    CharacterRefresh(CharacterAppearanceSelection, false, false);
+  }
+
+  function renderLayersTab(item, layers) {
+    if (!layers.length) return `<div class="settings-empty">${t('noLayers')}</div>`;
+    const itemBase    = item.Asset?.DrawingPriority ?? 0;
+    const overPri     = item.Property?.OverridePriority;
+    const itemCurrent = typeof overPri === 'number' ? overPri : itemBase;
+    const allOverride = typeof overPri === 'number';
+
+    // Whole-item row: absolute priority (BC OverridePriority = number)
+    const allRow = `<div class="layer-pri-row" style="border-bottom:2px solid var(--border)">
+  <span class="layer-pri-name" style="font-weight:700;${allOverride ? 'color:var(--accent2)' : ''}">
+    ${t('allParts')} <span style="font-size:10px;color:var(--text-dim)">(base:${itemBase})</span>
+  </span>
+  <button class="step" style="width:28px;flex:none" data-pri-step="all" data-pri-delta="-1">-1</button>
+  <input type="text" class="pri-input" data-pri-input="all" value="${itemCurrent}" min="-99" max="99">
+  <button class="step" style="width:28px;flex:none" data-pri-step="all" data-pri-delta="1">+1</button>
+  <button class="step-reset" data-pri-reset="all" title="↺" style="width:22px">↺</button>
+</div>`;
+
+    // Per-layer rows
+    const layerRows = layers.map((layer, i) => {
+      const basePri     = layer?.Priority ?? 0;
+      const op          = item.Property?.OverridePriority;
+      const currentPri  = (typeof op === 'object' && op?.[layer.Name] != null)
+        ? op[layer.Name]
+        : basePri;
+      const isOverridden = typeof op === 'object' && op?.[layer.Name] != null;
+      const name        = getLayerDisplayName(layer, i);
+      return `<div class="layer-pri-row">
+  <span class="layer-pri-name" style="${isOverridden ? 'color:var(--accent2)' : ''}">${name}
+    <span style="font-size:10px;color:var(--text-dim)">(${basePri})</span>
+  </span>
+  <button class="step" style="width:28px;flex:none" data-pri-step="${i}" data-pri-delta="-1">-1</button>
+  <input type="text" class="pri-input" data-pri-input="${i}" value="${currentPri}" min="-99" max="99">
+  <button class="step" style="width:28px;flex:none" data-pri-step="${i}" data-pri-delta="1">+1</button>
+  <button class="step-reset" data-pri-reset="${i}" title="↺" style="width:22px">↺</button>
+</div>`;
+    }).join('');
+    return allRow + layerRows;
+  }
+
+    function layerBtnRow(idx, name) {
     return `<div class="layer-btn-row">
   <button class="layer-btn ${state.selectedLayer===idx?'selected':''}" data-select-layer="${idx}">${name}</button>
 </div>`;
@@ -1619,20 +2144,87 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
   let lastGroup = null, lastAsset = null, lastMode = null;
 
-  modApi.hookFunction("AppearanceRun", 1, (args, next) => {
+  function aeeCheckAndRender() {
     const item  = getCurrentItem();
-    const group = typeof CharacterAppearanceColorPickerGroupName !== 'undefined' ? CharacterAppearanceColorPickerGroupName : null;
+    const group = getCurrentGroup();
     const mode  = typeof CharacterAppearanceMode !== 'undefined' ? CharacterAppearanceMode : null;
 
     buildPanel();
 
-    if (group !== lastGroup || item?.Asset?.Name !== lastAsset || mode !== lastMode) {
-      if (group !== lastGroup) { state.selectedLayer = null; state.activeDrag = null; hideRotOverlay(); }
+    const itemChanged = (group !== lastGroup || item?.Asset?.Name !== lastAsset);
+    if (itemChanged || mode !== lastMode) {
+      if (itemChanged) {
+        state.selectedLayer = null;
+        state.activeDrag = null;
+        hideRotOverlay();
+        updateToggleIcons(); // sync toggle icon active state
+        const pf  = shadowRoot?.getElementById('parts-float');
+        const btn = shadowRoot?.getElementById('parts-toggle-btn');
+        if (pf)  { pf.classList.remove('open'); }
+        if (btn) { btn.classList.remove('active'); }
+        // Schedule ONE name-reload retry after TextCache loads (only on item change)
+        setTimeout(() => {
+          if (shadowRoot && hostEl?.style.display !== 'none') renderContent();
+        }, 350);
+      }
       lastGroup = group; lastAsset = item?.Asset?.Name; lastMode = mode;
       renderContent();
+      const pf = shadowRoot?.getElementById('parts-float');
+      if (pf?.classList.contains('open')) updatePartsPanel();
     }
+  }
+
+  modApi.hookFunction("AppearanceRun", 1, (args, next) => {
+    aeeCheckAndRender();
     return next(args);
   });
+
+  // Additional hooks for dialog/restraint screens
+  // DialogRun + DialogDraw cover the restraint color picker UI loop
+  // DrawAppearance covers general character renders
+  // Track ItemColor screen item + character for restraint support
+  let _aeeItemColorChar = null;
+  let _aeeItemColorItem = null;
+
+  try {
+    modApi.hookFunction("ItemColorLoad", 0, (args, next) => {
+      _aeeItemColorChar = args[0];
+      _aeeItemColorItem = args[1];
+      const result = next(args);
+      aeeCheckAndRender();
+      // ItemColorLayerNames is async (TextCache) - re-render once names loaded
+      Promise.resolve(result).then(() => {
+        setTimeout(() => {
+          if (shadowRoot && hostEl?.style.display !== 'none') renderContent();
+        }, 300);
+      });
+      return result;
+    });
+  } catch(e) {}
+
+  try {
+    modApi.hookFunction("ItemColorDraw", 0, (args, next) => {
+      // Keep item in sync (called every frame, cheap)
+      if (args[0]) _aeeItemColorChar = args[0];
+      if (args[0] && args[1]) _aeeItemColorItem = InventoryGet(args[0], args[1]);
+      return next(args);
+    });
+  } catch(e) {}
+
+  // ItemColorFireExit is the single common exit point for all close paths
+  // (Save, Cancel, ExitClick all funnel through here → then ItemColorReset)
+  try {
+    modApi.hookFunction("ItemColorFireExit", 0, (args, next) => {
+      const result = next(args); // Let BC close first
+      _aeeItemColorChar = null;
+      _aeeItemColorItem = null;
+      aeeCheckAndRender();
+      return result;
+    });
+  } catch(e) {}
+
+  // DialogRun fires when dialog opens
+  try { modApi.hookFunction("DialogRun", 0, (args, next) => { aeeCheckAndRender(); return next(args); }); } catch(e) {}
 
   window.addEventListener('resize', () => {
     alignHost(); updateTogglePos(); alignRotOverlay();
