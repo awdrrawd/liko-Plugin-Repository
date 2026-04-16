@@ -2,7 +2,7 @@
 // @name         Liko - CDB
 // @name:zh      Liko的自訂更衣室背景
 // @namespace    https://likolisu.dev/
-// @version      1.5.1
+// @version      1.5.2
 // @description  自訂更衣室背景 | Custom Dressing Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -10,6 +10,8 @@
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
 // @run-at       document-end
+// @downloadURL  https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js
+// @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js
 // ==/UserScript==
 
 (function() {
@@ -1290,9 +1292,9 @@
             }
             const compressed = LZString.compressToBase64(JSON.stringify(bundle));
             navigator.clipboard.writeText(compressed).then(function() {
-                if (typeof CharacterAppearanceChatRoomMessage === 'function') {
-                    CharacterAppearanceChatRoomMessage("AppCopyDone");
-                }
+            if (typeof ChatRoomSendLocal === 'function') {
+                ChatRoomSendLocal("✅ Appearance Export");
+            }
                 safeLog("🐈‍⬛ [CDB] ✅ BCX格式外觀已複製到剪貼板");
             }).catch(function(e) {
                 safeError("🐈‍⬛ [CDB] ❌ 複製到剪貼板失敗:", e);
@@ -1329,8 +1331,8 @@
                 }
                 CharacterRefresh(C, false);
             }
-            if (typeof CharacterAppearanceChatRoomMessage === 'function') {
-                CharacterAppearanceChatRoomMessage("AppPasteDone");
+            if (typeof ChatRoomSendLocal === 'function') {
+                ChatRoomSendLocal("✅ Appearance Import");
             }
             safeLog("🐈‍⬛ [CDB] ✅ BCX格式外觀已匯入");
         } catch (e) {
