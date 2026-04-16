@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6.4
+// @version      0.6.5
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
   'use strict';
 
   const MOD_NAME = "Liko - AEE";
-  const MOD_Version = "0.6.4";
+  const MOD_Version = "0.6.5";
   if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
   const modApi = bcModSdk.registerMod({
     name: MOD_NAME, fullName: "Liko - Appearance Editor",
@@ -114,12 +114,15 @@
 
     // 建立新 session 並推入 stack
     const session = {
-      map: new Map(),   // matIndex → TransformData (layerIdx*2 = normal, *2+1 = mask)
-      idx: 0,
+      // key = "group/asset/layerName" → TransformData
+      // BC 透過 BeforeDraw 告訴我們目前要畫哪個 layer，
+      // 不再靠 matIndex 計數，完全消除偏移問題
+      map: new Map(),
+      pendingTd: null,      // BeforeDraw 設好，uniformMatrix4fv 消耗
+      pendingApplied: 0,    // 同一 layer 可能有 2 次 call（main + mask）
       lastMatData: null,
       lastMatLoc: null,
       lastGl: null,
-      charKey: null,    // set after Phase 2a
     };
     _sessionStack.push(session);
     _currentSession = session;
@@ -147,63 +150,35 @@
       }
     });
 
-    // ── PHASE 2a：在 next() 之前建立 session.map ──
-    // 每個 layer 對應的 uniformMatrix4fv slot 數量：
-    //   HasImage=false          → 0 slots（2D canvas，不走 WebGL）
-    //   HasImage!=false，正常   → 2 slots（正常渲染 + 遮罩）
-    //   HasImage!=false，BC原生 MirrorCopy/MirrorCopyV → 4 slots
-    //     （正常 + 鏡像各一次渲染 + 各自遮罩 = 4）
-    // 從上一幀的校正偏移開始（補償 BC 內部額外的 uniformMatrix4fv 呼叫）
-    const _charKey = C.MemberNumber ?? 'local';
-    session.charKey = _charKey;
-    const _initOffset = _charMatOffset.get(_charKey) ?? 0;
-    let _matOffset = _initOffset;  // 累計 slot 偏移（含初始校正）
-    let _layerSlots = 0;           // 純 AppearanceLayers 貢獻的 slots（不含初始偏移）
-    C.AppearanceLayers?.forEach((layer) => {
-      // HasImage=false → 不走 WebGL → 不佔用任何 slot
-      if (layer.HasImage === false) return;
-
-      const matBase = _matOffset;
-      // BC 原生 MirrorCopy/MirrorCopyV：extra draw call → 2 extra slots
-      const bcMirror = !!(layer.MirrorCopy || layer.MirrorCopyV);
-      const slots = bcMirror ? 4 : 2;
-      _matOffset += slots;
-      _layerSlots += slots;
-
-      const assetName = layer.Asset?.Name;
-      const groupName = layer.Asset?.Group?.Name;
+    // ── PHASE 2a：建立 name-keyed session.map ──
+    // key = "group/asset/layerName"，不再計數 matIndex
+    // BeforeDraw hook 告訴我們目前要畫哪個 layer，
+    // HasImage=false、MirrorCopy、BC 額外呼叫等問題全部消失
+    C.Appearance?.forEach(item => {
+      const assetName = item.Asset?.Name;
+      const groupName = item.Asset?.Group?.Name;
       if (!assetName || !groupName) return;
 
-      const item = C.Appearance?.find(it =>
-        it.Asset?.Name === assetName && it.Asset?.Group?.Name === groupName
-      );
-      const los = item?.Property?.LayerOverrides;
+      const los = item.Property?.LayerOverrides;
       if (!Array.isArray(los)) return;
 
       const assetLayers = item.Asset?.Layer ?? [];
-      const layerIdx = layer.Name != null
-        ? assetLayers.findIndex(l => l.Name === layer.Name)
-        : assetLayers.findIndex(l => l.Name == null);
-      if (layerIdx < 0) return;
-
-      const lo = los[layerIdx];
-      if (!lo) return;
-
-      const hasT = lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV ||
-                   lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null;
-      if (!hasT) return;
-
-      const td = {
-        flipX: !!lo.FlipX, flipY: !!lo.FlipY,
-        mirrorCopy: !!lo.MirrorCopy, mirrorCopyV: !!lo.MirrorCopyV,
-        scaleX: lo.ScaleX ?? 1, scaleY: lo.ScaleY ?? 1,
-        rotation: lo.Rotation ?? 0,
-      };
-      // 填入所有屬於這個 layer 的 slots
-      for (let s = 0; s < slots; s++) {
-        session.map.set(matBase + s, td);
-      }
-      aeeLog(`matMap: ${groupName}/${assetName}/${layer.Name} → slots ${matBase}~${matBase+slots-1} (bcMirror:${bcMirror})`);
+      assetLayers.forEach((assetLayer, layerIdx) => {
+        const lo = los[layerIdx];
+        if (!lo) return;
+        const hasT = lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV ||
+                     lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null;
+        if (!hasT) return;
+        const td = {
+          flipX: !!lo.FlipX, flipY: !!lo.FlipY,
+          mirrorCopy: !!lo.MirrorCopy, mirrorCopyV: !!lo.MirrorCopyV,
+          scaleX: lo.ScaleX ?? 1, scaleY: lo.ScaleY ?? 1,
+          rotation: lo.Rotation ?? 0,
+        };
+        const key = groupName + '/' + assetName + '/' + (assetLayer.Name ?? '');
+        session.map.set(key, td);
+        aeeLog('matMap key: ' + key);
+      });
     });
 
     // ── 呼叫 next：uniformMatrix4fv 在此執行，session.map 已就緒 ──
@@ -218,22 +193,11 @@
       if (asset && group) assetGroupMap.set(asset, group);
     });
 
-    // ── 自動校正偏移 ──
-    // 正確做法：比較「實際呼叫總數」與「純 layers 預算」
-    // （不能與 _matOffset 比，因為 _matOffset 已含初始偏移，會造成震盪）
-    // _layerSlots = 僅 AppearanceLayers 的預算，不含初始偏移
-    // _extraCalls = session.idx - _layerSlots = BC 初始化等額外呼叫的次數
-    const _extraCalls = session.idx - _layerSlots;
-    if (_extraCalls !== (_charMatOffset.get(_charKey) ?? 0)) {
-      _charMatOffset.set(_charKey, Math.max(0, _extraCalls));
-      aeeLog(`Calibrated C#${_charKey}: extraCalls=${_extraCalls}`);
-    }
-
     _sessionStack.pop();
     _currentSession = _sessionStack.length > 0 ? _sessionStack[_sessionStack.length - 1] : null;
 
-    const nonNull = [...session.map.values()].filter(Boolean).length / 2;
-    if (nonNull > 0) aeeLog(`Build done C#${C.MemberNumber}: ${C.AppearanceLayers?.length} layers, ${nonNull} with transforms, extra=${_extraCalls}`);
+    const nonNull = [...session.map.values()].length;
+    if (nonNull > 0) aeeLog('Build done C#' + C.MemberNumber + ': ' + nonNull + ' named transforms');
     return result;
   });
 
@@ -253,10 +217,13 @@
     if (data instanceof Float32Array && data.length === 16) {
       const sess = _currentSession;
       if (sess) {
-        const td = sess.map.get(sess.idx);
-        sess.idx++;
+        // BeforeDraw hook が pendingTd をセット済み；ここで消費する
+        const td = sess.pendingTd;
 
         if (td) {
+          sess.pendingApplied++;
+          // 同一 layer は main + mask の 2 呼叫；2 回消費したら解放
+          if (sess.pendingApplied >= 2) { sess.pendingTd = null; sess.pendingApplied = 0; }
           const m = new Float32Array(data);
 
           // 旋轉 + 縮放
@@ -286,7 +253,7 @@
           return _origMat.call(this, loc, tp, m);
         }
 
-        // 無 transform，清除 lastMat 避免 drawArrays 殘留
+        // 無 pendingTd：清除 lastMat 避免 drawArrays 殘留
         sess.lastMatData = null;
       }
     }
@@ -2410,43 +2377,69 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     });
   } catch(e) {}
 
-  // ── BeforeDraw position hook：在 CommonDrawAppearanceBuild 中設 DynamicBeforeDraw ──
-  // AEE-only：我們為有位移 override 的物品設 DynamicBeforeDraw=true，讓 BC 呼叫 BeforeDraw
-  // LSCG+AEE：LSCG priority 2 先攔截 CommonCallFunctionByNameWarn，我們的 priority 1 不跑
+  // ── DynamicBeforeDraw：讓 BC 對有 transform 的 item 呼叫 BeforeDraw ──
+  // 擴大範圍：有旋轉/縮放/鏡射/位移 override 的物品都要設，讓 BeforeDraw 能觸發
   try {
     modApi.hookFunction("CommonDrawAppearanceBuild", 1, (args, next) => {
       const C = args[0];
       C?.Appearance?.forEach(item => {
         const los = item.Property?.LayerOverrides;
         if (!Array.isArray(los)) return;
-        if (los.some(lo => lo?.DrawingLeft != null || lo?.DrawingTop != null))
-          item.Asset.DynamicBeforeDraw = true;
+        const needsBeforeDraw = los.some(lo => lo &&
+          (lo.DrawingLeft != null || lo.DrawingTop != null ||
+           lo.Rotation != null || lo.ScaleX != null || lo.ScaleY != null ||
+           lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV));
+        if (needsBeforeDraw) item.Asset.DynamicBeforeDraw = true;
       });
       return next(args);
     });
   } catch(e) {}
 
+  // ── BeforeDraw hook（priority 3，比 LSCG priority 2 更高先執行）──
+  // 職責一：設定 pendingTd，告訴 uniformMatrix4fv 接下來是哪個 layer
+  // 職責二：處理位移（AEE-only；LSCG 存在時 LSCG 會在 next() 裡處理）
+  // 兩者互不干擾：pendingTd 給旋轉/縮放/鏡射用，位移交給後面的 hook
   try {
-    modApi.hookFunction("CommonCallFunctionByNameWarn", 1, (args, next) => {
+    modApi.hookFunction("CommonCallFunctionByNameWarn", 3, (args, next) => {
       const funcName = args[0];
       const params   = args[1];
       if (!params || !/Assets(.+)BeforeDraw/i.test(funcName)) return next(args);
-      // 用 CommonCallFunctionByName（不警告）— 和 LSCG 相同做法
-      const ret = (typeof CommonCallFunctionByName === 'function'
-        ? CommonCallFunctionByName(args[0], args[1]) : null) ?? {};
-      const CA       = params.CA;
+
+      // ── signal：設 pendingTd 讓 uniformMatrix4fv 知道是哪個 layer ──
+      const CA = params.CA;
+      if (CA && _currentSession) {
+        const groupName = CA.Asset?.Group?.Name;
+        const assetName = CA.Asset?.Name;
+        let layerName   = (params.L ?? '').trim();
+        if (layerName[0] === '_') layerName = layerName.slice(1);
+        const key = groupName + '/' + assetName + '/' + layerName;
+        const td  = _currentSession.map.get(key);
+        _currentSession.pendingTd      = td ?? null;
+        _currentSession.pendingApplied = 0;
+        aeeLog('BeforeDraw signal: ' + key + ' → ' + (td ? 'HAS td' : 'no td'));
+      }
+
+      // ── 繼續呼叫 next，讓 LSCG / BC 原生處理位移 ──
+      const ret = next(args) ?? {};
+
+      // ── AEE-only 位移（LSCG 不在場時由我們補上）──
+      // 若 ret.X/Y 已被設定（LSCG 設的），不覆蓋
       const Property = params.Property;
-      if (!CA || !Property) return ret;
-      let rawName = (params.L ?? '').trim();
-      if (rawName[0] === '_') rawName = rawName.slice(1);
-      const layerIx = CA.Asset?.Layer?.findIndex(l => (l.Name ?? '') === rawName) ?? -1;
-      if (layerIx < 0) return ret;
-      const lo = Property?.LayerOverrides?.[layerIx];
-      if (!lo) return ret;
-      const dx = lo.DrawingLeft?.[''];
-      const dy = lo.DrawingTop?.[''];
-      if (dx != null) ret.X = dx;
-      if (dy != null) ret.Y = dy + (typeof CanvasUpperOverflow !== 'undefined' ? CanvasUpperOverflow : 0);
+      if (CA && Property) {
+        let rawName = (params.L ?? '').trim();
+        if (rawName[0] === '_') rawName = rawName.slice(1);
+        const layerIx = CA.Asset?.Layer?.findIndex(l => (l.Name ?? '') === rawName) ?? -1;
+        if (layerIx >= 0) {
+          const lo = Property?.LayerOverrides?.[layerIx];
+          if (lo) {
+            const dx = lo.DrawingLeft?.[''];
+            const dy = lo.DrawingTop?.[''];
+            if (dx != null && ret.X == null) ret.X = dx;
+            if (dy != null && ret.Y == null)
+              ret.Y = dy + (typeof CanvasUpperOverflow !== 'undefined' ? CanvasUpperOverflow : 0);
+          }
+        }
+      }
       return ret;
     });
   } catch(e) {}
