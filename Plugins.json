@@ -1,18 +1,12 @@
 {
-  "updateId": "260414",
+  "updateId": "260416",
   "changelog": [
-    "⭐AEE (Liko的外觀編輯拓展-測試版) v0.6.2更新",
-    "自製的服裝調整UI",
-    "提供修改服裝、拘束的旋轉、縮放、鏡射功能",
-    "提供迷你模式可以在小畫面上進行服裝編輯",
-    "提供染色、圖層調整"
+    "⭐AEE (Liko的外觀編輯拓展-測試版) v0.6.5更新",
+    "修復圖層編輯時錯誤圖層被編輯"
   ],
   "en_changelog": [
-    "⭐AEE (Liko's Appearance editing extensio - Beta) v0.6.2 Update",
-    "Custom-designed clothing adjustment UI",
-    "Provides clothing modification, constraint rotation, scaling, and mirroring functions",
-    "Provides a mini mode for clothing editing on a smaller screen",
-    "Provides dyeing and layer adjustment functions"
+    "⭐AEE (Liko's Appearance editing extensio - Beta) v0.6.5 Update",
+    "Repairing incorrect layers being edited during layer editing"
   ],
   "plugins": [
     {
