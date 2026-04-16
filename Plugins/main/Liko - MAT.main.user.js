@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.1.5
+// @version      1.1.6
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
     'use strict';
 
     let modApi;
-    let myversion = "1.1.5";
+    let myversion = "1.1.6";
     let observer = null;
 
     let config = {
@@ -232,8 +232,9 @@
     // [FIX 3] 純連結判斷：整段文字若為單一 URL 則跳過翻譯
     function isPureUrl(text) {
         if (!text) return false;
-        const trimmed = text.trim();
-        return /^(\()?https?:\/\//i.test(trimmed);
+        // 去除前後括號、空白、星號等裝飾字元後，判斷是否為純網址
+        const trimmed = text.trim().replace(/^[\s\(\[\*]+|[\s\)\]\*]+$/g, '').trim();
+        return /^https?:\/\//i.test(trimmed);
     }
 
     // 聊天室翻譯（受 config.enabled 影響）
