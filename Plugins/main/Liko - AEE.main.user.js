@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6.5
+// @version      0.6.5-1
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
   'use strict';
 
   const MOD_NAME = "Liko - AEE";
-  const MOD_Version = "0.6.5";
+  const MOD_Version = "0.6.5-1";
   if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
   const modApi = bcModSdk.registerMod({
     name: MOD_NAME, fullName: "Liko - Appearance Editor",
@@ -120,6 +120,7 @@
       map: new Map(),
       pendingTd: null,      // BeforeDraw 設好，uniformMatrix4fv 消耗
       pendingApplied: 0,    // 同一 layer 可能有 2 次 call（main + mask）
+      char: C,              // 綁定角色，供 BeforeDraw hook 在 EBC 中找到正確 session
       lastMatData: null,
       lastMatLoc: null,
       lastGl: null,
@@ -335,7 +336,13 @@
       if (layerIdx === 'all') item.Property.Opacity = val;
       indices.forEach(i => { if (item.Asset?.Layer?.[i]) item.Asset.Layer[i].Opacity = val; });
     }
-    { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) CharacterRefresh(_rc, false, false); }
+    { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) {
+      CharacterRefresh(_rc, false, false);
+      // 拘束畫面（ItemColor）需要額外呼叫 DrawAppearance 才能即時預覽
+      if (_aeeItemColorChar && typeof DrawAppearance === 'function') {
+        try { DrawAppearance(_aeeItemColorChar); } catch(e) {}
+      }
+    } }
   }
 
   function getLO(item, idx) {
@@ -1718,6 +1725,31 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     content.addEventListener('change', onContentChange);
     content.addEventListener('input', onContentInput);
 
+    // ── Long-press repeat for step buttons ──
+    let _stepRepeatTimer = null;
+    let _stepRepeatBtn   = null;
+    const _startStepRepeat = (btn) => {
+      _stepRepeatBtn = btn;
+      // Initial delay 400ms, then every 80ms
+      _stepRepeatTimer = setTimeout(() => {
+        _stepRepeatTimer = setInterval(() => {
+          if (_stepRepeatBtn) handleStep(_stepRepeatBtn);
+        }, 80);
+      }, 400);
+    };
+    const _stopStepRepeat = () => {
+      clearTimeout(_stepRepeatTimer);
+      clearInterval(_stepRepeatTimer);
+      _stepRepeatTimer = null;
+      _stepRepeatBtn   = null;
+    };
+    content.addEventListener('mousedown', e => {
+      const btn = e.target.closest('[data-step]');
+      if (btn) { e.preventDefault(); _startStepRepeat(btn); }
+    });
+    content.addEventListener('mouseleave', _stopStepRepeat);
+    document.addEventListener('mouseup', _stopStepRepeat);
+
     alignHost(); updateTogglePos();
     buildRotOverlay(); alignRotOverlay();
     buildColorPicker();
@@ -2406,17 +2438,27 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       if (!params || !/Assets(.+)BeforeDraw/i.test(funcName)) return next(args);
 
       // ── signal：設 pendingTd 讓 uniformMatrix4fv 知道是哪個 layer ──
+      // EBC 環境下 _sessionStack 有多個 session（每個角色一個），
+      // 用 CA（appearance item）找到屬於該角色的 session
       const CA = params.CA;
-      if (CA && _currentSession) {
+      if (CA) {
         const groupName = CA.Asset?.Group?.Name;
         const assetName = CA.Asset?.Name;
         let layerName   = (params.L ?? '').trim();
         if (layerName[0] === '_') layerName = layerName.slice(1);
         const key = groupName + '/' + assetName + '/' + layerName;
-        const td  = _currentSession.map.get(key);
-        _currentSession.pendingTd      = td ?? null;
-        _currentSession.pendingApplied = 0;
-        aeeLog('BeforeDraw signal: ' + key + ' → ' + (td ? 'HAS td' : 'no td'));
+        // 找到擁有這個 item 的 session（靠 session.char.Appearance 比對）
+        const targetSession = _sessionStack.slice().reverse().find(sess =>
+          sess.char?.Appearance?.some(it =>
+            it.Asset?.Name === assetName && it.Asset?.Group?.Name === groupName
+          )
+        ) ?? _currentSession;
+        if (targetSession) {
+          const td = targetSession.map.get(key);
+          targetSession.pendingTd      = td ?? null;
+          targetSession.pendingApplied = 0;
+          aeeLog('BeforeDraw signal: ' + key + ' → ' + (td ? 'HAS td' : 'no td') + ' sess=' + targetSession.char?.MemberNumber);
+        }
       }
 
       // ── 繼續呼叫 next，讓 LSCG / BC 原生處理位移 ──
