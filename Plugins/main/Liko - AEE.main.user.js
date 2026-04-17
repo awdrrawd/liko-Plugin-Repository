@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6.5-1
+// @version      0.6.5-2
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
   'use strict';
 
   const MOD_NAME = "Liko - AEE";
-  const MOD_Version = "0.6.5-1";
+  const MOD_Version = "0.6.5-2";
   if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
   const modApi = bcModSdk.registerMod({
     name: MOD_NAME, fullName: "Liko - Appearance Editor",
@@ -338,9 +338,12 @@
     }
     { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) {
       CharacterRefresh(_rc, false, false);
-      // 拘束畫面（ItemColor）需要額外呼叫 DrawAppearance 才能即時預覽
-      if (_aeeItemColorChar && typeof DrawAppearance === 'function') {
-        try { DrawAppearance(_aeeItemColorChar); } catch(e) {}
+      if (_aeeItemColorChar) {
+        _aeeItemColorDirty = true;
+        // 拘束畫面需要額外重繪才能即時預覽
+        // BC ItemColorDraw 每幀畫 DrawCharacter，我們在 CharacterRefresh 後
+        // 重新觸發 AppearanceLayers 排序讓 BeforeDraw hook 重新生效
+        try { if (typeof CharacterLoadCanvas === 'function') CharacterLoadCanvas(_aeeItemColorChar); } catch(e) {}
       }
     } }
   }
@@ -2497,11 +2500,13 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   // Track ItemColor screen item + character for restraint support
   let _aeeItemColorChar = null;
   let _aeeItemColorItem = null;
+  let _aeeItemColorDirty = false;  // AEE made changes in ItemColor context that need broadcast
 
   try {
     modApi.hookFunction("ItemColorLoad", 0, (args, next) => {
-      _aeeItemColorChar = args[0];
-      _aeeItemColorItem = args[1];
+      _aeeItemColorChar  = args[0];
+      _aeeItemColorItem  = args[1];
+      _aeeItemColorDirty = false;  // reset for new session
       const result = next(args);
       aeeCheckAndRender();
       // ItemColorLayerNames is async (TextCache) - re-render once names loaded
@@ -2527,9 +2532,21 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   // (Save, Cancel, ExitClick all funnel through here → then ItemColorReset)
   try {
     modApi.hookFunction("ItemColorFireExit", 0, (args, next) => {
+      const wasDirty = _aeeItemColorDirty;
+      const dirtyChar = _aeeItemColorChar;
       const result = next(args); // Let BC close first
-      _aeeItemColorChar = null;
-      _aeeItemColorItem = null;
+      _aeeItemColorChar  = null;
+      _aeeItemColorItem  = null;
+      _aeeItemColorDirty = false;
+      // 如果 AEE 有修改 transform，BC 原生不會廣播（因為沒有顏色變更）
+      // 我們主動呼叫 ChatRoomCharacterUpdate 讓其他玩家也能看到
+      if (wasDirty && dirtyChar) {
+        try {
+          if (typeof ChatRoomCharacterUpdate === 'function') {
+            ChatRoomCharacterUpdate(dirtyChar);
+          }
+        } catch(e) {}
+      }
       aeeCheckAndRender();
       return result;
     });
