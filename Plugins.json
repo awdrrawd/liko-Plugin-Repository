@@ -1,12 +1,18 @@
 {
-  "updateId": "260416",
+  "updateId": "260418",
   "changelog": [
     "⭐AEE (Liko的外觀編輯拓展-測試版) v0.6.5更新",
-    "修復圖層編輯時錯誤圖層被編輯"
+    "修復圖層編輯時錯誤圖層被編輯",
+    "⭐MAT (自動翻譯) v1.2.0更新",
+    "修改手動翻譯的方式，現在是點選信息後顯示按鈕而非停留顯示",
+    "現在增加快捷鍵設置，能快速開關MAT"
   ],
   "en_changelog": [
     "⭐AEE (Liko's Appearance editing extensio - Beta) v0.6.5 Update",
-    "Repairing incorrect layers being edited during layer editing"
+    "Repairing incorrect layers being edited during layer editing",
+    "⭐MAT (Messages Auto Translator) v1.2.0 Update",
+    "Modified the manual translation method; now a button appears after selecting information instead of remaining on the screen.",
+    "Added shortcut key settings for quickly toggling MAT."
   ],
   "plugins": [
     {
