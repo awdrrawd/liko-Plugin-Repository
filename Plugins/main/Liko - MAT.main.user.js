@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.1.7
+// @version      1.2.0
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
     'use strict';
 
     let modApi;
-    let myversion = "1.1.7";
+    let myversion = "1.2.0";
     let observer = null;
 
     let config = {
@@ -26,12 +26,16 @@
         translateSent: false,
         translateSelection: true,
         translateChat: true,
-        autoScroll: true
+        autoScroll: true,
+        // 快捷鍵設定
+        hotkeys: {
+            toggle: { key: 'KeyM', modifiers: ['Ctrl'] }
+        }
     };
 
     (function injectStyles() {
         const style = document.createElement('style');
-        style.textContent = `/* MAT v1.1.7 */`;
+        style.textContent = `/* MAT v${myversion} */`;
         document.head.appendChild(style);
     })();
 
@@ -80,12 +84,18 @@
             translateSent: false,
             translateSelection: true,
             translateChat: true,
-            autoScroll: true
+            autoScroll: true,
+            hotkeys: {
+                toggle: { key: 'KeyM', modifiers: ['Ctrl'] }
+            }
         };
         if (!config || typeof config !== 'object') config = { ...defaults };
         for (const [key, val] of Object.entries(defaults)) {
             if (config[key] === undefined) config[key] = val;
         }
+        // 確保 hotkeys 結構完整（向下相容舊版設定）
+        if (!config.hotkeys || typeof config.hotkeys !== 'object') config.hotkeys = defaults.hotkeys;
+        if (!config.hotkeys.toggle) config.hotkeys.toggle = defaults.hotkeys.toggle;
     }
 
     function saveSettings() {
@@ -102,6 +112,13 @@
     function loadSettings() {
         if (Player?.ExtensionSettings?.BCMachineTranslation) {
             config = { ...config, ...Player.ExtensionSettings.BCMachineTranslation };
+            // 確保 hotkeys 結構完整（舊版存檔可能沒有此欄位）
+            if (!config.hotkeys || typeof config.hotkeys !== 'object') {
+                config.hotkeys = { toggle: { key: 'KeyM', modifiers: ['Ctrl'] } };
+            }
+            if (!config.hotkeys.toggle) {
+                config.hotkeys.toggle = { key: 'KeyM', modifiers: ['Ctrl'] };
+            }
             return;
         }
         if (Player?.OnlineSettings?.BCMachineTranslation) {
@@ -370,15 +387,11 @@
     }
 
     // ============================================================
-    // 手動翻譯核心（修正版）
-    // - 不再 toggle（點選後不消失）
-    // - 舊的手動翻譯先移除，再插入新語言翻譯
-    // - 插入位置在自動翻譯之後，不重疊
+    // 手動翻譯核心
     // ============================================================
     async function manualTranslateMessage(node, targetLang) {
         const lang = targetLang || config.recvLang;
 
-        // 移除既有的手動翻譯（換語言時替換，而非疊加）
         let sibling = node.nextElementSibling;
         while (sibling && (sibling.classList.contains('mat-translated') || sibling.classList.contains('mat-manual-translated'))) {
             const next = sibling.nextElementSibling;
@@ -404,10 +417,8 @@
         div.style.cssText = 'position:relative;background:rgba(33,150,243,0.12);border-left:3px solid #2196F3;padding:2px 24px 2px 6px;margin-top:2px;font-size:0.95em;opacity:0.95;user-select:text;cursor:text;';
         div.title = isZH() ? '雙擊移除翻譯' : 'Double-click to remove';
 
-        // 雙擊移除
         div.addEventListener('dblclick', () => div.remove());
 
-        // hover 顯示 ✕ 按鈕
         const closeX = document.createElement('span');
         closeX.textContent = '✕';
         closeX.style.cssText = 'position:absolute;right:4px;top:50%;transform:translateY(-50%);color:#888;font-size:11px;cursor:pointer;opacity:0;transition:opacity 0.15s;padding:0 2px;line-height:1;';
@@ -417,7 +428,6 @@
         div.addEventListener('mouseleave', () => { closeX.style.opacity = '0'; });
         div.appendChild(closeX);
 
-        // 插在所有自動翻譯行之後
         let insertAfter = node;
         while (insertAfter.nextElementSibling?.classList.contains('mat-translated') ||
                insertAfter.nextElementSibling?.classList.contains('mat-manual-translated')) {
@@ -584,7 +594,6 @@
         altBtn.title = isZH() ? '選擇語言翻譯' : 'Translate to...';
         altBtn.addEventListener('mousedown', (e) => {
             e.preventDefault(); e.stopPropagation();
-            // 在下拉選單開啟前先快照 target，避免 select blur 時 target 已被清掉
             const frozenTarget = clickToolbarTarget;
             openMATLangSelect(altBtn, async (tmpLang) => {
                 if (frozenTarget) await manualTranslateMessage(frozenTarget, tmpLang);
@@ -803,6 +812,139 @@
         return isZH() ? langNameZH[idx] : langNameEN[idx];
     }
 
+    // ============================================================
+    // 快捷鍵系統
+    // ============================================================
+
+    // 可用的按鍵代碼 → 顯示名稱映射（與 BC KeybindingManager.ASCIIKeyboardMap 一致）
+    const KEY_DISPLAY = {
+        KeyA:'A', KeyB:'B', KeyC:'C', KeyD:'D', KeyE:'E', KeyF:'F',
+        KeyG:'G', KeyH:'H', KeyI:'I', KeyJ:'J', KeyK:'K', KeyL:'L',
+        KeyM:'M', KeyN:'N', KeyO:'O', KeyP:'P', KeyQ:'Q', KeyR:'R',
+        KeyS:'S', KeyT:'T', KeyU:'U', KeyV:'V', KeyW:'W', KeyX:'X',
+        KeyY:'Y', KeyZ:'Z',
+        Digit0:'0', Digit1:'1', Digit2:'2', Digit3:'3', Digit4:'4',
+        Digit5:'5', Digit6:'6', Digit7:'7', Digit8:'8', Digit9:'9',
+        F1:'F1', F2:'F2', F3:'F3', F4:'F4', F5:'F5',
+        F6:'F6', F7:'F7', F8:'F8', F9:'F9', F10:'F10', F11:'F11', F12:'F12',
+    };
+
+    /** 將快捷鍵設定轉成可讀字串，例如 "Ctrl+M" */
+    function hotkeyToString(hk) {
+        if (!hk || !hk.key) return isZH() ? '（未設定）' : '(none)';
+        const mods = (hk.modifiers || []);
+        const parts = [];
+        if (mods.includes('Ctrl'))  parts.push('Ctrl');
+        if (mods.includes('Alt'))   parts.push('Alt');
+        if (mods.includes('Shift')) parts.push('Shift');
+        parts.push(KEY_DISPLAY[hk.key] || hk.key);
+        return parts.join('+');
+    }
+
+    /** 比對一個 KeyboardEvent 是否符合快捷鍵設定 */
+    function matchesHotkey(event, hk) {
+        if (!hk || !hk.key) return false;
+        if (event.code !== hk.key) return false;
+        const mods = hk.modifiers || [];
+        if (event.ctrlKey  !== mods.includes('Ctrl'))  return false;
+        if (event.altKey   !== mods.includes('Alt'))   return false;
+        if (event.shiftKey !== mods.includes('Shift')) return false;
+        return true;
+    }
+
+    /** 全局 keydown 監聽，負責觸發 MAT 快捷鍵 */
+    function setupHotkeyListener() {
+        document.addEventListener('keydown', (e) => {
+            // IME 組字中不觸發（避免干擾中文輸入）
+            if (e.isComposing || e.keyCode === 229) return;
+
+            // 沒有修飾鍵時不在輸入框觸發（避免攔截純文字輸入）
+            // 有 Ctrl / Alt 修飾鍵時允許在輸入框內觸發，與 BC 原生行為一致
+            const hk = config.hotkeys.toggle;
+            const mods = hk?.modifiers || [];
+            const hasModifier = mods.includes('Ctrl') || mods.includes('Alt');
+            if (!hasModifier) {
+                const tag = document.activeElement?.tagName?.toLowerCase();
+                if (tag === 'input' || tag === 'textarea') return;
+            }
+
+            if (matchesHotkey(e, hk)) {
+                e.preventDefault();
+                config.enabled = !config.enabled;
+                if (config.enabled) {
+                    startObserver();
+                    ChatRoomSendLocal(`✅ MAT ${isZH() ? '已開啟' : 'enabled'} (${hotkeyToString(hk)})`);
+                } else {
+                    stopObserver();
+                    ChatRoomSendLocal(`❌ MAT ${isZH() ? '已關閉' : 'disabled'} (${hotkeyToString(hk)})`);
+                }
+                saveSettings();
+            }
+        }, true); // useCapture=true，確保最優先
+    }
+
+    // ============================================================
+    // 快捷鍵設定 UI（嵌入在 MAT 設定畫面的右欄下方）
+    // ============================================================
+
+    // 錄製狀態
+    let hotkeyRecording = false;
+    let hotkeyRecordingTarget = null; // 目前正在錄製的快捷鍵名稱，例如 'toggle'
+
+    /** 開始錄製快捷鍵，點擊按鈕後呼叫 */
+    function startHotkeyRecording(actionName) {
+        hotkeyRecording = true;
+        hotkeyRecordingTarget = actionName;
+    }
+
+    /** keydown 回呼：在錄製模式下捕捉按鍵 */
+    function handleHotkeyRecording(e) {
+        if (!hotkeyRecording || !hotkeyRecordingTarget) return false;
+
+        // 單純修飾鍵不記錄
+        if (['Control','Alt','Shift','Meta'].includes(e.key)) return false;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const mods = [];
+        if (e.ctrlKey)  mods.push('Ctrl');
+        if (e.altKey)   mods.push('Alt');
+        if (e.shiftKey) mods.push('Shift');
+
+        if (e.key === 'Escape') {
+            // Esc = 取消錄製
+            hotkeyRecording = false;
+            hotkeyRecordingTarget = null;
+            return true;
+        }
+
+        if (!(e.code in KEY_DISPLAY)) {
+            // 不支援的按鍵，略過
+            return false;
+        }
+
+        config.hotkeys[hotkeyRecordingTarget] = { key: e.code, modifiers: mods };
+        hotkeyRecording = false;
+        hotkeyRecordingTarget = null;
+        saveSettings();
+        return true;
+    }
+
+    /** 清除快捷鍵 */
+    function clearHotkey(actionName) {
+        config.hotkeys[actionName] = { key: null, modifiers: [] };
+        saveSettings();
+    }
+
+    // 把快捷鍵錄製的 keydown 掛到 document（capture 最先）
+    document.addEventListener('keydown', (e) => {
+        handleHotkeyRecording(e);
+    }, true);
+
+    // ============================================================
+    // 設定畫面（整合快捷鍵區塊）
+    // ============================================================
     const matSettingsScreen = {
         load() {
             uiSendIdx = Math.max(0, langCodes.indexOf(config.sendLang));
@@ -812,19 +954,24 @@
             const zh = isZH();
             const names = langNameNative;
             const T = {
-                title        : zh ? "機器翻譯設定  v1.1.7" : "Machine Translation Settings  v1.1.7",
-                secLeft      : zh ? "── 即時翻譯 ──" : "── Live Translation ──",
-                secRight     : zh ? "── 語言設定 ──" : "── Language Settings ──",
-                enabled      : zh ? "啟用"            : "Enable",
-                recv         : zh ? "接收翻譯"         : "Translate Received",
-                send         : zh ? "發送翻譯"         : "Translate Sent",
-                chat         : zh ? "點選翻譯按鈕"     : "Click-to-Translate Button",
-                selection    : zh ? "選取翻譯"         : "Selection Translate",
-                autoScroll   : zh ? "翻譯後自動捲動"   : "Auto-Scroll After Translate",
-                recvLangLabel: zh ? "接收語言："        : "Recv Lang: ",
-                sendLangLabel: zh ? "發送語言："        : "Send Lang: ",
-                recvLangTip  : zh ? "接收語言"         : "Recv Lang",
-                sendLangTip  : zh ? "發送語言"         : "Send Lang",
+                title        : zh ? `機器翻譯設定  v${myversion}` : `Machine Translation Settings  v${myversion}`,
+                secLeft      : zh ? "── 即時翻譯 ──"     : "── Live Translation ──",
+                secRight     : zh ? "── 語言設定 ──"     : "── Language Settings ──",
+                secHotkey    : zh ? "── 快捷鍵 ──"       : "── Hotkeys ──",
+                enabled      : zh ? "啟用"               : "Enable",
+                recv         : zh ? "接收翻譯"           : "Translate Received",
+                send         : zh ? "發送翻譯"           : "Translate Sent",
+                chat         : zh ? "點選翻譯按鈕"       : "Click-to-Translate Button",
+                selection    : zh ? "選取翻譯"           : "Selection Translate",
+                autoScroll   : zh ? "翻譯後自動捲動"     : "Auto-Scroll After Translate",
+                recvLangLabel: zh ? "接收語言："          : "Recv Lang: ",
+                sendLangLabel: zh ? "發送語言："          : "Send Lang: ",
+                recvLangTip  : zh ? "接收語言"           : "Recv Lang",
+                sendLangTip  : zh ? "發送語言"           : "Send Lang",
+                hotkeyToggle : zh ? "開關翻譯："         : "Toggle MAT: ",
+                hotkeySet    : zh ? "點擊設定"           : "Click to set",
+                hotkeyClear  : zh ? "清除"               : "Clear",
+                hotkeyRecording: zh ? "按下新快捷鍵... (Esc取消)" : "Press a key... (Esc=cancel)",
                 desc1: zh ? "該插件為聊天室即時翻譯插件，支援 Bio 翻譯，使用 Google 翻譯 API" : "Chat room live translation plugin with Bio support, powered by Google Translate API",
                 desc2: zh ? "插件停用時不影響 Bio 與選取翻譯（需開啟）的功能" : "Disabling does not affect Bio or Selection translate (if enabled)",
                 desc3: zh ? "請依照需求設定語言與功能，另外也支援聊天室指令 /mat 即時設定" : "Configure as needed. You can also use chatroom commands /mat for live settings",
@@ -847,6 +994,18 @@
             const chatY      = 465;
             const selectionY = 545;
             const autoScrollY= 625;
+
+            // 右欄：語言設定往上對齊左欄前兩行
+            const RLANG_RECV_Y = 225; // 與 enabledY 同高
+            const RLANG_SEND_Y = 305; // 與 recvY 同高
+
+            // 快捷鍵區塊 Y（右欄，語言設定下方）
+            const HK_SEC_Y   = 410;
+            const HK_ROW1_Y  = 450;
+            const HK_BTN_X   = 1290;
+            const HK_BTN_W   = 200;
+            const HK_CLR_X   = 1500;
+            const HK_CLR_W   = 70;
 
             const withLeft = (fn) => {
                 const prev = MainCanvas.textAlign;
@@ -879,11 +1038,27 @@
 
             withLeft(() => {
                 const rowMid = (y) => y + CB_SZ / 2 + 9;
-                DrawTextFit(T.recvLangLabel, R_LBL, rowMid(recvY), R_LBLW, "Black");
-                DrawTextFit(T.sendLangLabel, R_LBL, rowMid(sendY), R_LBLW, "Black");
+                DrawTextFit(T.recvLangLabel, R_LBL, rowMid(RLANG_RECV_Y), R_LBLW, "Black");
+                DrawTextFit(T.sendLangLabel, R_LBL, rowMid(RLANG_SEND_Y), R_LBLW, "Black");
             });
-            DrawButton(R_BTN, recvY, BTN_W, CB_SZ, names[uiRecvIdx], "White", "", T.recvLangTip);
-            DrawButton(R_BTN, sendY, BTN_W, CB_SZ, names[uiSendIdx], "White", "", T.sendLangTip);
+            DrawButton(R_BTN, RLANG_RECV_Y, BTN_W, CB_SZ, names[uiRecvIdx], "White", "", T.recvLangTip);
+            DrawButton(R_BTN, RLANG_SEND_Y, BTN_W, CB_SZ, names[uiSendIdx], "White", "", T.sendLangTip);
+
+            // ── 快捷鍵區塊 ──
+            DrawText(T.secHotkey, 1300, HK_SEC_Y, "#2e7d32", "Gray");
+
+            withLeft(() => {
+                DrawTextFit(T.hotkeyToggle, R_LBL, HK_ROW1_Y + CB_SZ / 2 + 9, R_LBLW, "Black");
+            });
+
+            const isRecording = hotkeyRecording && hotkeyRecordingTarget === 'toggle';
+            const toggleLabel = isRecording
+                ? T.hotkeyRecording
+                : hotkeyToString(config.hotkeys.toggle);
+            const toggleBtnColor = isRecording ? "#FFD700" : "White";
+
+            DrawButton(HK_BTN_X, HK_ROW1_Y, HK_BTN_W, CB_SZ, toggleLabel, toggleBtnColor, "", T.hotkeySet);
+            DrawButton(HK_CLR_X, HK_ROW1_Y, HK_CLR_W, CB_SZ, T.hotkeyClear, "White", "", T.hotkeyClear);
 
             DrawRect(395, 715, 1180, 2, "rgba(0,0,0,0.15)");
             DrawText(T.desc1,  1000, 745, "Gray", "Silver");
@@ -903,6 +1078,15 @@
             const autoScrollY= 625;
             const R_BTN = 1290, BTN_W = 280;
 
+            const RLANG_RECV_Y = 225;
+            const RLANG_SEND_Y = 305;
+
+            const HK_ROW1_Y  = 450;
+            const HK_BTN_X   = 1290;
+            const HK_BTN_W   = 200;
+            const HK_CLR_X   = 1500;
+            const HK_CLR_W   = 70;
+
             if (MouseIn(L_CB, enabledY, CB_SZ, CB_SZ)) {
                 config.enabled = !config.enabled;
                 if (config.enabled) startObserver(); else stopObserver();
@@ -914,11 +1098,11 @@
             if (config.enabled && MouseIn(L_CB, sendY, CB_SZ, CB_SZ)) {
                 config.translateSent = !config.translateSent; saveSettings(); return;
             }
-            if (MouseIn(R_BTN, sendY, BTN_W, CB_SZ)) {
+            if (MouseIn(R_BTN, RLANG_SEND_Y, BTN_W, CB_SZ)) {
                 const fakeAnchor = { getBoundingClientRect: () => {
                     const canvas = document.querySelector('canvas');
                     const rect = canvas ? canvas.getBoundingClientRect() : {left:0,top:0,width:2000,height:1000};
-                    return { left: rect.left + R_BTN*(rect.width/2000), right: rect.left + (R_BTN+BTN_W)*(rect.width/2000), top: rect.top + sendY*(rect.height/1000) };
+                    return { left: rect.left + R_BTN*(rect.width/2000), right: rect.left + (R_BTN+BTN_W)*(rect.width/2000), top: rect.top + RLANG_SEND_Y*(rect.height/1000) };
                 }};
                 openMATLangSelect(fakeAnchor, (code) => {
                     const idx = langCodes.indexOf(code);
@@ -932,11 +1116,11 @@
                 if (!config.translateChat) hideClickToolbar();
                 saveSettings(); return;
             }
-            if (MouseIn(R_BTN, recvY, BTN_W, CB_SZ)) {
+            if (MouseIn(R_BTN, RLANG_RECV_Y, BTN_W, CB_SZ)) {
                 const fakeAnchor = { getBoundingClientRect: () => {
                     const canvas = document.querySelector('canvas');
                     const rect = canvas ? canvas.getBoundingClientRect() : {left:0,top:0,width:2000,height:1000};
-                    return { left: rect.left + R_BTN*(rect.width/2000), right: rect.left + (R_BTN+BTN_W)*(rect.width/2000), top: rect.top + recvY*(rect.height/1000) };
+                    return { left: rect.left + R_BTN*(rect.width/2000), right: rect.left + (R_BTN+BTN_W)*(rect.width/2000), top: rect.top + RLANG_RECV_Y*(rect.height/1000) };
                 }};
                 openMATLangSelect(fakeAnchor, (code) => {
                     const idx = langCodes.indexOf(code);
@@ -954,9 +1138,34 @@
                 config.autoScroll = !config.autoScroll;
                 saveSettings(); return;
             }
+
+            // 快捷鍵按鈕
+            if (MouseIn(HK_BTN_X, HK_ROW1_Y, HK_BTN_W, CB_SZ)) {
+                if (hotkeyRecording && hotkeyRecordingTarget === 'toggle') {
+                    // 再次點擊 = 取消錄製
+                    hotkeyRecording = false;
+                    hotkeyRecordingTarget = null;
+                } else {
+                    startHotkeyRecording('toggle');
+                }
+                return;
+            }
+            if (MouseIn(HK_CLR_X, HK_ROW1_Y, HK_CLR_W, CB_SZ)) {
+                clearHotkey('toggle');
+                hotkeyRecording = false;
+                hotkeyRecordingTarget = null;
+                return;
+            }
         },
-        unload() { },
-        exit() { }
+        unload() {
+            // 離開設定頁時若還在錄製，取消
+            hotkeyRecording = false;
+            hotkeyRecordingTarget = null;
+        },
+        exit() {
+            hotkeyRecording = false;
+            hotkeyRecordingTarget = null;
+        }
     };
 
     function waitForPreference() {
@@ -1197,6 +1406,7 @@
                 hookOnlineProfile();
                 setupSelectionListener();
                 setupClickTranslateListener();
+                setupHotkeyListener(); // ← 快捷鍵監聽
                 if (config.enabled) startObserver();
             });
         } else {
@@ -1224,16 +1434,68 @@
                     case "recvlang":   handleLangCommand(args[1], 'recv'); break;
                     case "test":   testTranslation(args.slice(1).join(" ")); break;
                     case "status": showStatus(); break;
+                    // 快捷鍵指令
+                    case "hotkey": handleHotkeyCommand(args.slice(1)); break;
                     default: ChatRoomSendLocal("❓ 未知指令，使用 /mat help");
                 }
             }
         }]);
-        ChatRoomSendLocal("🌐 [MAT] v1.1.7 loaded! Use /mat help");
+        ChatRoomSendLocal(`🌐 [MAT] v${myversion} loaded! Use /mat help`);
+    }
+
+    /**
+     * /mat hotkey [action] [key]
+     * 例：/mat hotkey toggle ctrl+m
+     *     /mat hotkey toggle clear
+     *     /mat hotkey（查看目前設定）
+     */
+    function handleHotkeyCommand(args) {
+        const action = args[0]?.toLowerCase();
+        const keyStr = args[1]?.toLowerCase();
+
+        if (!action) {
+            // 列出目前快捷鍵
+            ChatRoomSendLocal(`⌨️ MAT 快捷鍵設定：\n開關翻譯 (toggle): ${hotkeyToString(config.hotkeys.toggle)}\n\n用法: /mat hotkey toggle [ctrl+][alt+][shift+]KEY\n例如: /mat hotkey toggle ctrl+m`);
+            return;
+        }
+
+        if (!['toggle'].includes(action)) {
+            ChatRoomSendLocal(`❓ 未知快捷鍵動作: ${action}，目前支援: toggle`);
+            return;
+        }
+
+        if (!keyStr || keyStr === 'clear') {
+            clearHotkey(action);
+            ChatRoomSendLocal(`✅ 已清除 ${action} 快捷鍵`);
+            return;
+        }
+
+        // 解析 "ctrl+alt+m" 格式
+        const parts = keyStr.split('+');
+        const mods = [];
+        let keyName = null;
+        for (const part of parts) {
+            if (part === 'ctrl')  { mods.push('Ctrl'); continue; }
+            if (part === 'alt')   { mods.push('Alt');  continue; }
+            if (part === 'shift') { mods.push('Shift'); continue; }
+            keyName = part.toUpperCase();
+        }
+
+        // 找到對應的 event.code
+        const code = Object.entries(KEY_DISPLAY).find(([, v]) => v === keyName)?.[0];
+        if (!code) {
+            ChatRoomSendLocal(`❓ 不支援的按鍵: ${keyName}，請使用 A-Z 或 0-9`);
+            return;
+        }
+
+        config.hotkeys[action] = { key: code, modifiers: mods };
+        saveSettings();
+        ChatRoomSendLocal(`✅ ${action} 快捷鍵已設為: ${hotkeyToString(config.hotkeys[action])}`);
     }
 
     function showHelp() {
         ChatRoomSendLocal(`<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
-            <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v1.1.7</h3>
+            <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v${myversion}</h3>
             <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
                 <b style='color:#FFD700;'>開關指令</b><br>
                 <b style='color:#87CEEB;'>/mat on/off</b> — 聊天室翻譯總開關<br>
@@ -1243,6 +1505,7 @@
                 <b style='color:#87CEEB;'>/mat selection</b> — 切換選取翻譯（獨立）<br>
                 <b style='color:#87CEEB;'>/mat autoscroll</b> — 切換翻譯後自動捲動<br>
                 <b style='color:#87CEEB;'>/mat recvlang/sendlang [代碼]</b> — 設定語言<br>
+                <b style='color:#87CEEB;'>/mat hotkey [action] [key]</b> — 快捷鍵設定<br>
                 <b style='color:#87CEEB;'>/mat test [文字]</b> — 測試翻譯<br>
                 <b style='color:#87CEEB;'>/mat status</b> — 查看狀態
             </div>
@@ -1252,7 +1515,8 @@
                 <span style='color:#aaa'>・ 選取文字 → 氣泡翻譯（獨立開關）</span><br>
                 <span style='color:#aaa'>・ Bio 翻譯：逐行顯示，翻譯中可點擊黃色按鈕取消</span><br>
                 <span style='color:#aaa'>・ 裝飾字體自動轉換（𝕙𝕖𝕝𝕝𝕠→hello）</span><br>
-                <span style='color:#aaa'>・ 純連結自動跳過翻譯</span>
+                <span style='color:#aaa'>・ 純連結自動跳過翻譯</span><br>
+                <span style='color:#aaa'>・ 快捷鍵：預設 Ctrl+M 開關（設定頁可修改）</span>
             </div>
             <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
                 <b style='color:#FFD700;'>18 種語言</b><br>
@@ -1272,7 +1536,7 @@
 
     function showStatus() {
         ChatRoomSendLocal(`<div style='background:#1a1a2e;color:#eee;padding:8px;border-radius:5px;'>
-            <h4 style='color:#4CAF50;'>📊 MAT v1.1.7 狀態</h4>
+            <h4 style='color:#4CAF50;'>📊 MAT v${myversion} 狀態</h4>
             聊天室總開關: ${config.enabled ? '🟢' : '🔴'}<br>
             整句自動翻譯: ${config.translateReceived ? '✅' : '❌'} → ${getLangName(config.recvLang)}<br>
             發送翻譯: ${config.translateSent ? '✅' : '❌'} → ${getLangName(config.sendLang)}<br>
@@ -1281,6 +1545,7 @@
             翻譯後自動捲動: ${config.autoScroll ? '✅' : '❌'}<br>
             純連結跳過翻譯: ✅ 永遠啟用<br>
             Bio翻譯: 🟢 永遠可用（逐行顯示，可中途取消）<br>
+            快捷鍵（開關）: ⌨️ ${hotkeyToString(config.hotkeys.toggle)}<br>
             設定儲存位置: ExtensionSettings ✅
         </div>`);
     }
