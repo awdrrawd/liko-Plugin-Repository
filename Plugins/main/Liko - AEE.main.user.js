@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6.5-2
+// @version      0.7.0
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
   'use strict';
 
   const MOD_NAME = "Liko - AEE";
-  const MOD_Version = "0.6.5-2";
+  const MOD_Version = "0.7.0";
   if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
   const modApi = bcModSdk.registerMod({
     name: MOD_NAME, fullName: "Liko - Appearance Editor",
@@ -78,6 +78,31 @@
 
   // ============================================================
   // RENDER ENGINE
+  //
+  // v0.7.0 重構說明（根據 estsanatlehi 的建議）：
+  //
+  //  ✅ 已移除：session stack、_charMatOffset、name-keyed session.map
+  //     原因：estsanatlehi 指出 BeforeDraw 直接給你 Item，不需要預建 map
+  //     「BeforeDraw is passing you the Item, so you could just peek...」
+  //
+  //  ✅ 現在：使用簡單全域變數 (_aeePendingTd 等)
+  //     JS 渲染迴圈是 single-threaded，單一全域變數就夠了
+  //
+  //  ✅ GLDrawImage 已原生支援：Mirror (FlipX)、Invert (FlipY)、Zoom（均勻縮放）
+  //     TODO: 改為透過 GLDrawImage 參數傳遞 FlipX/FlipY（需搭配 ScriptDraw）
+  //
+  //  ⚠️  仍保留 prototype patch 的功能（只剩必要的部分）：
+  //     - uniformMatrix4fv：rotation + non-uniform scale（GLDrawImage 真正缺少的）
+  //     - drawArrays：MirrorCopy extra draw call（GLDrawImage 原生無法做到）
+  //
+  //  ⚠️  TODO（低端機器 / Canvas 2D fallback）：
+  //     - BeforeDraw 可被 BC 的 dynamic drawing 開關停用
+  //     - 長期需要不依賴 BeforeDraw 的渲染路徑
+  //     - Canvas 2D 路徑（GLDrawLoad(null, true)）仍待完整支援
+  //
+  //  📋 屬性格式：待與 LSCG 開發者 Sera 協調統一命名
+  //     (LayerOverrides: FlipX, FlipY, ScaleX, ScaleY, Rotation, MirrorCopy, MirrorCopyV,
+  //      DrawingLeft, DrawingTop, Opacity)
   // ============================================================
 
   let assetGroupMap = new Map();
@@ -87,46 +112,28 @@
   const AEE_DEBUG = false;
   function aeeLog(...a) { if (AEE_DEBUG) console.log("🐈‍⬛[AEE]", ...a); }
 
-  // ── Session stack (EBC 多角色修復) ──
-  // EBC 可能巢狀呼叫 GLDrawAppearanceBuild（多角色交錯渲染）。
-  // 用 stack 取代單一全域 _currentSession，確保每個角色的狀態完全隔離。
-  const _sessionStack = [];
-  // Per-character calibration: stores the extra uniformMatrix4fv calls
-  // that happen outside AppearanceLayers (BC setup/init calls).
-  // Self-correcting: after each frame we recalibrate for next frame.
-  const _charMatOffset = new Map(); // memberNumber → extra offset at start
-  let _currentSession = null; // 指向 stack 頂部，方便 uniformMatrix4fv 存取
+  // ── 渲染狀態全域變數（取代舊的 session stack） ──
+  // 由 BeforeDraw hook 設定，由 uniformMatrix4fv / drawArrays 消費
+  let _aeePendingTd      = null; // 當前 layer 的 transform data
+  let _aeePendingApplied = 0;    // 同一 layer 可能有 2 次 uniformMatrix4fv call（main + mask）
+  let _aeeMCFlags        = null; // { mirrorCopy, mirrorCopyV }，專供 drawArrays hook 使用
+  let _aeeLastMatData    = null; // 儲存最後一次的 matrix，供 MirrorCopy 第二次 draw 使用
+  let _aeeLastMatLoc     = null;
+  let _aeeLastGl         = null;
 
   const _origMat  = WebGL2RenderingContext.prototype.uniformMatrix4fv;
   const _origDraw = WebGL2RenderingContext.prototype.drawArrays;
 
   // ============================================================
   // GLDrawAppearanceBuild HOOK
-  // 測試確認：BC 閉包直接持有原始 GLDrawImage 引用，真正渲染
-  // 走的是 uniformMatrix4fv，繞過 BCModSDK hook。
-  // 解法：在 next() 之前建立 matMap（layerIdx*2 → transform），
-  //       uniformMatrix4fv 執行時查表套用。
+  // 只負責：套用 Opacity + Priority overrides（需在 BC build 前套用）
+  // 不再建立 session，不再建 name-keyed map
+  // Transform 資料由 BeforeDraw hook 在每個 layer 繪製時直接讀取
   // ============================================================
 
   modApi.hookFunction("GLDrawAppearanceBuild", 1, (args, next) => {
     const C = args[0];
     currentRenderChar = C;
-
-    // 建立新 session 並推入 stack
-    const session = {
-      // key = "group/asset/layerName" → TransformData
-      // BC 透過 BeforeDraw 告訴我們目前要畫哪個 layer，
-      // 不再靠 matIndex 計數，完全消除偏移問題
-      map: new Map(),
-      pendingTd: null,      // BeforeDraw 設好，uniformMatrix4fv 消耗
-      pendingApplied: 0,    // 同一 layer 可能有 2 次 call（main + mask）
-      char: C,              // 綁定角色，供 BeforeDraw hook 在 EBC 中找到正確 session
-      lastMatData: null,
-      lastMatLoc: null,
-      lastGl: null,
-    };
-    _sessionStack.push(session);
-    _currentSession = session;
 
     // ── PHASE 1：Opacity + Priority（在 BC build 前套用） ──
     const savedPri = [];
@@ -151,41 +158,10 @@
       }
     });
 
-    // ── PHASE 2a：建立 name-keyed session.map ──
-    // key = "group/asset/layerName"，不再計數 matIndex
-    // BeforeDraw hook 告訴我們目前要畫哪個 layer，
-    // HasImage=false、MirrorCopy、BC 額外呼叫等問題全部消失
-    C.Appearance?.forEach(item => {
-      const assetName = item.Asset?.Name;
-      const groupName = item.Asset?.Group?.Name;
-      if (!assetName || !groupName) return;
-
-      const los = item.Property?.LayerOverrides;
-      if (!Array.isArray(los)) return;
-
-      const assetLayers = item.Asset?.Layer ?? [];
-      assetLayers.forEach((assetLayer, layerIdx) => {
-        const lo = los[layerIdx];
-        if (!lo) return;
-        const hasT = lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV ||
-                     lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null;
-        if (!hasT) return;
-        const td = {
-          flipX: !!lo.FlipX, flipY: !!lo.FlipY,
-          mirrorCopy: !!lo.MirrorCopy, mirrorCopyV: !!lo.MirrorCopyV,
-          scaleX: lo.ScaleX ?? 1, scaleY: lo.ScaleY ?? 1,
-          rotation: lo.Rotation ?? 0,
-        };
-        const key = groupName + '/' + assetName + '/' + (assetLayer.Name ?? '');
-        session.map.set(key, td);
-        aeeLog('matMap key: ' + key);
-      });
-    });
-
-    // ── 呼叫 next：uniformMatrix4fv 在此執行，session.map 已就緒 ──
+    // ── 呼叫 next，BeforeDraw 會在此期間觸發並設定 _aeePendingTd ──
     const result = next(args);
 
-    // ── PHASE 2b：還原 priority，從 stack 彈出 session ──
+    // ── 還原 priority ──
     savedPri.forEach(({ layer, original }) => { layer.Priority = original; });
 
     // 更新 assetGroupMap（供其他用途）
@@ -194,69 +170,82 @@
       if (asset && group) assetGroupMap.set(asset, group);
     });
 
-    _sessionStack.pop();
-    _currentSession = _sessionStack.length > 0 ? _sessionStack[_sessionStack.length - 1] : null;
-
-    const nonNull = [...session.map.values()].length;
-    if (nonNull > 0) aeeLog('Build done C#' + C.MemberNumber + ': ' + nonNull + ' named transforms');
     return result;
   });
 
-  // GLDrawImage hook 保留（BCModSDK 攔截 8/80 次，用於相容其他 mod）
-  // 真正的 transform 由 uniformMatrix4fv + drawArrays prototype patch 負責
+  // GLDrawImage 說明：
+  // BC 已原生支援 Mirror (FlipX)、Invert (FlipY)、Zoom（均勻縮放）
+  // 目前只有 rotation 和 MirrorCopy 真正缺少原生支援
+  // 此 hook 保留為未來擴充點（例如：當 BC 正式支援 rotation 後從此接入）
   modApi.hookFunction("GLDrawImage", 1, (args, next) => {
     return next(args);
   });
 
   // ============================================================
-  // WebGL prototype patch
-  // uniformMatrix4fv：套用旋轉 / 縮放 / flip（在 BC 內部渲染迴圈裡）
-  // drawArrays：執行 MirrorCopy / MirrorCopyV 額外 draw call
+  // WebGL prototype patch（最小化版）
+  //
+  // uniformMatrix4fv：注入 rotation + non-uniform scale
+  //   - FlipX/FlipY 暫時仍在此處理（TODO: 改用 GLDrawImage Mirror/Invert 參數）
+  //   - 保留 pendingApplied 計數：同一 layer 有 main + mask 共 2 次 call
+  //
+  // drawArrays：僅處理 MirrorCopy（第二次鏡像 draw call）
+  //   - 這是 GLDrawImage 目前真正做不到的功能
   // ============================================================
 
   WebGL2RenderingContext.prototype.uniformMatrix4fv = function(loc, tp, data) {
-    if (data instanceof Float32Array && data.length === 16) {
-      const sess = _currentSession;
-      if (sess) {
-        // BeforeDraw hook が pendingTd をセット済み；ここで消費する
-        const td = sess.pendingTd;
+    if (data instanceof Float32Array && data.length === 16 && _aeePendingTd) {
+      const td = _aeePendingTd;
 
-        if (td) {
-          sess.pendingApplied++;
-          // 同一 layer は main + mask の 2 呼叫；2 回消費したら解放
-          if (sess.pendingApplied >= 2) { sess.pendingTd = null; sess.pendingApplied = 0; }
-          const m = new Float32Array(data);
-
-          // 旋轉 + 縮放
-          if (td.rotation !== 0 || td.scaleX !== 1 || td.scaleY !== 1) {
-            // 負號修正旋轉方向（BC 座標系）
-            const rad = -td.rotation * Math.PI / 180;
-            const cos = Math.cos(rad), sin = Math.sin(rad);
-            const sx  = Math.sqrt(m[0]**2 + m[1]**2) * td.scaleX;
-            const sy  = Math.sqrt(m[4]**2 + m[5]**2) * td.scaleY;
-            const sgx = m[0] < 0 ? -1 : 1;
-            const sgy = m[5] < 0 ? -1 : 1;
-            m[0] =  cos * sx * sgx;
-            m[1] =  sin * sx * sgx;
-            m[4] = -sin * sy * sgy;
-            m[5] =  cos * sy * sgy;
-          }
-
-          if (td.flipX) { m[0] = -m[0]; m[1] = -m[1]; }
-          if (td.flipY) { m[4] = -m[4]; m[5] = -m[5]; }
-
-          // 位移由 BeforeDraw hook 負責，不在 uniformMatrix4fv 處理
-
-          sess.lastMatData = m;
-          sess.lastMatLoc  = loc;
-          sess.lastGl      = this;
-          aeeLog(`mat[${sess.idx-1}] rot:${td.rotation} scaleX:${td.scaleX}`);
-          return _origMat.call(this, loc, tp, m);
-        }
-
-        // 無 pendingTd：清除 lastMat 避免 drawArrays 殘留
-        sess.lastMatData = null;
+      // 同一 layer 最多消費 2 次（main draw + mask draw）
+      _aeePendingApplied++;
+      if (_aeePendingApplied >= 2) {
+        _aeePendingTd      = null;
+        _aeePendingApplied = 0;
       }
+
+      const m = new Float32Array(data);
+
+      // ── Rotation + non-uniform scale ──
+      // GLDrawImage 的 Zoom 是均勻縮放，rotation 完全不支援，所以仍需 patch
+      if (td.rotation !== 0 || td.scaleX !== 1 || td.scaleY !== 1) {
+        const rad = -td.rotation * Math.PI / 180; // 負號修正 BC 座標系旋轉方向
+        const cos = Math.cos(rad), sin = Math.sin(rad);
+        const sx  = Math.sqrt(m[0]**2 + m[1]**2) * td.scaleX;
+        const sy  = Math.sqrt(m[4]**2 + m[5]**2) * td.scaleY;
+        const sgx = m[0] < 0 ? -1 : 1;
+        const sgy = m[5] < 0 ? -1 : 1;
+        m[0] =  cos * sx * sgx;
+        m[1] =  sin * sx * sgx;
+        m[4] = -sin * sy * sgy;
+        m[5] =  cos * sy * sgy;
+      }
+
+      // ── FlipX / FlipY ──
+      // GLDrawImage 已原生支援（Mirror/Invert 參數），但目前 BeforeDraw 返回值
+      // 無法直接傳遞 Mirror/Invert 旗標給 GLDrawImage，暫時仍在此處理。
+      // TODO: 改為 ScriptDraw + GLDrawImage(Mirror=true) 呼叫以移除此 patch
+      if (td.flipX) { m[0] = -m[0]; m[1] = -m[1]; }
+      if (td.flipY) { m[4] = -m[4]; m[5] = -m[5]; }
+
+      // ── 儲存 matrix 供 MirrorCopy drawArrays hook 使用 ──
+      if (td.mirrorCopy || td.mirrorCopyV) {
+        _aeeLastMatData = m;
+        _aeeLastMatLoc  = loc;
+        _aeeLastGl      = this;
+        _aeeMCFlags     = { mirrorCopy: td.mirrorCopy, mirrorCopyV: td.mirrorCopyV };
+      } else {
+        _aeeLastMatData = null;
+        _aeeMCFlags     = null;
+      }
+
+      aeeLog(`mat: rot=${td.rotation} sx=${td.scaleX} sy=${td.scaleY} flip=${td.flipX}/${td.flipY}`);
+      return _origMat.call(this, loc, tp, m);
+    }
+
+    // 無 pendingTd：清除 MirrorCopy 殘留狀態，避免跨 layer 污染
+    if (!_aeePendingTd) {
+      _aeeLastMatData = null;
+      _aeeMCFlags     = null;
     }
     return _origMat.call(this, loc, tp, data);
   };
@@ -264,29 +253,30 @@
   WebGL2RenderingContext.prototype.drawArrays = function(mode, first, count) {
     const result = _origDraw.call(this, mode, first, count);
 
-    const sess = _currentSession;
-    if (!sess || !sess.lastMatData || sess.lastGl !== this) return result;
+    // MirrorCopy：在原始 draw call 後額外繪製鏡像 copy
+    // 這是 GLDrawImage 目前無法原生支援的功能（需要第二次 draw call）
+    if (!_aeeMCFlags || !_aeeLastMatData || _aeeLastGl !== this) return result;
 
-    // 取得對應這個 draw call 的 transform（idx 已遞增，所以查 idx-1）
-    const td = sess.map.get(sess.idx - 1);
-    if (!td) return result;
+    if (_aeeMCFlags.mirrorCopy) {
+      const mM = new Float32Array(_aeeLastMatData);
+      mM[0] = -mM[0]; mM[1] = -mM[1]; // 翻轉 X 方向向量
+      mM[12] = -mM[12];                // X 位移對稱
+      _origMat.call(this, _aeeLastMatLoc, false, mM);
+      _origDraw.call(this, mode, first, count);
+      aeeLog('MirrorCopy draw');
+    }
+    if (_aeeMCFlags.mirrorCopyV) {
+      const mV = new Float32Array(_aeeLastMatData);
+      mV[4] = -mV[4]; mV[5] = -mV[5]; // 翻轉 Y 方向向量
+      mV[13] = -mV[13];                // Y 位移對稱
+      _origMat.call(this, _aeeLastMatLoc, false, mV);
+      _origDraw.call(this, mode, first, count);
+      aeeLog('MirrorCopyV draw');
+    }
 
-    if (td.mirrorCopy) {
-      const mM = new Float32Array(sess.lastMatData);
-      mM[0] = -mM[0]; mM[1] = -mM[1]; // 翻轉 X 分量
-      mM[12] = -mM[12]; // X 位移對稱
-      _origMat.call(this, sess.lastMatLoc, false, mM);
-      _origDraw.call(this, mode, first, count);
-      aeeLog(`MirrorCopy draw`);
-    }
-    if (td.mirrorCopyV) {
-      const mV = new Float32Array(sess.lastMatData);
-      mV[4] = -mV[4]; mV[5] = -mV[5]; // 翻轉 Y 分量
-      mV[13] = -mV[13]; // Y 位移對稱
-      _origMat.call(this, sess.lastMatLoc, false, mV);
-      _origDraw.call(this, mode, first, count);
-      aeeLog(`MirrorCopyV draw`);
-    }
+    // MirrorCopy 只在第一個 drawArrays 後執行一次，之後清除避免重複
+    _aeeLastMatData = null;
+    _aeeMCFlags     = null;
 
     return result;
   };
@@ -297,11 +287,9 @@
 
   // Resolve current item from either wardrobe or dialog (restraint) context
   function getCurrentItem() {
-    // Primary: wardrobe appearance screen
     if (typeof CharacterAppearanceMode !== 'undefined' && CharacterAppearanceMode === 'Color') {
       return InventoryGet(CharacterAppearanceSelection, CharacterAppearanceColorPickerGroupName);
     }
-    // Secondary: ItemColor screen (restraints / accessories via dialog)
     if (_aeeItemColorItem) return _aeeItemColorItem;
     return null;
   }
@@ -340,9 +328,6 @@
       CharacterRefresh(_rc, false, false);
       if (_aeeItemColorChar) {
         _aeeItemColorDirty = true;
-        // 拘束畫面需要額外重繪才能即時預覽
-        // BC ItemColorDraw 每幀畫 DrawCharacter，我們在 CharacterRefresh 後
-        // 重新觸發 AppearanceLayers 排序讓 BeforeDraw hook 重新生效
         try { if (typeof CharacterLoadCanvas === 'function') CharacterLoadCanvas(_aeeItemColorChar); } catch(e) {}
       }
     } }
@@ -353,9 +338,6 @@
     return item?.Property?.LayerOverrides?.[i] || {};
   }
 
-  // BC layer display name: try ItemColorLayerNames (BC's own LayerNames.csv)
-  // Format used by BC: DynamicGroupName + AssetName + LayerName
-  // e.g. "Cloth" + "小西装T" + "C1" = "Cloth小西装TC1"
   function getLayerDisplayName(layer, i) {
     if (!layer) return `Layer ${i}`;
     try {
@@ -363,17 +345,14 @@
         const asset = layer.Asset;
         const key   = (asset?.DynamicGroupName ?? '') + (asset?.Name ?? '') + (layer.Name ?? '');
         const text  = ItemColorLayerNames.get(key);
-        // TextCache.get returns the key itself if missing ("MISSING TEXT..." or the key)
         if (text && !text.startsWith('MISSING') && text !== key) return text;
       }
     } catch(e) {}
     return layer.Name || `Layer ${i}`;
   }
 
-  // Get current color of layer (from BC's color system)
   function getLayerColor(item, layerIdx) {
     if (!item) return null;
-    // Prefer Property.Color, fall back to item.Color
     const colors = item.Property?.Color ?? item.Color;
     if (!colors) return null;
     const idx = layerIdx === 'all' ? 0 : parseInt(layerIdx);
@@ -381,7 +360,6 @@
     return typeof colors === 'string' ? colors : null;
   }
 
-  // FIX: update both item.Color and item.Property.Color so BC renders correctly
   function setLayerColor(item, layerIdx, hexColor) {
     if (!item) return;
     const layers = item.Asset?.Layer;
@@ -389,7 +367,6 @@
     const idx = layerIdx === 'all' ? 'all' : parseInt(layerIdx);
     if (!item.Property) item.Property = {};
 
-    // Initialize a color array from an existing color source
     function initColorArr(src) {
       if (Array.isArray(src)) return src.slice();
       const base = typeof src === 'string' ? src : '#FFFFFF';
@@ -441,10 +418,9 @@
     selectedLayer: null,
     collapsed: false,
     activeDrag: null,
-    scaleLock: true,   // true = proportional (XY locked)
+    scaleLock: true,
   };
 
-  // Groups where transform editing (position/rotation/scale/mirror) is locked
   const LOCKED_GROUPS = new Set(['BodyUpper','BodyLower','Nipples','Pussy','Head']);
   function getCurrentGroupName() {
     return getCurrentItem()?.Asset?.Group?.Name ?? null;
@@ -452,8 +428,6 @@
   function isGroupLocked() {
     return LOCKED_GROUPS.has(getCurrentGroupName());
   }
-
-
 
   // ============================================================
   // DRAG — XY
@@ -475,7 +449,6 @@
     xyDragState = {
       layerIdx: state.selectedLayer,
       startX: e.clientX, startY: e.clientY,
-      // Use absolute current position as drag origin
       origX: lo.DrawingLeft?.[""] ?? (typeof item.Asset?.Layer?.[state.selectedLayer==='all'?0:parseInt(state.selectedLayer)]?.DrawingLeft === 'object' ? (item.Asset.Layer[state.selectedLayer==='all'?0:parseInt(state.selectedLayer)].DrawingLeft?.['']??0) : (item.Asset?.Layer?.[state.selectedLayer==='all'?0:parseInt(state.selectedLayer)]?.DrawingLeft??0)),
       origY: lo.DrawingTop?.[""]  ?? (typeof item.Asset?.Layer?.[state.selectedLayer==='all'?0:parseInt(state.selectedLayer)]?.DrawingTop  === 'object' ? (item.Asset.Layer[state.selectedLayer==='all'?0:parseInt(state.selectedLayer)].DrawingTop?.[''] ??0) : (item.Asset?.Layer?.[state.selectedLayer==='all'?0:parseInt(state.selectedLayer)]?.DrawingTop ??0)),
       flipX: !!lo.FlipX, flipY: !!lo.FlipY,
@@ -547,7 +520,6 @@
     const item = getCurrentItem(); if (!item) return;
     let newSX, newSY;
     if (state.scaleLock) {
-      // 等比：取 XY 平均 delta，保持比例
       const avgDelta = (dx + dy) / 2;
       const ratio = scaleDragState.origSX > 0 ? scaleDragState.origSY / scaleDragState.origSX : 1;
       newSX = Math.max(0.05, +(scaleDragState.origSX + avgDelta).toFixed(2));
@@ -575,10 +547,9 @@
   let rotOverlayHost = null;
   let rotShadow = null;
   let rotDragState = null;
-  // 旋轉環顯示在畫布中央偏下，中心點代表「衣服圖片中心」
-  const ROT_CX_PCT = 0.50;   // 水平中央
-  const ROT_CY_PCT = 0.89;   // 腳部附近
-  const ROT_RADIUS = 60;     // 環形半徑
+  const ROT_CX_PCT = 0.50;
+  const ROT_CY_PCT = 0.89;
+  const ROT_RADIUS = 60;
 
   function buildRotOverlay() {
     if (rotOverlayHost) return;
@@ -593,32 +564,24 @@
         #rot-overlay { position:absolute; display:none; pointer-events:none; }
         #rot-overlay.on { display:block; }
         svg { overflow:visible; pointer-events:none; }
-        /* 環形帶寬 24px，讓整個環都可以點擊 */
-        /* 環帶 + 圓面內部都響應點擊 */
         #rot-hit {
           fill:rgba(0,0,0,0.01); stroke:transparent; stroke-width:28;
           cursor:crosshair; pointer-events:all;
         }
-        /* 背景圓和環形線 */
         #rot-ring-bg { fill:rgba(0,0,0,0.3); stroke:rgba(124,106,247,0.25); stroke-width:1; pointer-events:none; }
         #rot-ring    { fill:none; stroke:rgba(124,106,247,0.6); stroke-width:2; pointer-events:none; }
-        /* 指示線 */
         #rot-line    { stroke:rgba(124,106,247,0.7); stroke-width:1.5; stroke-dasharray:5 3; pointer-events:none; }
-        /* 把手 */
         #rot-handle  { fill:#7c6af7; stroke:#fff; stroke-width:2; pointer-events:none; }
-        /* 角度標籤（不可選取） */
         #rot-label {
           font-family:'Segoe UI',sans-serif; font-size:14px; font-weight:700;
           fill:#fff; text-anchor:middle; dominant-baseline:central;
           pointer-events:none;
         }
-        /* 提示文字 */
         #rot-hint {
           font-family:'Segoe UI',sans-serif; font-size:11px;
           fill:rgba(255,255,255,0.45); text-anchor:middle;
           pointer-events:none;
         }
-        /* 中心點 */
         #rot-center { fill:rgba(124,106,247,0.5); pointer-events:none; }
       </style>
       <div id="rot-overlay">
@@ -630,12 +593,9 @@
           <text   id="rot-label"/>
           <text   id="rot-hint"/>
           <circle id="rot-center" r="4"/>
-          <!-- 環帶 + 圓面點擊區 -->
           <circle id="rot-hit"/>
         </svg>
       </div>`;
-
-    // 整個環帶都可以點
     rotShadow.getElementById('rot-hit').addEventListener('mousedown', onRotHandleDown);
   }
 
@@ -663,12 +623,10 @@
     const rad = rotDeg * Math.PI / 180;
     const hx = cx + ROT_RADIUS * Math.sin(rad);
     const hy = cy - ROT_RADIUS * Math.cos(rad);
-
     const setA = (id, attrs) => {
       const el = rotShadow.getElementById(id); if (!el) return;
       Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
     };
-
     setA('rot-ring-bg', { cx, cy, r: ROT_RADIUS });
     setA('rot-ring',    { cx, cy, r: ROT_RADIUS });
     setA('rot-hit',     { cx, cy, r: ROT_RADIUS });
@@ -688,8 +646,6 @@
     const lo = getLO(item, state.selectedLayer);
     updateRotOverlay(lo.Rotation ?? 0);
     rotShadow.getElementById('rot-overlay').classList.add('on');
-    // 只讓 overlay div 本身不拦截鼠標（pointer-events:none），
-    // SVG 裡的 rot-hit 透過 pointer-events:stroke 精確接收點擊
     rotOverlayHost.style.pointerEvents = 'none';
   }
 
@@ -709,7 +665,6 @@
   function onRotHandleDown(e) {
     e.preventDefault();
     e.stopPropagation();
-    // 立即計算角度（點環上任意位置即生效）
     const angle = _calcAngle(e.clientX, e.clientY);
     const item = getCurrentItem();
     if (!item || state.selectedLayer === null) return;
@@ -717,7 +672,6 @@
     updateRotOverlay(angle);
     updateEditSection();
     rotDragState = true;
-
     const onMove = (ev) => {
       const a = _calcAngle(ev.clientX, ev.clientY);
       const item2 = getCurrentItem(); if (!item2 || state.selectedLayer === null) return;
@@ -735,13 +689,12 @@
   }
 
   // ============================================================
-  // COLOR PICKER — matching editor theme, i18n, canvas-scaled position
+  // COLOR PICKER
   // ============================================================
 
   let colorPickerHostEl = null;
   let colorPickerShadow = null;
 
-  // Theme matches panel: --bg:#0d0d0f  --accent:#7c6af7  --accent2:#4ecdc4
   const CP_CSS = `
 :host { all:initial; display:block; }
 *{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none}
@@ -836,7 +789,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     document.body.appendChild(colorPickerHostEl);
     colorPickerShadow = colorPickerHostEl.attachShadow({ mode: 'open' });
 
-    // Build HTML using t() so translations are baked in at construction time
     colorPickerShadow.innerHTML = `<style>${CP_CSS}</style>
 <div id="cp-outer">
   <div id="cp-backdrop"></div>
@@ -1044,13 +996,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       sd.getElementById('cp-a-v').value=aPct+'%';
       setTT('cp-h-tt',cpH/360*100);setTT('cp-s-tt',cpS);setTT('cp-v-v2',cpV);setTT('cp-a-tt',cpA/255*100);
       updTracks();drawSV();rHarm();rShade();
-      // Live preview: fire on every color change
       const lc = colorPickerHostEl?._cpOnLiveChange;
       if (lc) lc(hex);
     }
     function setC(h,s,v,a){cpH=h;cpS=s;cpV=v;cpA=(a===undefined?cpA:a);updAll();}
 
-    // Track interactions
     function trk(id,cb){
       const el=sd.getElementById(id);let drag=false;
       function pick(e){
@@ -1129,25 +1079,22 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       });
     });
 
-    // CONFIRM: save live-change ref before close (close nulls it), then commit final value
     sd.getElementById('cp-confirm').addEventListener('click',()=>{
       const[r,g,b]=h2r(cpH,cpS,cpV);
       const hex=r2x(r,g,b);
       const lc = colorPickerHostEl?._cpOnLiveChange;
       closeColorPicker();
-      if (lc) lc(hex); // ensure final color is committed
+      if (lc) lc(hex);
     });
-    // CANCEL / BACKDROP: revert to original color
     function doCancel() {
       const initHex = colorPickerHostEl?._cpInitialHex;
       const lc = colorPickerHostEl?._cpOnLiveChange;
       closeColorPicker();
-      if (lc && initHex) lc(initHex); // revert
+      if (lc && initHex) lc(initHex);
     }
     sd.getElementById('cp-cancel').addEventListener('click', doCancel);
     sd.getElementById('cp-backdrop').addEventListener('click', doCancel);
 
-    // Expose setC for opening with initial color
     colorPickerHostEl._cpSetColor = (hex) => {
       if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
         const{h,s,v}=x2h(hex);setC(h,s,v,255);
@@ -1158,14 +1105,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     rSaved(); updAll();
   }
 
-  // Position the color picker relative to the BC canvas, scaled appropriately
-  // positionColorPicker: scale by canvas width / 1500, origin top-left
   function positionColorPicker() {
     if (!colorPickerShadow) return;
     const outer = colorPickerShadow.getElementById('cp-outer');
     const wrap  = colorPickerShadow.getElementById('cp-wrap');
     if (!outer || !wrap) return;
-
     const r = getCanvasRect();
     if (!r) {
       wrap.style.transform = '';
@@ -1173,13 +1117,9 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       outer.style.top  = '130px';
       return;
     }
-
-    // Scale so picker matches BC canvas zoom (divisor 1500 = user-calibrated size)
     const scale = r.width / 1500;
     wrap.style.transform = `scale(${scale})`;
     wrap.style.transformOrigin = 'top left';
-
-    // Scaled picker screen width; position right edge near canvas right edge
     const pickerScreenW = 500 * scale;
     const left = Math.max(8, Math.min(r.right - pickerScreenW - 10, window.innerWidth - pickerScreenW - 8));
     const top  = Math.max(r.top + 60, r.top + 130);
@@ -1187,18 +1127,15 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     outer.style.top  = top  + 'px';
   }
 
-  // openColorPicker(initialHex, onLiveChange)
-  //   onLiveChange(hex) called on every color change for live preview
-  //   cancel reverts via onLiveChange(initialHex); confirm keeps current
   function openColorPicker(initialHex, onLiveChange) {
     buildColorPicker();
     if (colorPickerHostEl) {
       colorPickerHostEl._cpInitialHex = initialHex || '#FFFFFF';
-      colorPickerHostEl._cpOnLiveChange = null; // disable during initial set
+      colorPickerHostEl._cpOnLiveChange = null;
     }
     colorPickerHostEl._cpSetColor?.(initialHex || '#FFFFFF');
     if (colorPickerHostEl) {
-      colorPickerHostEl._cpOnLiveChange = onLiveChange; // enable after set
+      colorPickerHostEl._cpOnLiveChange = onLiveChange;
     }
     positionColorPicker();
     colorPickerShadow.getElementById('cp-outer').classList.add('open');
@@ -1230,7 +1167,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   all:initial; display:block;
 }
 *,*::before,*::after { box-sizing:border-box; }
-
 #panel {
   position:absolute; left:0; top:0;
   width:14vw; min-width:270px; max-width:350px; height:100%;
@@ -1239,8 +1175,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   z-index:999999; overflow:hidden; user-select:none;
 }
 #panel.collapsed { display:none; }
-
-/* ── TOGGLE: 25px wide; collapsed shows 5 icons + arrow, expanded shows arrow ── */
 #toggle {
   position:absolute; top:50%; transform:translateY(-50%);
   width:25px;
@@ -1269,7 +1203,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   transition:color .12s;
 }
 #toggle-arrow:hover { color:var(--accent); }
-
 #tabs {
   display:flex; border-bottom:1px solid var(--border); flex-shrink:0;
 }
@@ -1281,7 +1214,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 }
 .tab:hover { color:var(--text); }
 .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
-
 #item-name {
   padding:5px 10px; font-size:13px; font-weight:700; color:var(--text);
   display:flex; align-items:center; gap:8px;
@@ -1291,7 +1223,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 #item-name-text {
   flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-/* ── item-name right buttons ── */
 .iname-btn {
   flex-shrink:0; width:34px; height:34px;
   background:transparent; border:1px solid var(--border); border-radius:50%;
@@ -1300,8 +1231,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 }
 .iname-btn:hover { border-color:var(--accent); color:var(--accent); }
 #parts-toggle-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(124,106,247,0.12); }
-
-/* ── FLOATING PARTS PANEL ── */
 #parts-float {
   position:absolute; width:200px; min-height:80px; max-height:260px;
   background:var(--bg); border:1px solid var(--border); border-radius:8px;
@@ -1332,28 +1261,21 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 #parts-float-body::-webkit-scrollbar { width:4px; }
 #parts-float-body::-webkit-scrollbar-thumb { background:rgba(124,106,247,0.5); border-radius:2px; }
 #parts-float-body::-webkit-scrollbar-thumb:hover { background:var(--accent); }
-
 #content { flex:1; overflow-y:auto; }
 #content::-webkit-scrollbar { width:4px; }
 #content::-webkit-scrollbar-thumb { background:rgba(124,106,247,0.5); border-radius:2px; }
 #content::-webkit-scrollbar-thumb:hover { background:var(--accent); }
 #content::-webkit-scrollbar-track { background:transparent; }
-
-/* ── SECTIONS ── */
 .section { padding:8px 10px; border-bottom:1px solid var(--border); }
 .sec-title {
   font-size:13px; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
   color:var(--text); text-align:center; margin-bottom:6px;
 }
-
-/* ── EDIT HEADER (layer name + color button) ── */
 .edit-header {
   display:flex; align-items:flex-start; justify-content:space-between;
   gap:8px; margin-bottom:8px;
 }
 .edit-header-left { flex:1; min-width:0; }
-
-/* Color edit button — 2:3 ratio, right of layer name, above opacity */
 .color-edit-btn {
   width:36px; height:54px;
   border:1.5px solid var(--border); border-radius:5px;
@@ -1370,8 +1292,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   background:rgba(0,0,0,0.5); padding:2px 0; line-height:1.2;
   text-transform:uppercase; letter-spacing:.04em;
 }
-
-/* ── LAYER BUTTONS ── */
 .layer-btn-row {
   display:flex; align-items:center; gap:6px; margin-bottom:4px;
 }
@@ -1385,8 +1305,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 }
 .layer-btn:hover { border-color:var(--accent); }
 .layer-btn.selected { background:#17143a; border-color:var(--accent); color:var(--accent); }
-
-/* ── PROP GROUP ── */
 .prop-group { margin-bottom:10px; }
 .prop-group-header {
   display:flex; align-items:center; justify-content:space-between;
@@ -1404,8 +1322,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 .drag-check-label:hover { border-color:var(--accent2); color:var(--accent2); }
 .drag-check-label.active { border-color:var(--accent2); color:var(--accent2); background:rgba(78,205,196,0.08); }
 .drag-check-label input { display:none; }
-
-/* ── PROP ROW ── */
 .prop-row { margin-bottom:5px; }
 .prop-row-label {
   display:flex; align-items:center; justify-content:space-between;
@@ -1435,8 +1351,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 }
 .step-reset:hover { background:#3a1a1a; border-color:#f87; color:#f87; }
 .step-reset:active { opacity:.8; }
-
-/* ── OPACITY RANGE ── */
 .op-group { margin-bottom:10px; }
 .op-row-label {
   display:flex; justify-content:space-between; align-items:center;
@@ -1451,9 +1365,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   appearance:none; width:13px; height:13px; border-radius:50%;
   background:var(--accent); cursor:pointer; border:2px solid var(--bg);
 }
-
-/* ── MIRROR: 2-column grid ── */
-/* ── scale lock button ── */
 .scale-lock-btn {
   flex-shrink:0; width:24px; height:24px;
   background:transparent; border:1px solid var(--border); border-radius:3px;
@@ -1464,7 +1375,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 }
 .scale-lock-btn:hover { border-color:var(--accent2); color:var(--accent2); }
 .scale-lock-btn.locked { border-color:var(--accent2); color:var(--accent2); background:rgba(78,205,196,0.12); }
-
 .mirror-grid { display:flex; gap:8px; margin-top:4px; }
 .mirror-group { flex:1; }
 .mirror-group-title {
@@ -1481,21 +1391,26 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 }
 .mirror-btn:hover { border-color:var(--accent); }
 .mirror-btn.active { background:#17143a; border-color:var(--accent); color:var(--accent); }
-
-/* ── OPACITY TAB ── */
 .op-tab-row { padding:6px 10px; border-bottom:1px solid var(--border); }
 .op-tab-name {
-  display:flex; justify-content:space-between;
+  display:flex; align-items:center; justify-content:space-between;
   font-size:14px; font-weight:600; color:var(--text); margin-bottom:4px;
 }
 .op-tab-val { color:var(--accent2); font-variant-numeric:tabular-nums; }
-
-/* ── SEC TITLE ROW: title + small color chip ── */
+.op-step-row { display:flex; align-items:center; gap:3px; flex-shrink:0; }
+.op-step {
+  width:26px; height:20px; background:var(--bg3); border:1px solid var(--border);
+  border-radius:3px; color:var(--text); font-size:11px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .1s, border-color .1s; user-select:none; flex-shrink:0;
+}
+.op-step:hover { background:var(--accent); border-color:var(--accent); color:#fff; }
+.op-step:active { opacity:.8; }
+.op-val-display { color:var(--accent2); font-variant-numeric:tabular-nums; font-size:12px; min-width:32px; text-align:center; flex-shrink:0; }
 .sec-title-row {
   display:flex; align-items:center; justify-content:space-between;
   margin-bottom:6px;
 }
-/* Color chip — same height as drag-check-label (~22px), no text */
 .color-chip {
   width:40px; height:22px;
   border:1px solid var(--border); border-radius:3px;
@@ -1505,8 +1420,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 }
 .color-chip:hover { border-color:var(--accent2); }
 .color-chip-inner { position:absolute; inset:0; }
-
-/* ── LAYERS TAB (priority) ── */
 .layer-pri-row {
   display:flex; align-items:center; gap:6px;
   padding:6px 10px; border-bottom:1px solid var(--border);
@@ -1522,7 +1435,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   outline:none; user-select:text; -webkit-user-select:text;
 }
 .pri-input:focus { border-color:var(--accent2); }
-
 .settings-empty {
   padding:28px 14px; text-align:center;
   color:var(--text-dim); font-size:14px; line-height:1.7;
@@ -1547,7 +1459,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     styleEl.textContent = CSS;
     shadowRoot.appendChild(styleEl);
 
-    // ── Toggle with collapse-mode icons ──
     const toggleEl = document.createElement('div');
     toggleEl.id = 'toggle';
     toggleEl.style.pointerEvents = 'auto';
@@ -1586,7 +1497,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     `;
     toggleEl.querySelector('#toggle-arrow').addEventListener('click', toggleCollapse);
     toggleEl.querySelector('#toggle-icons').addEventListener('click', e => {
-      // Handle drag-toggle icons
       const dragIcon = e.target.closest('[data-drag-toggle]');
       if (dragIcon) {
         const mode = dragIcon.dataset.dragToggle;
@@ -1595,12 +1505,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         updateToggleIcons();
         return;
       }
-      // Handle action icons
       const actionIcon = e.target.closest('[data-tgl-action]');
       if (!actionIcon) return;
       const action = actionIcon.dataset.tglAction;
       if (action === 'open-panel') {
-        // Toggle floating parts panel (same as parts-toggle-btn)
         const pf  = shadowRoot?.getElementById('parts-float');
         const btn = shadowRoot?.getElementById('parts-toggle-btn');
         if (!pf) return;
@@ -1613,11 +1521,9 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
           updatePartsPanel();
         }
       } else if (action === 'reset-transform') {
-        // Reset all transforms for selected layer
         const item = getCurrentItem();
         if (!item || state.selectedLayer === null) return;
         const idx = state.selectedLayer;
-        // delete to revert to asset default
         const _li = idx === 'all' ? null : parseInt(idx);
         if (item.Property?.LayerOverrides) {
           if (_li === null) item.Property.LayerOverrides.forEach(l => l && (delete l.DrawingLeft, delete l.DrawingTop));
@@ -1633,7 +1539,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     });
     shadowRoot.appendChild(toggleEl);
 
-    // ── Floating parts panel ──
     const partsFloat = document.createElement('div');
     partsFloat.id = 'parts-float';
     partsFloat.style.pointerEvents = 'auto';
@@ -1646,7 +1551,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     `;
     shadowRoot.appendChild(partsFloat);
 
-    // Floating panel drag
     let _pfDrag = null;
     partsFloat.querySelector('#parts-float-header').addEventListener('mousedown', e => {
       if (e.target.closest('#parts-float-close')) return;
@@ -1665,18 +1569,13 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       partsFloat.classList.remove('open');
       shadowRoot.getElementById('parts-toggle-btn')?.classList.remove('active');
     });
-
-    // Event delegation for layer selection inside floating panel
     partsFloat.querySelector('#parts-float-body').addEventListener('click', e => {
       const btn = e.target.closest('[data-select-layer]');
       if (!btn) return;
       state.selectedLayer = btn.dataset.selectLayer;
-      // Update highlights in both panel locations without full re-render
       partsFloat.querySelectorAll('[data-select-layer]').forEach(b =>
         b.classList.toggle('selected', b.dataset.selectLayer === state.selectedLayer));
-      // Full render to update edit section
       renderContent();
-      // Reopen floating panel after render (renderContent rebuilds content)
       partsFloat.classList.add('open');
       shadowRoot.getElementById('parts-toggle-btn')?.classList.add('active');
     });
@@ -1714,7 +1613,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       }
     });
 
-
     panel.querySelector('#tabs').addEventListener('click', e => {
       const tab = e.target.closest('.tab'); if (!tab) return;
       state.tab = tab.dataset.tab;
@@ -1728,15 +1626,18 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     content.addEventListener('change', onContentChange);
     content.addEventListener('input', onContentInput);
 
-    // ── Long-press repeat for step buttons ──
     let _stepRepeatTimer = null;
     let _stepRepeatBtn   = null;
-    const _startStepRepeat = (btn) => {
-      _stepRepeatBtn = btn;
-      // Initial delay 400ms, then every 80ms
+    let _stepRepeatType  = null;
+    const _startStepRepeat = (btn, type) => {
+      _stepRepeatBtn  = btn;
+      _stepRepeatType = type;
       _stepRepeatTimer = setTimeout(() => {
         _stepRepeatTimer = setInterval(() => {
-          if (_stepRepeatBtn) handleStep(_stepRepeatBtn);
+          if (!_stepRepeatBtn) return;
+          if (_stepRepeatType === 'op')  handleOpStep(_stepRepeatBtn);
+          else if (_stepRepeatType === 'pri') handlePriorityStep(_stepRepeatBtn);
+          else handleStep(_stepRepeatBtn);
         }, 80);
       }, 400);
     };
@@ -1745,10 +1646,15 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       clearInterval(_stepRepeatTimer);
       _stepRepeatTimer = null;
       _stepRepeatBtn   = null;
+      _stepRepeatType  = null;
     };
     content.addEventListener('mousedown', e => {
-      const btn = e.target.closest('[data-step]');
-      if (btn) { e.preventDefault(); _startStepRepeat(btn); }
+      const opBtn  = e.target.closest('[data-op-step]');
+      if (opBtn)  { e.preventDefault(); _startStepRepeat(opBtn,  'op');  return; }
+      const priBtn = e.target.closest('[data-pri-step]');
+      if (priBtn) { e.preventDefault(); _startStepRepeat(priBtn, 'pri'); return; }
+      const btn    = e.target.closest('[data-step]');
+      if (btn)    { e.preventDefault(); _startStepRepeat(btn,    'prop'); }
     });
     content.addEventListener('mouseleave', _stopStepRepeat);
     document.addEventListener('mouseup', _stopStepRepeat);
@@ -1784,7 +1690,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     const toggleEl = shadowRoot?.getElementById('toggle');
     const arrow    = shadowRoot?.getElementById('toggle-arrow');
     if (!panel || !toggleEl) return;
-
     if (!state.collapsed) {
       panel.classList.add('collapsed');
       toggleEl.classList.add('show-icons');
@@ -1812,8 +1717,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   // ============================================================
 
   function onContentClick(e) {
-    // Color edit button (in edit section header)
-    // Color chip → live-preview picker
     const colorEditBtn = e.target.closest('[data-color-edit]');
     if (colorEditBtn) {
       const layerIdx = colorEditBtn.dataset.colorEdit;
@@ -1826,42 +1729,36 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       });
       return;
     }
-    // Priority step buttons (layers tab)
     const priStep  = e.target.closest('[data-pri-step]');
     if (priStep)  { handlePriorityStep(priStep);  return; }
     const priReset = e.target.closest('[data-pri-reset]');
     if (priReset) { handlePriorityReset(priReset); return; }
-    // Layer select
     const layerBtn = e.target.closest('[data-select-layer]');
     if (layerBtn) {
       state.selectedLayer = layerBtn.dataset.selectLayer;
       renderContent(); return;
     }
-    // Step buttons
     const stepBtn = e.target.closest('[data-step]');
     if (stepBtn) { handleStep(stepBtn); return; }
-    // Reset buttons
+    const opStepBtn = e.target.closest('[data-op-step]');
+    if (opStepBtn) { handleOpStep(opStepBtn); return; }
     const resetBtn = e.target.closest('[data-reset]');
     if (resetBtn) { handleReset(resetBtn.dataset.reset); return; }
-    // Mirror toggle buttons
     const scaleLockBtn = e.target.closest('#scale-lock-btn');
     if (scaleLockBtn) {
       state.scaleLock = !state.scaleLock;
       scaleLockBtn.classList.toggle('locked', state.scaleLock);
-      // Update icon
       scaleLockBtn.innerHTML = state.scaleLock
         ? '<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="10" height="10" rx="4"/><rect x="9" y="2" width="10" height="10" rx="4"/></svg>'
         : '<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="10" height="10" rx="4" opacity="0.35"/><rect x="10" y="2" width="10" height="10" rx="4"/></svg>';
       return;
     }
-    // Settings toggle
     const settingChk = e.target.closest('[data-setting]');
     if (settingChk && settingChk.tagName === 'INPUT') {
       setAeeSetting(settingChk.dataset.setting, settingChk.checked);
-      renderContent(); // re-render to show/hide eye buttons
+      renderContent();
       return;
     }
-
     const mirrorBtn = e.target.closest('[data-mirror]');
     if (mirrorBtn) { handleMirror(mirrorBtn.dataset.mirror); return; }
   }
@@ -1938,7 +1835,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   function syncOpacityUI(val) {
     const pct = Math.round(val * 100);
     shadowRoot.querySelectorAll('[data-op-layer]').forEach(el => { el.value = pct; });
-    shadowRoot.querySelectorAll('[data-op-val]').forEach(el => { el.textContent = pct + '%'; });
+    // 更新所有透明度百分比顯示（Opacity tab 的 op-val-* + Edit tab 的 edit-op-val）
+    shadowRoot.querySelectorAll('[id^="op-val-"]').forEach(el => { el.textContent = pct + '%'; });
+    const editOpVal = shadowRoot.getElementById('edit-op-val');
+    if (editOpVal) editOpVal.textContent = pct + '%';
   }
 
   function updateOpValLabel(layerIdx, val) {
@@ -1946,8 +1846,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     if (el) el.textContent = Math.round(val*100) + '%';
   }
 
-
-  // Helper: get asset default DrawingLeft/Top for a given layer index
   function _assetBaseXY(item, layerIdx) {
     const i   = layerIdx === 'all' ? 0 : parseInt(layerIdx);
     const lay = item.Asset?.Layer?.[i];
@@ -1956,7 +1854,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     return { bx, by };
   }
 
-    function handleStep(btn) {
+  function handleStep(btn) {
     const item = getCurrentItem();
     if (!item || state.selectedLayer === null) return;
     const idx = state.selectedLayer;
@@ -1973,6 +1871,41 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     if (state.activeDrag === 'rot') {
       const lo2 = getLO(getCurrentItem(), idx);
       updateRotOverlay(lo2.Rotation??0);
+    }
+  }
+
+  function handleOpStep(btn) {
+    const layerIdx = btn.dataset.opStep;   // 'all' | '0' | '1' | ...
+    const delta    = parseInt(btn.dataset.opDelta); // +1 or -1
+    const item = getCurrentItem(); if (!item) return;
+    const lo = getLO(item, layerIdx);
+    const current = Math.round((lo.Opacity ?? 1) * 100);
+    const newPct  = Math.max(0, Math.min(100, current + delta));
+    const newVal  = newPct / 100;
+    setLO(item, layerIdx, 'Opacity', newVal);
+
+    // 同步 Opacity tab 的 val 顯示 + slider
+    const valEl   = shadowRoot?.getElementById(`op-val-${layerIdx}`);
+    const rangeEl = shadowRoot?.querySelector(`[data-op-layer="${layerIdx}"]`);
+    if (valEl)   valEl.textContent = newPct + '%';
+    if (rangeEl) rangeEl.value     = newPct;
+
+    // 同步 Edit tab 的 opacity
+    if (layerIdx === state.selectedLayer || layerIdx === 'all') {
+      const editVal   = shadowRoot?.getElementById('edit-op-val');
+      const editRange = shadowRoot?.querySelector('[data-edit-op]');
+      if (editVal)   editVal.textContent = newPct + '%';
+      if (editRange) editRange.value     = newPct;
+    }
+
+    // 若是 all，同步所有子圖層的 slider
+    if (layerIdx === 'all') {
+      shadowRoot?.querySelectorAll('[data-op-layer]:not([data-op-layer="all"])').forEach(el => {
+        el.value = newPct;
+      });
+      shadowRoot?.querySelectorAll('[id^="op-val-"]:not(#op-val-all)').forEach(el => {
+        el.textContent = newPct + '%';
+      });
     }
   }
 
@@ -2054,7 +1987,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     else if (state.tab === 'layers')  content.innerHTML = renderLayersTab(item, layers);
     else content.innerHTML = renderSettingsTab();
 
-    // Bind prop-val direct input listeners
     content.querySelectorAll('[data-prop-input]').forEach(input => {
       input.addEventListener('change', () => onPropValInput(input));
       input.addEventListener('keydown', e => { if (e.key === 'Enter') { onPropValInput(input); input.blur(); } });
@@ -2062,7 +1994,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       input.addEventListener('click', e => e.stopPropagation());
     });
 
-    // Bind priority inputs (layers tab)
     content.querySelectorAll('[data-pri-input]').forEach(input => {
       input.addEventListener('change', () => handlePriorityInput(input));
       input.addEventListener('keydown', e => { if (e.key === 'Enter') { handlePriorityInput(input); input.blur(); } });
@@ -2074,7 +2005,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     else hideRotOverlay();
   }
 
-  // Update the floating parts panel content (called once on open, not on every render)
   function updatePartsPanel() {
     if (!shadowRoot) return;
     const item   = getCurrentItem(); if (!item) return;
@@ -2084,7 +2014,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     body.innerHTML =
       layerBtnRow('all', t('allParts')) +
       layers.map((l, i) => layerBtnRow(String(i), getLayerDisplayName(l, i))).join('');
-    // Highlight currently selected layer
     body.querySelectorAll('[data-select-layer]').forEach(btn => {
       btn.classList.toggle('selected', btn.dataset.selectLayer === state.selectedLayer);
     });
@@ -2097,7 +2026,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     if (idx !== null) {
       const lo    = getLO(item, idx);
       const label = idx==='all' ? t('allParts') : getLayerDisplayName(layers[parseInt(idx)], idx);
-      // 顯示絕對座標：有 override 用 override，否則用 asset 初始值（與 LSCG 一致）
       const _al  = idx === 'all' ? layers[0] : layers[parseInt(idx)];
       const _axB = typeof _al?.DrawingLeft === 'object' ? (_al.DrawingLeft?.['']??0) : (_al?.DrawingLeft??0);
       const _ayB = typeof _al?.DrawingTop  === 'object' ? (_al.DrawingTop?.[''] ??0) : (_al?.DrawingTop ??0);
@@ -2117,13 +2045,18 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     </div>
   </div>
 
-  <!-- 透明度 -->
   <div class="op-group">
-    <div class="op-row-label">${t('opacity')} <span id="edit-op-val">${op}%</span></div>
+    <div class="op-row-label">
+      ${t('opacity')}
+      <div class="op-step-row">
+        <button class="op-step" data-op-step="${idx}" data-op-delta="-1">−1</button>
+        <span class="op-val-display" id="edit-op-val">${op}%</span>
+        <button class="op-step" data-op-step="${idx}" data-op-delta="1">+1</button>
+      </div>
+    </div>
     <input type="range" class="range" data-edit-op="1" min="0" max="100" step="1" value="${op}">
   </div>
 
-  <!-- 座標 -->
   ${(function(){
     if (isGroupLocked()) return '<div style="color:var(--text-dim);font-size:12px;text-align:center;padding:10px;line-height:1.8;">' + (isZh()?'此部位已鎖定變形編輯<br><span style="font-size:10px;">仍可編輯透明度與圖層</span>':'Transform editing locked<br><span style="font-size:10px;">Opacity &amp; layers still available</span>') + '</div>';
     return '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('coord') + '</span>' + dragCheckbox('xy',t('coordDrag')) + '</div>' + propRow('X',x,'x',[-5,-1,1,5]) + propRow('Y',y,'y',[-5,-1,1,5]) + '</div>';
@@ -2152,23 +2085,20 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   function renderOpacityTab(item, layers) {
     const _rawOp = item.Property?.Opacity;
     const opAll = Math.round((typeof _rawOp === 'number' ? _rawOp : (getLO(item,0).Opacity ?? 1)) * 100);
-    let html = `<div class="op-tab-row">
+    const opRow = (layerIdx, name, opPct) => `<div class="op-tab-row">
       <div class="op-tab-name">
-        <span class="op-tab-label">${t('allParts')}</span>
-        <span class="op-tab-val" data-op-val id="op-val-all">${opAll}%</span>
-      </div>
-      <input type="range" class="range" data-op-layer="all" min="0" max="100" step="1" value="${opAll}">
-    </div>`;
-    layers.forEach((layer,i) => {
-      const op = Math.round((getLO(item,i).Opacity??1)*100);
-      const layName = getLayerDisplayName(layer, i);
-      html += `<div class="op-tab-row">
-        <div class="op-tab-name">
-          <span class="op-tab-label">${layName}</span>
-          <span class="op-tab-val" data-op-val id="op-val-${i}">${op}%</span>
+        <span class="op-tab-label">${name}</span>
+        <div class="op-step-row">
+          <button class="op-step" data-op-step="${layerIdx}" data-op-delta="-1">−1</button>
+          <span class="op-val-display" id="op-val-${layerIdx}">${opPct}%</span>
+          <button class="op-step" data-op-step="${layerIdx}" data-op-delta="1">+1</button>
         </div>
-        <input type="range" class="range" data-op-layer="${i}" min="0" max="100" step="1" value="${op}">
-      </div>`;
+      </div>
+      <input type="range" class="range" data-op-layer="${layerIdx}" min="0" max="100" step="1" value="${opPct}">
+    </div>`;
+    let html = opRow('all', t('allParts'), opAll);
+    layers.forEach((layer,i) => {
+      html += opRow(String(i), getLayerDisplayName(layer, i), Math.round((getLO(item,i).Opacity??1)*100));
     });
     return html;
   }
@@ -2224,24 +2154,17 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 </div>`;
   }
 
-  // Layer button row — no color swatch (color button is now in the edit section header)
-  // ── LAYERS TAB helpers ─────────────────────────────────────
   function clampPri(v) { return Math.max(-99, Math.min(99, v)); }
 
-  // Use BC's own Property.OverridePriority:
-  //   whole-item ('all') → number  (same priority for all layers)
-  //   per-layer          → object  {LayerName: priority}
   function applyPriority(item, rawIdx, newVal) {
     newVal = clampPri(newVal);
     if (!item.Property) item.Property = {};
     const layers = item.Asset?.Layer || [];
     if (rawIdx === 'all') {
-      // Number form: overrides all layers uniformly
       item.Property.OverridePriority = newVal;
     } else {
       const layerName = layers[parseInt(rawIdx)]?.Name;
       if (!layerName) return newVal;
-      // Convert to object form if needed
       if (typeof item.Property.OverridePriority !== 'object' || item.Property.OverridePriority == null) {
         item.Property.OverridePriority = {};
       }
@@ -2253,9 +2176,8 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
   function handlePriorityStep(btn) {
     const item = getCurrentItem(); if (!item) return;
-    const rawIdx = btn.dataset.priStep;                // 'all' or '0','1',...
+    const rawIdx = btn.dataset.priStep;
     const delta  = parseInt(btn.dataset.priDelta);
-
     const layers = item.Asset?.Layer || [];
     let current;
     if (rawIdx === 'all') {
@@ -2288,7 +2210,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     const rawIdx = btn.dataset.priReset;
     const layers = item.Asset?.Layer || [];
     if (rawIdx === 'all') {
-      // Remove entire OverridePriority → revert to asset default
       if (item.Property) delete item.Property.OverridePriority;
       const base  = item.Asset?.DrawingPriority ?? 0;
       const input = shadowRoot?.querySelector('[data-pri-input="all"]');
@@ -2308,7 +2229,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) CharacterRefresh(_rc, false, false); }
   }
 
-  // AEE settings stored in localStorage (persist across sessions)
   const _aeeSettings = (() => {
     try { return JSON.parse(localStorage.getItem('liko-aee-settings') || '{}'); } catch { return {}; }
   })();
@@ -2329,7 +2249,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     const itemCurrent = typeof overPri === 'number' ? overPri : itemBase;
     const allOverride = typeof overPri === 'number';
 
-    // Whole-item row: absolute priority (BC OverridePriority = number)
     const allRow = `<div class="layer-pri-row" style="border-bottom:2px solid var(--border)">
   <span class="layer-pri-name" style="font-weight:700;${allOverride ? 'color:var(--accent2)' : ''}">
     ${t('allParts')} <span style="font-size:10px;color:var(--text-dim)">(base:${itemBase})</span>
@@ -2340,7 +2259,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   <button class="step-reset" data-pri-reset="all" title="↺" style="width:22px">↺</button>
 </div>`;
 
-    // Per-layer rows
     const layerRows = layers.map((layer, i) => {
       const basePri     = typeof layer?.Priority === 'number' ? layer.Priority : 0;
       const op          = item.Property?.OverridePriority;
@@ -2369,7 +2287,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   }
 
   // ============================================================
-  // MAIN LOOP
+  // MAIN LOOP HOOKS
   // ============================================================
 
   let lastGroup = null, lastAsset = null, lastMode = null;
@@ -2387,12 +2305,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         state.selectedLayer = null;
         state.activeDrag = null;
         hideRotOverlay();
-        updateToggleIcons(); // sync toggle icon active state
+        updateToggleIcons();
         const pf  = shadowRoot?.getElementById('parts-float');
         const btn = shadowRoot?.getElementById('parts-toggle-btn');
         if (pf)  { pf.classList.remove('open'); }
         if (btn) { btn.classList.remove('active'); }
-        // Schedule ONE name-reload retry after TextCache loads (only on item change)
         setTimeout(() => {
           if (shadowRoot && hostEl?.style.display !== 'none') renderContent();
         }, 350);
@@ -2404,7 +2321,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     }
   }
 
-  // CharacterLoadCanvas fires when BC rebuilds a character's visual canvas.
   try {
     modApi.hookFunction("CharacterLoadCanvas", 0, (args, next) => {
       if (args[0]) currentRenderChar = args[0];
@@ -2412,8 +2328,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     });
   } catch(e) {}
 
-  // ── DynamicBeforeDraw：讓 BC 對有 transform 的 item 呼叫 BeforeDraw ──
-  // 擴大範圍：有旋轉/縮放/鏡射/位移 override 的物品都要設，讓 BeforeDraw 能觸發
+  // ── CommonDrawAppearanceBuild：對有 transform 的 item 設 DynamicBeforeDraw ──
+  // 確保 BC 呼叫 BeforeDraw，讓我們有機會在每個 layer 繪製前設定 _aeePendingTd
+  // TODO: 低端機器模式下 dynamic drawing 可被停用，此時 BeforeDraw 不會被呼叫
+  //       長期需要不依賴 BeforeDraw 的渲染路徑（例如 ScriptDraw 或 GLDrawImage 擴充）
   try {
     modApi.hookFunction("CommonDrawAppearanceBuild", 1, (args, next) => {
       const C = args[0];
@@ -2430,45 +2348,53 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     });
   } catch(e) {}
 
-  // ── BeforeDraw hook（priority 3，比 LSCG priority 2 更高先執行）──
-  // 職責一：設定 pendingTd，告訴 uniformMatrix4fv 接下來是哪個 layer
-  // 職責二：處理位移（AEE-only；LSCG 存在時 LSCG 會在 next() 裡處理）
-  // 兩者互不干擾：pendingTd 給旋轉/縮放/鏡射用，位移交給後面的 hook
+  // ── BeforeDraw hook（priority 3）──
+  // 重構重點：直接從 params.CA.Property.LayerOverrides 讀取 transform，
+  // 不再查 session map。estsanatlehi：「BeforeDraw is passing you the Item」
   try {
     modApi.hookFunction("CommonCallFunctionByNameWarn", 3, (args, next) => {
       const funcName = args[0];
       const params   = args[1];
       if (!params || !/Assets(.+)BeforeDraw/i.test(funcName)) return next(args);
 
-      // ── signal：設 pendingTd 讓 uniformMatrix4fv 知道是哪個 layer ──
-      // EBC 環境下 _sessionStack 有多個 session（每個角色一個），
-      // 用 CA（appearance item）找到屬於該角色的 session
+      // ── 重置狀態，直接從 Item 讀取 transform ──
+      _aeePendingTd      = null;
+      _aeePendingApplied = 0;
+
       const CA = params.CA;
       if (CA) {
-        const groupName = CA.Asset?.Group?.Name;
-        const assetName = CA.Asset?.Name;
-        let layerName   = (params.L ?? '').trim();
+        // 從 layer name 找 layer index
+        let layerName = (params.L ?? '').trim();
         if (layerName[0] === '_') layerName = layerName.slice(1);
-        const key = groupName + '/' + assetName + '/' + layerName;
-        // 找到擁有這個 item 的 session（靠 session.char.Appearance 比對）
-        const targetSession = _sessionStack.slice().reverse().find(sess =>
-          sess.char?.Appearance?.some(it =>
-            it.Asset?.Name === assetName && it.Asset?.Group?.Name === groupName
-          )
-        ) ?? _currentSession;
-        if (targetSession) {
-          const td = targetSession.map.get(key);
-          targetSession.pendingTd      = td ?? null;
-          targetSession.pendingApplied = 0;
-          aeeLog('BeforeDraw signal: ' + key + ' → ' + (td ? 'HAS td' : 'no td') + ' sess=' + targetSession.char?.MemberNumber);
+        const layerIdx = CA.Asset?.Layer?.findIndex(l => (l.Name ?? '') === layerName) ?? -1;
+
+        if (layerIdx >= 0) {
+          const lo = CA.Property?.LayerOverrides?.[layerIdx];
+          if (lo) {
+            const hasTransform =
+              lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV ||
+              lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null;
+            if (hasTransform) {
+              _aeePendingTd = {
+                flipX:       !!lo.FlipX,
+                flipY:       !!lo.FlipY,
+                mirrorCopy:  !!lo.MirrorCopy,
+                mirrorCopyV: !!lo.MirrorCopyV,
+                scaleX:      lo.ScaleX ?? 1,
+                scaleY:      lo.ScaleY ?? 1,
+                rotation:    lo.Rotation ?? 0,
+              };
+              aeeLog(`BeforeDraw: ${CA.Asset?.Name}[${layerIdx}]=${layerName} → td set rot=${_aeePendingTd.rotation}`);
+            }
+          }
         }
       }
 
-      // ── 繼續呼叫 next，讓 LSCG / BC 原生處理位移 ──
+      // ── 呼叫 next，讓 LSCG / BC 原生處理 ──
       const ret = next(args) ?? {};
 
-      // ── AEE-only 位移（LSCG 不在場時由我們補上）──
-      // 若 ret.X/Y 已被設定（LSCG 設的），不覆蓋
+      // ── AEE-only 位移（X/Y）──
+      // BeforeDraw 原生支援返回 {X, Y}，不需要 prototype patch
       const Property = params.Property;
       if (CA && Property) {
         let rawName = (params.L ?? '').trim();
@@ -2494,22 +2420,17 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     return next(args);
   });
 
-  // Additional hooks for dialog/restraint screens
-  // DialogRun + DialogDraw cover the restraint color picker UI loop
-  // DrawAppearance covers general character renders
-  // Track ItemColor screen item + character for restraint support
   let _aeeItemColorChar = null;
   let _aeeItemColorItem = null;
-  let _aeeItemColorDirty = false;  // AEE made changes in ItemColor context that need broadcast
+  let _aeeItemColorDirty = false;
 
   try {
     modApi.hookFunction("ItemColorLoad", 0, (args, next) => {
       _aeeItemColorChar  = args[0];
       _aeeItemColorItem  = args[1];
-      _aeeItemColorDirty = false;  // reset for new session
+      _aeeItemColorDirty = false;
       const result = next(args);
       aeeCheckAndRender();
-      // ItemColorLayerNames is async (TextCache) - re-render once names loaded
       Promise.resolve(result).then(() => {
         setTimeout(() => {
           if (shadowRoot && hostEl?.style.display !== 'none') renderContent();
@@ -2521,25 +2442,20 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
   try {
     modApi.hookFunction("ItemColorDraw", 0, (args, next) => {
-      // Keep item in sync (called every frame, cheap)
       if (args[0]) _aeeItemColorChar = args[0];
       if (args[0] && args[1]) _aeeItemColorItem = InventoryGet(args[0], args[1]);
       return next(args);
     });
   } catch(e) {}
 
-  // ItemColorFireExit is the single common exit point for all close paths
-  // (Save, Cancel, ExitClick all funnel through here → then ItemColorReset)
   try {
     modApi.hookFunction("ItemColorFireExit", 0, (args, next) => {
       const wasDirty = _aeeItemColorDirty;
       const dirtyChar = _aeeItemColorChar;
-      const result = next(args); // Let BC close first
+      const result = next(args);
       _aeeItemColorChar  = null;
       _aeeItemColorItem  = null;
       _aeeItemColorDirty = false;
-      // 如果 AEE 有修改 transform，BC 原生不會廣播（因為沒有顏色變更）
-      // 我們主動呼叫 ChatRoomCharacterUpdate 讓其他玩家也能看到
       if (wasDirty && dirtyChar) {
         try {
           if (typeof ChatRoomCharacterUpdate === 'function') {
@@ -2552,12 +2468,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     });
   } catch(e) {}
 
-  // DialogRun fires when dialog opens
   try { modApi.hookFunction("DialogRun", 0, (args, next) => { aeeCheckAndRender(); return next(args); }); } catch(e) {}
 
   window.addEventListener('resize', () => {
     alignHost(); updateTogglePos(); alignRotOverlay();
-    positionColorPicker(); // reposition/rescale picker when window resizes
+    positionColorPicker();
     if (state.activeDrag === 'rot') {
       const item = getCurrentItem();
       if (item && state.selectedLayer !== null) {
