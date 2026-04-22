@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.7.0
+// @version      0.7.1
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -45,7 +45,9 @@
       coord: '座標', coordDrag: '拖移',
       rotate: '旋轉', rotateDrag: '拖移',
       scale: '縮放', scaleDrag: '拖移',
+      skew: '傾斜',
       mirror: '鏡射', mirrorH: '水平', mirrorV: '垂直', mirrorCopy: '水平複製', mirrorCopyV: '垂直複製',
+      mirrorCenter: '鏡射軸',
       rotHint: '拖動把手旋轉',
       colorPickerTitle: '選色器',
       colorPickerConfirm: '確認', colorPickerCancel: '取消',
@@ -62,7 +64,9 @@
       coord: 'Position', coordDrag: 'Drag',
       rotate: 'Rotation', rotateDrag: 'Drag',
       scale: 'Scale', scaleDrag: 'Drag',
+      skew: 'Skew',
       mirror: 'Mirror', mirrorH: 'Horiz.', mirrorV: 'Vert.', mirrorCopy: 'Copy H', mirrorCopyV: 'Copy V',
+      mirrorCenter: 'Axis',
       rotHint: 'Drag handle to rotate',
       colorPickerTitle: 'Color Picker',
       colorPickerConfirm: 'Confirm', colorPickerCancel: 'Cancel',
@@ -206,33 +210,66 @@
       const m = new Float32Array(data);
 
       // ── Rotation + non-uniform scale ──
-      // GLDrawImage 的 Zoom 是均勻縮放，rotation 完全不支援，所以仍需 patch
+      // ── Rotation + non-uniform scale（中心錨點）──
+      // 記錄改動前的基底向量，改完後補償平移，使影像中心保持不動
       if (td.rotation !== 0 || td.scaleX !== 1 || td.scaleY !== 1) {
-        const rad = -td.rotation * Math.PI / 180; // 負號修正 BC 座標系旋轉方向
+        const old0 = m[0], old1 = m[1], old4 = m[4], old5 = m[5];
+        const rad = -td.rotation * Math.PI / 180;
         const cos = Math.cos(rad), sin = Math.sin(rad);
-        const sx  = Math.sqrt(m[0]**2 + m[1]**2) * td.scaleX;
-        const sy  = Math.sqrt(m[4]**2 + m[5]**2) * td.scaleY;
-        const sgx = m[0] < 0 ? -1 : 1;
-        const sgy = m[5] < 0 ? -1 : 1;
+        const sx  = Math.sqrt(old0**2 + old1**2) * td.scaleX;
+        const sy  = Math.sqrt(old4**2 + old5**2) * td.scaleY;
+        const sgx = old0 < 0 ? -1 : 1;
+        const sgy = old5 < 0 ? -1 : 1;
         m[0] =  cos * sx * sgx;
         m[1] =  sin * sx * sgx;
         m[4] = -sin * sy * sgy;
         m[5] =  cos * sy * sgy;
+        // 中心補償：new_center - old_center = 0.5 * (new_basis - old_basis)
+        m[12] -= 0.5 * (m[0] + m[4] - old0 - old4);
+        m[13] -= 0.5 * (m[1] + m[5] - old1 - old5);
       }
 
-      // ── FlipX / FlipY ──
-      // GLDrawImage 已原生支援（Mirror/Invert 參數），但目前 BeforeDraw 返回值
-      // 無法直接傳遞 Mirror/Invert 旗標給 GLDrawImage，暫時仍在此處理。
-      // TODO: 改為 ScriptDraw + GLDrawImage(Mirror=true) 呼叫以移除此 patch
-      if (td.flipX) { m[0] = -m[0]; m[1] = -m[1]; }
-      if (td.flipY) { m[4] = -m[4]; m[5] = -m[5]; }
+      // ── Skew（傾斜）── 中心錨點
+      // 先記錄原始基底向量，skewX/skewY 各自補償平移，使影像中心保持不動
+      if (td.skewX !== 0 || td.skewY !== 0) {
+        const bx0 = m[0], by0 = m[1]; // X 基底（skewY 要用原始值）
+        const bx4 = m[4], by5 = m[5]; // Y 基底（skewX 要用原始值）
+        if (td.skewX !== 0) {
+          const tx = Math.tan(td.skewX * Math.PI / 180);
+          m[4] += tx * bx0;
+          m[5] += tx * by0;
+          // 中心補償：中心點因 skewX 位移了 0.5*tx*basis，反向修正平移
+          m[12] -= 0.5 * tx * bx0;
+          m[13] -= 0.5 * tx * by0;
+        }
+        if (td.skewY !== 0) {
+          const ty = Math.tan(td.skewY * Math.PI / 180);
+          m[0] += ty * bx4;
+          m[1] += ty * by5;
+          m[12] -= 0.5 * ty * bx4;
+          m[13] -= 0.5 * ty * by5;
+        }
+      }
+
+      // ── FlipX / FlipY（中心鏡射，固定用 0.5）──
+      if (td.flipX) {
+        m[12] += m[0]; // 0.5 * 2 * m[0]
+        m[13] += m[1];
+        m[0] = -m[0]; m[1] = -m[1];
+      }
+      if (td.flipY) {
+        m[12] += m[4]; // 0.5 * 2 * m[4]
+        m[13] += m[5];
+        m[4] = -m[4]; m[5] = -m[5];
+      }
 
       // ── 儲存 matrix 供 MirrorCopy drawArrays hook 使用 ──
       if (td.mirrorCopy || td.mirrorCopyV) {
         _aeeLastMatData = m;
         _aeeLastMatLoc  = loc;
         _aeeLastGl      = this;
-        _aeeMCFlags     = { mirrorCopy: td.mirrorCopy, mirrorCopyV: td.mirrorCopyV };
+        _aeeMCFlags     = { mirrorCopy: td.mirrorCopy, mirrorCopyV: td.mirrorCopyV,
+                            mirrorCopyAxisX: td.mirrorCopyAxisX ?? 0.5, mirrorCopyAxisY: td.mirrorCopyAxisY ?? 0.5 };
       } else {
         _aeeLastMatData = null;
         _aeeMCFlags     = null;
@@ -259,16 +296,18 @@
 
     if (_aeeMCFlags.mirrorCopy) {
       const mM = new Float32Array(_aeeLastMatData);
-      mM[0] = -mM[0]; mM[1] = -mM[1]; // 翻轉 X 方向向量
-      mM[12] = -mM[12];                // X 位移對稱
+      mM[0] = -mM[0]; mM[1] = -mM[1];
+      const ax = 2 * (_aeeMCFlags.mirrorCopyAxisX ?? 0.5) - 1; // 0-1 → clip space(-1~1), 0.5→0(畫面中心)
+      mM[12] = 2 * ax - mM[12];
       _origMat.call(this, _aeeLastMatLoc, false, mM);
       _origDraw.call(this, mode, first, count);
       aeeLog('MirrorCopy draw');
     }
     if (_aeeMCFlags.mirrorCopyV) {
       const mV = new Float32Array(_aeeLastMatData);
-      mV[4] = -mV[4]; mV[5] = -mV[5]; // 翻轉 Y 方向向量
-      mV[13] = -mV[13];                // Y 位移對稱
+      mV[4] = -mV[4]; mV[5] = -mV[5];
+      const ay = 2 * (_aeeMCFlags.mirrorCopyAxisY ?? 0.5) - 1;
+      mV[13] = 2 * ay - mV[13];
       _origMat.call(this, _aeeLastMatLoc, false, mV);
       _origDraw.call(this, mode, first, count);
       aeeLog('MirrorCopyV draw');
@@ -541,8 +580,47 @@
   }, true);
 
   // ============================================================
-  // DRAG — ROTATION WHEEL OVERLAY
+  // DRAG — SKEW
   // ============================================================
+
+  let skewDragState = null;
+
+  document.addEventListener('mousedown', e => {
+    if (hostEl && hostEl.contains(e.target)) return;
+    if (colorPickerHostEl && colorPickerHostEl.contains(e.target)) return;
+    if (state.activeDrag !== 'skew' || state.selectedLayer === null) return;
+    const c = getCanvas(); if (!c) return;
+    const r = c.getBoundingClientRect();
+    const cx = (e.clientX - r.left) * ((c.width||2000)/r.width);
+    const cy = (e.clientY - r.top)  * ((c.height||1000)/r.height);
+    if (cx < 300 || cx > 1700 || cy < 50 || cy > 950) return;
+    const item = getCurrentItem(); if (!item) return;
+    const lo = getLO(item, state.selectedLayer);
+    skewDragState = {
+      layerIdx: state.selectedLayer,
+      startX: e.clientX, startY: e.clientY,
+      origSX: lo.SkewX ?? 0, origSY: lo.SkewY ?? 0,
+    };
+    e.stopImmediatePropagation();
+  }, true);
+
+  document.addEventListener('mousemove', e => {
+    if (!skewDragState) return;
+    const degPerPx = 0.3;
+    const dx = (e.clientX - skewDragState.startX) * degPerPx;
+    const dy = (e.clientY - skewDragState.startY) * degPerPx;
+    const item = getCurrentItem(); if (!item) return;
+    setLO(item, skewDragState.layerIdx, 'SkewX', +(skewDragState.origSX + dx).toFixed(1));
+    setLO(item, skewDragState.layerIdx, 'SkewY', +(skewDragState.origSY + dy).toFixed(1));
+    updateEditSection();
+    e.stopImmediatePropagation();
+  }, true);
+
+  document.addEventListener('mouseup', e => {
+    if (!skewDragState) return;
+    skewDragState = null;
+    e.stopImmediatePropagation();
+  }, true);
 
   let rotOverlayHost = null;
   let rotShadow = null;
@@ -1475,14 +1553,23 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
           </svg>
         </div>
         <div class="tgl-icon" id="tgl-rot" data-drag-toggle="rot" title="${isZh()?'旋轉':'Rotate'}">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M13 5A6 6 0 1 0 13.5 9"/>
-            <path d="M13.5 1v4h-4"/>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5.25 12.76A5.5 5.5 0 1 1 10.75 3.24"/>
+            <path d="M10.75 3.24A5.5 5.5 0 0 1 5.25 12.76" stroke-dasharray="2 1.8"/>
+            <polyline points="13,3.5 10.75,3.24 12,5.2"/>
+            <rect x="6.3" y="6.3" width="3.4" height="3.4" transform="rotate(45 8 8)" fill="currentColor" stroke="none"/>
           </svg>
         </div>
         <div class="tgl-icon" id="tgl-scale" data-drag-toggle="scale" title="${isZh()?'縮放':'Scale'}">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <path d="M1 6V1h5M10 1h5v5M15 10v5h-5M6 15H1v-5"/>
+          </svg>
+        </div>
+        <div class="tgl-icon" id="tgl-skew" data-drag-toggle="skew" title="${isZh()?'傾斜':'Skew'}">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 13h6M5 3h6"/>
+            <line x1="3" y1="13" x2="5" y2="3"/>
+            <line x1="9" y1="13" x2="11" y2="3"/>
           </svg>
         </div>
         <div class="tgl-icon" id="tgl-reset" data-tgl-action="reset-transform" title="${isZh()?'重置座標/旋轉/縮放':'Reset transforms'}">
@@ -1534,6 +1621,8 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         setLO(item, idx, 'ScaleX', 1);
         setLO(item, idx, 'ScaleY', 1);
         setLO(item, idx, 'Rotation', 0);
+        setLO(item, idx, 'SkewX', 0);
+        setLO(item, idx, 'SkewY', 0);
         if (state.activeDrag === 'rot') updateRotOverlay(0);
       }
     });
@@ -1679,7 +1768,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
   function updateToggleIcons() {
     if (!shadowRoot) return;
-    ['xy','rot','scale'].forEach(mode => {
+    ['xy','rot','scale','skew'].forEach(mode => {
       const el = shadowRoot.getElementById('tgl-' + mode);
       if (el) el.classList.toggle('active', state.activeDrag === mode);
     });
@@ -1825,6 +1914,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     else if (ctrl === 'sx') setLO(item, idx, 'ScaleX', Math.max(0.05, +raw.toFixed(2)));
     else if (ctrl === 'sy') setLO(item, idx, 'ScaleY', Math.max(0.05, +raw.toFixed(2)));
     else if (ctrl === 'rot') setLO(item, idx, 'Rotation', ((Math.round(raw) % 360) + 360) % 360);
+    else if (ctrl === 'skx') setLO(item, idx, 'SkewX', +raw.toFixed(1));
+    else if (ctrl === 'sky') setLO(item, idx, 'SkewY', +raw.toFixed(1));
+    else if (ctrl === 'fcx') setLO(item, idx, 'MirrorCopyAxisX', Math.max(0, Math.min(1, +raw.toFixed(2))));
+    else if (ctrl === 'fcy') setLO(item, idx, 'MirrorCopyAxisY', Math.max(0, Math.min(1, +raw.toFixed(2))));
     updateEditSection();
     if (ctrl === 'rot' && state.activeDrag === 'rot') {
       const lo2 = getLO(getCurrentItem(), idx);
@@ -1867,6 +1960,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     else if(ctrl==='sx')  setLO(item,idx,'ScaleX', Math.max(0.05,+((lo.ScaleX??1)+delta).toFixed(2)));
     else if(ctrl==='sy')  setLO(item,idx,'ScaleY', Math.max(0.05,+((lo.ScaleY??1)+delta).toFixed(2)));
     else if(ctrl==='rot') setLO(item,idx,'Rotation',((lo.Rotation??0)+delta+360)%360);
+    else if(ctrl==='skx') setLO(item,idx,'SkewX', +((lo.SkewX??0)+delta).toFixed(1));
+    else if(ctrl==='sky') setLO(item,idx,'SkewY', +((lo.SkewY??0)+delta).toFixed(1));
+    else if(ctrl==='fcx') setLO(item,idx,'MirrorCopyAxisX', Math.max(0,Math.min(1,+((lo.MirrorCopyAxisX??0.5)+delta).toFixed(2))));
+    else if(ctrl==='fcy') setLO(item,idx,'MirrorCopyAxisY', Math.max(0,Math.min(1,+((lo.MirrorCopyAxisY??0.5)+delta).toFixed(2))));
     updateEditSection();
     if (state.activeDrag === 'rot') {
       const lo2 = getLO(getCurrentItem(), idx);
@@ -1934,6 +2031,9 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     else if(ctrl==='sx')  setLO(item,idx,'ScaleX',1);
     else if(ctrl==='sy')  setLO(item,idx,'ScaleY',1);
     else if(ctrl==='rot') { setLO(item,idx,'Rotation',0); if(state.activeDrag==='rot') updateRotOverlay(0); }
+    else if(ctrl==='skx') setLO(item,idx,'SkewX',0);
+    else if(ctrl==='sky') setLO(item,idx,'SkewY',0);
+    else if(ctrl==='fcx' || ctrl==='mc') { setLO(item,idx,'MirrorCopyAxisX',0.5); setLO(item,idx,'MirrorCopyAxisY',0.5); }
     updateEditSection();
   }
 
@@ -2069,8 +2169,35 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       : '<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="10" height="10" rx="4" opacity="0.35"/><rect x="10" y="2" width="10" height="10" rx="4"/></svg>';
     const rotHtml = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('rotate') + '</span>' + dragCheckbox('rot',t('rotateDrag')) + '</div>' + propRow('°',rot,'rot',[-5,-1,1,5]) + '</div>';
     const scaleHtml = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('scale') + '</span><button class="scale-lock-btn' + (state.scaleLock?' locked':'') + '" id="scale-lock-btn" title="' + (isZh()?'等比縮放':'Proportional scale') + '">' + scaleLockSvg + '</button>' + dragCheckbox('scale',t('scaleDrag')) + '</div>' + propRow('X',sx.toFixed(2),'sx',[-0.3,-0.1,0.1,0.3]) + propRow('Y',sy.toFixed(2),'sy',[-0.3,-0.1,0.1,0.3]) + '</div>';
-    const mirrorHtml = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('mirror') + '</span></div><div class="mirror-grid"><div class="mirror-group"><div class="mirror-group-title">' + (isZh()?'鏡射':'Mirror') + '</div><div class="mirror-pair"><button class="mirror-btn ' + (lo.FlipX?'active':'') + '" data-mirror="FlipX">' + t('mirrorH') + '</button><button class="mirror-btn ' + (lo.FlipY?'active':'') + '" data-mirror="FlipY">' + t('mirrorV') + '</button></div></div><div class="mirror-group"><div class="mirror-group-title">' + (isZh()?'複製':'Copy') + '</div><div class="mirror-pair"><button class="mirror-btn ' + (lo.MirrorCopy?'active':'') + '" data-mirror="MirrorCopy">' + t('mirrorH') + '</button><button class="mirror-btn ' + (lo.MirrorCopyV?'active':'') + '" data-mirror="MirrorCopyV">' + t('mirrorV') + '</button></div></div></div></div>';
-    return rotHtml + scaleHtml + mirrorHtml;
+    const skewHtml = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('skew') + '</span>' + dragCheckbox('skew', t('coordDrag')) + '</div>' + propRow('X°',(lo.SkewX??0).toFixed(1),'skx',[-5,-1,1,5]) + propRow('Y°',(lo.SkewY??0).toFixed(1),'sky',[-5,-1,1,5]) + '</div>';
+    const mirrorHtml = (function(){
+      const mcx = (lo.MirrorCopyAxisX??0.5).toFixed(2);
+      const mcy = (lo.MirrorCopyAxisY??0.5).toFixed(2);
+      const copyAxisRow = `<div style="display:flex;align-items:center;gap:4px;margin-top:5px;font-size:11px;color:var(--text-dim)">
+        <span style="flex-shrink:0">${t('mirrorCenter')}</span>
+        <span style="flex-shrink:0">H</span>
+        <button class="step" style="width:20px;height:18px;font-size:9px" data-step="fcx" data-delta="-0.05">-</button>
+        <input class="prop-val-input" data-prop-input="fcx" value="${mcx}" style="width:34px;font-size:11px">
+        <button class="step" style="width:20px;height:18px;font-size:9px" data-step="fcx" data-delta="0.05">+</button>
+        <span style="flex-shrink:0;margin-left:2px">V</span>
+        <button class="step" style="width:20px;height:18px;font-size:9px" data-step="fcy" data-delta="-0.05">-</button>
+        <input class="prop-val-input" data-prop-input="fcy" value="${mcy}" style="width:34px;font-size:11px">
+        <button class="step" style="width:20px;height:18px;font-size:9px" data-step="fcy" data-delta="0.05">+</button>
+        <button class="step-reset" data-reset="mc" title="↺" style="width:18px;height:18px;font-size:11px">↺</button>
+      </div>`;
+      return '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('mirror') + '</span></div>'
+        + '<div class="mirror-grid">'
+        + '<div class="mirror-group"><div class="mirror-group-title">' + (isZh()?'鏡射':'Mirror') + '</div>'
+        + '<div class="mirror-pair"><button class="mirror-btn ' + (lo.FlipX?'active':'') + '" data-mirror="FlipX">' + t('mirrorH') + '</button>'
+        + '<button class="mirror-btn ' + (lo.FlipY?'active':'') + '" data-mirror="FlipY">' + t('mirrorV') + '</button></div></div>'
+        + '<div class="mirror-group"><div class="mirror-group-title">' + (isZh()?'複製':'Copy') + '</div>'
+        + '<div class="mirror-pair"><button class="mirror-btn ' + (lo.MirrorCopy?'active':'') + '" data-mirror="MirrorCopy">' + t('mirrorH') + '</button>'
+        + '<button class="mirror-btn ' + (lo.MirrorCopyV?'active':'') + '" data-mirror="MirrorCopyV">' + t('mirrorV') + '</button></div></div>'
+        + '</div>'
+        + copyAxisRow
+        + '</div>';
+    })();
+    return rotHtml + scaleHtml + skewHtml + mirrorHtml;
   })()}
 </div>`;
     }
@@ -2116,6 +2243,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       sx: (lo.ScaleX??1).toFixed(2),
       sy: (lo.ScaleY??1).toFixed(2),
       rot: lo.Rotation??0,
+      skx: (lo.SkewX??0).toFixed(1),
+      sky: (lo.SkewY??0).toFixed(1),
+      fcx: (lo.MirrorCopyAxisX??0.5).toFixed(2),
+      fcy: (lo.MirrorCopyAxisY??0.5).toFixed(2),
     };
     sec.querySelectorAll('[data-prop-input]').forEach(el => {
       if (el.dataset.propInput && vals[el.dataset.propInput] !== undefined) {
@@ -2341,6 +2472,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         const needsBeforeDraw = los.some(lo => lo &&
           (lo.DrawingLeft != null || lo.DrawingTop != null ||
            lo.Rotation != null || lo.ScaleX != null || lo.ScaleY != null ||
+           lo.SkewX != null || lo.SkewY != null ||
            lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV));
         if (needsBeforeDraw) item.Asset.DynamicBeforeDraw = true;
       });
@@ -2373,16 +2505,21 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
           if (lo) {
             const hasTransform =
               lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV ||
-              lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null;
+              lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null ||
+              lo.SkewX != null || lo.SkewY != null;
             if (hasTransform) {
               _aeePendingTd = {
                 flipX:       !!lo.FlipX,
                 flipY:       !!lo.FlipY,
                 mirrorCopy:  !!lo.MirrorCopy,
                 mirrorCopyV: !!lo.MirrorCopyV,
+                mirrorCopyAxisX: lo.MirrorCopyAxisX ?? 0.5,
+                mirrorCopyAxisY: lo.MirrorCopyAxisY ?? 0.5,
                 scaleX:      lo.ScaleX ?? 1,
                 scaleY:      lo.ScaleY ?? 1,
                 rotation:    lo.Rotation ?? 0,
+                skewX:       lo.SkewX ?? 0,
+                skewY:       lo.SkewY ?? 0,
               };
               aeeLog(`BeforeDraw: ${CA.Asset?.Name}[${layerIdx}]=${layerName} → td set rot=${_aeePendingTd.rotation}`);
             }
