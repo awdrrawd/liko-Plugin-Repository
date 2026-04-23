@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.2.0
+// @version      1.2.1
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
     'use strict';
 
     let modApi;
-    let myversion = "1.2.0";
+    let myversion = "1.2.1";
     let observer = null;
 
     let config = {
@@ -1519,16 +1519,26 @@
                 <span style='color:#aaa'>・ 快捷鍵：預設 Ctrl+M 開關（設定頁可修改）</span>
             </div>
             <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
-                <b style='color:#FFD700;'>18 種語言</b><br>
-                zh en ja ko de fr es ru it pt ar th vi id pl nl tr sv
+                <b style='color:#FFD700;'>19 種語言</b><br>
+                zh cn en ja ko de fr es ru it pt ar th vi id pl nl tr sv
             </div>
         </div>`);
     }
 
     function handleLangCommand(langCode, type) {
-        if (langCode && langCodes.includes(langCode)) {
-            if (type === 'send') { config.sendLang = langCode; saveSettings(); ChatRoomSendLocal(`✅ 發送語言: ${getLangName(langCode)}`); }
-            else { config.recvLang = langCode; saveSettings(); ChatRoomSendLocal(`✅ 接收語言: ${getLangName(langCode)}`); }
+        // 別名映射：將簡短輸入轉換為 Google 正確代碼
+        const aliasMap = {
+            'zh': 'zh-TW',   // zh 預設對應繁體（Google 代碼需明確指定）
+            'tw': 'zh-TW',
+            'cn': 'zh-CN',
+            'zh-cn': 'zh-CN',
+            'zh-tw': 'zh-TW',
+        };
+        const resolved = aliasMap[langCode?.toLowerCase()] || langCode;
+    
+        if (resolved && langCodes.includes(resolved)) {
+            if (type === 'send') { config.sendLang = resolved; saveSettings(); ChatRoomSendLocal(`✅ 發送語言: ${getLangName(resolved)}`); }
+            else { config.recvLang = resolved; saveSettings(); ChatRoomSendLocal(`✅ 接收語言: ${getLangName(resolved)}`); }
         } else {
             ChatRoomSendLocal(`當前 - 發送: ${getLangName(config.sendLang)} | 接收: ${getLangName(config.recvLang)}`);
         }
