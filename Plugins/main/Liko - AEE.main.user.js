@@ -18,7 +18,7 @@
   'use strict';
 
   const MOD_NAME = "Liko - AEE";
-  const MOD_Version = "0.7.0";
+  const MOD_Version = "0.7.1";
   if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
   const modApi = bcModSdk.registerMod({
     name: MOD_NAME, fullName: "Liko - Appearance Editor",
