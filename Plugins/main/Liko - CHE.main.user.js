@@ -1744,8 +1744,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         CB: 64,
         // Shared Y positions
         Y: {
-            back:    60,
-            help:    60,
+            back:    75,
+            help:    75,
             title:  105,
             secL:   180,   // "── 顯示 ──"
             secR:   180,   // "── 匯出 ──"
