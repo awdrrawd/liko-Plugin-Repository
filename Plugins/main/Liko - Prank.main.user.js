@@ -1002,10 +1002,36 @@
         }
     }
 
-    // ===== 初始化 =====
-    // 修正：先等 bcModSdk 載入再 registerMod，避免同步執行時 SDK 尚未就緒
-    // 修正：waitFor timeout 提高到 120 秒，避免登入較慢時超時
+    async function phase2() {
+        try {
+            await waitFor(() =>
+                typeof CommandCombine === "function" &&
+                typeof ActivityFemale3DCG !== "undefined" &&
+                typeof ActivityDictionary !== "undefined",
+                30000  // 已知登入完成，30 秒綽綽有餘
+            );
+    
+            const isZh = detectLanguage();
+            CommandCombine([
+                { Tag: "steal",    Description: isZh ? "偷取内裤" : "Steal panties",   Action: (args) => stealPanties(args) },
+                { Tag: "偷取",     Description: "偷取内裤",                             Action: (args) => stealPanties(args) },
+                { Tag: "dissolve", Description: isZh ? "溶解衣服" : "Dissolve clothes", Action: (args) => spillObscenePotion(args) },
+                { Tag: "溶解",     Description: "溶解衣服",                             Action: (args) => spillObscenePotion(args) },
+                { Tag: "teleport", Description: isZh ? "传送" : "Teleport",            Action: (args) => openPortal(args) },
+                { Tag: "傳送",     Description: "传送",                                 Action: (args) => openPortal(args) },
+                { Tag: "传送",     Description: "传送",                                 Action: (args) => openPortal(args) }
+            ]);
+    
+            registerActivities();
+            chatSendLocal(getMessage('loaded'));
+    
+        } catch (error) {
+            console.error("🐈‍⬛ [prank] ❌ Phase 2 (registration) failed:", error);
+        }
+    }
+    
     (async () => {
+        // ── Phase 1：SDK 就緒後立即執行，不依賴登入狀態 ──
         const sdkOk = await waitForBcModSdk();
         if (sdkOk) {
             try {
@@ -1017,46 +1043,32 @@
                 });
                 console.log("🐈‍⬛ [prank] ✅ Mod registered with bcModSdk");
             } catch (error) {
-                console.error("🐈‍⬛ [prank] ❌ Failed to initialize modApi", error);
+                console.error("🐈‍⬛ [prank] ❌ Failed to register mod", error);
             }
         } else {
-            console.warn("🐈‍⬛ [prank] ❌ bcModSdk not available, continuing without modApi");
+            console.warn("🐈‍⬛ [prank] ⚠️ bcModSdk not available, continuing without modApi");
         }
-
-        try {
-            // 等待玩家登入完成（MemberNumber > 0 確認已成功登入）
-            await waitFor(() =>
-                          typeof Player !== "undefined" &&
-                          typeof Player.MemberNumber === "number" &&
-                          Player.MemberNumber > 0
-                         );
-
-            // 注册命令
-            if (typeof CommandCombine === "function") {
-                const isZh = detectLanguage();
-                CommandCombine([
-                    { Tag: "steal", Description: isZh ? "偷取内裤" : "Steal panties", Action: (args) => stealPanties(args) },
-                    { Tag: "偷取", Description: "偷取内裤", Action: (args) => stealPanties(args) },
-                    { Tag: "dissolve", Description: isZh ? "溶解衣服" : "Dissolve clothes", Action: (args) => spillObscenePotion(args) },
-                    { Tag: "溶解", Description: "溶解衣服", Action: (args) => spillObscenePotion(args) },
-                    { Tag: "teleport", Description: isZh ? "传送" : "Teleport", Action: (args) => openPortal(args) },
-                    { Tag: "傳送", Description: "传送", Action: (args) => openPortal(args) },
-                    { Tag: "传送", Description: "传送", Action: (args) => openPortal(args) }
-                ]);
-            }
-
-            // 等待活动系统
-            await waitFor(() =>
-                          typeof ActivityFemale3DCG !== "undefined" &&
-                          typeof ActivityDictionary !== "undefined"
-                         );
-
-            registerActivities();
-            setupHooks();
-            chatSendLocal(getMessage('loaded'));
-
-        } catch (error) {
-            console.error("🐈‍⬛ [prank] ❌ Initialization failed:", error);
+    
+        setupHooks();  // hooks 掛在遊戲函式上，不需要玩家登入
+    
+        // ── Phase 2 觸發：hook LoginResponse，登入完成時才註冊活動與指令 ──
+        if (modApi?.hookFunction) {
+            let phase2Done = false;
+            modApi.hookFunction("LoginResponse", 1, (args, next) => {
+                const result = next(args);
+                if (!phase2Done) {
+                    phase2Done = true;
+                    phase2();
+                }
+                return result;
+            });
+        }
+    
+        // ── 補救：腳本載入時玩家已登入（例如 F5 重載），直接執行 Phase 2 ──
+        if (typeof Player !== "undefined" &&
+            typeof Player.MemberNumber === "number" &&
+            Player.MemberNumber > 0) {
+            phase2();
         }
     })();
 })();
