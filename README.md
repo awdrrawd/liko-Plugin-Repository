@@ -93,7 +93,7 @@ Additionally, it offers coloring and layer adjustments, eliminating the need to 
 #### 🌸 Abundantia Florum ─Chromatica─ · 繁戀如花 ─繽紛─
 > 🆔 `Liko-ACF` · EN✔️ · [📥Download](https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js)
 
-更多戀人，如百花盛放的愛情篇章，並搭載可延展的戀人鎖機制。
+更多戀人，如百花盛放的愛情篇章，並搭載可延展的戀人鎖機制。  
 An abundance of lovers, like a love story blooming in countless flowers, featuring an extensible Lover’s Lock system.
 
 ---
