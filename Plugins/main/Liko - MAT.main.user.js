@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.2.1
+// @version      1.2.2
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,13 +15,13 @@
     'use strict';
 
     let modApi;
-    let myversion = "1.2.1";
+    let myversion = "1.2.2";
     let observer = null;
 
     let config = {
         enabled: true,
         sendLang: 'en',
-        recvLang: 'zh',
+        recvLang: 'zh-CN',
         translateReceived: true,
         translateSent: false,
         translateSelection: true,
@@ -79,7 +79,7 @@
         const defaults = {
             enabled: true,
             sendLang: 'en',
-            recvLang: 'zh',
+            recvLang: 'zh-CN',
             translateReceived: true,
             translateSent: false,
             translateSelection: true,
@@ -110,36 +110,17 @@
     }
 
     function loadSettings() {
-        if (Player?.ExtensionSettings?.BCMachineTranslation) {
-            config = { ...config, ...Player.ExtensionSettings.BCMachineTranslation };
-            // 確保 hotkeys 結構完整（舊版存檔可能沒有此欄位）
-            if (!config.hotkeys || typeof config.hotkeys !== 'object') {
-                config.hotkeys = { toggle: { key: 'KeyM', modifiers: ['Ctrl'] } };
-            }
-            if (!config.hotkeys.toggle) {
-                config.hotkeys.toggle = { key: 'KeyM', modifiers: ['Ctrl'] };
-            }
-            return;
+        if (!Player?.ExtensionSettings?.BCMachineTranslation) return;
+        config = { ...config, ...Player.ExtensionSettings.BCMachineTranslation };
+        if (!config.hotkeys || typeof config.hotkeys !== 'object') {
+            config.hotkeys = { toggle: { key: 'KeyM', modifiers: ['Ctrl'] } };
         }
-        if (Player?.OnlineSettings?.BCMachineTranslation) {
-            config = { ...config, ...Player.OnlineSettings.BCMachineTranslation };
-            saveSettings();
-            try {
-                delete Player.OnlineSettings.BCMachineTranslation;
-                if (typeof ServerAccountUpdate?.QueueData === "function") {
-                    ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
-                }
-            } catch (e) {
-                console.warn("🐈‍⬛ [MAT] ❗ 遷移 OnlineSettings 失敗:", e);
-            }
+        if (!config.hotkeys.toggle) {
+            config.hotkeys.toggle = { key: 'KeyM', modifiers: ['Ctrl'] };
         }
     }
 
-    const MIGRATE_KEYS = [
-        'LCData', 'PatAll', 'PatAllImproved', 'NotifyOnInvite',
-        'BCS', 'CustomProfileBG', 'CDBEnhanced', 'BCEnhancedMusic',
-        'LikoImageUploader', 'BCMachineTranslation', 'EchoCache'
-    ];
+    const MIGRATE_KEYS = ['BCMachineTranslation'];
 
     function migrateOnlineToExtensionSettings() {
         if (!Player?.OnlineSettings || !Player?.ExtensionSettings) return;
