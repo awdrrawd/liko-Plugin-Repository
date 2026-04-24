@@ -9,6 +9,7 @@
 // @run-at       document-end
 // @grant        none
 // ==/UserScript==
+
 /*
  * v2.1.1 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
  *   - 新增 isAllowedToLock(memberNum)：
@@ -363,7 +364,7 @@
      *
      * 判斷邏輯（以 ch 的共享設定為準，因為 ch 才是被鎖的一方）：
      *   1. ch 是 Player 的 BC 原生戀人 → 始終允許（原版行為，不需 EL 設定）
-     *   2. ch 未啟用 EL Lock（ch.OnlineSharedSettings.EL.lockPerms.enableELLock = false）→ 拒絕
+     *   2. ch 未啟用 EL Lock（ch.OnlineSharedSettings.AFC.lockPerms.enableELLock = false）→ 拒絕
      *   3. ch 是 Player 的拓展戀人（EL） → 允許
      *   4. Player 是 ch 的主人 且 ch 設定允許主人使用鎖 → 允許
      */
@@ -376,7 +377,7 @@
             return true;
  
         // 2. 讀取 ch 的共享鎖定權限（其他玩家可見）
-        const elPerms = ch.OnlineSharedSettings?.EL?.lockPerms;
+        const elPerms = ch.OnlineSharedSettings?.AFC?.lockPerms;
         if (!elPerms?.enableELLock) return false;  // ch 未開啟 EL Lock
  
         const api = window.ELAbundantiaAPI;
