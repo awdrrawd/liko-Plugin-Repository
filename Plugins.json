@@ -1,18 +1,23 @@
 {
-  "updateId": "260418",
+  "updateId": "260424",
   "changelog": [
-    "⭐AEE (Liko的外觀編輯拓展-測試版) v0.6.5更新",
-    "修復圖層編輯時錯誤圖層被編輯",
-    "⭐MAT (自動翻譯) v1.2.0更新",
-    "修改手動翻譯的方式，現在是點選信息後顯示按鈕而非停留顯示",
-    "現在增加快捷鍵設置，能快速開關MAT"
+    "⭐繁戀如花 ─繽紛─ v0.5.0 實裝",
+    "拓展10個戀人位",
+    "拓展新的戀人鎖",
+    "提供主人與戀人們的登入燈號",
+    "現在增加快捷鍵設置，能快速開關MAT",
+    "⭐AEE (Liko的外觀編輯拓展-測試版) v0.7.1更新",
+    "增加了變形功能",
+    "增加了鏡像複製的座標調整功能"
   ],
   "en_changelog": [
-    "⭐AEE (Liko's Appearance editing extensio - Beta) v0.6.5 Update",
-    "Repairing incorrect layers being edited during layer editing",
-    "⭐MAT (Messages Auto Translator) v1.2.0 Update",
-    "Modified the manual translation method; now a button appears after selecting information instead of remaining on the screen.",
-    "Added shortcut key settings for quickly toggling MAT."
+    "⭐Blooming Love ─Colorful─ v0.5.0 Implemented",
+    "Expanded by 10 Lover Slots",
+    "Added New Lover Locks",
+    "Provides Login Signals for Owners and Lovers",
+    "⭐AEE (Liko's Appearance editing extensio - Beta) v0.7.1 Update",
+    "Added deformation function",
+    "Added coordinate adjustment function for mirror copying"
   ],
   "plugins": [
     {
