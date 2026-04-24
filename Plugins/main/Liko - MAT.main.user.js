@@ -196,18 +196,11 @@
             text.includes(TRANSLATE_MARKER) || text.includes('[🌐]')) return text;
         if (isPureUrl(text)) return text;
         try {
-            const { translated, error } = await translateQueue.add(message, lang);
-            if (error || translated === message) {
-                updateClickToolbarStatus(null);
-                ChatRoomSendLocal(isZH()
-                    ? '⚠️ 翻譯失敗，請確認 Google API 是否可用（俄羅斯等地區可能被封鎖）'
-                    : '⚠️ Translation failed. Google API may be blocked in your region.');
-                return;
-            }
+            const { translated } = await translateQueue.add(text, targetLang);
             return translated;
         } catch (e) {
             console.error('🐈‍⬛ [MAT] ❌ Error:', e);
-            return text;
+            return text;  // ← 這裡原本應該是 return text，不是 message
         }
     }
 
