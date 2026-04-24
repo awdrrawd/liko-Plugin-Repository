@@ -171,12 +171,14 @@
     async function translateGoogle(text, target) {
         try {
             const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
-            const data = await (await fetch(url)).json();
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
             const translated = data[0]?.map(seg => seg?.[0] || '').join('') || text;
             return { translated, detectedLang: data[2] || null };
         } catch (e) {
             console.error('Google Translate failed:', e);
-            return { translated: text, detectedLang: null };
+            return { translated: text, detectedLang: null, error: e.message };
         }
     }
 
@@ -194,7 +196,14 @@
             text.includes(TRANSLATE_MARKER) || text.includes('[🌐]')) return text;
         if (isPureUrl(text)) return text;
         try {
-            const { translated } = await translateQueue.add(text, targetLang);
+            const { translated, error } = await translateQueue.add(message, lang);
+            if (error || translated === message) {
+                updateClickToolbarStatus(null);
+                ChatRoomSendLocal(isZH()
+                    ? '⚠️ 翻譯失敗，請確認 Google API 是否可用（俄羅斯等地區可能被封鎖）'
+                    : '⚠️ Translation failed. Google API may be blocked in your region.');
+                return;
+            }
             return translated;
         } catch (e) {
             console.error('🐈‍⬛ [MAT] ❌ Error:', e);
