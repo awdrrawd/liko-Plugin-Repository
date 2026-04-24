@@ -171,14 +171,12 @@
     async function translateGoogle(text, target) {
         try {
             const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
-            const resp = await fetch(url);
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
+            const data = await (await fetch(url)).json();
             const translated = data[0]?.map(seg => seg?.[0] || '').join('') || text;
             return { translated, detectedLang: data[2] || null };
         } catch (e) {
             console.error('Google Translate failed:', e);
-            return { translated: text, detectedLang: null, error: e.message };
+            return { translated: text, detectedLang: null };
         }
     }
 
@@ -200,7 +198,7 @@
             return translated;
         } catch (e) {
             console.error('🐈‍⬛ [MAT] ❌ Error:', e);
-            return text;  // ← 這裡原本應該是 return text，不是 message
+            return text;
         }
     }
 
