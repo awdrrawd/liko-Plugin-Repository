@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.1
+// @version      2.1.2
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -10,18 +10,16 @@
 // @grant        none
 // ==/UserScript==
 
-/*
- * v2.1.1 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
- *   - 新增 isAllowedToLock(memberNum)：
- *       允許條件 = BC 原生戀人 OR 拓展戀人 OR (主人 + EL 設定允許主人使用鎖)
- *   - 兩處 isLover 判斷改為 isAllowedToLock()
- *   - 查詢 window.ELAbundantiaAPI（由 EL 插件在登入後掛載）
- *     EL 未安裝時自動降回 BC 原生戀人模式
- */
- 
 (function () {
     'use strict';
- 
+
+    // ── 防止重複執行（油猴裝了獨立版 + EL 又動態載入時只執行一次）──
+    if (window._AFC_HeartLockLoaded) {
+        console.log("🐈‍⬛ [HeartLock] 已載入，跳過重複執行");
+        return;
+    }
+    window._AFC_HeartLockLoaded = true;
+
     const HEARTLOCK_NAME   = 'Heart Padlock';
     const HSLOCK_NAME      = 'HighSecurityPadlock';
     const MOD_NAME         = 'HeartLockBC';
@@ -29,7 +27,7 @@
     const HEARTLOCK_IMAGE  = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/main/Images/Heart_Lock.png';
     const VIBE_INTERVAL_MS = 5000;
     const VIBE_MSG_CYCLE   = 6;
- 
+
     const PX = 1100; const PY  = 130;
     const PW = 870;  const PH  = 840;
     const TAB_H = 60; const TAB_W = 200;
@@ -40,7 +38,7 @@
     const TAB_TIMER    = 'timer';
     const TAB_CONTROL  = 'control';
     const TABS = [TAB_OVERVIEW, TAB_NOTE, TAB_TIMER, TAB_CONTROL];
- 
+
     // ═══════════════════════════════════════════
     //  i18n
     // ═══════════════════════════════════════════
@@ -50,7 +48,7 @@
         if (l === 'DE' || l === 'FR' || l === 'UA' || l === 'RU') return l;
         return 'EN';
     }
- 
+
     const I18N = {
         ZH: {
             tabOverview    : '總覽',      tabNote        : '筆記',
@@ -246,44 +244,44 @@
             modeEdge       : 'Едгінг ～',         modeDeny    : 'Заборона ✕',
         },
     };
- 
+
     function T(key, ...args) {
         const table = I18N[getLang()] ?? I18N.EN;
         let str = table[key] ?? I18N.EN[key] ?? key;
         args.forEach((a, i) => { str = str.replaceAll(`{${i}}`, a ?? ''); });
         return str;
     }
- 
+
     const CC = {
         bg: '#0f0008', panel: '#1a0010', border: '#8B1A4A', acc: '#CC2266',
         tSel: '#8B1A4A', tOff: '#280a1c', text: '#FFFFFF', sub: '#CC99BB',
         dim: '#555555', gold: '#FFCC66', btn: '#280a1c', btnA: '#8B1A4A', danger: '#5a0a0a',
     };
- 
+
     const CLOSE_X = PX + PW - 62; const CLOSE_Y = PY + 2;
     const CLOSE_W = 58;            const CLOSE_H = TAB_H - 4;
- 
+
     const TOP_H = Math.floor(CH * 3 / 7);
     const BOT_H = CH - TOP_H - 8;
     const TOP_Y = CY;
     const BOT_Y = CY + TOP_H + 8;
- 
+
     const IMG_COL = Math.floor(CW * 3 / 7);
     const IMG_X   = PX + 4;
     const IMG_Y   = TOP_Y + 4;
     const IMG_W   = IMG_COL - 22;
     const IMG_H   = TOP_H - 8;
- 
+
     const INFO_COL = Math.floor(CW * 2 / 7);
     const LBL_X    = CX + IMG_COL - 17;
     const VAL_X    = CX + IMG_COL + INFO_COL - 51;
     const ROW_H    = 34; const ROW_GAP = 6;
     const ROWS_TOP = TOP_Y + 57;
- 
+
     const NOTE_PREV_X = CX; const NOTE_PREV_Y = BOT_Y;
     const NOTE_PREV_W = CW; const NOTE_PREV_H = BOT_H - 4;
     const NOTE_HDR_H  = 28;
- 
+
     const NOTE_TITLE_Y  = CY + 28;
     const NOTE_BOX_Y    = CY + 58;  const NOTE_BOX_H = 420;
     const NOTE_TA_ID    = 'HeartLockNoteTA';
@@ -292,7 +290,7 @@
     const NOTE_BTN_W    = 200;
     const NOTE_SAVE_X   = CX + CW - NOTE_BTN_W;
     const NOTE_CANCEL_X = CX + CW - NOTE_BTN_W * 2 - 16;
- 
+
     const TMR_TITLE_Y = CY + 28;
     const TMR_ROW_H   = 44;
     const TMR_GAP     = 10;
@@ -319,7 +317,7 @@
     const TMR_ACT_GAP = 16;
     const TMR_SET_X   = PX + PW/2 - TMR_ACT_W - TMR_ACT_GAP/2;
     const TMR_CLR_X   = PX + PW/2 + TMR_ACT_GAP/2;
- 
+
     const CTL_TITLE_Y    = CY + 28;
     const CTL_VIBE_LBL_Y = CY + 58;
     const CTL_VIBE_BTN_Y = CTL_VIBE_LBL_Y + 28; const CTL_VIBE_BTN_H = 54;
@@ -331,10 +329,10 @@
     const CTL_SAVE_X     = CX + CW - CTL_SAVE_W;
     const CTL_CANCEL_W   = 200;
     const CTL_CANCEL_X   = CX + CW - CTL_SAVE_W - CTL_CANCEL_W - 16;
- 
+
     const CTL_VIBE_OPTS = [{ v:'off',l:'Off' },{ v:'low',l:'♥ Low' },{ v:'mid',l:'♥♥ Med' },{ v:'high',l:'♥♥♥ High' }];
     const CTL_ORG_OPTS  = [{ o:'normal',l:'Normal' },{ o:'edge',l:'Edge ～' },{ o:'deny',l:'Deny ✕' }];
- 
+
     // ═══════════════════════════════════════════
     //  全域狀態
     // ═══════════════════════════════════════════
@@ -350,12 +348,12 @@
             dpYear: 2026, dpMonth: 1, dpDay: 1, dpHour: 0, dpMin: 0,
         },
     };
- 
+
     const grabStateChar   = { count: 0, firstTriggerTime: Date.now(), state: false };
     const grabStateSingle = { count: 0, firstTriggerTime: Date.now(), state: false };
     const GRAB_WINDOW_MS   = 14000;
     const GRAB_COOLDOWN_MS = 120000;
- 
+
     // ═══════════════════════════════════════════
     //  EL 整合：上鎖許可判斷
     // ═══════════════════════════════════════════
@@ -371,29 +369,29 @@
     function isAllowedToLock(ch) {
         const memberNum = ch?.MemberNumber;
         if (!memberNum) return false;
- 
+
         // 1. BC 原生戀人 → 始終允許
         if (Player.Lovership?.some(l => Number(l.MemberNumber) === Number(memberNum)))
             return true;
- 
+
         // 2. 讀取 ch 的共享鎖定權限（其他玩家可見）
         const elPerms = ch.OnlineSharedSettings?.AFC?.lockPerms;
         if (!elPerms?.enableELLock) return false;  // ch 未開啟 EL Lock
- 
+
         const api = window.ELAbundantiaAPI;
- 
+
         // 3. 拓展戀人
         if (api?.isELLover?.(memberNum)) return true;
- 
+
         // 4. Player 是 ch 的主人，且 ch 允許主人使用鎖
         if (elPerms.enableOwnerLock &&
             ch.Ownership?.MemberNumber != null &&
             Number(ch.Ownership.MemberNumber) === Number(Player.MemberNumber))
             return true;
- 
+
         return false;
     }
- 
+
     // ═══════════════════════════════════════════
     //  工具
     // ═══════════════════════════════════════════
@@ -408,23 +406,23 @@
             await wait(interval);
         }
     }
- 
+
     function hit(x, y, w, h) {
         return MouseX >= x && MouseX <= x + w && MouseY >= y && MouseY <= y + h;
     }
- 
+
     function bRect(x, y, w, h, bg, label, tc) {
         DrawRect(x, y, w, h, bg);
         DrawText(label, x + w / 2, y + h / 2, tc ?? CC.text, 'transparent');
     }
- 
+
     function textLeft(text, x, cy, color) {
         const prev = MainCanvas.textAlign;
         MainCanvas.textAlign = 'left';
         DrawText(text, x, cy, color, 'transparent');
         MainCanvas.textAlign = prev;
     }
- 
+
     function wrapLinesCanvas(text, maxPx) {
         if (!text) return [''];
         const canvas = window.MainCanvas;
@@ -462,7 +460,7 @@
         if (ctx2d && prevFont) { try { ctx2d.font = prevFont; } catch {} }
         return allLines.length ? allLines : [''];
     }
- 
+
     function getBCScreenPos(bcX, bcY) {
         const canvas = document.getElementById('MainCanvas') || document.querySelector('canvas');
         if (!canvas) return { left: window.innerWidth * 0.7, top: window.innerHeight * 0.6, scaleX: 1, scaleY: 1 };
@@ -470,7 +468,7 @@
         const scaleX = rect.width / 2000, scaleY = rect.height / 1000;
         return { left: rect.left + bcX * scaleX, top: rect.top + bcY * scaleY, scaleX, scaleY };
     }
- 
+
     function timerRemainStr(cfg) {
         if (!cfg?.unlockTime) return null;
         const rem = Math.max(0, new Date(cfg.unlockTime).getTime() - Date.now());
@@ -484,21 +482,21 @@
         const d = Math.floor(h / 24);
         return `${d}d ${h % 24}h`;
     }
- 
+
     function timerDateOnlyStr(cfg) {
         if (!cfg?.unlockTime) return null;
         const d = new Date(cfg.unlockTime);
         const pad = n => String(n).padStart(2, '0');
         return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
- 
+
     function timerDateShortStr(cfg) {
         if (!cfg?.unlockTime) return null;
         const d = new Date(cfg.unlockTime);
         const pad = n => String(n).padStart(2, '0');
         return `${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
- 
+
     function timerDeltaStr(hours) {
         if (!hours) return '';
         const sign = hours > 0 ? '+' : '-';
@@ -507,18 +505,18 @@
         const d = Math.floor(h / 24), rh = h % 24;
         return rh ? `(${sign}${d}d ${rh}h)` : `(${sign}${d}d)`;
     }
- 
+
     function lockedAtStr(cfg) {
         if (!cfg?.lockedAt) return '—';
         const d = new Date(cfg.lockedAt);
         const pad = n => String(n).padStart(2, '0');
         return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}`;
     }
- 
+
     function dpInit(cfg) {
         state.panel._dpInitDate = cfg?.unlockTime ? new Date(cfg.unlockTime) : new Date(Date.now() + 86400000);
     }
- 
+
     function showHTMLDatePicker(onConfirm, initDate) {
         document.getElementById('HL_DatePicker')?.remove();
         const picker = document.createElement('div');
@@ -597,12 +595,12 @@
             });
         }, 0);
     }
- 
+
     // ═══════════════════════════════════════════
     //  Storage（與原版完全一致）
     // ═══════════════════════════════════════════
     const DEFAULT_STORAGE = { debug: false, previewImage: HEARTLOCK_IMAGE, padlocks: {} };
- 
+
     function ensureStorage() {
         if (!window.Player) return false;
         if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
@@ -612,15 +610,15 @@
         Player.HeartLock = es[EXT_KEY];
         return true;
     }
- 
+
     function getSetting(key) { return Player?.HeartLock?.[key] ?? DEFAULT_STORAGE[key]; }
- 
+
     function getPadlockConfig(character, groupName) {
         if (!character || !groupName) return null;
         const store = character.IsPlayer() ? (Player.HeartLock?.padlocks ?? {}) : (character.HeartLock?.padlocks ?? {});
         return store[groupName] ?? null;
     }
- 
+
     function getOrCreateConfig(groupName) {
         if (!ensureStorage()) return null;
         const p = Player.HeartLock.padlocks;
@@ -633,19 +631,19 @@
         }
         return p[groupName];
     }
- 
+
     function deleteConfig(groupName) {
         if (!ensureStorage()) return;
         delete Player.HeartLock.padlocks[groupName];
         saveAndSync();
     }
- 
+
     function saveAndSync() {
         if (!ensureStorage()) return;
         try { if (typeof ServerPlayerExtensionSettingsSync === 'function') ServerPlayerExtensionSettingsSync(EXT_KEY); } catch {}
         broadcastStorage();
     }
- 
+
     function sendSettingsChange(character, groupName) {
         if (!character || character.IsPlayer()) return;
         try {
@@ -658,7 +656,7 @@
             });
         } catch {}
     }
- 
+
     function broadcastStorage() {
         try {
             if (typeof ServerSend !== 'function') return;
@@ -668,7 +666,7 @@
             });
         } catch {}
     }
- 
+
     function requestHeartLockData(character) {
         if (!character || character.IsPlayer()) return;
         try {
@@ -678,7 +676,7 @@
             });
         } catch {}
     }
- 
+
     function pushConfig(character, groupName, patch) {
         if (character.IsPlayer()) {
             if (!ensureStorage()) return;
@@ -693,7 +691,7 @@
             } catch {}
         }
     }
- 
+
     function notifyRemove(character, groupName) {
         if (character.IsPlayer()) { deleteConfig(groupName); return; }
         try {
@@ -703,7 +701,7 @@
             });
         } catch {}
     }
- 
+
     function handleHidden(data) {
         if (!data || data.Type !== 'Hidden') return;
         if (data.Content === 'HeartLockRequest') {
@@ -749,7 +747,7 @@
             deleteConfig(e.Group);
         }
     }
- 
+
     // ═══════════════════════════════════════════
     //  權限
     // ═══════════════════════════════════════════
@@ -758,7 +756,7 @@
         if (wearerChar.IsPlayer()) return false;
         return cfg.owner === Player.MemberNumber;
     }
- 
+
     // ═══════════════════════════════════════════
     //  Asset 建立
     // ═══════════════════════════════════════════
@@ -778,13 +776,13 @@
             log('Asset created.');            return true;
         } catch (e) { console.error('[HeartLock] Asset creation failed', e); return false; }
     }
- 
+
     // ═══════════════════════════════════════════
     //  ModAPI — 優先共用 EL 的 modApi，否則自行註冊
     // ═══════════════════════════════════════════
     function getModApi() {
         if (state.modApi) return state.modApi;
- 
+
         // 優先使用 Abundantia Florum ─Chromatica─ (EL) 的共用 modApi
         // EL 在 bcModSdk 就緒後立即掛載此物件，HeartLock 不需要另行 registerMod
         const sharedApi = window.ELAbundantiaAPI?.modApi;
@@ -793,13 +791,13 @@
             console.log('🐈‍⬛ [HeartLock] 共用 EL modApi');
             return sharedApi;
         }
- 
+
         // 備援：EL 未載入時自行註冊獨立 mod
         if (!window.bcModSdk?.registerMod) return null;
         try {
             state.modApi = window.bcModSdk.registerMod({
                 name: MOD_NAME, fullName: 'Heart Lock BC (standalone)',
-                version: '2.1.1', repository: 'https://github.com/awdrrawd/liko-tool-Image-storage',
+                version: '2.1.2', repository: 'https://github.com/awdrrawd/liko-tool-Image-storage',
             });
             console.log('🐈‍⬛ [HeartLock] 獨立 modApi 已註冊（EL 未載入）');
             return state.modApi;
@@ -809,7 +807,7 @@
             return null;
         }
     }
- 
+
     // ═══════════════════════════════════════════
     //  上鎖轉換（與原版一致）
     // ═══════════════════════════════════════════
@@ -839,7 +837,7 @@
         }
         try { if (typeof ChatRoomCharacterItemUpdate === 'function' && groupName) ChatRoomCharacterItemUpdate(character, groupName); } catch {}
     }
- 
+
     function reapplyFromAppearance() {
         if (!ensureStorage()) return;
         const padlocks = Player.HeartLock.padlocks;
@@ -855,7 +853,7 @@
             try { const item = InventoryGet?.(Player, gn); if (!item) continue; if (!item?.Property?.LockedBy) deleteConfig(gn); } catch {}
         }
     }
- 
+
     function watchForUnlock(character, groupName, item) {
         let checks = 0;
         const iv = setInterval(() => {
@@ -864,7 +862,7 @@
             if (checks > 20) clearInterval(iv);
         }, 500);
     }
- 
+
     function restoreLockFromConfig(gn, cfg) {
         let item = InventoryGet?.(Player, gn);
         if (!item) {
@@ -893,7 +891,7 @@
         try { ValidationSanitizeProperties?.(Player, item); ValidationSanitizeLock?.(Player, item); } catch {}
         log('restore: Heart Padlock restored on', gn);
     }
- 
+
     function checkLockIntegrity() {
         if (!ensureStorage()) return;
         if (state._unlocking) return;
@@ -910,7 +908,7 @@
             if (badLockedBy || badName || badLockId) { log('Lock integrity violation on', gn, { badLockedBy, badName, badLockId }); restoreLockFromConfig(gn, cfg); }
         }
     }
- 
+
     // ═══════════════════════════════════════════
     //  震動
     // ═══════════════════════════════════════════
@@ -918,7 +916,7 @@
         if (state.vibeTimer) return;
         state.vibeTimer = setInterval(vibeStep, VIBE_INTERVAL_MS);
     }
- 
+
     function vibeStep() {
         if (!window.Player?.ArousalSettings || !ensureStorage()) return;
         const padlocks = Player.HeartLock?.padlocks ?? {};
@@ -941,7 +939,7 @@
             if (msg) try { ServerSend('ChatRoomChat', { Type:'Action', Content:'CUSTOM_SYSTEM_ACTION', Dictionary:[{ Tag:'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text:msg }] }); } catch {}
         }
     }
- 
+
     // ═══════════════════════════════════════════
     //  高潮攔截
     // ═══════════════════════════════════════════
@@ -973,7 +971,7 @@
             return next(args);
         });
     }
- 
+
     // ═══════════════════════════════════════════
     //  Timer 自動解鎖
     // ═══════════════════════════════════════════
@@ -998,7 +996,7 @@
             deleteConfig(gn);
         }
     }
- 
+
     // ═══════════════════════════════════════════
     //  Note TextArea
     // ═══════════════════════════════════════════
@@ -1011,7 +1009,7 @@
     function hideNoteTA() { const el = document.getElementById(NOTE_TA_ID); if (el) { el.style.display = 'none'; el.value = ''; } }
     function getNoteTAValue() { return document.getElementById(NOTE_TA_ID)?.value ?? ''; }
     function setNoteTAValue(text) { const el = document.getElementById(NOTE_TA_ID); if (el) el.value = text || ''; }
- 
+
     // ═══════════════════════════════════════════
     //  Draw 函式（與原版完全一致）
     // ═══════════════════════════════════════════
@@ -1029,7 +1027,7 @@
         DrawRect(PX, PY+TAB_H, PW, 2, CC.border);
         bRect(CLOSE_X, CLOSE_Y, CLOSE_W, CLOSE_H, CC.danger, '✕');
     }
- 
+
     function drawGeneral(cfg) {
         DrawImageResize(getSetting('previewImage'), IMG_X, IMG_Y, IMG_W, IMG_H);
         const rightCenter = LBL_X + (CW - IMG_COL) / 2 - 20;
@@ -1059,7 +1057,7 @@
         const maxLine = Math.floor((NOTE_PREV_H - NOTE_HDR_H - 10) / 30);
         lines.slice(0, maxLine).forEach((l, i) => textLeft(l, NOTE_PREV_X + 14, NOTE_PREV_Y + NOTE_HDR_H + 22 + i*30, note ? CC.text : CC.dim));
     }
- 
+
     function drawNote(cfg, editable) {
         DrawText(T('noteTitle'), PX+PW/2, NOTE_TITLE_Y, CC.acc, 'transparent');
         const p = state.panel;
@@ -1083,7 +1081,7 @@
             else DrawText(T('ownerOnlyEdit'), PX+PW/2, NOTE_BTN_Y+NOTE_BTN_H/2, CC.dim, 'transparent');
         }
     }
- 
+
     function clickNote(character, gName, editable) {
         const p = state.panel;
         if (p.noteEditing && editable) {
@@ -1093,7 +1091,7 @@
             setNoteTAValue(getPadlockConfig(character, gName)?.note || ''); showNoteTA(); p.noteEditing = true;
         }
     }
- 
+
     function drawTimer(cfg, editable) {
         DrawText(T('timerTitle'), PX+PW/2, TMR_TITLE_Y, CC.acc, 'transparent');
         const remain = timerRemainStr(cfg), date = timerDateOnlyStr(cfg);
@@ -1112,7 +1110,7 @@
         bRect(TMR_SET_X, TMR_ACT_Y, TMR_ACT_W, TMR_ACT_H, CC.btnA,   T('setTimer'));
         bRect(TMR_CLR_X, TMR_ACT_Y, TMR_ACT_W, TMR_ACT_H, CC.danger, T('clearTimer'));
     }
- 
+
     function clickTimer(character, gName, editable) {
         if (!editable) return;
         const cfg = getPadlockConfig(character, gName);
@@ -1130,7 +1128,7 @@
         }
         if (hit(TMR_CLR_X, TMR_ACT_Y, TMR_ACT_W, TMR_ACT_H)) { pushConfig(character, gName, { unlockTime: null }); dpInit(null); sendSettingsChange(character, gName); state.panel.timerInput = 0; }
     }
- 
+
     function drawControl(cfg, editable) {
         DrawText(T('controlTitle'), PX+PW/2, CTL_TITLE_Y, CC.acc, 'transparent');
         const p = state.panel;
@@ -1150,7 +1148,7 @@
             DrawText(T('editingHint'), PX+PW/2, CTL_SAVE_Y + CTL_SAVE_H + 28, CC.sub, 'transparent');
         }
     }
- 
+
     function clickControl(character, gName, cfg, editable) {
         const p = state.panel;
         if (!editable) return;
@@ -1163,7 +1161,7 @@
             if (hit(CTL_SAVE_X,   CTL_SAVE_Y, CTL_SAVE_W,   CTL_SAVE_H)) p.ctlEditing = false;
         }
     }
- 
+
     // ═══════════════════════════════════════════
     //  面板主函式
     // ═══════════════════════════════════════════
@@ -1173,7 +1171,7 @@
         const ch = typeof CharacterGetCurrent === 'function' ? CharacterGetCurrent() : null;
         return ch?.FocusGroup?.Name ?? null;
     }
- 
+
     function panelLoad() {
         const ch  = typeof CharacterGetCurrent === 'function' ? CharacterGetCurrent() : null;
         const gn  = getGroupFromFocusItem();
@@ -1188,7 +1186,7 @@
         dpInit(cfg);
         if (ch && !ch.IsPlayer()) requestHeartLockData(ch);
     }
- 
+
     function panelDraw() {
         const p = state.panel, ch = p.targetChar, gn = p.groupName;
         const cfg = ch ? getPadlockConfig(ch, gn) : null;
@@ -1201,7 +1199,7 @@
             case TAB_CONTROL : drawControl(cfg, canEd);   break;
         }
     }
- 
+
     function panelClick() {
         const p = state.panel, ch = p.targetChar, gn = p.groupName;
         const cfg = ch ? getPadlockConfig(ch, gn) : null;
@@ -1221,12 +1219,12 @@
             case TAB_CONTROL: clickControl(ch, gn, cfg, canEd); break;
         }
     }
- 
+
     // ═══════════════════════════════════════════
     //  Hooks（兩處 isLover 改為 isAllowedToLock）
     // ═══════════════════════════════════════════
     function patchFunctions(modApi) {
- 
+
         // ── InventoryRemove 攔截 ──────────────────────────────────────
         modApi.hookFunction('InventoryRemove', 0, (args, next) => {
             const C = args[0], grp = args[1];
@@ -1259,7 +1257,7 @@
             if (state._inServerSync) return next(args);
             return next(args);
         });
- 
+
         // ── 非允許者隱藏 HeartLock ────────────────────────────────────
         // ▼ CHANGE 1: isLover → isAllowedToLock ▼
         modApi.hookFunction('DialogInventoryAdd', 10, (args, next) => {
@@ -1268,13 +1266,13 @@
             if (item?.Asset?.Name !== HEARTLOCK_NAME) return next(args);
             if (DialogMenuMode === 'permissions') return next(args);
             if (C.ID === 0) return;  // 穿戴者自己不顯示
- 
+
             // 只有被允許的關係才能看到此鎖
             if (!isAllowedToLock(C)) return;  // 不呼叫 next → 不顯示
- 
+
             return next(args);
         });
- 
+
         // ── 上鎖 ──────────────────────────────────────────────────────
         // ▼ CHANGE 2: isLover → isAllowedToLock ▼
         modApi.hookFunction('DialogLockingClick', 2, (args, next) => {
@@ -1282,17 +1280,17 @@
             if (cl?.Asset?.Name !== HEARTLOCK_NAME) return next(args);
             if (DialogMenuMode === 'permissions') return next(args);
             if (typeof InventoryBlockedOrLimited === 'function' && InventoryBlockedOrLimited(ch, cl)) return next(args);
- 
+
             // 只有被允許的關係才能上鎖
             if (!isAllowedToLock(ch)) return;
- 
+
             const hsAsset = AssetGet?.('Female3DCG', 'ItemMisc', HSLOCK_NAME);
             if (!hsAsset) return next(args);
             const fg = ch?.FocusGroup?.Name, ori = cl.Asset;
             cl.Asset = hsAsset; next(args); cl.Asset = ori;
             if (item?.Property) { convertToHeartLock(ch, item, fg); if (fg) watchForUnlock(ch, fg, item); }
         });
- 
+
         // ── ServerSend：ActionAddLock 修正 ────────────────────────────
         modApi.hookFunction('ServerSend', 0, (args, next) => {
             if (args[0] === 'ChatRoomChat') {
@@ -1306,7 +1304,7 @@
             }
             return next(args);
         });
- 
+
         // ── 面板 Hooks ────────────────────────────────────────────────
         modApi.hookFunction('InventoryItemMiscHighSecurityPadlockLoad', 11, (args, next) => {
             if (window.DialogFocusSourceItem?.Property?.Name !== HEARTLOCK_NAME) return next(args);
@@ -1324,14 +1322,14 @@
             if (window.DialogFocusSourceItem?.Property?.Name === HEARTLOCK_NAME) { hideNoteTA(); state.panel.noteEditing = false; state.panel.ctlEditing = false; }
             return next(args);
         });
- 
+
         // ── 封包（hidden message）────────────────────────────────────
         modApi.hookFunction('ChatRoomMessage', 0, (args, next) => {
             state._inServerSync = true; handleHidden(args[0]);
             const result = next(args); state._inServerSync = false;
             return result;
         });
- 
+
         // ── ChatRoomSync / CharacterRefresh ───────────────────────────
         modApi.hookFunction('ChatRoomSync', 0, (args, next) => {
             const result = next(args); setTimeout(() => ensureStorage(), 500); return result;
@@ -1341,7 +1339,7 @@
             if (args[0]?.IsPlayer?.()) setTimeout(() => { ensureStorage(); reapplyFromAppearance(); }, 300);
             return result;
         });
- 
+
         // ── 圖片替換 ──────────────────────────────────────────────────
         modApi.hookFunction('DrawImageResize', 0, (args, next) => {
             if (typeof args[0] === 'string' && args[0].includes(`ItemMisc/Preview/${HEARTLOCK_NAME}.png`)) args[0] = getSetting('previewImage');
@@ -1367,7 +1365,7 @@
                 return next(args);
             });
         } catch {}
- 
+
         // ── 狀態列圖示 ────────────────────────────────────────────────
         modApi.hookFunction('DialogGetLockIcon', 2, (args, next) => {
             const item = args[0], icons = next(args) || [];
@@ -1378,7 +1376,7 @@
             }
             return icons;
         });
- 
+
         // ── 鎖圖示 tooltip ───────────────────────────────────────────
         try { modApi.hookFunction('InterfaceTextGet', 2, (args, next) => { const key = String(args[0] ?? ''); if (key === HEARTLOCK_NAME) return T('lockedBy', HEARTLOCK_NAME); return next(args); }); } catch {}
         try {
@@ -1388,7 +1386,7 @@
                 return result;
             });
         } catch {}
- 
+
         // ── PickLock 隱藏 ─────────────────────────────────────────────
         modApi.hookFunction('DialogMenuButtonBuild', 0, (args, next) => {
             next(args);
@@ -1399,7 +1397,7 @@
                     if (typeof DialogMenuButton[i] === 'string' && DialogMenuButton[i].startsWith('PickLock')) DialogMenuButton.splice(i, 1);
             }
         });
- 
+
         // ── InventoryUnlock 攔截 ──────────────────────────────────────
         modApi.hookFunction('InventoryUnlock', 10, (args, next) => {
             if (state._timerUnlocking) { state._unlocking = true; const result = next(args); state._unlocking = false; return result; }
@@ -1412,7 +1410,7 @@
             state._unlocking = true; const result = next(args); state._unlocking = false;
             return result;
         });
- 
+
         // ── ChatRoomSyncItem ──────────────────────────────────────────
         modApi.hookFunction('ChatRoomSyncItem', 0, (args, next) => {
             state._inServerSync = true;
@@ -1424,7 +1422,7 @@
             const result = next(args); state._inServerSync = false;
             return result;
         });
- 
+
         // ── ChatRoomSyncCharacter ─────────────────────────────────────
         modApi.hookFunction('ChatRoomSyncCharacter', 1, (args, next) => {
             const data = args[0];
@@ -1463,7 +1461,7 @@
             }
             return result;
         });
- 
+
         // ── ChatRoomSyncSingle ────────────────────────────────────────
         modApi.hookFunction('ChatRoomSyncSingle', 1, (args, next) => {
             const data = args[0], result = next(args);
@@ -1501,7 +1499,7 @@
             }
             return result;
         });
- 
+
         // ── CharacterReleaseTotal 攔截 ────────────────────────────────
         modApi.hookFunction('CharacterReleaseTotal', 10, (args, next) => {
             const C = args[0];
@@ -1521,16 +1519,16 @@
             if (snapshots.length > 0 && C.IsPlayer?.()) { try { ChatRoomCharacterUpdate?.(C); } catch {} }
             return result;
         });
- 
+
         setupOrgasmHook(modApi);
     }
- 
+
     // ═══════════════════════════════════════════
     //  初始化
     // ═══════════════════════════════════════════
     async function initialize() {
         if (state.initialized) return;
- 
+
         // Phase 1：等 bcModSdk 或 EL 的共用 modApi（無超時）
         // EL 載入時：等 window.ELAbundantiaAPI.modApi 出現
         // EL 未載入時：等 bcModSdk 本身
@@ -1539,14 +1537,14 @@
             600000
         );
         if (!sdkReady) { console.error('[HeartLock] ModSDK / EL timeout.'); return; }
- 
+
         const modApi = getModApi();
         if (!modApi) { console.error('[HeartLock] modApi unavailable.'); return; }
- 
+
         // Phase 2：等玩家登入 + 遊戲資源就緒
         const gameReady = await waitFor(() => !!window.Player?.AccountName && !!window.AssetFemale3DCG, 600000);
         if (!gameReady) { console.error('[HeartLock] Game load timeout.'); return; }
- 
+
         createHeartLockAsset();
         patchFunctions(modApi);
         await waitFor(() => window.Player?.ExtensionSettings !== undefined, 30000);
@@ -1557,8 +1555,8 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.1.1 (EL Edition) initialized.');
+        log('HeartLock v2.1.2 (EL Edition) initialized.');
     }
- 
+
     initialize().catch(e => console.error('[HeartLock] init error', e));
 })();
