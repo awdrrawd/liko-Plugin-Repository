@@ -29,7 +29,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.0";
+    const MOD_VERSION  = "0.5.1";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -1751,7 +1751,11 @@
     const HEARTLOCK_URL = "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_Custom_Heart_Lock.user.js";
 
     function _loadHeartLock() {
-        // 若已載入（使用者自行安裝了獨立版），跳過
+        // 若已載入（使用者自行安裝了獨立版，守衛旗標已設），跳過
+        if (window._AFC_HeartLockLoaded) {
+            console.log("🐈‍⬛ [EL] HeartLock 已存在，跳過動態載入");
+            return;
+        }
         if (document.querySelector(`script[data-el-heartlock]`)) return;
 
         const s = document.createElement('script');
