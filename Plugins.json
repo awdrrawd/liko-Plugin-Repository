@@ -299,6 +299,18 @@
       "icon": "🎮",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20TRC.main.user.js",
       "priority": 7
+    },
+    {
+      "id": "Liko-ACF",
+      "name": "繁戀如花 ─繽紛─",
+      "en_name": "Abundantia Florum ─Chromatica─",
+      "description": "更多戀人，如百花盛放的愛情篇章，並搭載可延展的戀人鎖機制。",
+      "en_description": "An abundance of lovers, like a love story blooming in countless flowers, featuring an extensible Lover’s Lock system.",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "🌸",
+      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js",
+      "priority": 3
     }
   ]
 }
