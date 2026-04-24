@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.2.2
+// @version      1.2.3
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
     'use strict';
 
     let modApi;
-    let myversion = "1.2.2";
+    let myversion = "1.2.3";
     let observer = null;
 
     let config = {
@@ -171,12 +171,14 @@
     async function translateGoogle(text, target) {
         try {
             const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
-            const data = await (await fetch(url)).json();
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
             const translated = data[0]?.map(seg => seg?.[0] || '').join('') || text;
             return { translated, detectedLang: data[2] || null };
         } catch (e) {
             console.error('Google Translate failed:', e);
-            return { translated: text, detectedLang: null };
+            return { translated: text, detectedLang: null, error: e.message };
         }
     }
 
@@ -386,7 +388,14 @@
 
         updateClickToolbarStatus(isZH() ? '翻譯中...' : 'Translating...');
 
-        const { translated } = await translateQueue.add(message, lang);
+        const { translated, error } = await translateQueue.add(message, lang);
+        if (error || translated === message) {
+            updateClickToolbarStatus(null);
+            ChatRoomSendLocal(isZH()
+                              ? '⚠️ 翻譯失敗，請確認 Google API 是否可用（俄羅斯等地區可能被封鎖）'
+                              : '⚠️ Translation failed. Google API may be blocked in your region.');
+            return;
+        }
 
         updateClickToolbarStatus(null);
 
@@ -1035,8 +1044,8 @@
 
             const isRecording = hotkeyRecording && hotkeyRecordingTarget === 'toggle';
             const toggleLabel = isRecording
-                ? T.hotkeyRecording
-                : hotkeyToString(config.hotkeys.toggle);
+            ? T.hotkeyRecording
+            : hotkeyToString(config.hotkeys.toggle);
             const toggleBtnColor = isRecording ? "#FFD700" : "White";
 
             DrawButton(HK_BTN_X, HK_ROW1_Y, HK_BTN_W, CB_SZ, toggleLabel, toggleBtnColor, "", T.hotkeySet);
@@ -1416,7 +1425,7 @@
                     case "recvlang":   handleLangCommand(args[1], 'recv'); break;
                     case "test":   testTranslation(args.slice(1).join(" ")); break;
                     case "status": showStatus(); break;
-                    // 快捷鍵指令
+                        // 快捷鍵指令
                     case "hotkey": handleHotkeyCommand(args.slice(1)); break;
                     default: ChatRoomSendLocal("❓ 未知指令，使用 /mat help");
                 }
@@ -1517,7 +1526,7 @@
             'zh-tw': 'zh-TW',
         };
         const resolved = aliasMap[langCode?.toLowerCase()] || langCode;
-    
+
         if (resolved && langCodes.includes(resolved)) {
             if (type === 'send') { config.sendLang = resolved; saveSettings(); ChatRoomSendLocal(`✅ 發送語言: ${getLangName(resolved)}`); }
             else { config.recvLang = resolved; saveSettings(); ChatRoomSendLocal(`✅ 接收語言: ${getLangName(resolved)}`); }
