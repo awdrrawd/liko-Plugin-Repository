@@ -16,8 +16,6 @@
     "use strict";
     const script = document.createElement("script");
     script.src = `https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js?timestamp=${Date.now()}`;
-    script.type = "module";
-    script.crossOrigin = "anonymous";
     document.head.appendChild(script);
     console.log('[ACF] loadtime:', Date.now());
 })();
