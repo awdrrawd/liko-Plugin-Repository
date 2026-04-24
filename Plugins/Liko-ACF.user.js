@@ -19,5 +19,5 @@
     script.type = "module";
     script.crossOrigin = "anonymous";
     document.head.appendChild(script);
-    console.log('[ACV] loadtime:', Date.now());
+    console.log('[ACF] loadtime:', Date.now());
 })();
