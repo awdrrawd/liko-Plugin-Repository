@@ -145,22 +145,23 @@
         if (!Player?.OnlineSettings || !Player?.ExtensionSettings) return;
         let migrated = false;
         for (const key of MIGRATE_KEYS) {
-            if (Player.OnlineSettings[key] !== undefined &&
-                Player.ExtensionSettings[key] === undefined) {
-                Player.ExtensionSettings[key] = Player.OnlineSettings[key];
+            if (Player.OnlineSettings[key] !== undefined) {
+                // 只有 ExtensionSettings 還沒有這筆資料時才搬
+                if (Player.ExtensionSettings[key] === undefined) {
+                    Player.ExtensionSettings[key] = Player.OnlineSettings[key];
+                }
+                // 無論如何都刪除 OnlineSettings 的舊資料
                 delete Player.OnlineSettings[key];
                 migrated = true;
-                console.log(`🐈‍⬛ [MAT] ✅ 已遷移 ${key}: OnlineSettings → ExtensionSettings`);
             }
         }
         if (migrated) {
-            if (typeof ServerPlayerExtensionSettingsSync === 'function') {
-                ServerPlayerExtensionSettingsSync("BCMachineTranslation");
-            }
+            // 只需要更新 OnlineSettings（告訴伺服器刪除舊資料）
+            // 不需要 sync ExtensionSettings，因為 loadSettings 之後 saveSettings 會處理
             if (typeof ServerAccountUpdate?.QueueData === "function") {
                 ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
             }
-            console.log("🐈‍⬛ [MAT] ✅ 批量遷移完成");
+            console.log("🐈‍⬛ [MAT] ✅ 舊版設定遷移完成");
         }
     }
 
