@@ -9,7 +9,6 @@
 // @run-at       document-end
 // @grant        none
 // ==/UserScript==
-
 /*
  * v2.1.1 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
  *   - 新增 isAllowedToLock(memberNum)：
@@ -360,25 +359,35 @@
     //  EL 整合：上鎖許可判斷
     // ═══════════════════════════════════════════
     /**
-     * 判斷 targetMemberNum 是否有資格替本玩家上 Heart Lock。
-     * 優先序：BC 原生戀人 → EL 拓展戀人 → 主人（需 EL 設定允許）
-     * 若 window.ELAbundantiaAPI 不存在（EL 未安裝），退回僅 BC 原生戀人。
+     * 判斷 Player 是否有資格替角色 ch 上 Heart Lock。
+     *
+     * 判斷邏輯（以 ch 的共享設定為準，因為 ch 才是被鎖的一方）：
+     *   1. ch 是 Player 的 BC 原生戀人 → 始終允許（原版行為，不需 EL 設定）
+     *   2. ch 未啟用 EL Lock（ch.OnlineSharedSettings.EL.lockPerms.enableELLock = false）→ 拒絕
+     *   3. ch 是 Player 的拓展戀人（EL） → 允許
+     *   4. Player 是 ch 的主人 且 ch 設定允許主人使用鎖 → 允許
      */
-    function isAllowedToLock(targetMemberNum) {
-        // 1. BC 原生戀人
-        if (Player.Lovership?.some(l => Number(l.MemberNumber) === Number(targetMemberNum)))
+    function isAllowedToLock(ch) {
+        const memberNum = ch?.MemberNumber;
+        if (!memberNum) return false;
+ 
+        // 1. BC 原生戀人 → 始終允許
+        if (Player.Lovership?.some(l => Number(l.MemberNumber) === Number(memberNum)))
             return true;
  
+        // 2. 讀取 ch 的共享鎖定權限（其他玩家可見）
+        const elPerms = ch.OnlineSharedSettings?.EL?.lockPerms;
+        if (!elPerms?.enableELLock) return false;  // ch 未開啟 EL Lock
+ 
         const api = window.ELAbundantiaAPI;
-        if (!api) return false;
  
-        // 2. 拓展戀人
-        if (api.isELLover?.(targetMemberNum)) return true;
+        // 3. 拓展戀人
+        if (api?.isELLover?.(memberNum)) return true;
  
-        // 3. 主人（穿戴者在 EL 設定中允許主人使用鎖）
-        if (api.canOwnerLock?.() &&
-            Player.Ownership?.MemberNumber != null &&
-            Number(Player.Ownership.MemberNumber) === Number(targetMemberNum))
+        // 4. Player 是 ch 的主人，且 ch 允許主人使用鎖
+        if (elPerms.enableOwnerLock &&
+            ch.Ownership?.MemberNumber != null &&
+            Number(ch.Ownership.MemberNumber) === Number(Player.MemberNumber))
             return true;
  
         return false;
@@ -881,7 +890,7 @@
         item.Property.ExclusiveUnlock = true;
         if (cfg.lockId) item.Property.HeartLockId = cfg.lockId;
         try { ValidationSanitizeProperties?.(Player, item); ValidationSanitizeLock?.(Player, item); } catch {}
-        log('restore:  restored on', gn);
+        log('restore: Heart Padlock restored on', gn);
     }
  
     function checkLockIntegrity() {
@@ -1023,7 +1032,7 @@
     function drawGeneral(cfg) {
         DrawImageResize(getSetting('previewImage'), IMG_X, IMG_Y, IMG_W, IMG_H);
         const rightCenter = LBL_X + (CW - IMG_COL) / 2 - 20;
-        DrawText('♥  ♥', rightCenter, TOP_Y + 20, CC.acc, 'transparent');
+        DrawText('♥ Heart Padlock ♥', rightCenter, TOP_Y + 20, CC.acc, 'transparent');
         if (!cfg) { DrawText(T('noConfig'), rightCenter, TOP_Y + 68, CC.dim, 'transparent'); }
         else {
             const remain = timerRemainStr(cfg), date = timerDateShortStr(cfg);
@@ -1260,7 +1269,7 @@
             if (C.ID === 0) return;  // 穿戴者自己不顯示
  
             // 只有被允許的關係才能看到此鎖
-            if (!isAllowedToLock(C.MemberNumber)) return;  // 不呼叫 next → 不顯示
+            if (!isAllowedToLock(C)) return;  // 不呼叫 next → 不顯示
  
             return next(args);
         });
@@ -1274,7 +1283,7 @@
             if (typeof InventoryBlockedOrLimited === 'function' && InventoryBlockedOrLimited(ch, cl)) return next(args);
  
             // 只有被允許的關係才能上鎖
-            if (!isAllowedToLock(ch.MemberNumber)) return;
+            if (!isAllowedToLock(ch)) return;
  
             const hsAsset = AssetGet?.('Female3DCG', 'ItemMisc', HSLOCK_NAME);
             if (!hsAsset) return next(args);
