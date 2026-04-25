@@ -2,13 +2,22 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.2
+// @version      2.1.3
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @run-at       document-end
 // @grant        none
 // ==/UserScript==
+
+/*
+ * v2.1.3 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
+ *   - 新增 isAllowedToLock(memberNum)：
+ *       允許條件 = BC 原生戀人 OR 拓展戀人 OR (主人 + EL 設定允許主人使用鎖)
+ *   - 兩處 isLover 判斷改為 isAllowedToLock()
+ *   - 查詢 window.ELAbundantiaAPI（由 EL 插件在登入後掛載）
+ *     EL 未安裝時自動降回 BC 原生戀人模式
+ */
 
 (function () {
     'use strict';
@@ -797,7 +806,7 @@
         try {
             state.modApi = window.bcModSdk.registerMod({
                 name: MOD_NAME, fullName: 'Heart Lock BC (standalone)',
-                version: '2.1.2', repository: 'https://github.com/awdrrawd/liko-tool-Image-storage',
+                version: '2.1.3', repository: 'https://github.com/awdrrawd/liko-tool-Image-storage',
             });
             console.log('🐈‍⬛ [HeartLock] 獨立 modApi 已註冊（EL 未載入）');
             return state.modApi;
@@ -1555,7 +1564,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.1.2 (EL Edition) initialized.');
+        log('HeartLock v2.1.3 (EL Edition) initialized.');
     }
 
     initialize().catch(e => console.error('[HeartLock] init error', e));
