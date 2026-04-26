@@ -2,7 +2,7 @@
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.2
+// @version      0.5.3
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -29,7 +29,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.2";
+    const MOD_VERSION  = "0.5.3";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -1663,6 +1663,16 @@
                 const r = next(args);
                 _inInfoSheet = false;
 
+                // 不在 InformationSheet 畫面時不繪製（BCX 等外部頁面可能觸發此 hook）
+                if (CurrentScreen !== "InformationSheet") return r;
+
+                // BC 第二頁（聲望/技能頁）— InformationSheetRun 提早 return，戀人列表不顯示，
+                // 我們也不畫按鈕和面板，但燈號已在 next(args) 之前清除所以不殘留
+                if (typeof InformationSheetSecondScreen !== 'undefined' && InformationSheetSecondScreen) {
+                    profilePanelOpen = false;  // 確保切換到第二頁時面板自動收起
+                    return r;
+                }
+
                 if (!profilePageFresh) {
                     profilePageFresh = true;
                     lastOnlineFetch  = 0;
@@ -1670,7 +1680,6 @@
                 }
 
                 const C = getCurrentViewingCharacter();
-                // BC 原生燈號先畫（會被面板 clip 遮住）
                 if (C?.MemberNumber === Player.MemberNumber) drawBCRelationDots(C);
                 drawProfileButton();
                 drawProfilePanel();
@@ -1834,6 +1843,14 @@
 
                 isInitialized = true;
                 console.log(`🐈‍⬛ [AFC] ✅ 初始化完成 v${MOD_VERSION} (${detectLang()})`);
+                // 診斷：檢查 CanChangeClothesOn 是否被非 ModSDK 的腳本覆寫
+                try {
+                    const src = Player.CanChangeClothesOn?.toString() ?? "";
+                    if (src && !src.includes("ModSDKPatch") && src !== "function CanChangeClothesOn() { [native code] }") {
+                        const preview = src.substring(0, 120).replace(/\n/g, " ");
+                        console.warn(`🐈‍⬛ [AFC] ⚠️ Player.CanChangeClothesOn 被外部腳本覆寫，可能導致 BCX 警告。內容預覽：${preview}`);
+                    }
+                } catch {}
 
                 // 對外 API（供 HeartLock 等插件查詢）
                 window.ELAbundantiaAPI = {
