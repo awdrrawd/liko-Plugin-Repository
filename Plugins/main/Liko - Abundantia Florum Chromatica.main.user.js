@@ -2,7 +2,7 @@
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.4-1
+// @version      0.5.4-2
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -29,7 +29,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.4-1";
+    const MOD_VERSION  = "0.5.4-2";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -316,12 +316,11 @@
                 version: MOD_VERSION,
                 lovers: [],
                 lockPerms:    { enableELLock: false, enableOwnerLock: false },
-                vibeMsgMode:  'broadcast',   // 'off' | 'broadcast' | 'local'
-                enableVibeSound: true,        // 震動時播放音效（只有自己聽到）
+                vibeMsgMode:  'broadcast',
+                enableVibeSound: true,
             };
         if (!Player.OnlineSharedSettings.AFC.lockPerms)
             Player.OnlineSharedSettings.AFC.lockPerms = { enableELLock: false, enableOwnerLock: false };
-        // 向前相容：舊版 enableVibeMsg bool → vibeMsgMode
         if (Player.OnlineSharedSettings.AFC.vibeMsgMode === undefined) {
             const old = Player.OnlineSharedSettings.AFC.enableVibeMsg;
             Player.OnlineSharedSettings.AFC.vibeMsgMode = (old === false) ? 'off' : 'broadcast';
@@ -329,7 +328,41 @@
         }
         if (Player.OnlineSharedSettings.AFC.enableVibeSound === undefined)
             Player.OnlineSharedSettings.AFC.enableVibeSound = true;
-        return Player.OnlineSharedSettings.AFC;
+
+        // EBC 等環境可能重置 OnlineSharedSettings，從 ExtensionSettings 備份恢復戀人列表
+        const afc = Player.OnlineSharedSettings.AFC;
+        if (!afc.lovers?.length) {
+            const backup = _loadLoversBackup();
+            if (backup.length) {
+                console.log(`🐈‍⬛ [AFC] 🔄 從備份恢復 ${backup.length} 位戀人`);
+                afc.lovers = backup;
+                // 非同步重新同步到 server（不在此處直接呼叫以避免遞迴）
+                setTimeout(() => saveSharedSettings(), 500);
+            }
+        }
+
+        return afc;
+    }
+
+    // ── 戀人列表備份（存入 ExtensionSettings，EBC 不會清除）──────────
+    const LOVERS_BACKUP_KEY = "AFC_loversBackup";
+
+    function _saveLoversBackup(lovers) {
+        try {
+            if (!Player?.ExtensionSettings) return;
+            Player.ExtensionSettings[LOVERS_BACKUP_KEY] =
+                LZString.compressToBase64(JSON.stringify(lovers ?? []));
+            if (typeof ServerPlayerExtensionSettingsSync === 'function')
+                ServerPlayerExtensionSettingsSync(LOVERS_BACKUP_KEY);
+        } catch {}
+    }
+
+    function _loadLoversBackup() {
+        try {
+            const raw = Player?.ExtensionSettings?.[LOVERS_BACKUP_KEY];
+            if (!raw) return [];
+            return JSON.parse(LZString.decompressFromBase64(raw)) ?? [];
+        } catch { return []; }
     }
 
     function defaultPrivate() {
@@ -530,11 +563,13 @@
         if (!s || s.lovers.some(l => l.memberNumber === memberNumber)) return;
         s.lovers.push({
             memberNumber, name, stage,
-            startDate:   Date.now(),  // 開始交往時間
-            stageDate:   Date.now(),  // 進入目前 stage 的時間
+            startDate:   Date.now(),
+            stageDate:   Date.now(),
             lockEnabled: false,
         });
         saveSharedSettings();
+        _saveLoversBackup(s.lovers);    // EBC 備份
+        broadcastAFCData();
         console.log("🐈‍⬛ [AFC] ✅ 新增戀人:", name, memberNumber);
     }
 
@@ -545,6 +580,8 @@
         ELLockAccessOn.delete(memberNumber);
         delete loversPrivateRoom[memberNumber];
         saveSharedSettings();
+        _saveLoversBackup(s.lovers);    // EBC 備份
+        broadcastAFCData();
     }
 
     // 升格戀人關係階段
@@ -720,21 +757,47 @@
     // ============================================================
 
     function createProposalUI({ uiId, title, subText, onAccept, onDecline }) {
-        const chatLog = document.getElementById("TextAreaChatLog");
-        if (!chatLog || document.getElementById(uiId)) return null;
+        if (document.getElementById(uiId)) return null;
+
+        // 優先附加到聊天框（標準 BC），EBC 沙盒環境可能找不到，退回 document.body
+        let container = document.getElementById("TextAreaChatLog");
+        const isFloating = !container;
+        if (isFloating) container = document.body;
+        if (!container) return null;
 
         const el = document.createElement("div");
         el.id = uiId;
-        el.style.cssText = [
-            "background:rgba(60,10,30,0.93)",
-            "border:2px solid #E8618C",
-            "border-radius:8px",
-            "padding:10px 14px 10px",
-            "margin:6px 4px",
-            "font-size:1em",
-            "line-height:1.5",
-            "color:#eee",
-        ].join(";");
+        if (isFloating) {
+            // EBC / 沙盒環境：用懸浮樣式確保可見
+            el.style.cssText = [
+                "position:fixed",
+                "bottom:120px",
+                "left:50%",
+                "transform:translateX(-50%)",
+                "z-index:99999",
+                "max-width:600px",
+                "width:90vw",
+                "background:rgba(60,10,30,0.97)",
+                "border:2px solid #E8618C",
+                "border-radius:10px",
+                "padding:14px 18px",
+                "font-size:1em",
+                "line-height:1.6",
+                "color:#eee",
+                "box-shadow:0 4px 24px rgba(0,0,0,0.7)",
+            ].join(";");
+        } else {
+            el.style.cssText = [
+                "background:rgba(60,10,30,0.93)",
+                "border:2px solid #E8618C",
+                "border-radius:8px",
+                "padding:10px 14px 10px",
+                "margin:6px 4px",
+                "font-size:1em",
+                "line-height:1.5",
+                "color:#eee",
+            ].join(";");
+        }
         el.innerHTML = `
             <div style="font-weight:bold;font-size:1.05em;margin-bottom:7px;">${title}</div>
             <div style="display:flex;align-items:center;gap:10px;">
@@ -742,8 +805,9 @@
                 <button id="${uiId}-no" style="padding:4px 14px;background:transparent;color:#bbb;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:0.95em;white-space:nowrap;">${t('cancelBtn')}</button>
                 <span id="${uiId}-sub" style="font-size:0.88em;opacity:0.6;">${subText}</span>
             </div>`;
-        chatLog.appendChild(el);
-        chatLog.scrollTop = chatLog.scrollHeight;
+
+        container.appendChild(el);
+        if (!isFloating) container.scrollTop = container.scrollHeight;
         document.getElementById(`${uiId}-ok`)?.addEventListener('click', onAccept);
         document.getElementById(`${uiId}-no`)?.addEventListener('click', onDecline);
         return el;
@@ -1765,28 +1829,17 @@
             return next(args);
         });
 
-        // 哨兵 hook（優先級 2）：只要能跑到這裡，代表 BCX 等外部攔截器沒有截斷呼叫鏈。
-        // BCX 在顯示自己的畫面時，會在更低優先級攔截 InformationSheetRun 並直接 return，
-        // 不再呼叫 next()，因此哨兵就永遠不會被呼叫到。
-        let _baseReached = false;
-        modApi.hookFunction("InformationSheetRun", 2, (args, next) => {
-            _baseReached = true;
-            return next(args);
-        });
-
         modApi.hookFunction("InformationSheetRun", 10, (args, next) => {
             try {
-                _baseReached = false;
                 _ownerTextY  = null;
                 _inInfoSheet = true;
                 const r = next(args);
                 _inInfoSheet = false;
 
-                // 哨兵未被觸發 → BCX 或其他插件截斷了呼叫鏈，不繪製
-                if (!_baseReached) return r;
-
+                // 不在 InformationSheet 畫面時不繪製
                 if (CurrentScreen !== "InformationSheet") return r;
 
+                // BC 第二頁（聲望/技能）不繪製，收起面板
                 if (typeof InformationSheetSecondScreen !== 'undefined' && InformationSheetSecondScreen) {
                     profilePanelOpen = false;
                     return r;
@@ -1969,13 +2022,11 @@
                 isInitialized = true;
                 console.log(`🐈‍⬛ [AFC] ✅ 初始化完成 v${MOD_VERSION} (${detectLang()})`);
 
-                // 對外 API（供 HeartLock 等插件查詢）
-                window.ELAbundantiaAPI = {
-                    /** 是否為拓展戀人 */
+                // 對外 API（使用 Object.assign 保留 phase 1 掛載的 modApi，不覆蓋整個物件）
+                window.ELAbundantiaAPI = Object.assign(window.ELAbundantiaAPI ?? {}, {
                     isELLover:    (num) => isELLover(num),
-                    /** 是否允許主人使用拓展戀人鎖 */
                     canOwnerLock: ()    => getPrivateSettings()?.enableOwnerLock ?? false,
-                };
+                });
 
                 // Toast 通知成功
                 toast(t('toastLoaded'), 5000, "#C2185B");
