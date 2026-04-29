@@ -9,9 +9,8 @@
 // @run-at       document-end
 // @grant        none
 // ==/UserScript==
-
 /*
- * v2.1.1 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
+ * v2.1.4 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
  *   - 新增 isAllowedToLock(memberNum)：
  *       允許條件 = BC 原生戀人 OR 拓展戀人 OR (主人 + EL 設定允許主人使用鎖)
  *   - 兩處 isLover 判斷改為 isAllowedToLock()
@@ -267,8 +266,10 @@
         dim: '#555555', gold: '#FFCC66', btn: '#280a1c', btnA: '#8B1A4A', danger: '#5a0a0a',
     };
 
-    const CLOSE_X = PX + PW - 62; const CLOSE_Y = PY + 2;
-    const CLOSE_W = 58;            const CLOSE_H = TAB_H - 4;
+    const CLOSE_X = PX + PW - 64;  // 向左延伸 2px
+    const CLOSE_Y = PY + 1;         // 向上延伸 1px
+    const CLOSE_W = 62;             // 寬度 +4px（左右各 2px）
+    const CLOSE_H = TAB_H - 2;      // 高度 +2px（上下各 1px）
 
     const TOP_H = Math.floor(CH * 3 / 7);
     const BOT_H = CH - TOP_H - 8;
@@ -949,6 +950,12 @@
             if ((order[cfg.vibe] ?? 0) > (order[maxStr] ?? 0)) maxStr = cfg.vibe;
         }
         if (!any) return;
+
+        // 震動音效（只有自己聽到）
+        if (Player.OnlineSharedSettings?.AFC?.enableVibeSound ?? true) {
+            try { AudioPlaySoundEffect("VibrationShort"); } catch {}
+        }
+
         state.vibeCycle = (state.vibeCycle + 1) % VIBE_MSG_CYCLE;
         if (state.vibeCycle === 0) {
             const mode = Player.OnlineSharedSettings?.AFC?.vibeMsgMode ?? 'broadcast';
@@ -1346,6 +1353,7 @@
         modApi.hookFunction('InventoryItemMiscHighSecurityPadlockClick', 11, (args, next) => {
             if (window.DialogFocusSourceItem?.Property?.Name !== HEARTLOCK_NAME) return next(args);
             panelClick();
+            return next(args);  // 讓 BC 的原本處理也執行（含門按鈕）
         });
         modApi.hookFunction('DialogLeaveFocusItem', 0, (args, next) => {
             if (window.DialogFocusSourceItem?.Property?.Name === HEARTLOCK_NAME) { hideNoteTA(); state.panel.noteEditing = false; state.panel.ctlEditing = false; }
