@@ -268,7 +268,7 @@
 
     const CLOSE_X = PX + PW - 64;  // 向左延伸 2px
     const CLOSE_Y = PY + 1;         // 向上延伸 1px
-    const CLOSE_W = 62;             // 寬度 +4px（左右各 2px）
+    const CLOSE_W = 63;             // 寬度 +4px（左右各 2px）
     const CLOSE_H = TAB_H - 2;      // 高度 +2px（上下各 1px）
 
     const TOP_H = Math.floor(CH * 3 / 7);
