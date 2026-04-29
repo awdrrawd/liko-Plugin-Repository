@@ -2,7 +2,7 @@
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.4
+// @version      0.5.4-1
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,6 +13,7 @@
 // @downloadURL  https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // ==/UserScript==
+
 /*
  * lockEnabled 說明：
  *   SharedSettings 中每個戀人記錄的 lockEnabled 欄位是一個「持久化偏好旗標」，
@@ -28,7 +29,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.4";
+    const MOD_VERSION  = "0.5.4-1";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -406,15 +407,7 @@
 
     // 處理收到的 AFC 廣播（讓其他玩家的客戶端能即時看到你的戀人列表）
     function handleAFCSyncData(data) {
-        if (!data?.Content?.startsWith('AFCSync')) return false;
-
-        // 有人請求廣播 → 回應自己的資料
-        if (data.Content === 'AFCSyncRequest') {
-            broadcastAFCData();
-            return true;
-        }
-
-        if (data.Content !== 'AFCSyncData') return false;
+        if (data?.Content !== 'AFCSyncData') return false;
         try {
             const e = data.Dictionary?.find(d => d.Tag === 'AFCData');
             if (!e) return true;
@@ -1846,8 +1839,11 @@
                     currentPrivateRoomName = ChatRoomData.Name;
                     broadcastRoomNameToLovers();
                 }
+                // 廣播 AFC 資料給房間內玩家（EBC 等環境下伺服器同步可能失效）
+                broadcastAFCData();
             }, 600);
         });
+
         registerSocketListener("ChatRoomMessage", (data) => {
             // 處理其他玩家廣播的 AFC 資料
             if (handleAFCSyncData(data)) return;
@@ -1858,24 +1854,6 @@
                     broadcastRoomNameToLovers();
                 }
             }
-        });
-
-        // 加入房間時廣播自己的 AFC 資料，並請求房間內其他玩家廣播
-        modApi.hookFunction("ChatRoomSync", 5, (args, next) => {
-            const r = next(args);
-            setTimeout(() => {
-                broadcastAFCData();
-                // 請求房間內其他玩家廣播（發送 AFCSyncRequest）
-                try {
-                    if (typeof ServerSend === 'function') {
-                        ServerSend('ChatRoomChat', {
-                            Type: 'Hidden', Content: 'AFCSyncRequest',
-                            Dictionary: [],
-                        });
-                    }
-                } catch {}
-            }, 1000);
-            return r;
         });
 
         // ── 好友列表：填入私人房間名 ────────────────────────────────
