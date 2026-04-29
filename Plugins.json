@@ -1,23 +1,24 @@
 {
   "updateId": "260424",
   "changelog": [
-    "⭐繁戀如花 ─繽紛─ v0.5.0 實裝",
-    "拓展10個戀人位",
-    "拓展新的戀人鎖",
-    "提供主人與戀人們的登入燈號",
-    "現在增加快捷鍵設置，能快速開關MAT",
-    "⭐AEE (Liko的外觀編輯拓展-測試版) v0.7.1更新",
-    "增加了變形功能",
-    "增加了鏡像複製的座標調整功能"
+    "⭐繁戀如花 ─繽紛─ v0.5.4 更新",
+    "新增信息過濾功能",
+    "新增震動音效，目前是每5秒發送一次，未來評估頻率",
+    "修正部分錯誤",
+    "⭐AEE (Liko的外觀編輯拓展-測試版) v0.7.2更新",
+    "修復透明度無效的問題",
+    "收納模式新增調色、透明度按鈕",
+    "新增服裝部件色塊"
   ],
   "en_changelog": [
-    "⭐Blooming Love ─Colorful─ v0.5.0 Implemented",
-    "Expanded by 10 Lover Slots",
-    "Added New Lover Locks",
-    "Provides Login Signals for Owners and Lovers",
-    "⭐AEE (Liko's Appearance editing extensio - Beta) v0.7.1 Update",
-    "Added deformation function",
-    "Added coordinate adjustment function for mirror copying"
+    "⭐Blooming Love ─Colorful─ v0.5.4 Update",
+    "Added message filtering function",
+    "Added vibration sound effect, currently sent every 5 seconds, frequency to be evaluated in the future",
+    "Fixed some bugs",
+    "⭐AEE (Liko's Appearance editing extensio - Beta) v0.7.2 Update",
+    "Fixed the issue of invalid transparency",
+    "Added color adjustment and transparency buttons to storage mode",
+    "Added color blocks for clothing parts"
   ],
   "plugins": [
     {
