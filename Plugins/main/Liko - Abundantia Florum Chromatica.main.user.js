@@ -2,7 +2,7 @@
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.3
+// @version      0.5.4
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -29,7 +29,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.3";
+    const MOD_VERSION  = "0.5.4";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -134,6 +134,11 @@
             durMode:    () => `Duration mode`,
             dateSub:    () => `Start date + days together`,
             durSub:     () => `X years X months X days`,
+            vibeMsgLabel:   () => `Vibe message`,
+            vibeMsgBcast:   () => `Broadcast`,
+            vibeSoundLabel: () => `Sound effect`,
+            vibeMsgSubOn:   () => `Others can see the vibe message every 60s`,
+            vibeMsgSubOff:  () => `Only you see the vibe message every 60s`,
             sevenDay:   () => `You may unilaterally end the relationship after 7 days of no contact`,
             lastSeen:   (d) => `last: ${d}d`,
             lastNever:  () => `last: never`,
@@ -206,6 +211,11 @@
             durMode:    () => `時長模式`,
             dateSub:    () => `起始日期＋已交往天數`,
             durSub:     () => `交往 X年X個月X天`,
+            vibeMsgLabel:   () => `震動信息`,
+            vibeMsgBcast:   () => `廣播`,
+            vibeSoundLabel: () => `震動音效`,
+            vibeMsgSubOn:   () => `別人看的到，每60秒發送一次震動信息`,
+            vibeMsgSubOff:  () => `僅自己看的到，每60秒發送一次震動信息`,
             sevenDay:   () => `超過7天沒見面時，可以單方面解除關係`,
             lastSeen:   (d) => `最後：${d}天前`,
             lastNever:  () => `最後：從未記錄`,
@@ -305,11 +315,20 @@
             Player.OnlineSharedSettings.AFC = {
                 version: MOD_VERSION,
                 lovers: [],
-                lockPerms: { enableELLock: false, enableOwnerLock: false },
+                lockPerms:    { enableELLock: false, enableOwnerLock: false },
+                vibeMsgMode:  'broadcast',   // 'off' | 'broadcast' | 'local'
+                enableVibeSound: true,        // 震動時播放音效（只有自己聽到）
             };
-        // 向前相容：舊資料可能沒有 lockPerms
         if (!Player.OnlineSharedSettings.AFC.lockPerms)
             Player.OnlineSharedSettings.AFC.lockPerms = { enableELLock: false, enableOwnerLock: false };
+        // 向前相容：舊版 enableVibeMsg bool → vibeMsgMode
+        if (Player.OnlineSharedSettings.AFC.vibeMsgMode === undefined) {
+            const old = Player.OnlineSharedSettings.AFC.enableVibeMsg;
+            Player.OnlineSharedSettings.AFC.vibeMsgMode = (old === false) ? 'off' : 'broadcast';
+            delete Player.OnlineSharedSettings.AFC.enableVibeMsg;
+        }
+        if (Player.OnlineSharedSettings.AFC.enableVibeSound === undefined)
+            Player.OnlineSharedSettings.AFC.enableVibeSound = true;
         return Player.OnlineSharedSettings.AFC;
     }
 
@@ -1245,6 +1264,37 @@
             _lbl(isDate ? t('dateMode') : t('durMode'), LBL_X, 680, 400, "Black", 30);
             _lbl(isDate ? t('dateSub') : t('durSub'), LBL_X, 730, 600, "#666", 20);
 
+            // vibeMsgMode — 兩個 checkbox：震動信息 + 廣播
+            // vibeMsgMode: 'off'=兩個都關, 'broadcast'=兩個都開, 'local'=震動開廣播關
+            const vibeMsgMode  = Player.OnlineSharedSettings?.AFC?.vibeMsgMode ?? 'broadcast';
+            const vibeOn       = vibeMsgMode !== 'off';
+            const broadcastOn  = vibeMsgMode === 'broadcast';
+
+            // 震動信息 checkbox（y=765）
+            DrawCheckbox(CB_X, 765, CB_SZ, CB_SZ, "", vibeOn);
+            _lbl(t('vibeMsgLabel'), LBL_X, 795, 250, "Black", 28);
+
+            // 廣播 checkbox（inline，x=580）— 只有震動信息開啟時才可點
+            const BCAST_CB_X = 570;
+            DrawCheckbox(BCAST_CB_X, 765, CB_SZ, CB_SZ, "", broadcastOn);
+            _lbl(t('vibeMsgBcast'), BCAST_CB_X + CB_SZ + 10, 795, 150, vibeOn ? "Black" : "#999", 28);
+            if (!vibeOn) {
+                MainCanvas.save();
+                MainCanvas.fillStyle = "rgba(0,0,0,0.45)";
+                MainCanvas.fillRect(BCAST_CB_X, 765, CB_SZ, CB_SZ);
+                MainCanvas.restore();
+            }
+
+            // 震動音效 checkbox（inline，x=800）— 獨立開關，僅本人聽到
+            const SOUND_CB_X = 800;
+            const soundOn = Player.OnlineSharedSettings?.AFC?.enableVibeSound ?? true;
+            DrawCheckbox(SOUND_CB_X, 765, CB_SZ, CB_SZ, "", soundOn);
+            _lbl(t('vibeSoundLabel'), SOUND_CB_X + CB_SZ + 10, 795, 180, "Black", 28);
+
+            // 說明文字
+            const vibeSub = vibeOn ? (broadcastOn ? t('vibeMsgSubOn') : t('vibeMsgSubOff')) : t('vibeMsgSubOff');
+            _lbl(vibeSub, LBL_X, 848, 700, "#666", 18);
+
             // ── 右欄 ──────────────────────────────────────────────
 
             DrawText(t('mgmtTitle'), 1450, 200, "Black", "Gray");
@@ -1393,6 +1443,32 @@
             if (MouseIn(CB_X, 650, CB_SZ, CB_SZ)) {
                 priv.displayMode = priv.displayMode === "date" ? "duration" : "date";
                 savePrivateSettings(priv); return;
+            }
+            // 震動信息 checkbox（y=765）
+            if (MouseIn(CB_X, 765, CB_SZ, CB_SZ)) {
+                const s = getSharedSettings();
+                if (s) {
+                    const vibeOn = s.vibeMsgMode !== 'off';
+                    // 關→開（預設廣播），開→關
+                    s.vibeMsgMode = vibeOn ? 'off' : 'broadcast';
+                    saveSharedSettings();
+                }
+                return;
+            }
+            // 廣播 checkbox（x=570, y=765）— 只有 vibeOn 才響應
+            if (MouseIn(570, 765, CB_SZ, CB_SZ)) {
+                const s = getSharedSettings();
+                if (s && s.vibeMsgMode !== 'off') {
+                    s.vibeMsgMode = s.vibeMsgMode === 'broadcast' ? 'local' : 'broadcast';
+                    saveSharedSettings();
+                }
+                return;
+            }
+            // 震動音效 checkbox（x=800, y=765）
+            if (MouseIn(800, 765, CB_SZ, CB_SZ)) {
+                const s = getSharedSettings();
+                if (s) { s.enableVibeSound = !(s.enableVibeSound ?? true); saveSharedSettings(); }
+                return;
             }
 
             // 右欄卷軸
@@ -1639,8 +1715,6 @@
 
         // ── Profile 頁面 ────────────────────────────────────────────
         // DrawTextFit hook：攔截 BC 的主人文字，取得精確 Y 座標作為備用
-        // (BC 的 InformationSheet 用 DrawTextFit，不是 DrawText)
-
         modApi.hookFunction("DrawTextFit", 0, (args, next) => {
             if (_inInfoSheet) {
                 const text = String(args[0] ?? "");
@@ -1656,20 +1730,30 @@
             return next(args);
         });
 
+        // 哨兵 hook（優先級 2）：只要能跑到這裡，代表 BCX 等外部攔截器沒有截斷呼叫鏈。
+        // BCX 在顯示自己的畫面時，會在更低優先級攔截 InformationSheetRun 並直接 return，
+        // 不再呼叫 next()，因此哨兵就永遠不會被呼叫到。
+        let _baseReached = false;
+        modApi.hookFunction("InformationSheetRun", 2, (args, next) => {
+            _baseReached = true;
+            return next(args);
+        });
+
         modApi.hookFunction("InformationSheetRun", 10, (args, next) => {
             try {
+                _baseReached = false;
                 _ownerTextY  = null;
                 _inInfoSheet = true;
                 const r = next(args);
                 _inInfoSheet = false;
 
-                // 不在 InformationSheet 畫面時不繪製（BCX 等外部頁面可能觸發此 hook）
+                // 哨兵未被觸發 → BCX 或其他插件截斷了呼叫鏈，不繪製
+                if (!_baseReached) return r;
+
                 if (CurrentScreen !== "InformationSheet") return r;
 
-                // BC 第二頁（聲望/技能頁）— InformationSheetRun 提早 return，戀人列表不顯示，
-                // 我們也不畫按鈕和面板，但燈號已在 next(args) 之前清除所以不殘留
                 if (typeof InformationSheetSecondScreen !== 'undefined' && InformationSheetSecondScreen) {
-                    profilePanelOpen = false;  // 確保切換到第二頁時面板自動收起
+                    profilePanelOpen = false;
                     return r;
                 }
 
