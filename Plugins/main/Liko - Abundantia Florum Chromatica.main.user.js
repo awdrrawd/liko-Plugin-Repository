@@ -13,7 +13,6 @@
 // @downloadURL  https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // ==/UserScript==
-
 /*
  * lockEnabled 說明：
  *   SharedSettings 中每個戀人記錄的 lockEnabled 欄位是一個「持久化偏好旗標」，
@@ -384,6 +383,49 @@
         try {
             ServerAccountUpdate?.QueueData?.({ OnlineSharedSettings: Player.OnlineSharedSettings });
         } catch (e) { console.error("🐈‍⬛ [AFC] ❌ 儲存共享設定失敗:", e.message); }
+        // 同時廣播給房間內玩家（EBC 等環境下伺服器同步可能失效）
+        broadcastAFCData();
+    }
+
+    // P2P 廣播：將 AFC 共享資料透過 Hidden 訊息傳給房間內所有玩家
+    function broadcastAFCData() {
+        try {
+            if (typeof ServerSend !== 'function') return;
+            const s = Player.OnlineSharedSettings?.AFC;
+            if (!s) return;
+            ServerSend('ChatRoomChat', {
+                Type: 'Hidden',
+                Content: 'AFCSyncData',
+                Dictionary: [{ Tag: 'AFCData', Data: {
+                    lovers:   s.lovers   ?? [],
+                    lockPerms: s.lockPerms ?? { enableELLock: false, enableOwnerLock: false },
+                }}],
+            });
+        } catch {}
+    }
+
+    // 處理收到的 AFC 廣播（讓其他玩家的客戶端能即時看到你的戀人列表）
+    function handleAFCSyncData(data) {
+        if (!data?.Content?.startsWith('AFCSync')) return false;
+
+        // 有人請求廣播 → 回應自己的資料
+        if (data.Content === 'AFCSyncRequest') {
+            broadcastAFCData();
+            return true;
+        }
+
+        if (data.Content !== 'AFCSyncData') return false;
+        try {
+            const e = data.Dictionary?.find(d => d.Tag === 'AFCData');
+            if (!e) return true;
+            const sender = ChatRoomCharacter?.find(c => c.MemberNumber === data.Sender);
+            if (!sender) return true;
+            if (!sender.OnlineSharedSettings) sender.OnlineSharedSettings = {};
+            if (!sender.OnlineSharedSettings.AFC) sender.OnlineSharedSettings.AFC = {};
+            if (e.Data.lovers    !== undefined) sender.OnlineSharedSettings.AFC.lovers    = e.Data.lovers;
+            if (e.Data.lockPerms !== undefined) sender.OnlineSharedSettings.AFC.lockPerms = e.Data.lockPerms;
+        } catch {}
+        return true;
     }
 
     // 將鎖的權限從私人設定同步到共享設定（讓對方插件讀取）
@@ -1807,12 +1849,33 @@
             }, 600);
         });
         registerSocketListener("ChatRoomMessage", (data) => {
+            // 處理其他玩家廣播的 AFC 資料
+            if (handleAFCSyncData(data)) return;
+
             if (data?.Type === "RoomUpdate" && ChatRoomData?.Private) {
                 if (ChatRoomData.Name !== currentPrivateRoomName) {
                     currentPrivateRoomName = ChatRoomData.Name;
                     broadcastRoomNameToLovers();
                 }
             }
+        });
+
+        // 加入房間時廣播自己的 AFC 資料，並請求房間內其他玩家廣播
+        modApi.hookFunction("ChatRoomSync", 5, (args, next) => {
+            const r = next(args);
+            setTimeout(() => {
+                broadcastAFCData();
+                // 請求房間內其他玩家廣播（發送 AFCSyncRequest）
+                try {
+                    if (typeof ServerSend === 'function') {
+                        ServerSend('ChatRoomChat', {
+                            Type: 'Hidden', Content: 'AFCSyncRequest',
+                            Dictionary: [],
+                        });
+                    }
+                } catch {}
+            }, 1000);
+            return r;
         });
 
         // ── 好友列表：填入私人房間名 ────────────────────────────────
@@ -1927,14 +1990,6 @@
 
                 isInitialized = true;
                 console.log(`🐈‍⬛ [AFC] ✅ 初始化完成 v${MOD_VERSION} (${detectLang()})`);
-                // 診斷：檢查 CanChangeClothesOn 是否被非 ModSDK 的腳本覆寫
-                try {
-                    const src = Player.CanChangeClothesOn?.toString() ?? "";
-                    if (src && !src.includes("ModSDKPatch") && src !== "function CanChangeClothesOn() { [native code] }") {
-                        const preview = src.substring(0, 120).replace(/\n/g, " ");
-                        console.warn(`🐈‍⬛ [AFC] ⚠️ Player.CanChangeClothesOn 被外部腳本覆寫，可能導致 BCX 警告。內容預覽：${preview}`);
-                    }
-                } catch {}
 
                 // 對外 API（供 HeartLock 等插件查詢）
                 window.ELAbundantiaAPI = {
