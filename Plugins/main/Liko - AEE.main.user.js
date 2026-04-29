@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.7.1
+// @version      0.7.2
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
   'use strict';
 
   const MOD_NAME = "Liko - AEE";
-  const MOD_Version = "0.7.1";
+  const MOD_Version = "0.7.2";
   if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
   const modApi = bcModSdk.registerMod({
     name: MOD_NAME, fullName: "Liko - Appearance Editor",
@@ -47,7 +47,7 @@
       scale: '縮放', scaleDrag: '拖移',
       skew: '傾斜',
       mirror: '鏡射', mirrorH: '水平', mirrorV: '垂直', mirrorCopy: '水平複製', mirrorCopyV: '垂直複製',
-      mirrorCenter: '鏡射軸',
+      mirrorCenter: '鏡射',
       rotHint: '拖動把手旋轉',
       colorPickerTitle: '選色器',
       colorPickerConfirm: '確認', colorPickerCancel: '取消',
@@ -139,17 +139,16 @@
     const C = args[0];
     currentRenderChar = C;
 
-    // ── PHASE 1：Opacity + Priority（在 BC build 前套用） ──
+    // ── PHASE 1：Priority only ──
+    //
+    // 透明度策略（與 LSCG 對齊，不再在此處理）：
+    //   整件衣服：Property.Opacity（BC 原生 per-layer float 陣列，server sync，所有人看得到）
+    //   個別圖層：LayerOverrides[i].Opacity，由 BeforeDraw 回傳 Alpha 覆蓋
+    //   此 hook 完全不碰 opacity，避免與 BC / LSCG 衝突
     const savedPri = [];
     C.Appearance?.forEach(item => {
       const assetLayers = item.Asset?.Layer;
-      const los  = item.Property?.LayerOverrides;
       const over = item.Property?.OverridePriority;
-      if (Array.isArray(los)) {
-        los.forEach((lo, i) => {
-          if (lo?.Opacity != null && assetLayers?.[i]) assetLayers[i].Opacity = lo.Opacity;
-        });
-      }
       if (over != null) {
         assetLayers?.forEach(layer => {
           const newPri = typeof over === 'number' ? over :
@@ -162,13 +161,10 @@
       }
     });
 
-    // ── 呼叫 next，BeforeDraw 會在此期間觸發並設定 _aeePendingTd ──
     const result = next(args);
 
-    // ── 還原 priority ──
     savedPri.forEach(({ layer, original }) => { layer.Priority = original; });
 
-    // 更新 assetGroupMap（供其他用途）
     C.AppearanceLayers?.forEach(layer => {
       const asset = layer.Asset?.Name, group = layer.Asset?.Group?.Name;
       if (asset && group) assetGroupMap.set(asset, group);
@@ -349,19 +345,50 @@
     while (item.Property.LayerOverrides.length < count) item.Property.LayerOverrides.push({});
   }
 
+  // ── Opacity 架構說明 ──────────────────────────────────────────────────────
+  // LayerOverrides[i].Opacity  = 每個 layer 自己的值（undefined = 未設定 = 1.0）
+  // Property.Opacity[i]        = BC 最終渲染值，由 recomputeOpacity() 從上面計算
+  //
+  // 「整件」slider 只是 UI 方便操作：一次把所有 LayerOverrides[i].Opacity 設成同值。
+  // 個別 layer 之後再改就只影響那個 slot。不需要任何自訂欄位。
+  // （和 LSCG setOpacityInProperty 邏輯相同：scalar → 展開為陣列）
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── setOpacity：同時寫 LayerOverrides（我們的儲存）和 Property.Opacity（BC 渲染）──
+  // 不使用 recomputeOpacity，避免每幀重算帶來的副作用。
+  // "整件"只是一次性把所有 slot 設成同值，之後各 slot 獨立。
+  function _writeOpacity(item, indices, val) {
+    const layerCount = item.Asset?.Layer?.length || 1;
+    if (!Array.isArray(item.Property.Opacity) || item.Property.Opacity.length !== layerCount) {
+      try { Object.assign(item.Property, ItemColorSanitizeProperty(item)); } catch(e) {}
+      if (!Array.isArray(item.Property.Opacity))
+        item.Property.Opacity = Array(layerCount).fill(1);
+    }
+    indices.forEach(i => {
+      const layer = item.Asset?.Layer?.[i];
+      const clamped = Math.min(Math.max(val, layer?.MinOpacity ?? 0), layer?.MaxOpacity ?? 1);
+      if (!item.Property.LayerOverrides[i]) item.Property.LayerOverrides[i] = {};
+      item.Property.LayerOverrides[i].Opacity = clamped;   // 我們的持久儲存
+      if (i < item.Property.Opacity.length) item.Property.Opacity[i] = clamped; // BC 渲染
+    });
+  }
+
   function setLO(item, layerIdx, key, val) {
     ensureLO(item);
     const count = item.Asset?.Layer?.length || 1;
     const indices = layerIdx === 'all'
       ? Array.from({ length: count }, (_, i) => i)
       : [parseInt(layerIdx)];
-    indices.forEach(i => {
-      if (!item.Property.LayerOverrides[i]) item.Property.LayerOverrides[i] = {};
-      item.Property.LayerOverrides[i][key] = val;
-    });
+
     if (key === 'Opacity') {
-      if (layerIdx === 'all') item.Property.Opacity = val;
-      indices.forEach(i => { if (item.Asset?.Layer?.[i]) item.Asset.Layer[i].Opacity = val; });
+      _writeOpacity(item, indices, val);
+
+    } else {
+      // 其他屬性：寫入 LayerOverrides（BeforeDraw / transform 路徑）
+      indices.forEach(i => {
+        if (!item.Property.LayerOverrides[i]) item.Property.LayerOverrides[i] = {};
+        item.Property.LayerOverrides[i][key] = val;
+      });
     }
     { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) {
       CharacterRefresh(_rc, false, false);
@@ -374,7 +401,16 @@
 
   function getLO(item, idx) {
     const i = idx === 'all' ? 0 : parseInt(idx);
-    return item?.Property?.LayerOverrides?.[i] || {};
+    const lo = item?.Property?.LayerOverrides?.[i] || {};
+    // Opacity 優先讀 LayerOverrides[i].Opacity（我們的持久儲存）
+    // 若未設定（undefined），fallback 到 Property.Opacity[i]（BC 已儲存的值）
+    // 這樣不會因為沒調整過就顯示/覆寫成 100%
+    let opacity = lo.Opacity;
+    if (opacity == null) {
+      const rawOp = item?.Property?.Opacity;
+      opacity = Array.isArray(rawOp) ? rawOp[i] : (typeof rawOp === 'number' ? rawOp : 1);
+    }
+    return { ...lo, Opacity: opacity ?? 1 };
   }
 
   function getLayerDisplayName(layer, i) {
@@ -431,9 +467,17 @@
     { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) CharacterRefresh(_rc, false, false); }
   }
 
-  // ============================================================
-  // CANVAS / ALIGNMENT
-  // ============================================================
+  // 同步更新 UI 上所有與該圖層顏色相關的色塊（chip + dot）
+  function updateColorUI(layerIdx, hex) {
+    if (!shadowRoot) return;
+    shadowRoot.querySelectorAll(`[data-color-edit="${layerIdx}"] .color-chip-inner`).forEach(el => { el.style.background = hex; });
+    shadowRoot.querySelectorAll(`[data-color-dot="${layerIdx}"]`).forEach(el => { el.style.background = hex; });
+    if (layerIdx === 'all') {
+      // 整件變色時，所有個別圖層的 chip 和 dot 一起更新
+      shadowRoot.querySelectorAll('.color-chip-inner').forEach(el => { el.style.background = hex; });
+      shadowRoot.querySelectorAll('[data-color-dot]').forEach(el => { el.style.background = hex; });
+    }
+  }
 
   function getCanvas() { return document.getElementById('MainCanvas') || document.querySelector('canvas'); }
   function getCanvasRect() { const c = getCanvas(); return c ? c.getBoundingClientRect() : null; }
@@ -621,6 +665,198 @@
     skewDragState = null;
     e.stopImmediatePropagation();
   }, true);
+
+  // ── Opacity Overlay（收納模式透明度調整浮層，可拖動） ─────────────────────
+  let opOverlayHost = null;
+  let opShadow = null;
+  // 位置：相對 canvas，預設右下偏上（往上200px、往右300px 於角色腳下基準）
+  const OP_BASE_CX = 0.50;
+  const OP_BASE_CY = 0.97;
+  const OP_OFFSET_X = 300;
+  const OP_OFFSET_Y = -200;
+  let _opDrag = null; // { startX, startY, startOffX, startOffY }
+  let _opCustomOffset = null; // { x, y } — user dragged position
+
+  function buildOpOverlay() {
+    if (opOverlayHost) return;
+    opOverlayHost = document.createElement('div');
+    opOverlayHost.style.cssText = 'position:fixed;z-index:999996;pointer-events:none;';
+    document.body.appendChild(opOverlayHost);
+    opShadow = opOverlayHost.attachShadow({ mode: 'open' });
+    opShadow.innerHTML = `
+      <style>
+        :host { all:initial; display:block; }
+        * { user-select:none; -webkit-user-select:none; box-sizing:border-box; }
+        #op-overlay { position:absolute; display:none; pointer-events:none; }
+        #op-overlay.on { display:block; }
+        #op-panel {
+          position:absolute;
+          display:flex; flex-direction:column; align-items:center; gap:5px;
+          background:rgba(15,10,40,0.88); border:1px solid rgba(124,106,247,0.4);
+          border-radius:10px; padding:6px 14px 10px;
+          pointer-events:all;
+          backdrop-filter:blur(6px);
+          transform:translateX(-50%);
+          min-width:200px;
+        }
+        #op-drag-handle {
+          width:100%; height:16px; cursor:grab; display:flex; align-items:center; justify-content:center;
+          color:rgba(255,255,255,0.25); font-size:11px; letter-spacing:3px;
+          margin-bottom:-2px;
+        }
+        #op-drag-handle:active { cursor:grabbing; }
+        #op-title {
+          font-family:'Segoe UI',sans-serif; font-size:11px; font-weight:600;
+          color:rgba(255,255,255,0.55); letter-spacing:.04em; text-align:center;
+        }
+        #op-val-label {
+          font-family:'Segoe UI',sans-serif; font-size:14px; font-weight:700;
+          color:#fff; text-align:center; min-width:42px;
+        }
+        #op-row { display:flex; align-items:center; gap:6px; }
+        .op-step-btn {
+          width:22px; height:22px; border-radius:5px; border:1px solid rgba(124,106,247,0.4);
+          background:rgba(124,106,247,0.15); color:#fff; font-size:14px; line-height:1;
+          cursor:pointer; display:flex; align-items:center; justify-content:center;
+          pointer-events:all; flex-shrink:0;
+        }
+        .op-step-btn:hover { background:rgba(124,106,247,0.35); }
+        #op-slider {
+          -webkit-appearance:none; appearance:none;
+          width:140px; height:6px; border-radius:3px; outline:none; cursor:pointer;
+          background:linear-gradient(to right, rgba(124,106,247,0.9) var(--pct,100%), rgba(255,255,255,0.15) var(--pct,100%));
+          pointer-events:all;
+        }
+        #op-slider::-webkit-slider-thumb {
+          -webkit-appearance:none; width:15px; height:15px; border-radius:50%;
+          background:#7c6af7; border:2px solid #fff; cursor:pointer;
+        }
+        #op-close {
+          position:absolute; top:3px; right:7px; background:none; border:none;
+          color:rgba(255,255,255,0.3); font-size:13px; cursor:pointer; line-height:1;
+          pointer-events:all;
+        }
+        #op-close:hover { color:rgba(255,255,255,0.7); }
+      </style>
+      <div id="op-overlay">
+        <div id="op-panel">
+          <button id="op-close">✕</button>
+          <div id="op-drag-handle">· · ·</div>
+          <div id="op-title">${isZh() ? '透明度' : 'Opacity'}</div>
+          <div id="op-row">
+            <button class="op-step-btn" id="op-minus">−</button>
+            <input type="range" id="op-slider" min="0" max="100" step="1" value="100"/>
+            <button class="op-step-btn" id="op-plus">+</button>
+          </div>
+          <div id="op-val-label">100%</div>
+        </div>
+      </div>`;
+
+    const shadow  = opShadow;
+    const slider  = shadow.getElementById('op-slider');
+    const valLbl  = shadow.getElementById('op-val-label');
+
+    function syncUI(val) {
+      slider.value = val;
+      valLbl.textContent = val + '%';
+      slider.style.setProperty('--pct', val + '%');
+    }
+    function applyVal(val) {
+      syncUI(val);
+      const item = getCurrentItem();
+      if (!item || state.selectedLayer === null) return;
+      setLO(item, state.selectedLayer, 'Opacity', val / 100);
+      updateOpacityTab();
+    }
+
+    slider.addEventListener('input', () => applyVal(parseInt(slider.value)));
+    shadow.getElementById('op-minus').addEventListener('click', () => applyVal(Math.max(0, parseInt(slider.value) - 1)));
+    shadow.getElementById('op-plus').addEventListener('click',  () => applyVal(Math.min(100, parseInt(slider.value) + 1)));
+    shadow.getElementById('op-close').addEventListener('click', hideOpOverlay);
+
+    // drag handle — use pointer capture so BC canvas can't steal events
+    const handle = shadow.getElementById('op-drag-handle');
+    handle.addEventListener('pointerdown', ev => {
+      ev.preventDefault();
+      handle.setPointerCapture(ev.pointerId);
+      const panel = shadow.getElementById('op-panel');
+      const px = parseFloat(panel.style.left) || 0;
+      const py = parseFloat(panel.style.top)  || 0;
+      _opDrag = { startX: ev.clientX, startY: ev.clientY, startPX: px, startPY: py };
+    });
+    handle.addEventListener('pointermove', ev => {
+      if (!_opDrag) return;
+      const panel = shadow.getElementById('op-panel');
+      panel.style.left = (_opDrag.startPX + ev.clientX - _opDrag.startX) + 'px';
+      panel.style.top  = (_opDrag.startPY + ev.clientY - _opDrag.startY) + 'px';
+      _opCustomOffset  = { x: parseFloat(panel.style.left), y: parseFloat(panel.style.top) };
+    });
+    handle.addEventListener('pointerup',   () => { _opDrag = null; });
+    handle.addEventListener('pointercancel', () => { _opDrag = null; });
+  }
+
+  function alignOpOverlay() {
+    if (!opOverlayHost) return;
+    const r = getCanvasRect(); if (!r) return;
+    opOverlayHost.style.left   = r.left + 'px';
+    opOverlayHost.style.top    = r.top  + 'px';
+    opOverlayHost.style.width  = r.width + 'px';
+    opOverlayHost.style.height = r.height + 'px';
+    // only reposition if user hasn't dragged
+    if (!_opCustomOffset) {
+      const panel = opShadow?.getElementById('op-panel');
+      if (panel) {
+        panel.style.left = (r.width  * OP_BASE_CX + OP_OFFSET_X) + 'px';
+        panel.style.top  = (r.height * OP_BASE_CY + OP_OFFSET_Y) + 'px';
+      }
+    }
+  }
+
+  function showOpOverlay() {
+    buildOpOverlay();
+    alignOpOverlay();
+    const item = getCurrentItem();
+    if (!item || state.selectedLayer === null) return;
+    const lo  = getLO(item, state.selectedLayer);
+    const val = Math.round((lo.Opacity ?? 1) * 100);
+    const shadow = opShadow;
+    shadow.getElementById('op-slider').value = val;
+    shadow.getElementById('op-val-label').textContent = val + '%';
+    shadow.getElementById('op-slider').style.setProperty('--pct', val + '%');
+    shadow.getElementById('op-overlay').classList.add('on');
+    opOverlayHost.style.pointerEvents = 'auto'; // must be auto so shadow panel receives events
+  }
+
+  function hideOpOverlay() {
+    opShadow?.getElementById('op-overlay')?.classList.remove('on');
+    if (opOverlayHost) opOverlayHost.style.pointerEvents = 'none';
+    updateToggleIcons();
+  }
+
+  // sync opacity tab sliders when op changes
+  function updateOpacityTab() {
+    if (!shadowRoot) return;
+    const item = getCurrentItem(); if (!item) return;
+    shadowRoot.querySelectorAll('[data-op-layer]').forEach(el => {
+      const idx = el.dataset.opLayer;
+      const lo  = getLO(item, idx);
+      const val = Math.round((lo.Opacity ?? 1) * 100);
+      el.value = val;
+      const label = shadowRoot.getElementById('op-val-' + idx);
+      if (label) label.textContent = val + '%';
+    });
+    const lo2 = getLO(item, state.selectedLayer ?? 'all');
+    const opEl = shadowRoot.getElementById('edit-op-val');
+    if (opEl) opEl.textContent = Math.round((lo2.Opacity ?? 1) * 100) + '%';
+    const opRange = shadowRoot.querySelector('[data-edit-op]');
+    if (opRange) opRange.value = Math.round((lo2.Opacity ?? 1) * 100);
+    if (opShadow?.getElementById('op-overlay')?.classList.contains('on')) {
+      const v = Math.round((getLO(item, state.selectedLayer ?? 'all').Opacity ?? 1) * 100);
+      opShadow.getElementById('op-slider').value = v;
+      opShadow.getElementById('op-val-label').textContent = v + '%';
+      opShadow.getElementById('op-slider').style.setProperty('--pct', v + '%');
+    }
+  }
 
   let rotOverlayHost = null;
   let rotShadow = null;
@@ -1218,6 +1454,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     positionColorPicker();
     colorPickerShadow.getElementById('cp-outer').classList.add('open');
     colorPickerHostEl.style.pointerEvents = 'auto';
+    updateToggleIcons();
   }
 
   function closeColorPicker() {
@@ -1227,6 +1464,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       colorPickerHostEl._cpOnLiveChange = null;
       colorPickerHostEl._cpInitialHex   = null;
     }
+    updateToggleIcons();
   }
 
   // ============================================================
@@ -1273,12 +1511,12 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   cursor:pointer; color:var(--text-dim);
   transition:color .12s, background .12s;
 }
-.tgl-icon:hover { color:var(--accent2); background:rgba(78,205,196,0.1); }
-.tgl-icon.active { color:var(--accent2); background:rgba(78,205,196,0.15); }
+.tgl-icon:hover { color:var(--accent1); background:rgba(124,106,247,0.15); }
+.tgl-icon.active { color:#a89ef8; background:rgba(124,106,247,0.30); box-shadow:inset -2px 0 0 #7c6af7; }
 #toggle-arrow {
   width:22px; height:22px; display:flex; align-items:center; justify-content:center;
   cursor:pointer; color:var(--text-dim); font-size:11px;
-  transition:color .12s;
+  transition:color .12s; user-select:none; -webkit-user-select:none;
 }
 #toggle-arrow:hover { color:var(--accent); }
 #tabs {
@@ -1323,7 +1561,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   padding:5px 8px; background:var(--bg2); border-bottom:1px solid var(--border);
   cursor:grab; flex-shrink:0;
   font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
-  color:var(--text-dim);
+  color:var(--text-dim); user-select:none; -webkit-user-select:none;
 }
 #parts-float-header:active { cursor:grabbing; }
 #parts-float-close {
@@ -1334,7 +1572,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 }
 #parts-float-close:hover { color:#f87; background:rgba(255,80,80,0.1); }
 #parts-float-body {
-  overflow-y:auto; flex:1; padding:5px 6px;
+  overflow-y:auto; flex:1; padding:5px 6px; user-select:none; -webkit-user-select:none;
 }
 #parts-float-body::-webkit-scrollbar { width:4px; }
 #parts-float-body::-webkit-scrollbar-thumb { background:rgba(124,106,247,0.5); border-radius:2px; }
@@ -1380,9 +1618,18 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   text-align:left; font-size:14px; font-weight:600;
   transition:border-color .12s, background .12s, color .12s;
   min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  display:flex; align-items:center; justify-content:space-between; gap:6px;
 }
 .layer-btn:hover { border-color:var(--accent); }
 .layer-btn.selected { background:#17143a; border-color:var(--accent); color:var(--accent); }
+.layer-btn-label { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.layer-color-dot {
+  width:14px; height:14px; border-radius:3px; flex-shrink:0;
+  border:1px solid rgba(255,255,255,0.15);
+  background:repeating-conic-gradient(#333 0% 25%,#222 0% 50%) 0 0/6px 6px;
+  position:relative; overflow:hidden;
+}
+.layer-color-dot-fill { position:absolute; inset:0; }
 .prop-group { margin-bottom:10px; }
 .prop-group-header {
   display:flex; align-items:center; justify-content:space-between;
@@ -1572,6 +1819,27 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             <line x1="9" y1="13" x2="11" y2="3"/>
           </svg>
         </div>
+        <div class="tgl-icon" id="tgl-colorpicker" data-tgl-action="open-colorpicker" title="${isZh()?'調色':'Color Picker'}">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- bucket body: rotated square, centered at 6.5,6.5 -->
+            <g transform="rotate(45 6.5 6.5)">
+              <rect x="2.5" y="2.5" width="8" height="8" rx="0.8" fill="currentColor"/>
+              <path d="M2.9 6.5 L2.9 3.3 Q2.9 2.9 3.3 2.9 L9.2 2.9 Q9.6 2.9 9.6 3.3 Z" fill="var(--bg,#1a1a2e)"/>
+            </g>
+            <!-- water drop -->
+            <ellipse cx="13.2" cy="13.2" rx="1.3" ry="1.6" fill="currentColor"/>
+            <!-- stream from bucket lower-right corner to drop -->
+            <line x1="10.2" y1="10.2" x2="12.2" y2="12.0" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="tgl-icon" id="tgl-opacity" data-tgl-action="open-opacity" title="${isZh()?'透明度':'Opacity'}">
+          <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+            <rect width="16" height="16" rx="2" fill="rgba(255,255,255,0.2)"/>
+            <rect x="0" y="0" width="8" height="8" fill="currentColor" opacity="0.7"/>
+            <rect x="8" y="8" width="8" height="8" fill="currentColor" opacity="0.7"/>
+            <rect width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="0.8" opacity="0.4"/>
+          </svg>
+        </div>
         <div class="tgl-icon" id="tgl-reset" data-tgl-action="reset-transform" title="${isZh()?'重置座標/旋轉/縮放':'Reset transforms'}">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 8A5 5 0 1 0 4 4.5"/>
@@ -1595,6 +1863,23 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       const actionIcon = e.target.closest('[data-tgl-action]');
       if (!actionIcon) return;
       const action = actionIcon.dataset.tglAction;
+      if (action === 'open-opacity') {
+        const isOn = opShadow?.getElementById('op-overlay')?.classList.contains('on');
+        if (isOn) { hideOpOverlay(); } else { showOpOverlay(); }
+        updateToggleIcons();
+        return;
+      }
+      if (action === 'open-colorpicker') {
+        const item = getCurrentItem();
+        const idx  = state.selectedLayer ?? 'all';
+        const cur  = getLayerColor(item, idx) || '#FFFFFF';
+        openColorPicker(cur, (hex) => {
+          if (!item) return;
+          setLayerColor(item, idx, hex);
+          updateColorUI(idx, hex);
+        });
+        return;
+      }
       if (action === 'open-panel') {
         const pf  = shadowRoot?.getElementById('parts-float');
         const btn = shadowRoot?.getElementById('parts-toggle-btn');
@@ -1607,6 +1892,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
           btn?.classList.add('active');
           updatePartsPanel();
         }
+        updateToggleIcons();
       } else if (action === 'reset-transform') {
         const item = getCurrentItem();
         if (!item || state.selectedLayer === null) return;
@@ -1657,6 +1943,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     partsFloat.querySelector('#parts-float-close').addEventListener('click', () => {
       partsFloat.classList.remove('open');
       shadowRoot.getElementById('parts-toggle-btn')?.classList.remove('active');
+      updateToggleIcons();
     });
     partsFloat.querySelector('#parts-float-body').addEventListener('click', e => {
       const btn = e.target.closest('[data-select-layer]');
@@ -1665,6 +1952,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       partsFloat.querySelectorAll('[data-select-layer]').forEach(b =>
         b.classList.toggle('selected', b.dataset.selectLayer === state.selectedLayer));
       renderContent();
+      updateOpacityTab(); // sync op-panel to new layer's opacity
       partsFloat.classList.add('open');
       shadowRoot.getElementById('parts-toggle-btn')?.classList.add('active');
     });
@@ -1772,6 +2060,15 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       const el = shadowRoot.getElementById('tgl-' + mode);
       if (el) el.classList.toggle('active', state.activeDrag === mode);
     });
+    // action icons: active when their overlay/panel is open
+    const cpEl = shadowRoot.getElementById('tgl-colorpicker');
+    // 選色器：我們自己的 cp-outer 有 .open class 時才算開啟
+    const cpOpen = colorPickerShadow?.getElementById('cp-outer')?.classList.contains('open') ?? false;
+    if (cpEl) cpEl.classList.toggle('active', cpOpen);
+    const opEl = shadowRoot.getElementById('tgl-opacity');
+    if (opEl) opEl.classList.toggle('active', opShadow?.getElementById('op-overlay')?.classList.contains('on') ?? false);
+    const partsEl = shadowRoot.getElementById('tgl-open');
+    if (partsEl) partsEl.classList.toggle('active', shadowRoot.getElementById('parts-float')?.classList.contains('open') ?? false);
   }
 
   function toggleCollapse() {
@@ -1813,8 +2110,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       openColorPicker(curColor, (hex) => {
         const item = getCurrentItem(); if (!item) return;
         setLayerColor(item, layerIdx, hex);
-        shadowRoot?.querySelectorAll(`[data-color-edit="${layerIdx}"] .color-chip-inner`)
-          .forEach(el => el.style.background = hex);
+        updateColorUI(layerIdx, hex);
       });
       return;
     }
@@ -1825,7 +2121,9 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     const layerBtn = e.target.closest('[data-select-layer]');
     if (layerBtn) {
       state.selectedLayer = layerBtn.dataset.selectLayer;
-      renderContent(); return;
+      renderContent();
+      updateOpacityTab();
+      return;
     }
     const stepBtn = e.target.closest('[data-step]');
     if (stepBtn) { handleStep(stepBtn); return; }
@@ -2028,6 +2326,19 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       }
       { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) CharacterRefresh(_rc, false, false); }
     }
+    else if(ctrl==='op') {
+      // Opacity reset：全部設回 1.0（透過 setLO 同步 LayerOverrides + Property.Opacity）
+      const count = item.Asset?.Layer?.length || 1;
+      const resetIndices = idx === 'all'
+        ? Array.from({ length: count }, (_, i) => i)
+        : [parseInt(idx)];
+      ensureLO(item);
+      _writeOpacity(item, resetIndices, 1);
+      { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) {
+        CharacterRefresh(_rc, false, false);
+        if (_aeeItemColorChar) { _aeeItemColorDirty = true; try { CharacterLoadCanvas(_aeeItemColorChar); } catch(e) {} }
+      } }
+    }
     else if(ctrl==='sx')  setLO(item,idx,'ScaleX',1);
     else if(ctrl==='sy')  setLO(item,idx,'ScaleY',1);
     else if(ctrl==='rot') { setLO(item,idx,'Rotation',0); if(state.activeDrag==='rot') updateRotOverlay(0); }
@@ -2112,8 +2423,8 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     const body   = shadowRoot.getElementById('parts-float-body');
     if (!body) return;
     body.innerHTML =
-      layerBtnRow('all', t('allParts')) +
-      layers.map((l, i) => layerBtnRow(String(i), getLayerDisplayName(l, i))).join('');
+      layerBtnRow('all', t('allParts'), getLayerColor(item, 0)) +
+      layers.map((l, i) => layerBtnRow(String(i), getLayerDisplayName(l, i), getLayerColor(item, i))).join('');
     body.querySelectorAll('[data-select-layer]').forEach(btn => {
       btn.classList.toggle('selected', btn.dataset.selectLayer === state.selectedLayer);
     });
@@ -2204,14 +2515,19 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
     return editHtml + `<div class="section">
   <div class="sec-title">${t('secPart')}</div>
-  ${layerBtnRow('all', t('allParts'))}
-  ${layers.map((l,i)=>layerBtnRow(String(i), getLayerDisplayName(l, i))).join('')}
+  ${layerBtnRow('all', t('allParts'), getLayerColor(item, 0))}
+  ${layers.map((l,i)=>layerBtnRow(String(i), getLayerDisplayName(l, i), getLayerColor(item, i))).join('')}
 </div>`;
   }
 
   function renderOpacityTab(item, layers) {
     const _rawOp = item.Property?.Opacity;
-    const opAll = Math.round((typeof _rawOp === 'number' ? _rawOp : (getLO(item,0).Opacity ?? 1)) * 100);
+    // Property.Opacity 可能是 BC 原生 per-layer 陣列、舊 scalar、或 undefined
+    // 陣列時取 [0] 作為代表值（整件模式所有 slot 值相同）
+    const _opBase = Array.isArray(_rawOp) ? (_rawOp[0] ?? 1)
+                  : typeof _rawOp === 'number' ? _rawOp
+                  : (getLO(item, 0).Opacity ?? 1);
+    const opAll = Math.round(_opBase * 100);
     const opRow = (layerIdx, name, opPct) => `<div class="op-tab-row">
       <div class="op-tab-name">
         <span class="op-tab-label">${name}</span>
@@ -2411,9 +2727,13 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     return allRow + layerRows;
   }
 
-  function layerBtnRow(idx, name) {
+  function layerBtnRow(idx, name, color) {
+    const dotFill = color ? `style="background:${color}"` : '';
     return `<div class="layer-btn-row">
-  <button class="layer-btn ${state.selectedLayer===idx?'selected':''}" data-select-layer="${idx}">${name}</button>
+  <button class="layer-btn ${state.selectedLayer===idx?'selected':''}" data-select-layer="${idx}">
+    <span class="layer-btn-label">${name}</span>
+    <span class="layer-color-dot"><span class="layer-color-dot-fill" data-color-dot="${idx}" ${dotFill}></span></span>
+  </button>
 </div>`;
   }
 
@@ -2545,6 +2865,8 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             if (dx != null && ret.X == null) ret.X = dx;
             if (dy != null && ret.Y == null)
               ret.Y = dy + (typeof CanvasUpperOverflow !== 'undefined' ? CanvasUpperOverflow : 0);
+            // Opacity 已改為直接寫 Property.Opacity[i]（BC native 路徑）
+            // BeforeDraw Alpha 路線已確認無效，移除
           }
         }
       }
@@ -2560,7 +2882,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   let _aeeItemColorChar = null;
   let _aeeItemColorItem = null;
   let _aeeItemColorDirty = false;
-
   try {
     modApi.hookFunction("ItemColorLoad", 0, (args, next) => {
       _aeeItemColorChar  = args[0];
@@ -2589,6 +2910,20 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     modApi.hookFunction("ItemColorFireExit", 0, (args, next) => {
       const wasDirty = _aeeItemColorDirty;
       const dirtyChar = _aeeItemColorChar;
+      const item = _aeeItemColorItem;
+
+      // ── 調色盤 opacity 同步回 LayerOverrides ──
+      // BC 的 inputItemColor 在 editOpacity=true 時直接寫 Property.Opacity[i]。
+      // Exit 時把最新值同步回 LayerOverrides，確保兩邊一致（下次 setLO 才能讀到正確初始值）。
+      if (item && Array.isArray(item.Property?.Opacity) && Array.isArray(item.Property?.LayerOverrides)) {
+        item.Property.Opacity.forEach((opVal, i) => {
+          if (i < item.Property.LayerOverrides.length) {
+            if (!item.Property.LayerOverrides[i]) item.Property.LayerOverrides[i] = {};
+            item.Property.LayerOverrides[i].Opacity = opVal;
+          }
+        });
+      }
+
       const result = next(args);
       _aeeItemColorChar  = null;
       _aeeItemColorItem  = null;
@@ -2608,7 +2943,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   try { modApi.hookFunction("DialogRun", 0, (args, next) => { aeeCheckAndRender(); return next(args); }); } catch(e) {}
 
   window.addEventListener('resize', () => {
-    alignHost(); updateTogglePos(); alignRotOverlay();
+    alignHost(); updateTogglePos(); alignRotOverlay(); alignOpOverlay();
     positionColorPicker();
     if (state.activeDrag === 'rot') {
       const item = getCurrentItem();
