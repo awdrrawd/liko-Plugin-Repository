@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.3
+// @version      2.1.4
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -11,7 +11,7 @@
 // ==/UserScript==
 
 /*
- * v2.1.3 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
+ * v2.1.4 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
  *   - 新增 isAllowedToLock(memberNum)：
  *       允許條件 = BC 原生戀人 OR 拓展戀人 OR (主人 + EL 設定允許主人使用鎖)
  *   - 兩處 isLover 判斷改為 isAllowedToLock()
@@ -35,7 +35,7 @@
     const EXT_KEY          = 'HeartLock';
     const HEARTLOCK_IMAGE  = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/main/Images/Heart_Lock.png';
     const VIBE_INTERVAL_MS = 5000;
-    const VIBE_MSG_CYCLE   = 6;
+    const VIBE_MSG_CYCLE   = 12;   // 12 × 5s = 60 秒發一次震動訊息
 
     const PX = 1100; const PY  = 130;
     const PW = 870;  const PH  = 840;
@@ -806,7 +806,7 @@
         try {
             state.modApi = window.bcModSdk.registerMod({
                 name: MOD_NAME, fullName: 'Heart Lock BC (standalone)',
-                version: '2.1.3', repository: 'https://github.com/awdrrawd/liko-tool-Image-storage',
+                version: '2.1.1', repository: 'https://github.com/awdrrawd/liko-tool-Image-storage',
             });
             console.log('🐈‍⬛ [HeartLock] 獨立 modApi 已註冊（EL 未載入）');
             return state.modApi;
@@ -853,10 +853,18 @@
         Player.Appearance?.forEach(item => {
             if (!item?.Property) return;
             if (item.Property.LockedBy !== HSLOCK_NAME) return;
-            if (item.Property.Name !== HEARTLOCK_NAME) item.Property.Name = HEARTLOCK_NAME;
+            // 只處理確實由心鎖系統加的鎖（有 HeartLockId 或 Name=HEARTLOCK_NAME）
+            // 避免把合法的高安全鎖也轉換掉
+            const isHeartLock = item.Property.Name === HEARTLOCK_NAME || !!item.Property.HeartLockId;
+            if (!isHeartLock) return;
             const gn = item.Asset?.Group?.Name;
             if (!gn || padlocks[gn]) return;
-            padlocks[gn] = { owner: item.Property.LockMemberNumber ?? Player.MemberNumber, ownerName: item.Property.LockMemberName ?? '', lockedAt: new Date().toISOString(), note: '', unlockTime: null, vibe: 'off', orgasmMode: 'normal' };
+            padlocks[gn] = {
+                owner: item.Property.LockMemberNumber ?? Player.MemberNumber,
+                ownerName: item.Property.LockMemberName ?? '',
+                lockedAt: new Date().toISOString(),
+                note: '', unlockTime: null, vibe: 'off', orgasmMode: 'normal',
+            };
         });
         for (const gn of Object.keys(padlocks)) {
             try { const item = InventoryGet?.(Player, gn); if (!item) continue; if (!item?.Property?.LockedBy) deleteConfig(gn); } catch {}
@@ -943,9 +951,13 @@
         if (!any) return;
         state.vibeCycle = (state.vibeCycle + 1) % VIBE_MSG_CYCLE;
         if (state.vibeCycle === 0) {
-            const nick = Player.Nickname || Player.Name;
-            const msg = { low: T('vibelow', nick, HEARTLOCK_NAME), mid: T('vibemid', nick, HEARTLOCK_NAME), high: T('vibehigh', nick, HEARTLOCK_NAME) }[maxStr];
-            if (msg) try { ServerSend('ChatRoomChat', { Type:'Action', Content:'CUSTOM_SYSTEM_ACTION', Dictionary:[{ Tag:'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text:msg }] }); } catch {}
+            // 讀取穿戴者的 AFC 設定判斷是否發送震動訊息
+            const vibeMsgEnabled = Player.OnlineSharedSettings?.AFC?.enableVibeMsg ?? true;
+            if (vibeMsgEnabled) {
+                const nick = Player.Nickname || Player.Name;
+                const msg = { low: T('vibelow', nick, HEARTLOCK_NAME), mid: T('vibemid', nick, HEARTLOCK_NAME), high: T('vibehigh', nick, HEARTLOCK_NAME) }[maxStr];
+                if (msg) try { ServerSend('ChatRoomChat', { Type:'Action', Content:'CUSTOM_SYSTEM_ACTION', Dictionary:[{ Tag:'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text:msg }] }); } catch {}
+            }
         }
     }
 
@@ -1564,7 +1576,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.1.3 (EL Edition) initialized.');
+        log('HeartLock v2.1.1 (EL Edition) initialized.');
     }
 
     initialize().catch(e => console.error('[HeartLock] init error', e));
