@@ -11,7 +11,7 @@
 // ==/UserScript==
 
 /*
- * v2.1.4 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
+ * v2.1.1 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
  *   - 新增 isAllowedToLock(memberNum)：
  *       允許條件 = BC 原生戀人 OR 拓展戀人 OR (主人 + EL 設定允許主人使用鎖)
  *   - 兩處 isLover 判斷改為 isAllowedToLock()
@@ -951,12 +951,20 @@
         if (!any) return;
         state.vibeCycle = (state.vibeCycle + 1) % VIBE_MSG_CYCLE;
         if (state.vibeCycle === 0) {
-            // 讀取穿戴者的 AFC 設定判斷是否發送震動訊息
-            const vibeMsgEnabled = Player.OnlineSharedSettings?.AFC?.enableVibeMsg ?? true;
-            if (vibeMsgEnabled) {
+            const mode = Player.OnlineSharedSettings?.AFC?.vibeMsgMode ?? 'broadcast';
+            if (mode !== 'off') {
                 const nick = Player.Nickname || Player.Name;
                 const msg = { low: T('vibelow', nick, HEARTLOCK_NAME), mid: T('vibemid', nick, HEARTLOCK_NAME), high: T('vibehigh', nick, HEARTLOCK_NAME) }[maxStr];
-                if (msg) try { ServerSend('ChatRoomChat', { Type:'Action', Content:'CUSTOM_SYSTEM_ACTION', Dictionary:[{ Tag:'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text:msg }] }); } catch {}
+                if (msg) {
+                    try {
+                        if (mode === 'broadcast') {
+                            ServerSend('ChatRoomChat', { Type:'Action', Content:'CUSTOM_SYSTEM_ACTION', Dictionary:[{ Tag:'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text:msg }] });
+                        } else {
+                            // 'local' — 只有自己看到
+                            ChatRoomSendLocal(msg);
+                        }
+                    } catch {}
+                }
             }
         }
     }
