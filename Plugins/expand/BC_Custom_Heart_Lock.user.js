@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.4
+// @version      2.1.5
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -10,7 +10,7 @@
 // @grant        none
 // ==/UserScript==
 /*
- * v2.1.4 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
+ * v2.1 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
  *   - 新增 isAllowedToLock(memberNum)：
  *       允許條件 = BC 原生戀人 OR 拓展戀人 OR (主人 + EL 設定允許主人使用鎖)
  *   - 兩處 isLover 判斷改為 isAllowedToLock()
@@ -266,10 +266,10 @@
         dim: '#555555', gold: '#FFCC66', btn: '#280a1c', btnA: '#8B1A4A', danger: '#5a0a0a',
     };
 
-    const CLOSE_X = PX + PW - 64;  // 向左延伸 2px
-    const CLOSE_Y = PY + 1;         // 向上延伸 1px
-    const CLOSE_W = 63;             // 寬度 +4px（左右各 2px）
-    const CLOSE_H = TAB_H - 2;      // 高度 +2px（上下各 1px）
+    const CLOSE_X = PX + PW - 62;  // 右邊對齊 PX+PW，x=1908
+    const CLOSE_Y = PY + 2;         // y=132（JSON 確認值）
+    const CLOSE_W = 62;             // w=62（JSON 確認值）
+    const CLOSE_H = 62;             // h=62（JSON 確認值）
 
     const TOP_H = Math.floor(CH * 3 / 7);
     const BOT_H = CH - TOP_H - 8;
@@ -1328,14 +1328,21 @@
         });
 
         // ── ServerSend：ActionAddLock 修正 ────────────────────────────
+        // 只有當實際上鎖的物品是 Heart Padlock 時才替換名稱
+        // 避免 Best Friend Lock 等其他使用高安鎖底子的鎖被誤改
         modApi.hookFunction('ServerSend', 0, (args, next) => {
             if (args[0] === 'ChatRoomChat') {
                 const d = args[1];
                 if (d?.Content === 'ActionAddLock' && Array.isArray(d.Dictionary)) {
-                    d.Dictionary.forEach(e => {
-                        if (e.AssetName === HSLOCK_NAME) e.AssetName = HEARTLOCK_NAME;
-                        if (e.Tag === 'NextAsset' && e.Text === HSLOCK_NAME) e.Text = HEARTLOCK_NAME;
-                    });
+                    // 檢查此次上鎖的目標物品是否真的是 Heart Padlock
+                    const focusItem = window.DialogFocusSourceItem ?? window.DialogFocusItem;
+                    const isHeartLock = focusItem?.Property?.Name === HEARTLOCK_NAME;
+                    if (isHeartLock) {
+                        d.Dictionary.forEach(e => {
+                            if (e.AssetName === HSLOCK_NAME) e.AssetName = HEARTLOCK_NAME;
+                            if (e.Tag === 'NextAsset' && e.Text === HSLOCK_NAME) e.Text = HEARTLOCK_NAME;
+                        });
+                    }
                 }
             }
             return next(args);
@@ -1442,7 +1449,19 @@
             const item = (itemOrGrp && typeof itemOrGrp === 'object') ? itemOrGrp : InventoryGet?.(C, typeof itemOrGrp === 'string' ? itemOrGrp : null);
             if (item?.Property?.Name === HEARTLOCK_NAME) {
                 const gn = item.Asset?.Group?.Name, cfg = getPadlockConfig(C, gn);
-                if (cfg && Number(cfg.owner) !== Number(Player.MemberNumber)) { return; }
+                if (cfg) {
+                    const isOwner  = Number(cfg.owner) === Number(Player.MemberNumber);
+                    // 允許解鎖：上鎖者本人 OR EL 拓展戀人 OR BC 原生戀人
+                    const isELLovr = window.ELAbundantiaAPI?.isELLover?.(C.MemberNumber) ?? false;
+                    const isBCLovr = Player.Lovership?.some(l => Number(l.MemberNumber) === Number(C.MemberNumber)) ?? false;
+                    // 若是對自己解鎖（穿戴者是 Player），只有 owner 能解
+                    if (C.IsPlayer?.()) {
+                        if (!isOwner) return;
+                    } else {
+                        // 對他人解鎖：需是 owner、EL 戀人或 BC 戀人
+                        if (!isOwner && !isELLovr && !isBCLovr) return;
+                    }
+                }
             }
             state._unlocking = true; const result = next(args); state._unlocking = false;
             return result;
