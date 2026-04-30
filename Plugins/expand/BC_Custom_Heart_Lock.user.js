@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.5
+// @version      2.1.5-1
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -756,6 +756,34 @@
             if (!e || e.Target !== Player.MemberNumber) return;
             deleteConfig(e.Group);
         }
+        // 非 owner 的 EL/BC 戀人請求解鎖
+        // owner 收到後檢查 Requester 是否有權，若有則替代執行 InventoryUnlock
+        if (data.Content === 'HeartLockUnlockRequest') {
+            const e = data.Dictionary?.find(d => d.Tag === 'HeartLockUnlockRequest');
+            if (!e) return;
+            if (!ensureStorage()) return;
+            const gn  = e.Group;
+            const cfg = Player.HeartLock?.padlocks?.[gn];
+            // 只有 owner 需要處理
+            if (!cfg || Number(cfg.owner) !== Number(Player.MemberNumber)) return;
+            // 驗證請求者是否有解鎖資格（EL 或 BC 戀人）
+            const requester = e.Requester;
+            const wearerNum = e.WearerMemberNumber;
+            const wearer    = ChatRoomCharacter?.find(c => c.MemberNumber === wearerNum);
+            if (!wearer) return;  // wearer 不在同房間，無法執行
+            const isELLovr = window.ELAbundantiaAPI?.isELLover?.(requester) ?? false;
+            const isBCLovr = Player.Lovership?.some(l => Number(l.MemberNumber) === Number(requester)) ?? false;
+            if (!isELLovr && !isBCLovr) return;  // 請求者無權
+            // owner 代替執行解鎖
+            try {
+                state._unlocking = true;
+                InventoryUnlock?.(wearer, gn);
+                state._unlocking = false;
+                ChatRoomCharacterUpdate?.(wearer);
+                deleteConfig(gn);
+                log(`HeartLockUnlockRequest: 已替 #${requester} 解鎖 ${gn}`);
+            } catch { state._unlocking = false; }
+        }
     }
 
     // ═══════════════════════════════════════════
@@ -1447,24 +1475,41 @@
             if (state._timerUnlocking) { state._unlocking = true; const result = next(args); state._unlocking = false; return result; }
             const C = args[0], itemOrGrp = args[1];
             const item = (itemOrGrp && typeof itemOrGrp === 'object') ? itemOrGrp : InventoryGet?.(C, typeof itemOrGrp === 'string' ? itemOrGrp : null);
-            if (item?.Property?.Name === HEARTLOCK_NAME) {
-                const gn = item.Asset?.Group?.Name, cfg = getPadlockConfig(C, gn);
-                if (cfg) {
-                    const isOwner  = Number(cfg.owner) === Number(Player.MemberNumber);
-                    // 允許解鎖：上鎖者本人 OR EL 拓展戀人 OR BC 原生戀人
-                    const isELLovr = window.ELAbundantiaAPI?.isELLover?.(C.MemberNumber) ?? false;
-                    const isBCLovr = Player.Lovership?.some(l => Number(l.MemberNumber) === Number(C.MemberNumber)) ?? false;
-                    // 若是對自己解鎖（穿戴者是 Player），只有 owner 能解
-                    if (C.IsPlayer?.()) {
-                        if (!isOwner) return;
-                    } else {
-                        // 對他人解鎖：需是 owner、EL 戀人或 BC 戀人
-                        if (!isOwner && !isELLovr && !isBCLovr) return;
-                    }
-                }
+            if (item?.Property?.Name !== HEARTLOCK_NAME) {
+                state._unlocking = true; const result = next(args); state._unlocking = false;
+                return result;
             }
-            state._unlocking = true; const result = next(args); state._unlocking = false;
-            return result;
+            const gn  = item.Asset?.Group?.Name;
+            const cfg = getPadlockConfig(C, gn);
+            if (!cfg) {
+                state._unlocking = true; const result = next(args); state._unlocking = false;
+                return result;
+            }
+            const isOwner  = Number(cfg.owner) === Number(Player.MemberNumber);
+            if (isOwner) {
+                // owner 直接解鎖
+                state._unlocking = true; const result = next(args); state._unlocking = false;
+                return result;
+            }
+            // 非 owner：檢查是否為 EL 或 BC 戀人
+            const isELLovr = window.ELAbundantiaAPI?.isELLover?.(C.MemberNumber) ?? false;
+            const isBCLovr = Player.Lovership?.some(l => Number(l.MemberNumber) === Number(C.MemberNumber)) ?? false;
+            if (!isELLovr && !isBCLovr) return;  // 無權，靜默攔截
+            // 有權但非 owner → 透過 P2P 請求 owner 代為解鎖
+            // ExclusiveUnlock 的限制讓只有 owner 的同步才被伺服器接受
+            try {
+                ServerSend('ChatRoomChat', {
+                    Type: 'Hidden', Content: 'HeartLockUnlockRequest',
+                    Dictionary: [{ Tag: 'HeartLockUnlockRequest',
+                        Target: cfg.owner,           // 傳給 owner
+                        WearerMemberNumber: C.MemberNumber,
+                        Group: gn,
+                        Requester: Player.MemberNumber,
+                    }],
+                });
+                log(`InventoryUnlock: 已發送解鎖請求給 owner #${cfg.owner}`);
+            } catch {}
+            // 本地端不執行，等 owner 回應後才同步
         });
 
         // ── ChatRoomSyncItem ──────────────────────────────────────────
