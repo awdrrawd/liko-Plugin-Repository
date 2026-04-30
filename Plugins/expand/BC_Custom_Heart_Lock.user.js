@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.5-4
+// @version      2.2
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -38,7 +38,7 @@
 
     const PX = 1100; const PY  = 130;
     const PW = 870;  const PH  = 840;
-    const TAB_H = 60; const TAB_W = 155;  // 5 tabs × 155 = 775px, leaving 95px for X
+    const TAB_H = 60; const TAB_W = 161;  // 5 tabs × 161 ≈ 808px = (CLOSE_X - PX)
     const CX = PX + 20; const CY = PY + TAB_H + 10;
     const CW = PW - 40; const CH = PH - TAB_H - 10;
     const TAB_OVERVIEW = 'overview';
@@ -64,12 +64,13 @@
             tabTimer       : '計時器',    tabControl     : '控制',    tabUnlock : '解鎖',
             unlockTitle    : '♥ 解鎖確認 ♥',
             unlockWarn1    : '解鎖後，所有設定（筆記、計時器、震動設定）將永久刪除，',
-            unlockWarn2    : '請確認對方已保留筆記內容再繼續。',
+            unlockWarn2    : '請確認對方同意解開此鎖。',
             unlockOwner    : '鎖主：',
             unlockNoRight  : '只有鎖主或與穿戴者的戀人才能解鎖。',
             unlockConfirm  : '確認解鎖',
             unlockCancel   : '取消',
             unlockPending  : '已發送解鎖請求給鎖主，請等待…',
+            unlockDone     : '{0}解開了{1}身上的{2}。',
             noteTitle      : '♥ 愛情筆記 ♥',    timerTitle  : '♥ 計時器 ♥',
             controlTitle   : '♥ 控制 ♥',         noteHeader  : '♥ 筆記 ♥',
             noConfig       : '尚無設定。',         noTimer     : '無計時器',
@@ -104,12 +105,13 @@
             tabTimer       : 'Timer',     tabControl     : 'Control',  tabUnlock : 'Unlock',
             unlockTitle    : '♥ Unlock Confirm ♥',
             unlockWarn1    : 'Unlocking will permanently delete all settings (notes, timer, vibe).',
-            unlockWarn2    : 'Please make sure important notes have been saved before continuing.',
+            unlockWarn2    : 'Please confirm that the wearer agrees to unlock.',
             unlockOwner    : 'Lock owner:',
             unlockNoRight  : 'Only the lock owner or the wearer\'s lovers can unlock.',
             unlockConfirm  : 'Confirm Unlock',
             unlockCancel   : 'Cancel',
             unlockPending  : 'Unlock request sent to owner, please wait…',
+            unlockDone     : '{0} unlocked the {2} on {1}.',
             noteTitle      : '♥ Love Note ♥',       timerTitle  : '♥ Timer ♥',
             controlTitle   : '♥ Control ♥',          noteHeader  : '♥ Note ♥',
             noConfig       : 'No configuration.',    noTimer     : 'No timer',
@@ -141,7 +143,15 @@
         },
         DE: {
             tabOverview    : 'Übersicht',  tabNote       : 'Notiz',
-            tabTimer       : 'Timer',      tabControl    : 'Kontrolle',
+            tabTimer       : 'Timer',      tabControl    : 'Kontrolle',  tabUnlock : 'Entsperren',
+            unlockTitle    : '♥ Entsperren bestätigen ♥',
+            unlockWarn1    : 'Das Entsperren löscht alle Einstellungen (Notizen, Timer, Vibration) dauerhaft.',
+            unlockWarn2    : 'Bitte bestätigen, dass der Träger dem Entsperren zustimmt.',
+            unlockOwner    : 'Schlossbesitzer:',
+            unlockNoRight  : 'Nur der Schlossbesitzer oder Liebhaber kann entsperren.',
+            unlockConfirm  : 'Entsperren bestätigen',
+            unlockCancel   : 'Abbrechen',
+            unlockDone     : '{0} hat {2} von {1} entsperrt.',
             noteTitle      : '♥ Liebesnotiz ♥',  timerTitle  : '♥ Timer ♥',
             controlTitle   : '♥ Kontrolle ♥',    noteHeader  : '♥ Notiz ♥',
             noConfig       : 'Keine Konfiguration.',    noTimer     : 'Kein Timer',
@@ -173,7 +183,15 @@
         },
         FR: {
             tabOverview    : 'Aperçu',    tabNote       : 'Note',
-            tabTimer       : 'Minuterie', tabControl    : 'Contrôle',
+            tabTimer       : 'Minuterie', tabControl    : 'Contrôle',  tabUnlock : 'Déverrouiller',
+            unlockTitle    : '♥ Confirmer le déverrouillage ♥',
+            unlockWarn1    : 'Le déverrouillage supprimera définitivement tous les paramètres.',
+            unlockWarn2    : 'Confirmez que le porteur accepte de déverrouiller.',
+            unlockOwner    : 'Propriétaire :',
+            unlockNoRight  : 'Seul le propriétaire ou les amants peuvent déverrouiller.',
+            unlockConfirm  : 'Confirmer',
+            unlockCancel   : 'Annuler',
+            unlockDone     : '{0} a déverrouillé le {2} de {1}.',
             noteTitle      : '♥ Note d\'amour ♥',  timerTitle  : '♥ Minuterie ♥',
             controlTitle   : '♥ Contrôle ♥',       noteHeader  : '♥ Note ♥',
             noConfig       : 'Aucune configuration.',  noTimer  : 'Pas de minuterie',
@@ -205,7 +223,15 @@
         },
         RU: {
             tabOverview    : 'Обзор',      tabNote       : 'Заметка',
-            tabTimer       : 'Таймер',     tabControl    : 'Контроль',
+            tabTimer       : 'Таймер',     tabControl    : 'Контроль',  tabUnlock : 'Открыть',
+            unlockTitle    : '♥ Подтверждение открытия ♥',
+            unlockWarn1    : 'Открытие навсегда удалит все настройки (заметки, таймер, вибрацию).',
+            unlockWarn2    : 'Подтвердите, что носитель согласен на открытие замка.',
+            unlockOwner    : 'Владелец замка:',
+            unlockNoRight  : 'Только владелец или возлюбленный могут открыть замок.',
+            unlockConfirm  : 'Подтвердить',
+            unlockCancel   : 'Отмена',
+            unlockDone     : '{0} открыл(а) {2} на {1}.',
             noteTitle      : '♥ Любовная записка ♥',  timerTitle  : '♥ Таймер ♥',
             controlTitle   : '♥ Контроль ♥',           noteHeader  : '♥ Заметка ♥',
             noConfig       : 'Нет настроек.',           noTimer     : 'Без таймера',
@@ -238,7 +264,15 @@
         },
         UA: {
             tabOverview    : 'Огляд',      tabNote       : 'Нотатка',
-            tabTimer       : 'Таймер',     tabControl    : 'Контроль',
+            tabTimer       : 'Таймер',     tabControl    : 'Контроль',  tabUnlock : 'Відкрити',
+            unlockTitle    : '♥ Підтвердження відкриття ♥',
+            unlockWarn1    : 'Відкриття назавжди видалить усі налаштування (нотатки, таймер, вібрацію).',
+            unlockWarn2    : 'Підтвердіть, що носій погоджується відкрити замок.',
+            unlockOwner    : 'Власник замка:',
+            unlockNoRight  : 'Лише власник або коханий можуть відкрити замок.',
+            unlockConfirm  : 'Підтвердити',
+            unlockCancel   : 'Скасувати',
+            unlockDone     : '{0} відкрив(ла) {2} на {1}.',
             noteTitle      : '♥ Любовна нотатка ♥',  timerTitle  : '♥ Таймер ♥',
             controlTitle   : '♥ Контроль ♥',          noteHeader  : '♥ Нотатка ♥',
             noConfig       : 'Немає конфігурації.',    noTimer     : 'Без таймера',
@@ -827,6 +861,24 @@
         return cfg.owner === Player.MemberNumber;
     }
 
+    /**
+     * 判斷 Player 是否有資格解開 C 身上的 HeartLock。
+     * 條件：owner / C 的 EL 戀人 / C 的 BC 戀人
+     * （C 的 EL 戀人清單從 C.OnlineSharedSettings.AFC.lovers 讀取，
+     *   不依賴 owner 的本地資料，讓戀人自己驗證即可）
+     */
+    function isAllowedToUnlock(C, cfg) {
+        if (!C || !cfg) return false;
+        // owner
+        if (Number(cfg.owner) === Number(Player.MemberNumber)) return true;
+        // EL 戀人：從穿戴者的共享設定讀取
+        const elLovers = C.OnlineSharedSettings?.AFC?.lovers ?? [];
+        if (elLovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber))) return true;
+        // BC 原生戀人
+        if (C.Lovership?.some(l => Number(l.MemberNumber) === Number(Player.MemberNumber))) return true;
+        return false;
+    }
+
     // ═══════════════════════════════════════════
     //  Asset 建立
     // ═══════════════════════════════════════════
@@ -836,7 +888,7 @@
         const itemMisc = AssetFemale3DCG.find(g => g.Group === 'ItemMisc');
         if (!itemMisc) return false;
         if (itemMisc.Asset.find(a => a.Name === HEARTLOCK_NAME)) { state.assetCreated = true; return true; }
-        const def = { AllowType: ['LockPickSeed'], Effect: [], ExclusiveUnlock: true, Extended: true, IsLock: true, Name: HEARTLOCK_NAME, PickDifficulty: 20, Time: 10, Value: 70, Wear: false };
+        const def = { AllowType: ['LockPickSeed'], Effect: [], Extended: true, IsLock: true, Name: HEARTLOCK_NAME, PickDifficulty: 20, Time: 10, Value: 70, Wear: false };
         try {
             itemMisc.Asset.push(def);
             AssetAdd(AssetGroupGet('Female3DCG', 'ItemMisc'), def, AssetFemale3DCGExtended);
@@ -1300,50 +1352,49 @@
     }
 
     // ── 解鎖分頁 UI ───────────────────────────────────────────────
+    const HEARTKEY_IMAGE = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/main/Images/Heart_key.png';
     const UNL_BTN_H = 54; const UNL_BTN_W = 220;
     const UNL_CONFIRM_X = CX + CW/2 - UNL_BTN_W - 12;
     const UNL_CANCEL_X  = CX + CW/2 + 12;
-    const UNL_BTN_Y     = CY + 380;
+    const UNL_BTN_Y     = CY + 620;
 
     function _canUnlockHeartLock(ch, cfg) {
-        if (!ch || !cfg) return false;
-        if (Number(cfg.owner) === Number(Player.MemberNumber)) return true;  // owner
-        const isELLovr = window.ELAbundantiaAPI?.isELLover?.(ch.MemberNumber) ?? false;
-        const isBCLovr = Player.Lovership?.some(l => Number(l.MemberNumber) === Number(ch.MemberNumber)) ?? false;
-        return isELLovr || isBCLovr;
+        return isAllowedToUnlock(ch, cfg);
     }
 
     function drawUnlock(ch, gn, cfg) {
         const p = state.panel;
-        DrawText(T('unlockTitle'), PX + PW/2, CY + 36, CC.acc, 'transparent');
+        const maxW    = CW - 40;
+        const centerX = PX + PW / 2;
 
-        // 警告文字
-        DrawText(T('unlockWarn1'), PX + PW/2, CY + 110, '#FF9999', 'transparent');
-        DrawText(T('unlockWarn2'), PX + PW/2, CY + 160, CC.sub,    'transparent');
+        DrawText(T('unlockTitle'), centerX, CY + 36, CC.acc, 'transparent');
 
-        // 鎖主資訊
+        // 鑰匙圖片（標題底部下方 25px）
+        // 標題字高約 36px → 中心 CY+36，底部 ~CY+54，+25 = CY+79
+        const imgSize = 240;
+        const imgY = CY + 79;
+        DrawImageResize(HEARTKEY_IMAGE, centerX - imgSize/2, imgY, imgSize, imgSize);
+
+        // 警告文字（圖片底部下方 25px）
+        // 字高約 36px → 文字中心 = 圖片底 + 25 + 18
+        const textBaseY = imgY + imgSize + 43;  // +25 visual gap + ~18 half-font
+        DrawTextFit(T('unlockWarn1'), centerX, textBaseY,      maxW, '#FF9999', 'transparent');
+        DrawTextFit(T('unlockWarn2'), centerX, textBaseY + 60, maxW, CC.sub,    'transparent');
+
+        // 鎖主資訊（左對齊）
         if (cfg) {
             textLeft(`${T('unlockOwner')} ${cfg.ownerName ?? '?'} (#${cfg.owner ?? '?'})`,
-                CX + 40, CY + 230, CC.text);
+                CX + 40, textBaseY + 120, CC.text);
         }
 
         const canUnl = _canUnlockHeartLock(ch, cfg);
-
         if (!canUnl) {
-            DrawText(T('unlockNoRight'), PX + PW/2, UNL_BTN_Y + UNL_BTN_H/2, CC.dim, 'transparent');
+            DrawTextFit(T('unlockNoRight'), centerX, UNL_BTN_Y + UNL_BTN_H/2, maxW, CC.dim, 'transparent');
             return;
         }
-
-        if (p.unlockPending) {
-            DrawText(T('unlockPending'), PX + PW/2, UNL_BTN_Y + UNL_BTN_H/2, CC.gold, 'transparent');
-            return;
-        }
-
         if (!p.unlockConfirming) {
-            // 第一步：顯示解鎖按鈕
-            bRect(PX + PW/2 - UNL_BTN_W/2, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H, CC.danger, T('unlockConfirm'));
+            bRect(centerX - UNL_BTN_W/2, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H, CC.danger, T('unlockConfirm'));
         } else {
-            // 第二步：確認 / 取消
             bRect(UNL_CONFIRM_X, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H, CC.danger, T('unlockConfirm'));
             bRect(UNL_CANCEL_X,  UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H, CC.btn,    T('unlockCancel'), CC.sub);
         }
@@ -1351,54 +1402,32 @@
 
     function clickUnlock(ch, gn, cfg) {
         const p = state.panel;
-        if (!_canUnlockHeartLock(ch, cfg) || p.unlockPending) return;
+        if (!_canUnlockHeartLock(ch, cfg)) return;
 
         if (!p.unlockConfirming) {
-            if (hit(PX + PW/2 - UNL_BTN_W/2, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H)) {
+            if (hit(PX + PW/2 - UNL_BTN_W/2, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H))
                 p.unlockConfirming = true;
-            }
             return;
         }
-
-        // 取消
         if (hit(UNL_CANCEL_X, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H)) {
-            p.unlockConfirming = false;
-            return;
+            p.unlockConfirming = false; return;
         }
-
-        // 確認解鎖
         if (hit(UNL_CONFIRM_X, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H)) {
             p.unlockConfirming = false;
-            const isOwner = Number(cfg.owner) === Number(Player.MemberNumber);
-            if (isOwner) {
-                // owner 直接解鎖
-                try {
-                    state._unlocking = true;
-                    InventoryUnlock?.(ch, gn);
-                    state._unlocking = false;
-                    ChatRoomCharacterUpdate?.(ch);
-                    notifyRemove(ch, gn);
-                    // 關閉面板
-                    hideNoteTA(); p.noteEditing = false; p.ctlEditing = false;
-                    DialogFocusItem = null;
-                } catch { state._unlocking = false; }
-            } else {
-                // 非 owner → P2P 請求
-                p.unlockPending = true;
-                try {
-                    ServerSend('ChatRoomChat', {
-                        Type: 'Hidden', Content: 'HeartLockUnlockRequest',
-                        Dictionary: [{ Tag: 'HeartLockUnlockRequest',
-                            Target: cfg.owner,
-                            WearerMemberNumber: ch.MemberNumber,
-                            Group: gn,
-                            Requester: Player.MemberNumber,
-                        }],
-                    });
-                } catch {}
-                // 10 秒後若未響應，重置 pending 狀態
-                setTimeout(() => { if (state.panel.unlockPending) state.panel.unlockPending = false; }, 10000);
-            }
+            try {
+                state._unlocking = true;
+                InventoryUnlock?.(ch, gn);
+                state._unlocking = false;
+                ChatRoomCharacterUpdate?.(ch);
+                notifyRemove(ch, gn);
+                // 廣播解鎖訊息
+                const nick    = Player.Nickname || Player.Name;
+                const wearer  = ch.Nickname || ch.Name;
+                const msg     = T('unlockDone', nick, wearer, HEARTLOCK_NAME);
+                try { ServerSend('ChatRoomChat', { Type: 'Action', Content: 'CUSTOM_SYSTEM_ACTION', Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: msg }] }); } catch {}
+                hideNoteTA(); p.noteEditing = false; p.ctlEditing = false;
+                DialogFocusItem = null;
+            } catch { state._unlocking = false; }
         }
     }
 
@@ -1522,9 +1551,11 @@
             panelDraw();
         });
         modApi.hookFunction('InventoryItemMiscHighSecurityPadlockClick', 11, (args, next) => {
-            if (window.DialogFocusSourceItem?.Property?.Name !== HEARTLOCK_NAME) return next(args);
+            if (window.DialogFocusSourceItem?.Property?.Name !== HEARTLOCK_NAME) {
+                try { return next(args); } catch { return; }  // 防止第三方插件因 null 崩潰
+            }
             panelClick();
-            return next(args);  // 讓 BC 的原本處理也執行（含門按鈕）
+            try { return next(args); } catch {}
         });
         modApi.hookFunction('DialogLeaveFocusItem', 0, (args, next) => {
             if (window.DialogFocusSourceItem?.Property?.Name === HEARTLOCK_NAME) { hideNoteTA(); state.panel.noteEditing = false; state.panel.ctlEditing = false; }
@@ -1607,45 +1638,24 @@
         });
 
         // ── InventoryUnlock 攔截 ──────────────────────────────────────
+        // ExclusiveUnlock 已移除，BC 伺服器接受任何有物品權限的玩家解鎖。
+        // 我們在此攔截確保只有 owner / EL 戀人 / BC 戀人才能實際執行。
         modApi.hookFunction('InventoryUnlock', 10, (args, next) => {
-            if (state._timerUnlocking) { state._unlocking = true; const result = next(args); state._unlocking = false; return result; }
+            if (state._timerUnlocking || state._unlocking) {
+                state._unlocking = true; const r = next(args); state._unlocking = false; return r;
+            }
             const C = args[0], itemOrGrp = args[1];
-            const item = (itemOrGrp && typeof itemOrGrp === 'object') ? itemOrGrp : InventoryGet?.(C, typeof itemOrGrp === 'string' ? itemOrGrp : null);
+            const item = (itemOrGrp && typeof itemOrGrp === 'object')
+                ? itemOrGrp
+                : InventoryGet?.(C, typeof itemOrGrp === 'string' ? itemOrGrp : null);
             if (item?.Property?.Name !== HEARTLOCK_NAME) {
-                state._unlocking = true; const result = next(args); state._unlocking = false;
-                return result;
+                state._unlocking = true; const r = next(args); state._unlocking = false; return r;
             }
             const gn  = item.Asset?.Group?.Name;
             const cfg = getPadlockConfig(C, gn);
-            if (!cfg) {
-                state._unlocking = true; const result = next(args); state._unlocking = false;
-                return result;
-            }
-            const isOwner  = Number(cfg.owner) === Number(Player.MemberNumber);
-            if (isOwner) {
-                // owner 直接解鎖
-                state._unlocking = true; const result = next(args); state._unlocking = false;
-                return result;
-            }
-            // 非 owner：檢查是否為 EL 或 BC 戀人
-            const isELLovr = window.ELAbundantiaAPI?.isELLover?.(C.MemberNumber) ?? false;
-            const isBCLovr = Player.Lovership?.some(l => Number(l.MemberNumber) === Number(C.MemberNumber)) ?? false;
-            if (!isELLovr && !isBCLovr) return;  // 無權，靜默攔截
-            // 有權但非 owner → 透過 P2P 請求 owner 代為解鎖
-            // ExclusiveUnlock 的限制讓只有 owner 的同步才被伺服器接受
-            try {
-                ServerSend('ChatRoomChat', {
-                    Type: 'Hidden', Content: 'HeartLockUnlockRequest',
-                    Dictionary: [{ Tag: 'HeartLockUnlockRequest',
-                        Target: cfg.owner,           // 傳給 owner
-                        WearerMemberNumber: C.MemberNumber,
-                        Group: gn,
-                        Requester: Player.MemberNumber,
-                    }],
-                });
-                log(`InventoryUnlock: 已發送解鎖請求給 owner #${cfg.owner}`);
-            } catch {}
-            // 本地端不執行，等 owner 回應後才同步
+            if (cfg && !isAllowedToUnlock(C, cfg)) return;  // 無權限，靜默攔截
+            state._unlocking = true; const r = next(args); state._unlocking = false;
+            return r;
         });
 
         // ── ChatRoomSyncItem ──────────────────────────────────────────
@@ -1675,6 +1685,14 @@
                 if (broken) {
                     if (sourceMember != null && Number(sourceMember) === Number(cfg.owner)) { deleteConfig(gn); continue; }
                     if (sourceMember != null && Number(sourceMember) === Player.MemberNumber && Number(cfg.owner) === Player.MemberNumber) { deleteConfig(gn); continue; }
+                    // 授權解鎖者（EL 戀人 / BC 戀人）解鎖也屬合法，不需要復原
+                    if (sourceMember != null) {
+                        const isELUnlocker = Player.OnlineSharedSettings?.AFC?.lovers
+                            ?.some(l => Number(l.memberNumber) === Number(sourceMember)) ?? false;
+                        const isBCUnlocker = Player.Lovership
+                            ?.some(l => Number(l.MemberNumber) === Number(sourceMember)) ?? false;
+                        if (isELUnlocker || isBCUnlocker) { deleteConfig(gn); continue; }
+                    }
                     grabStateChar.count++;
                     if (grabStateChar.count === 1) grabStateChar.firstTriggerTime = Date.now();
                     if (grabStateChar.count > 3 && Date.now() - grabStateChar.firstTriggerTime < GRAB_WINDOW_MS) {
@@ -1713,6 +1731,14 @@
                 if (broken) {
                     if (sourceMember != null && Number(sourceMember) === Number(cfg.owner)) { deleteConfig(gn); continue; }
                     if (sourceMember != null && Number(sourceMember) === Player.MemberNumber && Number(cfg.owner) === Player.MemberNumber) { deleteConfig(gn); continue; }
+                    // 授權解鎖者（EL 戀人 / BC 戀人）
+                    if (sourceMember != null) {
+                        const isELUnlocker = Player.OnlineSharedSettings?.AFC?.lovers
+                            ?.some(l => Number(l.memberNumber) === Number(sourceMember)) ?? false;
+                        const isBCUnlocker = Player.Lovership
+                            ?.some(l => Number(l.MemberNumber) === Number(sourceMember)) ?? false;
+                        if (isELUnlocker || isBCUnlocker) { deleteConfig(gn); continue; }
+                    }
                     grabStateSingle.count++;
                     if (grabStateSingle.count === 1) grabStateSingle.firstTriggerTime = Date.now();
                     if (grabStateSingle.count > 3 && Date.now() - grabStateSingle.firstTriggerTime < GRAB_WINDOW_MS) {
