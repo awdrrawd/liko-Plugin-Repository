@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.5-1
+// @version      2.1.5-2
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -766,15 +766,19 @@
             const cfg = Player.HeartLock?.padlocks?.[gn];
             // 只有 owner 需要處理
             if (!cfg || Number(cfg.owner) !== Number(Player.MemberNumber)) return;
-            // 驗證請求者是否有解鎖資格（EL 或 BC 戀人）
             const requester = e.Requester;
             const wearerNum = e.WearerMemberNumber;
             const wearer    = ChatRoomCharacter?.find(c => c.MemberNumber === wearerNum);
-            if (!wearer) return;  // wearer 不在同房間，無法執行
-            const isELLovr = window.ELAbundantiaAPI?.isELLover?.(requester) ?? false;
-            const isBCLovr = Player.Lovership?.some(l => Number(l.MemberNumber) === Number(requester)) ?? false;
-            if (!isELLovr && !isBCLovr) return;  // 請求者無權
-            // owner 代替執行解鎖
+            if (!wearer) return;
+
+            // 驗證請求者與穿戴者的關係（EL 戀人或 BC 戀人）
+            // 讀取穿戴者的共享設定（含 EL 戀人列表）
+            const wearerELLovers = wearer.OnlineSharedSettings?.AFC?.lovers ?? [];
+            const isELLovr = wearerELLovers.some(l => Number(l.memberNumber) === Number(requester));
+            const isELLovr2 = window.ELAbundantiaAPI?.isELLover?.(requester) ?? false;  // Player視角
+            const isBCLovr = wearer.Lovership?.some(l => Number(l.MemberNumber) === Number(requester)) ?? false;
+            if (!isELLovr && !isELLovr2 && !isBCLovr) return;
+
             try {
                 state._unlocking = true;
                 InventoryUnlock?.(wearer, gn);
@@ -1351,26 +1355,23 @@
             const hsAsset = AssetGet?.('Female3DCG', 'ItemMisc', HSLOCK_NAME);
             if (!hsAsset) return next(args);
             const fg = ch?.FocusGroup?.Name, ori = cl.Asset;
+            // 設旗標，供 ServerSend hook 識別此次是 HeartLock 上鎖
+            state._applyingHeartLock = true;
             cl.Asset = hsAsset; next(args); cl.Asset = ori;
+            state._applyingHeartLock = false;
             if (item?.Property) { convertToHeartLock(ch, item, fg); if (fg) watchForUnlock(ch, fg, item); }
         });
 
         // ── ServerSend：ActionAddLock 修正 ────────────────────────────
-        // 只有當實際上鎖的物品是 Heart Padlock 時才替換名稱
-        // 避免 Best Friend Lock 等其他使用高安鎖底子的鎖被誤改
+        // 使用旗標識別 HeartLock 上鎖，避免誤改 Best Friend Lock 等其他高安鎖底子的鎖
         modApi.hookFunction('ServerSend', 0, (args, next) => {
             if (args[0] === 'ChatRoomChat') {
                 const d = args[1];
-                if (d?.Content === 'ActionAddLock' && Array.isArray(d.Dictionary)) {
-                    // 檢查此次上鎖的目標物品是否真的是 Heart Padlock
-                    const focusItem = window.DialogFocusSourceItem ?? window.DialogFocusItem;
-                    const isHeartLock = focusItem?.Property?.Name === HEARTLOCK_NAME;
-                    if (isHeartLock) {
-                        d.Dictionary.forEach(e => {
-                            if (e.AssetName === HSLOCK_NAME) e.AssetName = HEARTLOCK_NAME;
-                            if (e.Tag === 'NextAsset' && e.Text === HSLOCK_NAME) e.Text = HEARTLOCK_NAME;
-                        });
-                    }
+                if (d?.Content === 'ActionAddLock' && Array.isArray(d.Dictionary) && state._applyingHeartLock) {
+                    d.Dictionary.forEach(e => {
+                        if (e.AssetName === HSLOCK_NAME) e.AssetName = HEARTLOCK_NAME;
+                        if (e.Tag === 'NextAsset' && e.Text === HSLOCK_NAME) e.Text = HEARTLOCK_NAME;
+                    });
                 }
             }
             return next(args);
