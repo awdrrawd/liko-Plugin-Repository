@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.5-3
+// @version      2.1.5-4
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -785,26 +785,22 @@
             state.panel.ctlEditing  = false;
             DialogFocusItem = null;
         }
+        if (data.Content === 'HeartLockUnlockRequest') {
             const e = data.Dictionary?.find(d => d.Tag === 'HeartLockUnlockRequest');
             if (!e) return;
             if (!ensureStorage()) return;
             const gn  = e.Group;
             const cfg = Player.HeartLock?.padlocks?.[gn];
-            // 只有 owner 需要處理
             if (!cfg || Number(cfg.owner) !== Number(Player.MemberNumber)) return;
             const requester = e.Requester;
             const wearerNum = e.WearerMemberNumber;
             const wearer    = ChatRoomCharacter?.find(c => c.MemberNumber === wearerNum);
             if (!wearer) return;
-
-            // 驗證請求者與穿戴者的關係（EL 戀人或 BC 戀人）
-            // 讀取穿戴者的共享設定（含 EL 戀人列表）
             const wearerELLovers = wearer.OnlineSharedSettings?.AFC?.lovers ?? [];
-            const isELLovr = wearerELLovers.some(l => Number(l.memberNumber) === Number(requester));
-            const isELLovr2 = window.ELAbundantiaAPI?.isELLover?.(requester) ?? false;  // Player視角
-            const isBCLovr = wearer.Lovership?.some(l => Number(l.MemberNumber) === Number(requester)) ?? false;
+            const isELLovr  = wearerELLovers.some(l => Number(l.memberNumber) === Number(requester));
+            const isELLovr2 = window.ELAbundantiaAPI?.isELLover?.(requester) ?? false;
+            const isBCLovr  = wearer.Lovership?.some(l => Number(l.MemberNumber) === Number(requester)) ?? false;
             if (!isELLovr && !isELLovr2 && !isBCLovr) return;
-
             try {
                 state._unlocking = true;
                 InventoryUnlock?.(wearer, gn);
@@ -812,7 +808,6 @@
                 ChatRoomCharacterUpdate?.(wearer);
                 deleteConfig(gn);
                 log(`HeartLockUnlockRequest: 已替 #${requester} 解鎖 ${gn}`);
-                // 通知請求者解鎖完成（讓對方關閉 pending 狀態）
                 try {
                     ServerSend('ChatRoomChat', {
                         Type: 'Hidden', Content: 'HeartLockUnlockDone',
