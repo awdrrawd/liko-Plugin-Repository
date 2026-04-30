@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.4.0
+// @version      1.4.1
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function () {
     let modApi = null;
-    const modversion = "1.4.0";
+    const modversion = "1.4.1";
 
     const rpBtnX    = 955;
     const rpBtnY    = 855;
@@ -35,7 +35,6 @@
 
     const LANG = {
         zh: {
-            // 通用
             close:        "關閉",
             confirm:      "確認",
             cancel:       "取消",
@@ -44,7 +43,6 @@
             unknown:      "未知",
             notInChat:    "不在聊天室",
 
-            // Undo 面板
             undoTitle:       "外觀回滾",
             undoNoRecord:    "沒有外觀變更紀錄",
             undoChangedAt:   "變更時間",
@@ -57,7 +55,6 @@
             undoApplyDone:   "外觀已回滾",
             undoApplySize:   "變更大小",
 
-            // 指令訊息
             freeNoItem:      "沒有束縛物品",
             freeDone:        "解除束縛",
             freetotalDone:   "完全解除了所有束縛",
@@ -72,15 +69,16 @@
             clipboardFail:   "無法讀取剪貼簿",
             bcxInvalid:      "無效的 BCX 代碼",
             bcxDone:         "導入了 BCX 外觀",
-            rpOn:            "RP模式已开啟",
-            rpOff:           "RP模式已关閉",
-            heightOn:        "身高劫持功能已啟用",
-            heightOff:       "身高劫持功能已停用",
+            rpOn:            "RP模式已開啟",
+            rpOff:           "RP模式已關閉",
+            heightFixOn:     "拉高功能已啟用（趴跪姿自動拉高）",
+            heightFixOff:    "拉高功能已停用",
+            heightLockOn:    "身高鎖定已啟用（強制身高為標準值）",
+            heightLockOff:   "身高鎖定已停用",
             sendFail:        "自訂動作發送失敗，可能有插件衝突",
             cmdFail:         "執行失敗",
             unknownCmd:      "未知指令",
 
-            // getEverything
             geTitle:      "選擇增強功能",
             geItems:      "獲得所有道具",
             geMoney:      "設置金錢為 999,999",
@@ -89,26 +87,25 @@
             geMoneyDone:  "金錢已設置為 999,999",
             geSkillsDone: "所有技能已升至 10 級",
 
-            // free 選單
             freeTitle:    "選擇要移除的束縛",
             password:     "密碼",
 
-            // help
-            helpText: `莉柯莉絲工具 使用說明\n\n` +
-            `/lt help              - 顯示此說明\n` +
-            `/lt free [目標]       - 選擇移除束縛\n` +
-            `/lt freetotal [目標]  - 移除所有束縛\n` +
-            `/lt bcximport [目標]  - 導入 BCX 外觀\n` +
-            `/lt fullunlock [目標] - 移除所有鎖\n` +
-            `/lt fulllock [目標] [鎖名稱] - 添加鎖\n` +
-            `/lt undo [目標]       - 外觀回滾\n` +
-            `/lt rpmode            - 切換 RP 模式\n` +
-            `/lt height            - 切換身高固定\n` +
-            `/lt geteverything     - 增強功能\n` +
-            `/lt wardrobe          - 開啟衣櫃\n` +
-            `提示：點擊右上角 🔰 快速切換 RP 模式`,
+            helpText:
+                `莉柯莉絲工具 使用說明\n\n` +
+                `/lt help              - 顯示此說明\n` +
+                `/lt free [目標]       - 選擇移除束縛\n` +
+                `/lt freetotal [目標]  - 移除所有束縛\n` +
+                `/lt bcximport [目標]  - 導入 BCX 外觀\n` +
+                `/lt fullunlock [目標] - 移除所有鎖\n` +
+                `/lt fulllock [目標] [鎖名稱] - 添加鎖\n` +
+                `/lt undo [目標]       - 外觀回滾\n` +
+                `/lt rpmode            - 切換 RP 模式\n` +
+                `/lt heightfix         - 趴跪姿時自動拉高（不影響站立）\n` +
+                `/lt heightlock        - 鎖定身高為標準值（強制，可能影響物品）\n` +
+                `/lt geteverything     - 增強功能\n` +
+                `/lt wardrobe          - 開啟衣櫃\n` +
+                `提示：點擊右上角 🔰 快速切換 RP 模式`,
 
-            // 載入訊息
             loaded: "莉柯莉絲工具 v{v} 載入！使用 /lt help 查看說明",
         },
         en: {
@@ -148,8 +145,10 @@
             bcxDone:         "imported BCX appearance for",
             rpOn:            "RP Mode enabled",
             rpOff:           "RP Mode disabled",
-            heightOn:        "Height hijack enabled",
-            heightOff:       "Height hijack disabled",
+            heightFixOn:     "Height fix enabled (auto-raise when kneeling/prone)",
+            heightFixOff:    "Height fix disabled",
+            heightLockOn:    "Height lock enabled (forces standard height)",
+            heightLockOff:   "Height lock disabled",
             sendFail:        "Custom action failed, possible plugin conflict",
             cmdFail:         "Command failed",
             unknownCmd:      "Unknown command",
@@ -165,19 +164,21 @@
             freeTitle:    "Select restraints to remove",
             password:     "Password",
 
-            helpText: `Liko Tool Help\n\n` +
-            `/lt help              - Show this help\n` +
-            `/lt free [target]     - Select restraints to remove\n` +
-            `/lt freetotal [target]- Remove all restraints\n` +
-            `/lt bcximport [target]- Import BCX appearance\n` +
-            `/lt fullunlock [target]-Remove all locks\n` +
-            `/lt fulllock [target] [lock] - Add lock\n` +
-            `/lt undo [target]     - Rollback appearance\n` +
-            `/lt rpmode            - Toggle RP mode\n` +
-            `/lt height            - Toggle height hijack\n` +
-            `/lt geteverything     - Enhancement menu\n` +
-            `/lt wardrobe          - Open wardrobe\n` +
-            `Tip: Click 🔰 in the top-right to toggle RP mode`,
+            helpText:
+                `Liko Tool Help\n\n` +
+                `/lt help              - Show this help\n` +
+                `/lt free [target]     - Select restraints to remove\n` +
+                `/lt freetotal [target]- Remove all restraints\n` +
+                `/lt bcximport [target]- Import BCX appearance\n` +
+                `/lt fullunlock [target]-Remove all locks\n` +
+                `/lt fulllock [target] [lock] - Add lock\n` +
+                `/lt undo [target]     - Rollback appearance\n` +
+                `/lt rpmode            - Toggle RP mode\n` +
+                `/lt heightfix         - Auto-raise when kneeling/prone\n` +
+                `/lt heightlock        - Lock height to standard value\n` +
+                `/lt geteverything     - Enhancement menu\n` +
+                `/lt wardrobe          - Open wardrobe\n` +
+                `Tip: Click 🔰 in the top-right to toggle RP mode`,
 
             loaded: "Liko Tool v{v} loaded! Use /lt help for help",
         }
@@ -254,17 +255,28 @@
         if (!Player.LikoTool) {
             Player.LikoTool = { bypassActivities: false };
         }
+        // RPmode 在 OnlineSharedSettings（對外可見，其他人可讀取判斷 RP 狀態）
         if (!Player.OnlineSharedSettings) {
             Player.OnlineSharedSettings = {};
         }
         if (!Player.OnlineSharedSettings.LikoTOOL) {
-            Player.OnlineSharedSettings.LikoTOOL = { RPmode: 0, height: 0 };
+            Player.OnlineSharedSettings.LikoTOOL = { RPmode: 0 };
         }
         if (typeof Player.OnlineSharedSettings.LikoTOOL.RPmode === 'undefined') {
             Player.OnlineSharedSettings.LikoTOOL.RPmode = 0;
         }
-        if (typeof Player.OnlineSharedSettings.LikoTOOL.height === 'undefined') {
-            Player.OnlineSharedSettings.LikoTOOL.height = 0;
+        // heightFix / heightLock 用 ExtensionSettings（本地設定，不需對外）
+        if (!Player.ExtensionSettings) {
+            Player.ExtensionSettings = {};
+        }
+        if (!Player.ExtensionSettings.LikoTOOL) {
+            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0 };
+        }
+        if (typeof Player.ExtensionSettings.LikoTOOL.heightFix === 'undefined') {
+            Player.ExtensionSettings.LikoTOOL.heightFix = 0;
+        }
+        if (typeof Player.ExtensionSettings.LikoTOOL.heightLock === 'undefined') {
+            Player.ExtensionSettings.LikoTOOL.heightLock = 0;
         }
     }
 
@@ -289,33 +301,134 @@
     }
 
     // ──────────────────────────────────────────
-    // 身高劫持
+    // 身高系統
     // ──────────────────────────────────────────
-    const heightRestoreCounter = {}; // { memberNumber: { timestamps: [] } }
+    //
+    // 核心原理：使用 Object.defineProperty 攔截屬性讀寫。
+    // BC 寫入 C.HeightRatio = 0.7 時，setter 把值存進 _ltRealHeightRatio，
+    // getter 回傳的永遠是我們想要的值（1.0 或真實值）。
+    // BC 讀到的始終是 1.0，不會觸發任何「需要修正」的邏輯，
+    // 因此完全不需要 CharacterRefresh hook，也不會有拉扯抖動。
+    //
+    // heightfix：趴跪姿（isGroundPose）時回傳 1.0，站立時回傳真實值
+    // heightlock：HeightRatio 超出 [0.8, 1] 範圍時固定為 1.0，HeightModifier 固定為 0
+    // ──────────────────────────────────────────
 
-    function hijackCharacterHeight(C) {
-        if (!C || C._heightHijacked) return;
-        C._realHeightRatio    = C.HeightRatio;
-        C._realHeightModifier = C.HeightModifier;
-        if (C.HeightRatio < 0.81 || C.HeightRatio > 1) {
-            C.HeightRatio = 1.0;
-        }
-        C.HeightModifier  = 0;
-        C._heightHijacked = true;
+    // 目前被劫持的對話目標（同一時間只會有一個）
+    let heightTargetChar = null;
+
+    const GROUND_POSES = ['Kneel', 'Hogtied', 'AllFours', 'Suspension', 'KneelingSpread'];
+
+    function isGroundPose(C) {
+        if (!C) return false;
+        const poses  = C.ActivePose || [];
+        const drawPM = C.DrawPoseMapping || C.PoseMapping || {};
+        return GROUND_POSES.some(p =>
+            poses.includes(p) || Object.values(drawPM).includes(p)
+        );
     }
 
-    function restoreCharacterHeight(C) {
-        if (!C?._heightHijacked) return;
-        C.HeightRatio    = C._realHeightRatio;
-        C.HeightModifier = C._realHeightModifier;
-        delete C._realHeightRatio;
-        delete C._realHeightModifier;
-        delete C._heightHijacked;
-        // 清除計數器
-        const id = C.MemberNumber;
-        if (heightRestoreCounter[id]) {
-            delete heightRestoreCounter[id];
-        }
+    // ── 內部工具：取得真實值（繞過可能已存在的 defineProperty）──
+    function _ltGetRealRatio(C) {
+        return Object.prototype.hasOwnProperty.call(C, '_ltRealHeightRatio')
+            ? C._ltRealHeightRatio
+            : C.HeightRatio;
+    }
+    function _ltGetRealModifier(C) {
+        return Object.prototype.hasOwnProperty.call(C, '_ltRealHeightModifier')
+            ? C._ltRealHeightModifier
+            : C.HeightModifier;
+    }
+
+    // ── 內部工具：清除 defineProperty，還原為普通屬性並寫回真實值 ──
+    function _ltClearHeightDefine(C) {
+        const r = _ltGetRealRatio(C);
+        const m = _ltGetRealModifier(C);
+        // 刪除 defineProperty（configurable: true 才能刪）
+        try { delete C.HeightRatio;    } catch (e) {}
+        try { delete C.HeightModifier; } catch (e) {}
+        // 清理暫存旗標
+        delete C._ltRealHeightRatio;
+        delete C._ltRealHeightModifier;
+        delete C._ltHeightLocked;
+        delete C._ltHeightFixed;
+        // 寫回真實值（此時屬性已是普通屬性，直接賦值）
+        C.HeightRatio    = r;
+        C.HeightModifier = m;
+    }
+
+    // ── heightlock：超出 [0.8, 1] 時固定為 1.0 ──
+    function applyHeightLock(C) {
+        if (!C) return;
+        // 若已套用同類型，不重複定義
+        if (C._ltHeightLocked) return;
+        // 若有 heightfix，先清掉再重新定義 lock
+        if (C._ltHeightFixed) _ltClearHeightDefine(C);
+
+        const realRatio    = _ltGetRealRatio(C);
+        const realModifier = _ltGetRealModifier(C);
+        // 先刪除可能存在的普通屬性，才能 defineProperty
+        try { delete C.HeightRatio;    } catch (e) {}
+        try { delete C.HeightModifier; } catch (e) {}
+        C._ltRealHeightRatio    = realRatio;
+        C._ltRealHeightModifier = realModifier;
+
+        Object.defineProperty(C, 'HeightRatio', {
+            get()  { const r = this._ltRealHeightRatio; return (r < 0.8 || r > 1) ? 1.0 : r; },
+            set(v) { this._ltRealHeightRatio = v; },
+            configurable: true, enumerable: true
+        });
+        Object.defineProperty(C, 'HeightModifier', {
+            get()  { return 0; },
+            set(v) { this._ltRealHeightModifier = v; },
+            configurable: true, enumerable: true
+        });
+        C._ltHeightLocked = true;
+        console.log(`🐈‍⬛ [LT] heightlock 套用 → ${C.Name} realRatio=${realRatio}`);
+    }
+
+    // ── heightfix：趴跪姿時固定 1.0，站立時回傳真實值 ──
+    function applyHeightFix(C) {
+        if (!C) return;
+        if (C._ltHeightFixed) return;
+        // heightlock 優先，fix 不覆蓋 lock
+        if (C._ltHeightLocked) return;
+
+        const realRatio    = _ltGetRealRatio(C);
+        const realModifier = _ltGetRealModifier(C);
+        try { delete C.HeightRatio;    } catch (e) {}
+        try { delete C.HeightModifier; } catch (e) {}
+        C._ltRealHeightRatio    = realRatio;
+        C._ltRealHeightModifier = realModifier;
+
+        Object.defineProperty(C, 'HeightRatio', {
+            get()  { return isGroundPose(this) ? 1.0 : this._ltRealHeightRatio; },
+            set(v) { this._ltRealHeightRatio = v; },
+            configurable: true, enumerable: true
+        });
+        Object.defineProperty(C, 'HeightModifier', {
+            get()  { return isGroundPose(this) ? 0 : this._ltRealHeightModifier; },
+            set(v) { this._ltRealHeightModifier = v; },
+            configurable: true, enumerable: true
+        });
+        C._ltHeightFixed = true;
+        console.log(`🐈‍⬛ [LT] heightfix 套用 → ${C.Name} realRatio=${realRatio}`);
+    }
+
+    // ── 還原所有身高劫持 ──
+    function removeHeightHijack(C) {
+        if (!C) return;
+        if (!C._ltHeightLocked && !C._ltHeightFixed) return;
+        _ltClearHeightDefine(C);
+        console.log(`🐈‍⬛ [LT] 身高還原 → ${C.Name}`);
+    }
+
+    // ── 根據當前設定對目標套用對應劫持 ──
+    function applyHeightToTarget(C) {
+        if (!C) return;
+        const s = Player.ExtensionSettings?.LikoTOOL;
+        if (s?.heightLock === 1)     applyHeightLock(C);
+        else if (s?.heightFix === 1) applyHeightFix(C);
     }
 
     // ──────────────────────────────────────────
@@ -350,10 +463,10 @@
             return ChatRoomCharacter?.find(c => c.MemberNumber === parseInt(identifier)) || Player;
         }
         return ChatRoomCharacter?.find(c =>
-                                       c.Name.toLowerCase()         === identifier.toLowerCase() ||
-                                       c.Nickname?.toLowerCase()    === identifier.toLowerCase() ||
-                                       c.AccountName.toLowerCase()  === identifier.toLowerCase()
-                                      ) || Player;
+            c.Name.toLowerCase()        === identifier.toLowerCase() ||
+            c.Nickname?.toLowerCase()   === identifier.toLowerCase() ||
+            c.AccountName.toLowerCase() === identifier.toLowerCase()
+        ) || Player;
     }
 
     function getNickname(character) {
@@ -378,11 +491,11 @@
         if (Player.LikoTool?.bypassActivities) return true;
         return typeof ServerChatRoomGetAllowItem === "function"
             ? ServerChatRoomGetAllowItem(Player, target)
-        : true;
+            : true;
     }
 
     // ──────────────────────────────────────────
-    // UI 樣式注入（CFT 風格）
+    // UI 樣式注入
     // ──────────────────────────────────────────
     function injectLtStyles() {
         if (document.getElementById("lt-styles")) return;
@@ -397,7 +510,6 @@
             user-select: none; -webkit-user-select: none;
         }
 
-        /* ── 面板 ── */
         .lt-panel {
             position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
@@ -411,7 +523,6 @@
             color: #d8e6f8; font-size: 13px; overflow: hidden;
         }
 
-        /* ── Header ── */
         .lt-header {
             background: linear-gradient(135deg, #4a1280 0%, #9b3dd4 100%);
             padding: 13px 15px; display: flex; align-items: center;
@@ -434,7 +545,6 @@
         }
         .lt-hclose:hover { background:rgba(255,255,255,0.26); }
 
-        /* ── Content ── */
         .lt-content {
             padding: 14px 15px 4px; overflow-y:auto; overflow-x:hidden; flex:1;
             scrollbar-width:thin; scrollbar-color:rgba(155,61,212,0.6) rgba(255,255,255,0.04);
@@ -445,7 +555,6 @@
         .lt-section { margin-bottom:12px; }
         .lt-hr { height:1px; background:rgba(255,255,255,0.06); margin:4px 0 12px; }
 
-        /* ── 通用按鈕列表 ── */
         .lt-btn-list { display:flex; flex-direction:column; gap:6px; }
         .lt-list-btn {
             width:100%; padding:10px 14px; text-align:left;
@@ -459,16 +568,6 @@
         .lt-list-btn .lt-check { font-size:16px; color:rgba(155,61,212,0.4); transition:color 0.18s; }
         .lt-list-btn.selected .lt-check { color:#b070ff; }
 
-        /* ── Undo 面板特有 ── */
-        .lt-undo-layout { display:flex; gap:14px; }
-        .lt-undo-canvas-wrap {
-            flex-shrink:0; width:160px; background:rgba(255,255,255,0.06);
-            border:1px solid rgba(255,255,255,0.1); border-radius:12px; overflow:hidden;
-            display:flex; align-items:center; justify-content:center;
-        }
-        .lt-undo-canvas-wrap canvas { display:block; width:200px; height:400px; }
-        .lt-undo-info { flex:1; display:flex; flex-direction:column; gap:8px; min-width:0; overflow:hidden; }
-        .lt-undo-info { flex:1; display:flex; flex-direction:column; gap:8px; min-width:0; justify-content:space-between; }
         .lt-undo-meta {
             background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07);
             border-radius:10px; padding:10px 12px;
@@ -476,10 +575,6 @@
         .lt-undo-meta-row { font-size:11px; color:#7a9cc0; margin-bottom:4px; }
         .lt-undo-meta-row:last-child { margin-bottom:0; }
         .lt-undo-meta-row span { color:#b0ccf0; font-weight:500; }
-        .lt-undo-counter {
-            text-align:center; font-size:12px; color:#9b3dd4; font-weight:600;
-        }
-        .lt-undo-nav { display:flex; gap:6px; }
         .lt-nav-btn {
             flex:1; padding:8px 4px;
             background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09);
@@ -488,15 +583,7 @@
         }
         .lt-nav-btn:hover:not(:disabled) { background:rgba(155,61,212,0.12); border-color:rgba(155,61,212,0.35); color:#c090ff; }
         .lt-nav-btn:disabled { opacity:0.3; cursor:not-allowed; }
-        .lt-undo-apply {
-            width:100%; padding:10px;
-            background:linear-gradient(135deg,#4a1280,#9b3dd4); border:none;
-            border-radius:10px; color:#fff; font-size:13px; font-weight:600;
-            cursor:pointer; transition:all 0.2s; font-family:inherit; margin-top:auto;
-        }
-        .lt-undo-apply:hover { background:linear-gradient(135deg,#5e20a0,#b050e8); transform:translateY(-1px); box-shadow:0 4px 16px rgba(155,61,212,0.4); }
 
-        /* ── Footer ── */
         .lt-footer {
             display:flex; gap:8px; padding:11px 15px;
             background:rgba(0,0,0,0.18); flex-shrink:0;
@@ -508,7 +595,6 @@
         .lt-btn-secondary { background:rgba(255,255,255,0.06); color:#607898; border:1px solid rgba(255,255,255,0.08); }
         .lt-btn-secondary:hover { background:rgba(255,255,255,0.1); color:#90a8c0; }
 
-        /* 無障礙 */
         .lt-empty { text-align:center; color:#5a7a9a; font-size:13px; padding:20px 0; }
         `;
         document.head.appendChild(s);
@@ -522,7 +608,6 @@
         const panel = document.createElement("div");
         panel.className = "lt-panel";
 
-        // Header
         const header = document.createElement("div");
         header.className = "lt-header";
         const title = document.createElement("span");
@@ -536,7 +621,6 @@
         header.appendChild(hClose);
         panel.appendChild(header);
 
-        // 拖曳
         let drag = { on: false, sx: 0, sy: 0, px: 0, py: 0 };
         header.addEventListener("mousedown", e => {
             if (e.target === hClose) return;
@@ -561,13 +645,11 @@
             document.removeEventListener("mouseup", onUp);
         });
 
-        // Content
         const content = document.createElement("div");
         content.className = "lt-content";
         content.appendChild(contentEl);
         panel.appendChild(content);
 
-        // Footer
         if (footerEl) {
             const footer = document.createElement("div");
             footer.className = "lt-footer";
@@ -575,7 +657,6 @@
             panel.appendChild(footer);
         }
 
-        // 點擊外部關閉
         const clickOut = e => {
             if (!panel.contains(e.target)) {
                 panel.remove();
@@ -589,7 +670,7 @@
     }
 
     // ──────────────────────────────────────────
-    // 通用按鈕選單（取代舊 requestButtons）
+    // 通用按鈕選單
     // ──────────────────────────────────────────
     function requestButtons(promptText, buttons, multiSelect = false) {
         return new Promise(resolve => {
@@ -604,7 +685,6 @@
             }
 
             let selected = new Set();
-            const btnEls = [];
 
             buttons.forEach(btn => {
                 const el = document.createElement("button");
@@ -626,10 +706,8 @@
                     el.onclick = () => { panel.remove(); resolve(btn.text); };
                 }
                 listEl.appendChild(el);
-                btnEls.push(el);
             });
 
-            // Footer
             let footerEl = null;
             if (multiSelect) {
                 footerEl = document.createElement("div");
@@ -648,7 +726,6 @@
 
             const panel = createPanel(promptText, listEl, footerEl);
 
-            // ESC 關閉
             const onKey = e => {
                 if (e.key === "Escape") {
                     panel.remove();
@@ -677,7 +754,7 @@
     // Undo 系統
     // ──────────────────────────────────────────
     const UNDO_MAX_PER_CHARACTER = 20;
-    const undoHistory = {}; // { memberNumber: [ { timestamp, changedBy, bundle }, ... ] }
+    const undoHistory = {};
 
     function saveUndoSnapshot(target, changedByNumber) {
         const id = target?.MemberNumber;
@@ -686,7 +763,6 @@
         const bundle = ServerAppearanceBundle(target.Appearance);
         if (!bundle?.length) return;
 
-        // 跟上一筆相同就跳過
         if (undoHistory[id]?.length > 0) {
             const last = undoHistory[id].slice(-1)[0];
             if (JSON.stringify(last.bundle) === JSON.stringify(bundle)) return;
@@ -699,13 +775,11 @@
             bundle
         });
 
-        // 超過上限刪最舊
         if (undoHistory[id].length > UNDO_MAX_PER_CHARACTER) {
             undoHistory[id].shift();
         }
     }
 
-    // 進房時掃描所有角色
     function scanAllCharacters() {
         if (!Array.isArray(ChatRoomCharacter)) return;
         ChatRoomCharacter.forEach(c => {
@@ -736,7 +810,6 @@
 
         let currentIndex = history.length - 1;
 
-        // ── 頂部導航列 ──
         const topNavEl = document.createElement("div");
         topNavEl.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:10px;";
 
@@ -753,7 +826,6 @@
         nextBtn.textContent = t('undoNext');
         nextBtn.style.flex = "1";
 
-        // 時間資訊列
         const metaEl = document.createElement("div");
         metaEl.className = "lt-undo-meta";
         metaEl.style.marginBottom = "8px";
@@ -769,7 +841,6 @@
         topNavEl.appendChild(counterEl);
         topNavEl.appendChild(nextBtn);
 
-        // ── Canvas 人物預覽（置中大圖） ──
         const canvasWrap = document.createElement("div");
         canvasWrap.style.cssText = `
             width:100%; display:flex; justify-content:center; align-items:center;
@@ -784,7 +855,6 @@
         canvas.style.cssText = "width:220px;height:440px;display:block;";
         canvasWrap.appendChild(canvas);
 
-        // ── 底部按鈕 ──
         const footerBtns = document.createElement("div");
         footerBtns.style.cssText = "width:100%;display:flex;gap:8px;";
 
@@ -801,7 +871,6 @@
         footerBtns.appendChild(applyBtn);
         footerBtns.appendChild(closeBtn);
 
-        // ── 組合 content ──
         const contentEl = document.createElement("div");
         contentEl.appendChild(topNavEl);
         contentEl.appendChild(metaEl);
@@ -814,7 +883,6 @@
         );
         panel.style.width = "320px";
 
-        // 關閉按鈕
         closeBtn.onclick = () => panel.remove();
 
         function renderPreview() {
@@ -824,8 +892,8 @@
                 const ctx = canvas.getContext("2d");
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 canvasCharacter.Appearance = entry.bundle.map(b =>
-                                                              ServerBundledItemToAppearanceItem(target.AssetFamily, b)
-                                                             );
+                    ServerBundledItemToAppearanceItem(target.AssetFamily, b)
+                );
                 CharacterRefresh(canvasCharacter);
                 DrawCharacter(canvasCharacter, 40, 100, 0.85, false, ctx);
             } catch (e) {
@@ -838,12 +906,12 @@
         function updateMeta() {
             const entry = history[currentIndex];
             const timeStr = new Date(entry.timestamp).toLocaleString();
-            const byChar = entry.changedBy
-            ? ChatRoomCharacter?.find(c => c.MemberNumber === entry.changedBy)
-            : null;
-            const byName = byChar
-            ? getNickname(byChar)
-            : entry.changedBy ? `#${entry.changedBy}` : "—";
+            const byChar  = entry.changedBy
+                ? ChatRoomCharacter?.find(c => c.MemberNumber === entry.changedBy)
+                : null;
+            const byName  = byChar
+                ? getNickname(byChar)
+                : entry.changedBy ? `#${entry.changedBy}` : "—";
 
             timeRow.innerHTML = `${t('undoChangedAt')}：<span>${timeStr}</span>`;
             byRow.innerHTML   = `${t('undoChangedBy')}：<span>${byName}</span>`;
@@ -881,7 +949,6 @@
             panel.remove();
         };
 
-        // 清理
         const obs = new MutationObserver(() => {
             if (!document.body.contains(panel)) {
                 clearInterval(renderInterval);
@@ -925,7 +992,7 @@
             const result = next(args);
             if (!Player.LikoTool) initializeStorage();
             DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, "🔰",
-                       getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
+                getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
             return result;
         });
 
@@ -944,74 +1011,41 @@
             return next(args);
         });
 
-        // 身高劫持：選取角色時
+        // ── 身高：開啟對話框時套用劫持 ──
+        // CharacterSetCurrent 在玩家點擊角色時呼叫，C 是新選取的角色。
+        // 在 next() 前先還原舊目標，next() 後對新目標套用劫持。
         safeHookFunction("CharacterSetCurrent", 10, (args, next) => {
             const [C] = args;
-            const result = next(args);
-            if (Player.OnlineSharedSettings?.LikoTOOL?.height === 1 && C?.MemberNumber) {
-                hijackCharacterHeight(C);
+
+            // 切換目標前還原舊目標
+            if (heightTargetChar && heightTargetChar !== C) {
+                removeHeightHijack(heightTargetChar);
+                heightTargetChar = null;
             }
-            return result;
-        });
 
-        // 身高劫持：角色刷新時重新劫持
-        const heightRestoreCounter = {}; // { memberNumber: { timestamps: [] } }
-
-        safeHookFunction("CharacterRefresh", 10, (args, next) => {
-            const [C] = args;
             const result = next(args);
 
-            if (
-                Player.OnlineSharedSettings?.LikoTOOL?.height !== 1 ||
-                !C?.MemberNumber ||
-                CurrentCharacter?.MemberNumber !== C.MemberNumber
-            ) return result;
-
-            const id = C.MemberNumber;
-
-            if (C._heightHijacked) {
-                if (C.HeightRatio === C._realHeightRatio && C.HeightModifier === C._realHeightModifier) {
-                    if (!heightRestoreCounter[id]) {
-                        heightRestoreCounter[id] = { timestamps: [] };
-                    }
-
-                    const now = Date.now();
-                    const windowMs = 200; // 只看最近 500ms
-
-                    // 清掉過期的紀錄
-                    heightRestoreCounter[id].timestamps = heightRestoreCounter[id].timestamps
-                        .filter(t => now - t < windowMs);
-
-                    // 加入這次
-                    heightRestoreCounter[id].timestamps.push(now);
-
-                    // 500ms 內超過 5 次才判定為抖動
-                    if (heightRestoreCounter[id].timestamps.length >= 3) {
-                        console.log(`🐈‍⬛ [LT] ⚠️ 身高劫持：${getNickname(C)} 短時間復原過多，暫停補正`);
-                        return result;
-                    }
-                }
-
-                delete C._heightHijacked;
-                hijackCharacterHeight(C);
-
-            } else {
-                hijackCharacterHeight(C);
+            if (C?.MemberNumber) {
+                heightTargetChar = C;
+                applyHeightToTarget(C);
             }
 
             return result;
         });
 
-        // 身高劫持：離開對話框時還原
+        // ── 身高：離開對話框時還原 ──
+        // 注意：無論是正常 DialogLeave 或 BC 內部觸發，都會走這裡。
         safeHookFunction("DialogLeave", 10, (args, next) => {
-            restoreCharacterHeight(CurrentCharacter);
+            if (heightTargetChar) {
+                removeHeightHijack(heightTargetChar);
+                heightTargetChar = null;
+            }
             return next(args);
         });
 
         // ── Undo：進房時掃描所有人 ──
         safeHookFunction("ChatRoomSync", -10, (args, next) => {
             const result = next(args);
-            // 等一個 tick 讓 ChatRoomCharacter 填入資料後再掃描
             setTimeout(scanAllCharacters, 0);
             return result;
         });
@@ -1248,12 +1282,12 @@
         if (!itemMiscGroup) return true;
 
         const validLocks = itemMiscGroup.Asset
-        .filter(a => a.IsLock)
-        .map(a => ({ Name: a.Name, Description: a.Description || a.Name }));
+            .filter(a => a.IsLock)
+            .map(a => ({ Name: a.Name, Description: a.Description || a.Name }));
         const lock = validLocks.find(l =>
-                                     l.Name.toLowerCase() === lockName.toLowerCase() ||
-                                     l.Description.toLowerCase() === lockName.toLowerCase()
-                                    );
+            l.Name.toLowerCase()        === lockName.toLowerCase() ||
+            l.Description.toLowerCase() === lockName.toLowerCase()
+        );
         if (!lock) {
             ChatRoomSendLocal(`${t('lockInvalid')}：${lockName}。${t('lockAvailable')}：${validLocks.map(l => l.Description).join("、")}`);
             return true;
@@ -1278,18 +1312,60 @@
     }
 
     // ──────────────────────────────────────────
-    // 指令：height
+    // 指令：heightfix
+    // 趴跪姿時自動拉高，站立時還原真實身高
     // ──────────────────────────────────────────
-    function heightCommand() {
-        if (!Player.OnlineSharedSettings)           Player.OnlineSharedSettings = {};
-        if (!Player.OnlineSharedSettings.LikoTOOL) Player.OnlineSharedSettings.LikoTOOL = {};
-        const enabled = Player.OnlineSharedSettings.LikoTOOL.height !== 1;
-        Player.OnlineSharedSettings.LikoTOOL.height = enabled ? 1 : 0;
+    function heightFixCommand() {
+        if (!Player.ExtensionSettings)           Player.ExtensionSettings = {};
+        if (!Player.ExtensionSettings.LikoTOOL) Player.ExtensionSettings.LikoTOOL = {};
+        const enabled = Player.ExtensionSettings.LikoTOOL.heightFix !== 1;
+        Player.ExtensionSettings.LikoTOOL.heightFix = enabled ? 1 : 0;
         if (typeof ServerAccountUpdate?.QueueData === 'function') {
-            ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+            ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
         }
-        ChatRoomSendLocal(enabled ? t('heightOn') : t('heightOff'));
-        if (!enabled) restoreCharacterHeight(CurrentCharacter);
+        if (enabled) {
+            // 開啟：若目前有對話目標且 lock 沒開，立刻套用
+            if (heightTargetChar && Player.ExtensionSettings.LikoTOOL.heightLock !== 1) {
+                applyHeightFix(heightTargetChar);
+            }
+        } else {
+            // 關閉：若 lock 也沒開，才還原（lock 開著時不動）
+            if (heightTargetChar && Player.ExtensionSettings.LikoTOOL.heightLock !== 1) {
+                removeHeightHijack(heightTargetChar);
+            }
+        }
+        ChatRoomSendLocal(enabled ? t('heightFixOn') : t('heightFixOff'));
+        return true;
+    }
+
+    // ──────────────────────────────────────────
+    // 指令：heightlock
+    // 強制身高在 [0.8, 1] 外的角色拉回 1.0
+    // ──────────────────────────────────────────
+    function heightLockCommand() {
+        if (!Player.ExtensionSettings)           Player.ExtensionSettings = {};
+        if (!Player.ExtensionSettings.LikoTOOL) Player.ExtensionSettings.LikoTOOL = {};
+        const enabled = Player.ExtensionSettings.LikoTOOL.heightLock !== 1;
+        Player.ExtensionSettings.LikoTOOL.heightLock = enabled ? 1 : 0;
+        if (typeof ServerAccountUpdate?.QueueData === 'function') {
+            ServerAccountUpdate.QueueData({ ExtensionSettings: Player.ExtensionSettings });
+        }
+        if (enabled) {
+            // 開啟 lock：先清掉可能存在的 fix，再套 lock
+            if (heightTargetChar) {
+                if (heightTargetChar._ltHeightFixed) removeHeightHijack(heightTargetChar);
+                applyHeightLock(heightTargetChar);
+            }
+        } else {
+            // 關閉 lock：還原，若 fix 仍開著就補套 fix
+            if (heightTargetChar) {
+                removeHeightHijack(heightTargetChar);
+                if (Player.ExtensionSettings.LikoTOOL.heightFix === 1) {
+                    applyHeightFix(heightTargetChar);
+                }
+            }
+        }
+        ChatRoomSendLocal(enabled ? t('heightLockOn') : t('heightLockOff'));
         return true;
     }
 
@@ -1326,7 +1402,8 @@
             geteverything: getEverything,
             wardrobe,
             fulllock:      fullLock,
-            height:        heightCommand,
+            heightfix:     heightFixCommand,
+            heightlock:    heightLockCommand,
             undo:          undoCommand,
         };
 
@@ -1394,7 +1471,12 @@
     function setupUnloadHandler() {
         if (modApi && typeof modApi.onUnload === 'function') {
             modApi.onUnload(() => {
-                console.log("🐈‍⬛ [LT] 🗑️ 插件卸載...");
+                // 卸載時還原身高
+                if (heightTargetChar) {
+                    removeHeightHijack(heightTargetChar);
+                    heightTargetChar = null;
+                }
+                console.log("🐈‍⬛ [LT] 🗑️ 插件卸載");
             });
         }
     }
