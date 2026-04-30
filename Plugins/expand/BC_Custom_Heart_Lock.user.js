@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.5-2
+// @version      2.1.5-3
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -38,14 +38,15 @@
 
     const PX = 1100; const PY  = 130;
     const PW = 870;  const PH  = 840;
-    const TAB_H = 60; const TAB_W = 200;
+    const TAB_H = 60; const TAB_W = 155;  // 5 tabs × 155 = 775px, leaving 95px for X
     const CX = PX + 20; const CY = PY + TAB_H + 10;
     const CW = PW - 40; const CH = PH - TAB_H - 10;
     const TAB_OVERVIEW = 'overview';
     const TAB_NOTE     = 'note';
     const TAB_TIMER    = 'timer';
     const TAB_CONTROL  = 'control';
-    const TABS = [TAB_OVERVIEW, TAB_NOTE, TAB_TIMER, TAB_CONTROL];
+    const TAB_UNLOCK   = 'unlock';
+    const TABS = [TAB_OVERVIEW, TAB_NOTE, TAB_TIMER, TAB_CONTROL, TAB_UNLOCK];
 
     // ═══════════════════════════════════════════
     //  i18n
@@ -60,7 +61,15 @@
     const I18N = {
         ZH: {
             tabOverview    : '總覽',      tabNote        : '筆記',
-            tabTimer       : '計時器',    tabControl     : '控制',
+            tabTimer       : '計時器',    tabControl     : '控制',    tabUnlock : '解鎖',
+            unlockTitle    : '♥ 解鎖確認 ♥',
+            unlockWarn1    : '解鎖後，所有設定（筆記、計時器、震動設定）將永久刪除，',
+            unlockWarn2    : '請確認對方已保留筆記內容再繼續。',
+            unlockOwner    : '鎖主：',
+            unlockNoRight  : '只有鎖主或與穿戴者的戀人才能解鎖。',
+            unlockConfirm  : '確認解鎖',
+            unlockCancel   : '取消',
+            unlockPending  : '已發送解鎖請求給鎖主，請等待…',
             noteTitle      : '♥ 愛情筆記 ♥',    timerTitle  : '♥ 計時器 ♥',
             controlTitle   : '♥ 控制 ♥',         noteHeader  : '♥ 筆記 ♥',
             noConfig       : '尚無設定。',         noTimer     : '無計時器',
@@ -92,7 +101,15 @@
         },
         EN: {
             tabOverview    : 'Overview',  tabNote        : 'Note',
-            tabTimer       : 'Timer',     tabControl     : 'Control',
+            tabTimer       : 'Timer',     tabControl     : 'Control',  tabUnlock : 'Unlock',
+            unlockTitle    : '♥ Unlock Confirm ♥',
+            unlockWarn1    : 'Unlocking will permanently delete all settings (notes, timer, vibe).',
+            unlockWarn2    : 'Please make sure important notes have been saved before continuing.',
+            unlockOwner    : 'Lock owner:',
+            unlockNoRight  : 'Only the lock owner or the wearer\'s lovers can unlock.',
+            unlockConfirm  : 'Confirm Unlock',
+            unlockCancel   : 'Cancel',
+            unlockPending  : 'Unlock request sent to owner, please wait…',
             noteTitle      : '♥ Love Note ♥',       timerTitle  : '♥ Timer ♥',
             controlTitle   : '♥ Control ♥',          noteHeader  : '♥ Note ♥',
             noConfig       : 'No configuration.',    noTimer     : 'No timer',
@@ -758,7 +775,16 @@
         }
         // 非 owner 的 EL/BC 戀人請求解鎖
         // owner 收到後檢查 Requester 是否有權，若有則替代執行 InventoryUnlock
-        if (data.Content === 'HeartLockUnlockRequest') {
+        if (data.Content === 'HeartLockUnlockDone') {
+            const e = data.Dictionary?.find(d => d.Tag === 'HeartLockUnlockDone');
+            if (!e || e.Target !== Player.MemberNumber) return;
+            // 解鎖已完成，清除 pending 並關閉面板
+            state.panel.unlockPending = false;
+            hideNoteTA();
+            state.panel.noteEditing = false;
+            state.panel.ctlEditing  = false;
+            DialogFocusItem = null;
+        }
             const e = data.Dictionary?.find(d => d.Tag === 'HeartLockUnlockRequest');
             if (!e) return;
             if (!ensureStorage()) return;
@@ -786,6 +812,13 @@
                 ChatRoomCharacterUpdate?.(wearer);
                 deleteConfig(gn);
                 log(`HeartLockUnlockRequest: 已替 #${requester} 解鎖 ${gn}`);
+                // 通知請求者解鎖完成（讓對方關閉 pending 狀態）
+                try {
+                    ServerSend('ChatRoomChat', {
+                        Type: 'Hidden', Content: 'HeartLockUnlockDone',
+                        Dictionary: [{ Tag: 'HeartLockUnlockDone', Target: requester, Group: gn }],
+                    });
+                } catch {}
             } catch { state._unlocking = false; }
         }
     }
@@ -1089,7 +1122,7 @@
             const thisW = (i === TABS.length - 1) ? (CLOSE_X - tx + 1) : TAB_W;
             DrawRect(tx-1, PY-1, thisW+1, TAB_H+1, sel ? CC.tSel : CC.tOff);
             if (sel) DrawRect(tx-1, PY+TAB_H-2, thisW+1, 3, CC.acc);
-            const tabLabels = { [TAB_OVERVIEW]: T('tabOverview'), [TAB_NOTE]: T('tabNote'), [TAB_TIMER]: T('tabTimer'), [TAB_CONTROL]: T('tabControl') };
+            const tabLabels = { [TAB_OVERVIEW]: T('tabOverview'), [TAB_NOTE]: T('tabNote'), [TAB_TIMER]: T('tabTimer'), [TAB_CONTROL]: T('tabControl'), [TAB_UNLOCK]: T('tabUnlock') };
             DrawText(tabLabels[tab] ?? tab, tx+TAB_W/2-1, PY+TAB_H/2, sel ? CC.text : CC.sub, 'transparent');
         });
         DrawRect(PX, PY+TAB_H, PW, 2, CC.border);
@@ -1250,6 +1283,8 @@
         state.panel.timerInput  = 0;
         state.panel.noteEditing = false;
         state.panel.ctlEditing  = false;
+        state.panel.unlockConfirming = false;
+        state.panel.unlockPending    = false;
         hideNoteTA();
         dpInit(cfg);
         if (ch && !ch.IsPlayer()) requestHeartLockData(ch);
@@ -1265,6 +1300,110 @@
             case TAB_NOTE    : drawNote(cfg, canEd);      break;
             case TAB_TIMER   : drawTimer(cfg, canEd);     break;
             case TAB_CONTROL : drawControl(cfg, canEd);   break;
+            case TAB_UNLOCK  : drawUnlock(ch, gn, cfg);   break;
+        }
+    }
+
+    // ── 解鎖分頁 UI ───────────────────────────────────────────────
+    const UNL_BTN_H = 54; const UNL_BTN_W = 220;
+    const UNL_CONFIRM_X = CX + CW/2 - UNL_BTN_W - 12;
+    const UNL_CANCEL_X  = CX + CW/2 + 12;
+    const UNL_BTN_Y     = CY + 380;
+
+    function _canUnlockHeartLock(ch, cfg) {
+        if (!ch || !cfg) return false;
+        if (Number(cfg.owner) === Number(Player.MemberNumber)) return true;  // owner
+        const isELLovr = window.ELAbundantiaAPI?.isELLover?.(ch.MemberNumber) ?? false;
+        const isBCLovr = Player.Lovership?.some(l => Number(l.MemberNumber) === Number(ch.MemberNumber)) ?? false;
+        return isELLovr || isBCLovr;
+    }
+
+    function drawUnlock(ch, gn, cfg) {
+        const p = state.panel;
+        DrawText(T('unlockTitle'), PX + PW/2, CY + 36, CC.acc, 'transparent');
+
+        // 警告文字
+        DrawText(T('unlockWarn1'), PX + PW/2, CY + 110, '#FF9999', 'transparent');
+        DrawText(T('unlockWarn2'), PX + PW/2, CY + 160, CC.sub,    'transparent');
+
+        // 鎖主資訊
+        if (cfg) {
+            textLeft(`${T('unlockOwner')} ${cfg.ownerName ?? '?'} (#${cfg.owner ?? '?'})`,
+                CX + 40, CY + 230, CC.text);
+        }
+
+        const canUnl = _canUnlockHeartLock(ch, cfg);
+
+        if (!canUnl) {
+            DrawText(T('unlockNoRight'), PX + PW/2, UNL_BTN_Y + UNL_BTN_H/2, CC.dim, 'transparent');
+            return;
+        }
+
+        if (p.unlockPending) {
+            DrawText(T('unlockPending'), PX + PW/2, UNL_BTN_Y + UNL_BTN_H/2, CC.gold, 'transparent');
+            return;
+        }
+
+        if (!p.unlockConfirming) {
+            // 第一步：顯示解鎖按鈕
+            bRect(PX + PW/2 - UNL_BTN_W/2, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H, CC.danger, T('unlockConfirm'));
+        } else {
+            // 第二步：確認 / 取消
+            bRect(UNL_CONFIRM_X, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H, CC.danger, T('unlockConfirm'));
+            bRect(UNL_CANCEL_X,  UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H, CC.btn,    T('unlockCancel'), CC.sub);
+        }
+    }
+
+    function clickUnlock(ch, gn, cfg) {
+        const p = state.panel;
+        if (!_canUnlockHeartLock(ch, cfg) || p.unlockPending) return;
+
+        if (!p.unlockConfirming) {
+            if (hit(PX + PW/2 - UNL_BTN_W/2, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H)) {
+                p.unlockConfirming = true;
+            }
+            return;
+        }
+
+        // 取消
+        if (hit(UNL_CANCEL_X, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H)) {
+            p.unlockConfirming = false;
+            return;
+        }
+
+        // 確認解鎖
+        if (hit(UNL_CONFIRM_X, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H)) {
+            p.unlockConfirming = false;
+            const isOwner = Number(cfg.owner) === Number(Player.MemberNumber);
+            if (isOwner) {
+                // owner 直接解鎖
+                try {
+                    state._unlocking = true;
+                    InventoryUnlock?.(ch, gn);
+                    state._unlocking = false;
+                    ChatRoomCharacterUpdate?.(ch);
+                    notifyRemove(ch, gn);
+                    // 關閉面板
+                    hideNoteTA(); p.noteEditing = false; p.ctlEditing = false;
+                    DialogFocusItem = null;
+                } catch { state._unlocking = false; }
+            } else {
+                // 非 owner → P2P 請求
+                p.unlockPending = true;
+                try {
+                    ServerSend('ChatRoomChat', {
+                        Type: 'Hidden', Content: 'HeartLockUnlockRequest',
+                        Dictionary: [{ Tag: 'HeartLockUnlockRequest',
+                            Target: cfg.owner,
+                            WearerMemberNumber: ch.MemberNumber,
+                            Group: gn,
+                            Requester: Player.MemberNumber,
+                        }],
+                    });
+                } catch {}
+                // 10 秒後若未響應，重置 pending 狀態
+                setTimeout(() => { if (state.panel.unlockPending) state.panel.unlockPending = false; }, 10000);
+            }
         }
     }
 
@@ -1285,6 +1424,7 @@
             case TAB_NOTE   : clickNote(ch, gn, canEd);         break;
             case TAB_TIMER  : clickTimer(ch, gn, canEd);        break;
             case TAB_CONTROL: clickControl(ch, gn, cfg, canEd); break;
+            case TAB_UNLOCK : clickUnlock(ch, gn, cfg);         break;
         }
     }
 
