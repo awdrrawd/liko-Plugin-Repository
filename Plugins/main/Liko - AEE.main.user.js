@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.7.2
+// @version      0.7.3
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
   'use strict';
 
   const MOD_NAME = "Liko - AEE";
-  const MOD_Version = "0.7.2";
+  const MOD_Version = "0.7.3";
   if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
   const modApi = bcModSdk.registerMod({
     name: MOD_NAME, fullName: "Liko - Appearance Editor",
@@ -354,23 +354,27 @@
   // （和 LSCG setOpacityInProperty 邏輯相同：scalar → 展開為陣列）
   // ─────────────────────────────────────────────────────────────────────────
 
-  // ── setOpacity：同時寫 LayerOverrides（我們的儲存）和 Property.Opacity（BC 渲染）──
-  // 不使用 recomputeOpacity，避免每幀重算帶來的副作用。
-  // "整件"只是一次性把所有 slot 設成同值，之後各 slot 獨立。
-  function _writeOpacity(item, indices, val) {
+  // ── Opacity 架構 ───────────────────────────────────────────────────────────
+  // LayerOverrides[i].Opacity  : 每個 layer 的渲染值（undefined = 未設定 = BC 預設）
+  // Property.Opacity[i]        : BC 實際渲染（與 LayerOverrides[i].Opacity 同步）
+  //
+  // 規則：
+  //   "整件" 完全沒有自己的儲存值，只是「同時對所有 slot 執行個別設定」的快捷鍵。
+  //   設整件 X → 對所有 i：LayerOverrides[i].Opacity = X，Property.Opacity[i] = X
+  //   設個別 i X → LayerOverrides[i].Opacity = X，Property.Opacity[i] = X（其他 slot 不動）
+  //   讀整件 slider 顯示 → 若所有已設定的 slot 值相同則顯示該值，否則顯示 null（UI 顯示 —）
+  //   讀個別 slot → LayerOverrides[i].Opacity ?? Property.Opacity[i] ?? 1
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function _ensureOpacityArray(item) {
     const layerCount = item.Asset?.Layer?.length || 1;
     if (!Array.isArray(item.Property.Opacity) || item.Property.Opacity.length !== layerCount) {
-      try { Object.assign(item.Property, ItemColorSanitizeProperty(item)); } catch(e) {}
-      if (!Array.isArray(item.Property.Opacity))
-        item.Property.Opacity = Array(layerCount).fill(1);
+      // 手動建立陣列，不呼叫 ItemColorSanitizeProperty（它會把值重設為 asset 預設，蓋掉我們的設定）
+      // 保留現有值（如果是 scalar）或補滿 1
+      const existing = item.Property.Opacity;
+      const base = typeof existing === 'number' ? existing : 1;
+      item.Property.Opacity = Array(layerCount).fill(base);
     }
-    indices.forEach(i => {
-      const layer = item.Asset?.Layer?.[i];
-      const clamped = Math.min(Math.max(val, layer?.MinOpacity ?? 0), layer?.MaxOpacity ?? 1);
-      if (!item.Property.LayerOverrides[i]) item.Property.LayerOverrides[i] = {};
-      item.Property.LayerOverrides[i].Opacity = clamped;   // 我們的持久儲存
-      if (i < item.Property.Opacity.length) item.Property.Opacity[i] = clamped; // BC 渲染
-    });
   }
 
   function setLO(item, layerIdx, key, val) {
@@ -381,36 +385,67 @@
       : [parseInt(layerIdx)];
 
     if (key === 'Opacity') {
-      _writeOpacity(item, indices, val);
+      _ensureOpacityArray(item);
+      indices.forEach(i => {
+        const layer = item.Asset?.Layer?.[i];
+        const clamped = Math.min(Math.max(val, layer?.MinOpacity ?? 0), layer?.MaxOpacity ?? 1);
+        if (!item.Property.LayerOverrides[i]) item.Property.LayerOverrides[i] = {};
+        item.Property.LayerOverrides[i].Opacity = clamped;
+        if (i < item.Property.Opacity.length) item.Property.Opacity[i] = clamped;
+      });
+      // Opacity 必須重繪 canvas 才能生效（CharacterRefresh 只更新資料模型，不觸發 canvas redraw）
+      const _rc = CharacterAppearanceSelection || _aeeItemColorChar;
+      if (_rc) {
+        try { CharacterLoadCanvas(_rc); } catch(e) {}
+        if (_aeeItemColorChar && _aeeItemColorChar !== _rc) {
+          _aeeItemColorDirty = true;
+          try { CharacterLoadCanvas(_aeeItemColorChar); } catch(e) {}
+        }
+      }
 
     } else {
-      // 其他屬性：寫入 LayerOverrides（BeforeDraw / transform 路徑）
       indices.forEach(i => {
         if (!item.Property.LayerOverrides[i]) item.Property.LayerOverrides[i] = {};
         item.Property.LayerOverrides[i][key] = val;
       });
-    }
-    { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) {
-      CharacterRefresh(_rc, false, false);
-      if (_aeeItemColorChar) {
-        _aeeItemColorDirty = true;
-        try { if (typeof CharacterLoadCanvas === 'function') CharacterLoadCanvas(_aeeItemColorChar); } catch(e) {}
+      // transform 類屬性走 BeforeDraw，CharacterRefresh 就夠
+      const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) {
+        CharacterRefresh(_rc, false, false);
+        if (_aeeItemColorChar) {
+          _aeeItemColorDirty = true;
+          try { if (typeof CharacterLoadCanvas === 'function') CharacterLoadCanvas(_aeeItemColorChar); } catch(e) {}
+        }
       }
-    } }
+    }
+  }
+
+  // 讀取指定 slot 的 opacity 值（整件時回傳 null 若各 slot 不一致）
+  function getOpacity(item, idx) {
+    if (idx === 'all') {
+      // 整件：若所有 layer 值相同則回傳，否則 null（UI 顯示 —）
+      const count = item?.Asset?.Layer?.length || 1;
+      let commonVal = null;
+      for (let i = 0; i < count; i++) {
+        const lo = item?.Property?.LayerOverrides?.[i];
+        const v  = lo?.Opacity ?? (Array.isArray(item.Property?.Opacity) ? item.Property.Opacity[i] : 1) ?? 1;
+        if (i === 0) commonVal = v;
+        else if (Math.abs(v - commonVal) > 0.005) return null; // 不一致
+      }
+      return commonVal;
+    } else {
+      const i  = parseInt(idx);
+      const lo = item?.Property?.LayerOverrides?.[i];
+      if (lo?.Opacity != null) return lo.Opacity;
+      const rawOp = item?.Property?.Opacity;
+      return Array.isArray(rawOp) ? rawOp[i] : (typeof rawOp === 'number' ? rawOp : 1);
+    }
   }
 
   function getLO(item, idx) {
     const i = idx === 'all' ? 0 : parseInt(idx);
     const lo = item?.Property?.LayerOverrides?.[i] || {};
-    // Opacity 優先讀 LayerOverrides[i].Opacity（我們的持久儲存）
-    // 若未設定（undefined），fallback 到 Property.Opacity[i]（BC 已儲存的值）
-    // 這樣不會因為沒調整過就顯示/覆寫成 100%
-    let opacity = lo.Opacity;
-    if (opacity == null) {
-      const rawOp = item?.Property?.Opacity;
-      opacity = Array.isArray(rawOp) ? rawOp[i] : (typeof rawOp === 'number' ? rawOp : 1);
-    }
-    return { ...lo, Opacity: opacity ?? 1 };
+    const opacity = getOpacity(item, idx) ?? 1;
+    return { ...lo, Opacity: opacity };
   }
 
   function getLayerDisplayName(layer, i) {
@@ -837,24 +872,39 @@
   function updateOpacityTab() {
     if (!shadowRoot) return;
     const item = getCurrentItem(); if (!item) return;
-    shadowRoot.querySelectorAll('[data-op-layer]').forEach(el => {
+
+    // 個別 layer sliders
+    shadowRoot.querySelectorAll('[data-op-layer]:not([data-op-layer="all"])').forEach(el => {
       const idx = el.dataset.opLayer;
-      const lo  = getLO(item, idx);
-      const val = Math.round((lo.Opacity ?? 1) * 100);
-      el.value = val;
+      const v   = getOpacity(item, idx) ?? 1;
+      const val = Math.round(v * 100);
+      el.value  = val;
       const label = shadowRoot.getElementById('op-val-' + idx);
       if (label) label.textContent = val + '%';
     });
+
+    // 整件 row：null = 不一致，顯示 —
+    const allSlider = shadowRoot.querySelector('[data-op-layer="all"]');
+    const allLabel  = shadowRoot.getElementById('op-val-all');
+    const allV      = getOpacity(item, 'all');
+    if (allSlider) allSlider.value = allV === null ? 100 : Math.round(allV * 100);
+    if (allLabel)  allLabel.textContent = allV === null ? '—' : Math.round(allV * 100) + '%';
+
+    // edit section
     const lo2 = getLO(item, state.selectedLayer ?? 'all');
     const opEl = shadowRoot.getElementById('edit-op-val');
     if (opEl) opEl.textContent = Math.round((lo2.Opacity ?? 1) * 100) + '%';
     const opRange = shadowRoot.querySelector('[data-edit-op]');
     if (opRange) opRange.value = Math.round((lo2.Opacity ?? 1) * 100);
+
+    // op overlay
     if (opShadow?.getElementById('op-overlay')?.classList.contains('on')) {
-      const v = Math.round((getLO(item, state.selectedLayer ?? 'all').Opacity ?? 1) * 100);
-      opShadow.getElementById('op-slider').value = v;
-      opShadow.getElementById('op-val-label').textContent = v + '%';
-      opShadow.getElementById('op-slider').style.setProperty('--pct', v + '%');
+      const v2 = getOpacity(item, state.selectedLayer ?? 'all');
+      const pct = v2 === null ? 100 : Math.round(v2 * 100);
+      const sl  = opShadow.getElementById('op-slider');
+      const lb  = opShadow.getElementById('op-val-label');
+      if (sl) { sl.value = pct; sl.style.setProperty('--pct', pct + '%'); }
+      if (lb)  lb.textContent = v2 === null ? '—' : pct + '%';
     }
   }
 
@@ -2327,16 +2377,23 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) CharacterRefresh(_rc, false, false); }
     }
     else if(ctrl==='op') {
-      // Opacity reset：全部設回 1.0（透過 setLO 同步 LayerOverrides + Property.Opacity）
+      ensureLO(item);
       const count = item.Asset?.Layer?.length || 1;
       const resetIndices = idx === 'all'
         ? Array.from({ length: count }, (_, i) => i)
         : [parseInt(idx)];
-      ensureLO(item);
-      _writeOpacity(item, resetIndices, 1);
+      if (!Array.isArray(item.Property.Opacity)) item.Property.Opacity = Array(count).fill(1);
+      resetIndices.forEach(i => {
+        const layer = item.Asset?.Layer?.[i];
+        const def = layer?.Opacity ?? 1;
+        if (item.Property.LayerOverrides?.[i]) delete item.Property.LayerOverrides[i].Opacity;
+        if (i < item.Property.Opacity.length) item.Property.Opacity[i] = def;
+      });
       { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) {
-        CharacterRefresh(_rc, false, false);
-        if (_aeeItemColorChar) { _aeeItemColorDirty = true; try { CharacterLoadCanvas(_aeeItemColorChar); } catch(e) {} }
+        try { CharacterLoadCanvas(_rc); } catch(e) {}
+        if (_aeeItemColorChar && _aeeItemColorChar !== _rc) {
+          _aeeItemColorDirty = true; try { CharacterLoadCanvas(_aeeItemColorChar); } catch(e) {}
+        }
       } }
     }
     else if(ctrl==='sx')  setLO(item,idx,'ScaleX',1);
@@ -2521,27 +2578,25 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   }
 
   function renderOpacityTab(item, layers) {
-    const _rawOp = item.Property?.Opacity;
-    // Property.Opacity 可能是 BC 原生 per-layer 陣列、舊 scalar、或 undefined
-    // 陣列時取 [0] 作為代表值（整件模式所有 slot 值相同）
-    const _opBase = Array.isArray(_rawOp) ? (_rawOp[0] ?? 1)
-                  : typeof _rawOp === 'number' ? _rawOp
-                  : (getLO(item, 0).Opacity ?? 1);
-    const opAll = Math.round(_opBase * 100);
-    const opRow = (layerIdx, name, opPct) => `<div class="op-tab-row">
+    // 整件：若各 slot 值不同則 null（顯示 —）
+    const allOpacity = getOpacity(item, 'all');
+    const allDisplay = allOpacity === null ? '—' : Math.round(allOpacity * 100) + '%';
+    const allVal     = allOpacity === null ? 100 : Math.round(allOpacity * 100); // slider 預設
+    const opRow = (layerIdx, name, opPct, isAll) => `<div class="op-tab-row">
       <div class="op-tab-name">
         <span class="op-tab-label">${name}</span>
         <div class="op-step-row">
           <button class="op-step" data-op-step="${layerIdx}" data-op-delta="-1">−1</button>
-          <span class="op-val-display" id="op-val-${layerIdx}">${opPct}%</span>
+          <span class="op-val-display" id="op-val-${layerIdx}">${isAll ? allDisplay : opPct + '%'}</span>
           <button class="op-step" data-op-step="${layerIdx}" data-op-delta="1">+1</button>
         </div>
       </div>
-      <input type="range" class="range" data-op-layer="${layerIdx}" min="0" max="100" step="1" value="${opPct}">
+      <input type="range" class="range" data-op-layer="${layerIdx}" min="0" max="100" step="1" value="${isAll ? allVal : opPct}">
     </div>`;
-    let html = opRow('all', t('allParts'), opAll);
+    let html = opRow('all', t('allParts'), allVal, true);
     layers.forEach((layer,i) => {
-      html += opRow(String(i), getLayerDisplayName(layer, i), Math.round((getLO(item,i).Opacity??1)*100));
+      const v = getOpacity(item, String(i));
+      html += opRow(String(i), getLayerDisplayName(layer, i), Math.round((v ?? 1) * 100), false);
     });
     return html;
   }
@@ -2912,17 +2967,8 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       const dirtyChar = _aeeItemColorChar;
       const item = _aeeItemColorItem;
 
-      // ── 調色盤 opacity 同步回 LayerOverrides ──
-      // BC 的 inputItemColor 在 editOpacity=true 時直接寫 Property.Opacity[i]。
-      // Exit 時把最新值同步回 LayerOverrides，確保兩邊一致（下次 setLO 才能讀到正確初始值）。
-      if (item && Array.isArray(item.Property?.Opacity) && Array.isArray(item.Property?.LayerOverrides)) {
-        item.Property.Opacity.forEach((opVal, i) => {
-          if (i < item.Property.LayerOverrides.length) {
-            if (!item.Property.LayerOverrides[i]) item.Property.LayerOverrides[i] = {};
-            item.Property.LayerOverrides[i].Opacity = opVal;
-          }
-        });
-      }
+      // 我們已移除 editOpacity 強制開啟，BC 選色器不再寫 Property.Opacity[i]，
+      // 所以不需要從 Property.Opacity 反向 sync 回 LayerOverrides。
 
       const result = next(args);
       _aeeItemColorChar  = null;
