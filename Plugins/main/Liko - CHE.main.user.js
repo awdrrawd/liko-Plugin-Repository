@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.4.1
+// @version      2.4.2
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
     "use strict";
 
     let modApi;
-    const modversion = "2.4.1";
+    const modversion = "2.4.2";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
     let autoSaveTimer = null;
@@ -57,7 +57,6 @@
     // =====================================================================
     const UI = {
         zh: {
-            // Buttons
             btnHTML:         "📥 HTML匯出",
             btnExcel:        "📥 Excel匯出",
             btnClear:        "🗑️ 清除聊天室",
@@ -65,12 +64,10 @@
             btnModeCache:    "💾 緩存中",
             btnModeStopped:  "⏸️ 停用",
             tooltipTitle:    "聊天室記錄管理器 v2.4",
-            // Prompts
             promptPrivate:   "請問是否保存包含\n悄悄話(whisper)與私信(beep)的信息?",
             promptClear:     "確定要清空當前聊天室的訊息嗎？\n（緩存數據庫不會被清空）",
             promptNoCache:   "沒有緩存數據。是否保存當前聊天室的訊息？",
             promptDelete:    n => `確定要刪除 ${n} 個日期的數據嗎？`,
-            // Cache modal
             cacheTitle:      "💾 緩存管理",
             cacheDateLabel:  "選擇要操作的日期：",
             cacheSelectAll:  "✓ 全選",
@@ -79,7 +76,6 @@
             cacheAlertExport:"請選擇要匯出的日期",
             cacheAlertDelete:"請選擇要刪除的日期",
             cacheMsgCount:   n => `(${n} 條訊息)`,
-            // Toasts
             toastXlsxFail:   "[CHE] ❌ XLSX庫未載入",
             toastNoMsg:      "[CHE] ❗ 沒有訊息可匯出",
             toastExcelWait:  "[CHE] 💾 正在生成Excel，請稍候...",
@@ -166,14 +162,14 @@
     }
 
     // =====================================================================
-    // FIX 1: 多帳號隔離
+    // 多帳號隔離
     // =====================================================================
     function getAccountPrefix() {
         return String(window.Player?.MemberNumber || "0");
     }
 
     // =====================================================================
-    // FIX 2: 時間正規化
+    // 時間正規化
     // =====================================================================
     function normalizeTime(timeStr) {
         if (!timeStr || typeof timeStr !== 'string') return "";
@@ -188,6 +184,20 @@
             return `${String(h).padStart(2, '0')}:${min}`;
         }
         return timeStr;
+    }
+
+    // =====================================================================
+    // FIX: 從任意格式的 time 字串提取 "HH:MM" 供排序使用
+    // =====================================================================
+    function extractHHMM(timeStr) {
+        if (!timeStr) return "00:00";
+        // ISO format: "2026-05-01T14:30:00.000Z" → "14:30"
+        if (timeStr.includes('T')) {
+            const timePart = timeStr.split('T')[1] || "";
+            return timePart.substring(0, 5) || "00:00";
+        }
+        // "HH:MM" or "HH:MM:SS" → take first 5 chars
+        return timeStr.substring(0, 5);
     }
 
     const DOMCache = {
@@ -282,12 +292,19 @@
                 request.onerror = () => { logError("CacheManager.init", "IndexedDB init failed"); reject("IndexedDB init failed"); };
             });
         },
+
         _makeKey(dateStr) { return `${getAccountPrefix()}_${dateStr}`; },
-        async saveToday(messages) {
-            if (!messages || messages.length === 0) return;
+
+        // =====================================================================
+        // FIX: saveForDate 接受指定的 dateKey，不再強制用「今天」
+        // 原本 saveToday 永遠用 DateUtils.getDateKey() (今天)，
+        // 導致 checkTempData 恢復昨天資料時存到錯誤的 key
+        // =====================================================================
+        async saveForDate(messages, dateKey) {
+            if (!messages || messages.length === 0) return 0;
             try {
                 const db = await this.init();
-                const fullKey = this._makeKey(DateUtils.getDateKey());
+                const fullKey = this._makeKey(dateKey);
                 const tx = db.transaction(["daily_fragments"], "readwrite");
                 const store = tx.objectStore("daily_fragments");
                 const existing = await new Promise((resolve, reject) => {
@@ -304,7 +321,7 @@
                     const key = msg.msgid || `${msg.time}-${msg.id}-${(msg.content||"").substring(0,50)}`;
                     return !existingKeys.has(key);
                 });
-                if (newMessages.length === 0) return 0;
+                if (newMessages.length === 0) return existing.length;
                 const allMessages = [...existing, ...newMessages];
                 await new Promise((resolve, reject) => {
                     const req = store.put({ messages: allMessages, count: allMessages.length, lastUpdate: Date.now() }, fullKey);
@@ -318,11 +335,17 @@
                 });
                 return allMessages.length;
             } catch (e) {
-                logError("CacheManager.saveToday", e);
+                logError("CacheManager.saveForDate", e);
                 window.ChatRoomSendLocalStyled(ui('toastSaveFail'), 3000, "#ff0000");
                 throw e;
             }
         },
+
+        // saveToday 保持向後相容，直接呼叫 saveForDate 傳今天的 key
+        async saveToday(messages) {
+            return this.saveForDate(messages, DateUtils.getDateKey());
+        },
+
         async getAvailableDates() {
             try {
                 const db = await this.init();
@@ -347,33 +370,65 @@
                         result.push({ dateKey: key, count: data.count || 0, display: DateUtils.getDisplayDate(dateStr) });
                     }
                 }
+                // UI 顯示用降序（最新在前），實際資料合併時會自行升序排列
                 return result.sort((a, b) => b.dateKey.localeCompare(a.dateKey));
             } catch (e) { logError("CacheManager.getAvailableDates", e); return []; }
         },
+
+        // =====================================================================
+        // FIX: 修復排序問題
+        // 原問題：new Date("HH:MM") → Invalid Date → sort 輸入全為 NaN → 排序隨機
+        // 修復：
+        //   1. dateKeys 先升序排列，確保迴圈順序正確
+        //   2. 用 "YYYY-MM-DD" + extractHHMM(time) 合成可字串比較的 sortKey
+        //   3. sort 結束後移除暫存的 _sortKey 屬性，避免污染資料
+        // =====================================================================
         async getMessagesForDates(dateKeys) {
             try {
                 const db = await this.init();
                 const tx = db.transaction(["daily_fragments"], "readonly");
                 const store = tx.objectStore("daily_fragments");
+                const prefix = getAccountPrefix() + "_";
                 let allMessages = [];
-                for (const dateKey of dateKeys) {
+
+                // 先將 dateKeys 升序排列，迴圈已是正確順序
+                const sortedKeys = [...dateKeys].sort();
+
+                for (const dateKey of sortedKeys) {
+                    // 從完整 key（如 "12345_2026-05-01"）取出日期部分
+                    const dateStr = dateKey.startsWith(prefix)
+                        ? dateKey.slice(prefix.length)
+                        : dateKey;
+
                     const data = await new Promise((resolve, reject) => {
                         const req = store.get(dateKey);
                         req.onsuccess = () => resolve(req.result);
                         req.onerror = () => reject(req.error);
                     });
+
                     if (data && data.messages) {
-                        allMessages.push(...data.messages.map(msg => ({ ...msg, isFromCache: true })));
+                        allMessages.push(...data.messages.map(msg => ({
+                            ...msg,
+                            isFromCache: true,
+                            // 合成可字串比較的排序鍵：YYYY-MM-DDTHH:MM
+                            // extractHHMM 能處理 ISO 格式與 HH:MM 格式
+                            _sortKey: dateStr + "T" + extractHHMM(msg.time),
+                            // 儲存所屬日期，供 generateHTML 插入跨日分隔線
+                            _dateStr: dateStr,
+                        })));
                     }
                 }
-                allMessages.sort((a, b) => {
-                    const tA = new Date(a.time || "1970-01-01").getTime();
-                    const tB = new Date(b.time || "1970-01-01").getTime();
-                    return tA - tB;
-                });
+
+                // 字串比較即可正確排序（lexicographic = chronological for this format）
+                allMessages.sort((a, b) => a._sortKey.localeCompare(b._sortKey));
+
+                // 移除暫存排序屬性，保持資料乾淨
+                allMessages.forEach(msg => { delete msg._sortKey; });
+
                 return allMessages;
             } catch (e) { logError("CacheManager.getMessagesForDates", e); return []; }
         },
+
         async deleteDates(dateKeys) {
             if (!dateKeys || dateKeys.length === 0) return false;
             try {
@@ -408,6 +463,13 @@
                 return false;
             }
         },
+
+        // =====================================================================
+        // FIX: cleanOldData 改為獨立 transaction 逐筆刪除
+        // 原問題：單一 readwrite transaction 內用 await 迴圈刪除，
+        // IndexedDB transaction 在無 pending request 時自動關閉，
+        // await 之間的空隙可能觸發 "transaction has finished" 錯誤
+        // =====================================================================
         async cleanOldData() {
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -416,19 +478,30 @@
             const cutoffKey = prefix + cutoffDate;
             try {
                 const db = await this.init();
-                const tx = db.transaction(["daily_fragments"], "readwrite");
-                const store = tx.objectStore("daily_fragments");
-                const keys = await new Promise((resolve, reject) => {
+
+                // Step 1: 用 readonly transaction 取得所有 keys
+                const keysToDelete = await new Promise((resolve, reject) => {
+                    const tx = db.transaction(["daily_fragments"], "readonly");
+                    const store = tx.objectStore("daily_fragments");
                     const req = store.getAllKeys();
-                    req.onsuccess = () => resolve(req.result);
+                    req.onsuccess = () => {
+                        const keys = req.result.filter(
+                            key => key.startsWith(prefix) && key < cutoffKey
+                        );
+                        resolve(keys);
+                    };
                     req.onerror = () => reject(req.error);
                 });
-                const keysToDelete = keys.filter(key => key.startsWith(prefix) && key < cutoffKey);
+
+                // Step 2: 每筆用獨立的 readwrite transaction 刪除，避免跨 await transaction 關閉
                 for (const key of keysToDelete) {
                     await new Promise((resolve, reject) => {
+                        const tx = db.transaction(["daily_fragments"], "readwrite");
+                        const store = tx.objectStore("daily_fragments");
                         const req = store.delete(key);
                         req.onsuccess = () => resolve();
                         req.onerror = () => reject(req.error);
+                        tx.onerror = () => reject(tx.error);
                     });
                 }
             } catch (e) { logError("CacheManager.cleanOldData", e); }
@@ -456,17 +529,15 @@
         const basicFilters = ["BCX commands tutorial", "BCX also provides", "(输入 /help 查看命令列表)"];
         if (basicFilters.some(f => content.includes(f))) return true;
 
-        // Detect beep/whisper by content pattern as fallback for old cached data
-        // where type may have been stored as "normal" before detectMessageType was fixed
         const isBceBeepContent = /^\(Beep (to|from)\b/i.test(content);
         const isSystemBeep = content.includes("好友私聊来自") ||
             content.includes("好友私聊") ||
             /\bBEEP\b/.test(content);
 
-        // System beep (好友私聊来自 / BEEP keyword): always hide regardless of setting
         if (isSystemBeep) return true;
 
-        const effectiveType = (messageType === "beep" || isBceBeepContent) ? "beep"
+        const effectiveType = (messageType === "beep" || messageType === "beep_duplicate" || isBceBeepContent)
+            ? "beep"
             : messageType;
 
         if (!includePrivate) {
@@ -489,7 +560,7 @@
             if (msg.classList && msg.classList.contains("ChatMessageWhisper")) return "whisper";
             if (typeof content === 'string') {
                 if (content.includes("好友私聊来自") || content.includes("BEEP")) {
-                    if (content.includes("↩️") && !(msg.matches && msg.matches("a.beep-link"))) return "beep_duplicate";
+                    // FIX: beep_duplicate 改歸類為 beep，避免 renderMsgRow 無法處理
                     return "beep";
                 }
                 if (content.includes("悄悄话") || content.includes("悄悄話")) return "whisper";
@@ -518,7 +589,6 @@
                 } catch {}
             });
             let result = (clone.textContent || clone.innerText || "").replace(/\s*\n\s*/g,'\n').trim();
-            // Strip internal anchor suffixes like "(#beep-1)", "(#anchor-3)" etc.
             result = result.replace(/\s*\(#[\w-]+-?\d*\)/gi, '').trim();
             return result;
         } catch (e) {
@@ -627,7 +697,6 @@
     // HTML Template — bilingual with embedded language toggle
     // =====================================================================
     async function generateHTMLTemplate(title) {
-        // Detect language at export time for default
         const defaultLang = isZh() ? 'zh' : 'en';
 
         return `
@@ -700,6 +769,13 @@ body.light #toggleTheme { background:#333; color:#fff; }
 .beep-msg { color:#5b8def; font-weight:bold; }
 .enhanced-color { filter:brightness(1.2) saturate(1.1); }
 body.light .enhanced-color { filter:brightness(0.8) saturate(1.2); }
+/* 跨日分隔線 */
+.date-divider {
+    text-align:center; padding:6px 0; font-size:12px; font-weight:600;
+    color:var(--accent); border-top:1px solid rgba(127,83,205,0.25);
+    border-bottom:1px solid rgba(127,83,205,0.25);
+    margin:10px 0; letter-spacing:1px;
+}
 /* Delete mode */
 .chat-row { position:relative; }
 .row-del {
@@ -711,7 +787,6 @@ body.light .enhanced-color { filter:brightness(0.8) saturate(1.2); }
 .row-del:hover { background:rgba(231,76,60,0.35); }
 body.del-mode .row-del { display:flex; align-items:center; justify-content:center; }
 body.del-mode .chat-row { padding-right:32px; }
-/* Soft-delete row */
 .chat-row.soft-deleted { display:none; }
 body.del-mode .chat-row.soft-deleted {
     display:flex; opacity:0.38;
@@ -721,18 +796,15 @@ body.del-mode .chat-row.soft-deleted {
 body.del-mode .chat-row.soft-deleted .row-del {
     background:rgba(46,204,113,0.2); color:#2ecc71; border-color:rgba(46,204,113,0.4);
 }
-/* row2 layout: chips centered, edit buttons at end */
 .row2 { display:flex; align-items:center; margin-top:6px; gap:0; }
 .row2-center { flex:1; display:flex; justify-content:center; flex-wrap:wrap; gap:5px; }
 .row2-right  { display:flex; gap:6px; align-items:center; margin-left:auto; padding-left:16px; flex-shrink:0; }
-/* Delete-mode toggle */
 #toggleDelMode {
     padding:4px 10px; border-radius:20px; border:1px solid rgba(231,76,60,0.4);
     background:rgba(231,76,60,0.12); color:#e74c3c; cursor:pointer;
     font-size:12px; font-weight:600; white-space:nowrap;
 }
 body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
-/* Export-after-edit button (injected into row2-right by JS, shown/hidden via inline style) */
 #exportAfterDel {
     padding:4px 10px; border-radius:20px; border:none;
     background:var(--accent); color:#fff; cursor:pointer;
@@ -770,7 +842,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         <div class="row2-center" id="typeFilters"></div>
         <div class="row2-right" id="editBtns">
             <button id="toggleDelMode">✂️</button>
-            <!-- #exportAfterDel injected here by JS -->
         </div>
     </div>
 </div>
@@ -779,7 +850,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     }
 
     // =====================================================================
-    // HTML Footer — bilingual JS + separator fix
+    // HTML Footer
     // =====================================================================
     function getHTMLFooter(defaultLang) {
         const def = (defaultLang || (isZh() ? 'zh' : 'en'));
@@ -788,7 +859,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 <div id="pageStats"></div>
 <script>
 (function(){
-    // ── i18n ──
     var LANG = {
         zh: {
             searchPlaceholder: "搜尋內容...",
@@ -828,7 +898,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     var currentLang = "${def}";
     function t(key){ return LANG[currentLang][key]; }
 
-    // ── Type chip state ──
     var TYPE_KEYS = ['chat','emote','action','activity','enter','whisper','beep','system'];
     var typeState = {};
     TYPE_KEYS.forEach(function(k){ typeState[k] = true; });
@@ -867,7 +936,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         document.getElementById("toggleLang").textContent   = t("langLabel");
         var isLight = document.body.classList.contains("light");
         document.getElementById("toggleTheme").textContent  = isLight ? t("darkMode") : t("lightMode");
-        // Sync del-mode button text
         var delBtn = document.getElementById("toggleDelMode");
         if (delBtn) {
             var isDelMode = document.body.classList.contains("del-mode");
@@ -893,23 +961,20 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         this.textContent = isLight ? t("darkMode") : t("lightMode");
     });
 
-    // ── Delete mode (soft-delete: rows are greyed, not removed; X toggles to +) ──
     var exportAfterDeleteBtn = null;
 
-    // Inject export button into row2-left (after del toggle btn)
     function getOrCreateExportBtn() {
         if (exportAfterDeleteBtn) return exportAfterDeleteBtn;
         exportAfterDeleteBtn = document.createElement('button');
         exportAfterDeleteBtn.id = 'exportAfterDel';
         exportAfterDeleteBtn.addEventListener('click', function(){
-            // Before serializing: temporarily remove soft-deleted rows from DOM
             var softDeleted = Array.from(document.querySelectorAll('.chat-row.soft-deleted'));
             var positions = softDeleted.map(function(r){
                 return { row: r, parent: r.parentNode, next: r.nextSibling };
             });
             var wasDelMode = document.body.classList.contains('del-mode');
-            document.body.classList.remove('del-mode');   // no del-mode in exported file
-            exportAfterDeleteBtn.style.display = 'none';  // hide this btn in export
+            document.body.classList.remove('del-mode');
+            exportAfterDeleteBtn.style.display = 'none';
             softDeleted.forEach(function(r){ r.parentNode.removeChild(r); });
 
             var blob = new Blob([document.documentElement.outerHTML], {type:'text/html;charset=utf-8'});
@@ -919,7 +984,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             a.click();
             URL.revokeObjectURL(a.href);
 
-            // Restore DOM
             positions.forEach(function(p){
                 if (p.next) p.parent.insertBefore(p.row, p.next);
                 else p.parent.appendChild(p.row);
@@ -954,7 +1018,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         applyFilters();
     });
 
-    // Delegate: click ✕ → soft-delete (grey + mark), click ＋ → restore
     document.getElementById('chatlog').addEventListener('click', function(e){
         var btn = e.target.closest('.row-del');
         if (!btn) return;
@@ -966,7 +1029,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         applyFilters();
     });
 
-    // ── Build separator↔collapsible pairs ──
     var allChatRows = Array.from(document.querySelectorAll('.chat-row'));
     var pairs = [];
     var node = document.getElementById('chatlog') ? document.getElementById('chatlog').firstElementChild : null;
@@ -1006,10 +1068,9 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         var visibleCount = 0;
         var totalActive = 0;
 
-        // ── Filter message rows (soft-deleted rows skipped — CSS handles visibility) ──
         allChatRows.forEach(function(row) {
             if (row.classList.contains('soft-deleted')) {
-                row.style.display = '';  // let CSS control (.soft-deleted / body.del-mode)
+                row.style.display = '';
                 return;
             }
             totalActive++;
@@ -1042,7 +1103,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             if (visible) visibleCount++;
         });
 
-        // ── Smart separator: show only sections with visible non-soft-deleted rows ──
         pairs.forEach(function(pair) {
             if (!hasFilter) {
                 pair.sep.style.display = '';
@@ -1100,7 +1160,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         return "rgba(128,128,128,"+alpha+")";
     }
 
-    // Convert a live DOM element -> normalized stored-format object
     function normalizeDOMMsg(el) {
         try {
             if (el.classList?.contains("chat-room-sep-div")) {
@@ -1148,7 +1207,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             const type      = detectMessageType(el, content);
             const color     = getLabelColor(el, nameButton);
             const className = Array.from(el.classList || []).join(" ");
-            // Skip stray separator-marker messages (˅ prefix = room separator text leaked into ChatMessage)
             if (content.startsWith('˅')) return null;
             return { time, id, name, content, direction, type, color, className };
         } catch (e) {
@@ -1157,27 +1215,29 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         }
     }
 
-    // Unified row renderer - works on any normalized msg object
-    // Returns HTML string or null if this row should be skipped
-    function renderMsgRow(msg, includePrivate, lastSeparatorText) {
+    // =====================================================================
+    // FIX: renderMsgRow 強化過濾
+    // 1. ˅ 開頭的 content 一律跳過（不論 type）
+    // 2. beep_duplicate 歸類為 beep 處理（現已在 detectMessageType 修正，此處保留防禦）
+    // 3. lastSeparatorText 改用 roomName 而非含 ˅ 前綴的 content
+    // =====================================================================
+    function renderMsgRow(msg, includePrivate, lastSeparatorRoomName) {
         if (!msg || msg.type === 'separator') return null;
-        // Skip stray separator-marker content (˅ = room-change placeholder leaked into regular message)
+        // 強化：˅ 開頭一律跳過，不論 type 為何
         if (msg.content && msg.content.startsWith('˅')) return null;
         if (isFilteredMessage(msg.content, msg.type, includePrivate)) return null;
-        // Only filter the first message right after a separator if it literally duplicates the room name
-        // (BC sometimes emits a local announcement immediately after the sep div)
-        // Limit this to short content to avoid over-filtering chat messages that happen to mention the room
-        if (lastSeparatorText && msg.content.includes(lastSeparatorText) &&
-            msg.content.length < lastSeparatorText.length + 12) return null;
+        // 過濾緊接在 separator 後重複 room name 的系統訊息
+        if (lastSeparatorRoomName && msg.content.includes(lastSeparatorRoomName) &&
+            msg.content.length < lastSeparatorRoomName.length + 12) return null;
 
         const adjustedColor = getEnhancedContrastColor(msg.color || "#888", true);
         const isBceNotif    = msg.className && msg.className.includes('bce-notification');
 
-        // Determine rowType from stored type + className
         let rowType = 'chat';
         if (msg.type === 'whisper') {
             rowType = 'whisper';
-        } else if (msg.type === 'beep' || isBceNotif) {
+        } else if (msg.type === 'beep' || msg.type === 'beep_duplicate' || isBceNotif) {
+            // FIX: beep_duplicate 明確歸入 beep，不再漏到 default chat 分支
             rowType = 'beep';
         } else if (msg.className) {
             if      (msg.className.includes('ChatMessageEmote'))      rowType = 'emote';
@@ -1190,7 +1250,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             rowType = 'emote';
         }
 
-        // Also catch system beep buried in chat messages
         if (rowType === 'chat' && msg.name &&
             (msg.content.includes("好友私聊来自") || msg.content.includes("BEEP"))) {
             rowType = 'beep';
@@ -1217,7 +1276,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         } else if (rowType === 'chat' && msg.name) {
             content = `<span class="user-name" style="color:${adjustedColor}">${escapeHtml(msg.name)}</span>: ${escapeHtml(msg.content)}`;
         } else {
-            // emote / action / activity / enter / nameless chat
             content = `<span class="action-text" style="color:${adjustedColor}">${escapeHtml(msg.content)}</span>`;
         }
 
@@ -1232,17 +1290,30 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             </div>`;
     }
 
-    // Unified HTML generator - both cache and live export use this
+    // =====================================================================
+    // FIX: generateHTML 新增跨日分隔線
+    // 當相鄰訊息的 _dateStr 不同時，插入日期標題列
+    // lastSeparatorRoomName 改用 msg.roomName 而非含前綴的 msg.content
+    // =====================================================================
     async function generateHTML(normalizedMsgs, includePrivate, title, filename) {
         const htmlTemplate = await generateHTMLTemplate(title);
         let html = htmlTemplate;
         let collapseId = 0;
         let openCollapsible = false;
         let processedCount = 0;
-        let lastSeparatorText = "";
+        let lastSeparatorRoomName = "";
+        let lastDateStr = "";   // 追蹤跨日
 
         for (const msg of normalizedMsgs) {
             if (!msg) continue;
+
+            // 跨日分隔線：當 _dateStr 有值且與上一條不同時插入
+            const msgDate = msg._dateStr || "";
+            if (msgDate && msgDate !== lastDateStr) {
+                html += `<div class="date-divider">📅 ${escapeHtml(msgDate)}</div>`;
+                lastDateStr = msgDate;
+            }
+
             if (msg.type === 'separator') {
                 if (openCollapsible) html += `</div>`;
                 const collapsedClass = (msg.expanded === false) ? 'collapsed' : '';
@@ -1255,14 +1326,15 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             <div id="collapse-${collapseId}" class="collapsible-content ${collapsedClass}">`;
                 collapseId++;
                 openCollapsible = true;
-                lastSeparatorText = msg.roomName || msg.content;
+                // FIX: 用 roomName 而非含 ˅ 的 content，過濾才能正確匹配
+                lastSeparatorRoomName = msg.roomName || "";
                 processedCount++;
                 continue;
             }
-            const rowHTML = renderMsgRow(msg, includePrivate, lastSeparatorText);
+
+            const rowHTML = renderMsgRow(msg, includePrivate, lastSeparatorRoomName);
             if (!rowHTML) continue;
-            // Reset after the first successful message so we don't keep filtering
-            lastSeparatorText = "";
+            lastSeparatorRoomName = "";
             html += rowHTML;
             processedCount++;
         }
@@ -1285,19 +1357,17 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         }
     }
 
-    // Cache export: stored objects -> unified renderer
     async function generateDBHTML(storedMessages, includePrivate) {
         window.ChatRoomSendLocalStyled(ui('toastCacheWait'), 3000, "#ffa500");
         await generateHTML(storedMessages, includePrivate, isZh() ? "緩存HTML" : "Cached Chat Log", "cached_chatlog");
     }
 
-    // Live export: DOM elements -> normalize -> unified renderer
     async function generateChatHTML(domMessages, includePrivate) {
         const normalized = domMessages.map(el => normalizeDOMMsg(el)).filter(Boolean);
         await generateHTML(normalized, includePrivate, isZh() ? "聊天室記錄" : "Chat Log", "chatlog");
     }
 
-        // =====================================================================
+    // =====================================================================
     // Custom prompt
     // =====================================================================
     function showCustomPrompt(message, options = []) {
@@ -1518,7 +1588,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                     const iconDiv = button?.querySelector(".chat-room-sep-image");
                     const iconText = iconDiv ? (iconDiv.querySelector("span")?.innerText || "") : "";
                     const sepText = `˅${iconText ? iconText + " - " : ""}${roomName}`.trim();
-                    processedMessages.push({ time: new Date().toISOString(), id: "", name: "", content: sepText, msgid: `sep_${roomName}_${Date.now()}`, type: "separator", color: "#8100E7" });
+                    processedMessages.push({ time: new Date().toISOString(), id: "", name: "", content: sepText, msgid: `sep_${roomName}_${Date.now()}`, type: "separator", roomName, color: "#8100E7" });
                     return;
                 }
                 if (msg.matches?.("a.beep-link")) return;
@@ -1531,25 +1601,22 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 const senderName = nameButton ? (nameButton.innerText || nameButton.textContent || "").trim() : "";
                 const msgidAttr = msg.querySelector("span[msgid]")?.getAttribute("msgid") || "";
 
-                // Whisper direction (for prefix in export)
                 const direction = msg.classList.contains("ChatMessageWhisper")
                     ? (msg.dataset.target ? 'outgoing' : 'incoming')
                     : undefined;
 
                 let content = "";
-                let originContent = "";
                 const isBceNotif = msg.classList.contains("bce-notification") || !!msg.querySelector('.bce-beep-link');
                 const contentSpan = msg.querySelector(".chat-room-message-content");
                 const originContentSpan = msg.querySelector(".chat-room-message-original");
 
                 if (isBceNotif) {
-                    // Extract text from the beep link element directly — avoids #anchor suffix
                     const beepLink = msg.querySelector('.bce-beep-link');
                     content = beepLink ? (beepLink.textContent || beepLink.innerText || "").trim() : "";
                 } else if (contentSpan) {
                     content = (contentSpan.textContent || contentSpan.innerText || "").trim();
                     if (originContentSpan) {
-                        originContent = (originContentSpan.textContent || originContentSpan.innerText || "").trim();
+                        const originContent = (originContentSpan.textContent || originContentSpan.innerText || "").trim();
                         content = content + '\n' + originContent;
                     }
                 } else {
@@ -1670,6 +1737,11 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         } catch (e) { logError("saveToLocalStorage", e); }
     }
 
+    // =====================================================================
+    // FIX: checkTempData 使用 tempData.date 而非 DateUtils.getDateKey()
+    // 原問題：saveToday 永遠存到「今天」的 key，昨天的暫存資料被歸到錯誤日期
+    // 修復：透過 saveForDate 將資料存回正確的日期 key
+    // =====================================================================
     async function checkTempData() {
         const storageKey = `che_temp_data_${getAccountPrefix()}`;
         try {
@@ -1682,7 +1754,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             const yesterdayKey = DateUtils.getDateKey(yesterday);
             if ((tempData.date === currentDate || tempData.date === yesterdayKey) && tempData.messages?.length > 0) {
                 try {
-                    await CacheManager.saveToday(tempData.messages);
+                    // FIX: 使用 saveForDate 傳入正確的日期，而非固定今天
+                    await CacheManager.saveForDate(tempData.messages, tempData.date);
                     currentMessageCount = 0; lastSaveTime = Date.now();
                     window.ChatRoomSendLocalStyled(ui('toastRestore', tempData.messages.length), 4000, "#00ff00");
                 } catch (saveError) {
@@ -1695,9 +1768,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     }
 
     // =====================================================================
-    // UI
-    // =====================================================================
-    // =====================================================================
     // CHE Settings (localStorage)
     // =====================================================================
     const CHE_SETTINGS_KEY = "che_settings_v1";
@@ -1707,7 +1777,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         try {
             const saved = JSON.parse(localStorage.getItem(CHE_SETTINGS_KEY) || "{}");
             cheSettings = Object.assign({ showBall: true, cacheEnabled: true }, saved);
-            // Sync cacheEnabled → currentMode on load
             if (!cheSettings.cacheEnabled && currentMode === "cache") {
                 currentMode = "stopped";
                 localStorage.setItem("chatlogger_mode", "stopped");
@@ -1739,30 +1808,26 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     }
 
     const EXT_SCREEN = {
-        // BC canvas: 2000x1000. Use MAT-style two-column layout.
-        // Left col centre ~650, Right col centre ~1350
         CB: 64,
-        // Shared Y positions
         Y: {
             back:    75,
             help:    75,
             title:  105,
-            secL:   180,   // "── 顯示 ──"
-            secR:   180,   // "── 匯出 ──"
-            cb1:    220,   // showBall checkbox
-            cb2:    310,   // cacheEnabled checkbox
-            btn1:   220,   // Export HTML button
-            btn2:   310,   // Export Excel button
-            btn3:   400,   // Cache manager button
+            secL:   180,
+            secR:   180,
+            cb1:    220,
+            cb2:    310,
+            btn1:   220,
+            btn2:   310,
+            btn3:   400,
             divider:500,
             desc1:  545,
             desc2:  595,
             desc3:  645,
         },
-        // Column centres
-        LC: 650,   // left column centre
-        RC: 1350,  // right column centre
-        LCB_X: 460, // left checkbox X
+        LC: 650,
+        RC: 1350,
+        LCB_X: 460,
 
         load() {},
 
@@ -1794,14 +1859,9 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             const lc = this.LC; const rc = this.RC; const lx = this.LCB_X;
             const btnW = 380; const btnH = 64;
 
-            // Top row: back + help
             DrawButton(1815, y.back, 90, 90, "", "White", "Icons/Exit.png", T.back);
             DrawButton(1710, y.help, 90, 90, "", "White", gameAsset("Icons/Question.png"), T.helpTip);
-
-            // Title
             DrawText(T.title, 1000, y.title, "Black", "White");
-
-            // ── Left: Display ──
             DrawText(T.secL, lc, y.secL, "Black", "White");
             DrawCheckbox(lx, y.cb1, cb, cb, "", cheSettings.showBall);
             DrawCheckbox(lx, y.cb2, cb, cb, "", cheSettings.cacheEnabled);
@@ -1811,18 +1871,12 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             DrawTextFit(T.cacheOn,  lx + cb + 12, y.cb2 + cb/2 + 10, 420,
                 cheSettings.cacheEnabled ? "Black" : "White");
             MainCanvas.textAlign = prev;
-
-            // ── Right: Export ──
             DrawText(T.secR, rc, y.secR, "Black", "White");
             const bx = rc - btnW/2;
             DrawButton(bx, y.btn1, btnW, btnH, T.btnHTML,  "White", "", "");
             DrawButton(bx, y.btn2, btnW, btnH, T.btnExcel, "White", "", "");
             DrawButton(bx, y.btn3, btnW, btnH, T.btnCache, "White", "", "");
-
-            // Divider
             DrawRect(395, y.divider, 1215, 2, "rgba(255,255,255,0.1)");
-
-            // Description
             DrawText(T.desc1, 1000, y.desc1, "Black", "White");
             DrawText(T.desc2, 1000, y.desc2, "Black", "White");
             DrawText(T.desc3, 1000, y.desc3, "Black", "White");
@@ -1837,13 +1891,10 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 if (typeof PreferenceExit === "function") PreferenceExit(); return;
             }
             if (MouseIn(1710, y.help, 90, 90)) { showHelpPopup(); return; }
-
-            // Toggle: Show ball
             if (MouseIn(lx, y.cb1, cb, cb)) {
                 cheSettings.showBall = !cheSettings.showBall;
                 saveCHESettings(); applyBallVisibility(); return;
             }
-            // Toggle: Enable cache
             if (MouseIn(lx, y.cb2, cb, cb)) {
                 cheSettings.cacheEnabled = !cheSettings.cacheEnabled;
                 saveCHESettings();
@@ -1871,7 +1922,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     };
 
     // =====================================================================
-    // Onboarding (first-time guide)
+    // Onboarding
     // =====================================================================
     const ONBOARD_KEY = "che_onboarded_v1";
 
@@ -1930,7 +1981,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         overlay.appendChild(card);
         document.body.appendChild(overlay);
 
-        // Pulse the ball to draw attention
         const ball = document.querySelector("#chatlogger-container button");
         if (ball) {
             ball.style.animation = "che-pulse 1s ease-in-out infinite";
@@ -2002,7 +2052,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         const btnClear = createButton(ui('btnClear'), clearCache,              "linear-gradient(135deg,#e74c3c 0%,#c0392b 100%)");
         const btnCache = createButton(ui('btnCache'), export_DB_HTML,          "linear-gradient(135deg,#f39c12 0%,#e67e22 100%)");
 
-        // ⚙️ Hide button (in toolbar, replaces old ? position)
         const btnHide = document.createElement("button");
         btnHide.textContent = isZh() ? "⚙️ 隱藏氣球" : "⚙️ Hide ball";
         btnHide.style.cssText = `padding:10px 15px;font-size:14px;text-align:left;font-weight:600;background:rgba(100,100,100,0.2);color:#aaa;border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;transition:all 0.3s;white-space:nowrap;user-select:none;`;
@@ -2034,7 +2083,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
         [btnHTML, btnExcel, btnClear, btnCache, btnMode, btnHide].forEach(btn => toolbar.appendChild(btn));
 
-        // Ball row: [💾 ball] [? question icon]
         const ballRow = document.createElement("div");
         ballRow.style.cssText = "display:flex;align-items:center;gap:8px;";
 
@@ -2049,7 +2097,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         questionBtn.onmouseout  = () => { questionBtn.style.opacity="0.7"; questionBtn.style.background="rgba(255,255,255,0.1)"; };
         questionBtn.onclick = (e) => { e.stopPropagation(); toolbar.style.display="none"; showHelpPopup(); };
 
-        // Question button hidden until toolbar opens
         questionBtn.style.display = "none";
 
         ballRow.appendChild(toggleButton);
@@ -2059,7 +2106,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         container.appendChild(ballRow);
         document.body.appendChild(container);
 
-        // Apply saved ball visibility
         applyBallVisibility();
 
         toggleButton.onclick = (e) => {
@@ -2114,7 +2160,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                     CacheManager.cleanOldData().catch(e => logError("init.cleanOldData", e));
                     addUI();
                     if (currentMode === "cache") initMessageObserver();
-                    // Show onboarding on first load
                     setTimeout(showOnboarding, 800);
                     console.log("🐈‍⬛ [CHE] ✅ Init complete, mode:", currentMode);
                 }
@@ -2129,7 +2174,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 });
             }
 
-            // Register extension settings page
             waitForPreference().then(() => {
                 PreferenceRegisterExtensionSetting({
                     Identifier: "CHE",
