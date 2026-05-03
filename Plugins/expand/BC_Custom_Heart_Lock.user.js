@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.2
+// @version      2.2.1
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -419,37 +419,51 @@
     //  EL 整合：上鎖許可判斷
     // ═══════════════════════════════════════════
     /**
-     * 判斷 Player 是否有資格替角色 ch 上 Heart Lock。
-     *
-     * 判斷邏輯（以 ch 的共享設定為準，因為 ch 才是被鎖的一方）：
-     *   1. ch 是 Player 的 BC 原生戀人 → 始終允許（原版行為，不需 EL 設定）
-     *   2. ch 未啟用 EL Lock（ch.OnlineSharedSettings.AFC.lockPerms.enableELLock = false）→ 拒絕
-     *   3. ch 是 Player 的拓展戀人（EL） → 允許
-     *   4. Player 是 ch 的主人 且 ch 設定允許主人使用鎖 → 允許
+     * 判斷 Player 是否能替 C 上心鎖。
+     * 所有條件都以 C 的 lockPerms 為準（穿戴者的選擇）。
      */
     function isAllowedToLock(ch) {
         const memberNum = ch?.MemberNumber;
         if (!memberNum) return false;
+        const lockPerms = ch.OnlineSharedSettings?.AFC?.lockPerms;
+        if (!lockPerms?.enableELLock) return false;  // 未開啟，任何人都不能鎖
 
-        // 1. BC 原生戀人 → 始終允許
+        // BC 原生戀人
         if (Player.Lovership?.some(l => Number(l.MemberNumber) === Number(memberNum)))
             return true;
-
-        // 2. 讀取 ch 的共享鎖定權限（其他玩家可見）
-        const elPerms = ch.OnlineSharedSettings?.AFC?.lockPerms;
-        if (!elPerms?.enableELLock) return false;  // ch 未開啟 EL Lock
-
-        const api = window.ELAbundantiaAPI;
-
-        // 3. 拓展戀人
-        if (api?.isELLover?.(memberNum)) return true;
-
-        // 4. Player 是 ch 的主人，且 ch 允許主人使用鎖
-        if (elPerms.enableOwnerLock &&
+        // EL 拓展戀人
+        if (window.ELAbundantiaAPI?.isELLover?.(memberNum)) return true;
+        // 主人（需額外開啟 enableOwnerLock）
+        if (lockPerms.enableOwnerLock &&
             ch.Ownership?.MemberNumber != null &&
             Number(ch.Ownership.MemberNumber) === Number(Player.MemberNumber))
             return true;
 
+        return false;
+    }
+
+    /**
+     * 判斷 Player 是否能解開 C 身上的心鎖。
+     * 邏輯與上鎖相同，但 cfg.owner 始終可解鎖。
+     */
+    function isAllowedToUnlock(C, cfg) {
+        if (!C || !cfg) return false;
+        // 鎖的掛鎖者 → 始終可解鎖
+        if (Number(cfg.owner) === Number(Player.MemberNumber)) return true;
+        const lockPerms = C.OnlineSharedSettings?.AFC?.lockPerms;
+        if (!lockPerms?.enableELLock) return false;  // 未開啟，任何人都不能解鎖
+        // BC 原生戀人
+        if (C.Lovership?.some(l => Number(l.MemberNumber) === Number(Player.MemberNumber)))
+            return true;
+        // EL 拓展戀人
+        const elLovers = C.OnlineSharedSettings?.AFC?.lovers ?? [];
+        if (elLovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)))
+            return true;
+        // 主人（需額外開啟 enableOwnerLock）
+        if (lockPerms.enableOwnerLock &&
+            C.Ownership?.MemberNumber != null &&
+            Number(C.Ownership.MemberNumber) === Number(Player.MemberNumber))
+            return true;
         return false;
     }
 
@@ -869,13 +883,19 @@
      */
     function isAllowedToUnlock(C, cfg) {
         if (!C || !cfg) return false;
-        // owner
+        // 鎖的掛鎖者（cfg.owner）→ 始終可解鎖
         if (Number(cfg.owner) === Number(Player.MemberNumber)) return true;
-        // EL 戀人：從穿戴者的共享設定讀取
+        // C 的 BC 原生戀人 → 始終可解鎖
+        if (C.Lovership?.some(l => Number(l.MemberNumber) === Number(Player.MemberNumber))) return true;
+        // C 的 EL 拓展戀人 → 始終可解鎖
         const elLovers = C.OnlineSharedSettings?.AFC?.lovers ?? [];
         if (elLovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber))) return true;
-        // BC 原生戀人
-        if (C.Lovership?.some(l => Number(l.MemberNumber) === Number(Player.MemberNumber))) return true;
+        // C 的主人（BC Ownership）且 C 開啟了 enableOwnerLock → 可解鎖
+        const lockPerms = C.OnlineSharedSettings?.AFC?.lockPerms;
+        if (lockPerms?.enableOwnerLock &&
+            C.Ownership?.MemberNumber != null &&
+            Number(C.Ownership.MemberNumber) === Number(Player.MemberNumber))
+            return true;
         return false;
     }
 
@@ -1490,19 +1510,14 @@
             return next(args);
         });
 
-        // ── 非允許者隱藏 HeartLock ────────────────────────────────────
-        // ▼ CHANGE 1: isLover → isAllowedToLock ▼
+        // ── 有插件的人都能看到此鎖，但上鎖時才做權限檢查 ────────────
         modApi.hookFunction('DialogInventoryAdd', 10, (args, next) => {
             const C    = args[0];
             const item = args[1];
             if (item?.Asset?.Name !== HEARTLOCK_NAME) return next(args);
             if (DialogMenuMode === 'permissions') return next(args);
             if (C.ID === 0) return;  // 穿戴者自己不顯示
-
-            // 只有被允許的關係才能看到此鎖
-            if (!isAllowedToLock(C)) return;  // 不呼叫 next → 不顯示
-
-            return next(args);
+            return next(args);  // 有插件就能看到，上鎖時才判斷權限
         });
 
         // ── 上鎖 ──────────────────────────────────────────────────────
