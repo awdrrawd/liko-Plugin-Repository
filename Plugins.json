@@ -1,14 +1,18 @@
 {
-  "updateId": "260430",
+  "updateId": "260504",
   "changelog": [
-    "⭐繁戀如花 ─繽紛─ v0.5.4 更新",
-    "修正拓展戀人無法開鎖的，現在多一個專門的分頁來判定開鎖",
-    "修復使用高安鎖會發送錯誤的信息問題"
+    "⭐繁戀如花 ─繽紛─ v0.5.5 更新",
+    "修正上鎖與解鎖的邏輯",
+    "修復因不同伺服器導致收不到邀請通知的問題",
+    "⭐CHE -聊天室書記官- v2.4.2 更新",
+    "修復多日期合併導致時間錯誤的問題",
   ],
   "en_changelog": [
     "⭐Blooming Love ─Colorful─ v0.5.4 Update",
-    "Fixed the issue where lovers couldn't unlock; a new tab has been added for operating the unlock function.",
-    "Fixed the issue where using a high-security lock would send an error message."
+    "Fixed the locking and unlocking logic.",
+    "Fixed the issue of not receiving invitation notifications due to different servers.",
+    "⭐CHE -Chat History Exporter- v2.4.2 Update",
+    "Fixed the issue of time errors caused by merging multiple dates.",
   ],
   "plugins": [
     {
