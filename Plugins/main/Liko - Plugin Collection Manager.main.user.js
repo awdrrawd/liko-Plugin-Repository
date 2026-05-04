@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.2
+// @version      1.5.3
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
 
     // --- modApi 初始化 ---
     let modApi;
-    const modversion = "1.5.2";
+    const modversion = "1.5.3";
 
     // === 生命週期管理 ===
     let isInitialized = false;
@@ -441,7 +441,7 @@ let _isCN = detectLanguage();
     // --- 子插件清單（動態載入）---
     let subPlugins = [];
     let pluginsLoaded = false;
-    let _pluginsProcessPromise = null; // ★ loadPluginsJSON() 的 Promise，供 waitForPlayer 等待
+    const _pluginsProcessPromise = loadPluginsJSON();
 
     // --- JSON 網路抓取（RAW 優先，CDN 備援）---
     async function fetchJSONFromNetwork() {
@@ -619,7 +619,7 @@ let _isCN = detectLanguage();
         // 確保 JSON 已處理完畢
         if (!pluginsLoaded) {
             console.log("🐈‍⬛ [PCM] ⏳ 等待 plugins.json 處理...");
-            if (_pluginsProcessPromise) await _pluginsProcessPromise;
+            await _pluginsProcessPromise;  // ← 直接 await，因為現在保證不是 null
             if (!pluginsLoaded) {
                 console.error("🐈‍⬛ [PCM] ❗ plugins.json 載入失敗，放棄載入插件");
                 return;
@@ -1514,7 +1514,7 @@ function checkLanguageChange() {
         tryRegisterCommand();
 
         // ★ 非阻塞：JSON 載入完後補刷 UI，不卡初始化流程
-        _pluginsProcessPromise = loadPluginsJSON().then((success) => {
+        _pluginsProcessPromise.then((success) => {
             if (!success) return;
             // 補刷 content（若 panel 已存在且還在 loading 狀態）
             const content = document.querySelector(".bc-plugin-content");
