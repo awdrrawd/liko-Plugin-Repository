@@ -5,14 +5,14 @@
     "修正上鎖與解鎖的邏輯",
     "修復因不同伺服器導致收不到邀請通知的問題",
     "⭐CHE -聊天室書記官- v2.4.2 更新",
-    "修復多日期合併導致時間錯誤的問題",
+    "修復多日期合併導致時間錯誤的問題"
   ],
   "en_changelog": [
     "⭐Blooming Love ─Colorful─ v0.5.4 Update",
     "Fixed the locking and unlocking logic.",
     "Fixed the issue of not receiving invitation notifications due to different servers.",
     "⭐CHE -Chat History Exporter- v2.4.2 Update",
-    "Fixed the issue of time errors caused by merging multiple dates.",
+    "Fixed the issue of time errors caused by merging multiple dates."
   ],
   "plugins": [
     {
