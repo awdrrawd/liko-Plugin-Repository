@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://likulisu.dev/
-// @version      1.02
+// @version      1.0.3
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -52,22 +52,22 @@
 
     // 載入主程式
     (async () => {
-        console.log("[PCM] ⏳ 等待 bcModSdk 載入...");
+        console.log("🐈‍⬛ [PCM] ⏳ 等待 bcModSdk 載入...");
         try {
             const sdk = await waitForBcModSdk();
-            console.log("[PCM] ✅ bcModSdk 已載入");
+            console.log("🐈‍⬛ [PCM] ✅ bcModSdk 已載入");
 
             // 抓主程式碼
             const url = "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
-            const code = await fetch(url).then(r => r.text());
+            const code = await fetch(url, { cache: "no-cache" }).then(r => r.text());
 
             // 提供給主程式使用
             window.bcModSdk = sdk;
 
             eval(code);
-            console.log("[PCM] ✅ 主程式已啟動");
+            console.log("🐈‍⬛ [PCM] ✅ 主程式已啟動");
         } catch (e) {
-            console.error("[PCM] ❌ 初始化失敗:", e.message);
+            console.error("🐈‍⬛ [PCM] ❌ 初始化失敗:", e.message);
         }
     })();
 
