@@ -443,6 +443,7 @@ let _isCN = detectLanguage();
     // --- 子插件清單（動態載入）---
     let subPlugins = [];
     let pluginsLoaded = false;
+    const _pluginsJSONPromise = fetchPluginsJSON();
     const _pluginsProcessPromise = loadPluginsJSON();
 
     // --- JSON 網路抓取（RAW 優先，CDN 備援）---
@@ -473,8 +474,6 @@ let _isCN = detectLanguage();
         }
         return await fetchJSONFromNetwork();
     }
-
-    const _pluginsJSONPromise = fetchPluginsJSON();
 
     function applyPluginSettings(plugins) {
         return plugins.map(plugin => {
