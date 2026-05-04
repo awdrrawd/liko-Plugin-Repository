@@ -1567,5 +1567,5 @@ function checkLanguageChange() {
         initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
     }
 
-    console.log("🐈‍⬛ [PCM] ✅ v1.5.2 腳本載入完成");
+    console.log("🐈‍⬛ [PCM] ✅ v1.5.3 腳本載入完成");
 })();
