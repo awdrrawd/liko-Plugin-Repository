@@ -55,14 +55,14 @@
     ];
 
     // --- 語言 ---
-function detectLanguage() {
-    if (typeof TranslationLanguage !== 'undefined') {
-        const l = TranslationLanguage.toLowerCase();
-        return l === 'tw' || l === 'cn';
+    function detectLanguage() {
+        if (typeof TranslationLanguage !== 'undefined') {
+            const l = TranslationLanguage.toLowerCase();
+            return l === 'tw' || l === 'cn';
+        }
+        return (navigator.language || 'en').toLowerCase().startsWith('zh');
     }
-    return (navigator.language || 'en').toLowerCase().startsWith('zh');
-}
-let _isCN = detectLanguage();
+    let _isCN = detectLanguage();
     const messages = {
         en: {
             loaded: `Liko's Plugin Collection Manager v${modversion} Loaded! Click the floating button to manage plugins.`,
@@ -452,14 +452,39 @@ let _isCN = detectLanguage();
             try {
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
+
+                const text = await res.text();
+
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch(e) {
+                    console.warn(`🐈‍⬛ [PCM] ⚠️ plugins.json 格式錯誤，不寫入快取:`, e.message);
+                    continue;
+                }
+
+                if (!data || !Array.isArray(data.plugins) || data.plugins.length === 0) {
+                    console.warn(`🐈‍⬛ [PCM] ⚠️ plugins.json 結構異常，不寫入快取`);
+                    continue;
+                }
+
                 setCachedJSON(data);
                 console.log(`🐈‍⬛ [PCM] ✅ plugins.json 從網路載入成功 (${url})`);
                 return data;
+
             } catch(e) {
                 console.warn(`🐈‍⬛ [PCM] ⚠️ plugins.json 從 ${url} 載入失敗:`, e.message);
             }
         }
+
+        // 所有 URL 都失敗，保留舊快取
+        const oldCache = getCachedJSON();
+        if (oldCache) {
+            console.warn(`🐈‍⬛ [PCM] ⚠️ 網路版本有問題，保留舊快取`);
+            showNotification("⚠️", "PCM", _isCN ? "插件清單更新失敗，使用舊版本" : "Plugin list update failed, using cached version");
+            return oldCache;
+        }
+
         return null;
     }
 
@@ -1355,10 +1380,10 @@ let _isCN = detectLanguage();
     // --- 語言變化偵測 ---
     let lastDetectedLanguage = null;
 
-function checkLanguageChange() {
-    const currentLang = detectLanguage();
-    if (lastDetectedLanguage !== null && lastDetectedLanguage !== currentLang) {
-        _isCN = currentLang;
+    function checkLanguageChange() {
+        const currentLang = detectLanguage();
+        if (lastDetectedLanguage !== null && lastDetectedLanguage !== currentLang) {
+            _isCN = currentLang;
             const existingGroup = document.getElementById("bc-plugin-btn-group");
             const existingPanel = document.getElementById("bc-plugin-panel");
             if (existingGroup) existingGroup.remove();
