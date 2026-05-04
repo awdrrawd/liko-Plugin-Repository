@@ -11,6 +11,8 @@
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js
 // @grant        none
 // @run-at       document-end
+// @downloadURL  https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
+// @updateURL    https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
 // ==/UserScript==
 (function() {
     "use strict";
