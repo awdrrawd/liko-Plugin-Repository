@@ -5,7 +5,7 @@
 
 (function() {
 
-    console.log("⌛ [GlobalToast] 初始化...");
+    console.log("🐈‍⬛ [GlobalToast] ⌛ 初始化...");
 
     let activeMessages = [];
     let lastPromptTime = 0;
@@ -95,7 +95,7 @@
             }, config.duration);
 
         } catch (error) {
-            console.error("❌[GlobalToast] 錯誤:", error);
+            console.error("🐈‍⬛ [GlobalToast] ❌ 錯誤:", error);
         }
     };
 
@@ -103,5 +103,5 @@
     window.ChatRoomSendLocalStyled._version = "1.1";
     window.ChatRoomSendLocalStyled._loadTime = Date.now();
 
-    console.log("✅ [GlobalToast] v1.1 載入完成");
+    console.log("🐈‍⬛ [GlobalToast] ✅ v1.1 載入完成");
 })();
