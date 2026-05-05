@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.2.1
+// @version      2.2.2
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -473,11 +473,11 @@
     function log(...a) { console.log('🐈‍⬛ [HeartLock]', ...a); }
     function clone(v)  { return JSON.parse(JSON.stringify(v)); }
     function wait(ms)  { return new Promise(r => setTimeout(r, ms)); }
-    async function waitFor(fn, timeout = 45000, interval = 100) {
+    async function waitFor(fn, timeout = 0, interval = 100) {
         const start = Date.now();
         while (true) {
             try { if (fn()) return true; } catch {}
-            if (Date.now() - start > timeout) return false;
+            if (timeout > 0 && Date.now() - start > timeout) return false;
             await wait(interval);
         }
     }
@@ -1811,17 +1811,14 @@
         // EL 載入時：等 window.ELAbundantiaAPI.modApi 出現
         // EL 未載入時：等 bcModSdk 本身
         const sdkReady = await waitFor(
-            () => !!window.ELAbundantiaAPI?.modApi || !!window.bcModSdk,
-            600000
+            () => !!window.ELAbundantiaAPI?.modApi || !!window.bcModSdk
         );
-        if (!sdkReady) { console.error('[HeartLock] ModSDK / EL timeout.'); return; }
 
         const modApi = getModApi();
         if (!modApi) { console.error('[HeartLock] modApi unavailable.'); return; }
 
         // Phase 2：等玩家登入 + 遊戲資源就緒
-        const gameReady = await waitFor(() => !!window.Player?.AccountName && !!window.AssetFemale3DCG, 600000);
-        if (!gameReady) { console.error('[HeartLock] Game load timeout.'); return; }
+        const gameReady = await waitFor(() => !!window.Player?.AccountName && !!window.AssetFemale3DCG);
 
         createHeartLockAsset();
         patchFunctions(modApi);
@@ -1833,7 +1830,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.1.1 (EL Edition) initialized.');
+        log('HeartLock v2.2.2 (EL Edition) initialized.');
     }
 
     initialize().catch(e => console.error('[HeartLock] init error', e));
