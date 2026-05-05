@@ -186,7 +186,7 @@
             const entry = meta[pluginId];
             if (!entry) return null;
             if (Date.now() - entry.time > CACHE_TTL) {
-                console.log(`⏰ [PCM] ${pluginId} 快取已過期，將重新抓取`);
+                console.log(`🐈‍⬛ [PCM] ⏰ ${pluginId} 快取已過期，將重新抓取`);
                 _clearCachedPlugin(pluginId);
                 return null;
             }
