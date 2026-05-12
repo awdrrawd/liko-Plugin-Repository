@@ -1,17 +1,15 @@
 // ==UserScript==
-// @name         BC Abundantia Florum ─Chromatica─
-// @name:zh      BC 繁戀如花 ─繽紛─
+// @name         Abundantia Florum ─Chromatica─
+// @name:zh      Abundantia Florum ─Chromatica─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.5
+// @version      0.5.6
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
-// @author       Likolisu
+// @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
 // @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
 // @run-at       document-end
-// @downloadURL  https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
-// @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // ==/UserScript==
 
 /*
@@ -29,7 +27,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.5";
+    const MOD_VERSION  = "0.5.6";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -1866,27 +1864,35 @@
             try {
                 _ownerTextY  = null;
                 _inInfoSheet = true;
+
+                // BCX 子畫面開啟時不繪製我們的元素
+                const bcxActive = typeof window.bcx?.inBcxSubscreen === 'function' && window.bcx.inBcxSubscreen();
+
+                const _inSheet = !bcxActive &&
+                    CurrentScreen === "InformationSheet" &&
+                    !(typeof InformationSheetSecondScreen !== 'undefined' && InformationSheetSecondScreen);
+
+                if (_inSheet) {
+                    if (!profilePageFresh) {
+                        profilePageFresh = true;
+                        lastOnlineFetch  = 0;
+                        refreshOnlineFriends().catch(() => {});
+                    }
+                    const _C = getCurrentViewingCharacter();
+                    if (_C?.MemberNumber === Player.MemberNumber) drawBCRelationDots(_C);
+                    drawProfileButton();
+                }
+
                 const r = next(args);
                 _inInfoSheet = false;
 
-                // 不在 InformationSheet 畫面時不繪製
+                if (bcxActive) return r;
                 if (CurrentScreen !== "InformationSheet") return r;
-
-                // BC 第二頁（聲望/技能）不繪製，收起面板
                 if (typeof InformationSheetSecondScreen !== 'undefined' && InformationSheetSecondScreen) {
                     profilePanelOpen = false;
                     return r;
                 }
 
-                if (!profilePageFresh) {
-                    profilePageFresh = true;
-                    lastOnlineFetch  = 0;
-                    refreshOnlineFriends().catch(() => {});
-                }
-
-                const C = getCurrentViewingCharacter();
-                if (C?.MemberNumber === Player.MemberNumber) drawBCRelationDots(C);
-                drawProfileButton();
                 drawProfilePanel();
                 return r;
             } catch (e) {
@@ -1896,7 +1902,13 @@
             }
         });
         modApi.hookFunction("InformationSheetClick", 5, (args, next) => {
-            try { handleProfileClick(); } catch (e) {}
+            try {
+                // 任何非我們按鈕的點擊都關閉面板（包含點 BCX 按鈕）
+                if (!MouseIn(PROFILE_BTN_X, PROFILE_BTN_Y, PROFILE_BTN_W, PROFILE_BTN_H)) {
+                    profilePanelOpen = false;
+                }
+                handleProfileClick();
+            } catch (e) {}
             return next(args);
         });
         modApi.hookFunction("InformationSheetExit", 5, (args, next) => {
