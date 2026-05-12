@@ -1,18 +1,12 @@
 {
   "updateId": "260504",
   "changelog": [
-    "⭐繁戀如花 ─繽紛─ v0.5.5 更新",
-    "修正上鎖與解鎖的邏輯",
-    "修復因不同伺服器導致收不到邀請通知的問題",
-    "⭐CHE -聊天室書記官- v2.4.2 更新",
-    "修復多日期合併導致時間錯誤的問題"
+    "⭐AEE - 外觀編輯拓展 v0.7.4 更新",
+    "修正在編輯拘束時，會點到互動格子的問題"
   ],
   "en_changelog": [
-    "⭐Blooming Love ─Colorful─ v0.5.4 Update",
-    "Fixed the locking and unlocking logic.",
-    "Fixed the issue of not receiving invitation notifications due to different servers.",
-    "⭐CHE -Chat History Exporter- v2.4.2 Update",
-    "Fixed the issue of time errors caused by merging multiple dates."
+    "⭐AEE -  Appearance editing extension v0.7.4 Update",
+    "Fixed an issue where interactive tiles would be accidentally clicked while editing constraints."
   ],
   "plugins": [
     {
