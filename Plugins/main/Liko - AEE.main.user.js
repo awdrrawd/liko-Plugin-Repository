@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.7.3
+// @version      0.7.4
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
   'use strict';
 
   const MOD_NAME = "Liko - AEE";
-  const MOD_Version = "0.7.3";
+  const MOD_Version = "0.7.4";
   if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
   const modApi = bcModSdk.registerMod({
     name: MOD_NAME, fullName: "Liko - Appearance Editor",
@@ -553,9 +553,9 @@
 
   let xyDragState = null;
 
-  document.addEventListener('mousedown', e => {
-    if (hostEl && hostEl.contains(e.target)) return;
-    if (colorPickerHostEl && colorPickerHostEl.contains(e.target)) return;
+  // xy drag: 改在 _touchBlocker 上監聽（blocker 遮住 BC 互動格，直接在 blocker 拖曳）
+  // 也保留 document capture 作為 fallback（blocker 未顯示時仍可用）
+  function _startXyDrag(e) {
     if (state.activeDrag !== 'xy' || state.selectedLayer === null) return;
     const c = getCanvas(); if (!c) return;
     const r = c.getBoundingClientRect();
@@ -572,6 +572,13 @@
       flipX: !!lo.FlipX, flipY: !!lo.FlipY,
     };
     e.stopImmediatePropagation();
+  }
+
+  document.addEventListener('mousedown', e => {
+    if (hostEl && hostEl.contains(e.target)) return;
+    if (colorPickerHostEl && colorPickerHostEl.contains(e.target)) return;
+    if (e.target === _touchBlocker) return; // handled by blocker's own listener
+    _startXyDrag(e);
   }, true);
 
   document.addEventListener('mousemove', e => {
@@ -907,6 +914,131 @@
       if (lb)  lb.textContent = v2 === null ? '—' : pct + '%';
     }
   }
+
+  // ── Touch / Click Blocker ─────────────────────────────────────────────────
+  // BC 的角色互動在 document 層用 capture:true 監聽，普通 div overlay 攔不住。
+  // 解法：我們也在 document capture 層搶先 stopImmediatePropagation。
+  // 同時保留一個透明 div 僅用於顯示 cursor feedback（不依賴它接收事件）。
+  //
+  // 生命週期：host 顯示時啟動（永遠攔截），host 隱藏時停止。
+  // z-index 層次（由低到高）：
+  //   BC canvas (0) < touchBlocker div (5000) < hostEl (999998)
+  //   < rotOverlayHost (999997) < opOverlayHost (999996) < colorPicker (1000000)
+  //   ※ rotOverlayHost 的 rot-hit 和 parts-float 都在我們自己的 shadow DOM 內，
+  //     capture handler 會排除它們。
+  // ─────────────────────────────────────────────────────────────────────────
+
+  let _touchBlocker = null; // cursor feedback div only
+
+  function _buildTouchBlocker() {
+    if (_touchBlocker) return;
+    _touchBlocker = document.createElement('div');
+    _touchBlocker.style.cssText =
+      'position:fixed;z-index:5000;pointer-events:none;background:transparent;touch-action:none;cursor:default;';
+    document.body.appendChild(_touchBlocker);
+  }
+
+  function _alignTouchBlocker() {
+    if (!_touchBlocker) return;
+    const r = getCanvasRect(); if (!r) return;
+    _touchBlocker.style.left   = r.left   + 'px';
+    _touchBlocker.style.top    = r.top    + 'px';
+    _touchBlocker.style.width  = r.width  + 'px';
+    _touchBlocker.style.height = r.height + 'px';
+  }
+
+  function _updateBlockerCursor() {
+    if (!_touchBlocker) return;
+    const cursors = { xy:'grab', rot:'crosshair', scale:'nwse-resize', skew:'ew-resize' };
+    _touchBlocker.style.cursor = cursors[state.activeDrag] || 'default';
+  }
+
+  function showTouchBlocker() {
+    _buildTouchBlocker();
+    _alignTouchBlocker();
+    // cursor div: show only when a drag mode is active (visual feedback)
+    _touchBlocker.style.display = state.activeDrag ? 'block' : 'none';
+    _updateBlockerCursor();
+  }
+
+  function hideTouchBlocker() {
+    if (_touchBlocker) _touchBlocker.style.display = 'none';
+  }
+
+  // ── document-level capture interceptor — runs BEFORE BC's handlers ──────
+  // 診斷確認：BC canvas 用 pointerdown/pointerup（非 mousedown），
+  //           同時 document 也有 mousedown/click 監聽。全部攔截。
+  // _touchBlockerActive flag 已棄用，改為直接檢查 hostEl 可見性，
+  // 避免 flag 在 host 已顯示前未被設定的 race condition。
+  function _shouldIntercept(e) {
+    if (!hostEl || hostEl.style.display === 'none') return false;
+    // 排除我們自己的 UI
+    const ourHosts = [hostEl, rotOverlayHost, opOverlayHost, colorPickerHostEl, _touchBlocker];
+    for (const h of ourHosts) { if (h && h.contains(e.target)) return false; }
+    // 排除 BC 原生的 DOM UI（選色器、對話框等 screen-main-container 類元素）
+    // 這些是真實 HTML 元素，不是 canvas，不應被攔截
+    if (e.target?.closest?.('.screen-main-container, .screen-main, fieldset[name="color-picker"]')) return false;
+    if (e.target?.closest?.('[role="menu"], [role="menuitem"], [role="radiogroup"]')) return false;
+    // 取座標
+    const cx = e.clientX ?? e.touches?.[0]?.clientX;
+    const cy = e.clientY ?? e.touches?.[0]?.clientY;
+    if (cx == null || cy == null) return false;
+    // 只攔截角色區域
+    const canvas = getCanvas();
+    const r = canvas?.getBoundingClientRect();
+    if (!r) return false;
+    const gw = canvas.width  || 2000;
+    const gh = canvas.height || 1000;
+    const sx = r.width  / gw;
+    const sy = r.height / gh;
+    const charLeft   = r.left + 300  * sx;
+    const charRight  = r.left + 1700 * sx;
+    const charTop    = r.top  + 50   * sy;
+    const charBottom = r.top  + 950  * sy;
+    if (cx < charLeft || cx > charRight || cy < charTop || cy > charBottom) return false;
+    return true;
+  }
+
+  const _interceptOpts = { capture: true };
+  const _interceptOptsPassive = { capture: true, passive: false };
+
+  // ── 只攔截 DOWN 事件 ────────────────────────────────────────────────────────
+  // UP/click 不攔：BC 若沒收到 down 就不會開始互動，up 無害。
+  // 攔 up 反而造成 xy drag 無法結束 + BC pointer capture 狀態錯亂（閃爍）。
+  // 不呼叫 preventDefault（會破壞 BC rendering loop），只 stopImmediatePropagation。
+
+  document.addEventListener('pointerdown', e => {
+    if (!_shouldIntercept(e)) return;
+    e.stopImmediatePropagation();
+    if (state.activeDrag === 'xy') _startXyDrag(e);
+  }, _interceptOpts);
+
+  document.addEventListener('pointerup', e => {
+    if (!_shouldIntercept(e)) return;
+    e.stopImmediatePropagation();
+    _updateBlockerCursor();
+  }, _interceptOpts);
+
+  document.addEventListener('mousedown', e => {
+    if (!_shouldIntercept(e)) return;
+    e.stopImmediatePropagation();
+    if (state.activeDrag === 'xy') _startXyDrag(e);
+  }, _interceptOpts);
+
+  // mouseup も攔截：BC の互動が mouseup で発動するため。
+  // xy drag の mouseup ハンドラは先に登録済みなので registration order により先発火し、
+  // ドラッグ中は stopImmediatePropagation → こちらに届かない。
+  // ドラッグ外のときだけこのハンドラが BC の mouseup を止める。
+  document.addEventListener('mouseup', e => {
+    if (!_shouldIntercept(e)) return;
+    e.stopImmediatePropagation();
+    _updateBlockerCursor();
+  }, _interceptOpts);
+
+  document.addEventListener('touchstart', e => {
+    if (!_shouldIntercept(e)) return;
+    e.stopImmediatePropagation();
+  }, _interceptOptsPassive);
 
   let rotOverlayHost = null;
   let rotShadow = null;
@@ -1906,7 +2038,8 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       if (dragIcon) {
         const mode = dragIcon.dataset.dragToggle;
         state.activeDrag = (state.activeDrag === mode) ? null : mode;
-        if (state.activeDrag === 'rot') showRotOverlay(); else hideRotOverlay();
+        if (state.activeDrag === 'rot') showRotOverlay(); else hideRotOverlay(); hideTouchBlocker();
+        if (state.activeDrag) { showTouchBlocker(); } else { hideTouchBlocker(); }
         updateToggleIcons();
         return;
       }
@@ -2205,7 +2338,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     if (el.dataset.dragMode !== undefined) {
       const mode = el.dataset.dragMode;
       if (el.checked) {
-        if (state.activeDrag === 'rot' && mode !== 'rot') hideRotOverlay();
+        if (state.activeDrag === 'rot' && mode !== 'rot') hideRotOverlay(); hideTouchBlocker();
         state.activeDrag = mode;
         updateToggleIcons();
         if (mode === 'rot') showRotOverlay();
@@ -2217,7 +2350,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       } else {
         state.activeDrag = null;
         updateToggleIcons();
-        if (mode === 'rot') hideRotOverlay();
+        if (mode === 'rot') hideRotOverlay(); hideTouchBlocker();
         el.closest('.drag-check-label')?.classList.remove('active');
       }
       return;
@@ -2438,11 +2571,12 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
     if (!item || !group || (!isWardrobeColor && !isItemColor)) {
       hostEl.style.display = 'none';
-      hideRotOverlay();
+      hideRotOverlay(); hideTouchBlocker();
       return;
     }
     hostEl.style.display = 'block';
     alignHost(); updateTogglePos();
+    showTouchBlocker(); // 啟動攔截（host 開著時永遠攔截 BC canvas 誤觸）
 
     const _nameEl = shadowRoot.getElementById('item-name-text');
     if (_nameEl) _nameEl.textContent = `${group} / ${item.Asset?.Description || item.Asset?.Name || ''}`;
@@ -2470,7 +2604,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     });
 
     if (state.activeDrag === 'rot') showRotOverlay();
-    else hideRotOverlay();
+    else hideRotOverlay(); hideTouchBlocker();
   }
 
   function updatePartsPanel() {
@@ -2810,7 +2944,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       if (itemChanged) {
         state.selectedLayer = null;
         state.activeDrag = null;
-        hideRotOverlay();
+        hideRotOverlay(); hideTouchBlocker();
         updateToggleIcons();
         const pf  = shadowRoot?.getElementById('parts-float');
         const btn = shadowRoot?.getElementById('parts-toggle-btn');
@@ -2934,6 +3068,60 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     return next(args);
   });
 
+  // ── AEE 編輯中、BC 的點擊函數直接 hook ─────────────────────────────────
+  // 診斷確認：聊天室用 CommonClick→DialogClick，更衣室用 AppearanceClick。
+  // DOM 事件攔截對 BC 的遊戲循環無效，直接 hook 才有用。
+
+  function _aeeIsEditing() {
+    return !!(hostEl && hostEl.style.display !== 'none');
+  }
+
+  function _aeeIsBodyClick() {
+    const mx = (typeof MouseX !== 'undefined') ? MouseX : 9999;
+    const my = (typeof MouseY !== 'undefined') ? MouseY : 9999;
+    if (my < 90) return false;
+    // BC 選色器開啟時（Appearance Color 模式）不攔截
+    const mode = (typeof CharacterAppearanceMode !== 'undefined') ? CharacterAppearanceMode : '';
+    if (mode === 'Color') return false;
+    const screen = (typeof CurrentScreen !== 'undefined') ? CurrentScreen : '';
+    if (screen === 'ChatRoom' || screen === 'ChatSearch') {
+      return mx < 1000;
+    }
+    if (screen === 'Appearance') {
+      return mx < 1000;
+    }
+    return false;
+  }
+
+  // 更衣室 Appearance screen
+  try {
+    modApi.hookFunction("AppearanceClick", 0, (args, next) => {
+      if (_aeeIsEditing()) {
+        const mode = (typeof CharacterAppearanceMode !== 'undefined') ? CharacterAppearanceMode : '';
+        // Color 模式（BC 原生選色器）和 Cloth 模式（換衣物）：完全放行
+        if (mode === 'Color' || mode === 'Cloth' || mode === 'Permissions') return next(args);
+        // 一般模式（mode === ''）：攔截身體區域點擊（y > 90）
+        if (typeof MouseY !== 'undefined' && MouseY > 90) return;
+      }
+      return next(args);
+    });
+  } catch(e) {}
+
+  // 聊天室など：CommonClick / DialogClick（診斷確認済み）
+  try {
+    modApi.hookFunction("CommonClick", 0, (args, next) => {
+      if (_aeeIsEditing() && _aeeIsBodyClick()) return;
+      return next(args);
+    });
+  } catch(e) {}
+
+  try {
+    modApi.hookFunction("DialogClick", 0, (args, next) => {
+      if (_aeeIsEditing() && _aeeIsBodyClick()) return;
+      return next(args);
+    });
+  } catch(e) {}
+
   let _aeeItemColorChar = null;
   let _aeeItemColorItem = null;
   let _aeeItemColorDirty = false;
@@ -2989,7 +3177,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   try { modApi.hookFunction("DialogRun", 0, (args, next) => { aeeCheckAndRender(); return next(args); }); } catch(e) {}
 
   window.addEventListener('resize', () => {
-    alignHost(); updateTogglePos(); alignRotOverlay(); alignOpOverlay();
+    alignHost(); updateTogglePos(); alignRotOverlay(); alignOpOverlay(); _alignTouchBlocker();
     positionColorPicker();
     if (state.activeDrag === 'rot') {
       const item = getCurrentItem();
