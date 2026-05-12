@@ -971,12 +971,12 @@
   // _touchBlockerActive flag 已棄用，改為直接檢查 hostEl 可見性，
   // 避免 flag 在 host 已顯示前未被設定的 race condition。
   function _shouldIntercept(e) {
-    if (!hostEl || hostEl.style.display === 'none') return false;
+    // 和 _aeeIsEditing() 邏輯一致：只在 AEE 拖曳模式啟用時攔截
+    if (!_aeeIsEditing()) return false;
     // 排除我們自己的 UI
     const ourHosts = [hostEl, rotOverlayHost, opOverlayHost, colorPickerHostEl, _touchBlocker];
     for (const h of ourHosts) { if (h && h.contains(e.target)) return false; }
-    // 排除 BC 原生的 DOM UI（選色器、對話框等 screen-main-container 類元素）
-    // 這些是真實 HTML 元素，不是 canvas，不應被攔截
+    // 排除 BC 原生的 DOM UI
     if (e.target?.closest?.('.screen-main-container, .screen-main, fieldset[name="color-picker"]')) return false;
     if (e.target?.closest?.('[role="menu"], [role="menuitem"], [role="radiogroup"]')) return false;
     // 取座標
@@ -3073,7 +3073,9 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   // DOM 事件攔截對 BC 的遊戲循環無效，直接 hook 才有用。
 
   function _aeeIsEditing() {
-    return !!(hostEl && hostEl.style.display !== 'none');
+    // 只在 AEE 的拖曳模式啟用時攔截（xy/rot/scale/skew）
+    // host 可見但沒有選取任何模式時，不攔截（避免干擾 LSCG 等其他插件）
+    return !!(hostEl && hostEl.style.display !== 'none' && state.activeDrag);
   }
 
   function _aeeIsBodyClick() {
