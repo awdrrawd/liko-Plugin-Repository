@@ -2,7 +2,7 @@
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.6
+// @version      0.5.7
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -29,7 +29,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.6";
+    const MOD_VERSION  = "0.5.7";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -1866,35 +1866,29 @@
             try {
                 _ownerTextY  = null;
                 _inInfoSheet = true;
-
-                // BCX 子畫面開啟時不繪製我們的元素
-                const bcxActive = typeof window.bcx?.inBcxSubscreen === 'function' && window.bcx.inBcxSubscreen();
-
-                const _inSheet = !bcxActive &&
-                    CurrentScreen === "InformationSheet" &&
-                    !(typeof InformationSheetSecondScreen !== 'undefined' && InformationSheetSecondScreen);
-
-                if (_inSheet) {
-                    if (!profilePageFresh) {
-                        profilePageFresh = true;
-                        lastOnlineFetch  = 0;
-                        refreshOnlineFriends().catch(() => {});
-                    }
-                    const _C = getCurrentViewingCharacter();
-                    if (_C?.MemberNumber === Player.MemberNumber) drawBCRelationDots(_C);
-                    drawProfileButton();
-                }
-
                 const r = next(args);
                 _inInfoSheet = false;
 
-                if (bcxActive) return r;
+                // BCX 子畫面開啟時不繪製我們的元素
+                if (typeof window.bcx?.inBcxSubscreen === 'function' && window.bcx.inBcxSubscreen()) {
+                    profilePanelOpen = false;
+                    return r;
+                }
                 if (CurrentScreen !== "InformationSheet") return r;
                 if (typeof InformationSheetSecondScreen !== 'undefined' && InformationSheetSecondScreen) {
                     profilePanelOpen = false;
                     return r;
                 }
 
+                if (!profilePageFresh) {
+                    profilePageFresh = true;
+                    lastOnlineFetch  = 0;
+                    refreshOnlineFriends().catch(() => {});
+                }
+
+                const C = getCurrentViewingCharacter();
+                if (C?.MemberNumber === Player.MemberNumber) drawBCRelationDots(C);
+                drawProfileButton();
                 drawProfilePanel();
                 return r;
             } catch (e) {
