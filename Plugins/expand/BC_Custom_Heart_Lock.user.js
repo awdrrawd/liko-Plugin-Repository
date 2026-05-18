@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.2.2
+// @version      2.2.3
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -908,10 +908,12 @@
         const itemMisc = AssetFemale3DCG.find(g => g.Group === 'ItemMisc');
         if (!itemMisc) return false;
         if (itemMisc.Asset.find(a => a.Name === HEARTLOCK_NAME)) { state.assetCreated = true; return true; }
+        const group = AssetGroupGet?.('Female3DCG', 'ItemMisc');
+        if (!group) { console.error('[HeartLock] ItemMisc group not ready, will retry.'); return false; }
         const def = { AllowType: ['LockPickSeed'], Effect: [], Extended: true, IsLock: true, Name: HEARTLOCK_NAME, PickDifficulty: 20, Time: 10, Value: 70, Wear: false };
         try {
             itemMisc.Asset.push(def);
-            AssetAdd(AssetGroupGet('Female3DCG', 'ItemMisc'), def, AssetFemale3DCGExtended);
+            AssetAdd(group, def, AssetFemale3DCGExtended);
             if (Player?.Inventory && !Player.Inventory.some(i => i.Asset?.Name === HEARTLOCK_NAME))
                 InventoryAdd(Player, HEARTLOCK_NAME, 'ItemMisc');
             state.assetCreated = true;
@@ -1818,7 +1820,11 @@
         if (!modApi) { console.error('[HeartLock] modApi unavailable.'); return; }
 
         // Phase 2：等玩家登入 + 遊戲資源就緒
-        const gameReady = await waitFor(() => !!window.Player?.AccountName && !!window.AssetFemale3DCG);
+        const gameReady = await waitFor(() =>
+            !!window.Player?.AccountName &&
+            !!window.AssetFemale3DCG &&
+            !!AssetGroupGet?.('Female3DCG', 'ItemMisc')  // 確保 group 物件已編譯
+        );
 
         createHeartLockAsset();
         patchFunctions(modApi);
@@ -1830,7 +1836,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.2.2 (EL Edition) initialized.');
+        log('HeartLock v2.1.1 (EL Edition) initialized.');
     }
 
     initialize().catch(e => console.error('[HeartLock] init error', e));
