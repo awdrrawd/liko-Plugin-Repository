@@ -1281,7 +1281,7 @@
 
     modApi.hookFunction('DrawProcess', 10, (args, next) => {
         next(args);
-        if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+        if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
             DrawButton(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE, '🎮',
                        (phoneOpen || miniVisible) ? 'Pink' : 'Gray', '', 'Remote Control');
         }
