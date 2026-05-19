@@ -315,7 +315,7 @@
         safeHookFunction("DrawProcess", 4, (args, next) => {
             const result = next(args);
             try {
-                if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+               if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
                     DrawButton(
                         btnX, btnY, size, size,
                         autoEnabled ? "🧹" : "⚙️",
