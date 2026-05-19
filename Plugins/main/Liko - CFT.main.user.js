@@ -787,7 +787,7 @@
 try {
     modApi.hookFunction("DrawProcess", 10, (args, next) => {
         const result = next(args);
-        if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+        if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
             DrawButton(BtnX, BtnY, BtnSize, BtnSize, "📋", getBtnColor(), "", "Chat Filter");
         }
         return result;
