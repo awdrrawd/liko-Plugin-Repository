@@ -99,7 +99,7 @@
         try {
             return {
                 Content: `ChatOther-${group}-${name}`,
-                Type: "Activity",
+                請輸入: "Activity",
                 Dictionary: [
                     { "SourceCharacter": Player.MemberNumber },
                     { "TargetCharacter": target },
@@ -191,40 +191,39 @@
     // === 設置 Hook 函數 ===
     function setupHooks() {
         // Hook 繪製函數
-        safeHookFunction("ChatRoomMenuDraw", 4, (args, next) => {
+        safeHookFunction("DrawProcess"， 4, (args, next) => {
+            const result = next(args);
             try {
-                // 主按鈕（改成 PET ALL）
-                if (typeof DrawButton === 'function') {
-                    DrawButton(startX, startY, size, size, "PET\nALL", "White", "", "展開/收起");
-
-                    if (expanded) {
-                        // 功能按鈕
-                        actions.forEach((a, i) => {
+                if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom'
+                    && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
+                    if (typeof DrawButton === 'function') {
+                        DrawButton(startX, startY, size, size, "PET\nALL", "White", "", "展開/收起");
+                        if (expanded) {
+                            actions.forEach((a, i) => {
+                                DrawButton(
+                                    startX,
+                                    startY + (i + 1) * size,
+                                    size, size,
+                                    a.label,
+                                    "White", "",
+                                    `對所有人執行 ${a.name}`
+                                );
+                            });
                             DrawButton(
                                 startX,
-                                startY + (i + 1) * size,
+                                startY + (actions.length + 1) * size,
                                 size, size,
-                                a.label,
-                                "White", "",
-                                `對所有人執行 ${a.name}`
+                                checkEnabled ? "✔" : "✘",
+                                checkEnabled ? "Green" : "Red", "",
+                                "切換檢查模式"
                             );
-                        });
-
-                        // 開關檢查按鈕
-                        DrawButton(
-                            startX,
-                            startY + (actions.length + 1) * size,
-                            size, size,
-                            checkEnabled ? "✔" : "✘",
-                            checkEnabled ? "Green" : "Red", "",
-                            "切換檢查模式"
-                        );
+                        }
                     }
                 }
             } catch (e) {
                 console.error("🐈‍⬛ [PAT All] 繪製按鈕失敗:", e.message);
             }
-            next(args);
+            return result;
         });
 
         // Hook 點擊函數
