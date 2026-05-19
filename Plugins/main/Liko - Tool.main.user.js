@@ -188,7 +188,7 @@
         const lang = isZh() ? LANG.zh : LANG.en;
         let str = lang[key] || key;
         for (const [k, v] of Object.entries(vars)) {
-            str = str.replace(`{${k}}`, v);
+            str = str.替換(`{${k}}`, v);
         }
         return str;
     }
@@ -989,15 +989,15 @@ function safeHookFunction(functionName, priority, callback) {
         });
 
         // 繪製 RP 按鈕
-safeHookFunction("DrawProcess", 4, (args, next) => {
-    const result = next(args);
-    if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
-        if (!Player.LikoTool) initializeStorage();
-        DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, "🔰",
-            getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
-    }
-    return result;
-});
+        safeHookFunction("DrawProcess", 4, (args, next) => {
+            const result = next(args);
+            if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
+                if (!Player.LikoTool) initializeStorage();
+                DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, "🔰",
+                    getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
+            }
+            return result;
+        });
 
         // 點擊 RP 按鈕
         safeHookFunction("ChatRoomClick", 4, (args, next) => {
