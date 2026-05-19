@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.2.5
+// @version      1.2.6
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
     'use strict';
 
     let modApi;
-    let myversion = "1.2.5";
+    let myversion = "1.2.6";
     let observer = null;
 
     let config = {
@@ -69,8 +69,24 @@
             hotkeyBadKey:       k  => `❓ 不支援的按鍵: ${k}，請使用 A-Z 或 0-9`,
 
             // API 失敗
-            apiFail:            err => `⚠️ [MAT] Google 翻譯 API 請求失敗${err ? `（${err}）` : ''}\n・部分地區（如俄羅斯）可能被封鎖\n・網路不穩或超出請求限制\n・翻譯暫時停用，30 秒後重試`,
-            translateFail:      err => `⚠️ [MAT] 翻譯失敗${err ? `（${err}）` : ''}\n・請確認網路連線\n・部分地區（如俄羅斯）Google API 可能被封鎖`,
+            apiFail: err => {
+                const hints = {
+                    rate_limit: '請求過於頻繁，稍等 2-3 秒即可恢復',
+                    blocked:    '該節點可能被封鎖，建議嘗試切換網路節點',
+                    network:    '網路連線異常，請確認網路狀態',
+                };
+                const hint = hints[err] || `發生錯誤（${err || '未知'}）`;
+                return `⚠️ [MAT] Google 翻譯請求失敗\n・${hint}\n・翻譯暫時停用，30 秒後重試`;
+            },
+            translateFail: err => {
+                const hints = {
+                    rate_limit: '請求過於頻繁，稍等片刻後重試',
+                    blocked:    '建議嘗試切換網路節點後重試',
+                    network:    '網路連線異常，請確認網路狀態',
+                };
+                const hint = hints[err] || `發生錯誤（${err || '未知'}）`;
+                return `⚠️ [MAT] 翻譯失敗\n・${hint}`;
+            },
             selectionFail:      "⚠️ 翻譯失敗，請檢查網路",
             translating:        "翻譯中...",
 
@@ -185,8 +201,24 @@ Bio翻譯: 🟢 永遠可用<br>
             hotkeySet:          s  => `✅ toggle hotkey set to: ${s}`,
             hotkeyBadKey:       k  => `❓ Unsupported key: ${k}, use A-Z or 0-9`,
 
-            apiFail:            err => `⚠️ [MAT] Google Translate API request failed${err ? ` (${err})` : ''}\n・Blocked in some regions (e.g. Russia)\n・Network issue or rate limited\n・Translation paused, retrying in 30s`,
-            translateFail:      err => `⚠️ [MAT] Translation failed${err ? ` (${err})` : ''}\n・Check your network connection\n・Google API may be blocked in your region (e.g. Russia)`,
+            apiFail: err => {
+                const hints = {
+                    rate_limit: 'Too many requests, will recover in 2-3 seconds',
+                    blocked:    'This node may be blocked, try switching your network node',
+                    network:    'Network error, please check your connection',
+                };
+                const hint = hints[err] || `Error: ${err || 'unknown'}`;
+                return `⚠️ [MAT] Google Translate request failed\n・${hint}\n・Translation paused, retrying in 30s`;
+            },
+            translateFail: err => {
+                const hints = {
+                    rate_limit: 'Too many requests, please wait a moment',
+                    blocked:    'Try switching your network node',
+                    network:    'Network error, please check your connection',
+                };
+                const hint = hints[err] || `Error: ${err || 'unknown'}`;
+                return `⚠️ [MAT] Translation failed\n・${hint}`;
+            },
             selectionFail:      "⚠️ Translation failed, check your network",
             translating:        "Translating...",
 
@@ -436,13 +468,19 @@ Settings storage: ExtensionSettings ✅
         try {
             const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
             const resp = await fetch(url);
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+            if (resp.status === 429) throw new Error('rate_limit');
+            if (resp.status === 403) throw new Error('blocked');
+            if (!resp.ok) throw new Error(`http_${resp.status}`);
+
             const data = await resp.json();
             const translated = data[0]?.map(seg => seg?.[0] || '').join('') || text;
             return { translated, detectedLang: data[2] || null };
         } catch (e) {
-            console.error('🐈‍⬛ [MAT] Google Translate failed:', e);
-            return { translated: null, detectedLang: null, error: e.message };
+            // fetch 本身失敗（網路斷線、timeout）
+            const reason = e.message || 'unknown';
+            const isNetwork = e instanceof TypeError;
+            return { translated: null, detectedLang: null, error: isNetwork ? 'network' : reason };
         }
     }
 
@@ -1095,8 +1133,8 @@ Settings storage: ExtensionSettings ✅
                 e.preventDefault();
                 config.enabled = !config.enabled;
                 ChatRoomSendLocal(config.enabled
-                    ? ui('hotkeyEnabled', hotkeyToString(hk))
-                    : ui('hotkeyDisabled', hotkeyToString(hk)));
+                                  ? ui('hotkeyEnabled', hotkeyToString(hk))
+                                  : ui('hotkeyDisabled', hotkeyToString(hk)));
                 if (config.enabled) startObserver(); else stopObserver();
                 saveSettings();
             }
@@ -1200,8 +1238,8 @@ Settings storage: ExtensionSettings ✅
 
             const isRecording = hotkeyRecording && hotkeyRecordingTarget === 'toggle';
             DrawButton(HK_BTN_X, HK_ROW1_Y, HK_BTN_W, CB_SZ,
-                isRecording ? ui('hotkeyRecording') : hotkeyToString(config.hotkeys.toggle),
-                isRecording ? "#FFD700" : "White", "", ui('tipHotkeySet'));
+                       isRecording ? ui('hotkeyRecording') : hotkeyToString(config.hotkeys.toggle),
+                       isRecording ? "#FFD700" : "White", "", ui('tipHotkeySet'));
             DrawButton(HK_CLR_X, HK_ROW1_Y, HK_CLR_W, CB_SZ, ui('btnHotkeyClear'), "White", "", ui('btnHotkeyClear'));
 
             DrawRect(395, 715, 1180, 2, "rgba(0,0,0,0.15)");
@@ -1429,7 +1467,7 @@ Settings storage: ExtensionSettings ✅
             modApi.hookFunction("OnlineProfileLoad", 4, (args, next) => {
                 try {
                     const target = typeof InspectCharacter !== "undefined" ? InspectCharacter
-                        : typeof CurrentCharacter !== "undefined" ? CurrentCharacter : null;
+                    : typeof CurrentCharacter !== "undefined" ? CurrentCharacter : null;
                     bioCurrentMemberNumber = target?.MemberNumber ?? null;
                 } catch { bioCurrentMemberNumber = null; }
                 return next(args);
@@ -1462,10 +1500,10 @@ Settings storage: ExtensionSettings ✅
 
     function waitForGame() {
         const gameReady =
-            typeof Player?.MemberNumber === "number" &&
-            typeof CommandCombine === "function" &&
-            typeof TranslationLanguage !== "undefined" &&
-            typeof PreferenceRegisterExtensionSetting === "function";
+              typeof Player?.MemberNumber === "number" &&
+              typeof CommandCombine === "function" &&
+              typeof TranslationLanguage !== "undefined" &&
+              typeof PreferenceRegisterExtensionSetting === "function";
 
         if (gameReady) {
             initializeConfig();
