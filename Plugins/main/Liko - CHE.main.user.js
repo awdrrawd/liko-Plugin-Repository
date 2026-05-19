@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.4.2
+// @version      2.4.3
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
     "use strict";
 
     let modApi;
-    const modversion = "2.4.2";
+    const modversion = "2.4.3";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
     let autoSaveTimer = null;
@@ -33,9 +33,6 @@
         console.error(`[CHE-${window.cheErrorCount}] ${location}:`, error);
     }
 
-    // =====================================================================
-    // Language Detection
-    // =====================================================================
     function isZh() {
         if (typeof TranslationLanguage !== 'undefined') {
             const l = TranslationLanguage.toLowerCase();
@@ -44,113 +41,77 @@
         return (navigator.language || '').toLowerCase().startsWith('zh');
     }
 
-    // =====================================================================
-    // Dynamic game asset URL (version-safe)
-    // =====================================================================
     function gameAsset(path) {
         const m = window.location.href.match(/(https?:\/\/[^/]+\/R\d+\/BondageClub\/)/);
         return m ? m[1] + path : path;
     }
 
-    // =====================================================================
-    // UI i18n — plugin side (has game context)
-    // =====================================================================
     const UI = {
         zh: {
-            btnHTML:         "📥 HTML匯出",
-            btnExcel:        "📥 Excel匯出",
-            btnClear:        "🗑️ 清除聊天室",
-            btnCache:        "💾 緩存管理",
-            btnModeCache:    "💾 緩存中",
-            btnModeStopped:  "⏸️ 停用",
-            tooltipTitle:    "聊天室記錄管理器 v2.4",
-            promptPrivate:   "請問是否保存包含\n悄悄話(whisper)與私信(beep)的信息?",
-            promptClear:     "確定要清空當前聊天室的訊息嗎？\n（緩存數據庫不會被清空）",
-            promptNoCache:   "沒有緩存數據。是否保存當前聊天室的訊息？",
-            promptDelete:    n => `確定要刪除 ${n} 個日期的數據嗎？`,
-            cacheTitle:      "💾 緩存管理",
-            cacheDateLabel:  "選擇要操作的日期：",
-            cacheSelectAll:  "✓ 全選",
-            cacheExport:     "📤 匯出",
-            cacheDelete:     "🗑️ 刪除",
-            cacheAlertExport:"請選擇要匯出的日期",
-            cacheAlertDelete:"請選擇要刪除的日期",
-            cacheMsgCount:   n => `(${n} 條訊息)`,
-            toastXlsxFail:   "[CHE] ❌ XLSX庫未載入",
-            toastNoMsg:      "[CHE] ❗ 沒有訊息可匯出",
-            toastExcelWait:  "[CHE] 💾 正在生成Excel，請稍候...",
-            toastExcelDone:  n => `[CHE] ✅ Excel匯出完成！${n} 條訊息`,
-            toastExcelFail:  "[CHE] ❌ Excel匯出失敗",
-            toastClearFail:  "[CHE] ❌ 找不到聊天室容器",
-            toastCleared:    "[CHE] 🗑️ 當前聊天室已清空！",
-            toastClearErr:   "[CHE] ❌ 清空失敗",
-            toastHTMLWait:   "[CHE] 💾 正在匯出HTML，請稍候...",
-            toastHTMLDone:   n => `[CHE] ✅ HTML匯出完成，${n} 條訊息`,
-            toastHTMLFail:   "[CHE] ❌ HTML匯出失敗，請重試",
-            toastCacheWait:  "[CHE] 💾 正在匯出緩存HTML，請稍候...",
-            toastCacheDone:  n => `[CHE] ✅ 緩存HTML匯出完成，${n} 條訊息`,
-            toastCacheFail:  "[CHE] ❌ 緩存HTML匯出失敗",
+            btnHTML:"📥 HTML匯出",btnExcel:"📥 Excel匯出",btnClear:"🗑️ 清除聊天室",
+            btnCache:"💾 緩存管理",btnModeCache:"💾 緩存中",btnModeStopped:"⏸️ 停用",
+            tooltipTitle:"聊天室記錄管理器 v2.4",
+            promptPrivate:"請問是否保存包含\n悄悄話(whisper)與私信(beep)的信息?",
+            promptClear:"確定要清空當前聊天室的訊息嗎？\n（緩存數據庫不會被清空）",
+            promptNoCache:"沒有緩存數據。是否保存當前聊天室的訊息？",
+            promptDelete:n=>`確定要刪除 ${n} 個日期的數據嗎？`,
+            cacheTitle:"💾 緩存管理",cacheDateLabel:"選擇要操作的日期：",
+            cacheSelectAll:"✓ 全選",cacheExport:"📤 匯出",cacheDelete:"🗑️ 刪除",
+            cacheAlertExport:"請選擇要匯出的日期",cacheAlertDelete:"請選擇要刪除的日期",
+            cacheMsgCount:n=>`(${n} 條訊息)`,
+            toastXlsxFail:"[CHE] ❌ XLSX庫未載入",toastNoMsg:"[CHE] ❗ 沒有訊息可匯出",
+            toastExcelWait:"[CHE] 💾 正在生成Excel，請稍候...",
+            toastExcelDone:n=>`[CHE] ✅ Excel匯出完成！${n} 條訊息`,
+            toastExcelFail:"[CHE] ❌ Excel匯出失敗",
+            toastClearFail:"[CHE] ❌ 找不到聊天室容器",toastCleared:"[CHE] 🗑️ 當前聊天室已清空！",
+            toastClearErr:"[CHE] ❌ 清空失敗",toastHTMLWait:"[CHE] 💾 正在匯出HTML，請稍候...",
+            toastHTMLDone:n=>`[CHE] ✅ HTML匯出完成，${n} 條訊息`,
+            toastHTMLFail:"[CHE] ❌ HTML匯出失敗，請重試",
+            toastCacheWait:"[CHE] 💾 正在匯出緩存HTML，請稍候...",
+            toastCacheDone:n=>`[CHE] ✅ 緩存HTML匯出完成，${n} 條訊息`,
+            toastCacheFail:"[CHE] ❌ 緩存HTML匯出失敗",
             toastNoContainer:"[CHE] ❌ 找不到聊天室容器或無訊息可匯出",
-            toastNoMsgEx:    "[CHE] ❌ 沒有訊息可匯出",
-            toastSaveFail:   "[CHE] ❌ 緩存保存失敗",
-            toastDeleteN:    n => `[CHE] ✅ 已刪除 ${n} 個日期的數據`,
-            toastDeleteNone: "[CHE] ❗ 沒有數據被刪除",
-            toastDeleteFail: "[CHE] ❌ 刪除操作失敗",
-            toastSaved:      "[CHE] ✅ 已保存當前訊息到緩存",
-            toastNoCacheData:"[CHE] ❗ 選中日期沒有數據",
-            toastAutoFail:   "[CHE] ❌ 自動保存失敗",
-            toastRestore:    n => `[CHE] ✅ 恢復了 ${n} 條未保存的訊息`,
-            toastRestoreFail:"[CHE] ❌ 恢復數據保存失敗",
-            toastInitFail:   "[CHE] ❌ 初始化失敗",
-            toastNotLoaded:  "❌ 聊天室尚未載入",
+            toastNoMsgEx:"[CHE] ❌ 沒有訊息可匯出",toastSaveFail:"[CHE] ❌ 緩存保存失敗",
+            toastDeleteN:n=>`[CHE] ✅ 已刪除 ${n} 個日期的數據`,
+            toastDeleteNone:"[CHE] ❗ 沒有數據被刪除",toastDeleteFail:"[CHE] ❌ 刪除操作失敗",
+            toastSaved:"[CHE] ✅ 已保存當前訊息到緩存",toastNoCacheData:"[CHE] ❗ 選中日期沒有數據",
+            toastAutoFail:"[CHE] ❌ 自動保存失敗",
+            toastRestore:n=>`[CHE] ✅ 恢復了 ${n} 條未保存的訊息`,
+            toastRestoreFail:"[CHE] ❌ 恢復數據保存失敗",toastInitFail:"[CHE] ❌ 初始化失敗",
+            toastNotLoaded:"❌ 聊天室尚未載入",
         },
         en: {
-            btnHTML:         "📥 Export HTML",
-            btnExcel:        "📥 Export Excel",
-            btnClear:        "🗑️ Clear Chat",
-            btnCache:        "💾 Cache Manager",
-            btnModeCache:    "💾 Caching",
-            btnModeStopped:  "⏸️ Stopped",
-            tooltipTitle:    "Chat History Export v2.4",
-            promptPrivate:   "Include whisper and beep messages in export?",
-            promptClear:     "Clear current chat log?\n(Cache database will not be cleared)",
-            promptNoCache:   "No cached data. Save current chat messages?",
-            promptDelete:    n => `Delete data for ${n} date(s)?`,
-            cacheTitle:      "💾 Cache Manager",
-            cacheDateLabel:  "Select dates to manage:",
-            cacheSelectAll:  "✓ Select All",
-            cacheExport:     "📤 Export",
-            cacheDelete:     "🗑️ Delete",
-            cacheAlertExport:"Please select dates to export",
-            cacheAlertDelete:"Please select dates to delete",
-            cacheMsgCount:   n => `(${n} messages)`,
-            toastXlsxFail:   "[CHE] ❌ XLSX library not loaded",
-            toastNoMsg:      "[CHE] ❗ No messages to export",
-            toastExcelWait:  "[CHE] 💾 Generating Excel, please wait...",
-            toastExcelDone:  n => `[CHE] ✅ Excel export complete! ${n} messages`,
-            toastExcelFail:  "[CHE] ❌ Excel export failed",
-            toastClearFail:  "[CHE] ❌ Chat log container not found",
-            toastCleared:    "[CHE] 🗑️ Chat log cleared!",
-            toastClearErr:   "[CHE] ❌ Clear failed",
-            toastHTMLWait:   "[CHE] 💾 Exporting HTML, please wait...",
-            toastHTMLDone:   n => `[CHE] ✅ HTML export complete, ${n} messages`,
-            toastHTMLFail:   "[CHE] ❌ HTML export failed, please retry",
-            toastCacheWait:  "[CHE] 💾 Exporting cached HTML, please wait...",
-            toastCacheDone:  n => `[CHE] ✅ Cache HTML export complete, ${n} messages`,
-            toastCacheFail:  "[CHE] ❌ Cache HTML export failed",
+            btnHTML:"📥 Export HTML",btnExcel:"📥 Export Excel",btnClear:"🗑️ Clear Chat",
+            btnCache:"💾 Cache Manager",btnModeCache:"💾 Caching",btnModeStopped:"⏸️ Stopped",
+            tooltipTitle:"Chat History Export v2.4",
+            promptPrivate:"Include whisper and beep messages in export?",
+            promptClear:"Clear current chat log?\n(Cache database will not be cleared)",
+            promptNoCache:"No cached data. Save current chat messages?",
+            promptDelete:n=>`Delete data for ${n} date(s)?`,
+            cacheTitle:"💾 Cache Manager",cacheDateLabel:"Select dates to manage:",
+            cacheSelectAll:"✓ Select All",cacheExport:"📤 Export",cacheDelete:"🗑️ Delete",
+            cacheAlertExport:"Please select dates to export",cacheAlertDelete:"Please select dates to delete",
+            cacheMsgCount:n=>`(${n} messages)`,
+            toastXlsxFail:"[CHE] ❌ XLSX library not loaded",toastNoMsg:"[CHE] ❗ No messages to export",
+            toastExcelWait:"[CHE] 💾 Generating Excel, please wait...",
+            toastExcelDone:n=>`[CHE] ✅ Excel export complete! ${n} messages`,
+            toastExcelFail:"[CHE] ❌ Excel export failed",
+            toastClearFail:"[CHE] ❌ Chat log container not found",toastCleared:"[CHE] 🗑️ Chat log cleared!",
+            toastClearErr:"[CHE] ❌ Clear failed",toastHTMLWait:"[CHE] 💾 Exporting HTML, please wait...",
+            toastHTMLDone:n=>`[CHE] ✅ HTML export complete, ${n} messages`,
+            toastHTMLFail:"[CHE] ❌ HTML export failed, please retry",
+            toastCacheWait:"[CHE] 💾 Exporting cached HTML, please wait...",
+            toastCacheDone:n=>`[CHE] ✅ Cache HTML export complete, ${n} messages`,
+            toastCacheFail:"[CHE] ❌ Cache HTML export failed",
             toastNoContainer:"[CHE] ❌ Chat log not found or no messages",
-            toastNoMsgEx:    "[CHE] ❌ No messages to export",
-            toastSaveFail:   "[CHE] ❌ Cache save failed",
-            toastDeleteN:    n => `[CHE] ✅ Deleted ${n} date(s)`,
-            toastDeleteNone: "[CHE] ❗ No data was deleted",
-            toastDeleteFail: "[CHE] ❌ Delete operation failed",
-            toastSaved:      "[CHE] ✅ Current messages saved to cache",
-            toastNoCacheData:"[CHE] ❗ No data for selected dates",
-            toastAutoFail:   "[CHE] ❌ Auto-save failed",
-            toastRestore:    n => `[CHE] ✅ Restored ${n} unsaved messages`,
-            toastRestoreFail:"[CHE] ❌ Failed to save restored data",
-            toastInitFail:   "[CHE] ❌ Initialization failed",
-            toastNotLoaded:  "❌ Chat room not loaded yet",
+            toastNoMsgEx:"[CHE] ❌ No messages to export",toastSaveFail:"[CHE] ❌ Cache save failed",
+            toastDeleteN:n=>`[CHE] ✅ Deleted ${n} date(s)`,
+            toastDeleteNone:"[CHE] ❗ No data was deleted",toastDeleteFail:"[CHE] ❌ Delete operation failed",
+            toastSaved:"[CHE] ✅ Current messages saved to cache",
+            toastNoCacheData:"[CHE] ❗ No data for selected dates",toastAutoFail:"[CHE] ❌ Auto-save failed",
+            toastRestore:n=>`[CHE] ✅ Restored ${n} unsaved messages`,
+            toastRestoreFail:"[CHE] ❌ Failed to save restored data",toastInitFail:"[CHE] ❌ Initialization failed",
+            toastNotLoaded:"❌ Chat room not loaded yet",
         }
     };
 
@@ -161,16 +122,10 @@
         return val !== undefined ? val : key;
     }
 
-    // =====================================================================
-    // 多帳號隔離
-    // =====================================================================
     function getAccountPrefix() {
         return String(window.Player?.MemberNumber || "0");
     }
 
-    // =====================================================================
-    // 時間正規化
-    // =====================================================================
     function normalizeTime(timeStr) {
         if (!timeStr || typeof timeStr !== 'string') return "";
         if (timeStr.includes('T') || /^\d{2}:\d{2}/.test(timeStr)) return timeStr;
@@ -186,20 +141,6 @@
         return timeStr;
     }
 
-    // =====================================================================
-    // FIX: 從任意格式的 time 字串提取 "HH:MM" 供排序使用
-    // =====================================================================
-    function extractHHMM(timeStr) {
-        if (!timeStr) return "00:00";
-        // ISO format: "2026-05-01T14:30:00.000Z" → "14:30"
-        if (timeStr.includes('T')) {
-            const timePart = timeStr.split('T')[1] || "";
-            return timePart.substring(0, 5) || "00:00";
-        }
-        // "HH:MM" or "HH:MM:SS" → take first 5 chars
-        return timeStr.substring(0, 5);
-    }
-
     const DOMCache = {
         chatLog: null,
         lastCheckTime: 0,
@@ -212,11 +153,7 @@
                     if (!this.chatLog) return null;
                 }
                 return this.chatLog;
-            } catch (e) {
-                logError("DOMCache.getChatLog", e);
-                this.chatLog = null;
-                return null;
-            }
+            } catch (e) { logError("DOMCache.getChatLog", e); this.chatLog = null; return null; }
         },
         getMessages() {
             try {
@@ -253,9 +190,7 @@
                 return `${d.getMonth()+1}/${d.getDate()}`;
             } catch (e) { logError("DateUtils.getDisplayDate", e); return dateKey; }
         },
-        isToday(dateKey) {
-            try { return dateKey === this.getDateKey(); } catch (e) { return false; }
-        },
+        isToday(dateKey) { try { return dateKey === this.getDateKey(); } catch (e) { return false; } },
         getDaysAgo(days) {
             try {
                 const date = new Date();
@@ -295,11 +230,6 @@
 
         _makeKey(dateStr) { return `${getAccountPrefix()}_${dateStr}`; },
 
-        // =====================================================================
-        // FIX: saveForDate 接受指定的 dateKey，不再強制用「今天」
-        // 原本 saveToday 永遠用 DateUtils.getDateKey() (今天)，
-        // 導致 checkTempData 恢復昨天資料時存到錯誤的 key
-        // =====================================================================
         async saveForDate(messages, dateKey) {
             if (!messages || messages.length === 0) return 0;
             try {
@@ -341,7 +271,6 @@
             }
         },
 
-        // saveToday 保持向後相容，直接呼叫 saveForDate 傳今天的 key
         async saveToday(messages) {
             return this.saveForDate(messages, DateUtils.getDateKey());
         },
@@ -370,18 +299,20 @@
                         result.push({ dateKey: key, count: data.count || 0, display: DateUtils.getDisplayDate(dateStr) });
                     }
                 }
-                // UI 顯示用降序（最新在前），實際資料合併時會自行升序排列
                 return result.sort((a, b) => b.dateKey.localeCompare(a.dateKey));
             } catch (e) { logError("CacheManager.getAvailableDates", e); return []; }
         },
 
         // =====================================================================
-        // FIX: 修復排序問題
-        // 原問題：new Date("HH:MM") → Invalid Date → sort 輸入全為 NaN → 排序隨機
-        // 修復：
-        //   1. dateKeys 先升序排列，確保迴圈順序正確
-        //   2. 用 "YYYY-MM-DD" + extractHHMM(time) 合成可字串比較的 sortKey
-        //   3. sort 結束後移除暫存的 _sortKey 屬性，避免污染資料
+        // FIX v2.4.3: 移除跨訊息時間排序，保留插入順序
+        //
+        // 原問題：最後的 allMessages.sort() 依時間重排所有訊息，
+        //         破壞了同一天內訊息的 DB 插入（原始出現）順序。
+        //
+        // 修復邏輯：
+        //   1. sortedKeys 升序迭代 → 跨日順序已由此保證
+        //   2. 每日內部訊息以 DB 寫入順序（即聊天室出現順序）直接 push
+        //   3. 不再做任何時間排序，完整保留插入順序
         // =====================================================================
         async getMessagesForDates(dateKeys) {
             try {
@@ -391,11 +322,10 @@
                 const prefix = getAccountPrefix() + "_";
                 let allMessages = [];
 
-                // 先將 dateKeys 升序排列，迴圈已是正確順序
+                // 日期 key 升序排列，確保跨日順序正確
                 const sortedKeys = [...dateKeys].sort();
 
                 for (const dateKey of sortedKeys) {
-                    // 從完整 key（如 "12345_2026-05-01"）取出日期部分
                     const dateStr = dateKey.startsWith(prefix)
                         ? dateKey.slice(prefix.length)
                         : dateKey;
@@ -407,24 +337,17 @@
                     });
 
                     if (data && data.messages) {
+                        // 只附加 _dateStr 供跨日分隔線使用，不做時間排序
                         allMessages.push(...data.messages.map(msg => ({
                             ...msg,
                             isFromCache: true,
-                            // 合成可字串比較的排序鍵：YYYY-MM-DDTHH:MM
-                            // extractHHMM 能處理 ISO 格式與 HH:MM 格式
-                            _sortKey: dateStr + "T" + extractHHMM(msg.time),
-                            // 儲存所屬日期，供 generateHTML 插入跨日分隔線
                             _dateStr: dateStr,
                         })));
                     }
                 }
 
-                // 字串比較即可正確排序（lexicographic = chronological for this format）
-                allMessages.sort((a, b) => a._sortKey.localeCompare(b._sortKey));
-
-                // 移除暫存排序屬性，保持資料乾淨
-                allMessages.forEach(msg => { delete msg._sortKey; });
-
+                // 不做時間排序：同日訊息維持 DB 插入順序（即原始出現順序），
+                // 跨日順序已由 sortedKeys 升序迭代保證。
                 return allMessages;
             } catch (e) { logError("CacheManager.getMessagesForDates", e); return []; }
         },
@@ -464,12 +387,6 @@
             }
         },
 
-        // =====================================================================
-        // FIX: cleanOldData 改為獨立 transaction 逐筆刪除
-        // 原問題：單一 readwrite transaction 內用 await 迴圈刪除，
-        // IndexedDB transaction 在無 pending request 時自動關閉，
-        // await 之間的空隙可能觸發 "transaction has finished" 錯誤
-        // =====================================================================
         async cleanOldData() {
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -478,22 +395,16 @@
             const cutoffKey = prefix + cutoffDate;
             try {
                 const db = await this.init();
-
-                // Step 1: 用 readonly transaction 取得所有 keys
                 const keysToDelete = await new Promise((resolve, reject) => {
                     const tx = db.transaction(["daily_fragments"], "readonly");
                     const store = tx.objectStore("daily_fragments");
                     const req = store.getAllKeys();
                     req.onsuccess = () => {
-                        const keys = req.result.filter(
-                            key => key.startsWith(prefix) && key < cutoffKey
-                        );
+                        const keys = req.result.filter(key => key.startsWith(prefix) && key < cutoffKey);
                         resolve(keys);
                     };
                     req.onerror = () => reject(req.error);
                 });
-
-                // Step 2: 每筆用獨立的 readwrite transaction 刪除，避免跨 await transaction 關閉
                 for (const key of keysToDelete) {
                     await new Promise((resolve, reject) => {
                         const tx = db.transaction(["daily_fragments"], "readwrite");
@@ -528,25 +439,16 @@
     function isFilteredMessage(content, messageType, includePrivate = true) {
         const basicFilters = ["BCX commands tutorial", "BCX also provides", "(输入 /help 查看命令列表)"];
         if (basicFilters.some(f => content.includes(f))) return true;
-
         const isBceBeepContent = /^\(Beep (to|from)\b/i.test(content);
-        const isSystemBeep = content.includes("好友私聊来自") ||
-            content.includes("好友私聊") ||
-            /\bBEEP\b/.test(content);
-
+        const isSystemBeep = content.includes("好友私聊来自") || content.includes("好友私聊") || /\bBEEP\b/.test(content);
         if (isSystemBeep) return true;
-
-        const effectiveType = (messageType === "beep" || messageType === "beep_duplicate" || isBceBeepContent)
-            ? "beep"
-            : messageType;
-
+        const effectiveType = (messageType === "beep" || messageType === "beep_duplicate" || isBceBeepContent) ? "beep" : messageType;
         if (!includePrivate) {
             if (effectiveType === "beep" || effectiveType === "whisper") return true;
             if (content.includes("↩️")) return true;
             const privateKeywords = ["悄悄話", "悄悄话"];
             if (privateKeywords.some(k => content.includes(k))) return true;
         }
-
         return false;
     }
 
@@ -559,10 +461,7 @@
             }
             if (msg.classList && msg.classList.contains("ChatMessageWhisper")) return "whisper";
             if (typeof content === 'string') {
-                if (content.includes("好友私聊来自") || content.includes("BEEP")) {
-                    // FIX: beep_duplicate 改歸類為 beep，避免 renderMsgRow 無法處理
-                    return "beep";
-                }
+                if (content.includes("好友私聊来自") || content.includes("BEEP")) return "beep";
                 if (content.includes("悄悄话") || content.includes("悄悄話")) return "whisper";
             }
             return "normal";
@@ -629,7 +528,7 @@
                 cleanColor = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
             }
         }
-        if (!cleanColor.startsWith('#') || cleanColor.length !== 7) return cleanColor;
+        if (!cleanColor.startsWith('#') || cleanColor.length !== 7) return isDarkTheme ? "#eee" : "#333";
         try {
             const r = parseInt(cleanColor.slice(1,3),16), g = parseInt(cleanColor.slice(3,5),16), b = parseInt(cleanColor.slice(5,7),16);
             const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
@@ -642,7 +541,7 @@
                 if (luminance > 0.5) return darkenColor(cleanColor, 0.3);
                 return cleanColor;
             }
-        } catch { return cleanColor; }
+        } catch { return isDarkTheme ? "#eee" : "#333"; }
     }
 
     function lightenColor(color, amount) {
@@ -694,11 +593,14 @@
     }
 
     // =====================================================================
-    // HTML Template — bilingual with embedded language toggle
+    // HTML Template
+    // FIX v2.4.3: .chat-content 加上 color:var(--text-color)
+    //   確保深色/亮色主題切換時，所有訊息文字（包含 [🌐] 翻譯訊息）
+    //   都能正確顯示，不因繼承鏈斷裂而顯示為黑字。
+    //   同時移除 .enhanced-color { filter:brightness } 改由 CSS 變數管控。
     // =====================================================================
     async function generateHTMLTemplate(title) {
         const defaultLang = isZh() ? 'zh' : 'en';
-
         return `
 <html>
 <head>
@@ -719,11 +621,12 @@ body.light {
     --beep-color:#d63031; --beep-bg:rgba(214,48,49,0.1);
 }
 body { font-family:sans-serif; background:var(--bg-color); color:var(--text-color); margin:0; padding:0; transition:all 0.3s; }
-.chat-row { display:flex; align-items:flex-start; margin:2px 0; padding:2px 6px; border-radius:6px; }
+.chat-row { display:flex; align-items:flex-start; margin:2px 0; padding:2px 6px; border-radius:6px; position:relative; }
 .chat-meta { display:flex; flex-direction:column; align-items:flex-end; width:70px; font-size:0.8em; margin-right:8px; flex-shrink:0; }
 .chat-time { color:var(--muted-text); }
 .chat-id { font-weight:bold; }
-.chat-content { flex:1; white-space:pre-wrap; word-wrap:break-word; }
+/* FIX v2.4.3: 明確設定 color，確保深/淺色主題下訊息文字（含 [🌐] 翻譯）可見 */
+.chat-content { flex:1; white-space:pre-wrap; word-wrap:break-word; color:var(--text-color); }
 .with-accent { border-left:4px solid transparent; }
 .separator-row { background:var(--separator-bg); border-left:4px solid var(--separator-border); text-align:center; font-weight:bold; padding:8px; margin:4px 0; border-radius:8px; transition:opacity 0.2s; }
 .separator-row.filter-hidden { display:none !important; }
@@ -734,82 +637,38 @@ body.light .collapse-button:hover { background:rgba(0,0,0,0.08); }
 .collapsible-content.collapsed { display:none; }
 .collapsible-content.filter-expanded { display:block !important; }
 #topbar { position:fixed; top:10px; right:10px; display:flex; gap:8px; z-index:1001; }
-#topbar button {
-    padding:8px 14px; border:none; border-radius:6px; cursor:pointer;
-    font-weight:bold; box-shadow:0 2px 8px rgba(0,0,0,0.3);
-    font-size:13px; transition:all 0.2s;
-}
+#topbar button { padding:8px 14px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; box-shadow:0 2px 8px rgba(0,0,0,0.3); font-size:13px; transition:all 0.2s; }
 #toggleTheme { background:#fff; color:#000; }
 body.light #toggleTheme { background:#333; color:#fff; }
 #toggleLang { background:var(--accent); color:#fff; }
-#searchPanel {
-    position:sticky; top:0; background:var(--bg-color); padding:12px;
-    border-bottom:1px solid var(--border-color); backdrop-filter:blur(10px); z-index:100;
-}
+#searchPanel { position:sticky; top:0; background:var(--bg-color); padding:12px; border-bottom:1px solid var(--border-color); backdrop-filter:blur(10px); z-index:100; }
 #searchPanel .row1 { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-#searchPanel input, #searchPanel select {
-    padding:6px 10px; border-radius:6px; border:1px solid var(--input-border);
-    background:var(--input-bg); color:var(--text-color); font-size:14px;
-}
+#searchPanel input, #searchPanel select { padding:6px 10px; border-radius:6px; border:1px solid var(--input-border); background:var(--input-bg); color:var(--text-color); font-size:14px; }
 #contentSearch { width:200px; }
 #idFilter { width:200px; }
 #clearBtn { padding:6px 12px; border-radius:6px; border:none; background:var(--button-bg); color:var(--button-text); cursor:pointer; font-size:14px; }
 .type-filters { display:flex; gap:5px; flex-wrap:wrap; align-items:center; }
-.type-chip {
-    display:inline-flex; align-items:center; gap:4px;
-    padding:3px 9px; border-radius:20px; font-size:11px; cursor:pointer;
-    border:1px solid var(--border-color); color:var(--muted-text);
-    transition:all 0.18s; user-select:none; background:transparent; white-space:nowrap;
-}
+.type-chip { display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:20px; font-size:11px; cursor:pointer; border:1px solid var(--border-color); color:var(--muted-text); transition:all 0.18s; user-select:none; background:transparent; white-space:nowrap; }
 .type-chip input[type=checkbox]{ display:none; }
 .type-chip.active { border-color:var(--accent); color:var(--text-color); background:rgba(127,83,205,0.15); }
 #pageStats { text-align:center; padding:10px; font-size:12px; color:var(--muted-text); position:sticky; bottom:0; background:var(--bg-color); border-top:1px solid var(--border-color); }
 .user-name { font-weight:bold; }
 .action-text { font-style:italic; opacity:0.9; }
 .beep-msg { color:#5b8def; font-weight:bold; }
-.enhanced-color { filter:brightness(1.2) saturate(1.1); }
-body.light .enhanced-color { filter:brightness(0.8) saturate(1.2); }
-/* 跨日分隔線 */
-.date-divider {
-    text-align:center; padding:6px 0; font-size:12px; font-weight:600;
-    color:var(--accent); border-top:1px solid rgba(127,83,205,0.25);
-    border-bottom:1px solid rgba(127,83,205,0.25);
-    margin:10px 0; letter-spacing:1px;
-}
-/* Delete mode */
-.chat-row { position:relative; }
-.row-del {
-    display:none; position:absolute; right:6px; top:50%; transform:translateY(-50%);
-    background:rgba(231,76,60,0.15); border:1px solid rgba(231,76,60,0.3); color:#e74c3c;
-    border-radius:50%; width:22px; height:22px; cursor:pointer; font-size:12px;
-    line-height:1; padding:0; transition:all 0.15s; flex-shrink:0;
-}
+.date-divider { text-align:center; padding:6px 0; font-size:12px; font-weight:600; color:var(--accent); border-top:1px solid rgba(127,83,205,0.25); border-bottom:1px solid rgba(127,83,205,0.25); margin:10px 0; letter-spacing:1px; }
+.row-del { display:none; position:absolute; right:6px; top:50%; transform:translateY(-50%); background:rgba(231,76,60,0.15); border:1px solid rgba(231,76,60,0.3); color:#e74c3c; border-radius:50%; width:22px; height:22px; cursor:pointer; font-size:12px; line-height:1; padding:0; transition:all 0.15s; flex-shrink:0; }
 .row-del:hover { background:rgba(231,76,60,0.35); }
 body.del-mode .row-del { display:flex; align-items:center; justify-content:center; }
 body.del-mode .chat-row { padding-right:32px; }
 .chat-row.soft-deleted { display:none; }
-body.del-mode .chat-row.soft-deleted {
-    display:flex; opacity:0.38;
-    background:rgba(231,76,60,0.07) !important;
-    border-left-color:#e74c3c !important;
-}
-body.del-mode .chat-row.soft-deleted .row-del {
-    background:rgba(46,204,113,0.2); color:#2ecc71; border-color:rgba(46,204,113,0.4);
-}
+body.del-mode .chat-row.soft-deleted { display:flex; opacity:0.38; background:rgba(231,76,60,0.07) !important; border-left-color:#e74c3c !important; }
+body.del-mode .chat-row.soft-deleted .row-del { background:rgba(46,204,113,0.2); color:#2ecc71; border-color:rgba(46,204,113,0.4); }
 .row2 { display:flex; align-items:center; margin-top:6px; gap:0; }
 .row2-center { flex:1; display:flex; justify-content:center; flex-wrap:wrap; gap:5px; }
-.row2-right  { display:flex; gap:6px; align-items:center; margin-left:auto; padding-left:16px; flex-shrink:0; }
-#toggleDelMode {
-    padding:4px 10px; border-radius:20px; border:1px solid rgba(231,76,60,0.4);
-    background:rgba(231,76,60,0.12); color:#e74c3c; cursor:pointer;
-    font-size:12px; font-weight:600; white-space:nowrap;
-}
+.row2-right { display:flex; gap:6px; align-items:center; margin-left:auto; padding-left:16px; flex-shrink:0; }
+#toggleDelMode { padding:4px 10px; border-radius:20px; border:1px solid rgba(231,76,60,0.4); background:rgba(231,76,60,0.12); color:#e74c3c; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
 body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
-#exportAfterDel {
-    padding:4px 10px; border-radius:20px; border:none;
-    background:var(--accent); color:#fff; cursor:pointer;
-    font-size:12px; font-weight:600; white-space:nowrap;
-}
+#exportAfterDel { padding:4px 10px; border-radius:20px; border:none; background:var(--accent); color:#fff; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
 @media(max-width:768px){
     .chat-meta{width:55px; font-size:0.7em;}
     #searchPanel .row1{flex-direction:column; align-items:stretch;}
@@ -1216,17 +1075,15 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     }
 
     // =====================================================================
-    // FIX: renderMsgRow 強化過濾
-    // 1. ˅ 開頭的 content 一律跳過（不論 type）
-    // 2. beep_duplicate 歸類為 beep 處理（現已在 detectMessageType 修正，此處保留防禦）
-    // 3. lastSeparatorText 改用 roomName 而非含 ˅ 前綴的 content
+    // FIX v2.4.3: renderMsgRow 深色模式文字顏色修正
+    // 1. chat-with-name 分支：訊息內文包在 <span style="color:var(--text-color)"> 中
+    // 2. whisper 分支：同上，確保主題切換時文字顏色正確
+    // 3. 移除 .chat-content 的 enhanced-color class（filter 會干擾文字繼承色）
     // =====================================================================
     function renderMsgRow(msg, includePrivate, lastSeparatorRoomName) {
         if (!msg || msg.type === 'separator') return null;
-        // 強化：˅ 開頭一律跳過，不論 type 為何
         if (msg.content && msg.content.startsWith('˅')) return null;
         if (isFilteredMessage(msg.content, msg.type, includePrivate)) return null;
-        // 過濾緊接在 separator 後重複 room name 的系統訊息
         if (lastSeparatorRoomName && msg.content.includes(lastSeparatorRoomName) &&
             msg.content.length < lastSeparatorRoomName.length + 12) return null;
 
@@ -1237,7 +1094,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         if (msg.type === 'whisper') {
             rowType = 'whisper';
         } else if (msg.type === 'beep' || msg.type === 'beep_duplicate' || isBceNotif) {
-            // FIX: beep_duplicate 明確歸入 beep，不再漏到 default chat 分支
             rowType = 'beep';
         } else if (msg.className) {
             if      (msg.className.includes('ChatMessageEmote'))      rowType = 'emote';
@@ -1268,32 +1124,34 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             const prefix = isZh()
                 ? (isOutgoing ? "悄悄话" : "悄悄话来自")
                 : (isOutgoing ? "Whisper to" : "Whisper from");
-            content = `<span style="color:${adjustedColor};font-style:italic;">${prefix}</span> <span class="user-name" style="color:${adjustedColor}">${escapeHtml(msg.name)}</span>: ${escapeHtml(msg.content)}`;
+            // FIX: 訊息內文加 color:var(--text-color)，避免深色模式下繼承失敗變黑字
+            content = `<span style="color:${adjustedColor};font-style:italic;">${prefix}</span> <span class="user-name" style="color:${adjustedColor}">${escapeHtml(msg.name)}</span>: <span style="color:var(--text-color)">${escapeHtml(msg.content)}</span>`;
         } else if (rowType === 'system') {
             const sysColor = getEnhancedContrastColor('#3aa76d', true);
             bgColor = toRGBA(sysColor, 0.12); borderColor = sysColor;
             content = `<span style="color:${sysColor}">${escapeHtml(msg.content)}</span>`;
         } else if (rowType === 'chat' && msg.name) {
-            content = `<span class="user-name" style="color:${adjustedColor}">${escapeHtml(msg.name)}</span>: ${escapeHtml(msg.content)}`;
+            // FIX: 訊息內文加 color:var(--text-color)，避免深色模式下繼承失敗變黑字
+            // 特別修正：[🌐] 翻譯訊息在此分支不再出現黑字問題
+            content = `<span class="user-name" style="color:${adjustedColor}">${escapeHtml(msg.name)}</span>: <span style="color:var(--text-color)">${escapeHtml(msg.content)}</span>`;
         } else {
             content = `<span class="action-text" style="color:${adjustedColor}">${escapeHtml(msg.content)}</span>`;
         }
 
+        // FIX: 移除 enhanced-color class，filter:brightness 會干擾文字顏色繼承
         return `
             <div class="chat-row with-accent" data-type="${rowType}" style="background:${bgColor};border-left-color:${borderColor};">
                 <div class="chat-meta">
                     <span class="chat-time">${escapeHtml(msg.time || '')}</span>
                     <span class="chat-id">${escapeHtml(msg.id || '')}</span>
                 </div>
-                <div class="chat-content enhanced-color">${content}</div>
+                <div class="chat-content">${content}</div>
                 <button class="row-del" title="Delete">&#x2715;</button>
             </div>`;
     }
 
     // =====================================================================
-    // FIX: generateHTML 新增跨日分隔線
-    // 當相鄰訊息的 _dateStr 不同時，插入日期標題列
-    // lastSeparatorRoomName 改用 msg.roomName 而非含前綴的 msg.content
+    // generateHTML — 新增跨日分隔線
     // =====================================================================
     async function generateHTML(normalizedMsgs, includePrivate, title, filename) {
         const htmlTemplate = await generateHTMLTemplate(title);
@@ -1302,12 +1160,11 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         let openCollapsible = false;
         let processedCount = 0;
         let lastSeparatorRoomName = "";
-        let lastDateStr = "";   // 追蹤跨日
+        let lastDateStr = "";
 
         for (const msg of normalizedMsgs) {
             if (!msg) continue;
 
-            // 跨日分隔線：當 _dateStr 有值且與上一條不同時插入
             const msgDate = msg._dateStr || "";
             if (msgDate && msgDate !== lastDateStr) {
                 html += `<div class="date-divider">📅 ${escapeHtml(msgDate)}</div>`;
@@ -1326,7 +1183,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             <div id="collapse-${collapseId}" class="collapsible-content ${collapsedClass}">`;
                 collapseId++;
                 openCollapsible = true;
-                // FIX: 用 roomName 而非含 ˅ 的 content，過濾才能正確匹配
                 lastSeparatorRoomName = msg.roomName || "";
                 processedCount++;
                 continue;
@@ -1366,6 +1222,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         const normalized = domMessages.map(el => normalizeDOMMsg(el)).filter(Boolean);
         await generateHTML(normalized, includePrivate, isZh() ? "聊天室記錄" : "Chat Log", "chatlog");
     }
+
 
     // =====================================================================
     // Custom prompt
@@ -1574,6 +1431,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         }
     }
 
+
     // =====================================================================
     // processCurrentMessages
     // =====================================================================
@@ -1737,11 +1595,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         } catch (e) { logError("saveToLocalStorage", e); }
     }
 
-    // =====================================================================
-    // FIX: checkTempData 使用 tempData.date 而非 DateUtils.getDateKey()
-    // 原問題：saveToday 永遠存到「今天」的 key，昨天的暫存資料被歸到錯誤日期
-    // 修復：透過 saveForDate 將資料存回正確的日期 key
-    // =====================================================================
     async function checkTempData() {
         const storageKey = `che_temp_data_${getAccountPrefix()}`;
         try {
@@ -1754,7 +1607,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             const yesterdayKey = DateUtils.getDateKey(yesterday);
             if ((tempData.date === currentDate || tempData.date === yesterdayKey) && tempData.messages?.length > 0) {
                 try {
-                    // FIX: 使用 saveForDate 傳入正確的日期，而非固定今天
                     await CacheManager.saveForDate(tempData.messages, tempData.date);
                     currentMessageCount = 0; lastSaveTime = Date.now();
                     window.ChatRoomSendLocalStyled(ui('toastRestore', tempData.messages.length), 4000, "#00ff00");
