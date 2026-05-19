@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.4.1
+// @version      1.4.2
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -104,7 +104,7 @@
                 `/lt heightlock        - 鎖定身高為標準值（強制，可能影響物品）\n` +
                 `/lt geteverything     - 增強功能\n` +
                 `/lt wardrobe          - 開啟衣櫃\n` +
-                `提示：點擊右上角 🔰 快速切換 RP 模式`,
+                `提示：點擊右下角 🔰 快速切換 RP 模式`,
 
             loaded: "莉柯莉絲工具 v{v} 載入！使用 /lt help 查看說明",
         },
@@ -178,7 +178,7 @@
                 `/lt heightlock        - Lock height to standard value\n` +
                 `/lt geteverything     - Enhancement menu\n` +
                 `/lt wardrobe          - Open wardrobe\n` +
-                `Tip: Click 🔰 in the top-right to toggle RP mode`,
+                `Tip: Click 🔰 in the bottom-right to toggle RP mode`,
 
             loaded: "Liko Tool v{v} loaded! Use /lt help for help",
         }
@@ -741,14 +741,15 @@
     // ──────────────────────────────────────────
     // 安全 hook 包裝
     // ──────────────────────────────────────────
-    function safeHookFunction(functionName, priority, callback) {
-        if (modApi && typeof modApi.hookFunction === 'function') {
-            try { modApi.hookFunction(functionName, priority, callback); }
-            catch (e) { console.error(`🐈‍⬛ [LT] ❌ Hook ${functionName} 失敗:`, e.message); }
-        } else {
-            console.warn(`🐈‍⬛ [LT] ❌ 無法 hook ${functionName}，modApi 不可用`);
-        }
+function safeHookFunction(functionName, priority, callback) {
+    if (!modApi) return;
+    if (typeof window[functionName] === 'undefined') {
+        console.warn(`🐈‍⬛ [LT] ⚠️ ${functionName} 不存在，跳過 hook`);
+        return;
     }
+    try { modApi.hookFunction(functionName, priority, callback); }
+    catch (e) { console.error(`🐈‍⬛ [LT] ❌ Hook ${functionName} 失敗:`, e.message); }
+}
 
     // ──────────────────────────────────────────
     // Undo 系統
@@ -988,13 +989,15 @@
         });
 
         // 繪製 RP 按鈕
-        safeHookFunction("ChatRoomMenuDraw", 4, (args, next) => {
-            const result = next(args);
-            if (!Player.LikoTool) initializeStorage();
-            DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, "🔰",
-                getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
-            return result;
-        });
+safeHookFunction("DrawProcess", 4, (args, next) => {
+    const result = next(args);
+    if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+        if (!Player.LikoTool) initializeStorage();
+        DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, "🔰",
+            getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
+    }
+    return result;
+});
 
         // 點擊 RP 按鈕
         safeHookFunction("ChatRoomClick", 4, (args, next) => {
