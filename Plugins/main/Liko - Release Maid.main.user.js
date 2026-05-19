@@ -2,7 +2,7 @@
 // @name         Liko - Release Maid
 // @name:zh      Liko的解綁女僕
 // @namespace    https://likulisu.dev/
-// @version      1.1
+// @version      1.2
 // @description  自動回應「救我 / 救救 / help」來解除拘束，支援指定救人
 // @author       莉柯莉絲(Likolisu)
 // @match        https://bondageprojects.elementfx.com/*
@@ -52,7 +52,7 @@
             modApi = bcModSdk.registerMod({
                 name: 'Liko Release Maid',
                 fullName: 'Bondage Club - Liko Auto Release Maid',
-                version: '1.1',
+                version: '1.2',
                 repository: '莉柯莉絲的自動解鎖女僕',
             });
             console.log("🐈‍⬛ [Release Maid] ✅ 註冊成功");
@@ -312,17 +312,20 @@
         });
 
         // === 繪製按鈕 ===
-        safeHookFunction("ChatRoomMenuDraw", 4, (args, next) => {
+        safeHookFunction("DrawProcess", 4, (args, next) => {
+            const result = next(args);
             try {
-                DrawButton(
-                    btnX, btnY, size, size,
-                    autoEnabled ? "🧹" : "⚙️",
-                    autoEnabled ? "Orange" : "Gray", "", "自動解鎖開關"
-                );
+                if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+                    DrawButton(
+                        btnX, btnY, size, size,
+                        autoEnabled ? "🧹" : "⚙️",
+                        autoEnabled ? "Orange" : "Gray", "", "自動解鎖開關"
+                    );
+                }
             } catch (e) {
                 console.error("🐈‍⬛ [Release Maid] ❌ 繪製按鈕失敗:", e.message);
             }
-            return next(args);
+            return result;
         });
 
         // === 點擊按鈕 ===
