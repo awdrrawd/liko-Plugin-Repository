@@ -56,12 +56,12 @@
                 version: modversion,
                 repository: '聊天室[指令]、[!!內文]與[#房間#]轉按鈕\nChat Room [Commands], [!!Content], and [#RoomName#] conversion button.',
             });
-            console.log("✅ CDT 腳本啟動完成");
+            console.log("🐈‍⬛ [CtoB] ✅ 啟動完成");
         } else {
-            console.error("[WCE修復] ❌ bcModSdk 或 registerMod 不可用");
+            console.error("🐈‍⬛ [CtoB] ❌ bcModSdk 或 registerMod 不可用");
         }
     } catch (e) {
-        console.error("[WCE修復] ❌ 初始化失敗:", e.message);
+        console.error("🐈‍⬛ [CtoB] ❌ 初始化失敗:", e.message);
     }
 
     // 創建描述框
@@ -179,7 +179,7 @@
         const cleanRoomName = roomName.trim();
         const el = document.createElement("span");
         el.className = "likoRoomInChat";
-        el.textContent = `🚪${roomName}🚪`;
+        el。textContent = `🚪${roomName}🚪`;
         el.style.color = "#65b5ff";
         el.style.cursor = "pointer";
 
@@ -209,7 +209,7 @@
             events: [
                 { type: "click", handler: clickHandler },
                 { type: "mouseenter", handler: mouseenterHandler },
-                { type: "mouseleave", handler: hideDesc }
+                { 輸入: "mouseleave", handler: hideDesc }
             ]
         });
 
@@ -515,7 +515,7 @@
             // 提供清理函數
             hookCleanup = () => {
                 // bcModSdk 通常不提供直接的 unhook 方法，但我們可以標記
-                console.log("🐈‍⬛ [CtoB] 🧹 清理 ChatRoomLoad Hook");
+                console。log("🐈‍⬛ [CtoB] 🧹 清理 ChatRoomLoad Hook");
             };
         }
     }
