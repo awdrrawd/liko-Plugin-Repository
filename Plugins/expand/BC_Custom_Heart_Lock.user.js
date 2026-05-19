@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.2.3
+// @version      2.3
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -10,7 +10,7 @@
 // @grant        none
 // ==/UserScript==
 /*
- * v2.1 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
+ * v2.1.1 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
  *   - 新增 isAllowedToLock(memberNum)：
  *       允許條件 = BC 原生戀人 OR 拓展戀人 OR (主人 + EL 設定允許主人使用鎖)
  *   - 兩處 isLover 判斷改為 isAllowedToLock()
@@ -905,15 +905,18 @@
     function createHeartLockAsset() {
         if (state.assetCreated) return true;
         if (!window.AssetFemale3DCG || !window.AssetGroupGet || !window.AssetAdd || !window.InventoryAdd) return false;
-        const itemMisc = AssetFemale3DCG.find(g => g.Group === 'ItemMisc');
-        if (!itemMisc) return false;
-        if (itemMisc.Asset.find(a => a.Name === HEARTLOCK_NAME)) { state.assetCreated = true; return true; }
+        const itemMiscDef = AssetFemale3DCG.find(g => g.Group === 'ItemMisc');
+        if (!itemMiscDef) return false;
+        if (itemMiscDef.Asset?.find(a => a.Name === HEARTLOCK_NAME)) { state.assetCreated = true; return true; }
         const group = AssetGroupGet?.('Female3DCG', 'ItemMisc');
         if (!group) { console.error('[HeartLock] ItemMisc group not ready, will retry.'); return false; }
         const def = { AllowType: ['LockPickSeed'], Effect: [], Extended: true, IsLock: true, Name: HEARTLOCK_NAME, PickDifficulty: 20, Time: 10, Value: 70, Wear: false };
         try {
-            itemMisc.Asset.push(def);
-            AssetAdd(group, def, AssetFemale3DCGExtended);
+            itemMiscDef.Asset.push(def);
+            // R128: AssetAdd(Group, AssetDef, ExtendedConfig, GroupDef)
+            // ExtendedConfig = null（R128 已移除 AssetFemale3DCGExtended）
+            // GroupDef = 原始未編譯的 group 定義（必要的新參數）
+            AssetAdd(group, def, null, itemMiscDef);
             if (Player?.Inventory && !Player.Inventory.some(i => i.Asset?.Name === HEARTLOCK_NAME))
                 InventoryAdd(Player, HEARTLOCK_NAME, 'ItemMisc');
             state.assetCreated = true;
@@ -1437,11 +1440,13 @@
         if (hit(UNL_CONFIRM_X, UNL_BTN_Y, UNL_BTN_W, UNL_BTN_H)) {
             p.unlockConfirming = false;
             try {
+                // 先通知穿戴者刪除 config，確保 ChatRoomSyncCharacter 到達時 config 已清除
+                notifyRemove(ch, gn);
                 state._unlocking = true;
                 InventoryUnlock?.(ch, gn);
                 state._unlocking = false;
+                _cleanHeartLockProperty(ch, gn);
                 ChatRoomCharacterUpdate?.(ch);
-                notifyRemove(ch, gn);
                 // 廣播解鎖訊息
                 const nick    = Player.Nickname || Player.Name;
                 const wearer  = ch.Nickname || ch.Name;
@@ -1659,7 +1664,9 @@
         // 我們在此攔截確保只有 owner / EL 戀人 / BC 戀人才能實際執行。
         modApi.hookFunction('InventoryUnlock', 10, (args, next) => {
             if (state._timerUnlocking || state._unlocking) {
-                state._unlocking = true; const r = next(args); state._unlocking = false; return r;
+                state._unlocking = true; const r = next(args); state._unlocking = false;
+                _cleanHeartLockProperty(args[0], args[1]);
+                return r;
             }
             const C = args[0], itemOrGrp = args[1];
             const item = (itemOrGrp && typeof itemOrGrp === 'object')
@@ -1670,10 +1677,29 @@
             }
             const gn  = item.Asset?.Group?.Name;
             const cfg = getPadlockConfig(C, gn);
-            if (cfg && !isAllowedToUnlock(C, cfg)) return;  // 無權限，靜默攔截
+            if (cfg && !isAllowedToUnlock(C, cfg)) return;
+            // 先通知穿戴者清除 config（避免 ChatRoomSyncCharacter 觸發復原）
+            if (cfg) notifyRemove(C, gn);
             state._unlocking = true; const r = next(args); state._unlocking = false;
+            _cleanHeartLockProperty(C, itemOrGrp);
             return r;
         });
+
+    /** 清除解鎖後殘留的自訂 Property 欄位（Name / HeartLockId） */
+    function _cleanHeartLockProperty(C, itemOrGrp) {
+        try {
+            const item = (itemOrGrp && typeof itemOrGrp === 'object')
+                ? itemOrGrp
+                : InventoryGet?.(C, typeof itemOrGrp === 'string' ? itemOrGrp : null);
+            if (!item?.Property) return;
+            if (item.Property.Name === HEARTLOCK_NAME) delete item.Property.Name;
+            if (item.Property.HeartLockId !== undefined) delete item.Property.HeartLockId;
+            // 若 Property 已空只剩 Effect:[]，清理讓外觀完全復原
+            const keys = Object.keys(item.Property);
+            if (keys.length === 1 && keys[0] === 'Effect' && item.Property.Effect?.length === 0)
+                item.Property = undefined;
+        } catch {}
+    }
 
         // ── ChatRoomSyncItem ──────────────────────────────────────────
         modApi.hookFunction('ChatRoomSyncItem', 0, (args, next) => {
@@ -1836,7 +1862,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.1.1 (EL Edition) initialized.');
+        log('HeartLock v2.3 (EL Edition) initialized.');
     }
 
     initialize().catch(e => console.error('[HeartLock] init error', e));
