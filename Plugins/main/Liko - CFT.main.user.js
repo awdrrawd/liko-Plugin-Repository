@@ -2,7 +2,7 @@
 // @name         Liko - Chat Filter Tool
 // @name:zh      Liko的聊天室信息過濾器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1.1
+// @version      1.1.2
 // @description  聊天室信息過濾
 // @author       Liko
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -16,7 +16,7 @@
     'use strict';
 
     let modApi = null;
-    const modversion = "1.1.1";
+    const modversion = "1.1.2";
     const BtnX = 955, BtnY = 900, BtnSize = 45;
 
     modApi = bcModSdk.registerMod({
@@ -784,10 +784,17 @@
         if (settings.mode === MODE.CLEAN)  return "Orange";
         return "Gray";
     }
-    modApi.hookFunction("ChatRoomMenuDraw", 10, (args, next) => {
-        next(args);
-        DrawButton(BtnX, BtnY, BtnSize, BtnSize, "📋", getBtnColor(), "", "Chat Filter");
+try {
+    modApi.hookFunction("DrawProcess", 10, (args, next) => {
+        const result = next(args);
+        if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+            DrawButton(BtnX, BtnY, BtnSize, BtnSize, "📋", getBtnColor(), "", "Chat Filter");
+        }
+        return result;
     });
+} catch (e) {
+    console.error("🐈‍⬛ [CFT] ❌ Hook DrawProcess 失敗:", e.message);
+}
     modApi.hookFunction("ChatRoomClick", 10, (args, next) => {
         if (MouseIn(BtnX, BtnY, BtnSize, BtnSize)) { openPanel(); return; }
         next(args);
