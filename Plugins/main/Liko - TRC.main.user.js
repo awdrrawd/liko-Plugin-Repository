@@ -2,7 +2,7 @@
 // @name         Liko - TRC
 // @name:zh      Liko的玩具遙控器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.0
+// @version      1.0.1
 // @description  玩具遙控 | Toy remote control
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -1279,9 +1279,12 @@
         });
     } catch {}
 
-    modApi.hookFunction('ChatRoomMenuDraw', 10, (args, next) => {
+    modApi。hookFunction('DrawProcess'， 10, (args, next) => {
         next(args);
-        DrawButton(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE, '🎮', (phoneOpen || miniVisible) ? 'Pink' : 'Gray', '', 'Remote Control');
+        if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+            DrawButton(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE, '🎮', 
+                (phoneOpen || miniVisible) ? 'Pink' : 'Gray', '', 'Remote Control');
+        }
     });
     modApi.hookFunction('ChatRoomClick', 10, (args, next) => {
         if (MouseIn(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE)) {
