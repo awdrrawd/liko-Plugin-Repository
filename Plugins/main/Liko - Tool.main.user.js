@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.4.2
+// @version      1.4.3
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function () {
     let modApi = null;
-    const modversion = "1.4.1";
+    const modversion = "1.4.3";
 
     const rpBtnX    = 955;
     const rpBtnY    = 855;
@@ -188,7 +188,7 @@
         const lang = isZh() ? LANG.zh : LANG.en;
         let str = lang[key] || key;
         for (const [k, v] of Object.entries(vars)) {
-            str = str.替換(`{${k}}`, v);
+            str = str.replace(`{${k}}`, v);
         }
         return str;
     }
