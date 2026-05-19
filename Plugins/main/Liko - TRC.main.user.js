@@ -857,7 +857,7 @@
                 });
                 advGrid.appendChild(btn);
             });
-        } 
+        }
 
         // ── Effects 區塊 ──
         const effGrid = document.getElementById('bcr-eff-grid');
@@ -1279,11 +1279,11 @@
         });
     } catch {}
 
-    modApi。hookFunction('DrawProcess'， 10, (args, next) => {
+    modApi.hookFunction('DrawProcess', 10, (args, next) => {
         next(args);
         if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
-            DrawButton(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE, '🎮', 
-                (phoneOpen || miniVisible) ? 'Pink' : 'Gray', '', 'Remote Control');
+            DrawButton(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE, '🎮',
+                       (phoneOpen || miniVisible) ? 'Pink' : 'Gray', '', 'Remote Control');
         }
     });
     modApi.hookFunction('ChatRoomClick', 10, (args, next) => {
