@@ -2,7 +2,7 @@
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.7
+// @version      0.5.8
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,7 +13,6 @@
 // @downloadURL  https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // ==/UserScript==
-
 /*
  * lockEnabled 說明：
  *   SharedSettings 中每個戀人記錄的 lockEnabled 欄位是一個「持久化偏好旗標」，
@@ -29,7 +28,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.7";
+    const MOD_VERSION  = "0.5.8";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -417,11 +416,23 @@
         } catch (e) { console.error("🐈‍⬛ [AFC] ❌ 儲存私人設定失敗:", e.message); }
     }
 
+    // 上一次已知的戀人數量（防止異常覆蓋）
+    let _lastKnownLoverCount = -1;
+
     function saveSharedSettings() {
         try {
+            const afc = Player.OnlineSharedSettings?.AFC;
+            if (!afc) return;
+            const currentCount = afc.lovers?.length ?? 0;
+            // 偵測「有戀人 → 突然變 0」的異常，跳過儲存
+            if (_lastKnownLoverCount > 0 && currentCount === 0) {
+                console.warn(`🐈‍⬛ [AFC] ⚠️ 偵測到戀人資料異常清空（${_lastKnownLoverCount} → 0），跳過儲存`);
+                return;
+            }
+            _lastKnownLoverCount = currentCount;
             ServerAccountUpdate?.QueueData?.({ OnlineSharedSettings: Player.OnlineSharedSettings });
         } catch (e) { console.error("🐈‍⬛ [AFC] ❌ 儲存共享設定失敗:", e.message); }
-        // 同時廣播給房間內玩家（EBC 等環境下伺服器同步可能失效）
+        // 同時廣播給房間內玩家
         broadcastAFCData();
     }
 
@@ -448,6 +459,8 @@
         try {
             const e = data.Dictionary?.find(d => d.Tag === 'AFCData');
             if (!e) return true;
+            // 自己的廣播不處理（防止 self-overwrite 覆蓋 Player.OnlineSharedSettings）
+            if (data.Sender === Player.MemberNumber) return true;
             const sender = ChatRoomCharacter?.find(c => c.MemberNumber === data.Sender);
             if (!sender) return true;
             if (!sender.OnlineSharedSettings) sender.OnlineSharedSettings = {};
@@ -600,8 +613,10 @@
         s.lovers = s.lovers.filter(l => l.memberNumber !== memberNumber);
         ELLockAccessOn.delete(memberNumber);
         delete loversPrivateRoom[memberNumber];
+        // 合法刪除：更新基準值，讓守衛不誤判
+        _lastKnownLoverCount = s.lovers.length;
         saveSharedSettings();
-        _saveLoversBackup(s.lovers);    // EBC 備份
+        _saveLoversBackup(s.lovers);
         broadcastAFCData();
     }
 
@@ -1945,7 +1960,8 @@
             // 同房間備用 beep 通道（處理跨伺服器 AccountBeep 失敗的情況）
             if (data?.Type === "Hidden" && data?.Content === "AFCBeepRelay") {
                 const relay = data.Dictionary?.find(d => d.Tag === "AFCBeepRelayData");
-                if (relay?.Data && relay.Data.MemberNumber === Player.MemberNumber) {
+                if (relay?.Data && relay.Data.MemberNumber === Player.MemberNumber
+                    && data.Sender !== Player.MemberNumber) {  // 不處理自己發給自己的
                     const key = `${data.Sender}_${relay.Data.Message}`;
                     if (!_recentBeepKeys.has(key)) {
                         _recentBeepKeys.add(key);
@@ -2060,10 +2076,14 @@
             if (!Player?.OnlineSharedSettings || !Player?.ExtensionSettings) return;
 
             try {
-                getSharedSettings();
+                getSharedSettings();  // 初始化 AFC（含備份恢復）
                 const priv = getPrivateSettings();
                 // 確保鎖的權限已同步到 OnlineSharedSettings
                 if (priv) syncLockPermsToShared(priv);
+                // 初始化後設定已知戀人數量基準，並強制存備份
+                const shared = Player.OnlineSharedSettings?.AFC;
+                _lastKnownLoverCount = shared?.lovers?.length ?? 0;
+                if (_lastKnownLoverCount > 0) _saveLoversBackup(shared.lovers);
                 setupHooks();
                 setupCommands();
 
@@ -2115,7 +2135,5 @@
         isInitialized    = false;
         console.log("🐈‍⬛ [AFC] 🗑️ 已清理資源");
     }
-
     initialize();
-
 })();
