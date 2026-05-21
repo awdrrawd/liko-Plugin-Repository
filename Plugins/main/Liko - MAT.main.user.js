@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.2.6
+// @version      1.2.7
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
     'use strict';
 
     let modApi;
-    let myversion = "1.2.6";
+    let myversion = "1.2.7";
     let observer = null;
 
     let config = {
@@ -1400,7 +1400,8 @@ Settings storage: ExtensionSettings ✅
         const ref = document.getElementById('bceRichOnlineProfile') || document.getElementById('DescriptionInput');
         const div = document.createElement('div');
         div.id = BIO_TRANS_ID;
-        div.style.cssText = 'overflow-x:hidden;overflow-wrap:break-word;white-space:pre-wrap;background:rgb(220,240,220);color:rgb(27,45,27);border:2px solid #4CAF50;padding:2px;position:fixed;z-index:999;font-family:Arial,sans-serif;display:flex;flex-direction:column;';
+        //bio翻譯UI設定
+        div.style.cssText = 'overflow-x:hidden;overflow-wrap:break-word;white-space:pre-wrap;background:rgb(187,196,255);color:rgb(27,45,27);border:2px solid #4CAF50;padding:2px;position:fixed;z-index:999;font-family:Arial,sans-serif;display:flex;flex-direction:column;';
         if (ref) {
             const cs = window.getComputedStyle(ref);
             div.style.fontSize = cs.fontSize;
