@@ -557,8 +557,8 @@
                 `/img up - 上傳圖片 | UPload image\n` +
                 `/img web [litterbox|uguu|imgbb|tmpfiles|cloudflare]\n` +
                 `               └選擇圖床 | Set img host\n` +
-                `/img zoom  - 開關懸停放大 (桌面) | Toggle hover zoom\n` +
-                `/img click - 開關點擊放大🔍 (手機友善) | Toggle click zoom\n\n` +
+                `/img zoom  - 游標懸停放大 | Toggle hover zoom\n` +
+                `/img click - 點擊放大🔍 | Toggle click zoom\n\n` +
                 `支援 | Support:\n` +
                 `• 可以拖曳圖片上傳 | You can direct drag & drop\n` +
                 `• 格式(Format): JPG/PNG/GIF/BMP/WEBP\n` +
