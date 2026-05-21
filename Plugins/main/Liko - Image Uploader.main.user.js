@@ -77,7 +77,7 @@
     }
 
     function isValidFileSize(file, host = imageHost) {
-        const limits = { uguu: 128, imgbb: 32, tmpfiles: 100, cloudflare: 10, litterbox: 100 };
+        const limits = { uguu: 128, imgbb: 32, tmpfiles: 100, cloudflare: 50, litterbox: 100 };
         return file.size <= (limits[host] ?? 100) * 1024 * 1024;
     }
 
