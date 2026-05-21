@@ -1,12 +1,22 @@
 {
   "updateId": "260512",
   "changelog": [
-    "⭐AEE - 外觀編輯拓展 v0.7.4 更新",
-    "修正在編輯拘束時，會點到身體部位的問題"
+    "⭐PCM - 腳本管理器 v1.5.4 更新",
+    "修改顯示徽章的邏輯",
+    "優化部分功能",
+    "修復大多R128時遇到的錯誤",
+    "⭐CHE - 聊天室書記官 v2.4.3 更新",
+    "修復信息排序問題",
+    "修復使用MAT時，翻譯的結果與原信息的順序有錯誤問題"
   ],
   "en_changelog": [
-    "⭐AEE -  Appearance editing extension v0.7.4 Update",
-    "Fixed an issue that would accidentally click on body groups when editing Bondage."
+    "⭐PCM - Script Manager v1.5.4 Update",
+    "Modified the logic for displaying badges",
+    "Optimized some functions",
+    "Fixed most bugs encountered with R128",
+    "⭐CHE - Chat Room Scribe v2.4.3 Update",
+    "Fixed message sorting issue",
+    "Fixed an issue where the translated result was out of order with the original message when using MAT"
   ],
   "plugins": [
     {
@@ -78,7 +88,7 @@
       "additionalInfo": "現在多了替換姿勢的功能",
       "en_additionalInfo": "Now there is a function to change posture",
       "icon": "👗",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js",
+      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js"，
       "priority": 3
     },
     {
@@ -95,7 +105,7 @@
     },
     {
       "id": "Liko-NOI",
-      "name": "Liko的邀請通知器",
+      "name": "Liko的邀請通知器"，
       "en_name": "Liko's Notification of Invites",
       "description": "發出好友、白單、黑單的信息!",
       "en_description": "Customize the notification message when sending a friend, whitelist, or blacklist request.",
