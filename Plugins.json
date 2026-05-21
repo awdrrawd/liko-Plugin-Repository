@@ -319,6 +319,19 @@
       "icon": "🌸",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js",
       "priority": 3
+    },
+    {
+      "id": "GGC",
+      "name": "Galia的賭博俱樂部",
+      "en_name": "Galia's Gambling Club",
+      "description": "增加了小遊戲、骰子和硬幣動畫、交易、趣味文字效果以及專為聊天室互動而設計的環形選單。",
+      "en_description": "Addon that adds canvas games, dice and coin animations, trades, playful text effects, 和 a radial menu built for chat-room interactions.",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "🎲",
+      "url": "https://raw.githubusercontent.com/galia-bc/galia.github.io/main/club-gaming/club-gaming.js",
+      "website": "https://galia-bc.github.io/galia.github.io",
+      "priority": 3
     }
   ]
 }
