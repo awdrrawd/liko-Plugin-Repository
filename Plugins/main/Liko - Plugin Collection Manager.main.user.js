@@ -303,11 +303,18 @@
     // ============================================================
 
     function detectLanguage() {
+        // 1. BC runtime 值（遊戲初始化後）
         if (typeof TranslationLanguage !== 'undefined') {
             const l = TranslationLanguage.toLowerCase();
             return l === 'tw' || l === 'cn';
         }
-        return (navigator.language || 'en').toLowerCase().startsWith('zh');
+        // 2. BC 存在 localStorage 的語言快取（啟動早期）
+        try {
+            const saved = localStorage.getItem("TranslationLanguage");
+            if (saved) return saved.toLowerCase() === 'tw' || saved.toLowerCase() === 'cn';
+        } catch(e) {}
+
+        return false;
     }
     let _isCN = detectLanguage();
 
@@ -1738,5 +1745,5 @@
         initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
     }
 
-    console.log("🐈‍⬛ [PCM] ✅ v1.5.4 腳本載入完成");
+    console.log("🐈‍⬛ [PCM] ✅ v1.5.3 腳本載入完成");
 })();
