@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.4
+// @version      1.5.5
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -22,7 +22,7 @@
     // ============================================================
 
     let modApi;
-    const modversion = "1.5.4";
+    const modversion = "1.5.5";
 
     // === 生命週期管理 ===
     let isInitialized = false;
@@ -310,7 +310,7 @@
         }
         // 2. BC 存在 localStorage 的語言快取（啟動早期）
         try {
-            const saved = localStorage.getItem("TranslationLanguage");
+            const saved = localStorage.getItem("BondageClubLanguage");
             if (saved) return saved.toLowerCase() === 'tw' || saved.toLowerCase() === 'cn';
         } catch(e) {}
 
@@ -515,19 +515,15 @@
     // === 版本更新檢查 ============================================
     // ============================================================
 
-    let remoteChangelog = [];
+    let remoteChangelogZh = [];
+    let remoteChangelogEn = [];
     let remoteVersion = modversion;
     let remoteUpdateId = null;
 
     function checkVersionUpdate() {
-        const savedVersion = pluginSettings["_pcm_version"];
         const savedUpdateId = pluginSettings["_pcm_updateId"];
-        const versionChanged = savedVersion !== modversion;
-        const updateIdChanged = remoteUpdateId && savedUpdateId !== remoteUpdateId;
-
-        if (versionChanged || updateIdChanged) {
-            pluginSettings["_pcm_version"] = modversion;
-            if (remoteUpdateId) pluginSettings["_pcm_updateId"] = remoteUpdateId;
+        if (remoteUpdateId && savedUpdateId !== remoteUpdateId) {
+            pluginSettings["_pcm_updateId"] = remoteUpdateId;
             saveSettings(pluginSettings);
             return true;
         }
@@ -554,8 +550,11 @@
             font-family: 'Noto Sans TC', sans-serif; color: #fff;
         `;
 
-        const changelog = remoteChangelog.length > 0 ? remoteChangelog : ["載入更新日誌中..."];
-        const items = changelog.map(c => `<li style="margin:6px 0; font-size:13px; color:#d4c8f5;">${c}</li>`).join("");
+        // 在顯示時才決定語言，與其他 UI 元素行為一致
+        const changelog = detectLanguage()
+            ? (remoteChangelogZh.length > 0 ? remoteChangelogZh : remoteChangelogEn)
+            : (remoteChangelogEn.length > 0 ? remoteChangelogEn : remoteChangelogZh);
+        const items = (changelog.length > 0 ? changelog : ["載入更新日誌中..."]).map(c => `<li style="margin:6px 0; font-size:13px; color:#d4c8f5;">${c}</li>`).join("");
 
         box.innerHTML = `
             <div style="font-size:16px; font-weight:600; margin-bottom:4px;">${getMessage('changelogTitle')}</div>
@@ -584,10 +583,11 @@
     const _pluginsProcessPromise = loadPluginsJSON();
 
     // JSON 網路抓取（RAW 優先，CDN 備援）
+    // 強制略過瀏覽器 HTTP 快取，確保拿到最新版本
     async function fetchJSONFromNetwork() {
         for (const url of PLUGINS_JSON_URLS) {
             try {
-                const res = await fetch(url);
+                const res = await fetch(url, { cache: 'no-cache' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const text = await res.text();
 
@@ -658,7 +658,8 @@
         }
         remoteVersion = data.version || modversion;
         remoteUpdateId = data.updateId || null;
-        remoteChangelog = (detectLanguage() ? data.changelog : data.en_changelog) || data.changelog || [];
+        remoteChangelogZh = data.changelog || [];
+        remoteChangelogEn = data.en_changelog || data.changelog || [];
         subPlugins = applyPluginSettings(data.plugins);
         subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
         pluginsLoaded = true;
@@ -675,6 +676,10 @@
     let hasStartedPluginLoading = false;
 
     function injectScript(pluginId, code) {
+        // 若取得的內容是 HTML（如 404 頁面），拒絕注入避免 SyntaxError
+        if (code.trimStart().startsWith('<')) {
+            throw new Error(`Invalid content: received HTML instead of JavaScript`);
+        }
         const script = document.createElement('script');
         script.setAttribute('data-plugin', pluginId);
         script.textContent = `(function(){try{${code}}catch(e){console.error('🐈‍⬛ [PCM] plugin error (${pluginId}):', e.message);}})();`;
@@ -697,11 +702,15 @@
 
     function buildFetchUrls(plugin) {
         const rawUrl = getActivePluginUrl(plugin);
-        const cdnUrl = rawUrl
-            .replace("https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/",
-                     "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/")
-            .replace("https://raw.githubusercontent.com/awdrrawd/",
-                     "https://cdn.jsdelivr.net/gh/awdrrawd/");
+
+        // 將任意 raw.githubusercontent.com URL 轉換為 jsDelivr CDN 備援
+        // 格式：https://raw.githubusercontent.com/{user}/{repo}/{branch}/{path}
+        //   →  https://cdn.jsdelivr.net/gh/{user}/{repo}@{branch}/{path}
+        const cdnUrl = rawUrl.replace(
+            /^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/,
+            "https://cdn.jsdelivr.net/gh/$1/$2@$3/$4"
+        );
+
         return cdnUrl !== rawUrl ? [rawUrl, cdnUrl] : [rawUrl];
     }
 
@@ -1745,5 +1754,5 @@
         initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
     }
 
-    console.log("🐈‍⬛ [PCM] ✅ v1.5.3 腳本載入完成");
+    console.log("🐈‍⬛ [PCM] ✅ v1.5.5 腳本載入完成");
 })();
