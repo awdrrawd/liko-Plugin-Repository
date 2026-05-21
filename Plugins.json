@@ -7,7 +7,9 @@
     "修復大多R128時遇到的錯誤",
     "⭐CHE - 聊天室書記官 v2.4.3 更新",
     "修復信息排序問題",
-    "修復使用MAT時，翻譯的結果與原信息的順序有錯誤問題"
+    "修復使用MAT時，翻譯的結果與原信息的順序有錯誤問題",
+    "⭐圖片上傳器 v1.5 更新",
+    "新增zoom、click指令，可以放大圖片"
   ],
   "en_changelog": [
     "⭐PCM - Script Manager v1.5.4 Update",
@@ -16,7 +18,9 @@
     "Fixed most bugs encountered with R128",
     "⭐CHE - Chat Room Scribe v2.4.3 Update",
     "Fixed message sorting issue",
-    "Fixed an issue where the translated result was out of order with the original message when using MAT"
+    "Fixed an issue where the translated result was out of order with the original message when using MAT",
+    "⭐Image Uploader v1.5 Update",
+    "Added zoom and click commands to enlarge images"
   ],
   "plugins": [
     {
