@@ -2,7 +2,7 @@
 // @name         Liko - Image Uploader
 // @name:zh      Liko的圖片上傳器
 // @namespace    https://likolisu.dev/
-// @version      1.5.0
+// @version      1.5.1
 // @description  Bondage Club - 上傳圖片到圖床並分享網址 + 懸停/點擊圖片放大預覽
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function () {
     let modApi = null;
-    const modversion = "1.5.0";
+    const modversion = "1.5.1";
     let imageHost       = "litterbox";
     let zoomEnabled     = false;   // 懸停放大（桌面）
     let clickZoomEnabled = false;  // 點擊放大（手機友善）
@@ -70,10 +70,10 @@
     // 驗證：圖片格式 / 大小
     // ──────────────────────────────────────────
     function isValidImageFormat(file) {
-        const validFormats = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
+        const validFormats = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp', 'image/avif'];
         if (file.type && validFormats.includes(file.type.toLowerCase())) return true;
         const ext = file.name.split('.').pop().toLowerCase();
-        return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext);
+        return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'avif'].includes(ext);
     }
 
     function isValidFileSize(file, host = imageHost) {
@@ -121,7 +121,7 @@
             return false;
         }
         if (!isValidImageFormat(file)) {
-            ChatRoomSendLocalStyled("❌ 請使用正確的圖片格式 (JPG/PNG/GIF/BMP/WEBP)", 5000, "#ff4444");
+            ChatRoomSendLocalStyled("❌ 請使用正確的圖片格式 (JPG/PNG/GIF/BMP/WEBP/AVIF)", 5000, "#ff4444");
             return false;
         }
         if (!isValidFileSize(file, host)) {
@@ -285,7 +285,7 @@
     // ──────────────────────────────────────────
     // 拖曳上傳
     // ──────────────────────────────────────────
-    document.addEventListener("dragover", (e) => {
+    document。addEventListener("dragover", (e) => {
         if (CurrentScreen !== "ChatRoom") return;
         if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "copy"; }
     });
@@ -342,13 +342,13 @@
             display: none; opacity: 0;
             background: rgba(8,8,8,0.82);
             border: 2px solid rgba(255,105,180,0.8); border-radius: 12px; padding: 5px;
-            max-width: min(520px, 42vw); max-height: 82vh; overflow: hidden;
+            max-width: min(1500px, 72vw); max-height: 92vh; overflow: hidden;
             box-shadow: 4px 0 40px rgba(0,0,0,0.75);
             transition: opacity 0.18s ease;
         `;
         const img = document.createElement("img");
         img.id = "LikoZoomOverlayImg";
-        img.style.cssText = "display:block; max-width:100%; max-height:80vh; border-radius:8px; object-fit:contain;";
+        img.style.cssText = "display:block; max-width:100%; max-height:90vh; border-radius:8px; object-fit:contain;";
         img.onerror = () => { el.style.display = "none"; };
         el.appendChild(img);
         document.body.appendChild(el);
@@ -366,7 +366,7 @@
     function hideHoverOverlay() {
         const el = document.getElementById("LikoZoomOverlay");
         if (!el) return;
-        el.style.opacity = "0";
+        el。style.opacity = "0";
         setTimeout(() => { if (el.style.opacity === "0") el.style.display = "none"; }, 180);
     }
 
@@ -534,7 +534,7 @@
                     for (const added of m.addedNodes) processImgsInNode(added);
                 }
             });
-            chatObserver.observe(chatLog, { childList: true, subtree: true });
+            chatObserver。observe(chatLog, { childList: true, subtree: true });
             console.log("🐈‍⬛ [IMG] 🔍 Observer 已啟動");
         }
         tryAttach();
@@ -557,11 +557,11 @@
                 `/img up - 上傳圖片 | UPload image\n` +
                 `/img web [litterbox|uguu|imgbb|tmpfiles|cloudflare]\n` +
                 `               └選擇圖床 | Set img host\n` +
-                `/img zoom  - 游標懸停放大 | Toggle hover zoom\n` +
-                `/img click - 點擊放大🔍 | Toggle click zoom\n\n` +
+                `/img zoom  - 懸停放大功能 | Toggle hover zoom\n` +
+                `/img click - 點擊放大🔍功能 | Toggle click zoom\n\n` +
                 `支援 | Support:\n` +
                 `• 可以拖曳圖片上傳 | You can direct drag & drop\n` +
-                `• 格式(Format): JPG/PNG/GIF/BMP/WEBP\n` +
+                `• 格式(Format): JPG/PNG/GIF/BMP/WEBP/AVIF\n` +
                 `• 大小(Size): Litterbox(100MB) | Uguu(128MB) | ImgBB(32MB) | TmpFiles(100MB) | Cloudflare(10MB)\n` +
                 `• 時間(Time): Litterbox(12HR) | Uguu(3HR) | ImgBB(12HR) | TmpFiles(1HR) | Cloudflare(30Min)\n` +
                 `✦建議使用(suggestion) litterbox > tmpfiles > uguu > imgbb\n` +
