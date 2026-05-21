@@ -2,8 +2,8 @@
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.2.3
-// @description  Advanced video player that auto-detects video links in chat and adds play buttons
+// @version      1.3.0
+// @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -14,611 +14,407 @@
 
 (function () {
     "use strict";
-
-    // 檢查是否已經載入過
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
-    const modVersion = "1.2.3";
+    const modVersion = "1.3.0";
     let isEnabled = true;
     let scanInterval;
 
-    // 支援的影音平台配置
+    // ─────────────────────────────────────────────────────────────
+    //  常數 & 設定
+    // ─────────────────────────────────────────────────────────────
+
+    // BC 聊天區域約 980px 可用寬；考慮上下 UI 高度上限設 520px
+    const PLAYER_MAX_W = 980;
+    const PLAYER_MAX_H = 520;
+
     const PLATFORM_DISPLAY_NAME = {
-        bilibiliVideo: "Bilibili",
+        bilibiliVideo:   "Bilibili",
         bilibiliBangumi: "Bilibili",
-
-        youtube: "YouTube",
-        youtubeShorts: "YouTube",
-
-        facebook: "Facebook",
-        instagram: "Instagram",
-        spotify: "Spotify",
-        twitter: "Twitter/X"
+        youtube:         "YouTube",
+        youtubeShorts:   "YouTube",
+        facebook:        "Facebook",
+        instagram:       "Instagram",
+        spotify:         "Spotify",
+        twitter:         "Twitter/X",
+        twitch:          "Twitch",
+        vimeo:           "Vimeo",
+        niconico:        "Niconico",
+        douyin:          "抖音",
     };
+
+    // ─────────────────────────────────────────────────────────────
+    //  影片平台 Patterns
+    //  ratio: "16:9" | "9:16" | "1:1" | "auto"(twitter/spotify)
+    // ─────────────────────────────────────────────────────────────
     const videoPatterns = {
         youtubeShorts: {
             regex: /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
-            htmlTemplate: (id) =>
-            createResponsiveIframe(`https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0`,{ratio: "9:16", maxWidth: 320}),
-            name: "YouTube Shorts"
+            embedUrl: (id) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0`,
+            ratio: "9:16",
         },
         youtube: {
             regex: /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
-            htmlTemplate: (id) =>
-            createResponsiveIframe( `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0`,{ ratio: "16:9" } ),
-            name: "YouTube"
+            embedUrl: (id) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0`,
+            ratio: "16:9",
         },
         bilibiliVideo: {
             regex: /bilibili\.com\/video\/(BV[a-zA-Z0-9]+)/,
-            htmlTemplate: (id) =>
-            createResponsiveIframe(`https://player.bilibili.com/player.html?bvid=${id}&autoplay=0`,{ ratio: "16:9" }),
-            name: "Bilibili"
+            embedUrl: (id) => `https://player.bilibili.com/player.html?bvid=${id}&autoplay=0&isOutside=true`,
+            ratio: "16:9",
         },
         bilibiliBangumi: {
             regex: /bilibili\.com\/bangumi\/play\/(ep|ss)(\d+)/,
-            htmlTemplate: (type, id) => {
-                const param =
-                      type === "ep"
-                ? `ep_id=${id}`
-                : `season_id=${id}`;
-                return createResponsiveIframe(`https://player.bilibili.com/player.html?${param}&autoplay=0`,{ ratio: "16:9" });},
-            name: "Bilibili 番劇"
+            embedUrl: (type, id) =>
+                `https://player.bilibili.com/player.html?${type === "ep" ? "ep_id" : "season_id"}=${id}&autoplay=0&isOutside=true`,
+            ratio: "16:9",
         },
         douyin: {
             regex: /douyin\.com\/(?:video\/(\d+)|jingxuan\?modal_id=(\d+))/,
-            htmlTemplate: (id1, id2) => {
-                const id = id1 || id2;
-                return `<div style="width: 100%; max-width: 300px; margin: 0.3em auto; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
-                    <div style="position: relative; width: 100%; height: 533px;">
-                        <iframe src="https://open.douyin.com/player/video?vid=${id}&autoplay=0"
-                                frameborder="0" allowfullscreen
-                                referrerpolicy="unsafe-url"
-                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
-                    </div>
-                </div>`;
-            },
-            //createResponsiveIframe(`https://open.douyin.com/player/video?vid=${id}&autoplay=0`,{ratio: "9:16",maxWidth: 360}),
-            name: "抖音"
+            embedUrl: (id) => `https://open.douyin.com/player/video?vid=${id}&autoplay=0`,
+            ratio: "9:16",
+            referrerpolicy: "unsafe-url", // 抖音 embed 需要寬鬆的 referrer，否則無法播放
+            name: "抖音",
         },
         instagram: {
             regex: /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/,
-            htmlTemplate: (id) =>
-            createResponsiveIframe(`https://www.instagram.com/p/${id}/embed/`,{ratio: "9:16",maxWidth: 360}),
-            name: "Instagram"
+            embedUrl: (id) => `https://www.instagram.com/p/${id}/embed/`,
+            ratio: "9:16",
         },
         twitch: {
-            regex: /twitch\.tv\/(?:(?:videos\/([0-9]+)(?:[\/?].*)?)|([a-zA-Z0-9_]+)(?:[\/?].*)?)/,
-            htmlTemplate: (id, type) => `<div style="width: 100%; max-width: none; margin: 0.3em 0; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
-                <div style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%;">
-                    <iframe src="${type === "video"
-            ? `https://player.twitch.tv/?video=${id}&parent=${window.location.hostname}&autoplay=false`
-            : `https://player.twitch.tv/?channel=${id}&parent=${window.location.hostname}&autoplay=false`}"
-                            frameborder="0" allowfullscreen
-                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
-                </div>
-            </div>`,
-            name: "Twitch"
+            regex: /twitch\.tv\/(?:(?:videos\/([0-9]+))|([a-zA-Z0-9_]+))(?:[\/?].*)?/,
+            ratio: "16:9",
         },
         vimeo: {
             regex: /vimeo\.com\/([0-9]+)/,
-            htmlTemplate: (id) =>
-            createResponsiveIframe(`https://player.vimeo.com/video/${id}`,{ratio: "16:9"}),
-            name: "Vimeo"
+            embedUrl: (id) => `https://player.vimeo.com/video/${id}`,
+            ratio: "16:9",
         },
         niconico: {
             regex: /nicovideo\.jp\/watch\/(sm[0-9]+)/,
-            htmlTemplate: (id) =>
-            createResponsiveIframe(`https://embed.nicovideo.jp/watch/${id}`,{ratio: "16:9"}),
-            name: "Niconico"
+            embedUrl: (id) => `https://embed.nicovideo.jp/watch/${id}`,
+            ratio: "16:9",
         },
         twitter: {
             regex: /(?:twitter\.com|x\.com)\/[^\/]+\/status\/(\d+)/,
-            htmlTemplate: (id, username) =>
-            {
-                // 確保 widgets.js 已加載
-                if (!window.twttr) {
-                    const script = document.createElement('script');
-                    script.src = 'https://platform.twitter.com/widgets.js';
-                    script.async = true;
-                    script.charset = 'utf-8';
-                    document.head.appendChild(script);
-                }
-
-                return `<div class="twitter-embed-container" style="width: 100%; max-width: 500px; margin: 0.3em auto;">
-                        <blockquote class="twitter-tweet" data-media-max-width="500">
-                        <a href="https://twitter.com/i/status/${id}"></a>
-                        </blockquote>
-                        </div>`;
-            },
-            name: "Twitter/X",
-            needsScriptReload: true // 標記需要重新加載腳本
+            ratio: "auto",
         },
         facebook: {
             regex: /facebook\.com\/(reel\/\d+|watch\/\?v=\d+|.*\/videos\/\d+)/,
-            htmlTemplate: (url) =>
-            createResponsiveIframe(`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false`,{ratio: "9:16", maxWidth: 360 }),
-            name: "Facebook Reel"
+            embedUrl: (url) =>
+                `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false`,
+            ratio: "9:16",
         },
         spotify: {
             regex: /open\.spotify\.com\/(track|album|playlist|episode|show|artist)\/([a-zA-Z0-9]+)/,
-            htmlTemplate: (type, id) => {
-                const HEIGHT_MAP = {
-                    track: 80,
-                    album: 352,
-                    playlist: 352,
-                    artist: 352,
-                    episode: 152,
-                    show: 232
-                };
-                const height = HEIGHT_MAP[type] ?? 80;
-                return createSpotifyEmbed(`https://open.spotify.com/embed/${type}/${id}`,height);},
-            name: "Spotify"
+            ratio: "auto",
+        },
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    //  URL 偵測
+    // ─────────────────────────────────────────────────────────────
+
+
+    function detectVideoUrl(url) {
+        for (const platform in videoPatterns) {
+            const p = videoPatterns[platform];
+            const m = url.match(p.regex);
+            if (!m) continue;
+            const base = { platform, originalUrl: url, platformName: PLATFORM_DISPLAY_NAME[platform] || platform };
+            if (platform === "twitch")          return { ...base, id: m[1] || m[2], type: m[1] ? "video" : "channel" };
+            if (platform === "bilibiliBangumi") return { ...base, type: m[1], id: m[2] };
+            if (platform === "facebook")        return { ...base };
+            if (platform === "spotify")         return { ...base, type: m[1], id: m[2] };
+            // ★ 抖音有兩種 URL 格式：video/(m[1]) 和 jingxuan?modal_id=(m[2])
+            if (platform === "douyin")          return { ...base, id: m[1] || m[2] };
+            return { ...base, id: m[1] };
         }
-    };
+        return null;
+    }
 
-    // 儲存資源供清理使用
-    const resources = {
-        intervals: [],
-        eventListeners: []
-    };
+    // ─────────────────────────────────────────────────────────────
+    //  ★ 影片播放器 HTML 生成（修正尺寸）
+    //    16:9 → 最大寬 980px，高度由 aspect-ratio 決定（≈551px）
+    //    9:16 → 固定高 500px，寬度由 aspect-ratio 決定（≈281px）
+    // ─────────────────────────────────────────────────────────────
+    function buildPlayerHTML(videoInfo) {
+        const p = videoPatterns[videoInfo.platform];
 
-    // 建立插件實例
-    const pluginInstance = {
+        // ── Twitter ──
+        if (videoInfo.platform === "twitter") {
+            if (!window.twttr) {
+                const s = document.createElement("script");
+                s.src = "https://platform.twitter.com/widgets.js";
+                s.async = true;
+                document.head.appendChild(s);
+            }
+            return `<div style="max-width:500px;margin:0.3em auto;">
+                <blockquote class="twitter-tweet" data-media-max-width="500">
+                    <a href="https://twitter.com/i/status/${videoInfo.id}"></a>
+                </blockquote>
+            </div>`;
+        }
+
+        // ── Spotify ──
+        if (videoInfo.platform === "spotify") {
+            const H = { track:80, album:352, playlist:352, artist:352, episode:152, show:232 };
+            return `<div style="width:100%;max-width:500px;margin:0.3em 0;">
+                <iframe src="https://open.spotify.com/embed/${videoInfo.type}/${videoInfo.id}"
+                    width="100%" height="${H[videoInfo.type] ?? 80}" frameborder="0" loading="lazy"
+                    allow="autoplay;clipboard-write;encrypted-media;fullscreen;picture-in-picture"
+                    style="border-radius:12px;"></iframe>
+            </div>`;
+        }
+
+        // ── 取得 src ──
+        let src;
+        if (videoInfo.platform === "twitch") {
+            src = videoInfo.type === "video"
+                ? `https://player.twitch.tv/?video=${videoInfo.id}&parent=${location.hostname}&autoplay=false`
+                : `https://player.twitch.tv/?channel=${videoInfo.id}&parent=${location.hostname}&autoplay=false`;
+        } else if (videoInfo.platform === "facebook") {
+            src = p.embedUrl(videoInfo.originalUrl);
+        } else if (videoInfo.platform === "bilibiliBangumi") {
+            src = p.embedUrl(videoInfo.type, videoInfo.id);
+        } else {
+            src = p.embedUrl(videoInfo.id);
+        }
+
+        // ── 抖音：直向 9:16，350×622 ──
+        if (videoInfo.platform === "douyin") {
+            return `<div style="width: 100%; max-width: 350px; margin: 0.3em auto; background: #000; border-radius: 0.2em; overflow: hidden; box-sizing: border-box;">
+                <div style="position: relative; width: 100%; height: 622px;">
+                    <iframe src="${src}"
+                            frameborder="0" allowfullscreen
+                            referrerpolicy="unsafe-url"
+                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"></iframe>
+                </div>
+            </div>`;
+        }
+
+        const [rw, rh] = p.ratio.split(":").map(Number);
+        const isPortrait = rh > rw;
+        const rp = p.referrerpolicy || "strict-origin-when-cross-origin"; // 各平台可覆寫
+
+        // ★ aspect-ratio 直接放在 iframe，不用外層 overflow:hidden
+        //   避免裁掉控制列造成黑邊/底部被吃
+        if (isPortrait) {
+            const pw = Math.round(PLAYER_MAX_H * rw / rh);
+            return `<iframe src="${src}"
+                style="display:block;width:${pw}px;height:${PLAYER_MAX_H}px;border:none;border-radius:6px;background:#000;margin:0.3em 0;"
+                frameborder="0" scrolling="no" allowfullscreen
+                referrerpolicy="${rp}"
+                allow="autoplay;clipboard-write;encrypted-media;picture-in-picture;web-share"></iframe>`;
+        } else {
+            return `<iframe src="${src}"
+                style="display:block;width:100%;max-width:${PLAYER_MAX_W}px;aspect-ratio:${rw}/${rh};border:none;border-radius:6px;background:#000;margin:0.3em 0;"
+                frameborder="0" scrolling="no" allowfullscreen
+                referrerpolicy="${rp}"
+                allow="autoplay;clipboard-write;encrypted-media;picture-in-picture;web-share"></iframe>`;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  訊息掃描：🎬 按鈕（行內）
+    // ─────────────────────────────────────────────────────────────
+    function processInlineButtons(element) {
+        if (!isEnabled) return;
+        const links = element.querySelectorAll("a[href]:not([data-liko-processed])");
+        links.forEach((link) => {
+            const href = link.getAttribute("href");
+            if (!href) return;
+            const videoInfo = detectVideoUrl(href);
+            if (!videoInfo) return; // 行內只處理影片（資訊卡走 SendLocal）
+
+            const btn = document.createElement("span");
+            btn.className = "likoVideoButton";
+            btn.textContent = "🎬";
+            btn.title = `播放 ${videoInfo.platformName}`;
+            btn.style.cssText = `
+                color:#ff4757;cursor:pointer;font-size:1.2em;
+                padding:3px 6px;border-radius:4px;
+                background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.3);
+                transition:all 0.15s;display:inline-block;vertical-align:middle;
+                margin-left:5px;min-width:26px;text-align:center;
+            `;
+
+            let playerEl = null;
+            btn.addEventListener("click", (e) => {
+                if (!isEnabled) return;
+                e.preventDefault(); e.stopPropagation();
+                const msgContent = btn.closest(".chat-room-message-content");
+                if (!msgContent) return;
+
+                if (!playerEl) {
+                    playerEl = document.createElement("div");
+                    playerEl.className = "likoVideoIframe";
+                    playerEl.style.position = "relative";
+                    playerEl.innerHTML = buildPlayerHTML(videoInfo);
+
+                    const closeBtn = document.createElement("button");
+                    closeBtn.textContent = "✕";
+                    closeBtn.style.cssText = `
+                        position:absolute;top:6px;right:6px;
+                        background:rgba(0,0,0,0.75);color:#fff;border:none;
+                        border-radius:50%;width:26px;height:26px;cursor:pointer;
+                        font-size:13px;font-weight:bold;z-index:10;line-height:1;
+                    `;
+                    closeBtn.addEventListener("click", () => {
+                        playerEl.remove(); playerEl = null;
+                        btn.textContent = "🎬"; btn.style.color = "#ff4757";
+                    });
+                    playerEl.appendChild(closeBtn);
+
+                    if (videoInfo.platform === "twitter" && window.twttr)
+                        window.twttr.widgets.load(playerEl);
+
+                    msgContent.appendChild(playerEl);
+                    btn.textContent = "📺"; btn.style.color = "#2ed573";
+                } else {
+                    const visible = playerEl.style.display !== "none";
+                    playerEl.style.display = visible ? "none" : "block";
+                    btn.textContent = visible ? "🎬" : "📺";
+                    btn.style.color = visible ? "#ff4757" : "#2ed573";
+                }
+            });
+
+            link.before(btn);
+            link.before(document.createTextNode(" "));
+            link.dataset.likoProcessed = "1";
+        });
+    }
+
+    function scanChatMessages() {
+        if (!isEnabled) return;
+        document.querySelectorAll(".chat-room-message-content,[role='log']>div").forEach((el) => {
+            processInlineButtons(el);
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  插件控制
+    // ─────────────────────────────────────────────────────────────
+
+    // ★ MutationObserver：新訊息出現時立刻掃，不等 interval
+    //   同時保留 interval 作為 fallback（防止 observer 遺漏）
+    let observer = null;
+
+    function startObserver() {
+        if (observer) return;
+        const chatLog = document.querySelector('#TextAreaChatLog, [role="log"]');
+        if (!chatLog) return;
+        observer = new MutationObserver((mutations) => {
+            if (!isEnabled) return;
+            // 只有真的新增節點才觸發（避免我們自己插按鈕時再掃）
+            const hasNew = mutations.some(m =>
+                [...m.addedNodes].some(n => n.nodeType === 1 && !n.classList?.contains('likoVideoButton'))
+            );
+            if (hasNew) scanChatMessages();
+        });
+        observer.observe(chatLog, { childList: true, subtree: false });
+    }
+
+    function stopObserver() {
+        observer?.disconnect();
+        observer = null;
+    }
+
+    function enablePlugin() {
+        isEnabled = true;
+        // 立刻掃一次
+        scanChatMessages();
+        // MutationObserver（即時）
+        startObserver();
+        // interval 作 fallback（萬一 observer miss 的情況）
+        if (!scanInterval) {
+            scanInterval = setInterval(scanChatMessages, 3000); // 可以調長，observer 才是主力
+        }
+    }
+
+    function disablePlugin() {
+        isEnabled = false;
+        stopObserver();
+        clearInterval(scanInterval); scanInterval = null;
+        document.querySelectorAll(".likoVideoButton,.likoVideoIframe").forEach((el) => el.remove());
+        document.querySelectorAll("[data-liko-processed]").forEach((el) => {
+            delete el.dataset.likoProcessed;
+        });
+    }
+
+    function togglePlugin() { isEnabled ? disablePlugin() : enablePlugin(); return isEnabled; }
+    function destroyPlugin() { disablePlugin(); stopObserver(); delete window.LikoVideoPlayerInstance; }
+
+    window.LikoVideoPlayerInstance = {
         isEnabled: () => isEnabled,
         enable: enablePlugin,
         disable: disablePlugin,
         toggle: togglePlugin,
-        destroy: destroyPlugin
+        destroy: destroyPlugin,
     };
 
-    window.LikoVideoPlayerInstance = pluginInstance;
+    // ─────────────────────────────────────────────────────────────
+    //  BC Hooks
+    // ─────────────────────────────────────────────────────────────
+    function hookChatRoomLoad() {
+        if (!modApi?.hookFunction) return;
 
-    // 註冊到 bcModSdk
+        modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
+            const result = next(args);
+            setTimeout(() => {
+                if (!window.LikoVideoPlayerWelcomed && isEnabled) {
+                    const platforms = [...new Set(
+                        Object.keys(videoPatterns).map((k) => PLATFORM_DISPLAY_NAME[k] || k)
+                    )].join(", ");
+                    ChatRoomSendLocal(
+                        `<p style='background:#4C2772;color:#EEE;display:block;padding:5px;'>
+                         <b>🎬 Liko's ACV v${modVersion}</b>
+                         <br>· 偵測影片連結，插入 🎬 按鈕，點擊展開播放器
+                         <br>· 支援: ${platforms}
+                         </p>`.replace(/\s+/g, " "),
+                        10000
+                    );
+                    window.LikoVideoPlayerWelcomed = true;
+                }
+            }, 1000);
+            return result;
+        });
+
+        modApi.hookFunction("ChatRoomMessage", 0, (args, next) => {
+            next(args);
+            setTimeout(() => scanChatMessages(), 150);
+        });
+
+        // 自己發訊息：只重掃 🎬 按鈕，不重複生成資訊卡
+        // （自己的訊息會透過 ChatRoomMessage hook 回傳，已在那邊處理）
+        modApi.hookFunction("ServerSend", 0, (args, next) => {
+            next(args);
+            const [type, data] = args;
+            if (type === "ChatRoomChat" && data?.Type === "Chat") {
+                setTimeout(() => scanChatMessages(), 200);
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  初始化
+    // ─────────────────────────────────────────────────────────────
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
                 name: "Liko's ACV",
                 fullName: "Liko's Automatically create video.",
                 version: modVersion,
-                repository: '自動創建影片 | Automatically create video.',
+                repository: "自動創建影片 | Automatically create video.",
             });
         }
     } catch (e) {
-        console.error("❌ Video Player Advanced 初始化失敗:", e.message);
+        console.error("❌ ACV init failed:", e.message);
     }
 
-    // 檢測影片網址
-    function detectVideoUrl(url) {
-        for (let platform in videoPatterns) {
-            const pattern = videoPatterns[platform];
-            if (!pattern || !pattern.regex) continue; // 安全檢查
-
-            const match = url.match(pattern.regex);
-            if (match) {
-                if (platform === "twitch") {
-                    const type = match[1] ? "video" : "channel";
-                    const id = match[1] || match[2];
-                    return {
-                        platform,
-                        id,
-                        type,
-                        originalUrl: url,
-                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
-                    };
-                } else if (platform === "douyin") {
-                    const id = match[1] || match[2];
-                    const shortCode = match[3];
-                    return {
-                        platform,
-                        id: id,
-                        originalUrl: url,
-                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
-                    };
-                } else if (platform === "twitter") {
-                    const id = match[1];
-                    return {
-                        platform,
-                        id,
-                        originalUrl: url,
-                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
-                    };
-                } else if (platform === "facebook") {
-                    return {
-                        platform,
-                        url,              // ← 用完整 URL
-                        originalUrl: url,
-                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
-                    };
-                } else if (platform === "spotify") {
-                    return {
-                        platform,
-                        type: match[1], // track / album / playlist / episode / show / artist
-                        id: match[2],
-                        originalUrl: url,
-                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
-                    };
-                } else if (platform === "bilibiliBangumi") {
-                    return {
-                        platform,
-                        type: match[1], // ep / ss
-                        id: match[2],
-                        originalUrl: url,
-                        platformName: pattern.name
-                    };
-                } else {
-                    const id = match[1];
-                    return {
-                        platform,
-                        id,
-                        originalUrl: url,
-                        platformName: PLATFORM_DISPLAY_NAME[platform] || pattern.name
-                    };
-                }
-            }
-        }
-        return null;
-    }
-    function createResponsiveIframe(src, {
-        ratio = "16:9",
-        maxWidth = null,
-        extraAttrs = ""
-    } = {}) {
-        const [w, h] = ratio.split(":").map(Number);
-
-        return `
-        <div style="
-            width: 100%;
-            ${maxWidth ? `max-width:${maxWidth}px;` : ""}
-            margin: 0.3em auto;
-        ">
-            <div style="
-                position: relative;
-                width: 100%;
-                aspect-ratio: ${w} / ${h};
-                background: #000;
-                border-radius: 6px;
-                overflow: hidden;
-            ">
-                <iframe
-                    src="${src}"
-                    referrerpolicy="strict-origin-when-cross-origin"
-                    style="
-                        position: absolute;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        height: 100%;
-                        border: none;
-                    "
-                    scrolling="no"
-                    frameborder="0"
-                    allowfullscreen
-                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                    ${extraAttrs}
-                ></iframe>
-            </div>
-        </div>
-    `;
-    }
-
-    function createSpotifyEmbed(src, height) {
-        return `
-        <div style="
-            width: 100%;
-            max-width: 500px;
-            margin: 0.3em 0;
-        ">
-            <iframe
-                src="${src}"
-                width="100%"
-                height="${height}"
-                frameborder="0"
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                style="border-radius: 12px;"
-                loading="lazy">
-            </iframe>
-        </div>
-    `;
-    }
-
-    // 創建視頻播放按鈕
-    function createVideoButton(videoInfo, originalUrl) {
-        const button = document.createElement("span");
-        button.className = "likoVideoButton";
-        button.textContent = "🎬";
-        button.title = `播放 ${videoInfo.platformName} 視頻`;
-        button.style.cssText = `
-            color: #ff4757;
-            cursor: pointer;
-            font-size: 1.3em;
-            padding: 4px 6px;
-            border-radius: 4px;
-            background: rgba(255, 71, 87, 0.1);
-            border: 1px solid rgba(255, 71, 87, 0.3);
-            transition: all 0.2s ease;
-            display: inline-block;
-            vertical-align: middle;
-            margin-left: 6px;
-            min-width: 28px;
-            text-align: center;
-        `;
-
-        button.addEventListener("mouseenter", () => {
-            if (!isEnabled) return;
-            button.style.background = "rgba(255, 71, 87, 0.2)";
-            button.style.transform = "scale(1.1)";
-        });
-
-        button.addEventListener("mouseleave", () => {
-            button.style.background = "rgba(255, 71, 87, 0.1)";
-            button.style.transform = "scale(1)";
-        });
-
-        const clickHandler = (event) => {
-            if (!isEnabled) return;
-            event.preventDefault();
-            event.stopPropagation();
-
-            const messageElement = button.parentElement?.closest('.chat-room-message-content');
-            if (!messageElement) return;
-
-            let existingIframe = messageElement.querySelector('.likoVideoIframe');
-
-            if (existingIframe) {
-                if (existingIframe.style.display === 'none') {
-                    existingIframe.style.display = 'block';
-                    button.textContent = "📺";
-                    button.style.color = "#2ed573";
-                } else {
-                    existingIframe.style.display = 'none';
-                    button.textContent = "🎬";
-                    button.style.color = "#ff4757";
-                }
-            } else {
-                const iframeContainer = document.createElement("div");
-                iframeContainer.className = "likoVideoIframe";
-
-                const pattern = videoPatterns[videoInfo.platform];
-                let htmlContent;
-                if (videoInfo.platform === "douyin") {
-                    htmlContent = pattern.htmlTemplate(videoInfo.id, null, videoInfo.shortCode);
-                } else if (videoInfo.platform === "twitch") {
-                    htmlContent = pattern.htmlTemplate(videoInfo.id, videoInfo.type);
-                } else if (videoInfo.platform === "facebook") {
-                    htmlContent = pattern.htmlTemplate(videoInfo.originalUrl);
-                } else if (videoInfo.platform === "twitter") {
-                    htmlContent = pattern.htmlTemplate(videoInfo.id);
-                } else if (videoInfo.platform === "spotify") {
-                    htmlContent = pattern.htmlTemplate(videoInfo.type, videoInfo.id);
-                } else if (videoInfo.platform === "bilibiliBangumi") {
-                    htmlContent = pattern.htmlTemplate(videoInfo.type, videoInfo.id);
-                } else {
-                    htmlContent = pattern.htmlTemplate(videoInfo.id);
-                }
-
-                const closeButton = document.createElement("button");
-                closeButton.textContent = "✕";
-                closeButton.style.cssText = `
-                    position: absolute;
-                    top: 8px;
-                    right: 8px;
-                    background: rgba(0,0,0,0.8);
-                    color: white;
-                    border: none;
-                    border-radius: 50%;
-                    width: 28px;
-                    height: 28px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    z-index: 100;
-                    font-weight: bold;
-                `;
-
-                closeButton.addEventListener("click", () => {
-                    iframeContainer.remove();
-                    button.textContent = "🎬";
-                    button.style.color = "#ff4757";
-                });
-
-                iframeContainer.innerHTML = htmlContent;
-                iframeContainer.style.position = "relative";
-                iframeContainer.appendChild(closeButton);
-
-                messageElement.appendChild(iframeContainer);
-                if (videoInfo.platform === "twitter" && window.twttr) {
-                    window.twttr.widgets.load(iframeContainer);
-                }
-
-                button.textContent = "📺";
-                button.style.color = "#2ed573";
-
-                resources.eventListeners.push({
-                    element: closeButton,
-                    events: [{ type: "click", handler: closeButton.onclick }]
-                });
-            }
-        };
-
-        button.addEventListener("click", clickHandler);
-
-        resources.eventListeners.push({
-            element: button,
-            events: [{ type: "click", handler: clickHandler }]
-        });
-
-        return button;
-    }
-
-    // 處理文本內容
-    function processTextContent(element) {
-        if (!isEnabled) return;
-
-        const links = element.querySelectorAll('a[href]:not([data-liko-processed])');
-
-        links.forEach(link => {
-            const href = link.getAttribute('href');
-            if (!href) return;
-
-            const videoInfo = detectVideoUrl(href);
-            if (!videoInfo) return;
-
-            const button = createVideoButton(videoInfo, href);
-
-            // 插在 <a> 前面
-            link.before(button);
-            link.before(document.createTextNode(" "));
-
-            // 只標記這個 link
-            link.dataset.likoProcessed = "1";
-        });
-    }
-
-    // 掃描聊天消息
-    function scanChatMessages() {
-        if (!isEnabled) return;
-        const messageContainers = document.querySelectorAll(".chat-room-message-content, [role='log'] > div");
-        messageContainers.forEach(container => {processTextContent(container);});
-    }
-
-    // 插件控制函數
-    function enablePlugin() {
-        isEnabled = true;
-
-        if (!scanInterval) {
-            scanInterval = setInterval(scanChatMessages, 1500);
-            resources.intervals.push(scanInterval);
-        }
-
-        document.querySelectorAll(".chat-room-message-content, [role='log'] div").forEach(el => {
-            el.dataset.likoVideoProcessed = "";
-        });
-        scanChatMessages();
-    }
-
-    function disablePlugin() {
-        isEnabled = false;
-
-        if (scanInterval) {
-            clearInterval(scanInterval);
-            const index = resources.intervals.indexOf(scanInterval);
-            if (index > -1) resources.intervals.splice(index, 1);
-            scanInterval = null;
-        }
-
-        document.querySelectorAll('.likoVideoButton, .likoVideoIframe').forEach(el => {
-            el.remove();
-        });
-
-        document.querySelectorAll('.likoVideoLink').forEach(el => {
-            const originalUrl = el.dataset.originalUrl;
-            if (originalUrl) {
-                const textNode = document.createTextNode(originalUrl);
-                el.parentNode.replaceChild(textNode, el);
-            }
-        });
-
-        document.querySelectorAll('[data-liko-processed], [data-liko-video-processed]').forEach(el => {
-            delete el.dataset.likoProcessed;
-            delete el.dataset.likoVideoProcessed;
-        });
-    }
-
-    function togglePlugin() {
-        if (isEnabled) {
-            disablePlugin();
-        } else {
-            enablePlugin();
-        }
-        return isEnabled;
-    }
-
-    function destroyPlugin() {
-        disablePlugin();
-
-        resources.intervals.forEach(interval => {
-            clearInterval(interval);
-        });
-
-        resources.eventListeners.forEach(({ element, events }) => {
-            if (element) {
-                events.forEach(({ type, handler }) => {
-                    element.removeEventListener(type, handler);
-                });
-            }
-        });
-
-        document.querySelectorAll('.likoVideoButton, .likoVideoIframe, .likoVideoLink').forEach(el => {
-            if (el.classList.contains('likoVideoLink')) {
-                const originalUrl = el.dataset.originalUrl;
-                if (originalUrl) {
-                    const textNode = document.createTextNode(originalUrl);
-                    el.parentNode.replaceChild(textNode, el);
-                }
-            } else {
-                el.remove();
-            }
-        });
-
-        delete window.LikoVideoPlayerInstance;
-    }
-
-    // Hook ChatRoomLoad
-    function hookChatRoomLoad() {
-        if (modApi && typeof modApi.hookFunction === 'function') {
-            modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                const result = next(args);
-
-                // 不管 sync / async，都延後處理
-                setTimeout(() => {
-                    if (!window.LikoVideoPlayerWelcomed && isEnabled) {
-                        const supportedPlatforms = [
-                            ...new Set(
-                                Object.keys(videoPatterns).map(
-                                    key => PLATFORM_DISPLAY_NAME[key] || videoPatterns[key].name
-                                )
-                            )
-                        ].join(", ");
-
-                        ChatRoomSendLocal(
-                            `<p style='background-color:#4C2772;color:#EEEEEE;display:block;padding:5px;'>
-                             <b>🎬 Liko's ACV v${modVersion} 🎬</b>
-                              <br>- 自動檢測影片連結，添加 🎬 播放按鈕
-                             <br>- 支援平台: ${supportedPlatforms}
-                             </p>`.replace(/\s+/g, " "),
-                            10000
-                        );
-
-                        window.LikoVideoPlayerWelcomed = true;
-                    }
-                }, 1000);
-
-                return result;
-            });
-
-            modApi.hookFunction("ChatRoomMessage", 0, (args, next) => {
-                next(args);
-                setTimeout(() => {
-                    scanChatMessages();
-                }, 100);
-            });
-
-            modApi.hookFunction("ServerSend", 0, (args, next) => {
-                next(args);
-                const [type, data] = args;
-                if (type === "ChatRoomChat" && data.Type === "Chat") {
-                    setTimeout(() => {
-                        scanChatMessages();
-                    }, 200);
-                }
-            });
-        }
-    }
-
-    // 初始化
     hookChatRoomLoad();
     enablePlugin();
-
-    window.addEventListener('beforeunload', destroyPlugin);
+    window.addEventListener("beforeunload", destroyPlugin);
 
 })();
