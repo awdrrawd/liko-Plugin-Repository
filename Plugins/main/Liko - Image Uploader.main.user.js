@@ -96,7 +96,7 @@
                 zoomEnabled      = saved.zoomEnabled      !== undefined ? saved.zoomEnabled      : false;
                 clickZoomEnabled = saved.clickZoomEnabled !== undefined ? saved.clickZoomEnabled : false;
             } catch {
-                console.warn("🐈‍⬛ [IMG] ❗ ExtensionSettings 解析失敗，使用預設設定");
+                console。warn("🐈‍⬛ [IMG] ❗ ExtensionSettings 解析失敗，使用預設設定");
             }
         }
     }
@@ -196,7 +196,7 @@
     async function uploadToTmpFiles(file) {
         if (!preUploadCheck(file, "tmpfiles")) return null;
         const form = new FormData();
-        form.append("file", file);
+        form。append("file", file);
         try {
             ChatRoomSendLocalStyled("📤 正在上傳圖片到 TmpFiles...", 2000, "#FFA500");
             const res = await fetch("https://tmpfiles.org/api/v1/upload", { method: "POST", body: form });
@@ -233,7 +233,7 @@
             case "uguu":       return await uploadToUguu(file);
             case "imgbb":      return await uploadToImgBB(file);
             case "tmpfiles":   return await uploadToTmpFiles(file);
-            default:           return await uploadToLitterbox(file);
+            預設:           return await uploadToLitterbox(file);
         }
     }
 
@@ -273,7 +273,7 @@
                 input.value = '';
             }
         };
-        document.body.appendChild(input);
+        document。body。appendChild(input);
         return input;
     }
 
@@ -285,7 +285,7 @@
     // ──────────────────────────────────────────
     // 拖曳上傳
     // ──────────────────────────────────────────
-    document。addEventListener("dragover", (e) => {
+    document.addEventListener("dragover", (e) => {
         if (CurrentScreen !== "ChatRoom") return;
         if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "copy"; }
     });
@@ -402,7 +402,7 @@
             pointer-events: none;
             user-select: none;
         `;
-        img.onerror = () => { hideClickModal(); };
+        img。onerror = () => { hideClickModal(); };
 
         // 右上角關閉提示
         const hint = document.createElement("div");
