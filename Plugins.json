@@ -76,7 +76,7 @@
       "name": "Liko的聊天室書記官",
       "en_name": "Liko's Chat History Exporter",
       "description": "聊天室信息轉HTML，並且提供最多7天的信息救援(需要手動啟用緩存功能)",
-      "en_description": "Convert chat history to HTML and provides message recovery for up to 7 days.(The caching feature requires manual activation.)",
+      "en_description": "Convert chat history to HTML and provides message recovery for up to 7 天之前.(The caching feature requires manual activation.)",
       "additionalInfo": "包含完整的聊天記錄、時間戳和角色信息，可以搭配Neocities等網站上傳分享",
       "en_additionalInfo": "Includes complete chat logs, timestamps and character info, compatible with sites like Neocities for sharing",
       "icon": "📖",
@@ -92,7 +92,7 @@
       "additionalInfo": "現在多了替換姿勢的功能",
       "en_additionalInfo": "Now there is a function to change posture",
       "icon": "👗",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js"，
+      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js",
       "priority": 3
     },
     {
@@ -109,10 +109,10 @@
     },
     {
       "id": "Liko-NOI",
-      "name": "Liko的邀請通知器"，
+      "name": "Liko的邀請通知器",
       "en_name": "Liko's Notification of Invites",
       "description": "發出好友、白單、黑單的信息!",
-      "en_description": "Customize the notification message when sending a friend, whitelist, or blacklist request.",
+      "en_description": "Customize the notification message when sending a friend， whitelist, or blacklist request.",
       "additionalInfo": "可以使用/NOI或/NOI HELP查閱說明",
       "en_additionalInfo": "For detailed usage instructions, please enter /NOI or /NOI help.",
       "icon": "📧",
@@ -138,7 +138,7 @@
       "description": "聊天室信息轉按鈕，現在還多了傳送門功能!",
       "en_description": "Convert chat messages to buttons, now with portal feature!",
       "additionalInfo": "使用/指令、!!說話、#房名#都會變成可以點擊的按鈕，#房名#提供傳送功能",
-      "en_additionalInfo": "Commands starting with /, !! for speech, and #RoomName# will become clickable buttons. The #RoomName# button provides a teleport function.",
+      "en_additionalInfo": "Commands starting with /, !! for speech, 和 #RoomName# will become clickable buttons. The #RoomName# button provides a teleport function.",
       "icon": "💬",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
       "priority": 5
