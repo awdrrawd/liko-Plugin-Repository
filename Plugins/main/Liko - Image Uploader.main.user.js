@@ -2,8 +2,8 @@
 // @name         Liko - Image Uploader
 // @name:zh      Liko的圖片上傳器
 // @namespace    https://likolisu.dev/
-// @version      1.4.1
-// @description  Bondage Club - 上傳圖片到圖床並分享網址
+// @version      1.5.0
+// @description  Bondage Club - 上傳圖片到圖床並分享網址 + 懸停/點擊圖片放大預覽
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -15,8 +15,10 @@
 
 (function () {
     let modApi = null;
-    const modversion = "1.4.1";
-    let imageHost = "litterbox";
+    const modversion = "1.5.0";
+    let imageHost       = "litterbox";
+    let zoomEnabled     = false;   // 懸停放大（桌面）
+    let clickZoomEnabled = false;  // 點擊放大（手機友善）
 
     // ──────────────────────────────────────────
     // 等待 bcModSdk
@@ -38,10 +40,7 @@
     // ──────────────────────────────────────────
     function loadToastSystem() {
         return new Promise((resolve, reject) => {
-            if (window.ChatRoomSendLocalStyled) {
-                resolve();
-                return;
-            }
+            if (window.ChatRoomSendLocalStyled) { resolve(); return; }
             const script = document.createElement('script');
             script.src = `https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_toast_system.user.js`;
             script.onload = () => resolve();
@@ -54,10 +53,7 @@
     // 發送本地訊息
     // ──────────────────────────────────────────
     function ChatRoomSendLocal(message, sec = 0) {
-        if (CurrentScreen !== "ChatRoom") {
-            console.warn("🐈‍⬛ [IMG] ❗ 不在聊天室，訊息可能不顯示");
-            return;
-        }
+        if (CurrentScreen !== "ChatRoom") return;
         try {
             ChatRoomMessage({
                 Type: "LocalMessage",
@@ -71,7 +67,7 @@
     }
 
     // ──────────────────────────────────────────
-    // 驗證：圖片格式
+    // 驗證：圖片格式 / 大小
     // ──────────────────────────────────────────
     function isValidImageFormat(file) {
         const validFormats = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
@@ -80,23 +76,13 @@
         return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext);
     }
 
-    // ──────────────────────────────────────────
-    // 驗證：檔案大小
-    // ──────────────────────────────────────────
     function isValidFileSize(file, host = imageHost) {
-        const limits = {
-            uguu:       128 * 1024 * 1024,
-            imgbb:       32 * 1024 * 1024,
-            tmpfiles:   100 * 1024 * 1024,
-            cloudflare:  10 * 1024 * 1024,
-            litterbox:  100 * 1024 * 1024,
-        };
-        return file.size <= (limits[host] ?? limits.litterbox);
+        const limits = { uguu: 128, imgbb: 32, tmpfiles: 100, cloudflare: 10, litterbox: 100 };
+        return file.size <= (limits[host] ?? 100) * 1024 * 1024;
     }
 
     function getMaxSizeText(host = imageHost) {
-        const texts = { cloudflare: "10MB", uguu: "128MB", imgbb: "32MB", tmpfiles: "100MB", litterbox: "100MB" };
-        return texts[host] ?? "100MB";
+        return { cloudflare: "10MB", uguu: "128MB", imgbb: "32MB", tmpfiles: "100MB", litterbox: "100MB" }[host] ?? "100MB";
     }
 
     // ──────────────────────────────────────────
@@ -106,7 +92,9 @@
         if (Player?.ExtensionSettings?.LikoImageUploader) {
             try {
                 const saved = JSON.parse(Player.ExtensionSettings.LikoImageUploader);
-                imageHost = saved.imageHost || "litterbox";
+                imageHost        = saved.imageHost        || "litterbox";
+                zoomEnabled      = saved.zoomEnabled      !== undefined ? saved.zoomEnabled      : false;
+                clickZoomEnabled = saved.clickZoomEnabled !== undefined ? saved.clickZoomEnabled : false;
             } catch {
                 console.warn("🐈‍⬛ [IMG] ❗ ExtensionSettings 解析失敗，使用預設設定");
             }
@@ -115,16 +103,12 @@
 
     function saveSettings() {
         if (!Player?.ExtensionSettings) {
-            console.warn("🐈‍⬛ [IMG] ⚠️ 無法訪問 ExtensionSettings，設定未保存");
             ChatRoomSendLocalStyled("⚠️ 無法保存設定，請確保已登錄", 4000, "#FFA500");
             return;
         }
-        Player.ExtensionSettings.LikoImageUploader = JSON.stringify({ imageHost });
+        Player.ExtensionSettings.LikoImageUploader = JSON.stringify({ imageHost, zoomEnabled, clickZoomEnabled });
         if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             ServerPlayerExtensionSettingsSync("LikoImageUploader");
-        } else {
-            console.warn("🐈‍⬛ [IMG] ⚠️ ServerPlayerExtensionSettingsSync 不可用");
-            ChatRoomSendLocalStyled("⚠️ 無法同步設定，模組可能干擾", 4000, "#FFA500");
         }
     }
 
@@ -164,7 +148,6 @@
             if (!text.startsWith("http")) throw new Error(`Litterbox API 返回錯誤: ${text}`);
             return text;
         } catch (err) {
-            console.error("❗ [IMG] Litterbox 上傳失敗:", err);
             ChatRoomSendLocalStyled(`❌ 上傳失敗: ${err.message}`, 5000, "#ff4444");
             return null;
         }
@@ -182,7 +165,6 @@
             if (!json.success || !json.files?.[0]?.url) throw new Error(`Uguu API 返回錯誤: ${json.description || '未知錯誤'}`);
             return json.files[0].url;
         } catch (err) {
-            console.error("❗ [IMG] Uguu 上傳失敗:", err);
             ChatRoomSendLocalStyled(`❌ 上傳失敗: ${err.message}`, 5000, "#ff4444");
             return null;
         }
@@ -206,7 +188,6 @@
             if (!json.success || !json.link) throw new Error(`ImgBB API 失敗: ${json.error || '未知錯誤'}`);
             return json.link;
         } catch (err) {
-            console.error("❗ [IMG] ImgBB 上傳失敗:", err);
             ChatRoomSendLocalStyled(`❌ ImgBB 上傳失敗: ${err.message}`, 5000, "#ff4444");
             return null;
         }
@@ -224,7 +205,6 @@
             if (!json.data?.url) throw new Error("TmpFiles API 返回錯誤: 未獲取到 URL");
             return json.data.url.replace("tmpfiles.org/", "tmpfiles.org/dl/");
         } catch (err) {
-            console.error("❗ [IMG] TmpFiles 上傳失敗:", err);
             ChatRoomSendLocalStyled(`❌ TmpFiles 上傳失敗: ${err.message}`, 5000, "#ff4444");
             return null;
         }
@@ -242,22 +222,17 @@
             if (!json.success || !json.url) throw new Error(`R2 上傳失敗: ${json.error || '未知錯誤'}`);
             return json.url;
         } catch (err) {
-            console.error("❗ [IMG] Cloudflare R2 上傳失敗:", err);
             ChatRoomSendLocalStyled(`❌ R2 上傳失敗: ${err.message}`, 5000, "#ff4444");
             return null;
         }
     }
 
-    // ──────────────────────────────────────────
-    // 動態選擇圖床
-    // ──────────────────────────────────────────
     async function uploadImage(file) {
         switch (imageHost) {
             case "cloudflare": return await uploadToCloudflareR2(file);
             case "uguu":       return await uploadToUguu(file);
             case "imgbb":      return await uploadToImgBB(file);
             case "tmpfiles":   return await uploadToTmpFiles(file);
-            case "litterbox":
             default:           return await uploadToLitterbox(file);
         }
     }
@@ -276,7 +251,6 @@
             ServerSend("ChatRoomChat", { Content: `(${url})`, Type: "Chat" });
             ChatRoomSendLocalStyled(`✅ 圖片連結已發送\n存放於 ${hostText} | 保存時間 ${timeText}`, 5000, "#50C878");
         } catch (e) {
-            console.error("❌ [IMG] 發送訊息失敗:", e);
             ChatRoomSendLocalStyled("❌ 發送失敗，請重試", 3000, "#ff4444");
         }
     }
@@ -285,9 +259,7 @@
     // 文件選擇輸入框
     // ──────────────────────────────────────────
     function createFileInput() {
-        if (document.getElementById("LikoImageUploaderInput")) {
-            return document.getElementById("LikoImageUploaderInput");
-        }
+        if (document.getElementById("LikoImageUploaderInput")) return document.getElementById("LikoImageUploaderInput");
         const input = document.createElement("input");
         input.type = "file";
         input.id = "LikoImageUploaderInput";
@@ -306,10 +278,7 @@
     }
 
     function triggerFileSelect() {
-        if (CurrentScreen !== "ChatRoom") {
-            ChatRoomSendLocalStyled("🚫 請先加入聊天室", 3000, "#FFA500");
-            return;
-        }
+        if (CurrentScreen !== "ChatRoom") { ChatRoomSendLocalStyled("🚫 請先加入聊天室", 3000, "#FFA500"); return; }
         createFileInput().click();
     }
 
@@ -318,30 +287,15 @@
     // ──────────────────────────────────────────
     document.addEventListener("dragover", (e) => {
         if (CurrentScreen !== "ChatRoom") return;
-        if (e.dataTransfer.types.includes("Files")) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.dataTransfer.dropEffect = "copy";
-        }
+        if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "copy"; }
     });
-
     document.addEventListener("drop", (e) => {
         if (CurrentScreen !== "ChatRoom") return;
-        if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
-
+        if (!e.dataTransfer.files?.length) return;
         const file = e.dataTransfer.files[0];
-        if (!file || !file.type.startsWith("image/")) {
-            ChatRoomSendLocalStyled("❌ 請拖曳圖片文件", 3000, "#ff4444");
-            return;
-        }
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        (async () => {
-            const url = await uploadImage(file);
-            if (url) sendToChat(url);
-        })();
+        if (!file?.type.startsWith("image/")) { ChatRoomSendLocalStyled("❌ 請拖曳圖片文件", 3000, "#ff4444"); return; }
+        e.preventDefault(); e.stopPropagation();
+        (async () => { const url = await uploadImage(file); if (url) sendToChat(url); })();
     });
 
     // ──────────────────────────────────────────
@@ -351,65 +305,260 @@
         if (CurrentScreen !== "ChatRoom") return;
         const inputElement = document.getElementById("InputChat");
         if (!inputElement || document.activeElement !== inputElement || !e.clipboardData) return;
-
         const items = Array.from(e.clipboardData.items || []);
-        const hasImage = items.some(item => item.type.startsWith("image/"));
-        if (!hasImage) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-
+        if (!items.some(i => i.type.startsWith("image/"))) return;
+        e.preventDefault(); e.stopPropagation();
         (async () => {
             const contents = [];
-
-            if (e.clipboardData.files && e.clipboardData.files.length > 0) {
+            if (e.clipboardData.files?.length) {
                 for (const file of e.clipboardData.files) {
-                    if (file.type.startsWith("image/")) {
-                        const url = await uploadImage(file);
-                        if (url) contents.push(url);
-                    }
+                    if (file.type.startsWith("image/")) { const url = await uploadImage(file); if (url) contents.push(url); }
                 }
             }
-
             for (const item of items) {
                 if (item.type.startsWith("image/")) {
                     const file = item.getAsFile();
-                    if (file) {
-                        const url = await uploadImage(file);
-                        if (url) contents.push(url);
-                    }
+                    if (file) { const url = await uploadImage(file); if (url) contents.push(url); }
                 } else if (item.kind === "string") {
-                    await new Promise(resolve => {
-                        item.getAsString(text => {
-                            if (text.trim()) contents.push(text.trim());
-                            resolve();
-                        });
-                    });
+                    await new Promise(r => item.getAsString(t => { if (t.trim()) contents.push(t.trim()); r(); }));
                 }
             }
-
-            if (contents.length > 0) {
-                inputElement.value = contents.join(" ");
-            }
+            if (contents.length > 0) inputElement.value = contents.join(" ");
         })();
     });
+
+    // ══════════════════════════════════════════
+    // ★ 功能一：懸停放大（左側固定浮層，桌面用）
+    // ══════════════════════════════════════════
+
+    function ensureHoverOverlay() {
+        let el = document.getElementById("LikoZoomOverlay");
+        if (el) return el;
+        el = document.createElement("div");
+        el.id = "LikoZoomOverlay";
+        el.style.cssText = `
+            position: fixed; left: 10px; top: 50%; transform: translateY(-50%);
+            z-index: 2147483646; pointer-events: none;
+            display: none; opacity: 0;
+            background: rgba(8,8,8,0.82);
+            border: 2px solid rgba(255,105,180,0.8); border-radius: 12px; padding: 5px;
+            max-width: min(520px, 42vw); max-height: 82vh; overflow: hidden;
+            box-shadow: 4px 0 40px rgba(0,0,0,0.75);
+            transition: opacity 0.18s ease;
+        `;
+        const img = document.createElement("img");
+        img.id = "LikoZoomOverlayImg";
+        img.style.cssText = "display:block; max-width:100%; max-height:80vh; border-radius:8px; object-fit:contain;";
+        img.onerror = () => { el.style.display = "none"; };
+        el.appendChild(img);
+        document.body.appendChild(el);
+        return el;
+    }
+
+    function showHoverOverlay(src) {
+        const el  = ensureHoverOverlay();
+        const img = document.getElementById("LikoZoomOverlayImg");
+        if (img.getAttribute("src") !== src) img.src = src;
+        el.style.display = "block";
+        requestAnimationFrame(() => { el.style.opacity = "1"; });
+    }
+
+    function hideHoverOverlay() {
+        const el = document.getElementById("LikoZoomOverlay");
+        if (!el) return;
+        el.style.opacity = "0";
+        setTimeout(() => { if (el.style.opacity === "0") el.style.display = "none"; }, 180);
+    }
+
+    // ══════════════════════════════════════════
+    // ★ 功能二：點擊 🔍 全螢幕放大（手機友善）
+    // ══════════════════════════════════════════
+
+    function ensureClickModal() {
+        let modal = document.getElementById("LikoClickModal");
+        if (modal) return modal;
+
+        // 全螢幕遮罩
+        modal = document.createElement("div");
+        modal.id = "LikoClickModal";
+        modal.style.cssText = `
+            position: fixed; inset: 0;
+            z-index: 2147483647;
+            display: none; opacity: 0;
+            background: rgba(0,0,0,0.88);
+            cursor: zoom-out;
+            transition: opacity 0.2s ease;
+            align-items: center; justify-content: center;
+        `;
+
+        const img = document.createElement("img");
+        img.id = "LikoClickModalImg";
+        img.style.cssText = `
+            max-width: 92vw; max-height: 92vh;
+            object-fit: contain;
+            border-radius: 10px;
+            border: 2px solid rgba(255,105,180,0.7);
+            box-shadow: 0 0 60px rgba(0,0,0,0.9);
+            pointer-events: none;
+            user-select: none;
+        `;
+        img.onerror = () => { hideClickModal(); };
+
+        // 右上角關閉提示
+        const hint = document.createElement("div");
+        hint.style.cssText = `
+            position: fixed; top: 14px; right: 18px;
+            color: rgba(255,255,255,0.5); font-size: 13px;
+            pointer-events: none; user-select: none;
+            font-family: sans-serif;
+        `;
+        hint.textContent = "✕  點任意處關閉";
+
+        modal.appendChild(img);
+        modal.appendChild(hint);
+        document.body.appendChild(modal);
+
+        // 點任意處關閉（包含點圖片）
+        modal.addEventListener("click", () => hideClickModal());
+
+        return modal;
+    }
+
+    function showClickModal(src) {
+        const modal = ensureClickModal();
+        const img   = document.getElementById("LikoClickModalImg");
+        if (img.getAttribute("src") !== src) img.src = src;
+        modal.style.display = "flex";
+        requestAnimationFrame(() => { modal.style.opacity = "1"; });
+    }
+
+    function hideClickModal() {
+        const modal = document.getElementById("LikoClickModal");
+        if (!modal) return;
+        modal.style.opacity = "0";
+        setTimeout(() => { if (modal.style.opacity === "0") modal.style.display = "none"; }, 200);
+    }
+
+    // ESC 鍵也能關閉
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") hideClickModal();
+    });
+
+    // ══════════════════════════════════════════
+    // ★ 核心：對 <img> 掛載事件 + 插入 🔍 按鈕
+    // ══════════════════════════════════════════
+
+    function attachZoomToImg(imgEl) {
+        if (imgEl.dataset.likoZoom) return;
+        imgEl.dataset.likoZoom = "1";
+
+        const src = imgEl.src;
+
+        // ── 懸停放大事件（hover zoom）──
+        imgEl.style.cursor = zoomEnabled ? "zoom-in" : "";
+        imgEl.addEventListener("mouseenter", () => {
+            if (!zoomEnabled) return;
+            showHoverOverlay(src);
+        });
+        imgEl.addEventListener("mouseleave", () => {
+            if (!zoomEnabled) return;
+            hideHoverOverlay();
+        });
+
+        // ── 插入 🔍 按鈕（click zoom）──
+        // 找到包住 img 的 <a> 標籤（BC 結構：<a class="bce-img-link"><img></a>）
+        const aTag = imgEl.closest("a") || imgEl.parentElement;
+        if (!aTag) return;
+
+        const btn = document.createElement("span");
+        btn.className = "liko-click-zoom-btn";
+        btn.dataset.likoClickBtn = "1";
+        btn.title = "點擊放大圖片";
+        btn.textContent = "🔍";
+        btn.style.cssText = `
+            display: ${clickZoomEnabled ? "inline" : "none"};
+            cursor: pointer;
+            font-size: 1em;
+            margin-left: 4px;
+            vertical-align: middle;
+            user-select: none;
+            opacity: 0.75;
+            transition: opacity 0.15s;
+        `;
+        btn.addEventListener("mouseenter", () => { btn.style.opacity = "1"; });
+        btn.addEventListener("mouseleave", () => { btn.style.opacity = "0.75"; });
+        btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!clickZoomEnabled) return;
+            showClickModal(src);
+        });
+
+        // 插在 <a> 後面，作為兄弟節點
+        aTag.insertAdjacentElement("afterend", btn);
+    }
+
+    // 開關 🔍 按鈕的顯示
+    function updateAllClickBtns() {
+        document.querySelectorAll(".liko-click-zoom-btn").forEach(btn => {
+            btn.style.display = clickZoomEnabled ? "inline" : "none";
+        });
+    }
+
+    // ──────────────────────────────────────────
+    // MutationObserver：監聽聊天紀錄
+    // ──────────────────────────────────────────
+    let chatObserver = null;
+
+    function processImgsInNode(node) {
+        if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
+        if (node.tagName === "IMG") {
+            attachZoomToImg(node);
+        } else {
+            node.querySelectorAll("img").forEach(attachZoomToImg);
+        }
+    }
+
+    function setupChatObserver() {
+        if (chatObserver) { chatObserver.disconnect(); chatObserver = null; }
+
+        function tryAttach() {
+            const chatLog = document.getElementById("TextAreaChatLog");
+            if (!chatLog) { setTimeout(tryAttach, 800); return; }
+
+            // 掃描已有訊息
+            processImgsInNode(chatLog);
+
+            chatObserver = new MutationObserver((mutations) => {
+                for (const m of mutations) {
+                    for (const added of m.addedNodes) processImgsInNode(added);
+                }
+            });
+            chatObserver.observe(chatLog, { childList: true, subtree: true });
+            console.log("🐈‍⬛ [IMG] 🔍 Observer 已啟動");
+        }
+        tryAttach();
+    }
 
     // ──────────────────────────────────────────
     // /img 指令處理
     // ──────────────────────────────────────────
     function handleImgCommand(text) {
         const args = text.trim().split(/\s+/);
-        const sub = args[0]?.toLowerCase();
+        const sub  = args[0]?.toLowerCase();
 
         if (!sub || sub === "help") {
             const hostNames = { litterbox: "Litterbox", uguu: "Uguu", imgbb: "ImgBB", cloudflare: "Cloudflare R2", tmpfiles: "TmpFiles" };
             const hostTimes = { uguu: "3小時", tmpfiles: "60分鐘", litterbox: "12小時", cloudflare: "30分鐘", imgbb: "12小時" };
             ChatRoomSendLocal(
                 `🖼️圖片上傳說明 | Image upload illustrate🖼️\n` +
-                `        當前設定(Current): 🌐${hostNames[imageHost] || imageHost} 📌${hostTimes[imageHost] || "12小時"}\n\n` +
+                `        當前設定(Current): 🌐${hostNames[imageHost] || imageHost} 📌${hostTimes[imageHost] || "12小時"}\n` +
+                `        懸停放大(Hover): ${zoomEnabled ? "✅" : "❌"}  |  點擊放大(Click): ${clickZoomEnabled ? "✅" : "❌"}\n\n` +
                 `/img up - 上傳圖片 | UPload image\n` +
                 `/img web [litterbox|uguu|imgbb|tmpfiles|cloudflare]\n` +
-                `               └選擇圖床 | Set img host\n\n` +
+                `               └選擇圖床 | Set img host\n` +
+                `/img zoom  - 開關懸停放大 (桌面) | Toggle hover zoom\n` +
+                `/img click - 開關點擊放大🔍 (手機友善) | Toggle click zoom\n\n` +
                 `支援 | Support:\n` +
                 `• 可以拖曳圖片上傳 | You can direct drag & drop\n` +
                 `• 格式(Format): JPG/PNG/GIF/BMP/WEBP\n` +
@@ -423,10 +572,7 @@
             return true;
         }
 
-        if (sub === "up") {
-            triggerFileSelect();
-            return true;
-        }
+        if (sub === "up") { triggerFileSelect(); return true; }
 
         if (sub === "web") {
             const validHosts = ["litterbox", "uguu", "imgbb", "tmpfiles", "cloudflare"];
@@ -442,13 +588,45 @@
             return true;
         }
 
+        // ★ /img zoom：懸停放大開關
+        if (sub === "zoom") {
+            zoomEnabled = !zoomEnabled;
+            saveSettings();
+            if (zoomEnabled) {
+                const chatLog = document.getElementById("TextAreaChatLog");
+                if (chatLog) processImgsInNode(chatLog);
+                ChatRoomSendLocalStyled("🔍 懸停放大已開啟 | Hover zoom ON", 3000, "#50C878");
+            } else {
+                hideHoverOverlay();
+                ChatRoomSendLocalStyled("🚫 懸停放大已關閉 | Hover zoom OFF", 3000, "#FFA500");
+            }
+            return true;
+        }
+
+        // ★ /img click：點擊 🔍 放大開關（手機友善）
+        if (sub === "click") {
+            clickZoomEnabled = !clickZoomEnabled;
+            saveSettings();
+            if (clickZoomEnabled) {
+                // 確保所有圖片都已掛載按鈕
+                const chatLog = document.getElementById("TextAreaChatLog");
+                if (chatLog) processImgsInNode(chatLog);
+                updateAllClickBtns();
+                ChatRoomSendLocalStyled("🔍 點擊放大已開啟 | Click zoom ON\n圖片後方出現 🔍，點擊可放大", 3500, "#50C878");
+            } else {
+                hideClickModal();
+                updateAllClickBtns();
+                ChatRoomSendLocalStyled("🚫 點擊放大已關閉 | Click zoom OFF", 3000, "#FFA500");
+            }
+            return true;
+        }
+
         ChatRoomSendLocalStyled("❌ 未知子指令，使用 /img help 查詢", 4000, "#ff4444");
         return true;
     }
 
     // ──────────────────────────────────────────
     // Hook ChatRoomLoad
-    // 修正：ChatRoomLoad 不一定是 async，用相容寫法避免 .then() 報錯
     // ──────────────────────────────────────────
     function hookChatRoomLoad() {
         if (modApi && typeof modApi.hookFunction === 'function') {
@@ -457,6 +635,7 @@
                 setTimeout(() => {
                     try {
                         loadSettings();
+                        setupChatObserver();
                         if (!window.LikoImageUploaderWelcomed) {
                             ChatRoomSendLocalStyled(
                                 `🖼️ Liko 圖片上傳器 v${modversion} 載入！使用(use) /img help 查看說明`,
@@ -479,10 +658,7 @@
     async function initialize() {
         console.log("🐈‍⬛ [IMG] ⌛ 插件啟動中...");
         const ok = await waitForBcModSdk();
-        if (!ok) {
-            console.error("🐈‍⬛ [IMG] ❌ bcModSdk 載入失敗");
-            return;
-        }
+        if (!ok) { console.error("🐈‍⬛ [IMG] ❌ bcModSdk 載入失敗"); return; }
         await loadToastSystem();
         try {
             modApi = bcModSdk.registerMod({
