@@ -94,7 +94,7 @@
       "icon": "👗",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js",
       "priority": 3
-    },
+    }，
     {
       "id": "Liko-Prank",
       "name": "Liko對朋友的惡作劇",
