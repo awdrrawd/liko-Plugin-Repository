@@ -82,7 +82,7 @@
       "icon": "📖",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CHE.main.user.js",
       "priority": 3
-    },
+    }，
     {
       "id": "Liko-CDB",
       "name": "Liko的自訂更衣室背景",
