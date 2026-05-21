@@ -82,7 +82,7 @@
       "icon": "📖",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CHE.main.user.js",
       "priority": 3
-    }，
+    },
     {
       "id": "Liko-CDB",
       "name": "Liko的自訂更衣室背景",
@@ -94,7 +94,7 @@
       "icon": "👗",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js",
       "priority": 3
-    }，
+    },
     {
       "id": "Liko-Prank",
       "name": "Liko對朋友的惡作劇",
@@ -171,7 +171,7 @@
     },
     {
       "id": "ECHO-Activity",
-      "name": "ECHO的動作拓展",
+      "name": "ECHO的動作拓展"，
       "en_name": "ECHO's Expansion on activity options",
       "description": "ECHO的動作拓展",
       "en_description": "ECHO's Expansion on activity options",
