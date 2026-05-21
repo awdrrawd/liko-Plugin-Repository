@@ -57,25 +57,28 @@
     const hoveredCharacters = new Set();
     const characterDrawPositions = new Map();
 
-    // 清除舊版 OnlineSharedSettings.PCM 殘留
+    // 清除舊版 OnlineSharedSettings.PCM 殘留，並設定自身 PCM 狀態
     // OnlineSharedSettings 本身保留，未來可擴充其他用途
     function cleanupLegacyOnlineSettings() {
-        const doCleanup = () => {
+        const doSetup = () => {
             try {
+                // 清除舊版殘留
                 if (Player?.OnlineSharedSettings?.PCM) {
                     delete Player.OnlineSharedSettings.PCM;
                     console.log("🐈‍⬛ [PCM] 🧹 已清除舊版 OnlineSharedSettings.PCM 殘留");
                 }
+                // 設定自身 PCM 狀態，讓自己頭上也能顯示徽章
+                Player.PCM = { version: modversion };
             } catch(e) {}
         };
-        // Player 已就緒則立即清除，否則輪詢等待
+        // Player 已就緒則立即執行，否則輪詢等待
         if (typeof Player !== 'undefined' && Player?.AccountName) {
-            doCleanup();
+            doSetup();
         } else {
             const checkId = setInterval(() => {
                 if (typeof Player !== 'undefined' && Player?.AccountName) {
                     clearInterval(checkId);
-                    doCleanup();
+                    doSetup();
                 }
             }, 500);
         }
