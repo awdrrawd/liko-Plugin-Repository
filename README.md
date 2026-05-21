@@ -292,6 +292,14 @@ A large collection of cheats, quality-of-life improvements, and a moaner script 
 
 ---
 
+#### 🎲 Galia's Gambling Club · Galia的賭博俱樂部
+> 🆔 `GGC` · EN✔️ · [GitHub](https://galia-bc.github.io/galia.github.io) · by **Galia**
+
+增加了小遊戲、骰子和硬幣動畫、交易、趣味文字效果以及專為聊天室互動而設計的環形選單。
+Addon that adds canvas games, dice and coin animations, trades, playful text effects, 和 a radial menu built for chat-room interactions.
+
+---
+
 ## 📝 注意事項 · Notes
 
 - 插件啟用後會自動載入，或在下次刷新頁面時生效
