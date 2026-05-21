@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.7.4
+// @version      0.7.5
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
   'use strict';
 
   const MOD_NAME = "Liko - AEE";
-  const MOD_Version = "0.7.4";
+  const MOD_Version = "0.7.5";
   if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
   const modApi = bcModSdk.registerMod({
     name: MOD_NAME, fullName: "Liko - Appearance Editor",
@@ -1025,12 +1025,12 @@
     if (state.activeDrag === 'xy') _startXyDrag(e);
   }, _interceptOpts);
 
-  // mouseup も攔截：BC の互動が mouseup で発動するため。
-  // xy drag の mouseup ハンドラは先に登録済みなので registration order により先発火し、
-  // ドラッグ中は stopImmediatePropagation → こちらに届かない。
-  // ドラッグ外のときだけこのハンドラが BC の mouseup を止める。
+  // mouseup 攔截：BC 的互動在 mouseup 發動。
+  // xy/scale/skew 的 mouseup handler 比 blocker 先註冊（capture，初始化時）→ 拖曳中先清 state 再 stopImmediatePropagation。
+  // rotation 的 onUp 是動態後掛（拖曳開始後才註冊）→ blocker 比它先 → 需要主動讓路。
   document.addEventListener('mouseup', e => {
     if (!_shouldIntercept(e)) return;
+    if (rotDragState) return; // 旋轉 drag 進行中：讓路給 onUp
     e.stopImmediatePropagation();
     _updateBlockerCursor();
   }, _interceptOpts);
@@ -2975,6 +2975,9 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
   try {
     modApi.hookFunction("CommonDrawAppearanceBuild", 1, (args, next) => {
       const C = args[0];
+      // 先記錄哪些 asset 的 DynamicBeforeDraw 被我們暫時設成 true
+      // 用完後立刻還原，避免污染共用的 Asset 物件（影響其他角色）
+      const toRestore = [];
       C?.Appearance?.forEach(item => {
         const los = item.Property?.LayerOverrides;
         if (!Array.isArray(los)) return;
@@ -2983,9 +2986,15 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
            lo.Rotation != null || lo.ScaleX != null || lo.ScaleY != null ||
            lo.SkewX != null || lo.SkewY != null ||
            lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV));
-        if (needsBeforeDraw) item.Asset.DynamicBeforeDraw = true;
+        if (needsBeforeDraw) {
+          toRestore.push({ asset: item.Asset, orig: item.Asset.DynamicBeforeDraw });
+          item.Asset.DynamicBeforeDraw = true;
+        }
       });
-      return next(args);
+      const result = next(args);
+      // 還原 DynamicBeforeDraw（必須在 next 完成後，確保 BC 已讀取）
+      toRestore.forEach(({ asset, orig }) => { asset.DynamicBeforeDraw = orig; });
+      return result;
     });
   } catch(e) {}
 
@@ -3037,7 +3046,12 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
       }
 
       // ── 呼叫 next，讓 LSCG / BC 原生處理 ──
-      const ret = next(args) ?? {};
+      // 先確認 BeforeDraw 函數是否真的存在：
+      // 若不存在而呼叫 next，BC 的 CommonCallFunctionByNameWarn 會印出
+      // "Attempted to call invalid function" 警告，造成卡頓。
+      // 不存在時直接回傳 {}，只套用我們自己的 transform。
+      const fnExists = typeof window[funcName] === 'function';
+      const ret = fnExists ? (next(args) ?? {}) : {};
 
       // ── AEE-only 位移（X/Y）──
       // BeforeDraw 原生支援返回 {X, Y}，不需要 prototype patch
