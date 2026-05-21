@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.3
+// @version      1.5.4
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,9 +17,12 @@
 (function() {
     "use strict";
 
-    // --- modApi 初始化 ---
+    // ============================================================
+    // === 基礎設定 ================================================
+    // ============================================================
+
     let modApi;
-    const modversion = "1.5.3";
+    const modversion = "1.5.4";
 
     // === 生命週期管理 ===
     let isInitialized = false;
@@ -29,6 +32,7 @@
         mousemoveHandler: null,
     };
 
+    // === 角色快取 ===
     let cachedViewingCharacter = null;
     let lastCharacterCheck = 0;
     let lastScreenCheck = null;
@@ -36,7 +40,12 @@
     const CHARACTER_CACHE_TIME = 200;
     const SCREEN_CACHE_TIME = 200;
 
-    // --- PCM徽章配置 ---
+    // ============================================================
+    // === PCM 徽章系統（BCT 握手模式）============================
+    // ============================================================
+
+    const PCM_HIDDEN_MSG = "PCM_BADGE_INIT";
+
     const PCM_BADGE_CONFIG = {
         offsetX: 240, offsetY: 25, size: 36,
         showBackground: false,
@@ -48,13 +57,248 @@
     const hoveredCharacters = new Set();
     const characterDrawPositions = new Map();
 
-    // --- JSON 來源 ---
+    // 清除舊版 OnlineSharedSettings.PCM 殘留
+    // OnlineSharedSettings 本身保留，未來可擴充其他用途
+    function cleanupLegacyOnlineSettings() {
+        const doCleanup = () => {
+            try {
+                if (Player?.OnlineSharedSettings?.PCM) {
+                    delete Player.OnlineSharedSettings.PCM;
+                    console.log("🐈‍⬛ [PCM] 🧹 已清除舊版 OnlineSharedSettings.PCM 殘留");
+                }
+            } catch(e) {}
+        };
+        // Player 已就緒則立即清除，否則輪詢等待
+        if (typeof Player !== 'undefined' && Player?.AccountName) {
+            doCleanup();
+        } else {
+            const checkId = setInterval(() => {
+                if (typeof Player !== 'undefined' && Player?.AccountName) {
+                    clearInterval(checkId);
+                    doCleanup();
+                }
+            }, 500);
+        }
+    }
+
+    // 廣播 PCM 在線訊息（握手）
+    function sendPCMInitialization(requestReply = false) {
+        try {
+            if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom') return;
+            ServerSend("ChatRoomChat", {
+                Type: "Hidden",
+                Content: PCM_HIDDEN_MSG,
+                Sender: Player.MemberNumber,
+                Dictionary: [{
+                    pcm: {
+                        version: modversion,
+                        replyRequested: requestReply
+                    }
+                }]
+            });
+        } catch(e) {}
+    }
+
+    // 解析收到的 PCM 握手訊息，只寫記憶體，離開房間自動消失
+    function parsePCMMessage(data) {
+        try {
+            if (data.Type !== "Hidden" || data.Content !== PCM_HIDDEN_MSG) return;
+            // Character 全域變數在 BC 完全初始化前可能不存在
+            if (typeof Character === 'undefined') return;
+            const sender = Character.find(c => c.MemberNumber === data.Sender);
+            if (!sender || sender.ID === 0) return;
+
+            const pcmData = data.Dictionary?.[0]?.pcm;
+            if (!pcmData) return;
+
+            sender.PCM = { version: pcmData.version };
+
+            if (pcmData.replyRequested) sendPCMInitialization(false);
+        } catch(e) {}
+    }
+
+    // 徽章圖片初始化
+    function initializePCMBadgeImage() {
+        if (!pcmBadgeImage) {
+            pcmBadgeImage = new Image();
+            pcmBadgeImage.crossOrigin = "anonymous";
+            pcmBadgeImage.onload = function() { pcmImageLoaded = true; };
+            pcmBadgeImage.onerror = function() { pcmImageLoaded = false; };
+            pcmBadgeImage.src = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_4.png";
+        }
+    }
+
+    // Hover 追蹤
+    function setupHoverTracking() {
+        let rafPending = false;
+        function onMouseMove() {
+            if (rafPending) return;
+            rafPending = true;
+            requestAnimationFrame(() => {
+                rafPending = false;
+                hoveredCharacters.clear();
+                try {
+                    if (typeof CurrentScreen === 'undefined' || CurrentScreen !== "ChatRoom") return;
+                    if (typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null) return;
+                    if (typeof ChatRoomHideIconState !== 'undefined' && ChatRoomHideIconState !== 0) return;
+                    if (typeof MouseHovering !== 'function') return;
+                    for (const [memberNumber, pos] of characterDrawPositions) {
+                        if (MouseHovering(pos.x, pos.y, 400 * pos.zoom, 100 * pos.zoom)) {
+                            hoveredCharacters.add(memberNumber);
+                        }
+                    }
+                } catch(e) {}
+            });
+        }
+        _lifecycle.mousemoveHandler = onMouseMove;
+        document.addEventListener("mousemove", onMouseMove);
+    }
+
+    // 繪製徽章，查 character.PCM（記憶體）
+    function drawPCMBadge(character, x, y, zoom) {
+        try {
+            if (!hoveredCharacters.has(character.MemberNumber)) return;
+            if (!character.PCM) return;
+            if (!pcmBadgeImage) { initializePCMBadgeImage(); return; }
+
+            const badgeX = x + (PCM_BADGE_CONFIG.offsetX * zoom);
+            const badgeY = y + (PCM_BADGE_CONFIG.offsetY * zoom);
+            const badgeSize = PCM_BADGE_CONFIG.size * zoom;
+
+            if (PCM_BADGE_CONFIG.showBackground) {
+                MainCanvas.fillStyle = PCM_BADGE_CONFIG.backgroundColor;
+                MainCanvas.beginPath();
+                MainCanvas.arc(badgeX, badgeY, badgeSize / 2, 0, 2 * Math.PI);
+                MainCanvas.fill();
+                if (PCM_BADGE_CONFIG.borderWidth > 0) {
+                    MainCanvas.strokeStyle = PCM_BADGE_CONFIG.borderColor;
+                    MainCanvas.lineWidth = PCM_BADGE_CONFIG.borderWidth * zoom;
+                    MainCanvas.stroke();
+                }
+            }
+
+            if (pcmImageLoaded && pcmBadgeImage.complete) {
+                MainCanvas.drawImage(
+                    pcmBadgeImage,
+                    badgeX - badgeSize / 2,
+                    badgeY - badgeSize / 2,
+                    badgeSize, badgeSize
+                );
+            } else {
+                MainCanvas.save();
+                MainCanvas.fillStyle = "#FFFFFF";
+                MainCanvas.font = `bold ${Math.max(10, badgeSize / 3)}px Arial`;
+                MainCanvas.textAlign = "center";
+                MainCanvas.textBaseline = "middle";
+                MainCanvas.fillText("PCM", badgeX, badgeY);
+                MainCanvas.restore();
+            }
+        } catch(e) {}
+    }
+
+    // 房間人員同步
+    function syncDrawPositionsWithRoom() {
+        if (typeof ChatRoomCharacter === 'undefined' || !Array.isArray(ChatRoomCharacter)) return;
+        const currentIds = new Set(
+            ChatRoomCharacter.map(c => c?.MemberNumber).filter(id => id !== undefined)
+        );
+        for (const id of characterDrawPositions.keys()) {
+            if (!currentIds.has(id)) {
+                characterDrawPositions.delete(id);
+                hoveredCharacters.delete(id);
+            }
+        }
+    }
+
+    // Hook 角色繪製
+    function hookCharacterDrawing() {
+        if (!modApi || typeof modApi.hookFunction !== 'function') return;
+        const safeHook = (fnName, priority, fn) => {
+            try { modApi.hookFunction(fnName, priority, fn); } catch(e) {}
+        };
+
+        safeHook('DrawCharacter', 5, (args, next) => {
+            const [character, x, y, zoom] = args;
+            const result = next(args);
+            // 查 character.PCM（記憶體），角色離開房間後自動消失
+            if (character?.PCM && character.MemberNumber !== undefined) {
+                characterDrawPositions.set(character.MemberNumber, { x, y, zoom });
+                drawPCMBadge(character, x, y, zoom);
+            }
+            return result;
+        });
+
+        safeHook('ChatRoomClearAllElements', 5, (args, next) => {
+            characterDrawPositions.clear();
+            hoveredCharacters.clear();
+            return next(args);
+        });
+
+        safeHook('ChatRoomSync', 5, (args, next) => {
+            const result = next(args);
+            syncDrawPositionsWithRoom();
+            // 進房間 / 房間更新時廣播，要求對方回應
+            sendPCMInitialization(true);
+            return result;
+        });
+    }
+
+    // 統一註冊入口
+    function registerPCMBadge() {
+        const waitForModApi = () => {
+            // 等待 modApi 與 ServerSocket 都就緒
+            if (!modApi || typeof modApi.hookFunction !== 'function') {
+                setTimeout(waitForModApi, 500);
+                return;
+            }
+            if (typeof ServerSocket === 'undefined' || !ServerSocket) {
+                setTimeout(waitForModApi, 500);
+                return;
+            }
+
+            initializePCMBadgeImage();
+            setupHoverTracking();
+            cleanupLegacyOnlineSettings();
+            hookCharacterDrawing();
+
+            // 監聽其他玩家的握手訊息
+            ServerSocket.on("ChatRoomMessage", parsePCMMessage);
+
+            // 若已在房間（重載情境），立刻廣播
+            if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+                sendPCMInitialization(true);
+            }
+
+            if (typeof modApi.onUnload === 'function') {
+                modApi.onUnload(() => {
+                    try {
+                        ServerSocket.off("ChatRoomMessage", parsePCMMessage);
+                        if (_lifecycle.mousemoveHandler) {
+                            document.removeEventListener("mousemove", _lifecycle.mousemoveHandler);
+                            _lifecycle.mousemoveHandler = null;
+                        }
+                        hoveredCharacters.clear();
+                        characterDrawPositions.clear();
+                    } catch(e) {}
+                });
+            }
+        };
+        waitForModApi();
+    }
+
+    // ============================================================
+    // === JSON 來源 ===============================================
+    // ============================================================
+
     const PLUGINS_JSON_URLS = [
         "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
         "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json"
     ];
 
-    // --- 語言 ---
+    // ============================================================
+    // === 語言 ====================================================
+    // ============================================================
+
     function detectLanguage() {
         if (typeof TranslationLanguage !== 'undefined') {
             const l = TranslationLanguage.toLowerCase();
@@ -63,6 +307,7 @@
         return (navigator.language || 'en').toLowerCase().startsWith('zh');
     }
     let _isCN = detectLanguage();
+
     const messages = {
         en: {
             loaded: `Liko's Plugin Collection Manager v${modversion} Loaded! Click the floating button to manage plugins.`,
@@ -119,7 +364,10 @@
     function getPluginDescription(plugin) { return detectLanguage() ? plugin.description : plugin.en_description; }
     function getPluginAdditionalInfo(plugin) { return detectLanguage() ? plugin.additionalInfo : plugin.en_additionalInfo; }
 
-    // --- 三段開關輔助 ---
+    // ============================================================
+    // === 三段開關輔助 ============================================
+    // ============================================================
+
     function isTriStatePlugin(plugin) { return !!plugin.altUrl; }
     function isPluginEnabled(plugin) {
         if (isTriStatePlugin(plugin)) return plugin.state !== "off";
@@ -139,7 +387,10 @@
         return "off";
     }
 
-    // --- 版本比對 ---
+    // ============================================================
+    // === 版本比對 ================================================
+    // ============================================================
+
     function parseGameVersion(versionStr) {
         if (!versionStr) return 0;
         const match = String(versionStr).match(/R?(\d+)/i);
@@ -156,7 +407,10 @@
         return currentVer > parseGameVersion(plugin.autoDisableAfterVersion);
     }
 
-    // --- 設定保存 ---
+    // ============================================================
+    // === 設定保存 ================================================
+    // ============================================================
+
     let saveSettingsTimer;
     function saveSettings(settings) {
         clearTimeout(saveSettingsTimer);
@@ -169,7 +423,10 @@
     }
     let pluginSettings = loadSettings();
 
-    // --- 插件快取（SWR，TTL 24小時）---
+    // ============================================================
+    // === 插件快取（SWR，TTL 24小時）=============================
+    // ============================================================
+
     const CACHE_PREFIX = "pcm_plugin_cache_";
     const CACHE_META_KEY = "pcm_plugin_cache_meta";
     const JSON_CACHE_KEY = "pcm_json_cache";
@@ -222,7 +479,10 @@
         } catch(e) {}
     }
 
-    // --- JSON 快取（SWR）---
+    // ============================================================
+    // === JSON 快取（SWR）========================================
+    // ============================================================
+
     function getCachedJSON() {
         try {
             const cached = JSON.parse(localStorage.getItem(JSON_CACHE_KEY) || "null");
@@ -241,21 +501,23 @@
         } catch(e) {}
     }
 
-    // --- 版本更新檢查 ---
+    // ============================================================
+    // === 版本更新檢查 ============================================
+    // ============================================================
+
     let remoteChangelog = [];
     let remoteVersion = modversion;
     let remoteUpdateId = null;
 
     function checkVersionUpdate() {
         const savedVersion = pluginSettings["_pcm_version"];
-        const savedUpdateId = pluginSettings["_pcm_updateId"];  // 新增
-
+        const savedUpdateId = pluginSettings["_pcm_updateId"];
         const versionChanged = savedVersion !== modversion;
-        const updateIdChanged = remoteUpdateId && savedUpdateId !== remoteUpdateId;  // 新增
+        const updateIdChanged = remoteUpdateId && savedUpdateId !== remoteUpdateId;
 
         if (versionChanged || updateIdChanged) {
             pluginSettings["_pcm_version"] = modversion;
-            if (remoteUpdateId) pluginSettings["_pcm_updateId"] = remoteUpdateId;  // 新增
+            if (remoteUpdateId) pluginSettings["_pcm_updateId"] = remoteUpdateId;
             saveSettings(pluginSettings);
             return true;
         }
@@ -302,157 +564,21 @@
         overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
     }
 
-    // --- PCM徽章 ---
-    function setupHoverTracking() {
-        let rafPending = false;
-        function onMouseMove() {
-            if (rafPending) return;
-            rafPending = true;
-            requestAnimationFrame(() => {
-                rafPending = false;
-                hoveredCharacters.clear();
-                try {
-                    if (typeof CurrentScreen === 'undefined' || CurrentScreen !== "ChatRoom") return;
-                    if (typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null) return;
-                    if (typeof ChatRoomHideIconState !== 'undefined' && ChatRoomHideIconState !== 0) return;
-                    if (typeof MouseHovering !== 'function') return;
-                    for (const [memberNumber, pos] of characterDrawPositions) {
-                        if (MouseHovering(pos.x, pos.y, 400 * pos.zoom, 100 * pos.zoom)) {
-                            hoveredCharacters.add(memberNumber);
-                        }
-                    }
-                } catch (e) {}
-            });
-        }
-        _lifecycle.mousemoveHandler = onMouseMove;
-        document.addEventListener("mousemove", onMouseMove);
-    }
+    // ============================================================
+    // === 子插件清單（動態載入）==================================
+    // ============================================================
 
-    function initializePCMBadgeImage() {
-        if (!pcmBadgeImage) {
-            pcmBadgeImage = new Image();
-            pcmBadgeImage.crossOrigin = "anonymous";
-            pcmBadgeImage.onload = function() { pcmImageLoaded = true; };
-            pcmBadgeImage.onerror = function() { pcmImageLoaded = false; };
-            pcmBadgeImage.src = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_4.png";
-        }
-    }
-
-    function drawPCMBadge(character, x, y, zoom) {
-        try {
-            if (!hoveredCharacters.has(character.MemberNumber)) return;
-            if (!pcmBadgeImage) { initializePCMBadgeImage(); return; }
-            const badgeX = x + (PCM_BADGE_CONFIG.offsetX * zoom);
-            const badgeY = y + (PCM_BADGE_CONFIG.offsetY * zoom);
-            const badgeSize = PCM_BADGE_CONFIG.size * zoom;
-            if (PCM_BADGE_CONFIG.showBackground) {
-                MainCanvas.fillStyle = PCM_BADGE_CONFIG.backgroundColor;
-                MainCanvas.beginPath();
-                MainCanvas.arc(badgeX, badgeY, badgeSize / 2, 0, 2 * Math.PI);
-                MainCanvas.fill();
-                if (PCM_BADGE_CONFIG.borderWidth > 0) {
-                    MainCanvas.strokeStyle = PCM_BADGE_CONFIG.borderColor;
-                    MainCanvas.lineWidth = PCM_BADGE_CONFIG.borderWidth * zoom;
-                    MainCanvas.stroke();
-                }
-            }
-            if (pcmImageLoaded && pcmBadgeImage.complete) {
-                MainCanvas.drawImage(pcmBadgeImage, badgeX - badgeSize / 2, badgeY - badgeSize / 2, badgeSize, badgeSize);
-            } else {
-                MainCanvas.save();
-                MainCanvas.fillStyle = "#FFFFFF";
-                MainCanvas.font = `bold ${Math.max(10, badgeSize / 3)}px Arial`;
-                MainCanvas.textAlign = "center";
-                MainCanvas.textBaseline = "middle";
-                MainCanvas.fillText("PCM", badgeX, badgeY);
-                MainCanvas.restore();
-            }
-        } catch (e) {}
-    }
-
-    function addPCMBadgeToPlayer() {
-        const addBadge = () => {
-            try {
-                if (typeof Player !== 'undefined' && Player && typeof Player.OnlineSharedSettings !== 'undefined') {
-                    if (!Player.OnlineSharedSettings.PCM) {
-                        Player.OnlineSharedSettings.PCM = { name: "Liko's PCM", version: modversion, badge: true, timestamp: Date.now() };
-                    }
-                    if (typeof CharacterRefresh === 'function' && CurrentScreen === 'ChatRoom') CharacterRefresh(Player, false);
-                } else { setTimeout(addBadge, 1000); }
-            } catch(e) {}
-        };
-        addBadge();
-    }
-
-    function syncDrawPositionsWithRoom() {
-        if (typeof ChatRoomCharacter === 'undefined' || !Array.isArray(ChatRoomCharacter)) return;
-        const currentIds = new Set(ChatRoomCharacter.map(c => c?.MemberNumber).filter(id => id !== undefined));
-        for (const id of characterDrawPositions.keys()) {
-            if (!currentIds.has(id)) { characterDrawPositions.delete(id); hoveredCharacters.delete(id); }
-        }
-    }
-
-    function hookCharacterDrawing() {
-        if (!modApi || typeof modApi.hookFunction !== 'function') return;
-        const safeHook = (fnName, priority, fn) => {
-            try { modApi.hookFunction(fnName, priority, fn); } catch (e) {}
-        };
-        safeHook('DrawCharacter', 5, (args, next) => {
-            const [character, x, y, zoom] = args;
-            const result = next(args);
-            if (character?.OnlineSharedSettings?.PCM && character.MemberNumber !== undefined) {
-                characterDrawPositions.set(character.MemberNumber, { x, y, zoom });
-                drawPCMBadge(character, x, y, zoom);
-            }
-            return result;
-        });
-        safeHook('ChatRoomClearAllElements', 5, (args, next) => {
-            characterDrawPositions.clear(); hoveredCharacters.clear(); return next(args);
-        });
-        safeHook('ChatRoomSync', 5, (args, next) => {
-            const result = next(args); syncDrawPositionsWithRoom(); return result;
-        });
-    }
-
-    function registerPCMBadge() {
-        const waitForModApi = () => {
-            if (modApi && typeof modApi.hookFunction === 'function') {
-                initializePCMBadgeImage();
-                setupHoverTracking();
-                addPCMBadgeToPlayer();
-                hookCharacterDrawing();
-                if (typeof modApi.onUnload === 'function') {
-                    modApi.onUnload(() => {
-                        try {
-                            if (typeof Player !== 'undefined' && Player?.OnlineSharedSettings?.PCM) {
-                                delete Player.OnlineSharedSettings.PCM;
-                            }
-                            if (_lifecycle.mousemoveHandler) {
-                                document.removeEventListener("mousemove", _lifecycle.mousemoveHandler);
-                                _lifecycle.mousemoveHandler = null;
-                            }
-                            hoveredCharacters.clear(); characterDrawPositions.clear();
-                        } catch (e) {}
-                    });
-                }
-            } else { setTimeout(waitForModApi, 500); }
-        };
-        waitForModApi();
-    }
-
-    // --- 子插件清單（動態載入）---
     let subPlugins = [];
     let pluginsLoaded = false;
     const _pluginsJSONPromise = fetchPluginsJSON();
     const _pluginsProcessPromise = loadPluginsJSON();
 
-    // --- JSON 網路抓取（RAW 優先，CDN 備援）---
+    // JSON 網路抓取（RAW 優先，CDN 備援）
     async function fetchJSONFromNetwork() {
         for (const url of PLUGINS_JSON_URLS) {
             try {
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
                 const text = await res.text();
 
                 let data;
@@ -471,7 +597,6 @@
                 setCachedJSON(data);
                 console.log(`🐈‍⬛ [PCM] ✅ plugins.json 從網路載入成功 (${url})`);
                 return data;
-
             } catch(e) {
                 console.warn(`🐈‍⬛ [PCM] ⚠️ plugins.json 從 ${url} 載入失敗:`, e.message);
             }
@@ -488,12 +613,11 @@
         return null;
     }
 
-    // ★ SWR：有快取立即回傳，同時背景更新
+    // SWR：有快取立即回傳，同時背景更新
     async function fetchPluginsJSON() {
         const cached = getCachedJSON();
         if (cached) {
             console.log("🐈‍⬛ [PCM] ⚡ plugins.json 從快取載入");
-            // 背景更新，不阻塞
             setTimeout(() => fetchJSONFromNetwork(), 0);
             return cached;
         }
@@ -532,7 +656,10 @@
         return true;
     }
 
-    // --- 載入子插件 ---
+    // ============================================================
+    // === 載入子插件 =============================================
+    // ============================================================
+
     let loadedPlugins = new Set();
     let isLoadingPlugins = false;
     let hasStartedPluginLoading = false;
@@ -561,10 +688,10 @@
     function buildFetchUrls(plugin) {
         const rawUrl = getActivePluginUrl(plugin);
         const cdnUrl = rawUrl
-        .replace("https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/",
-                 "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/")
-        .replace("https://raw.githubusercontent.com/awdrrawd/",
-                 "https://cdn.jsdelivr.net/gh/awdrrawd/");
+            .replace("https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/",
+                     "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/")
+            .replace("https://raw.githubusercontent.com/awdrrawd/",
+                     "https://cdn.jsdelivr.net/gh/awdrrawd/");
         return cdnUrl !== rawUrl ? [rawUrl, cdnUrl] : [rawUrl];
     }
 
@@ -591,11 +718,10 @@
 
         const urls = buildFetchUrls(plugin);
 
-        // ★ SWR 快取邏輯（priority ≤ 2）
+        // SWR 快取邏輯（priority ≤ 2）
         if (shouldUseCache(plugin)) {
             const cached = getCachedPlugin(plugin.id);
             if (cached) {
-                // 有快取：立即執行
                 try {
                     injectScript(plugin.id, cached);
                     loadedPlugins.add(plugin.id);
@@ -603,11 +729,10 @@
                 } catch(e) {
                     console.error(`🐈‍⬛ [PCM] ❌ ${plugin.name} 快取執行失敗，清除並重新抓取`, e);
                     _clearCachedPlugin(plugin.id);
-                    // fall through 到下方正常抓取
                 }
 
                 if (loadedPlugins.has(plugin.id)) {
-                    // 背景更新快取（不影響當前執行）
+                    // 背景更新快取
                     tryFetch(urls).then(newCode => {
                         if (newCode && newCode !== cached) {
                             setCachedPlugin(plugin.id, newCode);
@@ -619,7 +744,7 @@
             }
         }
 
-        // 正常抓取（無快取、快取失敗、或不需要快取）
+        // 正常抓取
         return tryFetch(urls).then(code => {
             if (!code) {
                 showNotification("❌", `${getPluginName(plugin)} 載入失敗`, "請檢查網絡或插件URL");
@@ -628,7 +753,6 @@
             injectScript(plugin.id, code);
             loadedPlugins.add(plugin.id);
             console.log(`🐈‍⬛ [PCM] ✅ -SubPlugin- ${plugin.name} 載入成功`);
-            // 需要快取的存起來
             if (shouldUseCache(plugin)) setCachedPlugin(plugin.id, code);
         }).catch(err => {
             console.error(`🐈‍⬛ [PCM] ❌ ${plugin.name} 無法載入:`, err);
@@ -638,28 +762,25 @@
 
     function isPlayerLoaded() { return typeof Player !== 'undefined'; }
 
-    // ★ 修正：先等 JSON，確認有插件才鎖旗標
     async function waitForPlayerAndLoadPlugins() {
         if (hasStartedPluginLoading) return;
 
-        // 確保 JSON 已處理完畢
         if (!pluginsLoaded) {
             console.log("🐈‍⬛ [PCM] ⏳ 等待 plugins.json 處理...");
-            await _pluginsProcessPromise;  // ← 直接 await，因為現在保證不是 null
+            await _pluginsProcessPromise;
             if (!pluginsLoaded) {
                 console.error("🐈‍⬛ [PCM] ❗ plugins.json 載入失敗，放棄載入插件");
                 return;
             }
         }
 
-        // 有啟用插件才鎖旗標，避免空跑後永遠不再執行
         const enabledCheck = subPlugins.filter(p => isPluginEnabled(p));
         if (enabledCheck.length === 0) {
             console.log("🐈‍⬛ [PCM] ⏭️ 沒有啟用的插件，跳過載入");
             return;
         }
 
-        hasStartedPluginLoading = true; // ★ 確保有東西才鎖
+        hasStartedPluginLoading = true;
 
         const maxWait = 15 * 60 * 1000;
         const checkInterval = 1000;
@@ -701,25 +822,24 @@
             } else if (enabledPlugins.length > 0) {
                 showNotification("✅", getMessage('pluginLoadComplete'), `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}`);
             }
-        } catch (e) {
+        } catch(e) {
             console.error("🐈‍⬛ [PCM] ❌ 背景載入嚴重錯誤:", e);
         } finally { isLoadingPlugins = false; }
     }
 
-    // --- ↻ 強制更新快取 ---
+    // ============================================================
+    // === 強制更新快取 ============================================
+    // ============================================================
+
     let isRefreshing = false;
     async function forceRefreshCache() {
         if (isRefreshing) return;
         isRefreshing = true;
         showNotification("↻", getMessage('refreshTitle'), getMessage('refreshing'));
 
-        // 清除所有快取
         clearAllPluginCache();
-
-        // 重新抓 JSON
         await fetchJSONFromNetwork();
 
-        // 重新抓所有已啟用的可快取插件
         if (subPlugins.length > 0) {
             const cacheableEnabled = subPlugins.filter(p => shouldUseCache(p) && isPluginEnabled(p));
             await Promise.allSettled(cacheableEnabled.map(plugin => {
@@ -737,7 +857,10 @@
         showNotification("✅", getMessage('refreshTitle'), getMessage('refreshDone'));
     }
 
-    // --- UI 顯示判斷 ---
+    // ============================================================
+    // === UI 顯示判斷 ============================================
+    // ============================================================
+
     function getCurrentViewingCharacter() {
         const now = Date.now();
         if (now - lastCharacterCheck < CHARACTER_CACHE_TIME && cachedViewingCharacter !== null) return cachedViewingCharacter;
@@ -762,7 +885,7 @@
             cachedViewingCharacter = character;
             lastCharacterCheck = now;
             return character;
-        } catch (e) { return Player; }
+        } catch(e) { return Player; }
     }
 
     function isProfilePage() {
@@ -796,7 +919,10 @@
         return false;
     }
 
-    // --- Styles ---
+    // ============================================================
+    // === Styles =================================================
+    // ============================================================
+
     function injectStyles() {
         if (document.getElementById("bc-plugin-styles")) return;
         const style = document.createElement("style");
@@ -809,7 +935,6 @@
             user-select: none; -webkit-user-select: none;
         }
 
-        /* 浮動按鈕群組 */
         .bc-plugin-btn-group {
             position: fixed; top: 60px; right: 20px;
             display: flex; flex-direction: column; align-items: center;
@@ -832,7 +957,6 @@
         }
         .bc-plugin-floating-btn img { width: 48px; height: 48px; border-radius: 50%; transform: scaleX(-1); }
 
-        /* 📋 更新日誌 & ↻ 插件更新 按鈕 */
         .bc-plugin-changelog-btn, .bc-plugin-refresh-btn {
             width: 60px; height: 60px;
             background: rgba(26, 32, 46, 0.9);
@@ -1028,7 +1152,6 @@
             -webkit-user-drag: none !important;
         }
 
-        /* 開關插件提示（panel 底部往下展開）*/
         .bc-liko-toggle-notification {
             position: fixed; box-sizing: border-box;
             background: linear-gradient(135deg, #7F53CD 0%, #A78BFA 100%);
@@ -1043,7 +1166,6 @@
         .bc-liko-toggle-notification.show { transform: translateY(0); opacity: 1; }
         .bc-liko-toggle-notification.hide { transform: translateY(-6px); opacity: 0; }
 
-        /* 系統通知（右上角）*/
         .bc-liko-system-notification {
             position: fixed; top: 20px; right: 20px;
             background: rgba(26, 32, 46, 0.95);
@@ -1074,8 +1196,13 @@
         document.head.appendChild(style);
     }
 
-    // --- UI 建立 ---
+    // ============================================================
+    // === UI 建立 ================================================
+    // ============================================================
+
     let currentUIState = null;
+    // 追蹤 document click listener，避免重建 UI 時累積
+    let _docClickHandler = null;
 
     function buildPluginItem(plugin) {
         const item = document.createElement("div");
@@ -1087,12 +1214,12 @@
         item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}`;
 
         const iconDisplay = plugin.customIcon
-        ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
-        : plugin.icon;
+            ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
+            : plugin.icon;
 
         const infoBtnHtml = plugin.website
-        ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
-        : '';
+            ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
+            : '';
 
         const buildTriToggle = (p, state) => {
             const labels = getTriLabels(p);
@@ -1107,8 +1234,8 @@
         };
 
         const toggleHtml = isTri
-        ? buildTriToggle(plugin, currentState)
-        : `<button class="bc-plugin-toggle ${isEnabled ? 'active' : ''}" data-plugin="${plugin.id}" aria-label="${getPluginName(plugin)}"></button>`;
+            ? buildTriToggle(plugin, currentState)
+            : `<button class="bc-plugin-toggle ${isEnabled ? 'active' : ''}" data-plugin="${plugin.id}" aria-label="${getPluginName(plugin)}"></button>`;
 
         item.innerHTML = `
             ${infoBtnHtml}
@@ -1147,7 +1274,7 @@
         if (existingPanel) existingPanel.remove();
         injectStyles();
 
-        // 按鈕群組（cat → ↻ → 📋）
+        // 按鈕群組
         const btnGroup = document.createElement("div");
         btnGroup.id = "bc-plugin-btn-group";
         btnGroup.className = "bc-plugin-btn-group";
@@ -1213,7 +1340,6 @@
             isOpen = !isOpen;
             panel.classList.toggle("show", isOpen);
             setSubBtnsVisible(isOpen);
-            // JSON 已載入但 content 還在 loading 狀態，補刷
             if (isOpen && pluginsLoaded && content.querySelector('.bc-plugin-loading')) {
                 content.innerHTML = '';
                 subPlugins.forEach(plugin => content.appendChild(buildPluginItem(plugin)));
@@ -1275,8 +1401,8 @@
                     if (nextState === "beta") item.classList.add("beta-enabled");
                     const labels = getTriLabels(plugin);
                     const notifTitle = nextState === "off"
-                    ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
-                    : `${getPluginName(plugin)} ${labels[nextState === "stable" ? 1 : 2]} ${getMessage('pluginEnabled')}`;
+                        ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
+                        : `${getPluginName(plugin)} ${labels[nextState === "stable" ? 1 : 2]} ${getMessage('pluginEnabled')}`;
                     showToggleNotification(
                         nextState === "off" ? "🐾" : nextState === "stable" ? "🐈‍⬛" : "🧪",
                         notifTitle,
@@ -1288,16 +1414,23 @@
             }
         });
 
-        document.addEventListener("click", (e) => {
+        // 移除舊的 listener（若 UI 重建），再掛新的
+        if (_docClickHandler) document.removeEventListener("click", _docClickHandler);
+        _docClickHandler = (e) => {
             if (!panel.contains(e.target) && !btnGroup.contains(e.target) && isOpen) {
                 isOpen = false;
                 panel.classList.remove("show");
                 setSubBtnsVisible(false);
             }
-        });
+        };
+        document.addEventListener("click", _docClickHandler);
     }
 
-    // --- 開關插件提示（panel 底部往下展開）---
+    // ============================================================
+    // === 通知系統 ===============================================
+    // ============================================================
+
+    // 開關插件提示（panel 底部往下展開）
     let toggleNotifTimer = null;
     function showToggleNotification(icon, title, message) {
         let notif = document.getElementById("pcm-toggle-notif");
@@ -1339,7 +1472,7 @@
         }, 2500);
     }
 
-    // --- 系統通知（右上角）---
+    // 系統通知（右上角）
     let systemNotifTimer = null;
     function showNotification(icon, title, message) {
         let notif = document.getElementById("pcm-system-notif");
@@ -1377,7 +1510,10 @@
         }, 3000);
     }
 
-    // --- 語言變化偵測 ---
+    // ============================================================
+    // === 語言變化偵測 ============================================
+    // ============================================================
+
     let lastDetectedLanguage = null;
 
     function checkLanguageChange() {
@@ -1394,7 +1530,10 @@
         lastDetectedLanguage = currentLang;
     }
 
-    // --- MutationObserver ---
+    // ============================================================
+    // === MutationObserver =======================================
+    // ============================================================
+
     function monitorPageChanges() {
         let debounceTimer;
 
@@ -1427,7 +1566,10 @@
         createManagerUI();
     }
 
-    // --- /pcm 指令 ---
+    // ============================================================
+    // === /pcm 指令 ==============================================
+    // ============================================================
+
     function handle_PCM_Command(text) {
         if (typeof text !== "string") text = String(text || "");
         const args = text.trim().split(/\s+/).filter(x => x !== "");
@@ -1477,43 +1619,56 @@
     }
 
     function tryRegisterCommand() {
-        try {
-            if (typeof CommandCombine === "function") {
-                CommandCombine([{ Tag: "pcm", Description: "Liko's Plugin Collection Manager", Action: (text) => handle_PCM_Command(text) }]);
-                return true;
-            }
-        } catch (e) {}
-        return false;
+        let attempts = 0;
+        const maxAttempts = 20; // 最多重試 20 次（約 60 秒）
+        const tryRegister = () => {
+            attempts++;
+            try {
+                if (typeof CommandCombine === "function") {
+                    CommandCombine([{ Tag: "pcm", Description: "Liko's Plugin Collection Manager", Action: (text) => handle_PCM_Command(text) }]);
+                    console.log("🐈‍⬛ [PCM] ✅ /pcm 指令已註冊");
+                    return;
+                }
+            } catch(e) {}
+            if (attempts < maxAttempts) setTimeout(tryRegister, 3000);
+        };
+        tryRegister();
     }
 
-    function ensurePCMBadgeExists() {
-        try {
-            if (typeof Player !== 'undefined' && Player?.OnlineSharedSettings && !Player.OnlineSharedSettings.PCM) {
-                Player.OnlineSharedSettings.PCM = { name: "Liko's PCM", version: modversion, badge: true, timestamp: Date.now() };
-            }
-        } catch (e) {}
-    }
+    // ============================================================
+    // === 進房間後發送載入訊息 ====================================
+    // ============================================================
 
     function sendLoadedMessage() {
         const waitForChatRoom = () => new Promise((resolve) => {
+            let resolved = false;
             const check = () => {
-                if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") resolve(true);
-                else setTimeout(check, 1000);
+                if (resolved) return;
+                if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
+                    resolved = true;
+                    resolve(true);
+                } else {
+                    setTimeout(check, 1000);
+                }
             };
             check();
-            setTimeout(() => resolve(false), 60000);
+            // 60 秒逾時保險，避免無限等待
+            setTimeout(() => { if (!resolved) { resolved = true; resolve(false); } }, 60000);
         });
         waitForChatRoom().then((success) => {
             if (success) {
                 try {
                     ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${getMessage('shortLoaded')}</font>`, Timeout: 60000 });
                     showNotification("🐈‍⬛", "PCM", getMessage('loaded'));
-                } catch (e) {}
+                } catch(e) {}
             }
         });
     }
 
-    // --- 初始化 ---
+    // ============================================================
+    // === 初始化 =================================================
+    // ============================================================
+
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
@@ -1527,28 +1682,25 @@
             console.error("🐈‍⬛ [PCM] ❌ bcModSdk 不可用");
             return;
         }
-    } catch (e) { console.error("🐈‍⬛ [PCM] ❌ 初始化失敗:", e.message); return; }
+    } catch(e) { console.error("🐈‍⬛ [PCM] ❌ 初始化失敗:", e.message); return; }
 
     async function initialize() {
         if (isInitialized) return;
         isInitialized = true;
         lastDetectedLanguage = detectLanguage();
 
-        // 先建立 UI（顯示 loading 狀態）
         injectStyles();
         monitorPageChanges();
         tryRegisterCommand();
 
-        // ★ 非阻塞：JSON 載入完後補刷 UI，不卡初始化流程
+        // JSON 載入完後補刷 UI 與版本更新彈窗
         _pluginsProcessPromise.then((success) => {
             if (!success) return;
-            // 補刷 content（若 panel 已存在且還在 loading 狀態）
             const content = document.querySelector(".bc-plugin-content");
             if (content && content.querySelector('.bc-plugin-loading')) {
                 content.innerHTML = '';
                 subPlugins.forEach(plugin => content.appendChild(buildPluginItem(plugin)));
             }
-            // 版本更新彈窗
             const isNewVersion = checkVersionUpdate();
             if (isNewVersion) {
                 setTimeout(() => {
@@ -1558,16 +1710,6 @@
             }
         });
 
-        // Badge 定期確認
-        const badgeCheckId = setInterval(() => {
-            if (typeof Player !== 'undefined' && Player && CurrentScreen === 'ChatRoom') {
-                ensurePCMBadgeExists();
-                clearInterval(badgeCheckId);
-            }
-        }, 1000);
-        _lifecycle.intervals.push(badgeCheckId);
-
-        // ★ 這些不再被 JSON 阻塞
         setTimeout(() => { waitForPlayerAndLoadPlugins(); }, 5000);
         setTimeout(() => { checkLanguageChange(); }, 10000);
 
@@ -1593,5 +1735,5 @@
         initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
     }
 
-    console.log("🐈‍⬛ [PCM] ✅ v1.5.3 腳本載入完成");
+    console.log("🐈‍⬛ [PCM] ✅ v1.5.4 腳本載入完成");
 })();
