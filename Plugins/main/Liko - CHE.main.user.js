@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.4.3
+// @version      2.4.4
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
     "use strict";
 
     let modApi;
-    const modversion = "2.4.3";
+    const modversion = "2.4.4";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
     let autoSaveTimer = null;
@@ -304,7 +304,7 @@
         },
 
         // =====================================================================
-        // FIX v2.4.3: 移除跨訊息時間排序，保留插入順序
+        // 移除跨訊息時間排序，保留插入順序
         //
         // 原問題：最後的 allMessages.sort() 依時間重排所有訊息，
         //         破壞了同一天內訊息的 DB 插入（原始出現）順序。
@@ -327,8 +327,8 @@
 
                 for (const dateKey of sortedKeys) {
                     const dateStr = dateKey.startsWith(prefix)
-                        ? dateKey.slice(prefix.length)
-                        : dateKey;
+                    ? dateKey.slice(prefix.length)
+                    : dateKey;
 
                     const data = await new Promise((resolve, reject) => {
                         const req = store.get(dateKey);
@@ -473,6 +473,27 @@
         return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
+    function linkifyContent(text) {
+        if (!text) return '';
+        const urlRegex = /(https?:\/\/[^\s\n]+)/g;
+        const imageExts = /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?[^\s]*)?$/i;
+        return text.split(urlRegex).map((part, i) => {
+            if (i % 2 === 1) {
+                // 剝除尾端 emoji / 非 ASCII 可列印字元，以及多餘標點
+                const cleanPart = part.replace(/[^\x21-\x7E]+$/, '').replace(/[.,;:!?)]+$/, '');
+                const safeUrl = escapeHtml(cleanPart);
+                if (imageExts.test(cleanPart)) {
+                    return `<a href="${safeUrl}" target="_blank" rel="noopener" style="display:inline-block;margin:4px 0;">` +
+                        `<img src="${safeUrl}" style="max-width:240px;max-height:180px;border-radius:6px;vertical-align:middle;cursor:zoom-in;display:block;" ` +
+                        `onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" loading="lazy">` +
+                        `<span style="display:none;color:inherit;">${safeUrl}</span></a>`;
+                }
+                return `<a href="${safeUrl}" target="_blank" rel="noopener" style="color:inherit;opacity:0.8;text-decoration:underline;word-break:break-all;">${safeUrl}</a>`;
+            }
+            return escapeHtml(part);
+        }).join('');
+    }
+
     function extractFullTextContent(element) {
         if (!element) return "";
         try {
@@ -594,7 +615,6 @@
 
     // =====================================================================
     // HTML Template
-    // FIX v2.4.3: .chat-content 加上 color:var(--text-color)
     //   確保深色/亮色主題切換時，所有訊息文字（包含 [🌐] 翻譯訊息）
     //   都能正確顯示，不因繼承鏈斷裂而顯示為黑字。
     //   同時移除 .enhanced-color { filter:brightness } 改由 CSS 變數管控。
@@ -625,7 +645,6 @@ body { font-family:sans-serif; background:var(--bg-color); color:var(--text-colo
 .chat-meta { display:flex; flex-direction:column; align-items:flex-end; width:70px; font-size:0.8em; margin-right:8px; flex-shrink:0; }
 .chat-time { color:var(--muted-text); }
 .chat-id { font-weight:bold; }
-/* FIX v2.4.3: 明確設定 color，確保深/淺色主題下訊息文字（含 [🌐] 翻譯）可見 */
 .chat-content { flex:1; white-space:pre-wrap; word-wrap:break-word; color:var(--text-color); }
 .with-accent { border-left:4px solid transparent; }
 .separator-row { background:var(--separator-bg); border-left:4px solid var(--separator-border); text-align:center; font-weight:bold; padding:8px; margin:4px 0; border-radius:8px; transition:opacity 0.2s; }
@@ -1039,7 +1058,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             const nameButton = el.querySelector(".ChatMessageName");
             const name       = nameButton ? (nameButton.innerText || nameButton.textContent || "").trim() : "";
             const direction  = el.classList.contains("ChatMessageWhisper")
-                ? (el.dataset.target ? 'outgoing' : 'incoming') : undefined;
+            ? (el.dataset.target ? 'outgoing' : 'incoming') : undefined;
             const isBceNotif = el.classList.contains("bce-notification") || !!el.querySelector('.bce-beep-link');
 
             let content = "";
@@ -1050,7 +1069,12 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 const contentSpan       = el.querySelector(".chat-room-message-content");
                 const originContentSpan = el.querySelector(".chat-room-message-original");
                 if (contentSpan) {
-                    content = (contentSpan.textContent || "").trim();
+                    const _clone = contentSpan.cloneNode(true);
+                    _clone.querySelectorAll('[style*="display: none"], [style*="display:none"]').forEach(el => el.remove());
+                    _clone.querySelectorAll('img[src]').forEach(img => {
+                        img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
+                    });
+                    content = (_clone.textContent || "").trim();
                     if (originContentSpan) content += '\n' + (originContentSpan.textContent || "").trim();
                 } else {
                     const clone = el.cloneNode(true);
@@ -1075,7 +1099,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     }
 
     // =====================================================================
-    // FIX v2.4.3: renderMsgRow 深色模式文字顏色修正
+    // 深色模式文字顏色修正
     // 1. chat-with-name 分支：訊息內文包在 <span style="color:var(--text-color)"> 中
     // 2. whisper 分支：同上，確保主題切換時文字顏色正確
     // 3. 移除 .chat-content 的 enhanced-color class（filter 會干擾文字繼承色）
@@ -1117,25 +1141,25 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
         if (rowType === 'beep') {
             bgColor = 'rgba(91,141,239,0.1)'; borderColor = '#5b8def';
-            content = `<span class="beep-msg">${escapeHtml(msg.content)}</span>`;
+            content = `<span class="beep-msg">${linkifyContent(msg.content)}</span>`;
         } else if (rowType === 'whisper') {
             if (!includePrivate) return null;
             const isOutgoing = msg.direction === 'outgoing';
             const prefix = isZh()
-                ? (isOutgoing ? "悄悄话" : "悄悄话来自")
-                : (isOutgoing ? "Whisper to" : "Whisper from");
+            ? (isOutgoing ? "悄悄话" : "悄悄话来自")
+            : (isOutgoing ? "Whisper to" : "Whisper from");
             // FIX: 訊息內文加 color:var(--text-color)，避免深色模式下繼承失敗變黑字
-            content = `<span style="color:${adjustedColor};font-style:italic;">${prefix}</span> <span class="user-name" style="color:${adjustedColor}">${escapeHtml(msg.name)}</span>: <span style="color:var(--text-color)">${escapeHtml(msg.content)}</span>`;
+            content = `<span style="color:${adjustedColor};font-style:italic;">${prefix}</span> <span class="user-name" style="color:${adjustedColor}">${escapeHtml(msg.name)}</span>: <span style="color:var(--text-color)">${linkifyContent(msg.content)}</span>`;
         } else if (rowType === 'system') {
             const sysColor = getEnhancedContrastColor('#3aa76d', true);
             bgColor = toRGBA(sysColor, 0.12); borderColor = sysColor;
-            content = `<span style="color:${sysColor}">${escapeHtml(msg.content)}</span>`;
+            content = `<span style="color:${sysColor}">${linkifyContent(msg.content)}</span>`;
         } else if (rowType === 'chat' && msg.name) {
             // FIX: 訊息內文加 color:var(--text-color)，避免深色模式下繼承失敗變黑字
             // 特別修正：[🌐] 翻譯訊息在此分支不再出現黑字問題
-            content = `<span class="user-name" style="color:${adjustedColor}">${escapeHtml(msg.name)}</span>: <span style="color:var(--text-color)">${escapeHtml(msg.content)}</span>`;
+            content = `<span class="user-name" style="color:${adjustedColor}">${escapeHtml(msg.name)}</span>: <span style="color:var(--text-color)">${linkifyContent(msg.content)}</span>`;
         } else {
-            content = `<span class="action-text" style="color:${adjustedColor}">${escapeHtml(msg.content)}</span>`;
+            content = `<span class="action-text" style="color:${adjustedColor}">${linkifyContent(msg.content)}</span>`;
         }
 
         // FIX: 移除 enhanced-color class，filter:brightness 會干擾文字顏色繼承
@@ -1239,8 +1263,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                            <button id="customPromptNo" style="margin:10px;padding:8px 16px;cursor:pointer;background:#666;color:#fff;border:none;border-radius:4px;">${noLabel}</button>`;
             } else {
                 buttons = options.map(opt =>
-                    `<button data-value="${opt.value}" style="margin:5px;padding:8px 16px;cursor:pointer;background:#0066cc;color:#fff;border:none;border-radius:4px;">${opt.text}</button>`
-                ).join('');
+                                      `<button data-value="${opt.value}" style="margin:5px;padding:8px 16px;cursor:pointer;background:#0066cc;color:#fff;border:none;border-radius:4px;">${opt.text}</button>`
+                                     ).join('');
             }
             modal.innerHTML = `
                 <div style="background:#333;color:#fff;padding:24px;border-radius:12px;max-width:500px;text-align:center;max-height:80vh;overflow-y:auto;">
@@ -1284,14 +1308,14 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             modal.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;justify-content:center;align-items:center;z-index:2000;backdrop-filter:blur(5px);`;
 
             const dateOptions = availableDates.map(date =>
-                `<div class="date-option" data-value="${date.dateKey}" style="
+                                                   `<div class="date-option" data-value="${date.dateKey}" style="
                     position:relative;margin:8px 0;cursor:pointer;padding:12px;border-radius:8px;
                     background:linear-gradient(135deg,#2c3e50 0%,#34495e 100%);
                     border:2px solid transparent;transition:all 0.3s;color:#ecf0f1;font-weight:500;user-select:none;">
                     <span style="font-size:16px;">${date.display}</span>
                     <span style="color:#bdc3c7;margin-left:8px;">${ui('cacheMsgCount', date.count)}</span>
                 </div>`
-            ).join('');
+                                                  ).join('');
 
             modal.innerHTML = `
                 <div style="background:linear-gradient(135deg,#2c3e50 0%,#34495e 100%);color:#ecf0f1;padding:30px;border-radius:16px;max-width:500px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);position:relative;">
@@ -1460,8 +1484,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 const msgidAttr = msg.querySelector("span[msgid]")?.getAttribute("msgid") || "";
 
                 const direction = msg.classList.contains("ChatMessageWhisper")
-                    ? (msg.dataset.target ? 'outgoing' : 'incoming')
-                    : undefined;
+                ? (msg.dataset.target ? 'outgoing' : 'incoming')
+                : undefined;
 
                 let content = "";
                 const isBceNotif = msg.classList.contains("bce-notification") || !!msg.querySelector('.bce-beep-link');
@@ -1472,7 +1496,12 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                     const beepLink = msg.querySelector('.bce-beep-link');
                     content = beepLink ? (beepLink.textContent || beepLink.innerText || "").trim() : "";
                 } else if (contentSpan) {
-                    content = (contentSpan.textContent || contentSpan.innerText || "").trim();
+                    const _clone = contentSpan.cloneNode(true);
+                    _clone.querySelectorAll('[style*="display: none"], [style*="display:none"]').forEach(el => el.remove());
+                    _clone.querySelectorAll('img[src]').forEach(img => {
+                        img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
+                    });
+                    content = (_clone.textContent || _clone.innerText || "").trim();
                     if (originContentSpan) {
                         const originContent = (originContentSpan.textContent || originContentSpan.innerText || "").trim();
                         content = content + '\n' + originContent;
@@ -1697,14 +1726,14 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 btnExcel: zh ? "匯出成 Excel": "Export Excel",
                 btnCache: zh ? "緩存管理"    : "Cache manager",
                 desc1: zh
-                    ? "氣球顯示與否不影響緩存，緩存設定為獨立開關"
-                    : "Ball visibility does not affect caching — they are independent",
+                ? "氣球顯示與否不影響緩存，緩存設定為獨立開關"
+                : "Ball visibility does not affect caching — they are independent",
                 desc2: zh
-                    ? "緩存資料存於 IndexedDB，超過 7 天自動清除，停用後不再記錄新訊息（現有資料保留）"
-                    : "Cache is stored in IndexedDB, auto-cleaned after 7 days. Disabling stops new recording; existing data is kept.",
+                ? "緩存資料存於 IndexedDB，超過 7 天自動清除，停用後不再記錄新訊息（現有資料保留）"
+                : "Cache is stored in IndexedDB, auto-cleaned after 7 days. Disabling stops new recording; existing data is kept.",
                 desc3: zh
-                    ? "HTML 匯出支援搜尋、過濾、類型分類及逐行刪除等便利功能"
-                    : "HTML export supports search, filtering, type categories, and per-row deletion",
+                ? "HTML 匯出支援搜尋、過濾、類型分類及逐行刪除等便利功能"
+                : "HTML export supports search, filtering, type categories, and per-row deletion",
             };
 
             const y = this.Y; const cb = this.CB;
@@ -1721,7 +1750,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             MainCanvas.textAlign = "left";
             DrawTextFit(T.showBall, lx + cb + 12, y.cb1 + cb/2 + 10, 420, "Black", "White");
             DrawTextFit(T.cacheOn,  lx + cb + 12, y.cb2 + cb/2 + 10, 420,
-                cheSettings.cacheEnabled ? "Black" : "White");
+                        cheSettings.cacheEnabled ? "Black" : "White");
             MainCanvas.textAlign = prev;
             DrawText(T.secR, rc, y.secR, "Black", "White");
             const bx = rc - btnW/2;
