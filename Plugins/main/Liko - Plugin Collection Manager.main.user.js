@@ -22,7 +22,7 @@
     // ============================================================
 
     let modApi;
-    const modversion = "1.5.5";
+    const modversion = "1.5.5"
 
     // === 生命週期管理 ===
     let isInitialized = false;
@@ -521,9 +521,14 @@
     let remoteUpdateId = null;
 
     function checkVersionUpdate() {
+        const savedVersion = pluginSettings["_pcm_version"];
         const savedUpdateId = pluginSettings["_pcm_updateId"];
-        if (remoteUpdateId && savedUpdateId !== remoteUpdateId) {
-            pluginSettings["_pcm_updateId"] = remoteUpdateId;
+        const versionChanged = savedVersion !== modversion;
+        const updateIdChanged = remoteUpdateId && savedUpdateId !== remoteUpdateId;
+
+        if (versionChanged || updateIdChanged) {
+            pluginSettings["_pcm_version"] = modversion;
+            if (remoteUpdateId) pluginSettings["_pcm_updateId"] = remoteUpdateId;
             saveSettings(pluginSettings);
             return true;
         }
@@ -1340,7 +1345,7 @@
 
         const footer = document.createElement("div");
         footer.className = "bc-plugin-footer";
-        footer。innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://awdrrawd.github.io/liko-Plugin-Repository" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${modversion}</a> ❖ by Likolisu`;
+        footer.innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://awdrrawd.github.io/liko-Plugin-Repository" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${modversion}</a> ❖ by Likolisu`;
 
         panel.appendChild(header);
         panel.appendChild(content);
@@ -1754,5 +1759,5 @@
         initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
     }
 
-    console.log("🐈‍⬛ [PCM] ✅ v1.5.5 腳本載入完成");
+    console.log("🐈‍⬛ [PCM] ✅ v1.5.3 腳本載入完成");
 })();
