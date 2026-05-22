@@ -2,7 +2,7 @@
 // @name         Liko - Image Uploader
 // @name:zh      Liko的圖片上傳器
 // @namespace    https://likolisu.dev/
-// @version      1.5.1
+// @version      1.5.2
 // @description  Bondage Club - 上傳圖片到圖床並分享網址 + 懸停/點擊圖片放大預覽
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function () {
     let modApi = null;
-    const modversion = "1.5.1";
+    const modversion = "1.5.2";
     let imageHost       = "litterbox";
     let zoomEnabled     = false;   // 懸停放大（桌面）
     let clickZoomEnabled = false;  // 點擊放大（手機友善）
@@ -655,7 +655,7 @@
     // 初始化
     // ──────────────────────────────────────────
     async function initialize() {
-        console。log("🐈‍⬛ [IMG] ⌛ 插件啟動中...");
+        console.log("🐈‍⬛ [IMG] ⌛ 插件啟動中...");
         const ok = await waitForBcModSdk();
         if (!ok) { console.error("🐈‍⬛ [IMG] ❌ bcModSdk 載入失敗"); return; }
         await loadToastSystem();
