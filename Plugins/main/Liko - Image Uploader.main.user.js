@@ -535,7 +535,6 @@
                 }
             });
             chatObserver.observe(chatLog, { childList: true, subtree: true });
-            console.log("🐈‍⬛ [IMG] 🔍 Observer 已啟動");
         }
         tryAttach();
     }
@@ -656,7 +655,7 @@
     // 初始化
     // ──────────────────────────────────────────
     async function initialize() {
-        console.log("🐈‍⬛ [IMG] ⌛ 插件啟動中...");
+        console。log("🐈‍⬛ [IMG] ⌛ 插件啟動中...");
         const ok = await waitForBcModSdk();
         if (!ok) { console.error("🐈‍⬛ [IMG] ❌ bcModSdk 載入失敗"); return; }
         await loadToastSystem();
