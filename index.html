@@ -20,6 +20,7 @@
   --lavender: #C4B5FD;
   --pink:     #e879b8;
   --cyan:     #67e8f9;
+  --gold:     #fbbf24;
   --text:     #e8e3ff;
   --textMid:  #b0a8d8;
   --textDim:  #6b6390;
@@ -28,7 +29,6 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { scroll-behavior: smooth; }
 
 body {
@@ -41,27 +41,15 @@ body {
   overflow-x: hidden;
 }
 
-/* ── Noise overlay ── */
 body::before {
   content: '';
   position: fixed; inset: 0;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 0;
-  opacity: .5;
+  pointer-events: none; z-index: 0; opacity: .5;
 }
 
-/* ── Aurora bg ── */
-.aurora {
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  overflow: hidden;
-}
-.aurora span {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: .35;
-}
+.aurora { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.aurora span { position: absolute; border-radius: 50%; filter: blur(80px); opacity: .35; }
 .aurora span:nth-child(1) {
   width: 600px; height: 600px;
   background: radial-gradient(circle, #7F53CD 0%, transparent 70%);
@@ -77,20 +65,16 @@ body::before {
 .aurora span:nth-child(3) {
   width: 400px; height: 400px;
   background: radial-gradient(circle, #67e8f9 0%, transparent 70%);
-  top: 40%; left: 50%;
-  transform: translate(-50%,-50%);
-  animation: drift3 26s ease-in-out infinite alternate;
-  opacity: .15;
+  top: 40%; left: 50%; transform: translate(-50%,-50%);
+  animation: drift3 26s ease-in-out infinite alternate; opacity: .15;
 }
-
 @keyframes drift1 { to { transform: translate(80px, 120px); } }
 @keyframes drift2 { to { transform: translate(-60px, -80px); } }
 @keyframes drift3 { to { transform: translate(-30%, -40%); } }
 
-/* ── Layout ── */
 .wrap { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 0 24px; }
 
-/* ── Top nav ── */
+/* ── Nav ── */
 #topnav {
   position: sticky; top: 0; z-index: 100;
   background: rgba(12,11,20,0.75);
@@ -99,8 +83,7 @@ body::before {
 }
 #topnav .wrap {
   display: flex; align-items: center; gap: 12px;
-  padding-top: 10px; padding-bottom: 10px;
-  flex-wrap: wrap;
+  padding-top: 10px; padding-bottom: 10px; flex-wrap: wrap;
 }
 .nav-logo {
   font-size: 20px; font-weight: 700;
@@ -108,47 +91,29 @@ body::before {
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   white-space: nowrap; margin-right: auto;
 }
-.nav-links {
-  display: flex; gap: 4px; flex-wrap: wrap;
-}
+.nav-links { display: flex; gap: 4px; flex-wrap: wrap; }
 .nav-links a {
-  color: var(--textMid);
-  text-decoration: none;
+  color: var(--textMid); text-decoration: none;
   font-size: 13px; font-weight: 600;
-  padding: 5px 12px;
-  border-radius: 20px;
+  padding: 5px 12px; border-radius: 20px;
   border: 1px solid transparent;
-  transition: all .2s;
-  letter-spacing: .02em;
+  transition: all .2s; letter-spacing: .02em;
 }
 .nav-links a:hover {
-  color: var(--lavender);
-  border-color: var(--border);
+  color: var(--lavender); border-color: var(--border);
   background: rgba(167,139,250,0.08);
 }
 
-/* ── Language toggle ── */
 #lang-btn {
   display: flex; align-items: center; gap: 6px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 5px 14px;
-  cursor: pointer;
-  font-family: inherit; font-size: 12px; font-weight: 600;
-  color: var(--violet);
-  transition: all .2s;
-  letter-spacing: .05em;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: 5px 14px;
+  cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 600;
+  color: var(--violet); transition: all .2s; letter-spacing: .05em;
 }
 #lang-btn:hover { border-color: var(--violet); background: var(--surfaceH); }
-#lang-btn .dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--violet);
-  box-shadow: 0 0 8px var(--violet);
-}
+#lang-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--violet); box-shadow: 0 0 8px var(--violet); }
 
-/* Language visibility */
 .zh { display: revert; }
 .en { display: none; }
 body.lang-en .zh { display: none; }
@@ -157,130 +122,60 @@ body.lang-en #lang-btn .dot { background: var(--pink); box-shadow: 0 0 8px var(-
 body.lang-en #lang-btn { color: var(--pink); }
 
 /* ── Hero ── */
-#hero {
-  padding: 96px 0 72px;
-  text-align: center;
-}
-.hero-cat {
-  font-size: 56px;
-  display: block;
-  margin-bottom: 20px;
-  animation: bob 3s ease-in-out infinite;
-}
+#hero { padding: 96px 0 72px; text-align: center; }
+.hero-cat { font-size: 56px; display: block; margin-bottom: 20px; animation: bob 3s ease-in-out infinite; }
 @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
-
 .hero-title {
-  font-size: clamp(32px, 5vw, 52px);
-  font-weight: 700;
-  letter-spacing: -.02em;
-  line-height: 1.15;
+  font-size: clamp(32px, 5vw, 52px); font-weight: 700; letter-spacing: -.02em; line-height: 1.15;
   background: linear-gradient(135deg, #C4B5FD 0%, #e879b8 50%, #67e8f9 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   margin-bottom: 20px;
 }
-.hero-sub {
-  color: var(--textMid);
-  font-size: 15px;
-  max-width: 560px;
-  margin: 0 auto 36px;
-  line-height: 1.8;
-}
-.badge-row {
-  display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
-}
+.hero-sub { color: var(--textMid); font-size: 15px; max-width: 560px; margin: 0 auto 36px; line-height: 1.8; }
+.badge-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 5px 14px;
-  font-size: 12px;
-  font-family: 'JetBrains Mono', monospace;
-  color: var(--lavender);
-  letter-spacing: .05em;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+  padding: 5px 14px; font-size: 12px; font-family: 'JetBrains Mono', monospace;
+  color: var(--lavender); letter-spacing: .05em;
 }
 .badge-dot { width: 7px; height: 7px; border-radius: 50%; }
 
 /* ── Sections ── */
 section { padding: 72px 0; }
 section + section { border-top: 1px solid var(--border); }
-
 .section-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  letter-spacing: .15em;
-  text-transform: uppercase;
-  color: var(--violet);
-  margin-bottom: 10px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: .15em; text-transform: uppercase; color: var(--violet); margin-bottom: 10px;
 }
-.section-title {
-  font-size: clamp(22px, 3vw, 30px);
-  font-weight: 700;
-  margin-bottom: 6px;
-  letter-spacing: -.01em;
-}
-.section-desc {
-  color: var(--textMid);
-  margin-bottom: 40px;
-  font-size: 14px;
-  max-width: 600px;
-}
+.section-title { font-size: clamp(22px, 3vw, 30px); font-weight: 700; margin-bottom: 6px; letter-spacing: -.01em; }
+.section-desc { color: var(--textMid); margin-bottom: 40px; font-size: 14px; max-width: 600px; }
 
 /* ── Install tabs ── */
-.tab-list {
-  display: flex; gap: 4px; flex-wrap: wrap;
-  margin-bottom: 24px;
-}
+.tab-list { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 24px; }
 .tab-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 18px;
-  font-family: inherit; font-size: 13px; font-weight: 600;
-  color: var(--textMid);
-  cursor: pointer;
-  transition: all .2s;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 18px; font-family: inherit; font-size: 13px; font-weight: 600;
+  color: var(--textMid); cursor: pointer; transition: all .2s;
 }
-.tab-btn.active, .tab-btn:hover {
-  background: var(--surfaceH);
-  border-color: var(--violet);
-  color: var(--lavender);
-}
+.tab-btn.active, .tab-btn:hover { background: var(--surfaceH); border-color: var(--violet); color: var(--lavender); }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
-
-.install-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 28px;
-}
-.install-card h3 {
-  font-size: 16px; font-weight: 700; margin-bottom: 10px;
-  display: flex; align-items: center; gap: 10px;
-}
+.install-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; }
+.install-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
 .install-card p { color: var(--textMid); font-size: 14px; margin-bottom: 16px; }
 
 pre {
-  background: rgba(0,0,0,0.4);
-  border: 1px solid rgba(167,139,250,0.12);
-  border-radius: 10px;
-  padding: 18px 20px;
-  overflow-x: auto;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12.5px;
-  color: #c4b5fd;
-  line-height: 1.7;
-  position: relative;
+  background: rgba(0,0,0,0.4); border: 1px solid rgba(167,139,250,0.12);
+  border-radius: 10px; padding: 18px 20px; overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+  color: #c4b5fd; line-height: 1.7; position: relative;
 }
 .copy-btn {
   position: absolute; top: 10px; right: 10px;
-  background: rgba(127,83,205,0.25);
-  border: 1px solid rgba(167,139,250,0.3);
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px; color: var(--lavender);
+  background: rgba(127,83,205,0.25); border: 1px solid rgba(167,139,250,0.3);
+  border-radius: 6px; padding: 4px 10px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--lavender);
   cursor: pointer; transition: all .2s;
 }
 .copy-btn:hover { background: rgba(127,83,205,0.45); }
@@ -289,57 +184,39 @@ pre {
 .btn-primary {
   display: inline-flex; align-items: center; gap: 8px;
   background: linear-gradient(135deg, var(--purple), #9b6ee8);
-  border: none; border-radius: 10px;
-  padding: 12px 24px;
-  font-family: inherit; font-size: 14px; font-weight: 700;
-  color: #fff;
-  cursor: pointer; text-decoration: none;
-  transition: all .2s;
+  border: none; border-radius: 10px; padding: 12px 24px;
+  font-family: inherit; font-size: 14px; font-weight: 700; color: #fff;
+  cursor: pointer; text-decoration: none; transition: all .2s;
   box-shadow: 0 4px 20px rgba(127,83,205,0.4);
 }
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(127,83,205,0.55);
-}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(127,83,205,0.55); }
 
-/* ── Quick nav for plugins ── */
-.plugin-quicknav {
-  display: flex; gap: 8px; flex-wrap: wrap;
-  margin-bottom: 36px;
-}
+/* ── Quick nav ── */
+.plugin-quicknav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 36px; }
 .qnav-pill {
   display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(30,27,46,0.7);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 6px 14px;
-  font-size: 12.5px; font-weight: 600;
-  color: var(--textMid);
-  text-decoration: none;
-  transition: all .2s;
-  cursor: pointer;
-  white-space: nowrap;
+  background: rgba(30,27,46,0.7); border: 1px solid var(--border);
+  border-radius: 20px; padding: 6px 14px;
+  font-size: 12.5px; font-weight: 600; color: var(--textMid);
+  text-decoration: none; transition: all .2s; white-space: nowrap;
 }
-.qnav-pill:hover {
-  border-color: var(--violet);
-  color: var(--lavender);
-  background: rgba(127,83,205,0.12);
-}
+.qnav-pill:hover { border-color: var(--violet); color: var(--lavender); background: rgba(127,83,205,0.12); }
 .qnav-pill .pill-emoji { font-size: 13px; }
 
-/* ── Plugin category header ── */
-.cat-header {
+/* ── Category divider in grid ── */
+.grid-category {
+  grid-column: 1 / -1;
   display: flex; align-items: center; gap: 14px;
-  margin: 48px 0 24px;
+  padding: 8px 0 4px;
 }
-.cat-header:first-of-type { margin-top: 0; }
-.cat-line { flex: 1; height: 1px; background: var(--border); }
-.cat-title {
-  font-size: 13px; font-weight: 700;
-  letter-spacing: .1em; text-transform: uppercase;
-  color: var(--violet);
-  white-space: nowrap;
+.grid-cat-line { flex: 1; height: 1px; background: var(--border); }
+.grid-cat-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; white-space: nowrap;
 }
+.grid-cat-title.recommended { color: var(--gold); }
+.grid-cat-title.others { color: var(--textDim); }
 
 /* ── Plugin grid ── */
 .plugin-grid {
@@ -350,159 +227,124 @@ pre {
 
 /* ── Plugin card ── */
 .plugin-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 22px 24px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px 24px;
   display: flex; flex-direction: column; gap: 12px;
-  transition: all .25s;
-  scroll-margin-top: 72px;
-  position: relative;
-  overflow: hidden;
+  transition: all .25s; scroll-margin-top: 72px;
+  position: relative; overflow: hidden;
 }
 .plugin-card::before {
-  content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
   background: linear-gradient(90deg, var(--purple), var(--pink));
-  opacity: 0;
-  transition: opacity .25s;
+  opacity: 0; transition: opacity .25s;
 }
-.plugin-card:hover {
-  border-color: var(--borderH);
-  background: var(--surfaceH);
-  transform: translateY(-3px);
-  box-shadow: var(--shadow);
+.plugin-card.recommended-card::before {
+  background: linear-gradient(90deg, var(--gold), #f59e0b, var(--pink));
 }
+.plugin-card:hover { border-color: var(--borderH); background: var(--surfaceH); transform: translateY(-3px); box-shadow: var(--shadow); }
 .plugin-card:hover::before { opacity: 1; }
 
 .card-top { display: flex; align-items: flex-start; gap: 12px; }
-.card-emoji {
-  font-size: 26px;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
+.card-emoji { font-size: 26px; flex-shrink: 0; margin-top: 2px; }
 .card-meta { flex: 1; min-width: 0; }
-.card-name {
-  font-size: 15px; font-weight: 700;
-  line-height: 1.3;
-  color: var(--text);
-  margin-bottom: 4px;
-}
-.card-name .zh { font-family: 'Noto Serif TC', serif; }
-
-.card-tags {
-  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;
-}
+.card-name { font-size: 15px; font-weight: 700; line-height: 1.3; color: var(--text); margin-bottom: 4px; }
+.card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
 .tag {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px; font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 20px;
-  letter-spacing: .04em;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;
+  padding: 2px 8px; border-radius: 20px; letter-spacing: .04em;
 }
-.tag-id {
-  background: rgba(127,83,205,0.18);
-  border: 1px solid rgba(167,139,250,0.3);
-  color: var(--lavender);
-}
-.tag-en {
-  background: rgba(103,232,249,0.1);
-  border: 1px solid rgba(103,232,249,0.3);
-  color: var(--cyan);
-}
-.tag-warn {
-  background: rgba(232,121,184,0.12);
-  border: 1px solid rgba(232,121,184,0.3);
-  color: var(--pink);
-}
+.tag-id   { background: rgba(127,83,205,0.18); border: 1px solid rgba(167,139,250,0.3); color: var(--lavender); }
+.tag-en   { background: rgba(103,232,249,0.1);  border: 1px solid rgba(103,232,249,0.3); color: var(--cyan); }
+.tag-warn { background: rgba(232,121,184,0.12); border: 1px solid rgba(232,121,184,0.3); color: var(--pink); }
+.tag-cheat{ background: rgba(251,191,36,0.12);  border: 1px solid rgba(251,191,36,0.3);  color: var(--gold); }
+.tag-rec  { background: rgba(251,191,36,0.15);  border: 1px solid rgba(251,191,36,0.4);  color: var(--gold); }
 
-.card-desc {
-  font-size: 13.5px;
-  color: var(--textMid);
-  line-height: 1.65;
-  flex: 1;
-}
+.card-desc { font-size: 13.5px; color: var(--textMid); line-height: 1.65; flex: 1; }
 .card-desc .note {
-  font-size: 12px;
-  color: var(--textDim);
-  margin-top: 8px;
-  border-left: 2px solid var(--border);
-  padding-left: 10px;
+  font-size: 12px; color: var(--textDim); margin-top: 8px;
+  border-left: 2px solid var(--border); padding-left: 10px;
 }
 
 .card-bottom {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
+  padding-top: 8px; border-top: 1px solid var(--border);
 }
 .btn-dl {
   display: inline-flex; align-items: center; gap: 6px;
   background: linear-gradient(135deg, rgba(127,83,205,0.3), rgba(127,83,205,0.1));
-  border: 1px solid rgba(167,139,250,0.35);
-  border-radius: 8px;
-  padding: 7px 16px;
-  font-family: inherit; font-size: 12.5px; font-weight: 700;
-  color: var(--lavender);
-  text-decoration: none; cursor: pointer;
-  transition: all .2s;
+  border: 1px solid rgba(167,139,250,0.35); border-radius: 8px;
+  padding: 7px 16px; font-family: inherit; font-size: 12.5px; font-weight: 700;
+  color: var(--lavender); text-decoration: none; transition: all .2s;
 }
-.btn-dl:hover {
-  background: linear-gradient(135deg, rgba(127,83,205,0.5), rgba(127,83,205,0.25));
-  border-color: var(--violet);
-  transform: translateY(-1px);
+.btn-dl:hover { background: linear-gradient(135deg, rgba(127,83,205,0.5), rgba(127,83,205,0.25)); border-color: var(--violet); transform: translateY(-1px); }
+
+.btn-src {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(103,232,249,0.06); border: 1px solid rgba(103,232,249,0.2);
+  border-radius: 8px; padding: 7px 14px;
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  color: rgba(103,232,249,0.7); text-decoration: none; transition: all .2s;
 }
+.btn-src:hover { background: rgba(103,232,249,0.12); border-color: rgba(103,232,249,0.4); color: var(--cyan); transform: translateY(-1px); }
+
 .btn-gh {
   display: inline-flex; align-items: center; gap: 6px;
-  color: var(--textDim);
-  font-size: 12px;
-  text-decoration: none;
-  padding: 7px 12px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  transition: all .2s;
+  color: var(--textDim); font-size: 12px; text-decoration: none;
+  padding: 7px 12px; border-radius: 8px; border: 1px solid transparent; transition: all .2s;
 }
-.btn-gh:hover {
-  color: var(--textMid);
-  border-color: var(--border);
-  background: rgba(255,255,255,0.04);
-}
+.btn-gh:hover { color: var(--textMid); border-color: var(--border); background: rgba(255,255,255,0.04); }
 
-/* ── Warning callout ── */
 .callout {
   display: flex; align-items: center; gap: 10px;
-  background: rgba(232,121,184,0.08);
-  border: 1px solid rgba(232,121,184,0.2);
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 12.5px;
-  color: var(--pink);
+  background: rgba(232,121,184,0.08); border: 1px solid rgba(232,121,184,0.2);
+  border-radius: 8px; padding: 8px 14px; font-size: 12.5px; color: var(--pink);
 }
 
 /* ── Footer ── */
-#footer {
-  padding: 48px 0;
-  border-top: 1px solid var(--border);
-  text-align: center;
-}
+#footer { padding: 48px 0; border-top: 1px solid var(--border); text-align: center; }
 .footer-cat { font-size: 28px; margin-bottom: 12px; }
 .footer-text { color: var(--textDim); font-size: 13px; }
 .footer-text strong { color: var(--violet); }
 
-/* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.3); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(167,139,250,0.55); }
 
-/* ── Responsive ── */
+/* ── Hamburger ── */
+#hamburger {
+  display: none;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px;
+  cursor: pointer; color: var(--violet); font-size: 18px; line-height: 1;
+}
+#mobile-menu {
+  display: none;
+  position: absolute; top: 100%; left: 0; right: 0;
+  background: rgba(12,11,20,0.97);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  flex-direction: column; gap: 4px;
+  z-index: 99;
+}
+#mobile-menu.open { display: flex; }
+#mobile-menu a {
+  color: var(--textMid); text-decoration: none;
+  font-size: 14px; font-weight: 600;
+  padding: 10px 14px; border-radius: 10px;
+  border: 1px solid transparent; transition: all .2s;
+}
+#mobile-menu a:hover { color: var(--lavender); border-color: var(--border); background: rgba(167,139,250,0.08); }
+
 @media (max-width: 640px) {
   .plugin-grid { grid-template-columns: 1fr; }
   .nav-links { display: none; }
   .hero-cat { font-size: 40px; }
-  .badge-row { justify-content: flex-start; }
+  #hamburger { display: flex; align-items: center; }
+  #topnav { position: relative; }
 }
 
-/* ── Fade-in on load ── */
 @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
 .fade-up { animation: fadeUp .6s ease both; }
 .fade-up:nth-child(2) { animation-delay: .1s; }
@@ -512,34 +354,29 @@ pre {
 </head>
 <body>
 
-<!-- aurora bg -->
-<div class="aurora" aria-hidden="true">
-  <span></span><span></span><span></span>
-</div>
+<div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
 
-<!-- ── Top Nav ── -->
+<!-- ── Nav ── -->
 <nav id="topnav">
   <div class="wrap">
     <span class="nav-logo">🐈‍⬛ Liko Plugins</span>
     <div class="nav-links">
-      <a href="#install">
-        <span class="zh">安裝方式</span>
-        <span class="en">Install</span>
-      </a>
-      <a href="#plugins">
-        <span class="zh">插件列表</span>
-        <span class="en">Plugins</span>
-      </a>
-      <a href="#community">
-        <span class="zh">社群推薦</span>
-        <span class="en">Community</span>
-      </a>
-      <a href="https://github.com/awdrrawd/liko-Plugin-Repository" target="_blank">GitHub ↗</a>
+      <a href="#install">🐾 <span class="zh">安裝方式</span><span class="en">Install</span></a>
+      <a href="#plugins">🐾 <span class="zh">插件列表</span><span class="en">Plugins</span></a>
+      <a href="#community">🐾 <span class="zh">社群推薦</span><span class="en">Community</span></a>
+      <a href="https://github.com/awdrrawd/liko-Plugin-Repository" target="_blank">🐾 GitHub ↗</a>
     </div>
     <button id="lang-btn" onclick="toggleLang()">
       <span class="dot"></span>
       <span id="lang-label">EN</span>
     </button>
+    <button id="hamburger" onclick="toggleMenu()" aria-label="Menu">☰</button>
+  </div>
+  <div id="mobile-menu">
+    <a href="#install" onclick="closeMenu()">🐾 <span class="zh">安裝方式</span><span class="en">Install</span></a>
+    <a href="#plugins" onclick="closeMenu()">🐾 <span class="zh">插件列表</span><span class="en">Plugins</span></a>
+    <a href="#community" onclick="closeMenu()">🐾 <span class="zh">社群插件</span><span class="en">Community</span></a>
+    <a href="https://github.com/awdrrawd/liko-Plugin-Repository" target="_blank" onclick="closeMenu()">🐾 GitHub ↗</a>
   </div>
 </nav>
 
@@ -560,29 +397,20 @@ pre {
   </div>
 </header>
 
-<!-- ── Install Section ── -->
+<!-- ── Install ── -->
 <section id="install">
   <div class="wrap">
-    <p class="section-label">
-      <span class="zh">開始使用</span>
-      <span class="en">Getting Started</span>
-    </p>
-    <h2 class="section-title">
-      <span class="zh">📦 安裝方式</span>
-      <span class="en">📦 Installation</span>
-    </h2>
+    <p class="section-label"><span class="zh">開始使用</span><span class="en">Getting Started</span></p>
+    <h2 class="section-title">📦 <span class="zh">安裝方式</span><span class="en">Installation</span></h2>
     <p class="section-desc">
-      <span class="zh">插件有兩種安裝方式：使用 PCM 管理器一次管理所有插件，或前往 /Plugins 資料夾單獨安裝。</span>
+      <span class="zh">兩種安裝方式：PCM 管理器一次管理所有插件，或前往 /Plugins 資料夾單獨安裝。</span>
       <span class="en">Two ways to install: use PCM to manage all plugins at once, or browse /Plugins to install individually.</span>
     </p>
 
     <div style="display:flex;gap:16px;margin-bottom:36px;flex-wrap:wrap;">
       <div style="flex:1;min-width:240px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;">
         <div style="font-size:22px;margin-bottom:8px;">🧩</div>
-        <div style="font-weight:700;margin-bottom:6px;">
-          <span class="zh">使用 PCM 管理器</span>
-          <span class="en">Via PCM Manager</span>
-        </div>
+        <div style="font-weight:700;margin-bottom:6px;"><span class="zh">使用 PCM 管理器</span><span class="en">Via PCM Manager</span></div>
         <div style="font-size:13px;color:var(--textMid);">
           <span class="zh">一次安裝所有插件，支援啟用/停用、自動載入、快取加速</span>
           <span class="en">Install all plugins at once — enable/disable, auto-load, cache acceleration</span>
@@ -590,10 +418,7 @@ pre {
       </div>
       <div style="flex:1;min-width:240px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;">
         <div style="font-size:22px;margin-bottom:8px;">🔌</div>
-        <div style="font-weight:700;margin-bottom:6px;">
-          <span class="zh">單獨安裝</span>
-          <span class="en">Install Individually</span>
-        </div>
+        <div style="font-weight:700;margin-bottom:6px;"><span class="zh">單獨安裝</span><span class="en">Install Individually</span></div>
         <div style="font-size:13px;color:var(--textMid);">
           <span class="zh">前往 /Plugins 資料夾，找到想要的插件直接安裝，無需 PCM</span>
           <span class="en">Browse /Plugins folder and install only what you need, no PCM required</span>
@@ -602,32 +427,19 @@ pre {
     </div>
 
     <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;color:var(--lavender);">
-      <span class="zh">方式一 · PCM 安裝</span>
-      <span class="en">Option 1 · Install via PCM</span>
+      <span class="zh">方式一 · PCM 安裝</span><span class="en">Option 1 · Install via PCM</span>
     </h3>
 
     <div class="tab-list" role="tablist">
-      <button class="tab-btn active" onclick="switchTab('tm')" role="tab">
-        <span class="zh">🐵 腳本管理器</span>
-        <span class="en">🐵 Script Manager</span>
-      </button>
-      <button class="tab-btn" onclick="switchTab('bm')" role="tab">
-        <span class="zh">🔖 書籤</span>
-        <span class="en">🔖 Bookmark</span>
-      </button>
-      <button class="tab-btn" onclick="switchTab('co')" role="tab">
-        <span class="zh">💻 控制台</span>
-        <span class="en">💻 Console</span>
-      </button>
+      <button class="tab-btn active" onclick="switchTab('tm',this)">🐵 <span class="zh">腳本管理器</span><span class="en">Script Manager</span></button>
+      <button class="tab-btn" onclick="switchTab('bm',this)">🔖 <span class="zh">書籤</span><span class="en">Bookmark</span></button>
+      <button class="tab-btn" onclick="switchTab('co',this)">💻 <span class="zh">控制台</span><span class="en">Console</span></button>
     </div>
 
     <div id="tab-tm" class="tab-panel active">
       <div class="install-card">
         <h3>🐵 <span class="zh">腳本管理器（Tampermonkey / Violentmonkey）</span><span class="en">Script Manager</span></h3>
-        <p>
-          <span class="zh">點擊下方按鈕，透過腳本管理器安裝 PCM：</span>
-          <span class="en">Click the button below to install PCM via your script manager:</span>
-        </p>
+        <p><span class="zh">點擊下方按鈕，透過腳本管理器安裝 PCM：</span><span class="en">Click the button below to install PCM via your script manager:</span></p>
         <a class="btn-primary" href="https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js" target="_blank">
           👉 <span class="zh">點此安裝 PCM</span><span class="en">Install PCM Now</span>
         </a>
@@ -637,10 +449,7 @@ pre {
     <div id="tab-bm" class="tab-panel">
       <div class="install-card">
         <h3>🔖 <span class="zh">書籤安裝</span><span class="en">Bookmark Installation</span></h3>
-        <p>
-          <span class="zh">建立一個新書籤，將網址欄貼上以下程式碼：</span>
-          <span class="en">Create a new bookmark and paste the following as the URL:</span>
-        </p>
+        <p><span class="zh">建立一個新書籤，將網址欄貼上以下程式碼：</span><span class="en">Create a new bookmark and paste the following as the URL:</span></p>
         <div style="position:relative">
           <pre id="code-bm">javascript:(function(){
   var s=document.createElement('script');
@@ -649,9 +458,7 @@ pre {
   s.crossOrigin="anonymous";
   document.head.appendChild(s);
 })();</pre>
-          <button class="copy-btn" onclick="copyCode('code-bm',this)">
-            <span class="zh">複製</span><span class="en">Copy</span>
-          </button>
+          <button class="copy-btn" onclick="copyCode('code-bm',this)"><span class="zh">複製</span><span class="en">Copy</span></button>
         </div>
       </div>
     </div>
@@ -659,71 +466,64 @@ pre {
     <div id="tab-co" class="tab-panel">
       <div class="install-card">
         <h3>💻 <span class="zh">瀏覽器控制台</span><span class="en">Browser Console</span></h3>
-        <p>
-          <span class="zh">開啟 F12 開發者工具，在 Console 分頁貼上以下程式碼：</span>
-          <span class="en">Open F12 DevTools and paste the following into the Console tab:</span>
-        </p>
+        <p><span class="zh">開啟 F12 開發者工具，在 Console 分頁貼上：</span><span class="en">Open F12 DevTools and paste into the Console tab:</span></p>
         <div style="position:relative">
           <pre id="code-co">import(`https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js?v=${(Date.now()/10000).toFixed(0)}`);</pre>
-          <button class="copy-btn" onclick="copyCode('code-co',this)">
-            <span class="zh">複製</span><span class="en">Copy</span>
-          </button>
+          <button class="copy-btn" onclick="copyCode('code-co',this)"><span class="zh">複製</span><span class="en">Copy</span></button>
         </div>
       </div>
     </div>
 
     <div style="height:32px"></div>
     <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--lavender);">
-      <span class="zh">方式二 · 單獨安裝</span>
-      <span class="en">Option 2 · Install Individually</span>
+      <span class="zh">方式二 · 單獨安裝</span><span class="en">Option 2 · Install Individually</span>
     </h3>
     <div class="install-card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <div style="flex:1;min-width:200px;">
         <p style="color:var(--textMid);font-size:13.5px;margin-bottom:0;">
-          <span class="zh">前往 <code style="color:var(--lavender);background:rgba(167,139,250,0.1);padding:2px 6px;border-radius:4px;">/Plugins</code> 資料夾，找到想要的插件，透過腳本管理器（如 Tampermonkey）直接安裝 <code style="color:var(--lavender);background:rgba(167,139,250,0.1);padding:2px 6px;border-radius:4px;">.user.js</code> 檔案，每個插件均可獨立使用。</span>
-          <span class="en">Browse the <code style="color:var(--lavender);background:rgba(167,139,250,0.1);padding:2px 6px;border-radius:4px;">/Plugins</code> folder, find the plugin you want, and install its <code style="color:var(--lavender);background:rgba(167,139,250,0.1);padding:2px 6px;border-radius:4px;">.user.js</code> via Tampermonkey. Each plugin works standalone.</span>
+          <span class="zh">前往 <code style="color:var(--lavender);background:rgba(167,139,250,0.1);padding:2px 6px;border-radius:4px;">/Plugins</code> 資料夾，透過腳本管理器安裝 <code style="color:var(--lavender);background:rgba(167,139,250,0.1);padding:2px 6px;border-radius:4px;">.user.js</code>，每個插件均可獨立使用。</span>
+          <span class="en">Browse <code style="color:var(--lavender);background:rgba(167,139,250,0.1);padding:2px 6px;border-radius:4px;">/Plugins</code>, install any <code style="color:var(--lavender);background:rgba(167,139,250,0.1);padding:2px 6px;border-radius:4px;">.user.js</code> via Tampermonkey. Each plugin works standalone.</span>
         </p>
       </div>
-      <a class="btn-primary" href="https://github.com/awdrrawd/liko-Plugin-Repository/tree/main/Plugins" target="_blank" style="flex-shrink:0;">
-        <span class="zh">前往 /Plugins ↗</span><span class="en">Browse /Plugins ↗</span>
+      <a class="btn-primary" href="#plugins" style="flex-shrink:0;">
+        <span class="zh">前往插件列表 ↓</span><span class="en">Browse Plugin List ↓</span>
       </a>
     </div>
 
     <div style="margin-top:20px;padding:14px 18px;background:rgba(167,139,250,0.06);border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--textMid);">
-      <span class="zh">📋 輸入 <code style="color:var(--lavender);">/pcm help</code> 查看插件管理器說明；<code style="color:var(--lavender);">/pcm list</code> 查看所有插件狀態</span>
-      <span class="en">📋 Enter <code style="color:var(--lavender);">/pcm help</code> for manager instructions; <code style="color:var(--lavender);">/pcm list</code> to view all plugin statuses</span>
+      📋 <span class="zh">輸入 <code style="color:var(--lavender);">/pcm help</code> 查看插件管理器說明；<code style="color:var(--lavender);">/pcm list</code> 查看所有插件狀態</span>
+      <span class="en">Enter <code style="color:var(--lavender);">/pcm help</code> for manager instructions; <code style="color:var(--lavender);">/pcm list</code> to view all plugin statuses</span>
     </div>
   </div>
 </section>
 
-<!-- ── Plugins Section ── -->
+<!-- ── Plugins ── -->
 <section id="plugins">
   <div class="wrap">
-    <p class="section-label">
-      <span class="zh">Liko 自製插件</span>
-      <span class="en">Liko's Own Plugins</span>
-    </p>
+    <p class="section-label"><span class="zh">Liko 自製插件</span><span class="en">Liko's Own Plugins</span></p>
     <h2 class="section-title">🐈‍⬛ <span class="zh">插件列表</span><span class="en">Plugin List</span></h2>
     <p class="section-desc">
-      <span class="zh">點擊插件名稱可快速跳轉。<strong style="color:var(--cyan)">EN✔️</strong> 代表完整英文支援。</span>
-      <span class="en">Click a plugin name to jump directly. <strong style="color:var(--cyan)">EN✔️</strong> means full English support.</span>
+      <span class="zh">⭐ 推薦插件為作者特別推薦使用的插件。<strong style="color:var(--cyan)">EN✔️</strong> 代表完整英文支援。</span>
+      <span class="en">⭐ Recommended plugins are specially highlighted by the author. <strong style="color:var(--cyan)">EN✔️</strong> = full English support.</span>
     </p>
 
     <!-- Quick nav -->
     <div class="plugin-quicknav">
+      <span style="font-size:11px;color:var(--gold);font-weight:700;letter-spacing:.08em;align-self:center;">⭐</span>
       <a class="qnav-pill" href="#p-aee"><span class="pill-emoji">🐈‍⬛</span> AEE</a>
       <a class="qnav-pill" href="#p-acf"><span class="pill-emoji">🌸</span> ACF</a>
-      <a class="qnav-pill" href="#p-tool"><span class="pill-emoji">🧰</span> Tool</a>
-      <a class="qnav-pill" href="#p-img"><span class="pill-emoji">🖼️</span> Image Uploader</a>
+      <a class="qnav-pill" href="#p-img"><span class="pill-emoji">🖼️</span> Image</a>
       <a class="qnav-pill" href="#p-che"><span class="pill-emoji">📖</span> CHE</a>
       <a class="qnav-pill" href="#p-cdb"><span class="pill-emoji">👗</span> CDB</a>
       <a class="qnav-pill" href="#p-mat"><span class="pill-emoji">🌐</span> MAT</a>
+      <a class="qnav-pill" href="#p-wps"><span class="pill-emoji">🆔</span> WPS</a>
+      <a class="qnav-pill" href="#p-acv"><span class="pill-emoji">🎬</span> ACV</a>
+      <span style="width:1px;background:var(--border);align-self:stretch;margin:0 4px;"></span>
+      <a class="qnav-pill" href="#p-tool"><span class="pill-emoji">🧰</span> Tool</a>
       <a class="qnav-pill" href="#p-trc"><span class="pill-emoji">🎮</span> TRC</a>
       <a class="qnav-pill" href="#p-cmc"><span class="pill-emoji">🎵</span> CMC</a>
       <a class="qnav-pill" href="#p-noi"><span class="pill-emoji">📧</span> NOI</a>
       <a class="qnav-pill" href="#p-prank"><span class="pill-emoji">🪄</span> Prank</a>
-      <a class="qnav-pill" href="#p-wps"><span class="pill-emoji">🆔</span> WPS</a>
-      <a class="qnav-pill" href="#p-acv"><span class="pill-emoji">🎬</span> ACV</a>
       <a class="qnav-pill" href="#p-region"><span class="pill-emoji">⚧️</span> Region</a>
       <a class="qnav-pill" href="#p-cft"><span class="pill-emoji">📋</span> CFT</a>
       <a class="qnav-pill" href="#p-ttob"><span class="pill-emoji">💬</span> TtoB</a>
@@ -734,18 +534,23 @@ pre {
 
     <div class="plugin-grid">
 
+      <!-- ★ RECOMMENDED category header ★ -->
+      <div class="grid-category">
+        <div class="grid-cat-line"></div>
+        <div class="grid-cat-title recommended">⭐ <span class="zh">推薦插件</span><span class="en">Recommended</span></div>
+        <div class="grid-cat-line"></div>
+      </div>
+
       <!-- AEE -->
-      <div class="plugin-card" id="p-aee">
+      <div class="plugin-card recommended-card" id="p-aee">
         <div class="card-top">
           <span class="card-emoji">🐈‍⬛</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">外觀編輯拓展</span>
-              <span class="en">Appearance Editing Extension</span>
-            </div>
+            <div class="card-name"><span class="zh">外觀編輯拓展</span><span class="en">Appearance Editing Extension</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-AEE</span>
               <span class="tag tag-en">EN✔️</span>
+              <span class="tag tag-rec">⭐ 推薦</span>
             </div>
           </div>
         </div>
@@ -754,22 +559,21 @@ pre {
           <span class="en">A new clothing editing UI with rotation, scaling, and mirroring. Includes a mini mode for small screens. Also offers color and layer adjustments without constantly switching menus.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-AEE.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-AEE.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20AEE.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
       <!-- ACF -->
-      <div class="plugin-card" id="p-acf">
+      <div class="plugin-card recommended-card" id="p-acf">
         <div class="card-top">
           <span class="card-emoji">🌸</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">繁戀如花 ─繽紛─</span>
-              <span class="en">Abundantia Florum ─Chromatica─</span>
-            </div>
+            <div class="card-name"><span class="zh">繁戀如花 ─繽紛─</span><span class="en">Abundantia Florum ─Chromatica─</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-ACF</span>
               <span class="tag tag-en">EN✔️</span>
+              <span class="tag tag-rec">⭐ 推薦</span>
             </div>
           </div>
         </div>
@@ -779,49 +583,20 @@ pre {
         </div>
         <div class="card-bottom">
           <a class="btn-dl" href="https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
-        </div>
-      </div>
-
-      <!-- Tool -->
-      <div class="plugin-card" id="p-tool">
-        <div class="card-top">
-          <span class="card-emoji">🧰</span>
-          <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">Liko 的工具包</span>
-              <span class="en">Liko's Tool</span>
-            </div>
-            <div class="card-tags">
-              <span class="tag tag-id">Liko-Tool</span>
-              <span class="tag tag-en">EN✔️</span>
-            </div>
-          </div>
-        </div>
-        <div class="card-desc">
-          <span class="zh">有許多小功能合集的工具包，但也有點不穩定。</span>
-          <span class="en">A collection of small utility functions — handy but somewhat unstable.</span>
-          <div class="note">
-            <span class="zh">使用說明：輸入 <code style="color:var(--lavender);">/LT</code> 或 <code style="color:var(--lavender);">/LT help</code></span>
-            <span class="en">Usage: enter <code style="color:var(--lavender);">/LT</code> or <code style="color:var(--lavender);">/LT help</code></span>
-          </div>
-        </div>
-        <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Tool.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
       <!-- Image Uploader -->
-      <div class="plugin-card" id="p-img">
+      <div class="plugin-card recommended-card" id="p-img">
         <div class="card-top">
           <span class="card-emoji">🖼️</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">圖片上傳器</span>
-              <span class="en">Image Uploader</span>
-            </div>
+            <div class="card-name"><span class="zh">圖片上傳器</span><span class="en">Image Uploader</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-Image_Uploader</span>
               <span class="tag tag-en">EN✔️</span>
+              <span class="tag tag-rec">⭐ 推薦</span>
             </div>
           </div>
         </div>
@@ -834,22 +609,21 @@ pre {
           </div>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Image_Uploader.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Image_Uploader.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20Image_Uploader.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
       <!-- CHE -->
-      <div class="plugin-card" id="p-che">
+      <div class="plugin-card recommended-card" id="p-che">
         <div class="card-top">
           <span class="card-emoji">📖</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">聊天室書記官</span>
-              <span class="en">Chat History Exporter</span>
-            </div>
+            <div class="card-name"><span class="zh">聊天室書記官</span><span class="en">Chat History Exporter</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-CHE</span>
               <span class="tag tag-en">EN✔️</span>
+              <span class="tag tag-rec">⭐ 推薦</span>
             </div>
           </div>
         </div>
@@ -858,22 +632,21 @@ pre {
           <span class="en">Export chat history to HTML with up to 7 days of message recovery (caching must be enabled manually). Includes full logs, timestamps, and character info — compatible with Neocities for sharing.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CHE.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CHE.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20CHE.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
       <!-- CDB -->
-      <div class="plugin-card" id="p-cdb">
+      <div class="plugin-card recommended-card" id="p-cdb">
         <div class="card-top">
           <span class="card-emoji">👗</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">自訂更衣室背景</span>
-              <span class="en">Custom Dressing Room Background</span>
-            </div>
+            <div class="card-name"><span class="zh">自訂更衣室背景</span><span class="en">Custom Dressing Room Background</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-CDB</span>
               <span class="tag tag-en">EN✔️</span>
+              <span class="tag tag-rec">⭐ 推薦</span>
             </div>
           </div>
         </div>
@@ -882,22 +655,21 @@ pre {
           <span class="en">Replace the wardrobe background with grid focus assistance. Now includes a posture-change function.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CDB.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CDB.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20CDB.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
       <!-- MAT -->
-      <div class="plugin-card" id="p-mat">
+      <div class="plugin-card recommended-card" id="p-mat">
         <div class="card-top">
           <span class="card-emoji">🌐</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">自動翻譯</span>
-              <span class="en">Messages Auto Translator</span>
-            </div>
+            <div class="card-name"><span class="zh">自動翻譯</span><span class="en">Messages Auto Translator</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-MAT</span>
               <span class="tag tag-en">EN✔️</span>
+              <span class="tag tag-rec">⭐ 推薦</span>
             </div>
           </div>
         </div>
@@ -906,7 +678,87 @@ pre {
           <span class="en">Auto-translate BC chat messages using the Google Translate API.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-MAT.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-MAT.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20MAT.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
+        </div>
+      </div>
+
+      <!-- WPS -->
+      <div class="plugin-card recommended-card" id="p-wps">
+        <div class="card-top">
+          <span class="card-emoji">🆔</span>
+          <div class="card-meta">
+            <div class="card-name"><span class="zh">WCE 個人資料分享</span><span class="en">WCE Profile Share</span></div>
+            <div class="card-tags">
+              <span class="tag tag-id">Liko-WPS</span>
+              <span class="tag tag-en">EN✔️</span>
+              <span class="tag tag-rec">⭐ 推薦</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-desc">
+          <span class="zh">WCE 的個人資料分享，需開啟 WCE 的個人資料保存。</span>
+          <span class="en">Share your WCE profile with others. Requires WCE profile saving to be enabled first.</span>
+        </div>
+        <div class="card-bottom">
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-WPS.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20WPS.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
+        </div>
+      </div>
+
+      <!-- ACV -->
+      <div class="plugin-card recommended-card" id="p-acv">
+        <div class="card-top">
+          <span class="card-emoji">🎬</span>
+          <div class="card-meta">
+            <div class="card-name"><span class="zh">自動創建影片</span><span class="en">Automatically Create Video</span></div>
+            <div class="card-tags">
+              <span class="tag tag-id">Liko-ACV</span>
+              <span class="tag tag-rec">⭐ 推薦</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-desc">
+          <span class="zh">自動創建影片。</span>
+          <span class="en">Automatically create a video recording.</span>
+        </div>
+        <div class="card-bottom">
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-ACV.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20ACV.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
+        </div>
+      </div>
+
+      <!-- ── OTHER category header ── -->
+      <div class="grid-category">
+        <div class="grid-cat-line"></div>
+        <div class="grid-cat-title others">🔧 <span class="zh">其他插件</span><span class="en">Other Plugins</span></div>
+        <div class="grid-cat-line"></div>
+      </div>
+
+      <!-- Tool -->
+      <div class="plugin-card" id="p-tool">
+        <div class="card-top">
+          <span class="card-emoji">🧰</span>
+          <div class="card-meta">
+            <div class="card-name"><span class="zh">Liko 的工具包</span><span class="en">Liko's Tool</span></div>
+            <div class="card-tags">
+              <span class="tag tag-id">Liko-Tool</span>
+              <span class="tag tag-en">EN✔️</span>
+              <span class="tag tag-cheat">🎲 作弊</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-desc">
+          <span class="zh">有許多小功能合集的工具包，但也有點不穩定。</span>
+          <span class="en">A collection of small utility functions — handy but somewhat unstable.</span>
+          <div class="note">
+            <span class="zh">使用說明：<code style="color:var(--lavender);">/LT</code> 或 <code style="color:var(--lavender);">/LT help</code></span>
+            <span class="en">Usage: <code style="color:var(--lavender);">/LT</code> or <code style="color:var(--lavender);">/LT help</code></span>
+          </div>
+        </div>
+        <div class="card-bottom">
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Tool.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20Tool.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
@@ -915,13 +767,11 @@ pre {
         <div class="card-top">
           <span class="card-emoji">🎮</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">玩具遙控器</span>
-              <span class="en">Toy Remote Control</span>
-            </div>
+            <div class="card-name"><span class="zh">玩具遙控器</span><span class="en">Toy Remote Control</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-TRC</span>
               <span class="tag tag-en">EN✔️</span>
+              <span class="tag tag-warn">⚠️ Prank</span>
             </div>
           </div>
         </div>
@@ -930,7 +780,8 @@ pre {
           <span class="en">Hack into toys on others in the room and take control. You need the other party's touch permission.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-TRC.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-TRC.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20TRC.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
@@ -939,10 +790,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">🎵</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">聊天室音樂控制器</span>
-              <span class="en">Music Controller</span>
-            </div>
+            <div class="card-name"><span class="zh">聊天室音樂控制器</span><span class="en">Music Controller</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-CMC</span>
             </div>
@@ -953,7 +801,8 @@ pre {
           <span class="en">Supports lyrics (song title required), playlists, FLAC, and other audio formats.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CMC.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CMC.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20CMC.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
@@ -962,10 +811,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">📧</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">邀請通知器</span>
-              <span class="en">Notification of Invites</span>
-            </div>
+            <div class="card-name"><span class="zh">邀請通知器</span><span class="en">Notification of Invites</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-NOI</span>
               <span class="tag tag-en">EN✔️</span>
@@ -974,14 +820,15 @@ pre {
         </div>
         <div class="card-desc">
           <span class="zh">發出好友、白單、黑單的通知信息！</span>
-          <span class="en">Sends a customizable notification message when sending friend, whitelist, or blacklist requests.</span>
+          <span class="en">Sends a customizable notification when sending friend, whitelist, or blacklist requests.</span>
           <div class="note">
             <span class="zh">使用說明：<code style="color:var(--lavender);">/NOI</code> 或 <code style="color:var(--lavender);">/NOI HELP</code></span>
             <span class="en">Usage: <code style="color:var(--lavender);">/NOI</code> or <code style="color:var(--lavender);">/NOI HELP</code></span>
           </div>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-NOI.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-NOI.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20NOI.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
@@ -990,10 +837,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">🪄</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">對朋友的惡作劇</span>
-              <span class="en">Friend Prank</span>
-            </div>
+            <div class="card-name"><span class="zh">對朋友的惡作劇</span><span class="en">Friend Prank</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-Prank</span>
               <span class="tag tag-en">EN✔️</span>
@@ -1010,61 +854,14 @@ pre {
           </div>
         </div>
         <div style="padding:0 0 4px;">
-          <div class="callout">
-            <span>⚠️</span>
+          <div class="callout"><span>⚠️</span>
             <span class="zh">這是個惡作劇插件，請謹慎使用！</span>
             <span class="en">This is a prank plugin — use responsibly!</span>
           </div>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Prank.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
-        </div>
-      </div>
-
-      <!-- WPS -->
-      <div class="plugin-card" id="p-wps">
-        <div class="card-top">
-          <span class="card-emoji">🆔</span>
-          <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">WCE 個人資料分享</span>
-              <span class="en">WCE Profile Share</span>
-            </div>
-            <div class="card-tags">
-              <span class="tag tag-id">Liko-WPS</span>
-              <span class="tag tag-en">EN✔️</span>
-            </div>
-          </div>
-        </div>
-        <div class="card-desc">
-          <span class="zh">WCE 的個人資料分享，需開啟 WCE 的個人資料保存。</span>
-          <span class="en">Share your WCE profile with others. Requires WCE profile saving to be enabled first.</span>
-        </div>
-        <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-WPS.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
-        </div>
-      </div>
-
-      <!-- ACV -->
-      <div class="plugin-card" id="p-acv">
-        <div class="card-top">
-          <span class="card-emoji">🎬</span>
-          <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">自動創建影片</span>
-              <span class="en">Automatically Create Video</span>
-            </div>
-            <div class="card-tags">
-              <span class="tag tag-id">Liko-ACV</span>
-            </div>
-          </div>
-        </div>
-        <div class="card-desc">
-          <span class="zh">自動創建影片。</span>
-          <span class="en">Automatically create a video recording.</span>
-        </div>
-        <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-ACV.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Prank.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20Prank.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
@@ -1073,10 +870,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">⚧️</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">快速切換混合&女性區</span>
-              <span class="en">Region Switch</span>
-            </div>
+            <div class="card-name"><span class="zh">快速切換混合&女性區</span><span class="en">Region Switch</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-Region_switch</span>
             </div>
@@ -1087,7 +881,8 @@ pre {
           <span class="en">Quickly switch between the mixed and female regions.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Region_switch.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Region_switch.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20Region_switch.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
@@ -1096,10 +891,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">📋</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">聊天室信息過濾器</span>
-              <span class="en">Chat Filter Tool</span>
-            </div>
+            <div class="card-name"><span class="zh">聊天室信息過濾器</span><span class="en">Chat Filter Tool</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-CFT</span>
               <span class="tag tag-en">EN✔️</span>
@@ -1111,7 +903,8 @@ pre {
           <span class="en">Filter messages in the chatroom.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CFT.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CFT.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20CFT.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
@@ -1120,10 +913,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">💬</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">對話變按鈕</span>
-              <span class="en">Chat Text to Button</span>
-            </div>
+            <div class="card-name"><span class="zh">對話變按鈕</span><span class="en">Chat Text to Button</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-Chat_TtoB</span>
             </div>
@@ -1131,10 +921,11 @@ pre {
         </div>
         <div class="card-desc">
           <span class="zh">聊天室信息轉按鈕，現在還多了傳送門功能。使用 <code style="color:var(--lavender);">/指令</code>、<code style="color:var(--lavender);">!!說話</code>、<code style="color:var(--lavender);">#房名#</code> 都會變成可點擊按鈕，<code style="color:var(--lavender);">#房名#</code> 提供傳送功能。</span>
-          <span class="en">Converts chat messages into clickable buttons, with a room teleport feature. Messages starting with <code style="color:var(--lavender);">/</code>, <code style="color:var(--lavender);">!!</code>, or wrapped in <code style="color:var(--lavender);">#RoomName#</code> become buttons. <code style="color:var(--lavender);">#RoomName#</code> teleports you to that room.</span>
+          <span class="en">Converts chat messages into clickable buttons, with a room teleport feature. Messages starting with <code style="color:var(--lavender);">/</code>, <code style="color:var(--lavender);">!!</code>, or wrapped in <code style="color:var(--lavender);">#RoomName#</code> become buttons — the latter teleports you to that room.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Chat_TtoB.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Chat_TtoB.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20Chat_TtoB.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
@@ -1143,12 +934,10 @@ pre {
         <div class="card-top">
           <span class="card-emoji">🧹</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">解綁女僕</span>
-              <span class="en">Release Maid</span>
-            </div>
+            <div class="card-name"><span class="zh">解綁女僕</span><span class="en">Release Maid</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-Release_Maid</span>
+              <span class="tag tag-cheat">🎲 作弊</span>
             </div>
           </div>
         </div>
@@ -1157,7 +946,8 @@ pre {
           <span class="en">An auto-release maid, though a bit naive — may trigger unexpectedly. Consider whether this suits your playstyle before enabling.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Release_Maid.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Release_Maid.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20Release_Maid.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
@@ -1166,10 +956,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">🪪</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">自定義個人資料頁面背景</span>
-              <span class="en">Custom Profile Background</span>
-            </div>
+            <div class="card-name"><span class="zh">自定義個人資料頁面背景</span><span class="en">Custom Profile Background</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-CPB</span>
             </div>
@@ -1180,7 +967,8 @@ pre {
           <span class="en">Customize your profile page background and share it with others.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CPB.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CPB.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20CPB.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
@@ -1189,10 +977,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">🖌️</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">座標繪製工具</span>
-              <span class="en">Coordinate Drawing Tool</span>
-            </div>
+            <div class="card-name"><span class="zh">座標繪製工具</span><span class="en">Coordinate Drawing Tool</span></div>
             <div class="card-tags">
               <span class="tag tag-id">Liko-CDT</span>
             </div>
@@ -1203,7 +988,8 @@ pre {
           <span class="en">A BC interface UI positioning tool — useful for plugin developers.</span>
         </div>
         <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CDT.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CDT.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20CDT.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
 
@@ -1211,20 +997,16 @@ pre {
   </div>
 </section>
 
-<!-- ── Community Section ── -->
+<!-- ── Community ── -->
 <section id="community">
   <div class="wrap">
-    <p class="section-label">
-      <span class="zh">社群推薦插件</span>
-      <span class="en">Community Featured Plugins</span>
-    </p>
-    <h2 class="section-title">🌟 <span class="zh">社群精選</span><span class="en">Community Picks</span></h2>
+    <p class="section-label"><span class="zh">社群插件</span><span class="en">Community Plugins</span></p>
+    <h2 class="section-title">🌟 <span class="zh">社群插件</span><span class="en">Community Plugins</span></h2>
     <p class="section-desc">
       <span class="zh">以下插件已取得開發者同意，透過 PCM 整合收錄，感謝各位作者的貢獻！</span>
       <span class="en">All of the following have been included with the developer's permission. Thanks to all authors!</span>
     </p>
 
-    <!-- Quick nav community -->
     <div class="plugin-quicknav">
       <a class="qnav-pill" href="#p-echo-cloth"><span class="pill-emoji">🥐</span> ECHO Cloth</a>
       <a class="qnav-pill" href="#p-echo-act"><span class="pill-emoji">🥐</span> ECHO Activity</a>
@@ -1240,10 +1022,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">🥐</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">ECHO 的服裝拓展</span>
-              <span class="en">ECHO's Expansion on Cloth Options</span>
-            </div>
+            <div class="card-name"><span class="zh">ECHO 的服裝拓展</span><span class="en">ECHO's Expansion on Cloth Options</span></div>
             <div class="card-tags">
               <span class="tag tag-id">ECHO-Cloth</span>
               <span class="tag tag-en">EN✔️</span>
@@ -1265,10 +1044,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">🥐</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">ECHO 的動作拓展</span>
-              <span class="en">ECHO's Expansion on Activity Options</span>
-            </div>
+            <div class="card-name"><span class="zh">ECHO 的動作拓展</span><span class="en">ECHO's Expansion on Activity Options</span></div>
             <div class="card-tags">
               <span class="tag tag-id">ECHO-Activity</span>
               <span class="tag tag-en">EN✔️</span>
@@ -1290,10 +1066,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">🐇</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">Vivian 的隨身衣柜</span>
-              <span class="en">Vivian's Portable Wardrobe for BC</span>
-            </div>
+            <div class="card-name"><span class="zh">Vivian 的隨身衣柜</span><span class="en">Vivian's Portable Wardrobe for BC</span></div>
             <div class="card-tags">
               <span class="tag tag-en">EN✔️</span>
             </div>
@@ -1301,7 +1074,7 @@ pre {
         </div>
         <div class="card-desc">
           <span class="zh">本脚本為 BC 遊戲提供隨身衣柜，内置預覽鏡和高級服裝管理功能。</span>
-          <span class="en">A BC script that adds a portable wardrobe system with a preview mirror and advanced outfit management.</span>
+          <span class="en">A BC script with a portable wardrobe system, preview mirror, and advanced outfit management.</span>
           <div class="note">by <strong style="color:var(--lavender);">VivianMoonlight</strong></div>
         </div>
         <div class="card-bottom">
@@ -1318,6 +1091,7 @@ pre {
             <div class="card-tags">
               <span class="tag tag-id">ULTRAbc</span>
               <span class="tag tag-en">EN✔️</span>
+              <span class="tag tag-cheat">🎲 作弊</span>
             </div>
           </div>
         </div>
@@ -1336,10 +1110,7 @@ pre {
         <div class="card-top">
           <span class="card-emoji">🎲</span>
           <div class="card-meta">
-            <div class="card-name">
-              <span class="zh">Galia 的賭博俱樂部</span>
-              <span class="en">Galia's Gambling Club</span>
-            </div>
+            <div class="card-name"><span class="zh">Galia 的賭博俱樂部</span><span class="en">Galia's Gambling Club</span></div>
             <div class="card-tags">
               <span class="tag tag-id">GGC</span>
               <span class="tag tag-en">EN✔️</span>
@@ -1364,21 +1135,14 @@ pre {
 <footer id="footer">
   <div class="wrap">
     <div class="footer-cat">🐾</div>
-    <p class="footer-text">
-      <span class="zh">Made with 🐾 by <strong>Likolisu</strong> · MIT License</span>
-      <span class="en">Made with 🐾 by <strong>Likolisu</strong> · MIT License</span>
-    </p>
+    <p class="footer-text">Made with 🐾 by <strong>Likolisu</strong> · MIT License</p>
     <p class="footer-text" style="margin-top:6px;">
-      <a href="https://github.com/awdrrawd/liko-Plugin-Repository" target="_blank" style="color:var(--violet);text-decoration:none;">
-        <span class="zh">前往 GitHub Repository ↗</span>
-        <span class="en">View on GitHub ↗</span>
-      </a>
+      <a href="https://github.com/awdrrawd/liko-Plugin-Repository" target="_blank" style="color:var(--violet);text-decoration:none;">View on GitHub ↗</a>
     </p>
   </div>
 </footer>
 
 <script>
-/* ── Language toggle ── */
 let isEn = false;
 function toggleLang() {
   isEn = !isEn;
@@ -1387,57 +1151,48 @@ function toggleLang() {
   document.documentElement.lang = isEn ? 'en' : 'zh-TW';
 }
 
-/* ── Tab switching ── */
-function switchTab(id) {
+function toggleMenu() {
+  const m = document.getElementById('mobile-menu');
+  const btn = document.getElementById('hamburger');
+  const open = m.classList.toggle('open');
+  btn.textContent = open ? '✕' : '☰';
+}
+function closeMenu() {
+  document.getElementById('mobile-menu').classList.remove('open');
+  document.getElementById('hamburger').textContent = '☰';
+}
+
+function switchTab(id, btn) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
-  event.currentTarget.classList.add('active');
+  btn.classList.add('active');
 }
 
-/* ── Copy code ── */
 function copyCode(id, btn) {
-  const text = document.getElementById(id).innerText;
-  navigator.clipboard.writeText(text).then(() => {
+  navigator.clipboard.writeText(document.getElementById(id).innerText).then(() => {
     btn.classList.add('copied');
-    const origHTML = btn.innerHTML;
-    btn.innerHTML = '<span class="zh">已複製 ✓</span><span class="en">Copied ✓</span>';
-    // re-apply lang visibility
-    if (isEn) {
-      btn.querySelector('.zh').style.display = 'none';
-      btn.querySelector('.en').style.display = 'revert';
-    }
-    setTimeout(() => {
-      btn.innerHTML = origHTML;
-      btn.classList.remove('copied');
-      // re-apply lang visibility
-      if (isEn) {
-        btn.querySelector('.zh').style.display = 'none';
-        btn.querySelector('.en').style.display = 'revert';
-      }
-    }, 2000);
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓ OK';
+    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 2000);
   });
 }
 
-/* ── Stagger plugin cards on load ── */
 document.addEventListener('DOMContentLoaded', () => {
-  const cards = document.querySelectorAll('.plugin-card');
   const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry, i) => {
+    entries.forEach(entry => {
       if (entry.isIntersecting) {
         const el = entry.target;
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(18px)';
+        el.style.opacity = '0'; el.style.transform = 'translateY(18px)';
         setTimeout(() => {
           el.style.transition = 'opacity .4s ease, transform .4s ease';
-          el.style.opacity = '1';
-          el.style.transform = 'translateY(0)';
+          el.style.opacity = '1'; el.style.transform = 'translateY(0)';
         }, 60);
         observer.unobserve(el);
       }
     });
   }, { threshold: 0.08 });
-  cards.forEach(c => { c.style.opacity = '0'; observer.observe(c); });
+  document.querySelectorAll('.plugin-card').forEach(c => { c.style.opacity = '0'; observer.observe(c); });
 });
 </script>
 </body>
