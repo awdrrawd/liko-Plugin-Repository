@@ -2,7 +2,7 @@
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.8
+// @version      0.5.9
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,6 +13,7 @@
 // @downloadURL  https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // ==/UserScript==
+
 /*
  * lockEnabled 說明：
  *   SharedSettings 中每個戀人記錄的 lockEnabled 欄位是一個「持久化偏好旗標」，
@@ -28,23 +29,25 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.8";
+    const MOD_VERSION  = "0.5.9";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
-        PROPOSE:         "ELPropose",
-        PROPOSE_ACK:     "ELProposeAck",
-        ACCEPT:          "ELAccept",
-        ACCEPT_ACK:      "ELAcceptAck",      // A 確認收到 ACCEPT（防止 B 的 addLover 遺失）
-        PROPOSE_ENGAGE:  "ELProposeEngage",
-        ACCEPT_ENGAGE:   "ELAcceptEngage",
-        PROPOSE_MARRY:   "ELProposeMarry",
-        ACCEPT_MARRY:    "ELAcceptMarry",
-        SYNC_REQUEST:    "ELSyncRequest",
-        SYNC_GRANT:      "ELSyncGrant",
-        LOCK_ACCESS_OFF: "ELLockAccessOff",
-        BREAKUP:         "ELBreakup",
-        ROOM_NAME:       "ELRoomName",
+        PROPOSE:          "ELPropose",
+        PROPOSE_ACK:      "ELProposeAck",
+        ACCEPT:           "ELAccept",
+        ACCEPT_ACK:       "ELAcceptAck",
+        RESTORE_PROPOSE:  "ELRestorePropose",   // 資料恢復申請
+        RESTORE_ACCEPT:   "ELRestoreAccept",    // 資料恢復確認
+        PROPOSE_ENGAGE:   "ELProposeEngage",
+        ACCEPT_ENGAGE:    "ELAcceptEngage",
+        PROPOSE_MARRY:    "ELProposeMarry",
+        ACCEPT_MARRY:     "ELAcceptMarry",
+        SYNC_REQUEST:     "ELSyncRequest",
+        SYNC_GRANT:       "ELSyncGrant",
+        LOCK_ACCESS_OFF:  "ELLockAccessOff",
+        BREAKUP:          "ELBreakup",
+        ROOM_NAME:        "ELRoomName",
     };
 
     const STAGE = { DATING: "dating", ENGAGED: "engaged", MARRIED: "married" };
@@ -99,6 +102,11 @@
             proposeOK:      (n) => `${n} accepted your extended lover proposal!`,
             breakupSelf:    (n) => `You ended the extended lover relationship with ${n}.`,
             breakupOther:   (n) => `${n} ended the extended lover relationship with you.`,
+            restoreSent:    (n) => `Relationship restore request sent to ${n}...`,
+            restoreTitle:   (n, id) => `♥ ${n} (${id}) wants to restore your extended lover relationship!`,
+            restoreOK:      (n) => `Extended lover relationship with ${n} restored!`,
+            dRestore:       () => `(Request to restore extended lover relationship.)`,
+            dRestoreR:      () => `(Restore request sent, awaiting response.)`,
             stageSent:    (n,s) => `[${s}] proposal sent to ${n}, valid for 3 min...`,
             stageExpired: (n,s) => `[${s}] proposal to ${n} has expired.`,
             stageOK:      (n,s) => `${n} accepted your [${s}] proposal!`,
@@ -177,6 +185,11 @@
             proposeOK:      (n) => `${n} 接受了你的拓展戀人申請！`,
             breakupSelf:    (n) => `你解除了與 ${n} 的拓展戀人關係。`,
             breakupOther:   (n) => `${n} 解除了與你的拓展戀人關係。`,
+            restoreSent:    (n) => `已向 ${n} 發送關係恢復申請...`,
+            restoreTitle:   (n, id) => `♥ ${n} (${id}) 希望恢復與你的拓展戀人關係！`,
+            restoreOK:      (n) => `已與 ${n} 恢復拓展戀人關係！`,
+            dRestore:       () => `(申請恢復拓展戀人關係。)`,
+            dRestoreR:      () => `(恢復申請已發送，請等待對方回應。)`,
             stageSent:    (n,s) => `已向 ${n} 發送 [${s}] 申請，3 分鐘內有效...`,
             stageExpired: (n,s) => `向 ${n} 的 [${s}] 申請已過期。`,
             stageOK:      (n,s) => `${n} 接受了你的 [${s}] 申請！`,
@@ -739,6 +752,98 @@
         return daysSince(l.stageDate ?? l.startDate) >= STAGE_PROMOTE_DAYS;
     };
 
+    // 恢復條件：對方有我，但我沒有對方（單方面資料丟失）
+    window.ChatRoomELCanRestore = function () {
+        const C = CurrentCharacter;
+        if (!C?.MemberNumber || C.MemberNumber === Player.MemberNumber) return false;
+        if (isELLover(C.MemberNumber)) return false;  // 已有資料，不需恢復
+        if (isNativeLover(C.MemberNumber)) return false;
+        // 對方的 AFC lovers 裡有 Player
+        return C.OnlineSharedSettings?.AFC?.lovers
+            ?.some(l => l.memberNumber === Player.MemberNumber) ?? false;
+    };
+
+    window.ChatRoomELRestore = function () {
+        if (!CurrentCharacter) return;
+        proposeRestore(CurrentCharacter);
+    };
+
+    const pendingRestoreOut = {};  // 發起方
+    const pendingRestoreInc = {};  // 接收方 UI
+
+    function proposeRestore(C) {
+        const target = C.MemberNumber;
+        // 取得對方記錄中的我的資料（含 stage / startDate / stageDate）
+        const myEntry = C.OnlineSharedSettings?.AFC?.lovers
+            ?.find(l => l.memberNumber === Player.MemberNumber);
+        if (!myEntry) return;
+
+        sendBeep(target, BEEP.RESTORE_PROPOSE, {
+            SenderName:  Player.Name,
+            Stage:       myEntry.stage     ?? STAGE.DATING,
+            StartDate:   myEntry.startDate ?? Date.now(),
+            StageDate:   myEntry.stageDate ?? Date.now(),
+        });
+
+        if (pendingRestoreOut[target]) clearTimeout(pendingRestoreOut[target].timer);
+        pendingRestoreOut[target] = {
+            timer: setTimeout(() => { delete pendingRestoreOut[target]; }, PROPOSE_EXPIRE_MS),
+        };
+        chatLocalNotice(t('restoreSent', C.Name));
+    }
+
+    function handleIncomingRestore(senderNum, senderName, stage, startDate, stageDate) {
+        if (pendingRestoreInc[senderNum]) return;
+        const uiId = `el-restore-${senderNum}`;
+        const el = createProposalUI({
+            uiId,
+            title:     t('restoreTitle', senderName, senderNum),
+            subText:   t('timerText', 3, '00'),
+            onAccept:  () => acceptRestore(senderNum, senderName, stage, startDate, stageDate),
+            onDecline: () => cleanupRestoreUI(senderNum),
+        });
+        if (!el) return;
+
+        const iv = startCountdown(uiId, `${uiId}-sub`,
+            () => cleanupRestoreUI(senderNum), null);
+        pendingRestoreInc[senderNum] = { timer: iv, uiId };
+    }
+
+    function acceptRestore(senderNum, senderName, stage, startDate, stageDate) {
+        cleanupRestoreUI(senderNum);
+        const s = getSharedSettings();
+        if (!s) return;
+        // 用對方傳來的時間資料恢復，保持原有的日期連貫
+        if (!s.lovers.some(l => l.memberNumber === senderNum)) {
+            s.lovers.push({ memberNumber: senderNum, name: senderName,
+                stage, startDate, stageDate, lockEnabled: false });
+            saveSharedSettings();
+            _saveLoversBackup(s.lovers);
+            broadcastAFCData();
+        }
+        ELLockAccessOn.add(senderNum);
+        updateLastSeen(senderNum);
+        sendBeep(senderNum, BEEP.RESTORE_ACCEPT, { ReceiverName: Player.Name });
+        chatLocalNotice(t('restoreOK', senderName));
+    }
+
+    function cleanupRestoreUI(num) {
+        const p = pendingRestoreInc[num];
+        if (!p) return;
+        clearInterval(p.timer);
+        document.getElementById(p.uiId)?.remove();
+        delete pendingRestoreInc[num];
+    }
+
+    function handleRestoreAccepted(fromNum, receiverName) {
+        if (pendingRestoreOut[fromNum]) {
+            clearTimeout(pendingRestoreOut[fromNum].timer);
+            delete pendingRestoreOut[fromNum];
+        }
+        ELLockAccessOn.add(fromNum);
+        updateLastSeen(fromNum);
+        chatLocalNotice(t('restoreOK', receiverName));
+    }
     window.ChatRoomELPropose       = function () { if (CurrentCharacter) proposeToCharacter(CurrentCharacter); };
     window.ChatRoomELBreakup       = function () { if (CurrentCharacter) initiateBreakup(CurrentCharacter.MemberNumber, CurrentCharacter.Name); };
     window.ChatRoomELProposeEngage = function () { if (CurrentCharacter) proposeStageUpgrade(CurrentCharacter, STAGE.ENGAGED); };
@@ -777,6 +882,8 @@
         const toInsert = [];
         if (window.ChatRoomELCanPropose?.())
             toInsert.push(makeDialog(t('dPropose'), t('dProposeR'), "ChatRoomELPropose()", "propose"));
+        if (window.ChatRoomELCanRestore?.())
+            toInsert.push(makeDialog(t('dRestore'), t('dRestoreR'), "ChatRoomELRestore()", "restore"));
         if (window.ChatRoomELCanProposeEngage?.())
             toInsert.push(makeDialog(t('dEngage'), t('dEngageR'), "ChatRoomELProposeEngage()", "engage"));
         if (window.ChatRoomELCanProposeMarry?.())
@@ -909,6 +1016,14 @@
     // ② 申請流程 — 接收方 UI
     function handleIncomingProposal(senderNum, senderName) {
         if (pendingIncoming[senderNum]) return;
+
+        // 若已是戀人（雙向確認）則不需要再提案
+        const senderChar = ChatRoomCharacter?.find(c => c.MemberNumber === senderNum);
+        const senderHasMe = senderChar?.OnlineSharedSettings?.AFC?.lovers
+            ?.some(l => l.memberNumber === Player.MemberNumber) ?? false;
+        if (isELLover(senderNum) || isNativeLover(senderNum)) return;  // 已是戀人
+        // （senderHasMe 只是資料丟失時的容錯，仍允許顯示申請 UI）
+
         sendBeep(senderNum, BEEP.PROPOSE_ACK);
 
         const uiId = `el-proposal-${senderNum}`;
@@ -989,7 +1104,13 @@
 
     function handleIncomingStageProposal(senderNum, senderName, newStage) {
         if (!newStage || !STAGE_LABEL[newStage]) return;
-        if (!isELLover(senderNum)) return;
+
+        // 雙向驗證：自己有對方 OR 對方有自己（容許單方面資料丟失）
+        const senderChar = ChatRoomCharacter?.find(c => c.MemberNumber === senderNum);
+        const senderHasMe = senderChar?.OnlineSharedSettings?.AFC?.lovers
+            ?.some(l => l.memberNumber === Player.MemberNumber) ?? false;
+        if (!isELLover(senderNum) && !senderHasMe) return;
+
         const key  = `${senderNum}_${newStage}`;
         const uiId = `el-stage-${senderNum}-${newStage}`;
         if (pendingStageInc[key]) return;
@@ -1133,8 +1254,12 @@
             case BEEP.ACCEPT:
                 handleAccepted(from, data.ReceiverName ?? fromName); break;
             case BEEP.ACCEPT_ACK:
-                // 對方確認收到，不需要額外處理
                 break;
+            case BEEP.RESTORE_PROPOSE:
+                handleIncomingRestore(from, data.SenderName ?? fromName,
+                    data.Stage, data.StartDate, data.StageDate); break;
+            case BEEP.RESTORE_ACCEPT:
+                handleRestoreAccepted(from, data.ReceiverName ?? fromName); break;
 
             case BEEP.PROPOSE_ENGAGE:
                 handleIncomingStageProposal(from, data.SenderName ?? fromName, STAGE.ENGAGED); break;
@@ -2135,5 +2260,7 @@
         isInitialized    = false;
         console.log("🐈‍⬛ [AFC] 🗑️ 已清理資源");
     }
+
     initialize();
+
 })();
