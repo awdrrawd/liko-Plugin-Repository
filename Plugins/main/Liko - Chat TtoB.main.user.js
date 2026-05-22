@@ -179,7 +179,7 @@
         const cleanRoomName = roomName.trim();
         const el = document.createElement("span");
         el.className = "likoRoomInChat";
-        el。textContent = `🚪${roomName}🚪`;
+        el.textContent = `🚪${roomName}🚪`;
         el.style.color = "#65b5ff";
         el.style.cursor = "pointer";
 
@@ -515,7 +515,7 @@
             // 提供清理函數
             hookCleanup = () => {
                 // bcModSdk 通常不提供直接的 unhook 方法，但我們可以標記
-                console。log("🐈‍⬛ [CtoB] 🧹 清理 ChatRoomLoad Hook");
+                console.log("🐈‍⬛ [CtoB] 🧹 清理 ChatRoomLoad Hook");
             };
         }
     }
