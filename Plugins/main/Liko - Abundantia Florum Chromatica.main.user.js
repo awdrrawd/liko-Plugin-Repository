@@ -2,7 +2,7 @@
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.9
+// @version      0.5.10
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,7 +13,6 @@
 // @downloadURL  https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // ==/UserScript==
-
 /*
  * lockEnabled 說明：
  *   SharedSettings 中每個戀人記錄的 lockEnabled 欄位是一個「持久化偏好旗標」，
@@ -29,7 +28,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.9";
+    const MOD_VERSION  = "0.5.10";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -752,15 +751,18 @@
         return daysSince(l.stageDate ?? l.startDate) >= STAGE_PROMOTE_DAYS;
     };
 
-    // 恢復條件：對方有我，但我沒有對方（單方面資料丟失）
+    // 恢復條件：對方有我（寬鬆條件，點擊時才做完整驗證）
+    // 只要我還不是對方的拓展戀人就顯示（讓點擊時決定）
     window.ChatRoomELCanRestore = function () {
         const C = CurrentCharacter;
         if (!C?.MemberNumber || C.MemberNumber === Player.MemberNumber) return false;
-        if (isELLover(C.MemberNumber)) return false;  // 已有資料，不需恢復
         if (isNativeLover(C.MemberNumber)) return false;
-        // 對方的 AFC lovers 裡有 Player
-        return C.OnlineSharedSettings?.AFC?.lovers
-            ?.some(l => l.memberNumber === Player.MemberNumber) ?? false;
+        if (!targetHasEL(C)) return false;
+        const iHaveC = isELLover(C.MemberNumber);
+        const cHasMe = C.OnlineSharedSettings?.AFC?.lovers
+            ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
+        // 情況A：對方有我但我沒有對方 | 情況B：我有對方但對方沒有我
+        return (iHaveC && !cHasMe) || (!iHaveC && cHasMe);
     };
 
     window.ChatRoomELRestore = function () {
@@ -768,23 +770,35 @@
         proposeRestore(CurrentCharacter);
     };
 
-    const pendingRestoreOut = {};  // 發起方
-    const pendingRestoreInc = {};  // 接收方 UI
+    const pendingRestoreOut = {};
+    const pendingRestoreInc = {};
 
     function proposeRestore(C) {
         const target = C.MemberNumber;
-        // 取得對方記錄中的我的資料（含 stage / startDate / stageDate）
-        const myEntry = C.OnlineSharedSettings?.AFC?.lovers
-            ?.find(l => l.memberNumber === Player.MemberNumber);
-        if (!myEntry) return;
+        const iHaveC = isELLover(target);
+        const cHasMe = C.OnlineSharedSettings?.AFC?.lovers
+            ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
+
+        let stage, startDate, stageDate;
+        if (iHaveC && !cHasMe) {
+            // 情況B：我有對方的記錄，傳給對方
+            const myEntry = getLoverEntry(target);
+            if (!myEntry) return;
+            stage = myEntry.stage; startDate = myEntry.startDate; stageDate = myEntry.stageDate;
+        } else if (!iHaveC && cHasMe) {
+            // 情況A：對方有我的記錄，讀取後傳
+            const theirEntry = C.OnlineSharedSettings?.AFC?.lovers
+                ?.find(l => Number(l.memberNumber) === Number(Player.MemberNumber));
+            if (!theirEntry) return;
+            stage = theirEntry.stage; startDate = theirEntry.startDate; stageDate = theirEntry.stageDate;
+        } else { return; }
 
         sendBeep(target, BEEP.RESTORE_PROPOSE, {
-            SenderName:  Player.Name,
-            Stage:       myEntry.stage     ?? STAGE.DATING,
-            StartDate:   myEntry.startDate ?? Date.now(),
-            StageDate:   myEntry.stageDate ?? Date.now(),
+            SenderName: Player.Name,
+            Stage:      stage     ?? STAGE.DATING,
+            StartDate:  startDate ?? Date.now(),
+            StageDate:  stageDate ?? Date.now(),
         });
-
         if (pendingRestoreOut[target]) clearTimeout(pendingRestoreOut[target].timer);
         pendingRestoreOut[target] = {
             timer: setTimeout(() => { delete pendingRestoreOut[target]; }, PROPOSE_EXPIRE_MS),
@@ -813,20 +827,55 @@
         cleanupRestoreUI(senderNum);
         const s = getSharedSettings();
         if (!s) return;
-        // 用對方傳來的時間資料恢復，保持原有的日期連貫
-        if (!s.lovers.some(l => l.memberNumber === senderNum)) {
+
+        const alreadyHave = s.lovers.some(l => Number(l.memberNumber) === Number(senderNum));
+
+        if (!alreadyHave) {
+            // Case B：我（丟失方）收到保有方的申請，直接 addLover
             s.lovers.push({ memberNumber: senderNum, name: senderName,
                 stage, startDate, stageDate, lockEnabled: false });
             saveSharedSettings();
             _saveLoversBackup(s.lovers);
             broadcastAFCData();
         }
+        // 無論哪個 Case，都把資料帶回給對方
+        // Case A：我（保有方）已有對方，找出我記錄的對方資料，回傳讓對方 addLover
+        // Case B：我剛 addLover 完畢，回傳確認
+        const myEntryForSender = s.lovers.find(l => Number(l.memberNumber) === Number(senderNum));
         ELLockAccessOn.add(senderNum);
         updateLastSeen(senderNum);
-        sendBeep(senderNum, BEEP.RESTORE_ACCEPT, { ReceiverName: Player.Name });
+        sendBeep(senderNum, BEEP.RESTORE_ACCEPT, {
+            ReceiverName:      Player.Name,
+            Stage:             myEntryForSender?.stage     ?? stage,
+            StartDate:         myEntryForSender?.startDate ?? startDate,
+            StageDate:         myEntryForSender?.stageDate ?? stageDate,
+        });
         chatLocalNotice(t('restoreOK', senderName));
     }
 
+    function handleRestoreAccepted(fromNum, receiverName, stage, startDate, stageDate) {
+        if (pendingRestoreOut[fromNum]) {
+            clearTimeout(pendingRestoreOut[fromNum].timer);
+            delete pendingRestoreOut[fromNum];
+        }
+        // Case A：我是丟失方，對方回傳資料，現在 addLover
+        if (!isELLover(fromNum)) {
+            const s = getSharedSettings();
+            if (s && !s.lovers.some(l => Number(l.memberNumber) === Number(fromNum))) {
+                s.lovers.push({ memberNumber: fromNum, name: receiverName,
+                    stage: stage ?? STAGE.DATING,
+                    startDate: startDate ?? Date.now(),
+                    stageDate: stageDate ?? Date.now(),
+                    lockEnabled: false });
+                saveSharedSettings();
+                _saveLoversBackup(s.lovers);
+                broadcastAFCData();
+            }
+        }
+        ELLockAccessOn.add(fromNum);
+        updateLastSeen(fromNum);
+        chatLocalNotice(t('restoreOK', receiverName));
+    }
     function cleanupRestoreUI(num) {
         const p = pendingRestoreInc[num];
         if (!p) return;
@@ -835,15 +884,6 @@
         delete pendingRestoreInc[num];
     }
 
-    function handleRestoreAccepted(fromNum, receiverName) {
-        if (pendingRestoreOut[fromNum]) {
-            clearTimeout(pendingRestoreOut[fromNum].timer);
-            delete pendingRestoreOut[fromNum];
-        }
-        ELLockAccessOn.add(fromNum);
-        updateLastSeen(fromNum);
-        chatLocalNotice(t('restoreOK', receiverName));
-    }
     window.ChatRoomELPropose       = function () { if (CurrentCharacter) proposeToCharacter(CurrentCharacter); };
     window.ChatRoomELBreakup       = function () { if (CurrentCharacter) initiateBreakup(CurrentCharacter.MemberNumber, CurrentCharacter.Name); };
     window.ChatRoomELProposeEngage = function () { if (CurrentCharacter) proposeStageUpgrade(CurrentCharacter, STAGE.ENGAGED); };
@@ -1020,7 +1060,7 @@
         // 若已是戀人（雙向確認）則不需要再提案
         const senderChar = ChatRoomCharacter?.find(c => c.MemberNumber === senderNum);
         const senderHasMe = senderChar?.OnlineSharedSettings?.AFC?.lovers
-            ?.some(l => l.memberNumber === Player.MemberNumber) ?? false;
+            ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
         if (isELLover(senderNum) || isNativeLover(senderNum)) return;  // 已是戀人
         // （senderHasMe 只是資料丟失時的容錯，仍允許顯示申請 UI）
 
@@ -1108,7 +1148,7 @@
         // 雙向驗證：自己有對方 OR 對方有自己（容許單方面資料丟失）
         const senderChar = ChatRoomCharacter?.find(c => c.MemberNumber === senderNum);
         const senderHasMe = senderChar?.OnlineSharedSettings?.AFC?.lovers
-            ?.some(l => l.memberNumber === Player.MemberNumber) ?? false;
+            ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
         if (!isELLover(senderNum) && !senderHasMe) return;
 
         const key  = `${senderNum}_${newStage}`;
@@ -1259,7 +1299,8 @@
                 handleIncomingRestore(from, data.SenderName ?? fromName,
                     data.Stage, data.StartDate, data.StageDate); break;
             case BEEP.RESTORE_ACCEPT:
-                handleRestoreAccepted(from, data.ReceiverName ?? fromName); break;
+                handleRestoreAccepted(from, data.ReceiverName ?? fromName,
+                    data.Stage, data.StartDate, data.StageDate); break;
 
             case BEEP.PROPOSE_ENGAGE:
                 handleIncomingStageProposal(from, data.SenderName ?? fromName, STAGE.ENGAGED); break;
