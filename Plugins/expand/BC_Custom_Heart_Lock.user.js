@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.3
+// @version      2.3.1
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -93,6 +93,8 @@
             resistRestore  : '{0}身上的{1}抵禦了外部干擾，自動復原。',
             protectDisabled: '{0}的{1}防護暫時停用，請聯繫鎖主處理衝突。',
             timerExpired   : '{0}身上的{1}隨約定時刻到來，化作點點微光悄然消散。',
+            removeRestraints   : '時間到時移除拘束',
+            removeRestraintsSub: '(同時移除所有被鎖住的拘束物品)',
             lockedBy       : '被{0}鎖住了',          memberNum   : '成員編號：',
             lockedLabel    : '鎖定：',               vibeLabel   : '震動：',
             controlLabel   : '高潮控制：',            vibeOff     : '關閉',
@@ -134,6 +136,8 @@
             resistRestore  : '{0}\'s {1} resisted external interference and restored automatically.',
             protectDisabled: '{0}\'s {1} protection is temporarily disabled. Please contact the lock owner.',
             timerExpired   : 'The {1} on {0} dissolves into a gentle shimmer as the promised moment arrives.',
+            removeRestraints   : 'Remove restraints on expiry',
+            removeRestraintsSub: '(Also removes all locked restraint items)',
             lockedBy       : 'Locked by {0}',         memberNum   : 'Member #:',
             lockedLabel    : 'Locked:',               vibeLabel   : 'Vibe:',
             controlLabel   : 'Control:',              vibeOff     : 'Off',
@@ -1161,6 +1165,26 @@
                     state._timerUnlocking = true;
                     InventoryUnlock?.(Player, gn);
                     state._timerUnlocking = false;
+                    _cleanHeartLockProperty(Player, gn);
+
+                    // 移除拘束（若設定開啟）
+                    if (cfg.removeRestraints) {
+                        try {
+                            const restraints = Player.Appearance.filter(a =>
+                                a.Asset?.Category === 'Item' &&
+                                a.Property?.Effect?.includes('Lock') &&
+                                !a.Asset?.IsLock
+                            );
+                            for (const r of restraints) {
+                                const rGn = r.Asset?.Group?.Name;
+                                if (rGn) {
+                                    InventoryUnlock?.(Player, rGn);
+                                    InventoryRemove?.(Player, rGn, false);
+                                }
+                            }
+                        } catch {}
+                    }
+
                     ChatRoomCharacterUpdate?.(Player);
                     const nick = Player.Nickname || Player.Name;
                     ServerSend('ChatRoomChat', { Type: 'Action', Content: 'CUSTOM_SYSTEM_ACTION', Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: T('timerExpired', nick, HEARTLOCK_NAME) }] });
@@ -1265,6 +1289,9 @@
         }
     }
 
+    const TMR_CB_Y  = TMR_ACT_Y + TMR_ACT_H + 18;  // 勾選框 Y（Set/Clear 下方）
+    const TMR_CB_SZ = 40;
+
     function drawTimer(cfg, editable) {
         DrawText(T('timerTitle'), PX+PW/2, TMR_TITLE_Y, CC.acc, 'transparent');
         const remain = timerRemainStr(cfg), date = timerDateOnlyStr(cfg);
@@ -1282,6 +1309,13 @@
         TMR_PM.forEach((b, i) => bRect(TMR_PM_X0 + i * (TMR_PM_BTN_W + TMR_PM_GAP), TMR_ADJ_Y, TMR_PM_BTN_W, TMR_DISP_H, CC.btn, b.l, CC.sub));
         bRect(TMR_SET_X, TMR_ACT_Y, TMR_ACT_W, TMR_ACT_H, CC.btnA,   T('setTimer'));
         bRect(TMR_CLR_X, TMR_ACT_Y, TMR_ACT_W, TMR_ACT_H, CC.danger, T('clearTimer'));
+
+        // 移除拘束勾選框
+        const removeOn = cfg?.removeRestraints ?? false;
+        DrawCheckbox(CX + 14, TMR_CB_Y, TMR_CB_SZ, TMR_CB_SZ, '', removeOn);
+        const cbLabelColor = editable ? CC.text : CC.dim;
+        textLeft(T('removeRestraints'), CX + 14 + TMR_CB_SZ + 10, TMR_CB_Y + TMR_CB_SZ/2, cbLabelColor);
+        textLeft(T('removeRestraintsSub'), CX + 14 + TMR_CB_SZ + 10, TMR_CB_Y + TMR_CB_SZ + 4, CC.dim);
     }
 
     function clickTimer(character, gName, editable) {
@@ -1300,6 +1334,12 @@
             if (newTime > Date.now()) { pushConfig(character, gName, { unlockTime: new Date(newTime).toISOString() }); dpInit({ unlockTime: new Date(newTime).toISOString() }); sendSettingsChange(character, gName); state.panel.timerInput = 0; }
         }
         if (hit(TMR_CLR_X, TMR_ACT_Y, TMR_ACT_W, TMR_ACT_H)) { pushConfig(character, gName, { unlockTime: null }); dpInit(null); sendSettingsChange(character, gName); state.panel.timerInput = 0; }
+        // 移除拘束勾選框
+        if (hit(CX + 14, TMR_CB_Y, TMR_CB_SZ, TMR_CB_SZ)) {
+            const cur = getPadlockConfig(character, gName)?.removeRestraints ?? false;
+            pushConfig(character, gName, { removeRestraints: !cur });
+            sendSettingsChange(character, gName);
+        }
     }
 
     function drawControl(cfg, editable) {
@@ -1862,7 +1902,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.3 (EL Edition) initialized.');
+        log('HeartLock v2.1.1 (EL Edition) initialized.');
     }
 
     initialize().catch(e => console.error('[HeartLock] init error', e));
