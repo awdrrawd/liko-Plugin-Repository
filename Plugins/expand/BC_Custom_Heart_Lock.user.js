@@ -2,13 +2,14 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.3.1
+// @version      2.3.2
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @run-at       document-end
 // @grant        none
 // ==/UserScript==
+
 /*
  * v2.1.1 變更：整合 Abundantia Florum ─Chromatica─ (EL) 拓展戀人系統
  *   - 新增 isAllowedToLock(memberNum)：
@@ -1161,35 +1162,45 @@
             if (!cfg?.unlockTime || now < new Date(cfg.unlockTime).getTime()) continue;
             try {
                 const item = InventoryGet?.(Player, gn);
-                if (item?.Property?.Name === HEARTLOCK_NAME) {
-                    state._timerUnlocking = true;
-                    InventoryUnlock?.(Player, gn);
-                    state._timerUnlocking = false;
-                    _cleanHeartLockProperty(Player, gn);
+                const isHearLock = item?.Property?.Name === HEARTLOCK_NAME
+                    || (item?.Property?.LockedBy === HSLOCK_NAME && item?.Property?.HeartLockId);
+                if (item && isHearLock) {
+                    // 直接操作 Property，繞過 InventoryUnlock hook 的干擾
+                    if (item.Property) {
+                        if (typeof ValidationDeleteLock === 'function')
+                            ValidationDeleteLock(item.Property, false);
+                        delete item.Property.Name;
+                        delete item.Property.HeartLockId;
+                        // Property 空了就清掉
+                        const keys = Object.keys(item.Property);
+                        if (keys.length === 0 || (keys.length === 1 && keys[0] === 'Effect' && !item.Property.Effect?.length))
+                            item.Property = undefined;
+                    }
 
                     // 移除拘束（若設定開啟）
                     if (cfg.removeRestraints) {
                         try {
-                            const restraints = Player.Appearance.filter(a =>
+                            const restraints = (Player.Appearance ?? []).filter(a =>
                                 a.Asset?.Category === 'Item' &&
                                 a.Property?.Effect?.includes('Lock') &&
                                 !a.Asset?.IsLock
                             );
                             for (const r of restraints) {
                                 const rGn = r.Asset?.Group?.Name;
-                                if (rGn) {
-                                    InventoryUnlock?.(Player, rGn);
-                                    InventoryRemove?.(Player, rGn, false);
+                                if (rGn && typeof ValidationDeleteLock === 'function') {
+                                    ValidationDeleteLock(r.Property, false);
+                                    if (r.Property) r.Property = undefined;
                                 }
                             }
                         } catch {}
                     }
 
+                    CharacterRefresh?.(Player, false);
                     ChatRoomCharacterUpdate?.(Player);
                     const nick = Player.Nickname || Player.Name;
-                    ServerSend('ChatRoomChat', { Type: 'Action', Content: 'CUSTOM_SYSTEM_ACTION', Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: T('timerExpired', nick, HEARTLOCK_NAME) }] });
+                    try { ServerSend('ChatRoomChat', { Type: 'Action', Content: 'CUSTOM_SYSTEM_ACTION', Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: T('timerExpired', nick, HEARTLOCK_NAME) }] }); } catch {}
                 }
-            } catch { state._timerUnlocking = false; }
+            } catch (e) { log('checkTimers error: ' + e.message); }
             deleteConfig(gn);
         }
     }
@@ -1289,8 +1300,36 @@
         }
     }
 
-    const TMR_CB_Y  = TMR_ACT_Y + TMR_ACT_H + 18;  // 勾選框 Y（Set/Clear 下方）
-    const TMR_CB_SZ = 40;
+    const TMR_CB_Y  = TMR_ACT_Y + TMR_ACT_H + 20;
+    const TMR_CB_SZ = 50;
+
+    /** 自訂勾選框（BC 的 DrawCheckbox 在小尺寸下顯示不完整） */
+    function _drawCustomCheckbox(x, y, sz, checked, color = CC.acc) {
+        // 外框
+        MainCanvas.save();
+        MainCanvas.strokeStyle = color;
+        MainCanvas.lineWidth   = 2;
+        MainCanvas.fillStyle   = checked ? 'rgba(200,30,100,0.25)' : 'rgba(0,0,0,0.3)';
+        MainCanvas.beginPath();
+        if (MainCanvas.roundRect) MainCanvas.roundRect(x, y, sz, sz, 6);
+        else MainCanvas.rect(x, y, sz, sz);
+        MainCanvas.fill();
+        MainCanvas.stroke();
+        // 勾勾
+        if (checked) {
+            MainCanvas.strokeStyle = color;
+            MainCanvas.lineWidth   = 3;
+            MainCanvas.lineCap     = 'round';
+            MainCanvas.lineJoin    = 'round';
+            const p = sz * 0.18;
+            MainCanvas.beginPath();
+            MainCanvas.moveTo(x + p,        y + sz * 0.52);
+            MainCanvas.lineTo(x + sz * 0.42, y + sz - p);
+            MainCanvas.lineTo(x + sz - p,   y + p);
+            MainCanvas.stroke();
+        }
+        MainCanvas.restore();
+    }
 
     function drawTimer(cfg, editable) {
         DrawText(T('timerTitle'), PX+PW/2, TMR_TITLE_Y, CC.acc, 'transparent');
@@ -1310,12 +1349,11 @@
         bRect(TMR_SET_X, TMR_ACT_Y, TMR_ACT_W, TMR_ACT_H, CC.btnA,   T('setTimer'));
         bRect(TMR_CLR_X, TMR_ACT_Y, TMR_ACT_W, TMR_ACT_H, CC.danger, T('clearTimer'));
 
-        // 移除拘束勾選框
+        // 自訂勾選框：移除拘束
         const removeOn = cfg?.removeRestraints ?? false;
-        DrawCheckbox(CX + 14, TMR_CB_Y, TMR_CB_SZ, TMR_CB_SZ, '', removeOn);
-        const cbLabelColor = editable ? CC.text : CC.dim;
-        textLeft(T('removeRestraints'), CX + 14 + TMR_CB_SZ + 10, TMR_CB_Y + TMR_CB_SZ/2, cbLabelColor);
-        textLeft(T('removeRestraintsSub'), CX + 14 + TMR_CB_SZ + 10, TMR_CB_Y + TMR_CB_SZ + 4, CC.dim);
+        _drawCustomCheckbox(CX + 14, TMR_CB_Y, TMR_CB_SZ, removeOn);
+        textLeft(T('removeRestraints'),    CX + 14 + TMR_CB_SZ + 14, TMR_CB_Y + TMR_CB_SZ * 0.38, editable ? CC.text : CC.dim);
+        textLeft(T('removeRestraintsSub'), CX + 14 + TMR_CB_SZ + 14, TMR_CB_Y + TMR_CB_SZ * 0.78, CC.dim);
     }
 
     function clickTimer(character, gName, editable) {
@@ -1902,7 +1940,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.1.1 (EL Edition) initialized.');
+        log('HeartLock v2.3.2 (EL Edition) initialized.');
     }
 
     initialize().catch(e => console.error('[HeartLock] init error', e));
