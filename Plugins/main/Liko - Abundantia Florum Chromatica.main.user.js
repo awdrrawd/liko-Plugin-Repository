@@ -2,7 +2,7 @@
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.10
+// @version      0.5.11
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,6 +13,7 @@
 // @downloadURL  https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // ==/UserScript==
+
 /*
  * lockEnabled 說明：
  *   SharedSettings 中每個戀人記錄的 lockEnabled 欄位是一個「持久化偏好旗標」，
@@ -28,7 +29,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.10";
+    const MOD_VERSION  = "0.5.11";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -109,6 +110,7 @@
             stageSent:    (n,s) => `[${s}] proposal sent to ${n}, valid for 3 min...`,
             stageExpired: (n,s) => `[${s}] proposal to ${n} has expired.`,
             stageOK:      (n,s) => `${n} accepted your [${s}] proposal!`,
+            stageOKSelf:  (n,s) => `You accepted ${n}'s [${s}] proposal!`,
             // ── Stage labels ───────────────────────────────────────
             stageDating:    () => `dating`,
             stageEngaged:   () => `engaged`,
@@ -192,6 +194,7 @@
             stageSent:    (n,s) => `已向 ${n} 發送 [${s}] 申請，3 分鐘內有效...`,
             stageExpired: (n,s) => `向 ${n} 的 [${s}] 申請已過期。`,
             stageOK:      (n,s) => `${n} 接受了你的 [${s}] 申請！`,
+            stageOKSelf:  (n,s) => `你接受了 ${n} 的 [${s}] 申請！`,
             // ── Stage labels ───────────────────────────────────────
             stageDating:    () => `交往`,
             stageEngaged:   () => `訂婚`,
@@ -1129,17 +1132,18 @@
 
     function proposeStageUpgrade(C, newStage) {
         const key = `${C.MemberNumber}_${newStage}`;
-        if (pendingStageProp[key]) { chatLocalNotice(t('stageSent', C.Name, newStage)); return; }
+        const label = stageLabel(newStage);
+        if (pendingStageProp[key]) { chatLocalNotice(t('stageSent', C.Name, label)); return; }
 
         sendBeep(C.MemberNumber, STAGE_BEEP_PROPOSE[newStage], { SenderName: Player.Name });
 
         pendingStageProp[key] = {
             timer: setTimeout(() => {
                 delete pendingStageProp[key];
-                chatLocalNotice(t('stageExpired', C.Name, newStage));
+                chatLocalNotice(t('stageExpired', C.Name, label));
             }, PROPOSE_EXPIRE_MS),
         };
-        chatLocalNotice(t('stageSent', C.Name, newStage));
+        chatLocalNotice(t('stageSent', C.Name, label));
     }
 
     function handleIncomingStageProposal(senderNum, senderName, newStage) {
@@ -1151,13 +1155,14 @@
             ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
         if (!isELLover(senderNum) && !senderHasMe) return;
 
-        const key  = `${senderNum}_${newStage}`;
-        const uiId = `el-stage-${senderNum}-${newStage}`;
+        const key   = `${senderNum}_${newStage}`;
+        const uiId  = `el-stage-${senderNum}-${newStage}`;
+        const label = stageLabel(newStage);
         if (pendingStageInc[key]) return;
 
         const el = createProposalUI({
             uiId,
-            title:     t('stageTitle', senderName, senderNum, newStage),
+            title:     t('stageTitle', senderName, senderNum, label),
             subText:   t('timerText', 3, '00'),
             onAccept:  () => acceptStageProposal(senderNum, senderName, newStage, key, uiId),
             onDecline: () => cleanupStageUI(key, uiId),
@@ -1165,7 +1170,7 @@
         if (!el) return;
 
         const iv = startCountdown(uiId, `${uiId}-sub`, () => cleanupStageUI(key, uiId),
-            t('stageExpired', senderName, newStage));
+            t('stageExpired', senderName, label));
         pendingStageInc[key] = { timer: iv, uiId };
     }
 
@@ -1173,8 +1178,9 @@
         cleanupStageUI(key, uiId);
         promoteStage(senderNum, newStage);
         sendBeep(senderNum, STAGE_BEEP_ACCEPT[newStage], { ReceiverName: Player.Name });
-        chatLocalNotice(t('stageOK', senderName, newStage));
-        broadcastAction(senderNum, senderName, t('evEngTxt', newStage));
+        // B（接受方）看到：你接受了 A 的 [訂婚] 申請
+        chatLocalNotice(t('stageOKSelf', senderName, stageLabel(newStage)));
+        broadcastAction(senderNum, senderName, t('evEngTxt', stageLabel(newStage)));
     }
 
     function handleAcceptedStage(fromNum, receiverName, newStage) {
@@ -1184,7 +1190,8 @@
             delete pendingStageProp[key];
         }
         promoteStage(fromNum, newStage);
-        chatLocalNotice(t('stageOK', receiverName, newStage));
+        // A（發起方）看到：B 接受了你的 [訂婚] 申請
+        chatLocalNotice(t('stageOK', receiverName, stageLabel(newStage)));
     }
 
     function cleanupStageUI(key, uiId) {
