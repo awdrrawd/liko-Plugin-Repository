@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.0
+// @version      1.6.1
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -22,7 +22,7 @@
     // ============================================================
 
     let modApi;
-    const modversion = "1.6.0";
+    const modversion = "1.6.1";
 
     // === 生命週期管理 ===
     let isInitialized = false;
@@ -1949,9 +1949,13 @@
                 500, 355, "Black", "Gray"
             );
 
-            // 浮動按鈕顯示開關（帳戶設定，登入後生效）
-            DrawText(_isCN ? "顯示浮動按鈕（帳戶設定）" : "Show floating button (account setting)", 500, 480, "Black", "Gray");
-            DrawCheckbox(900, 455, 64, 64, "", accountFloatingBtnVisible);
+            // 浮動按鈕顯示開關：勾選框在左，說明文字在右
+            // 勾選 = 隱藏，所以顯示 !accountFloatingBtnVisible
+            DrawCheckbox(500, 455, 64, 64, "", !accountFloatingBtnVisible);
+            DrawText(
+                _isCN ? "隱藏浮動按鈕" : "Hide floating button",
+                580, 480, "Black", "Gray"
+            );
 
             MainCanvas.textAlign = "center";
             DrawText(
@@ -1963,7 +1967,7 @@
         window.PreferenceSubscreenPCMSettingsClick = function() {
             if (MouseIn(1815, 75, 90, 90)) { PreferenceSubscreenPCMSettingsExit(); return; }
             // 浮動按鈕開關，存入帳戶設定
-            if (MouseIn(900, 455, 64, 64)) {
+            if (MouseIn(500, 455, 64, 64)) {
                 accountFloatingBtnVisible = !accountFloatingBtnVisible;
                 const cfg = loadAccountConfig();
                 cfg.showFloatingBtn = accountFloatingBtnVisible;
@@ -2061,5 +2065,5 @@
         initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
     }
 
-    console.log("🐈‍⬛ [PCM] ✅ v1.6.0 腳本載入完成");
+    console.log("🐈‍⬛ [PCM] ✅ v1.6.1 腳本載入完成");
 })();
