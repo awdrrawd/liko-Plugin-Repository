@@ -2,7 +2,7 @@
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.11
+// @version      0.5.12
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -29,7 +29,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.11";
+    const MOD_VERSION  = "0.5.12";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -130,6 +130,7 @@
             btnClose:   () => `▲ Close`,
             dispTitle:  () => `──Display──`,
             mgmtTitle:  () => `──Lovers──`,
+            sysTitle:   () => `──System──`,
             enableEL:   () => `Extended Lover System`,
             enableELSub:() => `Extended Lovers`,
             elLock:     () => `Extended Lover Lock`,
@@ -503,31 +504,15 @@
     // 工具
     // ============================================================
 
-    function sendBeep(target, msgType, extra = {}, secret = true) {
-        // 同房間：用 ChatRoom Hidden（可靠，跨伺服器也有效）
-        if (ChatRoomCharacter?.some(c => c.MemberNumber === target)) {
-            try {
-                ServerSend("ChatRoomChat", {
-                    Type:    "Hidden",
-                    Content: "AFCBeepRelay",
-                    Target:  target,
-                    Dictionary: [{ Tag: "AFCBeepRelayData",
-                        Data: { MemberNumber: target, BeepType: EL_BEEP_TYPE, Message: msgType, ...extra }
-                    }],
-                });
-            } catch {}
-        } else {
-            // 跨房間：退回 AccountBeep（可能跨伺服器失敗，但無更好方案）
-            try {
-                ServerSend("AccountBeep", {
-                    MemberNumber: target,
-                    BeepType:     EL_BEEP_TYPE,
-                    Message:      msgType,
-                    IsSecret:     secret,
-                    ...extra,
-                });
-            } catch {}
-        }
+    function sendBeep(target, msgType, extra = {}) {
+        try {
+            ServerSend("ChatRoomChat", {
+                Type:    "Hidden",
+                Content: "AFCBeep",
+                Target:  target,
+                Dictionary: [{ Tag: "AFCBeep", MsgType: msgType, ...extra }],
+            });
+        } catch {}
     }
 
     function chatLocalNotice(text) { ChatRoomSendLocal(`[AFC] ${text}`); }
@@ -1050,7 +1035,8 @@
         pendingOutgoing[target] = {
             timer: setTimeout(() => {
                 delete pendingOutgoing[target];
-                chatLocalNotice(t('proposeExpired', C.Name));
+                // 若對方已接受（已成為戀人），不顯示逾時訊息
+                if (!isELLover(target)) chatLocalNotice(t('proposeExpired', C.Name));
             }, PROPOSE_EXPIRE_MS),
         };
         chatLocalNotice(t('proposeSent', C.Name));
@@ -1140,7 +1126,9 @@
         pendingStageProp[key] = {
             timer: setTimeout(() => {
                 delete pendingStageProp[key];
-                chatLocalNotice(t('stageExpired', C.Name, label));
+                // 若對方已接受（stage 已升格），不顯示逾時訊息
+                const current = getLoverEntry(C.MemberNumber);
+                if (current?.stage !== newStage) chatLocalNotice(t('stageExpired', C.Name, label));
             }, PROPOSE_EXPIRE_MS),
         };
         chatLocalNotice(t('stageSent', C.Name, label));
@@ -1893,6 +1881,20 @@
         await waitFor(() => !!window.Commands);
         CommandCombine([
             {
+                Tag: "el-debug-hidden",
+                Description: "診斷：下一條 Hidden 訊息的欄位結構",
+                Action: () => {
+                    const handler = (data) => {
+                        if (data?.Type !== 'Hidden') return;
+                        chatLocalNotice(`Hidden 欄位: ${Object.keys(data).join(', ')}`);
+                        chatLocalNotice(`Sender=${data.Sender}, SenderMemberNumber=${data.SenderMemberNumber}, Content=${data.Content}`);
+                        ServerSocket.off('ChatRoomMessage', handler);
+                    };
+                    ServerSocket.on('ChatRoomMessage', handler);
+                    chatLocalNotice('等待下一條 Hidden 訊息...');
+                }
+            },
+            {
                 Tag: "el-propose",
                 Description: "[MemberNumber] 向指定玩家提出拓展戀人申請",
                 Action: (text) => {
@@ -2015,15 +2017,7 @@
     // ============================================================
 
     function setupHooks() {
-        // ── Beep 接收 ──────────────────────────────────────────────
-        registerSocketListener("AccountBeep", (data) => {
-            if (data?.BeepType !== EL_BEEP_TYPE && data?.BeepType !== "Lovers") return;
-            const key = `${data.MemberNumber}_${data.Message}`;
-            if (_recentBeepKeys.has(key)) return;
-            _recentBeepKeys.add(key);
-            setTimeout(() => _recentBeepKeys.delete(key), 5000);
-            try { parseBeep(data); } catch (e) { console.error("🐈‍⬛ [AFC] ❌ parseBeep 失敗:", e.message); }
-        });
+        // ── Beep 接收（ChatRoom Hidden，所有操作都在同房間進行）───────
 
         // ── Dialog 注入 ────────────────────────────────────────────
         const injectNow = () => {
@@ -2127,21 +2121,21 @@
         });
 
         registerSocketListener("ChatRoomMessage", (data) => {
-            // 處理其他玩家廣播的 AFC 資料
             if (handleAFCSyncData(data)) return;
 
-            // 同房間備用 beep 通道（處理跨伺服器 AccountBeep 失敗的情況）
-            if (data?.Type === "Hidden" && data?.Content === "AFCBeepRelay") {
-                const relay = data.Dictionary?.find(d => d.Tag === "AFCBeepRelayData");
-                if (relay?.Data && relay.Data.MemberNumber === Player.MemberNumber
-                    && data.Sender !== Player.MemberNumber) {  // 不處理自己發給自己的
-                    const key = `${data.Sender}_${relay.Data.Message}`;
-                    if (!_recentBeepKeys.has(key)) {
-                        _recentBeepKeys.add(key);
-                        setTimeout(() => _recentBeepKeys.delete(key), 5000);
-                        try { parseBeep({ ...relay.Data, MemberNumber: data.Sender, MemberName: data.SenderName ?? `#${data.Sender}` }); }
-                        catch (e) { console.error("🐈‍⬛ [AFC] ❌ AFCBeepRelay 失敗:", e.message); }
-                    }
+            // 同房間 AFC Beep（Hidden 主要通道，跨伺服器可靠）
+            if (data?.Type === "Hidden" && data?.Content === "AFCBeep") {
+                const e = data.Dictionary?.find(d => d.Tag === "AFCBeep");
+                if (e && data.Target === Player.MemberNumber) {
+                    try {
+                        parseBeep({
+                            MemberNumber: data.Sender,
+                            MemberName:   data.SenderName ?? `#${data.Sender}`,
+                            BeepType:     EL_BEEP_TYPE,
+                            Message:      e.MsgType,
+                            ...e,
+                        });
+                    } catch (err) { console.error("🐈‍⬛ [AFC] ❌ Hidden beep 失敗:", err.message); }
                 }
                 return;
             }
