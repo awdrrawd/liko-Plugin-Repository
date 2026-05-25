@@ -2,7 +2,7 @@
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.12
+// @version      0.5.13
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -29,7 +29,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.12";
+    const MOD_VERSION  = "0.5.13";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -509,8 +509,7 @@
             ServerSend("ChatRoomChat", {
                 Type:    "Hidden",
                 Content: "AFCBeep",
-                Target:  target,
-                Dictionary: [{ Tag: "AFCBeep", MsgType: msgType, ...extra }],
+                Dictionary: [{ Tag: "AFCBeep", MsgType: msgType, TargetMember: target, ...extra }],
             });
         } catch {}
     }
@@ -2126,7 +2125,7 @@
             // 同房間 AFC Beep（Hidden 主要通道，跨伺服器可靠）
             if (data?.Type === "Hidden" && data?.Content === "AFCBeep") {
                 const e = data.Dictionary?.find(d => d.Tag === "AFCBeep");
-                if (e && data.Target === Player.MemberNumber) {
+                if (e && Number(e.TargetMember) === Number(Player.MemberNumber)) {
                     try {
                         parseBeep({
                             MemberNumber: data.Sender,
