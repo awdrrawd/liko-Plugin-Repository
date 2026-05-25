@@ -1,30 +1,14 @@
 {
-  "updateId": "260522",
+  "updateId": "260526",
   "changelog": [
-    "🎲GGC - Galia的賭博俱樂部 新增",
-    "增加了小遊戲、骰子和硬幣動畫、交易、趣味文字效果以及專為聊天室互動而設計的環形選單。",
-    "⭐PCM - 腳本管理器 v1.5.5 更新",
-    "修改顯示徽章的邏輯",
-    "優化部分功能",
-    "修復大多R128時遇到的錯誤",
-    "⭐CHE - 聊天室書記官 v2.4.3 更新",
-    "修復信息排序問題",
-    "修復使用MAT時，翻譯的結果與原信息的順序有錯誤問題",
-    "⭐圖片上傳器 v1.5 更新",
-    "新增zoom、click指令，可以放大圖片"
+    "⭐PCM - 腳本管理器 v1.6.0 更新",
+    "新增本地/帳戶的分頁，方便在不同裝置下也能保留插件啟用設置",
+    "新增拓展設定內添加關閉氣球的選項"
   ],
   "en_changelog": [
-    "🎲GGC - Galia's Gambling Club add",
-    "Addon that adds canvas games, dice and coin animations, trades, playful text effects, 和 a radial menu built for chat-room interactions.",
-    "⭐PCM - Script Manager v1.5.5 Update",
-    "Modified the logic for displaying badges",
-    "Optimized some functions",
-    "Fixed most bugs encountered with R128",
-    "⭐CHE - Chat Room Scribe v2.4.3 Update",
-    "Fixed message sorting issue",
-    "Fixed an issue where the translated result was out of order with the original message when using MAT",
-    "⭐Image Uploader v1.5 Update",
-    "Added zoom and click commands to enlarge images"
+    "⭐PCM - Plugin Collection Manager v1.6.0 Update",
+    "Added Local/Account tabs for easier retention of plugin settings across different devices",
+    "Added an option to disable Floating button within extended settings"
   ],
   "plugins": [
     {
