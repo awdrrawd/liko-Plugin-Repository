@@ -71,6 +71,10 @@
                 Player.PCM = { version: modversion };
                 // Player 就緒後立即載入帳戶插件設定
                 accountPluginSettings = loadAccountSettings();
+                // 套用帳戶層級的浮動按鈕顯示設定
+                const cfg = loadAccountConfig();
+                accountFloatingBtnVisible = cfg.showFloatingBtn !== false;
+                applyFloatingBtnVisibility();
                 console.log("🐈‍⬛ [PCM] ☁️ 帳戶插件設定已載入");
             } catch(e) {}
         };
@@ -477,6 +481,27 @@
             Player.ExtensionSettings.PCMAccount = JSON.stringify(compact);
             ServerPlayerExtensionSettingsSync("PCMAccount");
         } catch(e) { console.error("🐈‍⬛ [PCM] ❌ 帳戶設定保存失敗:", e); }
+    }
+
+    // 帳戶層級的 UI 設定（與插件啟停分開儲存）
+    let accountFloatingBtnVisible = true; // 登入前預設顯示
+
+    function loadAccountConfig() {
+        try {
+            if (typeof Player === 'undefined' || !Player?.ExtensionSettings) return {};
+            const raw = Player.ExtensionSettings.PCMConfig;
+            if (!raw) return {};
+            if (typeof raw === 'object') return raw;
+            return JSON.parse(raw) || {};
+        } catch(e) { return {}; }
+    }
+
+    function saveAccountConfig(config) {
+        try {
+            if (typeof Player === 'undefined' || !Player?.ExtensionSettings) return;
+            Player.ExtensionSettings.PCMConfig = JSON.stringify(config);
+            ServerPlayerExtensionSettingsSync("PCMConfig");
+        } catch(e) {}
     }
 
     // ============================================================
@@ -1375,10 +1400,10 @@
         return item;
     }
 
-    // 浮動按鈕可見性控制（供 preference 頁面呼叫）
+    // 浮動按鈕可見性控制（登入前永遠顯示，登入後依帳戶設定）
     function applyFloatingBtnVisibility() {
         const group = document.getElementById("bc-plugin-btn-group");
-        if (group) group.style.display = pluginSettings.showFloatingBtn !== false ? "" : "none";
+        if (group) group.style.display = accountFloatingBtnVisible ? "" : "none";
     }
 
     // 建立帳戶分頁內容（未登入顯示鎖定提示）
@@ -1924,10 +1949,9 @@
                 500, 355, "Black", "Gray"
             );
 
-            // 浮動按鈕顯示開關
-            const showBtn = pluginSettings.showFloatingBtn !== false;
-            DrawText(_isCN ? "顯示浮動按鈕" : "Show floating button", 500, 480, "Black", "Gray");
-            DrawCheckbox(900, 455, 64, 64, "", showBtn);
+            // 浮動按鈕顯示開關（帳戶設定，登入後生效）
+            DrawText(_isCN ? "顯示浮動按鈕（帳戶設定）" : "Show floating button (account setting)", 500, 480, "Black", "Gray");
+            DrawCheckbox(900, 455, 64, 64, "", accountFloatingBtnVisible);
 
             MainCanvas.textAlign = "center";
             DrawText(
@@ -1938,10 +1962,12 @@
 
         window.PreferenceSubscreenPCMSettingsClick = function() {
             if (MouseIn(1815, 75, 90, 90)) { PreferenceSubscreenPCMSettingsExit(); return; }
-            // 浮動按鈕開關
+            // 浮動按鈕開關，存入帳戶設定
             if (MouseIn(900, 455, 64, 64)) {
-                pluginSettings.showFloatingBtn = pluginSettings.showFloatingBtn === false;
-                saveSettings(pluginSettings);
+                accountFloatingBtnVisible = !accountFloatingBtnVisible;
+                const cfg = loadAccountConfig();
+                cfg.showFloatingBtn = accountFloatingBtnVisible;
+                saveAccountConfig(cfg);
                 applyFloatingBtnVisibility();
             }
         };
@@ -2028,7 +2054,7 @@
     }
 
     if (document.readyState === 'loading') {
-        document。addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', () => {
             initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
         }, { once: true });
     } else {
