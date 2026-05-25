@@ -1,12 +1,12 @@
 {
   "updateId": "260526",
   "changelog": [
-    "⭐PCM - 腳本管理器 v1.6.0 更新",
+    "⭐PCM - 腳本管理器 v1.6.1 更新",
     "新增本地/帳戶的分頁，方便在不同裝置下也能保留插件啟用設置",
     "新增拓展設定內添加關閉氣球的選項"
   ],
   "en_changelog": [
-    "⭐PCM - Plugin Collection Manager v1.6.0 Update",
+    "⭐PCM - Plugin Collection Manager v1.6.1 Update",
     "Added Local/Account tabs for easier retention of plugin settings across different devices",
     "Added an option to disable Floating button within extended settings"
   ],
