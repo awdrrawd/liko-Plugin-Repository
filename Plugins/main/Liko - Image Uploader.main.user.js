@@ -2,7 +2,7 @@
 // @name         Liko - Image Uploader
 // @name:zh      Liko的圖片上傳器
 // @namespace    https://likolisu.dev/
-// @version      1.6.0
+// @version      1.5.2
 // @description  Bondage Club - 上傳圖片到圖床並分享網址 + 懸停/點擊圖片放大預覽
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 
 (function () {
     let modApi = null;
-    const modversion = "1.6.0";
+    const modversion = "1.5.2";
     let imageHost       = "litterbox";
     let zoomEnabled     = false;   // 懸停放大（桌面）
     let clickZoomEnabled = false;  // 點擊放大（手機友善）
@@ -70,15 +70,15 @@
     // 驗證：圖片格式 / 大小
     // ──────────────────────────────────────────
     function isValidImageFormat(file) {
-        const validFormats = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
+        const validFormats = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp', 'image/avif'];
         if (file.type && validFormats.includes(file.type.toLowerCase())) return true;
         const ext = file.name.split('.').pop().toLowerCase();
-        return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext);
+        return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'avif'].includes(ext);
     }
 
     function isValidFileSize(file, host = imageHost) {
-        const limits = { uguu: 128, imgbb: 32, tmpfiles: 100, cloudflare: 10, litterbox: 100 };
-        return file。size <= (limits[host] ?? 100) * 1024 * 1024;
+        const limits = { uguu: 128, imgbb: 32, tmpfiles: 100, cloudflare: 50, litterbox: 100 };
+        return file.size <= (limits[host] ?? 100) * 1024 * 1024;
     }
 
     function getMaxSizeText(host = imageHost) {
@@ -121,7 +121,7 @@
             return false;
         }
         if (!isValidImageFormat(file)) {
-            ChatRoomSendLocalStyled("❌ 請使用正確的圖片格式 (JPG/PNG/GIF/BMP/WEBP)", 5000, "#ff4444");
+            ChatRoomSendLocalStyled("❌ 請使用正確的圖片格式 (JPG/PNG/GIF/BMP/WEBP/AVIF)", 5000, "#ff4444");
             return false;
         }
         if (!isValidFileSize(file, host)) {
@@ -139,7 +139,7 @@
         const form = new FormData();
         form.append("reqtype", "fileupload");
         form.append("time", "12h");
-        form。append("fileToUpload", file);
+        form.append("fileToUpload", file);
         try {
             ChatRoomSendLocalStyled("📤 正在上傳圖片到 Litterbox...", 2000, "#FFA500");
             const res = await fetch("https://litterbox.catbox.moe/resources/internals/api.php", { method: "POST", body: form });
@@ -233,7 +233,7 @@
             case "uguu":       return await uploadToUguu(file);
             case "imgbb":      return await uploadToImgBB(file);
             case "tmpfiles":   return await uploadToTmpFiles(file);
-            default:           return await uploadToLitterbox(file);
+            預設:           return await uploadToLitterbox(file);
         }
     }
 
@@ -292,33 +292,10 @@
     document.addEventListener("drop", (e) => {
         if (CurrentScreen !== "ChatRoom") return;
         if (!e.dataTransfer.files?.length) return;
-
-        // 先 preventDefault，避免瀏覽器開啟檔案
-        e.preventDefault();
-        e.stopPropagation();
-
-        const imageFiles = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
-        if (imageFiles.length === 0) {
-            ChatRoomSendLocalStyled("❌ 請拖曳圖片文件", 3000, "#ff4444");
-            return;
-        }
-
-        const inputElement = document.getElementById("InputChat");
-        if (!inputElement) return;
-
-        (async () => {
-            const urls = [];
-            for (const file of imageFiles) {
-                const url = await uploadImage(file);
-                if (url) urls.push(url);
-            }
-            if (urls.length > 0) {
-                // 放進輸入框，讓玩家確認後再手動發送，避免誤拖造成重複發送
-                inputElement.value = urls.join(" ");
-                inputElement.dispatchEvent(new Event("input", { bubbles: true }));
-                inputElement.focus();
-            }
-        })();
+        const file = e.dataTransfer.files[0];
+        if (!file?.type.startsWith("image/")) { ChatRoomSendLocalStyled("❌ 請拖曳圖片文件", 3000, "#ff4444"); return; }
+        e.preventDefault(); e.stopPropagation();
+        (async () => { const url = await uploadImage(file); if (url) sendToChat(url); })();
     });
 
     // ──────────────────────────────────────────
@@ -327,37 +304,26 @@
     document.addEventListener("paste", (e) => {
         if (CurrentScreen !== "ChatRoom") return;
         const inputElement = document.getElementById("InputChat");
-        if (!inputElement || !e.clipboardData) return;
-
-        // activeElement 只做寬鬆判斷：焦點在其他 input/textarea 時才跳過
-        // 不強制要求 activeElement === inputElement，避免聊天室點其他地方後貼上失效
-        const focused = document.activeElement;
-        if (focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA") && focused !== inputElement) return;
-
+        if (!inputElement || document.activeElement !== inputElement || !e.clipboardData) return;
         const items = Array.from(e.clipboardData.items || []);
-        const imageItems = items.filter(i => i.type.startsWith("image/"));
-        if (imageItems.length === 0) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        // 關鍵：必須在同步環境下呼叫 getAsFile()
-        // 進入 async 後遇到第一個 await，瀏覽器可能讓 ClipboardItem 失效
-        const imageFiles = imageItems.map(i => i.getAsFile()).filter(Boolean);
-        if (imageFiles.length === 0) return;
-
+        if (!items.some(i => i.type.startsWith("image/"))) return;
+        e.preventDefault(); e.stopPropagation();
         (async () => {
-            const urls = [];
-            for (const file of imageFiles) {
-                const url = await uploadImage(file);
-                if (url) urls.push(url);
+            const contents = [];
+            if (e.clipboardData.files?.length) {
+                for (const file of e.clipboardData.files) {
+                    if (file.type.startsWith("image/")) { const url = await uploadImage(file); if (url) contents.push(url); }
+                }
             }
-            if (urls.length > 0) {
-                inputElement.value = urls.join(" ");
-                // 觸發 input 事件，確保 BC 偵測到輸入框內容變化
-                inputElement.dispatchEvent(new Event("input", { bubbles: true }));
-                inputElement.focus();
+            for (const item of items) {
+                if (item.type.startsWith("image/")) {
+                    const file = item.getAsFile();
+                    if (file) { const url = await uploadImage(file); if (url) contents.push(url); }
+                } else if (item.kind === "string") {
+                    await new Promise(r => item.getAsString(t => { if (t.trim()) contents.push(t.trim()); r(); }));
+                }
             }
+            if (contents.length > 0) inputElement.value = contents.join(" ");
         })();
     });
 
@@ -482,12 +448,6 @@
     // ★ 核心：對 <img> 掛載事件 + 插入 🔍 按鈕
     // ══════════════════════════════════════════
 
-    function updateImgCursors() {
-        document.querySelectorAll("img[data-liko-zoom]").forEach(img => {
-            img.style.cursor = zoomEnabled ? "zoom-in" : "";
-        });
-    }
-
     function attachZoomToImg(imgEl) {
         if (imgEl.dataset.likoZoom) return;
         imgEl.dataset.likoZoom = "1";
@@ -575,7 +535,6 @@
                 }
             });
             chatObserver.observe(chatLog, { childList: true, subtree: true });
-            console.log("🐈‍⬛ [IMG] 🔍 Observer 已啟動");
         }
         tryAttach();
     }
@@ -597,17 +556,17 @@
                 `/img up - 上傳圖片 | UPload image\n` +
                 `/img web [litterbox|uguu|imgbb|tmpfiles|cloudflare]\n` +
                 `               └選擇圖床 | Set img host\n` +
-                `/img zoom  - 開關懸停放大 (桌面) | Toggle hover zoom\n` +
-                `/img click - 開關點擊放大🔍 (手機友善) | Toggle click zoom\n\n` +
+                `/img zoom  - 懸停放大功能 | Toggle hover zoom\n` +
+                `/img click - 點擊放大🔍功能 | Toggle click zoom\n\n` +
                 `支援 | Support:\n` +
                 `• 可以拖曳圖片上傳 | You can direct drag & drop\n` +
-                `• 格式(Format): JPG/PNG/GIF/BMP/WEBP\n` +
+                `• 格式(Format): JPG/PNG/GIF/BMP/WEBP/AVIF\n` +
                 `• 大小(Size): Litterbox(100MB) | Uguu(128MB) | ImgBB(32MB) | TmpFiles(100MB) | Cloudflare(10MB)\n` +
                 `• 時間(Time): Litterbox(12HR) | Uguu(3HR) | ImgBB(12HR) | TmpFiles(1HR) | Cloudflare(30Min)\n` +
                 `✦建議使用(suggestion) litterbox > tmpfiles > uguu > imgbb\n` +
                 `✦ImgBB使用私人API請珍惜使用，如果過期將不會再更新\n` +
                 `  └Use private API. If expired, will not be updated.`
-                ， 30000
+                , 30000
             );
             return true;
         }
@@ -635,11 +594,9 @@
             if (zoomEnabled) {
                 const chatLog = document.getElementById("TextAreaChatLog");
                 if (chatLog) processImgsInNode(chatLog);
-                updateImgCursors();
                 ChatRoomSendLocalStyled("🔍 懸停放大已開啟 | Hover zoom ON", 3000, "#50C878");
             } else {
                 hideHoverOverlay();
-                updateImgCursors();
                 ChatRoomSendLocalStyled("🚫 懸停放大已關閉 | Hover zoom OFF", 3000, "#FFA500");
             }
             return true;
