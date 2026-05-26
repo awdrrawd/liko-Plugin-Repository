@@ -1571,7 +1571,7 @@
         panel.className = "bc-plugin-panel";
 
         const header = document.createElement("div");
-        header.className = "bc-plugin-header";
+        header。className = "bc-plugin-header";
         header.innerHTML = `<h3 class="bc-plugin-title">${getMessage('welcomeTitle')}</h3>`;
 
         // 分頁列
@@ -1605,7 +1605,7 @@
 
         const footer = document.createElement("div");
         footer.className = "bc-plugin-footer";
-        footer.innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://github.com/awdrrawd/liko-Plugin-Repository/" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${modversion}</a> ❖ by Likolisu`;
+        footer.innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://awdrrawd.github.io/liko-Plugin-Repository/" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${modversion}</a> ❖ by Likolisu`;
 
         panel.appendChild(header);
         panel.appendChild(tabsBar);
