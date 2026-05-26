@@ -1571,7 +1571,7 @@
         panel.className = "bc-plugin-panel";
 
         const header = document.createElement("div");
-        header。className = "bc-plugin-header";
+        header.className = "bc-plugin-header";
         header.innerHTML = `<h3 class="bc-plugin-title">${getMessage('welcomeTitle')}</h3>`;
 
         // 分頁列
