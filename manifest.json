@@ -95,7 +95,7 @@
           "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CDB.main.user.js"
         }
       ]
-    },
+    }，
     {
       "id": "Liko_Prank",
       "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
@@ -323,7 +323,7 @@
           "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TRC.main.user.js"
         }
       ]
-    },
+    }，
     {
       "id": "Liko-ACF",
       "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
@@ -340,6 +340,25 @@
         {
           "distribution": "stable",
           "source": "ttps://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko-AEE",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的外觀編輯拓展 —— Liko's Appearance editing extension.",
+      "description": "更強大的編輯器，並且支援更多的服裝編輯 —— A more powerful editor, 和 support for more clothing editing.",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "ttps://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20AEE.main.user.js"
         }
       ]
     }
