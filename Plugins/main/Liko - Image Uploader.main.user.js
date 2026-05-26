@@ -62,7 +62,7 @@
                 Timeout: sec
             });
         } catch (e) {
-            console.error("🐈‍ [IMG] ❌ 發送本地訊息錯誤:", e.message);
+            console.error("🐈‍⬛ [IMG] ❌ 發送本地訊息錯誤:", e.message);
         }
     }
 
@@ -78,7 +78,7 @@
 
     function isValidFileSize(file, host = imageHost) {
         const limits = { uguu: 128, imgbb: 32, tmpfiles: 100, cloudflare: 10, litterbox: 100 };
-        return file.size <= (limits[host] ?? 100) * 1024 * 1024;
+        return file。size <= (limits[host] ?? 100) * 1024 * 1024;
     }
 
     function getMaxSizeText(host = imageHost) {
@@ -96,7 +96,7 @@
                 zoomEnabled      = saved.zoomEnabled      !== undefined ? saved.zoomEnabled      : false;
                 clickZoomEnabled = saved.clickZoomEnabled !== undefined ? saved.clickZoomEnabled : false;
             } catch {
-                console.warn("🐈‍ [IMG] ❗ ExtensionSettings 解析失敗，使用預設設定");
+                console.warn("🐈‍⬛ [IMG] ❗ ExtensionSettings 解析失敗，使用預設設定");
             }
         }
     }
@@ -139,7 +139,7 @@
         const form = new FormData();
         form.append("reqtype", "fileupload");
         form.append("time", "12h");
-        form.append("fileToUpload", file);
+        form。append("fileToUpload", file);
         try {
             ChatRoomSendLocalStyled("📤 正在上傳圖片到 Litterbox...", 2000, "#FFA500");
             const res = await fetch("https://litterbox.catbox.moe/resources/internals/api.php", { method: "POST", body: form });
@@ -575,7 +575,7 @@
                 }
             });
             chatObserver.observe(chatLog, { childList: true, subtree: true });
-            console.log("🐈‍ [IMG] 🔍 Observer 已啟動");
+            console.log("🐈‍⬛ [IMG] 🔍 Observer 已啟動");
         }
         tryAttach();
     }
@@ -607,7 +607,7 @@
                 `✦建議使用(suggestion) litterbox > tmpfiles > uguu > imgbb\n` +
                 `✦ImgBB使用私人API請珍惜使用，如果過期將不會再更新\n` +
                 `  └Use private API. If expired, will not be updated.`
-                , 30000
+                ， 30000
             );
             return true;
         }
@@ -686,7 +686,7 @@
                             window.LikoImageUploaderWelcomed = true;
                         }
                     } catch (e) {
-                        console.error("🐈‍ [IMG] ❌ ChatRoomLoad 延遲處理錯誤:", e);
+                        console.error("🐈‍⬛ [IMG] ❌ ChatRoomLoad 延遲處理錯誤:", e);
                     }
                 }, 1000);
                 return result;
@@ -698,9 +698,9 @@
     // 初始化
     // ──────────────────────────────────────────
     async function initialize() {
-        console.log("🐈‍ [IMG] ⌛ 插件啟動中...");
+        console.log("🐈‍⬛ [IMG] ⌛ 插件啟動中...");
         const ok = await waitForBcModSdk();
-        if (!ok) { console.error("🐈‍ [IMG] ❌ bcModSdk 載入失敗"); return; }
+        if (!ok) { console.error("🐈‍⬛ [IMG] ❌ bcModSdk 載入失敗"); return; }
         await loadToastSystem();
         try {
             modApi = bcModSdk.registerMod({
@@ -710,7 +710,7 @@
                 repository: '圖片拖曳上傳並分享 | Image to litterbox/uguu/imgbb/tmpfiles and share'
             });
         } catch (e) {
-            console.error("🐈‍ [IMG] ❌ 初始化 modApi 失敗:", e.message);
+            console.error("🐈‍⬛ [IMG] ❌ 初始化 modApi 失敗:", e.message);
         }
         loadSettings();
         CommandCombine([{
@@ -719,7 +719,7 @@
             Action: handleImgCommand
         }]);
         hookChatRoomLoad();
-        console.log("🐈‍ [IMG] ✅ 插件已載入完成");
+        console.log("🐈‍⬛ [IMG] ✅ 插件已載入完成");
     }
 
     initialize();
