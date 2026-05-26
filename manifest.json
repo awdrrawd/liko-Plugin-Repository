@@ -252,7 +252,7 @@
       "id": "Liko_WPS",
       "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
       "name": "WCE的個人資料分享",
-      "description": "WCE的個人資料分享\nWCE Profile Share.",
+      "description": "WCE的個人資料分享 —— WCE Profile Share.",
       "author": "莉柯莉絲(Likolisu)",
       "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
       "tags": [
@@ -268,10 +268,10 @@
       ]
     },
     {
-      "id": "Liko_CMC",
+      "id": "Liko_MAT",
       "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
-      "name": "Liko的聊天室音樂控制器 —— Liko's Music Controller.",
-      "description": "支援歌詞(需要有曲名)、歌曲列表、flac等格式\nSupports lyrics (must have song title), song list, flac and other formats.",
+      "name": "Liko的自動翻譯 —— Liko's Messages Auto Translator",
+      "description": "自動翻譯(使用Google api) —— Auto translate BC chat messages using Google API",
       "author": "莉柯莉絲(Likolisu)",
       "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
       "tags": [
@@ -282,7 +282,64 @@
       "versions": [
         {
           "distribution": "stable",
-          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CMC.main.user.js"
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MAT.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_CFT",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "聊天室信息過濾器 —— RChat Filter Tool",
+      "description": "聊天室信息過濾 —— Chat room message filtering",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CFT.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko_TRC",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的玩具遙控器 —— Liko's Toy remote control",
+      "description": "聊天室玩具控制 —— Chat room Toy remote control",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TRC.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko-ACF",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "繁戀如花 ─繽紛─ —— Abundantia Florum ─Chromatica─",
+      "description": "更多戀人，如百花盛放的愛情篇章，並搭載可延展的戀人鎖機制。 —— An abundance of lovers, like a love story blooming in countless flowers, featuring an extensible Lover’s Lock system.",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "ttps://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js"
         }
       ]
     }
