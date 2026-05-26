@@ -1,17 +1,15 @@
 // ==UserScript==
-// @name         BC Abundantia Florum ─Chromatica─
-// @name:zh      BC 繁戀如花 ─繽紛─
+// @name         Abundantia Florum ─Chromatica─
+// @name:zh      Abundantia Florum ─Chromatica─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.13
+// @version      0.5.14
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
-// @author       Likolisu
+// @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
 // @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
 // @run-at       document-end
-// @downloadURL  https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
-// @updateURL    https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js
 // ==/UserScript==
 
 /*
@@ -29,7 +27,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.13";
+    const MOD_VERSION  = "0.5.14";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -50,14 +48,10 @@
         ROOM_NAME:        "ELRoomName",
     };
 
-    const STAGE = { DATING: "dating", ENGAGED: "engaged", MARRIED: "married" };
+    const STAGE = { DATING: 0, ENGAGED: 1, MARRIED: 2 };
 
-    // 英文標籤與 BC 一致
-    const STAGE_LABEL = {
-        [STAGE.DATING]:  "dating",
-        [STAGE.ENGAGED]: "engaged",
-        [STAGE.MARRIED]: "married",
-    };
+    // 英文標籤（STAGE_LABEL 用於向後相容驗證）
+    const STAGE_LABEL = { 0: "dating", 1: "engaged", 2: "married" };
 
     const STAGE_COLOR = {
         [STAGE.DATING]:  "#FFB6C1",
@@ -174,6 +168,16 @@
             // ── Toast ─────────────────────────────────────────────
             toastLoaded:  () => `🐈‍⬛ Abundantia Florum ─Chromatica─ v${MOD_VERSION} loaded!`,
             toastFail:    () => `🐈‍⬛ [AFC] Load failed. Please refresh the page.`,
+            restoreTitle:     () => `Lover Data Restore`,
+            restoreOnline:    () => `Online Data`,
+            restoreBackup:    () => `Backup Data`,
+            restoreBtn:       () => `Restore`,
+            restoreAllBtn:    () => `Use All This Data`,
+            restoreEmpty:     () => `(No data)`,
+            restoreConfirm1:  (n) => `Restore ${n}'s data?`,
+            restoreConfirmBtn:() => `Confirm Restore`,
+            restoreConfirmAll:(s) => `Use all data from ${s}?`,
+            restoreOKMsg:     (n) => `Restored ${n} lover(s)`,
         },
         TW: {
             notFriend:      (n) => `請先添加 ${n} 為好友後重新提交申請。`,
@@ -255,6 +259,16 @@
             // ── Toast ─────────────────────────────────────────────
             toastLoaded:  () => `🐈‍⬛ Abundantia Florum ─Chromatica─ v${MOD_VERSION} 載入完成！`,
             toastFail:    () => `🐈‍⬛ [AFC] 載入失敗，請重新整理頁面。`,
+            restoreTitle:     () => `戀人資料復原`,
+            restoreOnline:    () => `線上資料`,
+            restoreBackup:    () => `備份資料`,
+            restoreBtn:       () => `復原`,
+            restoreAllBtn:    () => `全部使用此資料`,
+            restoreEmpty:     () => `（無資料）`,
+            restoreConfirm1:  (n) => `確認復原 ${n} 的資料？`,
+            restoreConfirmBtn:() => `確認復原`,
+            restoreConfirmAll:(s) => `確認使用 ${s} 的全部資料？`,
+            restoreOKMsg:     (n) => `已復原 ${n} 筆戀人資料`,
         },
     };
     // Simplified Chinese inherits Traditional Chinese
@@ -269,13 +283,13 @@
         return typeof fn === 'function' ? fn(...args) : fn;
     }
 
-    /** 取得戀人階段的本地化標籤 */
+    /** 取得戀人階段的本地化標籤（接受數字 0/1/2 或舊版字串） */
     function stageLabel(stage) {
-        const map = {
-            [STAGE.DATING]:  'stageDating',
-            [STAGE.ENGAGED]: 'stageEngaged',
-            [STAGE.MARRIED]: 'stageMarried',
-        };
+        // 舊版字串 → 數字
+        if (typeof stage === 'string') {
+            stage = stage === 'married' ? 2 : stage === 'engaged' ? 1 : 0;
+        }
+        const map = { 0: 'stageDating', 1: 'stageEngaged', 2: 'stageMarried' };
         return t(map[stage] ?? 'stageDating');
     }
 
@@ -348,88 +362,197 @@
         if (Player.OnlineSharedSettings.AFC.enableVibeSound === undefined)
             Player.OnlineSharedSettings.AFC.enableVibeSound = true;
 
-        // EBC 等環境可能重置 OnlineSharedSettings，從 ExtensionSettings 備份恢復戀人列表
-        const afc = Player.OnlineSharedSettings.AFC;
-        if (!afc.lovers?.length) {
-            const backup = _loadLoversBackup();
-            if (backup.length) {
-                console.log(`🐈‍⬛ [AFC] 🔄 從備份恢復 ${backup.length} 位戀人`);
-                afc.lovers = backup;
-                // 非同步重新同步到 server（不在此處直接呼叫以避免遞迴）
-                setTimeout(() => saveSharedSettings(), 500);
-            }
+        // 清除 OnlineSharedSettings 的舊版 EL 殘留
+        if (Player.OnlineSharedSettings.EL !== undefined) {
+            delete Player.OnlineSharedSettings.EL;
         }
 
-        return afc;
+        // 資料遷移：字串 stage → 數字，補 lastSeen 欄位
+        const lovers = Player.OnlineSharedSettings.AFC.lovers ?? [];
+        let migrated = false;
+        for (const l of lovers) {
+            if (typeof l.stage === 'string') {
+                l.stage = l.stage === 'married' ? 2 : l.stage === 'engaged' ? 1 : 0;
+                migrated = true;
+            }
+            if (l.lastSeen === undefined) { l.lastSeen = null; migrated = true; }
+        }
+        if (migrated) setTimeout(() => saveSharedSettings(), 500);
+
+        return Player.OnlineSharedSettings.AFC;
     }
 
-    // ── 戀人列表備份（存入 ExtensionSettings，EBC 不會清除）──────────
-    const LOVERS_BACKUP_KEY = "AFC_loversBackup";
+    // lastProposalSent：只需 runtime 保存，不需寫入 ExtensionSettings
+    // 頁面重整後冷卻自然重置，這是正確行為
+    const _lastProposalSent = {};
 
-    function _saveLoversBackup(lovers) {
+    // ── 舊版 AFC_loversBackup 遺留清除（一次性）──────────────────────
+    function _cleanLegacyBackup() {
         try {
-            if (!Player?.ExtensionSettings) return;
-            Player.ExtensionSettings[LOVERS_BACKUP_KEY] =
-                LZString.compressToBase64(JSON.stringify(lovers ?? []));
-            if (typeof ServerPlayerExtensionSettingsSync === 'function')
-                ServerPlayerExtensionSettingsSync(LOVERS_BACKUP_KEY);
+            if (Player?.ExtensionSettings?.AFC_loversBackup !== undefined) {
+                delete Player.ExtensionSettings.AFC_loversBackup;
+            }
         } catch {}
     }
 
-    function _loadLoversBackup() {
-        try {
-            const raw = Player?.ExtensionSettings?.[LOVERS_BACKUP_KEY];
-            if (!raw) return [];
-            return JSON.parse(LZString.decompressFromBase64(raw)) ?? [];
-        } catch { return []; }
+    /*
+     * AFC 私人設定緊湊格式（v2）
+     * cfg 陣列位置：
+     *   [0] displayMode     0=duration, 1=date
+     *   [1] showOnlineStatus
+     *   [2] enableEL
+     *   [3] enableELLock
+     *   [4] enableOwnerLock
+     *   [5] allowTimerExtension
+     *   [6] allowSelfUnlock
+     *
+     * lp  = lastProposalSent { [memberNumber]: timestamp }
+     * l   = lovers 備份（緊湊陣列，與 OnlineSharedSettings 同步）
+     *        每筆：[memberNumber, name, stage(0/1/2), startDate, stageDate, lastSeen]
+     */
+    function defaultPrivate() {
+        return { v: MOD_VERSION, cfg: [0, 1, 1, 0, 0, 1, 0], l: [] };
     }
 
-    function defaultPrivate() {
+    function _unpackPrivate(p) {
+        const c = p.cfg ?? [0, 1, 1, 0, 0, 1, 0];
         return {
-            version:          MOD_VERSION,
-            lockSettings:     { allowTimerExtension: true, allowSelfUnlock: false },
-            lastProposalSent: {},
-            displayMode:      "duration",  // "duration" | "date"
-            showOnlineStatus: true,
-            enableEL:         true,        // 是否啟用拓展戀人系統
-            enableELLock:     false,       // 是否啟用拓展戀人鎖（待開發）
-            enableOwnerLock:  false,       // 是否允許主人使用拓展戀人鎖
-            lastSeen:         {},          // { [memberNumber]: timestamp }
+            version:         p.v   ?? MOD_VERSION,
+            displayMode:     c[0]  ? 'date' : 'duration',
+            showOnlineStatus:!!c[1],
+            enableEL:        c[2]  !== 0 && c[2] !== false,
+            enableELLock:    !!c[3],
+            enableOwnerLock: !!c[4],
+            lockSettings:    { allowTimerExtension: c[5] !== 0 && c[5] !== false, allowSelfUnlock: !!c[6] },
+            lastSeen:        {},   // 已移至 lover.lastSeen
+            lastProposalSent:{},  // runtime only
         };
+    }
+
+    function _packPrivate(s, lovers) {
+        return {
+            v:   MOD_VERSION,
+            cfg: [
+                s.displayMode === 'date' ? 1 : 0,
+                s.showOnlineStatus ? 1 : 0,
+                s.enableEL        ? 1 : 0,
+                s.enableELLock    ? 1 : 0,
+                s.enableOwnerLock ? 1 : 0,
+                s.lockSettings?.allowTimerExtension ? 1 : 0,
+                s.lockSettings?.allowSelfUnlock     ? 1 : 0,
+            ],
+            // lp removed - runtime only
+            l:  (lovers ?? []).map(l => [
+                l.memberNumber, l.name,
+                typeof l.stage === 'string' ? (l.stage === 'married' ? 2 : l.stage === 'engaged' ? 1 : 0) : (l.stage ?? 0),
+                l.startDate ?? Date.now(), l.stageDate ?? l.startDate ?? Date.now(),
+                l.lastSeen ?? null,
+            ]),
+        };
+    }
+
+    /** 從私人設定備份讀取 lovers（展開緊湊格式） */
+    function _readBackupLovers() {
+        try {
+            const raw = Player?.ExtensionSettings?.AFC;
+            if (!raw) return [];
+            const p = JSON.parse(raw.startsWith('{') || raw.startsWith('[') ? raw : LZString.decompressFromBase64(raw));
+            return (p.l ?? []).map(e => Array.isArray(e) ? {
+                memberNumber: e[0], name: e[1], stage: e[2] ?? 0,
+                startDate: e[3], stageDate: e[4], lastSeen: e[5] ?? null, lockEnabled: false,
+            } : e);
+        } catch { return []; }
     }
 
     function getPrivateSettings() {
         if (!Player?.ExtensionSettings) return null;
         const raw = Player.ExtensionSettings.AFC;
         if (!raw) {
-            const defaults = defaultPrivate();
-            Player.ExtensionSettings.AFC = LZString.compressToBase64(JSON.stringify(defaults));
+            const def = defaultPrivate();
+            Player.ExtensionSettings.AFC = JSON.stringify(def);
             if (typeof ServerPlayerExtensionSettingsSync === 'function')
                 ServerPlayerExtensionSettingsSync("AFC");
-            return defaults;
+            return _unpackPrivate(def);
         }
         try {
-            const parsed = JSON.parse(LZString.decompressFromBase64(raw));
-            const def    = defaultPrivate();
-            // 合併新欄位（向前相容）
-            return {
-                ...def, ...parsed,
-                lockSettings:     { ...def.lockSettings,     ...(parsed.lockSettings     ?? {}) },
-                lastSeen:         parsed.lastSeen             ?? {},
-                lastProposalSent: parsed.lastProposalSent     ?? {},
-            };
+            const isLegacy = !raw.startsWith('{') && !raw.startsWith('[');
+            const parsed = isLegacy
+                ? JSON.parse(LZString.decompressFromBase64(raw))
+                : JSON.parse(raw);
+
+            // 舊版 JSON 格式（有 "version" 長 key）→ 自動升級
+            if (isLegacy || parsed.version !== undefined) {
+                const upgraded = {
+                    v:   MOD_VERSION,
+                    cfg: [
+                        parsed.displayMode === 'date' ? 1 : 0,
+                        (parsed.showOnlineStatus ?? true)  ? 1 : 0,
+                        (parsed.enableEL         ?? true)  ? 1 : 0,
+                        (parsed.enableELLock      ?? false) ? 1 : 0,
+                        (parsed.enableOwnerLock   ?? false) ? 1 : 0,
+                        (parsed.lockSettings?.allowTimerExtension ?? true)  ? 1 : 0,
+                        (parsed.lockSettings?.allowSelfUnlock     ?? false) ? 1 : 0,
+                    ],
+                    // lp removed
+                };
+                // 遷移：把舊版 ls 的時間戳移進 lover.lastSeen
+                const oldLs = parsed.lastSeen ?? {};
+                if (Object.keys(oldLs).length) {
+                    const s = getSharedSettings();
+                    if (s) {
+                        for (const l of s.lovers) {
+                            const ts = oldLs[l.memberNumber] ?? oldLs[String(l.memberNumber)];
+                            if (ts && !l.lastSeen) l.lastSeen = ts;
+                        }
+                        setTimeout(() => saveSharedSettings(), 600);
+                    }
+                }
+                Player.ExtensionSettings.AFC = JSON.stringify(upgraded);
+                if (typeof ServerPlayerExtensionSettingsSync === 'function')
+                    ServerPlayerExtensionSettingsSync("AFC");
+                console.log("🐈‍⬛ [AFC] ✅ 私人設定已升級（ls → lover.lastSeen）");
+                return _unpackPrivate(upgraded);
+            }
+
+            // 新版格式但仍有舊 ls → 清除並遷移
+            if (parsed.ls && Object.keys(parsed.ls).length) {
+                const s = getSharedSettings();
+                if (s) {
+                    for (const l of s.lovers) {
+                        const ts = parsed.ls[l.memberNumber] ?? parsed.ls[String(l.memberNumber)];
+                        if (ts && !l.lastSeen) l.lastSeen = ts;
+                    }
+                    setTimeout(() => saveSharedSettings(), 600);
+                }
+                delete parsed.ls;
+                Player.ExtensionSettings.AFC = JSON.stringify(parsed);
+                if (typeof ServerPlayerExtensionSettingsSync === 'function')
+                    ServerPlayerExtensionSettingsSync("AFC");
+                console.log("🐈‍⬛ [AFC] ✅ 已清除 ls 殘留並遷移至 lover.lastSeen");
+            }
+
+            return _unpackPrivate(parsed);
         } catch (e) {
             console.error("🐈‍⬛ [AFC] ❌ 解析私人設定失敗:", e.message);
-            return defaultPrivate();
+            return _unpackPrivate(defaultPrivate());
         }
     }
 
     function savePrivateSettings(settings) {
         try {
-            Player.ExtensionSettings.AFC = LZString.compressToBase64(JSON.stringify(settings));
+            const lovers = getSharedSettings()?.lovers ?? [];
+            Player.ExtensionSettings.AFC = JSON.stringify(_packPrivate(settings, lovers));
             if (typeof ServerPlayerExtensionSettingsSync === 'function')
                 ServerPlayerExtensionSettingsSync("AFC");
         } catch (e) { console.error("🐈‍⬛ [AFC] ❌ 儲存私人設定失敗:", e.message); }
+    }
+
+    /** 同步備份 lovers 到 ExtensionSettings（不改其他設定值） */
+    function _syncLoversBackup() {
+        try {
+            const priv = getPrivateSettings();
+            if (priv) savePrivateSettings(priv);
+        } catch {}
     }
 
     // 上一次已知的戀人數量（防止異常覆蓋）
@@ -601,7 +724,7 @@
             lockEnabled: false,
         });
         saveSharedSettings();
-        _saveLoversBackup(s.lovers);    // EBC 備份
+        _syncLoversBackup();
         broadcastAFCData();
         console.log("🐈‍⬛ [AFC] ✅ 新增戀人:", name, memberNumber);
     }
@@ -612,10 +735,9 @@
         s.lovers = s.lovers.filter(l => l.memberNumber !== memberNumber);
         ELLockAccessOn.delete(memberNumber);
         delete loversPrivateRoom[memberNumber];
-        // 合法刪除：更新基準值，讓守衛不誤判
         _lastKnownLoverCount = s.lovers.length;
         saveSharedSettings();
-        _saveLoversBackup(s.lovers);
+        _syncLoversBackup();
         broadcastAFCData();
     }
 
@@ -627,6 +749,7 @@
         lover.stage     = newStage;
         lover.stageDate = Date.now();
         saveSharedSettings();
+        _syncLoversBackup();
     }
 
     function getLoverEntry(memberNumber) {
@@ -679,11 +802,12 @@
     // ============================================================
 
     function updateLastSeen(memberNumber) {
-        const priv = getPrivateSettings();
-        if (!priv) return;
-        priv.lastSeen ??= {};
-        priv.lastSeen[memberNumber] = Date.now();
-        savePrivateSettings(priv);
+        const s = getSharedSettings();
+        const lover = s?.lovers.find(l => l.memberNumber === memberNumber);
+        if (lover) {
+            lover.lastSeen = Date.now();
+            saveSharedSettings();
+        }
     }
 
     // ============================================================
@@ -697,7 +821,7 @@
         if (!s) return;
         const threshold = priv.autoBreakupDays;
         for (const lover of [...s.lovers]) {
-            const lastSeen = priv.lastSeen?.[lover.memberNumber] ?? lover.startDate;
+            const lastSeen = lover.lastSeen ?? lover.startDate;
             if (daysSince(lastSeen) >= threshold) {
                 chatLocalNotice(`與 ${lover.name} 已超過 ${threshold} 天未見面，自動解除拓展戀人關係。`);
                 initiateBreakup(lover.memberNumber, lover.name);
@@ -822,7 +946,6 @@
             s.lovers.push({ memberNumber: senderNum, name: senderName,
                 stage, startDate, stageDate, lockEnabled: false });
             saveSharedSettings();
-            _saveLoversBackup(s.lovers);
             broadcastAFCData();
         }
         // 無論哪個 Case，都把資料帶回給對方
@@ -855,7 +978,6 @@
                     stageDate: stageDate ?? Date.now(),
                     lockEnabled: false });
                 saveSharedSettings();
-                _saveLoversBackup(s.lovers);
                 broadcastAFCData();
             }
         }
@@ -1016,7 +1138,7 @@
         if (isNativeLover(target)){ chatLocalNotice(t('alreadyBC', C.Name)); return; }
 
         const priv = getPrivateSettings();
-        const last = priv?.lastProposalSent?.[target] ?? 0;
+        const last = _lastProposalSent[target] ?? 0;
         if (Date.now() - last < PROPOSE_COOLDOWN_MS) {
             const sec = Math.ceil((PROPOSE_COOLDOWN_MS - (Date.now() - last)) / 1000);
             chatLocalNotice(t('cooldown', sec)); return;
@@ -1025,8 +1147,7 @@
         sendBeep(target, BEEP.PROPOSE, { SenderName: Player.Name });
 
         if (priv) {
-            priv.lastProposalSent ??= {};
-            priv.lastProposalSent[target] = Date.now();
+            _lastProposalSent[target] = Date.now();
             savePrivateSettings(priv);
         }
 
@@ -1391,12 +1512,17 @@
     }
 
     // 格式化時間行（stage 在此顯示，使用本地化標籤）
+    // startDate = 整段關係起始（不變）
+    // stageDate = 當前階段起始（升格時更新）
     function formatLoverDateLine(l, priv) {
         const tag = `[${stageLabel(l.stage)}]`;
+        const stageStart = l.stageDate ?? l.startDate;
         if (priv?.displayMode === "date") {
+            // 日期模式：顯示整段關係起始日
             return `${tag} ${formatStartDate(l.startDate)}`;
         }
-        return `${tag} ${daysSince(l.startDate)}天`;
+        // 時長模式：顯示當前階段天數
+        return `${tag} ${daysSince(stageStart)}天`;
     }
 
     function drawProfilePanel() {
@@ -1510,10 +1636,11 @@
         const CB_X = 270, CB_SZ = 60;
         const LBL_X = 350;
 
-        let _breakupModal  = null;   // { memberNumber, name } — 彈窗目標
+        let _breakupModal  = null;
         let _scrollOffset  = 0;
+        let _showRestoreUI = false;
 
-        function load() { _breakupModal = null; _scrollOffset = 0; }
+        function load() { _breakupModal = null; _scrollOffset = 0; _showRestoreUI = false; }
 
         // ── run()：每幀繪製 ────────────────────────────────────────
         function run() {
@@ -1523,6 +1650,8 @@
 
             // 返回按鈕（setting.txt: x=1815 y=75 w=90 h=90）
             DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", "返回");
+            // 復原按鈕（與 Exit 按鈕相同樣式，無底色）
+            DrawButton(1710, 75, 90, 90, "", "", "https://www.bondageprojects.elementfx.com/R128/BondageClub/Icons/Reset.png", t('restoreTitle'));
 
             // 標題（centerX=1000, y=90-150）
             DrawText("Abundantia Florum ─Chromatica─", 1000, 120, "Black", "Gray");
@@ -1605,7 +1734,7 @@
             const needScroll = total > R_MAX;
             // 有卷軸時整體下移10px留邊框
             const shiftY     = needScroll ? 10 : 0;
-            const lastSeen   = priv.lastSeen ?? {};
+            // lastSeen now in lover.lastSeen
 
                 if (total === 0) {
                 const p = MainCanvas.textAlign; MainCanvas.textAlign = "center";
@@ -1627,7 +1756,7 @@
                 for (let i = _scrollOffset; i < visEnd; i++) {
                     const l    = lovers[i];
                     const rowY = R_START_Y + shiftY + (i - _scrollOffset) * R_ROW_H;
-                    const ts   = lastSeen[l.memberNumber];
+                    const ts   = l.lastSeen;
                     const days = ts ? daysSince(ts) : 0;
                     const warn = ts && days >= 7;
                     const dayStr = ts ? `${days} days` : "never";
@@ -1656,6 +1785,7 @@
 
             // ── 解除確認彈窗 ──────────────────────────────────────
             if (_breakupModal) _drawBreakupModal(_breakupModal);
+            if (_showRestoreUI) _drawRestoreUI();
         }
 
         // ── 解除確認彈窗（畫布 Modal）────────────────────────────
@@ -1687,8 +1817,185 @@
             DrawButton(bx + bw - 380, by + bh - 80, 260, 55, t('cancelBtn'), "White", "");
         }
 
+        let _restoreScrollL = 0;
+        let _restoreScrollR = 0;
+        let _restoreConfirm = null;
+
+        const RUI = {
+            bx: 150, by: 70, bw: 1700, bh: 900,
+            rowH: 66, visRows: 8,
+            colLX: 170, colRX: 1050, colW: 780,
+            hdrY: 145, listY: 185,
+            allBtnY: 70 + 900 - 75,
+            allBtnW: 400, allBtnH: 52,
+            sbW: 48, sbH: 38,
+            rBtnW: 130, rBtnH: 42,
+            // ✕ 在框框內右上角
+            closeX: 150 + 1700 - 70, closeY: 70 + 10, closeS: 58,
+        };
+
+        function _drawRestoreUI() {
+            const onL = getSharedSettings()?.lovers ?? [];
+            const onR = _readBackupLovers();
+
+            MainCanvas.save();
+            MainCanvas.fillStyle = "rgba(0,0,0,0.82)";
+            MainCanvas.fillRect(0, 0, 2000, 1000);
+            MainCanvas.fillStyle = "rgba(16,4,28,0.98)";
+            MainCanvas.strokeStyle = "#E8618C";
+            MainCanvas.lineWidth = 3;
+            MainCanvas.beginPath();
+            if (MainCanvas.roundRect) MainCanvas.roundRect(RUI.bx, RUI.by, RUI.bw, RUI.bh, 14);
+            else MainCanvas.rect(RUI.bx, RUI.by, RUI.bw, RUI.bh);
+            MainCanvas.fill(); MainCanvas.stroke();
+            MainCanvas.restore();
+
+            DrawText(t('restoreTitle'), RUI.bx + RUI.bw/2, RUI.by + 48, "White", "transparent");
+            DrawButton(RUI.closeX, RUI.closeY, RUI.closeS, RUI.closeS, "✕", "White", "");
+
+            // 分隔線
+            MainCanvas.save();
+            MainCanvas.strokeStyle = "#333";
+            MainCanvas.lineWidth = 1;
+            MainCanvas.beginPath();
+            MainCanvas.moveTo(RUI.bx + RUI.bw/2, RUI.by + 90);
+            MainCanvas.lineTo(RUI.bx + RUI.bw/2, RUI.by + RUI.bh - 95);
+            MainCanvas.stroke();
+            MainCanvas.restore();
+
+            // 欄標題置中
+            DrawText(t('restoreOnline'), RUI.colLX + RUI.colW/2, RUI.hdrY, "#E8618C", "transparent");
+            DrawText(t('restoreBackup'), RUI.colRX + RUI.colW/2, RUI.hdrY, "#7CB9E8", "transparent");
+
+            _drawRestoreColumn(onL, RUI.colLX, _restoreScrollL, "#FFAAC0");
+            _drawRestoreColumn(onR, RUI.colRX, _restoreScrollR, "#90CAF9");
+
+            // 全部使用此資料按鈕（在框內底部）
+            const allLX = RUI.colLX + RUI.colW/2 - RUI.allBtnW/2;
+            const allRX = RUI.colRX + RUI.colW/2 - RUI.allBtnW/2;
+            DrawButton(allLX, RUI.allBtnY, RUI.allBtnW, RUI.allBtnH, t('restoreAllBtn'), "#1A3A6A", "");
+            DrawButton(allRX, RUI.allBtnY, RUI.allBtnW, RUI.allBtnH, t('restoreAllBtn'), "#1A3A6A", "");
+
+            if (_restoreConfirm) _drawRestoreConfirm();
+        }
+
+        function _drawRestoreColumn(lovers, colX, scroll, nameColor) {
+            if (!lovers.length) {
+                _lbl(t('restoreEmpty'), colX, RUI.listY + 28, RUI.colW, "#666");
+                return;
+            }
+            const total = lovers.length;
+            const needScroll = total > RUI.visRows;
+            if (needScroll) {
+                DrawButton(colX + RUI.colW - RUI.sbW - 2, RUI.listY - RUI.sbH - 2, RUI.sbW, RUI.sbH, "▲", scroll > 0 ? "White" : "#333", "");
+                DrawButton(colX + RUI.colW - RUI.sbW - 2, RUI.listY + RUI.visRows * RUI.rowH + 2, RUI.sbW, RUI.sbH, "▼", scroll + RUI.visRows < total ? "White" : "#333", "");
+            }
+            const end = Math.min(total, scroll + RUI.visRows);
+            for (let i = scroll; i < end; i++) {
+                const l = lovers[i];
+                const ry = RUI.listY + (i - scroll) * RUI.rowH;
+                const sLabel = stageLabel(l.stage);
+                const days = daysSince(l.stageDate ?? l.startDate);
+                // 名字 + 階段 + 天數 全在同一行，靠左
+                const rowText = `♥ ${l.name}  (#${l.memberNumber})  [${sLabel}]  ${days}${detectLang()==='EN'?'d':'天'}`;
+                _lbl(rowText, colX, ry + RUI.rowH/2, RUI.colW - RUI.rBtnW - 14, nameColor, 22);
+                DrawButton(colX + RUI.colW - RUI.rBtnW - 6, ry + (RUI.rowH - RUI.rBtnH)/2, RUI.rBtnW, RUI.rBtnH, t('restoreBtn'), "#8B1A2E", "");
+            }
+        }
+
+        function _drawRestoreConfirm() {
+            const cw = 700, ch = 200, cx = (2000-cw)/2, cy = (1000-ch)/2;
+            MainCanvas.save();
+            MainCanvas.fillStyle = "rgba(0,0,0,0.6)";
+            MainCanvas.fillRect(0, 0, 2000, 1000);
+            MainCanvas.fillStyle = "rgba(20,6,35,0.99)";
+            MainCanvas.strokeStyle = "#E8618C";
+            MainCanvas.lineWidth = 3;
+            MainCanvas.beginPath();
+            if (MainCanvas.roundRect) MainCanvas.roundRect(cx, cy, cw, ch, 12);
+            else MainCanvas.rect(cx, cy, cw, ch);
+            MainCanvas.fill(); MainCanvas.stroke();
+            MainCanvas.restore();
+            const msg = _restoreConfirm.idx === -1
+                ? t('restoreConfirmAll', t(_restoreConfirm.source==='online'?'restoreOnline':'restoreBackup'))
+                : t('restoreConfirm1', _restoreConfirm.name);
+            DrawTextFit(msg, 1000, cy + 74, cw - 40, "White", "transparent");
+            // 使用正確的 i18n key（確認復原，非確認解除）
+            DrawButton(cx + 50,      cy + ch - 64, 240, 50, t('restoreConfirmBtn'), "#9a1a1a", "");
+            DrawButton(cx + cw - 290, cy + ch - 64, 240, 50, t('cancelBtn'),        "White",   "");
+        }
+
+        function _clickRestoreUI() {
+            if (_restoreConfirm) {
+                const cw = 700, ch = 200, cx = (2000-cw)/2, cy = (1000-ch)/2;
+                if (MouseIn(cx + 50, cy + ch - 64, 240, 50)) { _doRestore(_restoreConfirm); _restoreConfirm = null; }
+                else if (MouseIn(cx + cw - 290, cy + ch - 64, 240, 50)) { _restoreConfirm = null; }
+                return;
+            }
+            if (MouseIn(RUI.closeX, RUI.closeY, RUI.closeS, RUI.closeS)) {
+                _showRestoreUI = false; _restoreScrollL = 0; _restoreScrollR = 0; return;
+            }
+            const onL = getSharedSettings()?.lovers ?? [];
+            const onR = _readBackupLovers();
+            const allLX = RUI.colLX + RUI.colW/2 - RUI.allBtnW/2;
+            const allRX = RUI.colRX + RUI.colW/2 - RUI.allBtnW/2;
+            if (MouseIn(allLX, RUI.allBtnY, RUI.allBtnW, RUI.allBtnH)) { _restoreConfirm = { source:'online', idx:-1, name:'' }; return; }
+            if (MouseIn(allRX, RUI.allBtnY, RUI.allBtnW, RUI.allBtnH)) { _restoreConfirm = { source:'backup', idx:-1, name:'' }; return; }
+            _clickRestoreColumn(onL, RUI.colLX, 'online', _restoreScrollL,
+                ()=>{ _restoreScrollL=Math.max(0,_restoreScrollL-1); },
+                ()=>{ if(_restoreScrollL+RUI.visRows<onL.length)_restoreScrollL++; });
+            _clickRestoreColumn(onR, RUI.colRX, 'backup', _restoreScrollR,
+                ()=>{ _restoreScrollR=Math.max(0,_restoreScrollR-1); },
+                ()=>{ if(_restoreScrollR+RUI.visRows<onR.length)_restoreScrollR++; });
+        }
+
+        function _clickRestoreColumn(lovers, colX, source, scroll, onUp, onDown) {
+            const total = lovers.length;
+            if (total > RUI.visRows) {
+                if (MouseIn(colX+RUI.colW-RUI.sbW-2, RUI.listY-RUI.sbH-2, RUI.sbW, RUI.sbH)) { onUp(); return; }
+                if (MouseIn(colX+RUI.colW-RUI.sbW-2, RUI.listY+RUI.visRows*RUI.rowH+2, RUI.sbW, RUI.sbH)) { onDown(); return; }
+            }
+            const end = Math.min(total, scroll + RUI.visRows);
+            for (let i = scroll; i < end; i++) {
+                const l = lovers[i];
+                const ry = RUI.listY + (i - scroll) * RUI.rowH;
+                if (MouseIn(colX+RUI.colW-RUI.rBtnW-6, ry+(RUI.rowH-RUI.rBtnH)/2, RUI.rBtnW, RUI.rBtnH)) {
+                    _restoreConfirm = { source, idx: i, name: l.name }; return;
+                }
+            }
+        }
+
+        function _doRestore({ source, idx }) {
+            const onL = getSharedSettings()?.lovers ?? [];
+            const onR = _readBackupLovers();
+            const srcLovers = source === 'online' ? onL : onR;
+            const s = getSharedSettings();
+            if (!s) return;
+
+            if (idx === -1) {
+                // 全部使用
+                s.lovers = [...srcLovers];
+                saveSharedSettings();
+                _syncLoversBackup();
+                chatLocalNotice(t('restoreOKMsg', srcLovers.length));
+            } else {
+                // 單筆復原
+                const entry = srcLovers[idx];
+                if (!entry) return;
+                const existing = s.lovers.findIndex(l => l.memberNumber === entry.memberNumber);
+                if (existing >= 0) s.lovers[existing] = { ...entry };
+                else s.lovers.push({ ...entry });
+                saveSharedSettings();
+                _syncLoversBackup();
+                chatLocalNotice(t('restoreOKMsg', 1));
+            }
+        }
+
         // ── click()：滑鼠點擊 ─────────────────────────────────────
         function click() {
+            // 復原 UI 優先處理
+            if (_showRestoreUI) { _clickRestoreUI(); return; }
+
             // 彈窗優先處理
             if (_breakupModal) {
                 const bw = 860, bh = 300;
@@ -1710,6 +2017,7 @@
                 if (typeof PreferenceExit === "function") PreferenceExit();
                 return;
             }
+            if (MouseIn(1710, 75, 90, 90)) { _showRestoreUI = true; return; }
 
             const priv   = getPrivateSettings();
             const lovers = getSharedSettings()?.lovers ?? [];
@@ -1791,7 +2099,7 @@
 
             // 解除按鈕 → 開啟彈窗（只有超過7天才響應）
             const visEnd = Math.min(total, _scrollOffset + R_MAX);
-            const lastSeenMap = priv.lastSeen ?? {};
+            // lastSeen now in lover.lastSeen
             for (let i = _scrollOffset; i < visEnd; i++) {
                 const l    = lovers[i];
                 const rowY = R_START_Y + shiftY + (i - _scrollOffset) * R_ROW_H;
@@ -1880,7 +2188,7 @@
         await waitFor(() => !!window.Commands);
         CommandCombine([
             {
-                Tag: "el-debug-hidden",
+                Tag: "afc-debug-hidden",
                 Description: "診斷：下一條 Hidden 訊息的欄位結構",
                 Action: () => {
                     const handler = (data) => {
@@ -1894,19 +2202,19 @@
                 }
             },
             {
-                Tag: "el-propose",
+                Tag: "afc-propose",
                 Description: "[MemberNumber] 向指定玩家提出拓展戀人申請",
                 Action: (text) => {
                     const num = parseInt(text.trim().split(/\s+/)[0]);
-                    if (isNaN(num)) { chatLocalNotice("用法：/el-propose [MemberNumber]"); return; }
+                    if (isNaN(num)) { chatLocalNotice("用法：/afc-propose [MemberNumber]"); return; }
                     const C = ChatRoomCharacter?.find(c => c.MemberNumber === num);
                     if (!C) { chatLocalNotice("找不到該玩家，確認對方在同一房間"); return; }
                     proposeToCharacter(C);
                 }
             },
             {
-                Tag: "el-status",
-                Description: "顯示目前 EL 插件狀態與戀人列表",
+                Tag: "afc-status",
+                Description: "顯示目前 AFC 插件狀態與戀人列表",
                 Action: () => {
                     const lovers = getSharedSettings()?.lovers ?? [];
                     chatLocalNotice(`已初始化=${isInitialized} | 戀人=${lovers.length} | 線上=${ELLockAccessOn.size}`);
@@ -1915,7 +2223,7 @@
                 }
             },
             {
-                Tag: "el-breakup",
+                Tag: "afc-breakup",
                 Description: "[MemberNumber] 解除指定拓展戀人關係",
                 Action: (text) => {
                     const num = parseInt(text.trim().split(/\s+/)[0]);
@@ -1925,7 +2233,7 @@
                 }
             },
             {
-                Tag: "el-lastseen",
+                Tag: "afc-lastseen",
                 Description: "顯示所有戀人的最後見面時間",
                 Action: () => {
                     const priv   = getPrivateSettings();
@@ -2244,12 +2552,19 @@
             try {
                 getSharedSettings();  // 初始化 AFC（含備份恢復）
                 const priv = getPrivateSettings();
+
+                // 清除舊版遺留的 EL key
+                if (Player.ExtensionSettings?.EL) {
+                    delete Player.ExtensionSettings.EL;
+                    console.log("🐈‍⬛ [AFC] 🗑️ 已清除舊版 EL 遺留資料");
+                }
+                // 清除舊版 AFC_loversBackup（不再需要）
+                _cleanLegacyBackup();
                 // 確保鎖的權限已同步到 OnlineSharedSettings
                 if (priv) syncLockPermsToShared(priv);
                 // 初始化後設定已知戀人數量基準，並強制存備份
                 const shared = Player.OnlineSharedSettings?.AFC;
                 _lastKnownLoverCount = shared?.lovers?.length ?? 0;
-                if (_lastKnownLoverCount > 0) _saveLoversBackup(shared.lovers);
                 setupHooks();
                 setupCommands();
 
