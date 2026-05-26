@@ -575,7 +575,6 @@
                 }
             });
             chatObserver.observe(chatLog, { childList: true, subtree: true });
-            console.log("🐈‍⬛ [IMG] 🔍 Observer 已啟動");
         }
         tryAttach();
     }
