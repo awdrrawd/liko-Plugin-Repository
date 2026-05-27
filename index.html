@@ -516,8 +516,9 @@ pre {
       <a class="qnav-pill" href="#p-che"><span class="pill-emoji">📖</span> CHE</a>
       <a class="qnav-pill" href="#p-cdb"><span class="pill-emoji">👗</span> CDB</a>
       <a class="qnav-pill" href="#p-mat"><span class="pill-emoji">🌐</span> MAT</a>
-      <a class="qnav-pill" href="#p-wps"><span class="pill-emoji">🆔</span> WPS</a>
       <a class="qnav-pill" href="#p-acv"><span class="pill-emoji">🎬</span> ACV</a>
+      <a class="qnav-pill" href="#p-fcm"><span class="pill-emoji">👥</span> FCM</a>
+      <a class="qnav-pill" href="#p-wps"><span class="pill-emoji">🆔</span> WPS</a>
       <span style="width:1px;background:var(--border);align-self:stretch;margin:0 4px;"></span>
       <a class="qnav-pill" href="#p-tool"><span class="pill-emoji">🧰</span> Tool</a>
       <a class="qnav-pill" href="#p-trc"><span class="pill-emoji">🎮</span> TRC</a>
@@ -601,8 +602,8 @@ pre {
           </div>
         </div>
         <div class="card-desc">
-          <span class="zh">拖曳上傳圖片並分享到聊天室。</span>
-          <span class="en">Drag and drop images to upload and share in the chatroom.</span>
+          <span class="zh">輕鬆分享圖片到聊天室，支援拖曳、複製等功能，詳細請輸入/img查閱</span>
+          <span class="en">Easy share images to chat rooms, supporting drag-and-drop, copy, and other functions. For details, please enter /img.</span>
           <div class="note">
             <span class="zh">上傳失敗時：<code style="color:var(--lavender);">/IMG</code> 或 <code style="color:var(--lavender);">/IMG HELP</code></span>
             <span class="en">If upload fails: <code style="color:var(--lavender);">/IMG</code> or <code style="color:var(--lavender);">/IMG HELP</code></span>
@@ -651,8 +652,8 @@ pre {
           </div>
         </div>
         <div class="card-desc">
-          <span class="zh">更衣室背景替換，並提供網格對焦。現在多了替換姿勢的功能。</span>
-          <span class="en">Replace the wardrobe background with grid focus assistance. Now includes a posture-change function.</span>
+          <span class="zh">更衣室背景替換，並提供網格對焦與替換姿勢的功能。</span>
+          <span class="en">Replace the wardrobe background with grid focus assistance, and includes a posture-change function.</span>
         </div>
         <div class="card-bottom">
           <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CDB.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
@@ -674,8 +675,8 @@ pre {
           </div>
         </div>
         <div class="card-desc">
-          <span class="zh">自動翻譯聊天室信息（使用 Google API）。</span>
-          <span class="en">Auto-translate BC chat messages using the Google Translate API.</span>
+          <span class="zh">自動翻譯聊天室信息（使用 Google API），需到拓展設定內設定。</span>
+          <span class="en">Auto-translate BC chat messages using the Google Translate API, need to go to the extended settings to configure it.</span>
         </div>
         <div class="card-bottom">
           <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-MAT.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
@@ -683,7 +684,52 @@ pre {
         </div>
       </div>
 
-      <!-- WPS -->
+      <!-- ACV -->
+      <div class="plugin-card recommended-card" id="p-acv">
+        <div class="card-top">
+          <span class="card-emoji">🎬</span>
+          <div class="card-meta">
+            <div class="card-name"><span class="zh">自動創建影片</span><span class="en">Automatically Create Video</span></div>
+            <div class="card-tags">
+              <span class="tag tag-id">Liko-ACV</span>
+              <span class="tag tag-rec">⭐ 推薦</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-desc">
+          <span class="zh">黏貼網址時，自動創建影片</span>
+          <span class="en">Automatically create a video when pasting a URL.</span>
+        </div>
+        <div class="card-bottom">
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-ACV.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20ACV.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
+        </div>
+      </div>
+
+      <!-- FCM -->
+      <div class="plugin-card recommended-card" id="p-fcm">
+        <div class="card-top">
+          <span class="card-emoji">👥</span>
+          <div class="card-meta">
+            <div class="card-name"><span class="zh">Liko的好友與房間管理</span><span class="en">Friends and ChatRoom Manager</span></div>
+            <div class="card-tags">
+              <span class="tag tag-id">Liko-FCM</span>
+              <span class="tag tag-en">EN✔️</span>
+              <span class="tag tag-rec">⭐ 推薦</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-desc">
+          <span class="zh">提供個人資料的保存、查詢，房間名單的管理</span>
+          <span class="en">Provides features for saving and searching personal profiles, and managing room lists.</span>
+        </div>
+        <div class="card-bottom">
+          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-FCM.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
+          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20FCM.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
+        </div>
+      </div>
+
+     <!-- WPS -->
       <div class="plugin-card recommended-card" id="p-wps">
         <div class="card-top">
           <span class="card-emoji">🆔</span>
@@ -705,29 +751,7 @@ pre {
           <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20WPS.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
         </div>
       </div>
-
-      <!-- ACV -->
-      <div class="plugin-card recommended-card" id="p-acv">
-        <div class="card-top">
-          <span class="card-emoji">🎬</span>
-          <div class="card-meta">
-            <div class="card-name"><span class="zh">自動創建影片</span><span class="en">Automatically Create Video</span></div>
-            <div class="card-tags">
-              <span class="tag tag-id">Liko-ACV</span>
-              <span class="tag tag-rec">⭐ 推薦</span>
-            </div>
-          </div>
-        </div>
-        <div class="card-desc">
-          <span class="zh">自動創建影片。</span>
-          <span class="en">Automatically create a video recording.</span>
-        </div>
-        <div class="card-bottom">
-          <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-ACV.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
-          <a class="btn-src" href="https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/main/Liko%20-%20ACV.main.user.js" target="_blank">📄 <span class="zh">原碼</span><span class="en">Source</span></a>
-        </div>
-      </div>
-
+      
       <!-- ── OTHER category header ── -->
       <div class="grid-category">
         <div class="grid-cat-line"></div>
@@ -797,8 +821,8 @@ pre {
           </div>
         </div>
         <div class="card-desc">
-          <span class="zh">支援歌詞（需要有曲名）、歌曲列表、FLAC 等格式。</span>
-          <span class="en">Supports lyrics (song title required), playlists, FLAC, and other audio formats.</span>
+          <span class="zh">支援歌詞（需要有曲名）、歌曲列表、FLAC 等格式，請注意該插件錯誤很多</span>
+          <span class="en">Supports lyrics (song title required), playlists, FLAC, and other audio formats. Please note that this plugin has many errors.</span>
         </div>
         <div class="card-bottom">
           <a class="btn-dl" href="https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-CMC.user.js" target="_blank">📥 <span class="zh">下載</span><span class="en">Download</span></a>
