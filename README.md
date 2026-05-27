@@ -216,6 +216,14 @@ Filter messages in the chatroom.
 
 ---
 
+#### 👥 Liko's Friends and ChatRoom Manager · 好友與房間管理
+> 🆔 `Liko-FCM` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-FCM.user.js)
+
+提供個人資料的保存、查詢，房間名單的管理
+Provides features for saving and searching personal profiles, and managing room lists.
+
+---
+
 #### 💬 Liko's Chat Text to Button · 對話變按鈕
 > 🆔 `Liko-Chat_TtoB` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Chat_TtoB.user.js)
 
