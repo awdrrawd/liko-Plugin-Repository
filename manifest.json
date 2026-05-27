@@ -95,7 +95,7 @@
           "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CDB.main.user.js"
         }
       ]
-    }，
+    },
     {
       "id": "Liko_Prank",
       "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
@@ -323,7 +323,7 @@
           "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TRC.main.user.js"
         }
       ]
-    }，
+    },
     {
       "id": "Liko-ACF",
       "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
@@ -359,6 +359,25 @@
         {
           "distribution": "stable",
           "source": "ttps://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20AEE.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko-FCM",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "name": "Liko的好友與房間管理 —— Friends and ChatRoom Manager.",
+      "description": "更好的好友管理與房間管理功能 —— AImproved friend and room management features.",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "ttps://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20FCM.main.user.js"
         }
       ]
     }
