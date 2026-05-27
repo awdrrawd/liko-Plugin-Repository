@@ -1,11 +1,17 @@
 {
-  "updateId": "260526",
+  "updateId": "260527",
   "changelog": [
+    "⭐FCM - 好友與房間管理 v1.0 新增",
+    "更好的管理好友與房間名單功能。",
+    "目前如果添加疑除管理員需要在編輯好後，手動到房間設定保存一次。",
     "⭐PCM - 腳本管理器 v1.6.1 更新",
     "新增本地/帳戶的分頁，方便在不同裝置下也能保留插件啟用設置",
     "新增拓展設定內添加關閉氣球的選項"
   ],
   "en_changelog": [
+    "⭐FCM - Friends and ChatRoom Manager v1.0 add",
+    "Improved friend and room list management features.",
+    "Currently, adding or removing an administrator requires manually saving the room settings after editing.",
     "⭐PCM - Plugin Collection Manager v1.6.1 Update",
     "Added Local/Account tabs for easier retention of plugin settings across different devices",
     "Added an option to disable Floating button within extended settings"
