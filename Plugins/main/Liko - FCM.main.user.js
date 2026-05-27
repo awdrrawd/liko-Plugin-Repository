@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.0
+// @version      1.0.1
 // @description  Friends and ChatRoom Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,7 +14,7 @@
 (function () {
     'use strict';
 
-    const MOD_VER = '1.0';
+    const MOD_VER = '1.0.1';
     const modApi = bcModSdk.registerMod({
         name: "Liko's FCM", fullName: 'Liko - Friends and ChatRoom Manager', version: MOD_VER,
     });
@@ -392,14 +392,30 @@
     function roomOp(mn, action) {
         if (!amAdmin()) return;
         mn = parseInt(mn);
+
+        const targetInRoom = inRoom(mn);
+
         switch (action) {
             case 'makeAdmin': {
-                if (ChatRoomData.Admin && !ChatRoomData.Admin.some(a => parseInt(a) === mn)) ChatRoomData.Admin.push(mn);
-                ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Promote' }); break;
+                if (!Array.isArray(ChatRoomData.Admin)) ChatRoomData.Admin = [];
+                if (!ChatRoomData.Admin.some(a => parseInt(a) === mn)) ChatRoomData.Admin.push(mn);
+                if (targetInRoom) {
+                    ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Promote' });
+                } else {
+                    ServerSend('ChatRoomAdmin', { MemberNumber: Player.ID, Room: ChatRoomGetSettings(ChatRoomData), Action: 'Update' });
+                }
+                break;
             }
             case 'rmAdmin': {
-                if (ChatRoomData.Admin) { const i = ChatRoomData.Admin.findIndex(a => parseInt(a) === mn); if (i >= 0) ChatRoomData.Admin.splice(i, 1); }
-                ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Demote' }); break;
+                if (!Array.isArray(ChatRoomData.Admin)) ChatRoomData.Admin = [];
+                const i = ChatRoomData.Admin.findIndex(a => parseInt(a) === mn);
+                if (i >= 0) ChatRoomData.Admin.splice(i, 1);
+                if (targetInRoom) {
+                    ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Demote' });
+                } else {
+                    ServerSend('ChatRoomAdmin', { MemberNumber: Player.ID, Room: ChatRoomGetSettings(ChatRoomData), Action: 'Update' });
+                }
+                break;
             }
             case 'addWhite': ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Whitelist' }); break;
             case 'rmWhite':  ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Unwhitelist' }); break;
