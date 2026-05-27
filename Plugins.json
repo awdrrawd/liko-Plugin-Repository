@@ -333,8 +333,8 @@
       "en_name": "Friends and ChatRoom Manager",
       "description": "更好的好友管理與房間管理功能",
       "en_description": "Improved friend and room management features.",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
+      "additionalInfo": "提供個人資料的保存、查詢，房間名單的管理",
+      "en_additionalInfo": "Provides features for saving and searching personal profiles, and managing room lists.",
       "icon": "👥",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20FCM.main.user.js",
       "priority": 3
