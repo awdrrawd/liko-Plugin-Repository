@@ -12,6 +12,10 @@
 *個人開發的 BondageClub 插件集合，透過插件管理器（PCM）統一管理，或單獨安裝所需插件。*  
 *A collection of personal BondageClub plugins. Install everything at once via the Plugin Collection Manager (PCM), or install individual plugins on their own.*
 
+詳細內容請往下閱讀，或前往互動式網站  
+Please read on for more details, or visit the interactive website.  
+[👉 點此前往 Click to visit it](https://awdrrawd.github.io/liko-Plugin-Repository/)  
+
 ---
 
 ## 📦 安裝方式 · Installation
