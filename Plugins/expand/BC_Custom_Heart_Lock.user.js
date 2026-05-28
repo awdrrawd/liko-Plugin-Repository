@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.3.3
+// @version      2.3.4
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -1165,38 +1165,35 @@
                 const isHearLock = item?.Property?.Name === HEARTLOCK_NAME
                     || (item?.Property?.LockedBy === HSLOCK_NAME && item?.Property?.HeartLockId);
                 if (item && isHearLock) {
+                    // 若要移除拘束，在解鎖前先收集（解鎖後 Effect:Lock 已消失，找不到）
+                    const restraintGroups = cfg.removeRestraints
+                        ? (Player.Appearance ?? [])
+                            .filter(a =>
+                                a.Asset?.Category === 'Item' &&
+                                a.Property?.Effect?.includes('Lock') &&
+                                !a.Asset?.IsLock)
+                            .map(a => a.Asset?.Group?.Name)
+                            .filter(Boolean)
+                        : [];
+
                     // 直接操作 Property，繞過 InventoryUnlock hook 的干擾
                     if (item.Property) {
                         if (typeof ValidationDeleteLock === 'function')
                             ValidationDeleteLock(item.Property, false);
                         delete item.Property.Name;
                         delete item.Property.HeartLockId;
-                        // Property 空了就清掉
                         const keys = Object.keys(item.Property);
                         if (keys.length === 0 || (keys.length === 1 && keys[0] === 'Effect' && !item.Property.Effect?.length))
                             item.Property = undefined;
                     }
 
-                    // 移除拘束（若設定開啟）
-                    if (cfg.removeRestraints) {
+                    // 移除拘束（用解鎖前收集的清單）
+                    for (const rGn of restraintGroups) {
                         try {
-                            // 先收集要移除的 group names，避免迭代中修改 Appearance
-                            const toRemove = (Player.Appearance ?? [])
-                                .filter(a =>
-                                    a.Asset?.Category === 'Item' &&
-                                    a.Property?.Effect?.includes('Lock') &&
-                                    !a.Asset?.IsLock)
-                                .map(a => a.Asset?.Group?.Name)
-                                .filter(Boolean);
-
-                            for (const rGn of toRemove) {
-                                try {
-                                    const rItem = InventoryGet?.(Player, rGn);
-                                    if (rItem?.Property && typeof ValidationDeleteLock === 'function')
-                                        ValidationDeleteLock(rItem.Property, false);
-                                    InventoryRemove?.(Player, rGn, false);
-                                } catch {}
-                            }
+                            const rItem = InventoryGet?.(Player, rGn);
+                            if (rItem?.Property && typeof ValidationDeleteLock === 'function')
+                                ValidationDeleteLock(rItem.Property, false);
+                            InventoryRemove?.(Player, rGn, false);
                         } catch {}
                     }
 
@@ -1945,7 +1942,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.3.3 (EL Edition) initialized.');
+        log('HeartLock initialized.');
     }
 
     initialize().catch(e => console.error('[HeartLock] init error', e));
