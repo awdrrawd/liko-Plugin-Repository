@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.3.2
+// @version      2.3.3
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -1180,17 +1180,22 @@
                     // 移除拘束（若設定開啟）
                     if (cfg.removeRestraints) {
                         try {
-                            const restraints = (Player.Appearance ?? []).filter(a =>
-                                a.Asset?.Category === 'Item' &&
-                                a.Property?.Effect?.includes('Lock') &&
-                                !a.Asset?.IsLock
-                            );
-                            for (const r of restraints) {
-                                const rGn = r.Asset?.Group?.Name;
-                                if (rGn && typeof ValidationDeleteLock === 'function') {
-                                    ValidationDeleteLock(r.Property, false);
-                                    if (r.Property) r.Property = undefined;
-                                }
+                            // 先收集要移除的 group names，避免迭代中修改 Appearance
+                            const toRemove = (Player.Appearance ?? [])
+                                .filter(a =>
+                                    a.Asset?.Category === 'Item' &&
+                                    a.Property?.Effect?.includes('Lock') &&
+                                    !a.Asset?.IsLock)
+                                .map(a => a.Asset?.Group?.Name)
+                                .filter(Boolean);
+
+                            for (const rGn of toRemove) {
+                                try {
+                                    const rItem = InventoryGet?.(Player, rGn);
+                                    if (rItem?.Property && typeof ValidationDeleteLock === 'function')
+                                        ValidationDeleteLock(rItem.Property, false);
+                                    InventoryRemove?.(Player, rGn, false);
+                                } catch {}
                             }
                         } catch {}
                     }
@@ -1940,7 +1945,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.3.2 (EL Edition) initialized.');
+        log('HeartLock v2.3.3 (EL Edition) initialized.');
     }
 
     initialize().catch(e => console.error('[HeartLock] init error', e));
