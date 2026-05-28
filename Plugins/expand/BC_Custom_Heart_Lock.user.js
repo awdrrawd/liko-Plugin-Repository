@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.3.4
+// @version      2.3.5
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -1165,16 +1165,12 @@
                 const isHearLock = item?.Property?.Name === HEARTLOCK_NAME
                     || (item?.Property?.LockedBy === HSLOCK_NAME && item?.Property?.HeartLockId);
                 if (item && isHearLock) {
-                    // 若要移除拘束，在解鎖前先收集（解鎖後 Effect:Lock 已消失，找不到）
-                    const restraintGroups = cfg.removeRestraints
-                        ? (Player.Appearance ?? [])
-                            .filter(a =>
-                                a.Asset?.Category === 'Item' &&
-                                a.Property?.Effect?.includes('Lock') &&
-                                !a.Asset?.IsLock)
-                            .map(a => a.Asset?.Group?.Name)
-                            .filter(Boolean)
-                        : [];
+                    // 若要移除拘束，只移除本次心鎖對應的物品（gn），
+                    // 不掃描全身，避免誤觸其他戀人的心鎖物品
+                    // （在解鎖前先記錄，解鎖後 Effect:Lock 消失）
+                    const willRemove = cfg.removeRestraints;
+
+                    log(`計時器到期 gn=${gn} removeRestraints=${cfg.removeRestraints}`);
 
                     // 直接操作 Property，繞過 InventoryUnlock hook 的干擾
                     if (item.Property) {
@@ -1187,14 +1183,13 @@
                             item.Property = undefined;
                     }
 
-                    // 移除拘束（用解鎖前收集的清單）
-                    for (const rGn of restraintGroups) {
+                    // 移除物品本身（_timerUnlocking 讓 hook 放行）
+                    if (willRemove) {
                         try {
-                            const rItem = InventoryGet?.(Player, rGn);
-                            if (rItem?.Property && typeof ValidationDeleteLock === 'function')
-                                ValidationDeleteLock(rItem.Property, false);
-                            InventoryRemove?.(Player, rGn, false);
-                        } catch {}
+                            state._timerUnlocking = true;
+                            InventoryRemove?.(Player, gn, false);
+                            state._timerUnlocking = false;
+                        } catch { state._timerUnlocking = false; }
                     }
 
                     CharacterRefresh?.(Player, false);
@@ -1354,8 +1349,8 @@
         // 自訂勾選框：移除拘束
         const removeOn = cfg?.removeRestraints ?? false;
         _drawCustomCheckbox(CX + 14, TMR_CB_Y, TMR_CB_SZ, removeOn);
-        textLeft(T('removeRestraints'),    CX + 14 + TMR_CB_SZ + 14, TMR_CB_Y + TMR_CB_SZ * 0.38, editable ? CC.text : CC.dim);
-        textLeft(T('removeRestraintsSub'), CX + 14 + TMR_CB_SZ + 14, TMR_CB_Y + TMR_CB_SZ * 0.78, CC.dim);
+        textLeft(T('removeRestraints'),    CX + 14 + TMR_CB_SZ + 14, TMR_CB_Y + TMR_CB_SZ * 0.5, editable ? CC.text : CC.dim);
+        textLeft(T('removeRestraintsSub'), CX + 14,                   TMR_CB_Y + TMR_CB_SZ + 24, CC.dim);
     }
 
     function clickTimer(character, gName, editable) {
@@ -1568,6 +1563,8 @@
         modApi.hookFunction('InventoryRemove', 0, (args, next) => {
             const C = args[0], grp = args[1];
             if (state._restoring) return next(args);
+            // 計時器到期移除：穿戴者自己移除，直接放行
+            if (state._timerUnlocking) return next(args);
             if (!C?.IsPlayer?.()) {
                 const item = InventoryGet?.(C, grp);
                 if (item?.Property?.Name === HEARTLOCK_NAME) {
