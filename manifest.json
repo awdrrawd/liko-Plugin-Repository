@@ -339,7 +339,7 @@
       "versions": [
         {
           "distribution": "stable",
-          "source": "ttps://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js"
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js"
         }
       ]
     },
@@ -358,7 +358,7 @@
       "versions": [
         {
           "distribution": "stable",
-          "source": "ttps://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20AEE.main.user.js"
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20AEE.main.user.js"
         }
       ]
     },
@@ -377,7 +377,7 @@
       "versions": [
         {
           "distribution": "stable",
-          "source": "ttps://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20FCM.main.user.js"
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20FCM.main.user.js"
         }
       ]
     }
