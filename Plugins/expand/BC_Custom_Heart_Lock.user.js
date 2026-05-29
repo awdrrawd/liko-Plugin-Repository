@@ -2,7 +2,7 @@
 // @name         BC Custom Heart Lock
 // @name:zh      BC 自訂心形鎖
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.3.5
+// @version      2.3.6
 // @description  Custom Heart Lock
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -15,7 +15,7 @@
  *   - 新增 isAllowedToLock(memberNum)：
  *       允許條件 = BC 原生戀人 OR 拓展戀人 OR (主人 + EL 設定允許主人使用鎖)
  *   - 兩處 isLover 判斷改為 isAllowedToLock()
- *   - 查詢 window.ELAbundantiaAPI（由 EL 插件在登入後掛載）
+ *   - 讀取 ch.OnlineSharedSettings.AFC.lovers 確認 AFC 戀人權限
  *     EL 未安裝時自動降回 BC 原生戀人模式
  */
 
@@ -431,19 +431,35 @@
         const memberNum = ch?.MemberNumber;
         if (!memberNum) return false;
         const lockPerms = ch.OnlineSharedSettings?.AFC?.lockPerms;
-        if (!lockPerms?.enableELLock) return false;  // 未開啟，任何人都不能鎖
+
+        // 未開啟 EL 鎖定權限 → 任何人都不能鎖
+        if (!lockPerms?.enableELLock) {
+            log(`isAllowedToLock: 拒絕（enableELLock=false or no lockPerms）`);
+            return false;
+        }
+
+        // 檢查「鎖者是否在穿戴者的 AFC 戀人清單」（直接讀 ch 的 OnlineSharedSettings）
+        const afcLovers = ch.OnlineSharedSettings?.AFC?.lovers ?? [];
+        if (afcLovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber))) {
+            log(`isAllowedToLock: 允許（AFC lover）`);
+            return true;
+        }
 
         // BC 原生戀人
-        if (Player.Lovership?.some(l => Number(l.MemberNumber) === Number(memberNum)))
+        if (ch.Lovership?.some(l => Number(l.MemberNumber) === Number(Player.MemberNumber))) {
+            log(`isAllowedToLock: 允許（BC native lover）`);
             return true;
-        // EL 拓展戀人
-        if (window.ELAbundantiaAPI?.isELLover?.(memberNum)) return true;
+        }
+
         // 主人（需額外開啟 enableOwnerLock）
         if (lockPerms.enableOwnerLock &&
             ch.Ownership?.MemberNumber != null &&
-            Number(ch.Ownership.MemberNumber) === Number(Player.MemberNumber))
+            Number(ch.Ownership.MemberNumber) === Number(Player.MemberNumber)) {
+            log(`isAllowedToLock: 允許（owner）`);
             return true;
+        }
 
+        log(`isAllowedToLock: 拒絕（非戀人非主人）`);
         return false;
     }
 
@@ -456,13 +472,13 @@
         // 鎖的掛鎖者 → 始終可解鎖
         if (Number(cfg.owner) === Number(Player.MemberNumber)) return true;
         const lockPerms = C.OnlineSharedSettings?.AFC?.lockPerms;
-        if (!lockPerms?.enableELLock) return false;  // 未開啟，任何人都不能解鎖
+        if (!lockPerms?.enableELLock) return false;
+        // AFC 戀人（直接讀 C 的 OnlineSharedSettings）
+        const afcLovers = C.OnlineSharedSettings?.AFC?.lovers ?? [];
+        if (afcLovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)))
+            return true;
         // BC 原生戀人
         if (C.Lovership?.some(l => Number(l.MemberNumber) === Number(Player.MemberNumber)))
-            return true;
-        // EL 拓展戀人
-        const elLovers = C.OnlineSharedSettings?.AFC?.lovers ?? [];
-        if (elLovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)))
             return true;
         // 主人（需額外開啟 enableOwnerLock）
         if (lockPerms.enableOwnerLock &&
@@ -849,11 +865,10 @@
             const wearerNum = e.WearerMemberNumber;
             const wearer    = ChatRoomCharacter?.find(c => c.MemberNumber === wearerNum);
             if (!wearer) return;
-            const wearerELLovers = wearer.OnlineSharedSettings?.AFC?.lovers ?? [];
-            const isELLovr  = wearerELLovers.some(l => Number(l.memberNumber) === Number(requester));
-            const isELLovr2 = window.ELAbundantiaAPI?.isELLover?.(requester) ?? false;
-            const isBCLovr  = wearer.Lovership?.some(l => Number(l.MemberNumber) === Number(requester)) ?? false;
-            if (!isELLovr && !isELLovr2 && !isBCLovr) return;
+            const wearerAFCLovers = wearer.OnlineSharedSettings?.AFC?.lovers ?? [];
+            const isAFCLover = wearerAFCLovers.some(l => Number(l.memberNumber) === Number(requester));
+            const isBCLovr   = wearer.Lovership?.some(l => Number(l.MemberNumber) === Number(requester)) ?? false;
+            if (!isAFCLover && !isBCLovr) return;
             try {
                 state._unlocking = true;
                 InventoryUnlock?.(wearer, gn);
@@ -935,23 +950,13 @@
     function getModApi() {
         if (state.modApi) return state.modApi;
 
-        // 優先使用 Abundantia Florum ─Chromatica─ (EL) 的共用 modApi
-        // EL 在 bcModSdk 就緒後立即掛載此物件，HeartLock 不需要另行 registerMod
-        const sharedApi = window.ELAbundantiaAPI?.modApi;
-        if (sharedApi) {
-            state.modApi = sharedApi;
-            console.log('🐈‍⬛ [HeartLock] 共用 EL modApi');
-            return sharedApi;
-        }
-
-        // 備援：EL 未載入時自行註冊獨立 mod
+        // HeartLock 獨立註冊 modApi（不再依賴 AFC/EL 的共用 modApi）
         if (!window.bcModSdk?.registerMod) return null;
         try {
             state.modApi = window.bcModSdk.registerMod({
-                name: MOD_NAME, fullName: 'Heart Lock BC (standalone)',
-                version: '2.1.1', repository: 'https://github.com/awdrrawd/liko-tool-Image-storage',
+                name: MOD_NAME, fullName: 'Heart Lock BC',
+                version: '2.1.1', repository: 'https://github.com/awdrrawd/liko-Plugin-Repository',
             });
-            console.log('🐈‍⬛ [HeartLock] 獨立 modApi 已註冊（EL 未載入）');
             return state.modApi;
         } catch (e) {
             if (!window.bcModSdk.getModsInfo?.().find(m => m.name === MOD_NAME))
@@ -1912,12 +1917,8 @@
     async function initialize() {
         if (state.initialized) return;
 
-        // Phase 1：等 bcModSdk 或 EL 的共用 modApi（無超時）
-        // EL 載入時：等 window.ELAbundantiaAPI.modApi 出現
-        // EL 未載入時：等 bcModSdk 本身
-        const sdkReady = await waitFor(
-            () => !!window.ELAbundantiaAPI?.modApi || !!window.bcModSdk
-        );
+        // Phase 1：等 bcModSdk 就緒
+        const sdkReady = await waitFor(() => !!window.bcModSdk);
 
         const modApi = getModApi();
         if (!modApi) { console.error('[HeartLock] modApi unavailable.'); return; }
@@ -1926,7 +1927,7 @@
         const gameReady = await waitFor(() =>
             !!window.Player?.AccountName &&
             !!window.AssetFemale3DCG &&
-            !!AssetGroupGet?.('Female3DCG', 'ItemMisc')  // 確保 group 物件已編譯
+            !!AssetGroupGet?.('Female3DCG', 'ItemMisc')
         );
 
         createHeartLockAsset();
@@ -1939,8 +1940,8 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock initialized.');
+        log('HeartLock v2.3.6 initialized.');
     }
 
-    initialize().catch(e => console.error('[HeartLock] init error', e));
+    initialize().catch(e => console.error('🐈‍⬛ [HeartLock] init error', e));
 })();
