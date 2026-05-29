@@ -1,11 +1,10 @@
 // ==UserScript==
-// @name         BC Custom Heart Lock
-// @name:zh      BC 自訂心形鎖
-// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @name         Heart Lock BC 自訂心形鎖
+// @namespace    https://github.com/awdrrawd/
 // @version      2.3.6
-// @description  Custom Heart Lock
-// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
-// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
+// @description  Heart Padlock for Bondage Club with AFC lover integration (v2.1.1)
+// @match        https://bondageprojects.elementfx.com/*
+// @match        https://www.bondageprojects.elementfx.com/*
 // @run-at       document-end
 // @grant        none
 // ==/UserScript==
@@ -427,39 +426,50 @@
      * 判斷 Player 是否能替 C 上心鎖。
      * 所有條件都以 C 的 lockPerms 為準（穿戴者的選擇）。
      */
+    /**
+     * 判斷 Player 是否能對 ch 上鎖。
+     * 讀穿戴者 ch 的 OnlineSharedSettings（公開資料，伺服器直接提供）。
+     * lockPerms 控制穿戴者允許哪些關係使用心鎖；
+     * 關係從 ch.Lovership / ch.Ownership / ch.OnlineSharedSettings.AFC.lovers 判斷。
+     */
     function isAllowedToLock(ch) {
-        const memberNum = ch?.MemberNumber;
-        if (!memberNum) return false;
+        if (!ch?.MemberNumber) return false;
+        const meNum     = Number(Player.MemberNumber);
         const lockPerms = ch.OnlineSharedSettings?.AFC?.lockPerms;
 
-        // 未開啟 EL 鎖定權限 → 任何人都不能鎖
+        log(`isAllowedToLock ch=${ch.MemberNumber} lockPerms=${JSON.stringify(lockPerms)}`);
+
+        // ── 主人（enableOwnerLock）────────────────────────────────
+        if (lockPerms?.enableOwnerLock) {
+            const ownerNum = ch.Ownership?.MemberNumber;
+            if (ownerNum != null && Number(ownerNum) === meNum) {
+                log(`isAllowedToLock: ✅ 主人`);
+                return true;
+            }
+        }
+
+        // ── EL/AFC + BC 戀人（enableELLock）──────────────────────
         if (!lockPerms?.enableELLock) {
-            log(`isAllowedToLock: 拒絕（enableELLock=false or no lockPerms）`);
+            log(`isAllowedToLock: ❌ enableELLock=false`);
             return false;
         }
 
-        // 檢查「鎖者是否在穿戴者的 AFC 戀人清單」（直接讀 ch 的 OnlineSharedSettings）
+        // AFC 戀人（穿戴者的 OnlineSharedSettings.AFC.lovers）
         const afcLovers = ch.OnlineSharedSettings?.AFC?.lovers ?? [];
-        if (afcLovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber))) {
-            log(`isAllowedToLock: 允許（AFC lover）`);
+        log(`isAllowedToLock: afcLovers=${afcLovers.length} check=${meNum}`);
+        if (afcLovers.some(l => Number(l.memberNumber) === meNum)) {
+            log(`isAllowedToLock: ✅ AFC lover`);
             return true;
         }
 
-        // BC 原生戀人
-        if (ch.Lovership?.some(l => Number(l.MemberNumber) === Number(Player.MemberNumber))) {
-            log(`isAllowedToLock: 允許（BC native lover）`);
+        // BC 原生戀人（穿戴者的 Lovership）
+        const bcLover = ch.Lovership?.some(l => Number(l.MemberNumber) === meNum);
+        if (bcLover) {
+            log(`isAllowedToLock: ✅ BC lover`);
             return true;
         }
 
-        // 主人（需額外開啟 enableOwnerLock）
-        if (lockPerms.enableOwnerLock &&
-            ch.Ownership?.MemberNumber != null &&
-            Number(ch.Ownership.MemberNumber) === Number(Player.MemberNumber)) {
-            log(`isAllowedToLock: 允許（owner）`);
-            return true;
-        }
-
-        log(`isAllowedToLock: 拒絕（非戀人非主人）`);
+        log(`isAllowedToLock: ❌ 無符合關係`);
         return false;
     }
 
@@ -1605,8 +1615,9 @@
             const item = args[1];
             if (item?.Asset?.Name !== HEARTLOCK_NAME) return next(args);
             if (DialogMenuMode === 'permissions') return next(args);
-            if (C.ID === 0) return;  // 穿戴者自己不顯示
-            return next(args);  // 有插件就能看到，上鎖時才判斷權限
+            if (C.ID === 0) return;           // 穿戴者自己不顯示
+            if (!isAllowedToLock(C)) return;  // 無權限者不顯示
+            return next(args);
         });
 
         // ── 上鎖 ──────────────────────────────────────────────────────
@@ -1940,7 +1951,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.3.6 initialized.');
+        log('🐈‍⬛ [HeartLock] v2.3.6 initialized.');
     }
 
     initialize().catch(e => console.error('🐈‍⬛ [HeartLock] init error', e));
