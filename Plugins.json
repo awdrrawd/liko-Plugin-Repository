@@ -10,7 +10,7 @@
     "⭐FCM - Friends and ChatRoom Manager v1.1.0 Update",
     "Added room search function",
     "Added border coloring function for private Beep and whisper messages",
-    "Fixed an issue where the room name should now be displayed as 'Private' when the other party is in a private room.".
+    "Fixed an issue where the room name should now be displayed as 'Private' when the other party is in a private room."
   ],
   "plugins": [
     {
