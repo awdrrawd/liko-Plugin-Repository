@@ -4,13 +4,13 @@
     "⭐FCM - 好友與房間管理 v1.1.0 更新",
     "新增房間搜尋功能",
     "新增私信與悄悄話時，邊框染色功能",
-    "修正當對方在私人房間時，房間名稱為私人"
+    "修正現在當對方在私人房間時，房間名稱為'私人'"
   ],
   "en_changelog": [
     "⭐FCM - Friends and ChatRoom Manager v1.1.0 Update",
     "Added room search function",
     "Added border coloring function for private Beep and whisper messages",
-    "Fixed an issue where the room name should now be displayed as 'Private' when the other party is in a private room."
+    "Fixed When the other party is in a private room, the room name is now 'Private'."
   ],
   "plugins": [
     {
