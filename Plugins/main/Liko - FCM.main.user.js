@@ -2,10 +2,11 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1.1
+// @version      1.1.2
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @run-at       document-end
@@ -14,7 +15,7 @@
 (function () {
     'use strict';
 
-    const MOD_VER = '1.1.1';
+    const MOD_VER = '1.1.2';
     const modApi = bcModSdk.registerMod({
         name: 'LikoFCM', fullName: 'Liko - Friends Room Manager', version: MOD_VER,
     });
@@ -706,20 +707,73 @@
     // ═══════════════════════════════════════════════════════════
     //  UI STATE
     // ═══════════════════════════════════════════════════════════
-    // Room search state (defined early so renderFriends can access _roomResults)
-    let _roomResults = [];
+    // ─── Room state ─────────────────────────────────────────────────────
+    let _roomResults = [];          // current search results (room search tab)
     let _roomZoneFilter = 'X';
     let _roomSearchQ2 = '';
     let _favRooms = new Set(JSON.parse(localStorage.getItem('fcmFavRooms') || '[]'));
     let _roomSortMode = 'fav';
+    // Persistent room info cache (Name → {MemberCount, MemberLimit, Space, ts})
+    const _roomCache = new Map();
+
     function saveFavRooms() { try { localStorage.setItem('fcmFavRooms', JSON.stringify([..._favRooms])); } catch {} }
+
+    function _cacheRooms(rooms) {
+        const now = Date.now();
+        for (const r of rooms) {
+            if (!r.Name) continue;
+            const mc = r.MemberCount ?? r.NbMember ?? null;
+            const ml = r.MemberLimit ?? r.Limit ?? null;
+            const existing = _roomCache.get(r.Name);
+            if (!existing || mc !== null || ml !== null) {
+                _roomCache.set(r.Name, { MemberCount: mc, MemberLimit: ml, Space: r.Space ?? r.ChatRoomSpace ?? '', ts: now });
+            }
+        }
+    }
+
     async function doRoomSearch(query, zone) {
         try {
             const res = await ServerRoomSearch(query || '', { Language: '', Space: zone, Game: '', FullRooms: false });
             if (!res || res.err || !res.value) return [];
-            if (res.value.length > 0) console.log('🐈‍⬛ [FCM] Room sample:', JSON.stringify(res.value[0]).slice(0,200));
+            _cacheRooms(res.value); // update persistent cache
             return res.value;
         } catch(e) { console.warn('🐈‍⬛ [FCM] doRoomSearch:', e); return []; }
+    }
+
+    // Query a specific room by name (tries all zones) - updates cache and DOM cell
+    const _pendingRoomQueries = new Set();
+    async function queryRoomInfo(roomName, space, onUpdate) {
+        if (_pendingRoomQueries.has(roomName)) return;
+        _pendingRoomQueries.add(roomName);
+        try {
+            // Try friend's known space first, then others if not found
+            const zones = space !== undefined ? [space, 'X', '', 'M'] : ['X', '', 'M'];
+            for (const z of [...new Set(zones)]) {
+                try {
+                    const res = await ServerRoomSearch(roomName, { Language: '', Space: z, Game: '', FullRooms: false });
+                    if (!res || res.err || !res.value) continue;
+                    const found = res.value.find(r => r.Name === roomName);
+                    if (found) {
+                        _cacheRooms([found]);
+                        if (onUpdate) onUpdate(_roomCache.get(roomName));
+                        break;
+                    }
+                } catch {}
+            }
+        } finally { _pendingRoomQueries.delete(roomName); }
+    }
+
+    function getCachedRoomInfo(roomName) {
+        // First check _roomCache, then fall back to _roomResults
+        const cached = _roomCache.get(roomName);
+        if (cached) return cached;
+        const fromResults = _roomResults.find(r => r.Name === roomName);
+        if (fromResults) {
+            const mc = fromResults.MemberCount ?? fromResults.NbMember ?? null;
+            const ml = fromResults.MemberLimit ?? fromResults.Limit ?? null;
+            return mc !== null || ml !== null ? { MemberCount: mc, MemberLimit: ml } : null;
+        }
+        return null;
     }
 
     let panelEl = null, miniEl = null, panelOpen = false, panelMini = false;
@@ -982,23 +1036,38 @@
             const riZone = getRoomInfo(f.mn);
             const hideZone = !online || (online && riZone === null) || (riZone && !riZone.name && riZone.isPrivate);
             zs.textContent = hideZone ? '—' : (zone || T('zoneUnk')); zt.appendChild(zs); tr.appendChild(zt);
-            // Room: count + private handling
+            // Room: show from cache immediately; trigger async query if uncached
             const ri = getRoomInfo(f.mn);
             const rt = document.createElement('td');
-            if (ri && ri.name) {
-                const cached = _roomResults.find(r => r.Name === ri.name);
-                const mc = ri.isCurrent && typeof ChatRoomCharacter !== 'undefined' ? ChatRoomCharacter.length
-                         : (cached ? (cached.MemberCount ?? cached.NbMember ?? null) : null);
-                const ml = ri.isCurrent ? (ChatRoomData?.MemberLimit ?? null)
-                         : (cached ? (cached.MemberLimit ?? cached.Limit ?? null) : null);
-                const rcStr = mc !== null ? `${ri.name}(${mc}/${ml ?? '?'})` : ri.name;
+            function _buildRoomLink(ri2, mc, ml) {
+                const rcStr = mc !== null ? `${ri2.name}(${mc}/${ml ?? '?'})` : ri2.name;
                 const roomFull = mc !== null && ml !== null && mc >= ml;
                 const rl = document.createElement('span'); rl.className = 'fcm-room-link';
                 rl.textContent = rcStr;
-                rl.title = (ri.isPrivate ? (isZh() ? '[私人] ' : '[Private] ') : '') + rcStr + (roomFull ? (isZh() ? '\n⚠ 房間已滿' : '\n⚠ Full') : ('\n' + (isZh() ? '前往此房間？' : 'Go to room?')));
-                if (!roomFull) rl.addEventListener('click', () => navigateToRoom(ri.name)); else rl.style.color = '#808080';
-                if (ri.isPrivate) { const b2 = document.createElement('span'); b2.style.cssText = 'font-size:10px;color:#c090f0;margin-left:2px;'; b2.textContent = isZh() ? '(私人)' : '(Priv)'; rl.appendChild(b2); }
-                rt.appendChild(rl);
+                rl.title = (ri2.isPrivate ? (isZh() ? '[私人] ' : '[Private] ') : '') + rcStr + (roomFull ? ('\n' + (isZh() ? '⚠ 房間已滿' : '⚠ Full')) : ('\n' + (isZh() ? '前往此房間？' : 'Go to room?')));
+                if (!roomFull) rl.addEventListener('click', () => navigateToRoom(ri2.name)); else rl.style.color = '#808080';
+                if (ri2.isPrivate) { const b2 = document.createElement('span'); b2.style.cssText = 'font-size:10px;color:#c090f0;margin-left:2px;'; b2.textContent = isZh() ? '(私人)' : '(Priv)'; rl.appendChild(b2); }
+                return rl;
+            }
+            if (ri && ri.name) {
+                let mc = null, ml = null;
+                if (ri.isCurrent && typeof ChatRoomCharacter !== 'undefined') {
+                    mc = ChatRoomCharacter.length; ml = ChatRoomData?.MemberLimit ?? null;
+                } else {
+                    const cd = getCachedRoomInfo(ri.name);
+                    if (cd) { mc = cd.MemberCount; ml = cd.MemberLimit; }
+                }
+                rt.appendChild(_buildRoomLink(ri, mc, ml));
+                // Fire async cache refresh if not in current room and count unknown
+                if (!ri.isCurrent && mc === null) {
+                    const friendSpace = onlineFriends.find(ff => ff.MemberNumber === f.mn)?.ChatRoomSpace;
+                    queryRoomInfo(ri.name, friendSpace, data => {
+                        if (data && rt.isConnected) {
+                            rt.innerHTML = '';
+                            rt.appendChild(_buildRoomLink(ri, data.MemberCount, data.MemberLimit));
+                        }
+                    });
+                }
             } else if (ri && !ri.name && ri.isPrivate) {
                 const sp = document.createElement('span'); sp.style.cssText = 'font-size:11px;color:#c090f0;font-weight:600;';
                 sp.textContent = isZh() ? '(私密)' : '(Private)'; rt.appendChild(sp);
