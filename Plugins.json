@@ -4,12 +4,14 @@
     "⭐FCM - 好友與房間管理 v1.1.0 更新",
     "新增房間搜尋功能",
     "新增私信與悄悄話時，邊框染色功能",
+    "新增幽靈名單完全隱藏外觀，但保留互動功能(僅自己有效)",
     "修正現在當對方在私人房間時，房間名稱為'私人'"
   ],
   "en_changelog": [
     "⭐FCM - Friends and ChatRoom Manager v1.1.0 Update",
     "Added room search function",
     "Added border coloring function for private Beep and whisper messages",
+    "Added Ghost List completely hides the character's appearance, but retains the interactive functionality (only effective on itself).",
     "Fixed When the other party is in a private room, the room name is now 'Private'."
   ],
   "plugins": [
