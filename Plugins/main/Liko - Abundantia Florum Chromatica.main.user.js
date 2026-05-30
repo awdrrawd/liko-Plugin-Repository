@@ -2,7 +2,7 @@
 // @name         Abundantia Florum ─Chromatica─
 // @name:zh      Abundantia Florum ─Chromatica─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.14
+// @version      0.5.15
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -27,7 +27,7 @@
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.14";
+    const MOD_VERSION  = "0.5.15";
     const EL_BEEP_TYPE = "AFCBeep";
 
     const BEEP = {
@@ -2326,7 +2326,41 @@
     function setupHooks() {
         // ── Beep 接收（ChatRoom Hidden，所有操作都在同房間進行）───────
 
-        // ── Dialog 注入 ────────────────────────────────────────────
+        // ── 好友清單：AFC 戀人顯示為戀人關係（優先 BCT Best Friend）──────
+        modApi.hookFunction('FriendListLoadFriendList', 3, async (args, next) => {
+            await next(args);   // 等 BC + BCT（priority 2）都執行完
+
+            const lovers = getSharedSettings()?.lovers ?? [];
+            if (!lovers.length) return;
+
+            // 取得好友列表容器（相容 R128）
+            const containerId = (typeof FriendListIDs !== 'undefined' && FriendListIDs.friendList)
+                ?? 'FriendListContent';
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            const rows = container.getElementsByClassName('friend-list-row');
+            for (let i = 0; i < rows.length; i++) {
+                const memberEl = rows[i].querySelector('.MemberNumber');
+                const relEl    = rows[i].querySelector('.RelationType');
+                if (!memberEl || !relEl) continue;
+
+                const num   = parseInt(memberEl.innerText.trim());
+                const lover = lovers.find(l => Number(l.memberNumber) === num);
+                if (!lover) continue;
+
+                const label = `♥ ${stageLabel(lover.stage)}`;
+
+                // 覆蓋文字節點（如 BCT 改過也會被我們蓋掉）
+                const textNode = Array.from(relEl.childNodes)
+                    .find(n => n.nodeType === Node.TEXT_NODE);
+                if (textNode) textNode.textContent = label;
+                else relEl.prepend(document.createTextNode(label));
+
+                // 套用階段顏色
+                relEl.style.color = STAGE_COLOR[lover.stage] ?? '#FFB6C1';
+            }
+        });
         const injectNow = () => {
             try { if (CurrentCharacter) injectELDialogs(CurrentCharacter); } catch (e) {}
         };
