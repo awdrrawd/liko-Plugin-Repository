@@ -2,19 +2,19 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1.0
+// @version      1.1.1
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant        none
-// @require      https://cdn.jsdelivr.net/gh/Jomshir98/bondage-club-mod-sdk@0.3.3/dist/bcmodsdk.js
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @run-at       document-end
 // ==/UserScript==
 
 (function () {
     'use strict';
 
-    const MOD_VER = '1.1.0';
+    const MOD_VER = '1.1.1';
     const modApi = bcModSdk.registerMod({
         name: 'LikoFCM', fullName: 'Liko - Friends Room Manager', version: MOD_VER,
     });
@@ -57,7 +57,8 @@
             setProfiles: '啟用自動儲存個人資料', setProfilesNote: '與 WCE bce-past-profiles 相容，同房間時自動儲存',
             dbOk: '已連線', dbNo: '未連線',
             langLabel: '語言',
-            whisperIndicatorLabel: '私聊/BEEP 輸入框提示色', whisperIndicatorNote: '輸入 /w /whisper /beep 或進入悄悄話模式時，聊天框會顯示紫色邊框提示', langNote: 'Auto: 依 BC TranslationLanguage（CN/TW→中文，其餘→English）',
+            whisperIndicatorLabel: '私聊/BEEP 輸入框提示色',
+            ghostHideLabel: '幽靈名單隱身', ghostHideNote: '幽靈名單中的角色在聊天室不顯示身體（只對自己有效）', whisperIndicatorNote: '輸入 /w /whisper /beep 或進入悄悄話模式時，聊天框會顯示紫色邊框提示', langNote: 'Auto: 依 BC TranslationLanguage（CN/TW→中文，其餘→English）',
             langDetected: tl => `目前偵測: ${tl || '未設定'}`,
             btnReloadAvatars: '重新載入頭像', reloadAvatarsNote: '清除頭像快取，重新從角色資料建立',
             reloadAvatarsDone: '已清除頭像快取，重新加載中...',
@@ -119,7 +120,8 @@
             setProfiles: 'Enable Profile Auto-Save', setProfilesNote: 'WCE bce-past-profiles compatible',
             dbOk: 'Connected', dbNo: 'Not connected',
             langLabel: 'Language',
-            whisperIndicatorLabel: 'Whisper/BEEP Input Glow Color', whisperIndicatorNote: 'Shows a purple glow on the chat input when /w /whisper /beep is typed or whisper mode is active', langNote: 'Auto: follows BC TranslationLanguage (CN/TW→Chinese, others→English)',
+            whisperIndicatorLabel: 'Whisper/BEEP Input Glow Color',
+            ghostHideLabel: 'Ghost List Hide', ghostHideNote: 'Characters on your ghost list are hidden in chatroom (only affects your view)', whisperIndicatorNote: 'Shows a purple glow on the chat input when /w /whisper /beep is typed or whisper mode is active', langNote: 'Auto: follows BC TranslationLanguage (CN/TW→Chinese, others→English)',
             langDetected: tl => `Detected: ${tl || 'not set'}`,
             btnReloadAvatars: 'Reload Avatars', reloadAvatarsNote: 'Clear avatar cache and rebuild from profile data',
             reloadAvatarsDone: 'Avatar cache cleared, reloading...',
@@ -165,7 +167,7 @@
     // ═══════════════════════════════════════════════════════════
     //  SETTINGS
     // ═══════════════════════════════════════════════════════════
-    let cfg = { avatars: false, lang: 'auto', saveMode: 'off', whisperIndicator: false, whisperColor: '#b070e8' }; // saveMode: 'off'|'name'|'avatar'|'full'
+    let cfg = { avatars: false, lang: 'auto', saveMode: 'off', whisperIndicator: false, whisperColor: '#b070e8', ghostHide: false }; // saveMode: 'off'|'name'|'avatar'|'full'
     function loadCfg() { try { const s = localStorage.getItem('LikoFCM'); if (s) Object.assign(cfg, JSON.parse(s)); } catch {} }
     function saveCfg() { try { localStorage.setItem('LikoFCM', JSON.stringify(cfg)); } catch {} }
 
@@ -1590,6 +1592,12 @@
         updateColorBtn(cfg.whisperColor || '#b070e8');
         divider();
 
+        // ── 3b. Ghost Hide ───────────────────────────────────────────
+        wrap.appendChild(settingRow(T('ghostHideLabel'), T('ghostHideNote'), cfg.ghostHide, v => {
+            cfg.ghostHide = v; saveCfg(); applyGhostHide(v);
+        }));
+        divider();
+
         // ── 4. Save mode ─────────────────────────────────────────────
         const smRow = document.createElement('div'); smRow.className = 'fcm-set-row'; smRow.style.alignItems = 'center';
         const smInfo = document.createElement('div'); smInfo.style.flex = '1'; smInfo.style.display = 'flex'; smInfo.style.alignItems = 'center'; smInfo.style.flexWrap = 'wrap'; smInfo.style.gap = '6px';
@@ -1667,6 +1675,22 @@
     // ═══════════════════════════════════════════════════════════
     //  INIT
     // ═══════════════════════════════════════════════════════════
+    // Ghost hide via DrawCharacter hook (SDK 1.2.0 supports this, BCX-safe)
+    modApi.hookFunction('DrawCharacter', 5, (args, next) => {
+        try {
+            const C = args[0];
+            if (cfg.ghostHide && C && typeof Player !== 'undefined' && Player
+                && C.MemberNumber !== Player.MemberNumber) {
+                const gl = Player.GhostList;
+                if (Array.isArray(gl) && gl.includes(C.MemberNumber)) return; // skip draw
+            }
+        } catch {}
+        return next(args);
+    });
+    function applyGhostHide(enable) {
+        console.log('🐈‍⬛ [FCM] Ghost hide ' + (enable ? 'enabled' : 'disabled'));
+    }
+
     // ─── Whisper Indicator (via DrawProcess hook, runs every ~15 frames) ──
     let _whisperDrawCount = 0;
     function _applyWhisperStyle() {
@@ -1698,8 +1722,8 @@
     }
 
     function init() {
+        loadCfg(); // Load config first so hooks (ghost hide, etc.) use correct settings
         if (typeof ChatRoomCharacter === 'undefined' || typeof Player === 'undefined') return setTimeout(init, 500);
-        loadCfg();
         PDB.init().then(async ok => {
             if (!ok) console.warn('🐈‍⬛ [FCM] Profile DB: no profiles store');
             // Auto-detect WCE on first run (if saveMode was never explicitly set)
