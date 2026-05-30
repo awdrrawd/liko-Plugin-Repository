@@ -2,11 +2,10 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.0.1
-// @description  Friends and ChatRoom Manager | 好友與房間管理
+// @version      1.1.0
+// @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
-// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
 // @require      https://cdn.jsdelivr.net/gh/Jomshir98/bondage-club-mod-sdk@0.3.3/dist/bcmodsdk.js
 // @run-at       document-end
@@ -15,11 +14,11 @@
 (function () {
     'use strict';
 
-    const MOD_VER = '1.0.1';
+    const MOD_VER = '1.1.0';
     const modApi = bcModSdk.registerMod({
-        name: "Liko's FCM", fullName: 'Liko - Friends and ChatRoom Manager', version: MOD_VER,
+        name: 'LikoFCM', fullName: 'Liko - Friends Room Manager', version: MOD_VER,
     });
-    const BTN_X = 955, BTN_Y = 455, BTN_W = 45, BTN_H = 45;
+    const BTN_X = 955, BTN_Y = 500, BTN_W = 45, BTN_H = 45;
 
     // ═══════════════════════════════════════════════════════════
     //  LANGUAGE  (#11 bilingual, following CFT pattern)
@@ -44,7 +43,7 @@
             showOnly: '顯示', togNick: '暱稱', togName: '名稱',
             fOnline: '在線', fOffline: '不在線', fOwner: '主人', fLover: '戀人', fSub: '奴隸', fFriend: '好友',
             colName: '名稱', colId: 'ID', colRel: '關係', colZone: '分區', colRoom: '房間',
-            colPerm: '權限', colOps: '其他', colMgmt: '房管', colMgmtNoPerm: '房管（無權）',
+            colPerm: '權限', colOps: '動作', colMgmt: '房管', colMgmtNoPerm: '房管（無權）',
             relOwner: '主人', relLover: '戀人', relSub: '奴隸', relFriend: '好友', relContact: '單向好友',
             zoneF: '♀', zoneM: '♂', zoneX: '♀♂', zoneUnk: '—',
             online: '在線', offline: '不在線',
@@ -57,7 +56,8 @@
             setAvatars: '顯示頭像', setAvatarsNote: '在列表中顯示角色頭像（見過後才有，或由角色資料重建）',
             setProfiles: '啟用自動儲存個人資料', setProfilesNote: '與 WCE bce-past-profiles 相容，同房間時自動儲存',
             dbOk: '已連線', dbNo: '未連線',
-            langLabel: '語言', langNote: 'Auto: 依 BC TranslationLanguage（CN/TW→中文，其餘→English）',
+            langLabel: '語言',
+            whisperIndicatorLabel: '私聊/BEEP 輸入框提示色', whisperIndicatorNote: '輸入 /w /whisper /beep 或進入悄悄話模式時，聊天框會顯示紫色邊框提示', langNote: 'Auto: 依 BC TranslationLanguage（CN/TW→中文，其餘→English）',
             langDetected: tl => `目前偵測: ${tl || '未設定'}`,
             btnReloadAvatars: '重新載入頭像', reloadAvatarsNote: '清除頭像快取，重新從角色資料建立',
             reloadAvatarsDone: '已清除頭像快取，重新加載中...',
@@ -65,6 +65,11 @@
             confirmDel: n => `確定刪除好友「${n}」？`,
             confirmKick: n => `確定逐出「${n}」？`,
             confirmRoom: n => `🚪 前往房間「${n}」？`,
+            tabRoomSearch: '查詢房間', roomSearch2: '搜尋房間...', roomSearchBtn: '搜尋',
+            roomSearching: '搜尋中...', roomSearchEmpty: '沒有找到房間',
+            roomFavLabel: '★ 最愛', roomJoin: '加入', roomMixed: '混合', roomFemale: '女性', roomMale: '男性',
+            totalRooms: n => `共 ${n} 間`, roomPrivateLabel: '私人',
+            btnAddWhite: '+白單', btnRmWhite: '-白單', btnAddBan: '+黑單', btnRmBan: '解禁',
             permAdmin: '管理', permPass: 'PASS', permBan: 'BAN', permVisit: '訪客',
             youLabel: '（你）', copyId: '點擊複製ID', copyDone: '已複製！',
             total: n => `共 ${n} 人`,
@@ -72,6 +77,9 @@
             beepPlaceholder: '輸入訊息（可留空）\nCtrl+Enter 發送',
             beepSend: '發送 BEEP', beepCancel: '取消',
             noData: '（空白）', noFriends: '沒有符合條件的好友',
+            fWhitelist: '白名單', fBlacklist: '黑名單', fGhost: '幽靈',
+            relWhitelist: '白名單', relBlacklist: '黑名單', relGhost: '幽靈',
+            roomPrivate: '私人', roomPublic: '',
             saveModeLabel: '儲存模式',
             saveModeOff: '不儲存', saveModeName: '僅名稱', saveModeAvatar: '名稱與頭像', saveModeFull: '完整資料（WCE 相容）',
             saveModeDesc_off: '不儲存任何資料。如果你有安裝 WCE 並啟用其 Profiles 功能，建議選此選項避免重複儲存（WCE 已幫你存好了）。',
@@ -97,11 +105,11 @@
             showOnly: 'Show', togNick: 'Nick', togName: 'Name',
             fOnline: 'Online', fOffline: 'Offline', fOwner: 'Owner', fLover: 'Lover', fSub: 'Sub', fFriend: 'Friend',
             colName: 'Name', colId: 'ID', colRel: 'Rel.', colZone: 'Zone', colRoom: 'Room',
-            colPerm: 'Perm.', colOps: 'Other', colMgmt: 'Room Admin', colMgmtNoPerm: 'Room Admin (no perm)',
+            colPerm: 'Perm.', colOps: 'Actions', colMgmt: 'Room Admin', colMgmtNoPerm: 'Room Admin (no perm)',
             relOwner: 'Owner', relLover: 'Lover', relSub: 'Sub', relFriend: 'Friend', relContact: 'One-way',
             zoneF: '♀', zoneM: '♂', zoneX: '♀♂', zoneUnk: '—',
             online: 'Online', offline: 'Offline',
-            btnView: 'View', btnBeep: 'BEEP', btnWhisper: 'Whisp', btnAddFriend: '+Frnd', btnRmFriend: '-Frnd',
+            btnView: 'View', btnBeep: 'BEEP', btnWhisper: 'Msg', btnAddFriend: '+Frnd', btnRmFriend: '-Frnd',
             btnAddAdmin: '+Admin', btnRmAdmin: '-Admin', btnAddWhite: '+White', btnRmWhite: '-White',
             btnAddBan: '+Ban', btnRmBan: 'Unban', btnKick: 'Kick',
             btnAdd: 'Add', btnAddTitle: 'Add ID to list',
@@ -110,7 +118,8 @@
             setAvatars: 'Show Avatars', setAvatarsNote: 'Show portraits (saved on encounter or rebuilt from profile data)',
             setProfiles: 'Enable Profile Auto-Save', setProfilesNote: 'WCE bce-past-profiles compatible',
             dbOk: 'Connected', dbNo: 'Not connected',
-            langLabel: 'Language', langNote: 'Auto: follows BC TranslationLanguage (CN/TW→Chinese, others→English)',
+            langLabel: 'Language',
+            whisperIndicatorLabel: 'Whisper/BEEP Input Glow Color', whisperIndicatorNote: 'Shows a purple glow on the chat input when /w /whisper /beep is typed or whisper mode is active', langNote: 'Auto: follows BC TranslationLanguage (CN/TW→Chinese, others→English)',
             langDetected: tl => `Detected: ${tl || 'not set'}`,
             btnReloadAvatars: 'Reload Avatars', reloadAvatarsNote: 'Clear avatar cache and rebuild from profile data',
             reloadAvatarsDone: 'Avatar cache cleared, reloading...',
@@ -118,6 +127,11 @@
             confirmDel: n => `Unfriend "${n}"?`,
             confirmKick: n => `Kick "${n}"?`,
             confirmRoom: n => `🚪 Go to room "${n}"?`,
+            tabRoomSearch: 'Search Rooms', roomSearch2: 'Search rooms...', roomSearchBtn: 'Search',
+            roomSearching: 'Searching...', roomSearchEmpty: 'No rooms found',
+            roomFavLabel: '★ Favs', roomJoin: 'Join', roomMixed: 'Mixed', roomFemale: 'Female', roomMale: 'Male',
+            totalRooms: n => `Rooms: ${n}`, roomPrivateLabel: 'Private',
+            btnAddWhite: '+White', btnRmWhite: '-White', btnAddBan: '+Ban', btnRmBan: 'Unban',
             permAdmin: 'Admin', permPass: 'PASS', permBan: 'BAN', permVisit: 'Visit',
             youLabel: '(You)', copyId: 'Click to copy ID', copyDone: 'Copied!',
             total: n => `Total: ${n}`,
@@ -125,6 +139,9 @@
             beepPlaceholder: 'Type message (can be empty)\nCtrl+Enter to send',
             beepSend: 'Send BEEP', beepCancel: 'Cancel',
             noData: '(Empty)', noFriends: 'No matching entries',
+            fWhitelist: 'Whitelist', fBlacklist: 'Blacklist', fGhost: 'Ghost',
+            relWhitelist: 'WL', relBlacklist: 'BL', relGhost: 'Ghost',
+            roomPrivate: 'Private', roomPublic: '',
             saveModeLabel: 'Save Mode',
             saveModeOff: 'Off', saveModeName: 'Name only', saveModeAvatar: 'Name + Avatar', saveModeFull: 'Full profile (WCE)',
             saveModeDesc_off: "Don't save any data. If you have WCE with Profiles enabled, choose this to avoid duplicates (WCE already saves for you).",
@@ -148,7 +165,7 @@
     // ═══════════════════════════════════════════════════════════
     //  SETTINGS
     // ═══════════════════════════════════════════════════════════
-    let cfg = { avatars: true, lang: 'auto', saveMode: 'off' }; // saveMode: 'off'|'name'|'avatar'|'full'
+    let cfg = { avatars: false, lang: 'auto', saveMode: 'off', whisperIndicator: false, whisperColor: '#b070e8' }; // saveMode: 'off'|'name'|'avatar'|'full'
     function loadCfg() { try { const s = localStorage.getItem('LikoFCM'); if (s) Object.assign(cfg, JSON.parse(s)); } catch {} }
     function saveCfg() { try { localStorage.setItem('LikoFCM', JSON.stringify(cfg)); } catch {} }
 
@@ -190,9 +207,9 @@
                 // bundle: only for 'full' mode (strip large fields like WCE does)
                 if (cfg.saveMode === 'full') {
                     const src = raw || { MemberNumber: C.MemberNumber, Name: C.Name || '', Nickname: C.Nickname || '',
-                                        LabelColor: C.LabelColor || '#fff', Description: C.Description || '',
-                                        Title: C.Title || '', Appearance: C.Appearance || [],
-                                        Lovership: C.Lovership || [], Reputation: C.Reputation || [] };
+                        LabelColor: C.LabelColor || '#fff', Description: C.Description || '',
+                        Title: C.Title || '', Appearance: C.Appearance || [],
+                        Lovership: C.Lovership || [], Reputation: C.Reputation || [] };
                     const b = { ...src };
                     ['ActivePose','Inventory','BlockItems','LimitedItems','FavoriteItems',
                      'ArousalSettings','OnlineSharedSettings','WhiteList','BlackList','Crafting',
@@ -294,7 +311,7 @@
     let onlineFriends = [];
     modApi.hookFunction('FriendListLoadFriendList', 0, (args, next) => {
         const r = next(args);
-        if (Array.isArray(args[0])) { onlineFriends = args[0]; if (panelOpen && !panelMini) renderCurrent(); }
+        if (Array.isArray(args[0])) { onlineFriends = args[0]; if (panelOpen && !panelMini && uiTab === 'friends') renderCurrent(); }
         return r;
     });
     modApi.hookFunction('ChatRoomSync', 0, (args, next) => {
@@ -309,8 +326,8 @@
     });
     // #6 Refresh room tab on member join/leave/perm change
     modApi.hookFunction('ChatRoomSyncRoomProperties', 0, (args, next) => {
-        const r = next(args);
-        if (panelOpen && !panelMini && uiTab === 'room') renderCurrent();
+        let r; try { r = next(args); } catch(e) { console.warn('🐈‍⬛ [FCM] SyncRoomProperties:', e); }
+        try { if (panelOpen && !panelMini && uiTab === 'room') renderCurrent(); } catch {}
         return r;
     });
     modApi.hookFunction('ChatRoomSyncMemberLeave', 0, (args, next) => {
@@ -337,9 +354,25 @@
         if (getSubSet().has(mn)) return 'sub';
         if (Player.FriendNames && Player.FriendNames.get(mn)) return 'friend';
         if (Player.FriendList && Player.FriendList.includes(mn)) return 'contact';
+        if (Player.WhiteList && Player.WhiteList.includes(mn)) return 'whitelist';
+        if (Player.BlackList && Player.BlackList.includes(mn)) return 'blacklist';
         return 'none';
     }
-    const REL_ORDER = { owner: 0, lover: 1, sub: 2, friend: 3, contact: 4, none: 5 };
+    // Returns ALL roles (multi-role support: lover+sub, owner+whitelist etc.)
+    function getAllRels(mn) {
+        mn = parseInt(mn); if (!Player || mn === parseInt(Player.MemberNumber)) return ['none'];
+        const roles = [];
+        if (Player.Ownership && parseInt(Player.Ownership.MemberNumber) === mn) roles.push('owner');
+        if ((Player.Lovership && Player.Lovership.some(l => parseInt(l.MemberNumber) === mn)) || parseAFC().some(l => parseInt(l.MemberNumber) === mn)) roles.push('lover');
+        if (getSubSet().has(mn)) roles.push('sub');
+        if (!roles.length && Player.FriendNames && Player.FriendNames.get(mn)) roles.push('friend');
+        if (!roles.length && Player.FriendList && Player.FriendList.includes(mn)) roles.push('contact');
+        if (Player.WhiteList && Player.WhiteList.includes(mn)) roles.push('whitelist');
+        if (Player.BlackList && Player.BlackList.includes(mn)) roles.push('blacklist');
+        try { if (Player.GhostList && Player.GhostList.includes(mn)) roles.push('ghost'); } catch {}
+        return roles.length ? roles : ['none'];
+    }
+    const REL_ORDER = { owner: 0, lover: 1, sub: 2, friend: 3, contact: 4, whitelist: 5, blacklist: 6, none: 7 };
 
     // #3 Show Nickname or Name based on toggle
     let showNickname = true;
@@ -351,7 +384,14 @@
             return C.Name || `#${mn}`;
         }
         const online = onlineFriends.find(f => f.MemberNumber === mn);
-        if (online && online.MemberName) return online.MemberName;
+        if (online && online.MemberName) {
+            // When nickname mode: check profile cache for nickname
+            if (showNickname) {
+                const cached2 = _pc[mn];
+                if (cached2 && cached2.lastNick) return cached2.lastNick;
+            }
+            return online.MemberName;
+        }
         if (Player.FriendNames && Player.FriendNames.get(mn)) return Player.FriendNames.get(mn);
         const lover = Player.Lovership && Player.Lovership.find(l => parseInt(l.MemberNumber) === mn); if (lover && lover.Name) return lover.Name;
         const afc = parseAFC().find(l => l.MemberNumber === mn); if (afc && afc.Name) return afc.Name;
@@ -374,10 +414,32 @@
         (ChatRoomCharacter || []).forEach(C => { if (C.Ownership && parseInt(C.Ownership.MemberNumber) === selfMn) add(C.MemberNumber, 0); });
         if (Player.FriendNames) for (const [mn] of Player.FriendNames) add(mn, 0);
         (Player.FriendList || []).forEach(mn => add(mn, 0));
+        // Also include personal whitelist / blacklist members
+        (Player.WhiteList || []).forEach(mn => add(mn, 0));
+        (Player.BlackList || []).forEach(mn => add(mn, 0));
+        try { (Player.GhostList || []).forEach(mn => add(mn, 0)); } catch {}
         return rows.filter(r => r.mn !== selfMn).map(r => ({ mn: r.mn, addedAt: r.addedAt, name: getDisplayName(r.mn), rel: getRel(r.mn) }));
     }
-    function getZone(mn) { const f = onlineFriends.find(f => f.MemberNumber === parseInt(mn)); if (!f) return null; const sp = f.ChatRoomSpace !== undefined ? f.ChatRoomSpace : ''; if (sp === 'M') return T('zoneM'); if (sp === 'X' || sp === 'B') return T('zoneX'); return T('zoneF'); }
-    function getRoomName(mn) { const f = onlineFriends.find(f => f.MemberNumber === parseInt(mn)); return f && f.ChatRoomName ? f.ChatRoomName : null; }
+    function getZone(mn) {
+        mn = parseInt(mn);
+        const inRoomC = ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === mn);
+        if (inRoomC) { const sp = inRoomC.Pronouns || inRoomC.Gender || ''; if (sp === 'M') return T('zoneM'); return T('zoneF'); }
+        const f = onlineFriends.find(f => f.MemberNumber === mn);
+        if (!f) return null; // offline → caller shows '-'
+        const sp = f.ChatRoomSpace !== undefined ? f.ChatRoomSpace : '';
+        if (sp === 'M') return T('zoneM'); if (sp === 'X' || sp === 'B') return T('zoneX'); return T('zoneF');
+    }
+    function getRoomInfo(mn) {
+        mn = parseInt(mn);
+        const inRoomC = ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === mn);
+        if (inRoomC && ChatRoomData) return { name: ChatRoomData.Name, isPrivate: !!(ChatRoomData.Private), isCurrent: true };
+        const f = onlineFriends.find(f => f.MemberNumber === mn);
+        if (!f) return null;
+        if (f.ChatRoomName) return { name: f.ChatRoomName, isPrivate: !!(f.Private), isCurrent: false };
+        if (f.Private) return { name: null, isPrivate: true, isCurrent: false }; // private room, name hidden
+        return null; // lobby / not in a room
+    }
+    function getRoomName(mn) { const r = getRoomInfo(mn); return r ? r.name : null; }
     function getRoomPerms(mn) {
         if (!ChatRoomData) return ['visit']; mn = parseInt(mn);
         const p = []; if (ChatRoomData.Admin && ChatRoomData.Admin.includes(mn)) p.push('admin'); if (ChatRoomData.Whitelist && ChatRoomData.Whitelist.includes(mn)) p.push('pass'); if (ChatRoomData.Ban && ChatRoomData.Ban.includes(mn)) p.push('ban'); if (!p.length) p.push('visit'); return p;
@@ -385,7 +447,7 @@
     function amAdmin() { return !!(ChatRoomData && ChatRoomData.Admin && ChatRoomData.Admin.includes(Player.MemberNumber)); }
     function inRoom(mn) { return !!(ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === parseInt(mn))); }
     function isFriendOf(mn) { return !!(Player.FriendList && Player.FriendList.includes(parseInt(mn))); }
-    function canBeep(mn) { if (inRoom(mn)) return true; const rel = getRel(parseInt(mn)); return rel !== 'contact' && rel !== 'none'; }
+    function canBeep(mn) { if (inRoom(mn)) return true; return onlineFriends.some(f => f.MemberNumber === parseInt(mn)); }
 
     // ═══════════════════════════════════════════════════════════
     //  ROOM ACTIONS
@@ -393,14 +455,11 @@
     function roomOp(mn, action) {
         if (!amAdmin()) return;
         mn = parseInt(mn);
-
-        const targetInRoom = inRoom(mn);
-
         switch (action) {
             case 'makeAdmin': {
                 if (!Array.isArray(ChatRoomData.Admin)) ChatRoomData.Admin = [];
                 if (!ChatRoomData.Admin.some(a => parseInt(a) === mn)) ChatRoomData.Admin.push(mn);
-                if (targetInRoom) {
+                if (inRoom(mn)) {
                     ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Promote' });
                 } else {
                     ServerSend('ChatRoomAdmin', { MemberNumber: Player.ID, Room: ChatRoomGetSettings(ChatRoomData), Action: 'Update' });
@@ -409,9 +468,9 @@
             }
             case 'rmAdmin': {
                 if (!Array.isArray(ChatRoomData.Admin)) ChatRoomData.Admin = [];
-                const i = ChatRoomData.Admin.findIndex(a => parseInt(a) === mn);
-                if (i >= 0) ChatRoomData.Admin.splice(i, 1);
-                if (targetInRoom) {
+                const _ai = ChatRoomData.Admin.findIndex(a => parseInt(a) === mn);
+                if (_ai >= 0) ChatRoomData.Admin.splice(_ai, 1);
+                if (inRoom(mn)) {
                     ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Demote' });
                 } else {
                     ServerSend('ChatRoomAdmin', { MemberNumber: Player.ID, Room: ChatRoomGetSettings(ChatRoomData), Action: 'Update' });
@@ -464,6 +523,26 @@
 
     function doWhisper(mn) { const el = document.getElementById('InputChat'); if (el) { el.value = `/w ${mn} `; el.focus(); } minimizePanel(); }
     function doAddFriend(mn) { mn = parseInt(mn); if (!isFriendOf(mn) && typeof ChatRoomListManipulation === 'function') { ChatRoomListManipulation(Player.FriendList, true, mn.toString()); setTimeout(renderCurrent, 400); } }
+    function doToggleList(mn, listType, add) {
+        mn = parseInt(mn);
+        let list;
+        if (listType === 'white') list = Player.WhiteList;
+        else if (listType === 'black') list = Player.BlackList;
+        else if (listType === 'ghost') { try { list = Player.GhostList; } catch { list = null; } }
+        if (!Array.isArray(list)) return;
+        try {
+            if (typeof ChatRoomListManipulation === 'function') {
+                ChatRoomListManipulation(list, add, String(mn));
+            } else {
+                const idx2 = list.indexOf(mn);
+                if (add && idx2 < 0) list.push(mn);
+                else if (!add && idx2 >= 0) list.splice(idx2, 1);
+                const d = {}; d[listType === 'white' ? 'WhiteList' : listType === 'black' ? 'BlackList' : 'GhostList'] = list;
+                if (typeof ServerAccountUpdate !== 'undefined') ServerAccountUpdate.QueueData(d);
+            }
+        } catch(e) { console.warn('🐈‍⬛ [FCM] doToggleList:', e); }
+        setTimeout(renderCurrent, 400);
+    }
     function doRemoveFriend(mn) { mn = parseInt(mn); showConfirm(T('confirmDel', getDisplayName(mn)), () => { if (typeof ChatRoomListManipulation === 'function') { ChatRoomListManipulation(Player.FriendList, false, mn.toString()); setTimeout(renderCurrent, 400); } }, isZh() ? '刪除' : 'Unfriend'); }
     function navigateToRoom(roomName) {
         showConfirm(T('confirmRoom', roomName), () => {
@@ -581,7 +660,10 @@
 .fcm-rel-lover  {background:#28082a;color:#ff9ae0;border:1px solid #801868;}
 .fcm-rel-sub    {background:#082018;color:#60e0b0;border:1px solid #106040;}
 .fcm-rel-friend {background:#08102a;color:#88c8ff;border:1px solid #184880;}
-.fcm-rel-contact{background:#1c1830;color:#a890c8;border:1px solid #483868;}
+.fcm-rel-contact  {background:#1c1830;color:#a890c8;border:1px solid #483868;}
+.fcm-rel-whitelist{background:#0d2a1a;color:#60d090;border:1px solid #208050;font-size:9px;padding:1px 5px;}
+.fcm-rel-blacklist{background:#2a0d0d;color:#d07070;border:1px solid #802020;font-size:9px;padding:1px 5px;}
+.fcm-rel-ghost    {background:#1a1a1a;color:#909090;border:1px solid #505050;font-size:9px;padding:1px 5px;}
 .fcm-perms{display:flex;gap:3px;flex-wrap:wrap;justify-content:center;}
 .fcm-perm{font-size:10px;padding:2px 8px;border-radius:6px;font-weight:800;white-space:nowrap;}
 .fcm-perm-admin{background:#280808;color:#ff7060;border:1px solid #801010;}
@@ -592,7 +674,7 @@
 .fcm-btn{padding:3px 7px;border-radius:6px;border:1px solid #4838a0;background:#1e1635;color:#b098d0;font-size:10px;cursor:pointer;transition:all .15s;white-space:nowrap;font-weight:600;}
 .fcm-btn:hover{background:#2a1e50;border-color:#9070c8;color:#e8d0ff;}
 .fcm-btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none;}
-.fcm-btn-red   {border-color:#801010;color:#f08080;}.fcm-btn-red:hover{background:#2a0808;border-color:#d04040;color:#ffb0b0;}
+.fcm-btn-red   {border-color:#801010;color:#f08080;}.fcm-btn-red:hover{background:#2a0808;border-color:#d04040;color:#ffb0b0;}.fcm-btn-purple{border-color:#7030b8;color:#c080f0;}.fcm-btn-purple:hover{background:#2a1040;border-color:#c080f0;}
 .fcm-btn-blue  {border-color:#184888;color:#80c8ff;}.fcm-btn-blue:hover{background:#0a1e38;border-color:#4098d8;color:#c0e8ff;}
 .fcm-btn-green {border-color:#104830;color:#60d890;}.fcm-btn-green:hover{background:#081e10;border-color:#30b858;color:#a0ffc0;}
 .fcm-btn-orange{border-color:#604010;color:#f0a050;}.fcm-btn-orange:hover{background:#281808;border-color:#c06820;color:#ffc880;}
@@ -600,7 +682,7 @@
 .fcm-warn{padding:8px 16px;font-size:11px;color:#f0a060;background:#20100a;border-bottom:1px solid #601c08;flex-shrink:0;}
 .fcm-settings-wrap{padding:24px;display:flex;flex-direction:column;gap:20px;overflow-y:auto;}
 .fcm-set-row{display:flex;align-items:flex-start;gap:14px;padding:6px 0;}
-.fcm-tog{width:42px;height:22px;border-radius:11px;border:1px solid #4838a0;background:#1a1030;cursor:pointer;position:relative;transition:all .2s;flex-shrink:0;margin-top:2px;}
+.fcm-tog{width:42px;height:22px;border-radius:11px;border:1px solid #4838a0;background:#1a1030;cursor:pointer;position:relative;transition:all .2s;flex-shrink:0;margin-top:2px;margin-right:4px;}
 .fcm-tog.on{background:#3a1858;border-color:#b080e8;}
 .fcm-tog-dot{position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#4838a8;transition:all .2s;}
 .fcm-tog.on .fcm-tog-dot{left:23px;background:#d090f8;}
@@ -622,11 +704,27 @@
     // ═══════════════════════════════════════════════════════════
     //  UI STATE
     // ═══════════════════════════════════════════════════════════
+    // Room search state (defined early so renderFriends can access _roomResults)
+    let _roomResults = [];
+    let _roomZoneFilter = 'X';
+    let _roomSearchQ2 = '';
+    let _favRooms = new Set(JSON.parse(localStorage.getItem('fcmFavRooms') || '[]'));
+    let _roomSortMode = 'fav';
+    function saveFavRooms() { try { localStorage.setItem('fcmFavRooms', JSON.stringify([..._favRooms])); } catch {} }
+    async function doRoomSearch(query, zone) {
+        try {
+            const res = await ServerRoomSearch(query || '', { Language: '', Space: zone, Game: '', FullRooms: false });
+            if (!res || res.err || !res.value) return [];
+            if (res.value.length > 0) console.log('🐈‍⬛ [FCM] Room sample:', JSON.stringify(res.value[0]).slice(0,200));
+            return res.value;
+        } catch(e) { console.warn('🐈‍⬛ [FCM] doRoomSearch:', e); return []; }
+    }
+
     let panelEl = null, miniEl = null, panelOpen = false, panelMini = false;
     let uiTab = 'friends', roomSubTab = 'members';
     let searchQ = '', roomSearchQ = '', sortMode = 'rel', roomSortMode = 'name'; // #5
     let searchDebounce = null, roomSearchDebounce = null;
-    const filters = { online: false, offline: false, owner: false, lover: false, sub: false, friend: false };
+    const filters = { online: true, offline: false, owner: false, lover: false, sub: false, friend: false, whitelist: false, blacklist: false };
 
     // ═══════════════════════════════════════════════════════════
     //  ELEMENT HELPERS
@@ -652,7 +750,19 @@
         return el;
     }
 
-    function makeRelEl(rel) { const el = document.createElement('span'); el.className = `fcm-rel fcm-rel-${rel in REL_ORDER ? rel : 'contact'}`; el.textContent = { owner: T('relOwner'), lover: T('relLover'), sub: T('relSub'), friend: T('relFriend'), contact: T('relContact') }[rel] || '—'; return el; }
+    const REL_LABEL = () => ({ owner: T('relOwner'), lover: T('relLover'), sub: T('relSub'), friend: T('relFriend'), contact: T('relContact'), whitelist: T('relWhitelist'), blacklist: T('relBlacklist'), ghost: T('relGhost'), none: '—' });
+    function makeRelEl(rel) {
+        // Accept either a string or array of roles
+        const roles = Array.isArray(rel) ? rel : [rel];
+        const wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:2px;';
+        const labels = REL_LABEL();
+        for (const r of roles) {
+            if (r === 'none') { if (roles.length === 1) { const s = document.createElement('span'); s.textContent = '—'; wrap.appendChild(s); } continue; }
+            const s = document.createElement('span'); s.className = `fcm-rel fcm-rel-${r in REL_ORDER ? r : 'contact'}`;
+            s.textContent = labels[r] || r; wrap.appendChild(s);
+        }
+        return wrap;
+    }
     function makePermEl(perm) { const el = document.createElement('span'); el.className = `fcm-perm fcm-perm-${perm}`; el.textContent = { admin: T('permAdmin'), pass: T('permPass'), ban: T('permBan'), visit: T('permVisit') }[perm] || perm; return el; }
     function mkBtn(label, cls, cb, title) { const b = document.createElement('button'); b.className = 'fcm-btn' + (cls ? ' ' + cls : ''); b.textContent = label; if (title) b.title = title; b.addEventListener('click', e => { e.stopPropagation(); cb(e); }); return b; }
     function mkToggle(on, onChange) { const w = document.createElement('div'); w.className = 'fcm-tog' + (on ? ' on' : ''); const d = document.createElement('div'); d.className = 'fcm-tog-dot'; w.appendChild(d); w.addEventListener('click', () => { const v = !w.classList.contains('on'); w.classList.toggle('on', v); onChange(v); }); return w; }
@@ -701,7 +811,7 @@
         const closeBtn = document.createElement('div'); closeBtn.className = 'fcm-hbtn'; closeBtn.textContent = T('close'); closeBtn.addEventListener('click', closePanel);
         hdr.appendChild(title); hdr.appendChild(minBtn); hdr.appendChild(closeBtn);
         const tabBar = document.createElement('div'); tabBar.id = 'fcm-tabs';
-        [['friends', T('tabFriends')], ['room', T('tabRoom')], ['settings', T('tabSettings')]].forEach(([key, label]) => {
+        [['friends', T('tabFriends')], ['room', T('tabRoom')], ['roomSearch', T('tabRoomSearch')], ['settings', T('tabSettings')]].forEach(([key, label]) => {
             const t = document.createElement('div'); t.className = 'fcm-tab' + (key === uiTab ? ' active' : ''); t.dataset.tab = key; t.textContent = label;
             t.addEventListener('click', () => {
                 if (key === 'room' && !(typeof ChatRoomData !== 'undefined' && ChatRoomData)) {
@@ -744,7 +854,7 @@
         });
         const scrollEl = content.querySelector('.fcm-scroll');
         const savedScroll = scrollEl ? scrollEl.scrollTop : 0;
-        const p = uiTab === 'friends' ? renderFriends(content) : uiTab === 'room' ? renderRoom(content) : Promise.resolve(renderSettings(content));
+        const p = uiTab === 'friends' ? renderFriends(content) : uiTab === 'room' ? renderRoom(content) : uiTab === 'roomSearch' ? Promise.resolve(renderRoomSearch(content)) : Promise.resolve(renderSettings(content));
         (p || Promise.resolve()).then(() => {
             if (savedScroll > 0) { const ns = content.querySelector('.fcm-scroll'); if (ns) ns.scrollTop = savedScroll; }
         }).catch(e => console.warn('🐈‍⬛ [FCM] render:', e));
@@ -754,8 +864,14 @@
         const rel = f.rel, online = isOnline(f.mn);
         const anyOnline = filters.online || filters.offline;
         if (anyOnline) { if (filters.online && !filters.offline && !online) return false; if (filters.offline && !filters.online && online) return false; }
-        const anyRel = filters.owner || filters.lover || filters.sub || filters.friend;
-        if (anyRel) { const match = (filters.owner && rel === 'owner') || (filters.lover && rel === 'lover') || (filters.sub && rel === 'sub') || (filters.friend && (rel === 'friend' || rel === 'contact')); if (!match) return false; }
+        const anyRel = filters.owner || filters.lover || filters.sub || filters.friend || filters.whitelist || filters.blacklist;
+        if (anyRel) {
+            const roles = getAllRels(f.mn);
+            const match = (filters.owner && roles.includes('owner')) || (filters.lover && roles.includes('lover')) || (filters.sub && roles.includes('sub'))
+                || (filters.friend && (roles.includes('friend') || roles.includes('contact')))
+                || (filters.whitelist && roles.includes('whitelist')) || (filters.blacklist && roles.includes('blacklist'));
+            if (!match) return false;
+        }
         return true;
     }
     function isOnline(mn) { mn = parseInt(mn); return !!(ChatRoomCharacter && ChatRoomCharacter.some(c => c.MemberNumber === mn)) || !!(onlineFriends.find(f => f.MemberNumber === mn)); }
@@ -791,7 +907,7 @@
         // #4 Filters (labeled '顯示') + filter toggles
         const fl = document.createElement('span'); fl.className = 'fcm-lbl-sm'; fl.textContent = T('showOnly') + ':';
         toolbar.appendChild(fl);
-        [['online', T('fOnline')], ['offline', T('fOffline')], ['owner', T('fOwner')], ['lover', T('fLover')], ['sub', T('fSub')], ['friend', T('fFriend')]].forEach(([key, label]) => {
+        [['online', T('fOnline')], ['offline', T('fOffline')], ['owner', T('fOwner')], ['lover', T('fLover')], ['sub', T('fSub')], ['friend', T('fFriend')], ['whitelist', T('fWhitelist')], ['blacklist', T('fBlacklist')]].forEach(([key, label]) => {
             const b = document.createElement('button'); b.className = 'fcm-ftog' + (filters[key] ? ' on' : ''); b.textContent = label;
             b.addEventListener('click', () => { filters[key] = !filters[key]; b.classList.toggle('on', filters[key]); renderFriends(container); });
             toolbar.appendChild(b);
@@ -805,6 +921,9 @@
         toolbar.appendChild(nickBtn);
         const { lbl: sl, sel: sortSel } = makeSortSel(sortMode, [['rel', T('sortRel')], ['id', T('sortId')], ['name', T('sortName')], ['added', T('sortAdded')]], v => { sortMode = v; renderFriends(container); });
         toolbar.appendChild(sl); toolbar.appendChild(sortSel);
+        const rBtnF2 = mkBtn('↻', 'fcm-btn', () => renderFriends(container));
+        rBtnF2.title = isZh() ? '重新整理' : 'Refresh'; rBtnF2.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
+        toolbar.appendChild(rBtnF2);
         container.appendChild(toolbar);
 
         // Data
@@ -837,7 +956,7 @@
         [['', 'width:42px'], [T('colName'), 'min-width:120px', 'fcm-th-left'], [T('colId'), ''], [T('colRel'), ''], [T('colZone'), ''], [T('colRoom'), 'min-width:100px'], [T('colOps'), 'min-width:150px']].forEach(([text, style, cls]) => {
             const th = document.createElement('th'); th.textContent = text; if (style) th.style.cssText = style; if (cls) th.className = cls; thRow.appendChild(th);
         });
-        if (inARoom) { const th = document.createElement('th'); th.textContent = isAdmin ? T('colMgmt') : T('colMgmtNoPerm'); th.className = (isAdmin ? 'fcm-th-mgmt' : 'fcm-th-mgmt-off'); th.style.minWidth = '220px'; thRow.appendChild(th); }
+        if (inARoom) { const th = document.createElement('th'); th.textContent = isAdmin ? T('colMgmt') : T('colMgmtNoPerm'); th.className = (isAdmin ? 'fcm-th-mgmt' : 'fcm-th-mgmt-off'); th.style.cssText = 'min-width:140px;max-width:155px;width:150px;'; thRow.appendChild(th); }
         const thead = document.createElement('thead'); thead.appendChild(thRow); tbl.appendChild(thead);
         const tbody = document.createElement('tbody');
 
@@ -852,11 +971,36 @@
             const sd = document.createElement('div'); sd.className = 'fcm-sta ' + (online ? 'fcm-online' : 'fcm-offline'); sd.textContent = online ? T('online') : T('offline');
             nameTd.appendChild(nd); nameTd.appendChild(sd); tr.appendChild(nameTd);
             tr.appendChild(makeIdCell(f.mn));
-            const relTd = document.createElement('td'); relTd.style.textAlign = 'center'; relTd.appendChild(makeRelEl(f.rel)); tr.appendChild(relTd);
-            const zt = document.createElement('td'); zt.style.textAlign = 'center'; const zs = document.createElement('span'); zs.className = 'fcm-zone'; zs.textContent = online && zone ? zone : T('zoneUnk'); zt.appendChild(zs); tr.appendChild(zt);
+            // Multi-role relationship
+            const allRoles = getAllRels(f.mn);
+            const relTd = document.createElement('td'); relTd.style.textAlign = 'center'; relTd.style.minWidth = '60px'; relTd.appendChild(makeRelEl(allRoles)); tr.appendChild(relTd);
+            // Zone: '-' if offline
+            const zt = document.createElement('td'); zt.style.textAlign = 'center';
+            const zs = document.createElement('span'); zs.className = 'fcm-zone';
+            const riZone = getRoomInfo(f.mn);
+            const hideZone = !online || (online && riZone === null) || (riZone && !riZone.name && riZone.isPrivate);
+            zs.textContent = hideZone ? '—' : (zone || T('zoneUnk')); zt.appendChild(zs); tr.appendChild(zt);
+            // Room: count + private handling
+            const ri = getRoomInfo(f.mn);
             const rt = document.createElement('td');
-            if (online && room) { const rl = document.createElement('span'); rl.className = 'fcm-room-link'; rl.textContent = room; rl.title = T('confirmRoom', room); rl.addEventListener('click', () => navigateToRoom(room)); rt.appendChild(rl); }
-            else { rt.innerHTML = `<span class="fcm-room">${T('zoneUnk')}</span>`; }
+            if (ri && ri.name) {
+                const cached = _roomResults.find(r => r.Name === ri.name);
+                const mc = ri.isCurrent && typeof ChatRoomCharacter !== 'undefined' ? ChatRoomCharacter.length
+                         : (cached ? (cached.MemberCount ?? cached.NbMember ?? null) : null);
+                const ml = ri.isCurrent ? (ChatRoomData?.MemberLimit ?? null)
+                         : (cached ? (cached.MemberLimit ?? cached.Limit ?? null) : null);
+                const rcStr = mc !== null ? `${ri.name}(${mc}/${ml ?? '?'})` : ri.name;
+                const roomFull = mc !== null && ml !== null && mc >= ml;
+                const rl = document.createElement('span'); rl.className = 'fcm-room-link';
+                rl.textContent = rcStr;
+                rl.title = (ri.isPrivate ? (isZh() ? '[私人] ' : '[Private] ') : '') + rcStr + (roomFull ? (isZh() ? '\n⚠ 房間已滿' : '\n⚠ Full') : ('\n' + (isZh() ? '前往此房間？' : 'Go to room?')));
+                if (!roomFull) rl.addEventListener('click', () => navigateToRoom(ri.name)); else rl.style.color = '#808080';
+                if (ri.isPrivate) { const b2 = document.createElement('span'); b2.style.cssText = 'font-size:10px;color:#c090f0;margin-left:2px;'; b2.textContent = isZh() ? '(私人)' : '(Priv)'; rl.appendChild(b2); }
+                rt.appendChild(rl);
+            } else if (ri && !ri.name && ri.isPrivate) {
+                const sp = document.createElement('span'); sp.style.cssText = 'font-size:11px;color:#c090f0;font-weight:600;';
+                sp.textContent = isZh() ? '(私密)' : '(Private)'; rt.appendChild(sp);
+            } else { rt.innerHTML = '<span class="fcm-room">—</span>'; }
             tr.appendChild(rt);
 
             // 其他
@@ -864,9 +1008,15 @@
             const hasProfile = !!(profile && profile.characterBundle);
             const vb = mkBtn(T('btnView'), '', () => doView(f.mn)); if (!isInRoom && !hasProfile) vb.disabled = true; ops.appendChild(vb);
             if (canBeep(f.mn)) ops.appendChild(mkBtn(T('btnBeep'), 'fcm-btn-blue', () => doBeep(f.mn)));
-            if (isInRoom) ops.appendChild(mkBtn(T('btnWhisper'), '', () => doWhisper(f.mn)));
-            if (isInRoom && !isFriend) ops.appendChild(mkBtn(T('btnAddFriend'), 'fcm-btn-green', () => doAddFriend(f.mn)));
-            if (isFriend) ops.appendChild(mkBtn(T('btnRmFriend'), 'fcm-btn-red', () => doRemoveFriend(f.mn)));
+            const _sep = document.createElement('span'); _sep.style.cssText = 'width:6px;display:inline-block;'; ops.appendChild(_sep);
+            if (!isFriend) ops.appendChild(mkBtn(T('btnAddFriend'), 'fcm-btn-green', () => showConfirm(isZh()?`添加「${getDisplayName(f.mn)}」為好友？`:`Add "${getDisplayName(f.mn)}" as friend?`, () => doAddFriend(f.mn))));
+            else ops.appendChild(mkBtn(T('btnRmFriend'), 'fcm-btn-red', () => showConfirm(T('confirmDel', getDisplayName(f.mn)), () => doRemoveFriend(f.mn), isZh()?'移除':'Remove')));
+            const _dname = getDisplayName(f.mn);
+            const _isWhl = (Player.WhiteList||[]).includes(f.mn), _isBl = (Player.BlackList||[]).includes(f.mn);
+            const _isGh = (() => { try { return (Player.GhostList||[]).includes(f.mn); } catch { return false; } })();
+            ops.appendChild(mkBtn(_isWhl ? T('btnRmWhite') : T('btnAddWhite'), _isWhl ? 'fcm-btn-red' : 'fcm-btn-green', () => showConfirm(_isWhl?(isZh()?`移除「${_dname}」白名單？`:`Remove "${_dname}" from whitelist?`):(isZh()?`將「${_dname}」加入白名單？`:`Add "${_dname}" to whitelist?`), () => doToggleList(f.mn,'white',!_isWhl))));
+            ops.appendChild(mkBtn(_isBl ? T('btnRmBan') : T('btnAddBan'), 'fcm-btn-red', () => showConfirm(_isBl?(isZh()?`移除「${_dname}」黑名單？`:`Remove "${_dname}" from blacklist?`):(isZh()?`⚠ 加入黑名單「${_dname}」？`:`⚠ Blacklist "${_dname}"?`), () => doToggleList(f.mn,'black',!_isBl), _isBl?undefined:(isZh()?'加入':'Add'))));
+            ops.appendChild(mkBtn(_isGh?(isZh()?'-幽靈':'-Ghost'):(isZh()?'+幽靈':'+Ghost'), _isGh?'fcm-btn-red':'fcm-btn-purple', () => showConfirm(_isGh?(isZh()?`移除「${_dname}」幽靈？`:`Remove "${_dname}" from ghost?`):(isZh()?`將「${_dname}」加入幽靈？`:`Add "${_dname}" to ghost?`), () => doToggleList(f.mn,'ghost',!_isGh))));
             opsTd.appendChild(ops); tr.appendChild(opsTd);
 
             // 房管
@@ -940,10 +1090,17 @@
             toolbar.appendChild(addBtn);
         }
 
-        // #5 Sort on right
+        // Nick toggle + Sort on right
         toolbar.appendChild(Object.assign(document.createElement('span'), { className: 'fcm-spacer' }));
+        const rNickBtn = document.createElement('button'); rNickBtn.className = 'fcm-nick-tog'; rNickBtn.textContent = showNickname ? T('togNick') : T('togName');
+        rNickBtn.title = isZh() ? (showNickname ? '切換為BC名稱' : '切換為暱稱') : (showNickname ? 'Switch to BC name' : 'Switch to nickname');
+        rNickBtn.addEventListener('click', () => { showNickname = !showNickname; renderRoom(container); });
+        toolbar.appendChild(rNickBtn);
         const { lbl: rsl, sel: rsortSel } = makeSortSel(roomSortMode, [['name', T('sortName')], ['id', T('sortId')], ['rel', T('sortRel')], ['perm', T('permAdmin')]], v => { roomSortMode = v; renderRoom(container); });
         toolbar.appendChild(rsl); toolbar.appendChild(rsortSel);
+        const rBtnR = mkBtn('↻', 'fcm-btn', () => renderRoom(container));
+        rBtnR.title = isZh() ? '重新整理' : 'Refresh'; rBtnR.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
+        toolbar.appendChild(rBtnR);
         container.appendChild(toolbar);
 
         // Member list
@@ -975,7 +1132,7 @@
         [['', 'width:42px'], [T('colName'), 'min-width:120px', 'fcm-th-left'], [T('colId'), ''], [T('colRel'), ''], [T('colPerm'), 'min-width:80px'], [T('colOps'), 'min-width:150px']].forEach(([text, style, cls]) => {
             const th = document.createElement('th'); th.textContent = text; if (style) th.style.cssText = style; if (cls) th.className = cls; thRow.appendChild(th);
         });
-        const thMgmt = document.createElement('th'); thMgmt.textContent = isAdmin ? T('colMgmt') : T('colMgmtNoPerm'); thMgmt.className = isAdmin ? 'fcm-th-mgmt' : 'fcm-th-mgmt-off'; thMgmt.style.minWidth = '230px'; thRow.appendChild(thMgmt);
+        const thMgmt = document.createElement('th'); thMgmt.textContent = isAdmin ? T('colMgmt') : T('colMgmtNoPerm'); thMgmt.className = isAdmin ? 'fcm-th-mgmt' : 'fcm-th-mgmt-off'; thMgmt.style.cssText = 'min-width:140px;max-width:155px;width:150px;'; thRow.appendChild(thMgmt);
         const thead = document.createElement('thead'); thead.appendChild(thRow); tbl.appendChild(thead);
         const tbody = document.createElement('tbody');
 
@@ -992,15 +1149,23 @@
             const relTd = document.createElement('td'); relTd.style.textAlign = 'center'; relTd.appendChild(makeRelEl(rel)); tr.appendChild(relTd);
             const permTd = document.createElement('td'); const pd = document.createElement('div'); pd.className = 'fcm-perms'; perms.forEach(p => pd.appendChild(makePermEl(p))); permTd.appendChild(pd); tr.appendChild(permTd);
 
-            // 其他
+            // 動作
             const opsTd = document.createElement('td'); const ops = document.createElement('div'); ops.className = 'fcm-btns';
             const hasProfile = !!(profile && profile.characterBundle);
             const vb = mkBtn(T('btnView'), '', () => doView(mn)); if (!isInRoom && !hasProfile) vb.disabled = true; ops.appendChild(vb);
             if (!isMe) {
                 if (isInRoom) ops.appendChild(mkBtn(T('btnWhisper'), '', () => doWhisper(mn)));
-                // #8 Only show BEEP if canBeep
                 if (canBeep(mn)) ops.appendChild(mkBtn(T('btnBeep'), 'fcm-btn-blue', () => doBeep(mn)));
-                if (isInRoom) { if (!isFriend) ops.appendChild(mkBtn(T('btnAddFriend'), 'fcm-btn-green', () => doAddFriend(mn))); else ops.appendChild(mkBtn(T('btnRmFriend'), 'fcm-btn-red', () => doRemoveFriend(mn))); }
+                // Space before friend/list buttons
+                const _rsep = document.createElement('span'); _rsep.style.cssText = 'width:6px;display:inline-block;'; ops.appendChild(_rsep);
+                if (!isFriend) ops.appendChild(mkBtn(T('btnAddFriend'), 'fcm-btn-green', () => showConfirm(isZh()?`添加「${getDisplayName(mn)}」為好友？`:`Add "${getDisplayName(mn)}" as friend?`, () => doAddFriend(mn))));
+                else ops.appendChild(mkBtn(T('btnRmFriend'), 'fcm-btn-red', () => showConfirm(T('confirmDel', getDisplayName(mn)), () => doRemoveFriend(mn), isZh()?'移除':'Remove')));
+                const _rm = getDisplayName(mn);
+                const _rWhl = (Player.WhiteList||[]).includes(mn), _rBl = (Player.BlackList||[]).includes(mn);
+                const _rGh = (() => { try { return (Player.GhostList||[]).includes(mn); } catch { return false; } })();
+                ops.appendChild(mkBtn(_rWhl?T('btnRmWhite'):T('btnAddWhite'), _rWhl?'fcm-btn-red':'fcm-btn-green', () => showConfirm(_rWhl?(isZh()?`移除「${_rm}」白名單？`:`Remove "${_rm}" from whitelist?`):(isZh()?`將「${_rm}」加入白名單？`:`Add "${_rm}" to whitelist?`), () => doToggleList(mn,'white',!_rWhl))));
+                ops.appendChild(mkBtn(_rBl?T('btnRmBan'):T('btnAddBan'), 'fcm-btn-red', () => showConfirm(_rBl?(isZh()?`移除「${_rm}」黑名單？`:`Remove "${_rm}" from blacklist?`):(isZh()?`⚠ 加入黑名單「${_rm}」？`:`⚠ Blacklist "${_rm}"?`), () => doToggleList(mn,'black',!_rBl), _rBl?undefined:(isZh()?'加入':'Add'))));
+                ops.appendChild(mkBtn(_rGh?(isZh()?'-幽靈':'-Ghost'):(isZh()?'+幽靈':'+Ghost'), _rGh?'fcm-btn-red':'fcm-btn-purple', () => showConfirm(_rGh?(isZh()?`移除「${_rm}」幽靈？`:`Remove "${_rm}" from ghost?`):(isZh()?`將「${_rm}」加入幽靈？`:`Add "${_rm}" to ghost?`), () => doToggleList(mn,'ghost',!_rGh))));
             }
             opsTd.appendChild(ops); tr.appendChild(opsTd);
 
@@ -1172,17 +1337,182 @@
         renderCurrent();
     }
 
+    // ─── Room Search ───────────────────────────────────────────────────
+    async function renderRoomSearch(container) {
+        container.innerHTML = '';
+        const wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;flex-direction:column;height:100%;';
+
+        // Toolbar: [↻] [search] [搜尋] [混合] [女性] [男性]   [sort]
+        const tb = document.createElement('div'); tb.className = 'fcm-toolbar';
+
+        // Refresh (before search)
+        const earlyRef = mkBtn('↻', 'fcm-btn', () => runSearch());
+        earlyRef.style.cssText = 'padding:5px 8px;border-radius:8px;font-size:14px;flex-shrink:0;';
+        earlyRef.title = isZh() ? '刷新' : 'Refresh'; tb.appendChild(earlyRef);
+
+        // Search input
+        const sw = document.createElement('div'); sw.style.cssText = 'position:relative;display:inline-flex;align-items:center;flex:1;min-width:120px;max-width:200px;';
+        const inp = document.createElement('input'); inp.className = 'fcm-search'; inp.placeholder = T('roomSearch2'); inp.value = _roomSearchQ2;
+        inp.style.width = '100%';
+        const clrX = document.createElement('button'); clrX.className = 'fcm-clear-btn'; clrX.textContent = '×';
+        clrX.addEventListener('click', () => { inp.value = ''; _roomSearchQ2 = ''; });
+        sw.appendChild(inp); sw.appendChild(clrX); tb.appendChild(sw);
+
+        // Search button
+        const srchBtn = mkBtn(T('roomSearchBtn'), 'fcm-btn', () => runSearch());
+        srchBtn.style.cssText = 'padding:5px 10px;border-radius:8px;border:1.5px solid #4038a0;background:#1e1635;color:#b098d0;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;';
+        tb.appendChild(srchBtn);
+
+        // Zone buttons
+        const zoneColors = {
+            'X': { bg: '#1e1635', active: '#2e2650', label: isZh() ? '混合' : 'Mixed' },
+            '':  { bg: '#2a1020', active: '#7a2040', label: isZh() ? '女性' : 'Female' },
+            'M': { bg: '#101828', active: '#1a4070', label: isZh() ? '男性' : 'Male' }
+        };
+        const zoneGroup = document.createElement('div'); zoneGroup.style.cssText = 'display:flex;gap:3px;';
+        Object.entries(zoneColors).forEach(([z, info]) => {
+            const b = document.createElement('button'); b.setAttribute('data-space', z);
+            b.textContent = info.label;
+            const isActive = _roomZoneFilter === z;
+            b.style.cssText = `padding:5px 10px;border-radius:8px;border:1.5px solid ${isActive ? '#d0b8ff' : '#4038a0'};background:${isActive ? info.active : info.bg};color:${isActive ? '#fff' : '#9070b0'};font-size:12px;font-weight:${isActive ? '700' : '400'};cursor:pointer;white-space:nowrap;`;
+            b.addEventListener('click', () => {
+                _roomZoneFilter = z;
+                zoneGroup.querySelectorAll('[data-space]').forEach(x => {
+                    const xz = x.getAttribute('data-space'), xi = zoneColors[xz], xa = xz === z;
+                    x.style.background = xa ? xi.active : xi.bg;
+                    x.style.borderColor = xa ? '#d0b8ff' : '#4038a0';
+                    x.style.color = xa ? '#fff' : '#9070b0';
+                    x.style.fontWeight = xa ? '700' : '400';
+                });
+                runSearch();
+            });
+            zoneGroup.appendChild(b);
+        });
+        tb.appendChild(zoneGroup);
+
+        // Spacer + sort
+        tb.appendChild(Object.assign(document.createElement('span'), { className: 'fcm-spacer' }));
+        const sLbl = document.createElement('span'); sLbl.className = 'fcm-lbl-sm'; sLbl.textContent = T('sortBy') + ':'; tb.appendChild(sLbl);
+        const sortSel = document.createElement('select'); sortSel.className = 'fcm-sel';
+        [['fav', isZh() ? '最愛優先' : 'Fav First'], ['friend', isZh() ? '好友優先' : 'Friends First'], ['name', isZh() ? '名稱優先' : 'Name']].forEach(([v, l]) => {
+            const o = document.createElement('option'); o.value = v; o.textContent = l; if (v === _roomSortMode) o.selected = true; sortSel.appendChild(o);
+        });
+        sortSel.addEventListener('change', () => { _roomSortMode = sortSel.value; renderResults(); });
+        tb.appendChild(sortSel);
+        const rBtnRS2 = mkBtn('↻', 'fcm-btn', () => runSearch());
+        rBtnRS2.title = isZh() ? '重新整理' : 'Refresh'; rBtnRS2.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
+        tb.appendChild(rBtnRS2);
+        wrap.appendChild(tb);
+
+        const scroll = document.createElement('div'); scroll.style.cssText = 'flex:1;overflow-y:auto;';
+        const countEl = document.createElement('div'); countEl.className = 'fcm-count'; countEl.style.textAlign = 'center';
+        wrap.appendChild(scroll); wrap.appendChild(countEl);
+        container.appendChild(wrap);
+
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); e.stopPropagation(); });
+
+        async function runSearch() {
+            _roomSearchQ2 = inp.value;
+            srchBtn.textContent = T('roomSearching'); srchBtn.disabled = true; earlyRef.disabled = true;
+            _roomResults = await doRoomSearch(_roomSearchQ2, _roomZoneFilter);
+            srchBtn.textContent = T('roomSearchBtn'); srchBtn.disabled = false; earlyRef.disabled = false;
+            renderResults();
+        }
+
+        function renderResults() {
+            scroll.innerHTML = '';
+            let list = [..._roomResults].sort((a, b) => {
+                const aF = _favRooms.has(a.Name) ? 1 : 0, bF = _favRooms.has(b.Name) ? 1 : 0;
+                const aFr = onlineFriends.filter(f => f.ChatRoomName === a.Name).length;
+                const bFr = onlineFriends.filter(f => f.ChatRoomName === b.Name).length;
+                if (_roomSortMode === 'fav') return bF - aF || bFr - aFr || (a.Name||'').localeCompare(b.Name||'');
+                if (_roomSortMode === 'friend') return bFr - aFr || bF - aF || (a.Name||'').localeCompare(b.Name||'');
+                return (a.Name||'').localeCompare(b.Name||'');
+            });
+            if (!list.length) {
+                const em = document.createElement('div'); em.className = 'fcm-empty'; em.textContent = T('roomSearchEmpty');
+                scroll.appendChild(em); countEl.textContent = T('totalRooms', 0); return;
+            }
+            countEl.textContent = T('totalRooms', list.length);
+            list.forEach(room => {
+                const isFav = _favRooms.has(room.Name);
+                const friendsHere = onlineFriends.filter(f => f.ChatRoomName === room.Name);
+                const mc = room.MemberCount ?? room.NbMember ?? null;
+                const ml = room.MemberLimit ?? room.Limit ?? null;
+                const cStr = mc !== null ? `(${mc}${ml !== null ? '/'+ml : ''})` : '';
+                const card = document.createElement('div');
+                card.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;transition:background .1s;' +
+                    (isFav ? 'border:1.5px solid #c8a020;border-radius:8px;margin:3px 4px;background:rgba(200,160,32,.06);' :
+                     friendsHere.length > 0 ? 'border:1.5px solid #409060;border-radius:8px;margin:3px 4px;background:rgba(40,128,64,.06);' :
+                     'border-bottom:1px solid #2a2048;');
+                card.addEventListener('mouseenter', () => { if (!isFav && !friendsHere.length) card.style.background = '#261a4a'; });
+                card.addEventListener('mouseleave', () => { if (!isFav && !friendsHere.length) card.style.background = ''; });
+
+                const info = document.createElement('div'); info.style.cssText = 'flex:1;min-width:0;';
+                const line1 = document.createElement('div'); line1.style.cssText = 'display:flex;align-items:center;gap:5px;flex-wrap:wrap;';
+                // ★ fav btn before name
+                const favBtn = document.createElement('button');
+                favBtn.style.cssText = 'font-size:15px;padding:0 3px;border:none;background:transparent;cursor:pointer;color:' + (isFav ? '#f0d060' : '#5040a0') + ';flex-shrink:0;';
+                favBtn.textContent = isFav ? '★' : '☆';
+                favBtn.addEventListener('click', e => { e.stopPropagation(); if (_favRooms.has(room.Name)) _favRooms.delete(room.Name); else _favRooms.add(room.Name); saveFavRooms(); renderResults(); });
+                line1.appendChild(favBtn);
+                const nm = document.createElement('span'); nm.style.cssText = 'color:#e8c8ff;font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;'; nm.textContent = room.Name || '?'; nm.title = room.Name; line1.appendChild(nm);
+                if (cStr) { const cnt = document.createElement('span'); cnt.style.cssText = 'color:#9878b8;font-size:12px;flex-shrink:0;'; cnt.textContent = cStr; line1.appendChild(cnt); }
+                if (friendsHere.length > 0) { const fb = document.createElement('span'); fb.style.cssText = 'font-size:11px;background:#102038;border:1px solid #4080d8;color:#80c8ff;border-radius:6px;padding:2px 7px;flex-shrink:0;'; fb.textContent = `👥${friendsHere.length}: ${friendsHere.map(f => f.MemberName||'#'+f.MemberNumber).join(', ')}`; line1.appendChild(fb); }
+                if (room.Private) { const priv = document.createElement('span'); priv.style.cssText = 'font-size:11px;background:#2a1048;border:1px solid #8060b0;color:#c090f0;border-radius:6px;padding:2px 7px;flex-shrink:0;'; priv.textContent = T('roomPrivateLabel'); line1.appendChild(priv); }
+                info.appendChild(line1);
+                if (room.Description) { const desc = document.createElement('div'); desc.style.cssText = 'color:#7060a0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;'; desc.textContent = room.Description; info.appendChild(desc); }
+                card.appendChild(info);
+                // Join button
+                const joinBtn = mkBtn(T('roomJoin'), 'fcm-btn-blue', () => navigateToRoom(room.Name));
+                joinBtn.style.cssText += ';padding:7px 16px;font-size:13px;font-weight:700;flex-shrink:0;';
+                card.appendChild(joinBtn);
+                scroll.appendChild(card);
+            });
+        }
+
+        if (_roomResults.length === 0) runSearch(); else renderResults();
+    }
+
     function renderSettings(container) {
         container.innerHTML = '';
         const wrap = document.createElement('div'); wrap.className = 'fcm-settings-wrap';
         function settingRow(label, note, on, onChange) {
-            const row = document.createElement('div'); row.className = 'fcm-set-row'; const tog = mkToggle(on, onChange), info = document.createElement('div');
+            const row = document.createElement('div'); row.className = 'fcm-set-row';
+            const tog = mkToggle(on, onChange), info = document.createElement('div');
             const lbl = document.createElement('div'); lbl.className = 'fcm-set-label'; lbl.textContent = label;
             const nt = document.createElement('div'); nt.className = 'fcm-set-note'; nt.textContent = note;
-            info.appendChild(lbl); info.appendChild(nt); row.appendChild(tog); row.appendChild(info); return row;
+            info.appendChild(lbl); info.appendChild(nt); row.appendChild(tog); row.appendChild(info);
+            return row;
         }
+        function divider() { const d = document.createElement('div'); d.className = 'fcm-divider'; wrap.appendChild(d); }
 
-        // Avatars toggle + reload button + status
+        // ── 1. Language ──────────────────────────────────────────────
+        const langRow = document.createElement('div'); langRow.className = 'fcm-set-row'; langRow.style.alignItems = 'center';
+        const langInfo = document.createElement('div'); langInfo.style.flex = '1';
+        const langLbl = document.createElement('div'); langLbl.className = 'fcm-set-label'; langLbl.textContent = T('langLabel');
+        const langNote2 = document.createElement('div'); langNote2.className = 'fcm-set-note';
+        try { const tl = (typeof TranslationLanguage !== 'undefined' ? TranslationLanguage : ''); langNote2.textContent = T('langNote') + '  ' + T('langDetected', tl); } catch { langNote2.textContent = T('langNote'); }
+        langInfo.appendChild(langLbl); langInfo.appendChild(langNote2);
+        const langSel = document.createElement('select'); langSel.className = 'fcm-sel'; langSel.style.flexShrink = '0';
+        [['auto', 'Auto'], ['zh', '中文'], ['en', 'English']].forEach(([v, l]) => {
+            const o = document.createElement('option'); o.value = v; o.textContent = l;
+            if (v === (cfg.lang || 'auto')) o.selected = true;
+            langSel.appendChild(o);
+        });
+        langSel.addEventListener('change', () => {
+            cfg.lang = langSel.value; saveCfg();
+            if (panelEl) { panelEl.remove(); panelEl = null; }
+            if (miniEl) { miniEl.remove(); miniEl = null; }
+            panelOpen = false; panelMini = false;
+            buildPanel();
+                uiTab = 'settings'; openPanel();
+        });
+        langRow.appendChild(langInfo); langRow.appendChild(langSel);
+        wrap.appendChild(langRow);
+        divider();
+
+        // ── 2. Avatars ───────────────────────────────────────────────
         const avRow = settingRow(T('setAvatars'), T('setAvatarsNote'), cfg.avatars, v => { cfg.avatars = v; saveCfg(); });
         const reloadBtn = document.createElement('button'); reloadBtn.className = 'fcm-btn fcm-btn-green';
         reloadBtn.textContent = T('btnReloadAvatars'); reloadBtn.style.cssText = 'font-size:11px;padding:6px 12px;flex-shrink:0;margin-left:auto;';
@@ -1197,26 +1527,81 @@
         avRow.appendChild(reloadBtn);
         wrap.appendChild(avRow);
         wrap.appendChild(statusEl);
+        divider();
 
-        const d1 = document.createElement('div'); d1.className = 'fcm-divider'; wrap.appendChild(d1);
+        // ── 3. Whisper indicator + collapsible color picker ──────────
+        const wiWrap = document.createElement('div');
+        // Toggle row: left=toggle+info, right=color button
+        const wiToggleRow = document.createElement('div'); wiToggleRow.style.cssText = 'display:flex;align-items:center;gap:14px;';
+        const wiTog = mkToggle(cfg.whisperIndicator, v => { cfg.whisperIndicator = v; saveCfg(); if (v) startWhisperIndicator(); else stopWhisperIndicator(); });
+        wiTog.style.flexShrink = '0';
+        const wiInfo = document.createElement('div'); wiInfo.style.flex = '1';
+        const wiLbl = document.createElement('div'); wiLbl.className = 'fcm-set-label'; wiLbl.textContent = T('whisperIndicatorLabel');
+        const wiNote = document.createElement('div'); wiNote.className = 'fcm-set-note'; wiNote.textContent = T('whisperIndicatorNote');
+        wiInfo.appendChild(wiLbl); wiInfo.appendChild(wiNote);
+        // Color button (right side) with label
+        const wiColorLabelBtn = document.createElement('span');
+        wiColorLabelBtn.style.cssText = 'font-size:11px;color:#a080c8;white-space:nowrap;flex-shrink:0;cursor:pointer;';
+        wiColorLabelBtn.textContent = isZh() ? '修改顏色' : 'Color';
+        const wiColorBtn = document.createElement('button');
+        wiColorBtn.style.cssText = `width:28px;height:28px;border-radius:50%;background:${cfg.whisperColor||'#b070e8'};border:2px solid #6040a0;cursor:pointer;flex-shrink:0;transition:border-color .15s;`;
+        wiColorBtn.title = isZh() ? '選擇顏色' : 'Pick color';
+        let wiColorOpen = false;
+        const wiColorPanel = document.createElement('div');
+        wiColorPanel.style.cssText = 'display:none;padding:10px 0 4px 56px;';
+        // Preset swatches row
+        const swatchRow = document.createElement('div'); swatchRow.style.cssText = 'display:flex;align-items:center;gap:7px;flex-wrap:wrap;';
+        const presets = ['#b070e8','#e870c0','#70aaff','#70e8b0','#f0c040','#e87070','#ff9040','#ffffff'];
+        const updateColorBtn = (color) => {
+            wiColorBtn.style.background = color;
+            wiColorBtn.style.boxShadow = `0 0 0 3px ${color}55`;
+        };
+        const allSwatches = [];
+        presets.forEach(color => {
+            const sw = document.createElement('button');
+            sw.style.cssText = `width:24px;height:24px;border-radius:50%;background:${color};border:2.5px solid ${cfg.whisperColor===color?'#fff':'transparent'};cursor:pointer;flex-shrink:0;transition:border .15s;`;
+            sw.addEventListener('click', () => {
+                cfg.whisperColor = color; saveCfg(); updateColorBtn(color);
+                allSwatches.forEach(s => s.style.borderColor = 'transparent');
+                sw.style.borderColor = '#fff';
+                customInp.value = color;
+            });
+            allSwatches.push(sw); swatchRow.appendChild(sw);
+        });
+        // Custom color input
+        const customInp = document.createElement('input'); customInp.type = 'color'; customInp.value = cfg.whisperColor || '#b070e8';
+        customInp.style.cssText = 'width:30px;height:24px;border-radius:6px;border:1px solid #5048a0;background:#1a1030;cursor:pointer;padding:1px;';
+        customInp.title = isZh() ? '自訂顏色' : 'Custom color';
+        customInp.addEventListener('input', () => {
+            cfg.whisperColor = customInp.value; saveCfg(); updateColorBtn(customInp.value);
+            allSwatches.forEach(s => s.style.borderColor = 'transparent');
+        });
+        swatchRow.appendChild(customInp);
+        wiColorPanel.appendChild(swatchRow);
+        wiColorLabelBtn.addEventListener('click', () => { wiColorBtn.click(); });
+        wiColorBtn.addEventListener('click', () => {
+            wiColorOpen = !wiColorOpen;
+            wiColorPanel.style.display = wiColorOpen ? 'block' : 'none';
+            wiColorBtn.style.borderColor = wiColorOpen ? '#d0a0ff' : '#6040a0';
+        });
+        wiToggleRow.appendChild(wiTog); wiToggleRow.appendChild(wiInfo); wiToggleRow.appendChild(wiColorLabelBtn); wiToggleRow.appendChild(wiColorBtn);
+        wiWrap.appendChild(wiToggleRow); wiWrap.appendChild(wiColorPanel);
+        wrap.appendChild(wiWrap);
+        updateColorBtn(cfg.whisperColor || '#b070e8');
+        divider();
 
-        // Save mode row: label + inline WCE tag + selector
+        // ── 4. Save mode ─────────────────────────────────────────────
         const smRow = document.createElement('div'); smRow.className = 'fcm-set-row'; smRow.style.alignItems = 'center';
         const smInfo = document.createElement('div'); smInfo.style.flex = '1'; smInfo.style.display = 'flex'; smInfo.style.alignItems = 'center'; smInfo.style.flexWrap = 'wrap'; smInfo.style.gap = '6px';
         const smLbl = document.createElement('div'); smLbl.className = 'fcm-set-label'; smLbl.textContent = T('saveModeLabel');
         smInfo.appendChild(smLbl);
-        // WCE detection tag (appears inline next to label, async)
         const wceTag = document.createElement('span'); wceTag.style.display = 'none';
         detectWCESave().then(wceOn => {
-            if (wceOn) {
-                wceTag.className = 'fcm-wce-tag fcm-wce-tag-yes';
-                wceTag.textContent = isZh() ? '偵測到 WCE Profiles，啟用完整資料模式' : 'WCE Profiles detected';
-                wceTag.style.display = 'inline-block';
-            }
+            if (wceOn) { wceTag.className = 'fcm-wce-tag fcm-wce-tag-yes'; wceTag.textContent = isZh() ? '偵測到 WCE Profiles，啟用完整資料模式' : 'WCE Profiles detected'; wceTag.style.display = 'inline-block'; }
         });
         smInfo.appendChild(wceTag);
         const smSel = document.createElement('select'); smSel.className = 'fcm-sel'; smSel.style.flexShrink = '0';
-        [['off', T('saveModeOff')], ['name', T('saveModeName')], ['avatar', T('saveModeAvatar')], ['full', T('saveModeFull')]].forEach(([v,l]) => {
+        [['off', T('saveModeOff')], ['name', T('saveModeName')], ['avatar', T('saveModeAvatar')], ['full', T('saveModeFull')]].forEach(([v, l]) => {
             const o = document.createElement('option'); o.value = v; o.textContent = l; if (v === (cfg.saveMode||'off')) o.selected = true; smSel.appendChild(o);
         });
         const smDesc = document.createElement('div'); smDesc.className = 'fcm-set-desc';
@@ -1224,12 +1609,10 @@
         updateSmDesc();
         smSel.addEventListener('change', () => { cfg.saveMode = smSel.value; saveCfg(); updateSmDesc(); });
         smRow.appendChild(smInfo); smRow.appendChild(smSel);
-        wrap.appendChild(smRow);
-        wrap.appendChild(smDesc);
+        wrap.appendChild(smRow); wrap.appendChild(smDesc);
+        divider();
 
-        const d2 = document.createElement('div'); d2.className = 'fcm-divider'; wrap.appendChild(d2);
-
-        // Export / Import / Browse
+        // ── 5. Export / Import / Browse ──────────────────────────────
         const exportRow = document.createElement('div'); exportRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
         function mkActionBtn(label, note, cls, cb) {
             const b = document.createElement('button'); b.className = 'fcm-btn ' + cls; b.textContent = label; b.title = note;
@@ -1254,30 +1637,6 @@
         exportRow.appendChild(mkActionBtn(T('profilesTitle'), T('profilesHint'), '', () => showProfilesPanel('')));
         wrap.appendChild(exportRow);
 
-        const d3 = document.createElement('div'); d3.className = 'fcm-divider'; wrap.appendChild(d3);
-
-        // Language row
-        const langRow = document.createElement('div'); langRow.className = 'fcm-set-row'; langRow.style.alignItems = 'center';
-        const langInfo = document.createElement('div'); langInfo.style.flex = '1';
-        const langLbl = document.createElement('div'); langLbl.className = 'fcm-set-label'; langLbl.textContent = T('langLabel');
-        const langNote2 = document.createElement('div'); langNote2.className = 'fcm-set-note';
-        try { const tl = (typeof TranslationLanguage !== 'undefined' ? TranslationLanguage : ''); langNote2.textContent = T('langNote') + '  ' + T('langDetected', tl); } catch { langNote2.textContent = T('langNote'); }
-        langInfo.appendChild(langLbl); langInfo.appendChild(langNote2);
-        const langSel = document.createElement('select'); langSel.className = 'fcm-sel'; langSel.style.flexShrink = '0';
-        [['auto', 'Auto'], ['zh', '中文'], ['en', 'English']].forEach(([v, l]) => {
-            const o = document.createElement('option'); o.value = v; o.textContent = l;
-            if (v === (cfg.lang || 'auto')) o.selected = true;
-            langSel.appendChild(o);
-        });
-        langSel.addEventListener('change', () => {
-            cfg.lang = langSel.value; saveCfg();
-            if (panelEl) { panelEl.remove(); panelEl = null; }
-            if (miniEl) { miniEl.remove(); miniEl = null; }
-            panelOpen = false; panelMini = false;
-            buildPanel(); uiTab = 'settings'; openPanel();
-        });
-        langRow.appendChild(langInfo); langRow.appendChild(langSel);
-        wrap.appendChild(langRow);
         container.appendChild(wrap);
     }
 
@@ -1293,13 +1652,51 @@
     // ═══════════════════════════════════════════════════════════
     //  BC HOOKS
     // ═══════════════════════════════════════════════════════════
-    modApi.hookFunction('DrawProcess', 10, (args, next) => { next(args); if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) DrawButton(BTN_X, BTN_Y, BTN_W, BTN_H, '🎛', (panelOpen || panelMini) ? 'Pink' : 'Gray', '', 'Friends & Room Manager'); });
+    modApi.hookFunction('DrawProcess', 10, (args, next) => {
+        next(args);
+        // FCM button
+        if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
+            DrawButton(BTN_X, BTN_Y, BTN_W, BTN_H, '🎛', (panelOpen || panelMini) ? 'Pink' : 'Gray', '', 'Friends & Room Manager');
+        }
+        // Whisper indicator: check every 15 frames (~250ms)
+        if (++_whisperDrawCount % 15 === 0) _applyWhisperStyle();
+    });
     modApi.hookFunction('ChatRoomClick', 10, (args, next) => { if (MouseIn(BTN_X, BTN_Y, BTN_W, BTN_H)) { buildPanel(); togglePanel(); return; } next(args); });
     modApi.hookFunction('ChatRoomLeave', 0, (args, next) => { closePanel(); return next(args); });
 
     // ═══════════════════════════════════════════════════════════
     //  INIT
     // ═══════════════════════════════════════════════════════════
+    // ─── Whisper Indicator (via DrawProcess hook, runs every ~15 frames) ──
+    let _whisperDrawCount = 0;
+    function _applyWhisperStyle() {
+        try {
+            const el = document.getElementById('InputChat');
+            if (!el) return;
+            const val = el.value || '';
+            const isCmd = /^\/(w|whisper|beep)\s/i.test(val);
+            const isTgt = typeof ChatRoomTargetMemberNumber !== 'undefined' && ChatRoomTargetMemberNumber > 0;
+            const wc = cfg.whisperColor || '#b070e8';
+            if (cfg.whisperIndicator && (isCmd || isTgt)) {
+                el.style.setProperty('box-shadow', `0 0 0 3px ${wc}cc, 0 0 14px ${wc}88`, 'important');
+                el.style.setProperty('border', `2px solid ${wc}`, 'important');
+                el.style.setProperty('outline', `1px solid ${wc}66`, 'important');
+            } else {
+                el.style.removeProperty('box-shadow');
+                el.style.removeProperty('border');
+                el.style.removeProperty('outline');
+            }
+        } catch {}
+    }
+    // startWhisperIndicator / stopWhisperIndicator kept for toggle UI compatibility
+    function startWhisperIndicator() { _applyWhisperStyle(); }
+    function stopWhisperIndicator() {
+        try {
+            const el = document.getElementById('InputChat');
+            if (el) { el.style.removeProperty('box-shadow'); el.style.removeProperty('border'); el.style.removeProperty('outline'); }
+        } catch {}
+    }
+
     function init() {
         if (typeof ChatRoomCharacter === 'undefined' || typeof Player === 'undefined') return setTimeout(init, 500);
         loadCfg();
@@ -1324,21 +1721,19 @@
         // Hook InformationSheet — priority 7 so we draw AFTER WCE (priority 6) and other mods
         modApi.hookFunction('InformationSheetRun', 7, (args, next) => {
             const r = next(args);
-            const viewingSelf = typeof InformationSheetSelection !== 'undefined' &&
-                  (InformationSheetSelection === Player.MemberNumber ||
-                   InformationSheetSelection?.MemberNumber === Player.MemberNumber);
-            if (typeof DrawButton === 'function' && viewingSelf) {
-                const active = panelOpen && !panelMini;
-                DrawButton(1705, 420, 90, 90, '', active ? '#3a1858' : 'White', 'Icons/FriendList.png', isZh() ? 'FCM 好友與房間管理' : 'Friends & ChatRoom Manager');
+            const viewingSelf = (typeof InformationSheetSelection !== 'undefined') &&
+                (InformationSheetSelection === Player.MemberNumber ||
+                 InformationSheetSelection?.MemberNumber === Player.MemberNumber);
+            if (viewingSelf && typeof DrawButton === 'function') {
+                DrawButton(1705, 420, 90, 90, '', (panelOpen && !panelMini) ? '#3a1858' : 'White', 'Icons/FriendList.png', 'FCM');
             }
             return r;
         });
         modApi.hookFunction('InformationSheetClick', 7, (args, next) => {
-            const viewingSelf = typeof InformationSheetSelection !== 'undefined' &&
-                  (InformationSheetSelection === Player.MemberNumber ||
-                   InformationSheetSelection?.MemberNumber === Player.MemberNumber);
-            if (viewingSelf && typeof MouseIn === 'function' && MouseIn(1705, 420, 90, 90)) {
-                openPanel(); return; }
+            const viewingSelf = (typeof InformationSheetSelection !== 'undefined') &&
+                (InformationSheetSelection === Player.MemberNumber ||
+                 InformationSheetSelection?.MemberNumber === Player.MemberNumber);
+            if (viewingSelf && typeof MouseIn === 'function' && MouseIn(1705, 420, 90, 90)) { openPanel(); return; }
             return next(args);
         });
         console.log(`🐈‍⬛ [FCM] ✅ v${MOD_VER} loaded`);
