@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.2.0
+// @version      1.3.0
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,6 +14,13 @@
 
 (function () {
     'use strict';
+
+    // ── Prevent duplicate loading ──────────────────────────────────
+    if (window.LikoFCMInstance) {
+        console.warn('🐈‍⬛ [FCM] already loaded, skipping duplicate');
+        return;
+    }
+    window.LikoFCMInstance = true;
 
     const MOD_VER = '1.3.0';
     const modApi = bcModSdk.registerMod({
