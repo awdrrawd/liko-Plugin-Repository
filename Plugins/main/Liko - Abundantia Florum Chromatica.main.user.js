@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Abundantia Florum ─Chromatica─
-// @name:zh      Abundantia Florum ─Chromatica─
+// @name:zh      繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.5.15
+// @version      0.6.0
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -26,9 +26,12 @@
     // ============================================================
     // 常數
     // ============================================================
-    const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.5.15";
-    const EL_BEEP_TYPE = "AFCBeep";
+    // ── 全域根節點（其他插件可透過 window.AFC.api 整合）──────────
+    window.AFC          = window.AFC ?? {};
+    window.AFC.version  = MOD_VERSION;
+    window.AFC.api      = window.AFC.api ?? {};
+    const MOD_VERSION  = "0.6.0";
+    const EL_BEEP_TYPE = "AFC::Beep";
 
     const BEEP = {
         PROPOSE:          "ELPropose",
@@ -583,7 +586,7 @@
             if (!s) return;
             ServerSend('ChatRoomChat', {
                 Type: 'Hidden',
-                Content: 'AFCSyncData',
+                Content: 'AFC::Sync',
                 Dictionary: [{ Tag: 'AFCData', Data: {
                     lovers:   s.lovers   ?? [],
                     lockPerms: s.lockPerms ?? { enableELLock: false, enableOwnerLock: false },
@@ -594,7 +597,7 @@
 
     // 處理收到的 AFC 廣播（讓其他玩家的客戶端能即時看到你的戀人列表）
     function handleAFCSyncData(data) {
-        if (data?.Content !== 'AFCSyncData') return false;
+        if (data?.Content !== 'AFC::Sync') return false;
         try {
             const e = data.Dictionary?.find(d => d.Tag === 'AFCData');
             if (!e) return true;
@@ -631,8 +634,8 @@
         try {
             ServerSend("ChatRoomChat", {
                 Type:    "Hidden",
-                Content: "AFCBeep",
-                Dictionary: [{ Tag: "AFCBeep", MsgType: msgType, TargetMember: target, ...extra }],
+                Content: "AFC::Beep",
+                Dictionary: [{ Tag: "AFC::Beep", MsgType: msgType, TargetMember: target, ...extra }],
             });
         } catch {}
     }
@@ -2465,8 +2468,8 @@
             if (handleAFCSyncData(data)) return;
 
             // 同房間 AFC Beep（Hidden 主要通道，跨伺服器可靠）
-            if (data?.Type === "Hidden" && data?.Content === "AFCBeep") {
-                const e = data.Dictionary?.find(d => d.Tag === "AFCBeep");
+            if (data?.Type === "Hidden" && data?.Content === "AFC::Beep") {
+                const e = data.Dictionary?.find(d => d.Tag === "AFC::Beep");
                 if (e && Number(e.TargetMember) === Number(Player.MemberNumber)) {
                     try {
                         parseBeep({
@@ -2618,6 +2621,26 @@
                     isELLover:    (num) => isELLover(num),
                     canOwnerLock: ()    => getPrivateSettings()?.enableOwnerLock ?? false,
                 });
+
+                window.AFC.api = {
+                    version:          MOD_VERSION,
+                    /** 對方是否為 AFC 拓展戀人 */
+                    isLover:          (num) => isELLover(num),
+                    /** 對方的戀人階段（0/1/2，若非戀人則 null）*/
+                    getLoverStage:    (num) => getLoverEntry(num)?.stage ?? null,
+                    /** 穿戴者是否允許我使用心鎖 */
+                    canUseHeartLock:  (ch)  => {
+                        const lovers = ch?.OnlineSharedSettings?.AFC?.lovers ?? [];
+                        const perms  = ch?.OnlineSharedSettings?.AFC?.lockPerms;
+                        if (!perms?.enableELLock) return false;
+                        return lovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber))
+                            || (Player.Lovership?.some(l => Number(l.MemberNumber) === Number(ch?.MemberNumber)) ?? false);
+                    },
+                    /** 取得戀人清單（唯讀複本）*/
+                    getLovers:        () => [...(getSharedSettings()?.lovers ?? [])],
+                };
+                // modApi 唯讀參考（供外部插件用 window.AFC.modApi 查詢，勿用於 hook 註冊）
+                window.AFC.modApi = modApi;
 
                 // Toast 通知成功
                 toast(t('toastLoaded'), 5000, "#C2185B");
