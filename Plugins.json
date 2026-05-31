@@ -1,18 +1,16 @@
 {
-  "updateId": "260530",
+  "updateId": "260531",
   "changelog": [
-    "⭐FCM - 好友與房間管理 v1.1.0 更新",
-    "新增房間搜尋功能",
-    "新增私信與悄悄話時，邊框染色功能",
-    "新增幽靈名單完全隱藏外觀，但保留互動功能(僅自己有效)",
-    "修正現在當對方在私人房間時，房間名稱為'私人'"
+    "⭐FCM - 好友與房間管理 v1.2.0 更新",
+    "新增搜尋功能",
+    "新增分享profiles功能(與WPS功能一致，有裝FCM或WPS都能收到)",
+    "新增頭像刷新功能(點擊頭像能單獨刷新，又上角提供批次刷新，如果頭像顯示不全請多刷新幾次)"
   ],
   "en_changelog": [
-    "⭐FCM - Friends and ChatRoom Manager v1.1.0 Update",
-    "Added room search function",
-    "Added border coloring function for private Beep and whisper messages",
-    "Added Ghost List completely hides the character's appearance, but retains the interactive functionality (only effective on itself).",
-    "Fixed When the other party is in a private room, the room name is now 'Private'."
+    "⭐FCM - Friends and ChatRoom Manager v1.2.0 Update",
+    "Add search function",
+    "Add profile sharing function (consistent with WPS functionality; both users with FCM or WPS installed can receive it)",
+    "Add avatar refresh function (tap on avatar to refresh individually, batch refresh option available in the top-right corner; if avatars are not displayed completely, please refresh a few more times)"
   ],
   "plugins": [
     {
