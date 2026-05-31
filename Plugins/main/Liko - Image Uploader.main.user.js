@@ -703,7 +703,7 @@
         await loadToastSystem();
         try {
             modApi = bcModSdk.registerMod({
-                name: "Liko's Image Uploader",
+                name: "Liko - Image Uploader",
                 fullName: 'BC - Image Uploader',
                 version: modversion,
                 repository: '圖片拖曳上傳並分享 | Image to litterbox/uguu/imgbb/tmpfiles and share'
