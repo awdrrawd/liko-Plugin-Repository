@@ -50,7 +50,7 @@
 
         try {
             modApi = bcModSdk.registerMod({
-                name: 'Liko Release Maid',
+                name: 'Liko - Release Maid',
                 fullName: 'Bondage Club - Liko Auto Release Maid',
                 version: '1.2',
                 repository: '莉柯莉絲的自動解鎖女僕',
