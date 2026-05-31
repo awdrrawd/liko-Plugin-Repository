@@ -142,7 +142,7 @@
 
         try {
             modApi = bcModSdk.registerMod({
-                name: "liko's Region switch",
+                name: "liko - Region switch",
                 fullName: "Region switch",
                 version: modversion,
                 repository: "快速切換混合&女性區 | Region switch"
