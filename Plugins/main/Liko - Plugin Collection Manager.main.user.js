@@ -1999,7 +1999,7 @@
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
-                name: "Liko's PCM",
+                name: "Liko - PCM",
                 fullName: 'Liko - Plugin Collection Manager',
                 version: modversion,
                 repository: 'Liko的插件管理器 | Plugin collection manager',
