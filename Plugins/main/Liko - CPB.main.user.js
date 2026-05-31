@@ -975,7 +975,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
 
         try {
             modApi = bcModSdk.registerMod({
-                name: "liko's CPB",
+                name: "liko - CPB",
                 fullName: "liko's Custom Profile Background",
                 version: modversion,
                 repository: '自訂個人資料頁面背景 | Custom Profile Background'
