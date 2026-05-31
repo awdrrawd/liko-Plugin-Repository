@@ -514,7 +514,7 @@
         } else {
             try {
                 modApi = bcModSdk.registerMod({
-                    name: "Liko's NOI",
+                    name: "Liko - NOI",
                     fullName: "Liko's Notify on Invite (Optimized)",
                     version: modversion,
                     repository: "Liko的邀請通知器 | Liko's notify on invite."
