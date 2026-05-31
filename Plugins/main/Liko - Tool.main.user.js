@@ -223,7 +223,7 @@
         await waitForBcModSdk();
         try {
             modApi = bcModSdk.registerMod({
-                name: "Liko's tool",
+                name: "Liko - tool",
                 fullName: "Liko's tool",
                 version: modversion,
                 repository: '莉柯莉絲的工具包'
