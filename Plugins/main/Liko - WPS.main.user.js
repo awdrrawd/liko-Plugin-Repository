@@ -266,7 +266,7 @@
     }
 
     const modApi = bcModSdk.registerMod({
-        name: "Liko's WPS",
+        name: "Liko - WPS",
         fullName: "Liko's WCE Profile Share",
         version: VERSION,
         repository: "WCE個人資料分享 | WCE Profile Share"
