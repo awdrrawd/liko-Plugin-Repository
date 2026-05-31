@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.3.0
+// @version      1.3.1
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -22,7 +22,7 @@
     }
     window.LikoFCMInstance = true;
 
-    const MOD_VER = '1.3.0';
+    const MOD_VER = '1.3.1';
     const modApi = bcModSdk.registerMod({
         name: 'Liko - FCM', fullName: 'Liko - Friends Room Manager', version: MOD_VER,
     });
@@ -1696,6 +1696,10 @@
                 const shareTd = document.createElement('td'); shareTd.style.textAlign = 'center';
                 if (hasBundle) {
                     const shareBtn = mkBtn(T('btnShare'), 'fcm-btn-purple', () => wpsShareProfile(mn));
+                    if (!inRoomFn(parseInt(Player?.MemberNumber)) && !(typeof ChatRoomData !== 'undefined' && ChatRoomData)) {
+                        shareBtn.disabled = true;
+                        shareBtn.title = isZh() ? '需在聊天室中才能分享' : 'Must be in a chat room to share';
+                    }
                     shareTd.appendChild(shareBtn);
                 } else {
                     shareTd.innerHTML = '<span style="color:#4a3870;font-size:11px;">—</span>';
@@ -2281,6 +2285,21 @@
     });
     modApi.hookFunction('ChatRoomClick', 10, (args, next) => { if (MouseIn(BTN_X, BTN_Y, BTN_W, BTN_H)) { buildPanel(); togglePanel(); return; } next(args); });
     modApi.hookFunction('ChatRoomLeave', 0, (args, next) => { closePanel(); return next(args); });
+
+    // ── Main Hall button ──────────────────────────────────────────
+    const HALL_BTN_X = 1525, HALL_BTN_Y = 25, HALL_BTN_W = 90, HALL_BTN_H = 90;
+    modApi.hookFunction('MainHallRun', 10, (args, next) => {
+        next(args);
+        if (typeof DrawButton === 'function') {
+            DrawButton(HALL_BTN_X, HALL_BTN_Y, HALL_BTN_W, HALL_BTN_H, '', (panelOpen || panelMini) ? 'Pink' : 'White', 'Icons/FriendList.png', 'FCM');
+        }
+    });
+    modApi.hookFunction('MainHallClick', 10, (args, next) => {
+        if (typeof MouseIn === 'function' && MouseIn(HALL_BTN_X, HALL_BTN_Y, HALL_BTN_W, HALL_BTN_H)) {
+            buildPanel(); togglePanel(); return;
+        }
+        return next(args);
+    });
 
     // WPS: receive Hidden share messages
     modApi.hookFunction('ChatRoomMessage', 0, (args, next) => {
