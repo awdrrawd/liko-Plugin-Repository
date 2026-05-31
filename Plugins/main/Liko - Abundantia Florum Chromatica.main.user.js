@@ -4,7 +4,7 @@
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      0.6.0
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
-// @author       Liko
+// @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
@@ -26,12 +26,14 @@
     // ============================================================
     // 常數
     // ============================================================
-    // ── 全域根節點（其他插件可透過 window.AFC.api 整合）──────────
-    window.AFC          = window.AFC ?? {};
-    window.AFC.version  = MOD_VERSION;
-    window.AFC.api      = window.AFC.api ?? {};
+    const MOD_NAME     = "AbundantiaFlorumChromatica";
     const MOD_VERSION  = "0.6.0";
     const EL_BEEP_TYPE = "AFC::Beep";
+
+    // ── 全域根節點（其他插件可透過 window.AFC.api 整合）──────────
+    window.AFC         = window.AFC ?? {};
+    window.AFC.version = MOD_VERSION;
+    window.AFC.api     = window.AFC.api ?? {};
 
     const BEEP = {
         PROPOSE:          "ELPropose",
