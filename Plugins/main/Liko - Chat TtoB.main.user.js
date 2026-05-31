@@ -51,7 +51,7 @@
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
-                name: "Liko's Chat TtoB",
+                name: "Liko - Chat TtoB",
                 fullName: 'BC - Chat room text conversion button',
                 version: modversion,
                 repository: '聊天室[指令]、[!!內文]與[#房間#]轉按鈕\nChat Room [Commands], [!!Content], and [#RoomName#] conversion button.',
