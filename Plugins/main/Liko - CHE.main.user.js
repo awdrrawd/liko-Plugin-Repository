@@ -2048,7 +2048,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
             if (typeof bcModSdk !== "undefined" && bcModSdk?.registerMod) {
                 modApi = bcModSdk.registerMod({
-                    name: "Liko's CHE",
+                    name: "Liko - CHE",
                     fullName: "Chat History Exporter",
                     version: modversion,
                     repository: "Chat room history export with 7-day cache",
