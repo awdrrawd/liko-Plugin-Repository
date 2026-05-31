@@ -1036,7 +1036,7 @@
         if (sdkOk) {
             try {
                 modApi = bcModSdk.registerMod({
-                    name: "liko's prank",
+                    name: "liko - prank",
                     fullName: "Likolisu's prank on her friends",
                     version: modversion,
                     repository: "Liko's prank"
