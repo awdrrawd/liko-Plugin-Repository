@@ -403,7 +403,7 @@
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
-                name: "Liko's ACV",
+                name: "Liko - ACV",
                 fullName: "Liko's Automatically create video.",
                 version: modVersion,
                 repository: "自動創建影片 | Automatically create video.",
