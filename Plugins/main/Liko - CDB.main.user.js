@@ -1905,7 +1905,7 @@
             if (!success) return null;
             try {
                 modApi = bcModSdk.registerMod({
-                    name: "Liko's CDB",
+                    name: "Liko - CDB",
                     fullName: "Liko's Custom Dressing Background",
                     version: CONFIG.VERSION,
                     repository: '自訂更衣室背景 | Custom Dressing Background'
