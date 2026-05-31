@@ -1,12 +1,14 @@
 // ==UserScript==
-// @name         Heart Lock BC 自訂心形鎖
+// @name         BC Heart Lock Extension
+// @name:zh      BC 心形鎖拓展
 // @namespace    https://github.com/awdrrawd/
-// @version      2.3.6
-// @description  Heart Padlock for Bondage Club with AFC lover integration (v2.1.1)
-// @match        https://bondageprojects.elementfx.com/*
-// @match        https://www.bondageprojects.elementfx.com/*
+// @version      2.4.0
+// @description  Heart Padlock for Bondage Club with AFC lover integration
+// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @run-at       document-end
 // @grant        none
+// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
 // ==/UserScript==
 
 /*
@@ -23,7 +25,7 @@
 
     // ── 防止重複執行（油猴裝了獨立版 + EL 又動態載入時只執行一次）──
     if (window._AFC_HeartLockLoaded) {
-        console.log("🐈‍⬛ [HeartLock] 已載入，跳過重複執行");
+        console.log("🐈‍⬛ [HeartLock] Loaded, skip repeated execution");
         return;
     }
     window._AFC_HeartLockLoaded = true;
@@ -439,7 +441,7 @@
 
         log(`isAllowedToLock ch=${ch.MemberNumber} lockPerms=${JSON.stringify(lockPerms)}`);
 
-        // ── 主人（enableOwnerLock）────────────────────────────────
+        // 主人（enableOwnerLock）
         if (lockPerms?.enableOwnerLock) {
             const ownerNum = ch.Ownership?.MemberNumber;
             if (ownerNum != null && Number(ownerNum) === meNum) {
@@ -448,23 +450,26 @@
             }
         }
 
-        // ── EL/AFC + BC 戀人（enableELLock）──────────────────────
         if (!lockPerms?.enableELLock) {
             log(`isAllowedToLock: ❌ enableELLock=false`);
             return false;
         }
 
-        // AFC 戀人（穿戴者的 OnlineSharedSettings.AFC.lovers）
+        // 優先使用 AFC API（若已載入）
+        if (typeof window.AFC?.api?.canUseHeartLock === 'function') {
+            const result = window.AFC.api.canUseHeartLock(ch);
+            log(`isAllowedToLock: AFC.api.canUseHeartLock=${result}`);
+            return result;
+        }
+
+        // Fallback：直接讀 OnlineSharedSettings
         const afcLovers = ch.OnlineSharedSettings?.AFC?.lovers ?? [];
         log(`isAllowedToLock: afcLovers=${afcLovers.length} check=${meNum}`);
         if (afcLovers.some(l => Number(l.memberNumber) === meNum)) {
             log(`isAllowedToLock: ✅ AFC lover`);
             return true;
         }
-
-        // BC 原生戀人（穿戴者的 Lovership）
-        const bcLover = ch.Lovership?.some(l => Number(l.MemberNumber) === meNum);
-        if (bcLover) {
+        if (ch.Lovership?.some(l => Number(l.MemberNumber) === meNum)) {
             log(`isAllowedToLock: ✅ BC lover`);
             return true;
         }
@@ -477,26 +482,6 @@
      * 判斷 Player 是否能解開 C 身上的心鎖。
      * 邏輯與上鎖相同，但 cfg.owner 始終可解鎖。
      */
-    function isAllowedToUnlock(C, cfg) {
-        if (!C || !cfg) return false;
-        // 鎖的掛鎖者 → 始終可解鎖
-        if (Number(cfg.owner) === Number(Player.MemberNumber)) return true;
-        const lockPerms = C.OnlineSharedSettings?.AFC?.lockPerms;
-        if (!lockPerms?.enableELLock) return false;
-        // AFC 戀人（直接讀 C 的 OnlineSharedSettings）
-        const afcLovers = C.OnlineSharedSettings?.AFC?.lovers ?? [];
-        if (afcLovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)))
-            return true;
-        // BC 原生戀人
-        if (C.Lovership?.some(l => Number(l.MemberNumber) === Number(Player.MemberNumber)))
-            return true;
-        // 主人（需額外開啟 enableOwnerLock）
-        if (lockPerms.enableOwnerLock &&
-            C.Ownership?.MemberNumber != null &&
-            Number(C.Ownership.MemberNumber) === Number(Player.MemberNumber))
-            return true;
-        return false;
-    }
 
     // ═══════════════════════════════════════════
     //  工具
@@ -767,8 +752,8 @@
         try {
             if (typeof ServerSend !== 'function') return;
             ServerSend('ChatRoomChat', {
-                Type: 'Hidden', Content: 'HeartLockSync',
-                Dictionary: [{ Tag: 'HeartLockData', Data: clone(Player.HeartLock) }],
+                Type: 'Hidden', Content: 'HeartLock::Sync',
+                Dictionary: [{ Tag: 'HeartLock::Data', Data: clone(Player.HeartLock) }],
             });
         } catch {}
     }
@@ -791,8 +776,8 @@
         } else {
             try {
                 ServerSend('ChatRoomChat', {
-                    Type: 'Hidden', Content: 'HeartLockUpdate',
-                    Dictionary: [{ Tag: 'HeartLockUpdate', Target: character.MemberNumber, Group: groupName, Config: patch }],
+                    Type: 'Hidden', Content: 'HeartLock::Update',
+                    Dictionary: [{ Tag: 'HeartLock::Update', Target: character.MemberNumber, Group: groupName, Config: patch }],
                 });
             } catch {}
         }
@@ -802,8 +787,8 @@
         if (character.IsPlayer()) { deleteConfig(groupName); return; }
         try {
             ServerSend('ChatRoomChat', {
-                Type: 'Hidden', Content: 'HeartLockRemove',
-                Dictionary: [{ Tag: 'HeartLockRemove', Target: character.MemberNumber, Group: groupName }],
+                Type: 'Hidden', Content: 'HeartLock::Remove',
+                Dictionary: [{ Tag: 'HeartLock::Remove', Target: character.MemberNumber, Group: groupName }],
             });
         } catch {}
     }
@@ -814,8 +799,8 @@
             const e = data.Dictionary?.find(d => d.Tag === 'HeartLockRequest');
             if (e?.Target === Player.MemberNumber) broadcastStorage();
         }
-        if (data.Content === 'HeartLockSync') {
-            const e = data.Dictionary?.find(d => d.Tag === 'HeartLockData');
+        if (data.Content === 'HeartLock::Sync') {
+            const e = data.Dictionary?.find(d => d.Tag === 'HeartLock::Data');
             if (e) {
                 const s = ChatRoomCharacter?.find(c => c.MemberNumber === data.Sender);
                 if (s) s.HeartLock = e.Data;
@@ -840,22 +825,22 @@
             } catch {}
             saveAndSync();
         }
-        if (data.Content === 'HeartLockUpdate') {
-            const e = data.Dictionary?.find(d => d.Tag === 'HeartLockUpdate');
+        if (data.Content === 'HeartLock::Update') {
+            const e = data.Dictionary?.find(d => d.Tag === 'HeartLock::Update');
             if (!e || e.Target !== Player.MemberNumber) return;
             if (!ensureStorage()) return;
             const p = Player.HeartLock.padlocks;
             if (p[e.Group]) { Object.assign(p[e.Group], e.Config); saveAndSync(); }
         }
-        if (data.Content === 'HeartLockRemove') {
-            const e = data.Dictionary?.find(d => d.Tag === 'HeartLockRemove');
+        if (data.Content === 'HeartLock::Remove') {
+            const e = data.Dictionary?.find(d => d.Tag === 'HeartLock::Remove');
             if (!e || e.Target !== Player.MemberNumber) return;
             deleteConfig(e.Group);
         }
         // 非 owner 的 EL/BC 戀人請求解鎖
         // owner 收到後檢查 Requester 是否有權，若有則替代執行 InventoryUnlock
-        if (data.Content === 'HeartLockUnlockDone') {
-            const e = data.Dictionary?.find(d => d.Tag === 'HeartLockUnlockDone');
+        if (data.Content === 'HeartLock::Unlock::Done') {
+            const e = data.Dictionary?.find(d => d.Tag === 'HeartLock::Unlock::Done');
             if (!e || e.Target !== Player.MemberNumber) return;
             // 解鎖已完成，清除 pending 並關閉面板
             state.panel.unlockPending = false;
@@ -864,8 +849,8 @@
             state.panel.ctlEditing  = false;
             DialogFocusItem = null;
         }
-        if (data.Content === 'HeartLockUnlockRequest') {
-            const e = data.Dictionary?.find(d => d.Tag === 'HeartLockUnlockRequest');
+        if (data.Content === 'HeartLock::Unlock::Request') {
+            const e = data.Dictionary?.find(d => d.Tag === 'HeartLock::Unlock::Request');
             if (!e) return;
             if (!ensureStorage()) return;
             const gn  = e.Group;
@@ -885,11 +870,11 @@
                 state._unlocking = false;
                 ChatRoomCharacterUpdate?.(wearer);
                 deleteConfig(gn);
-                log(`HeartLockUnlockRequest: 已替 #${requester} 解鎖 ${gn}`);
+                log(`HeartLock::Unlock::Request: 已替 #${requester} 解鎖 ${gn}`);
                 try {
                     ServerSend('ChatRoomChat', {
-                        Type: 'Hidden', Content: 'HeartLockUnlockDone',
-                        Dictionary: [{ Tag: 'HeartLockUnlockDone', Target: requester, Group: gn }],
+                        Type: 'Hidden', Content: 'HeartLock::Unlock::Done',
+                        Dictionary: [{ Tag: 'HeartLock::Unlock::Done', Target: requester, Group: gn }],
                     });
                 } catch {}
             } catch { state._unlocking = false; }
@@ -907,25 +892,25 @@
 
     /**
      * 判斷 Player 是否有資格解開 C 身上的 HeartLock。
-     * 條件：owner / C 的 EL 戀人 / C 的 BC 戀人
-     * （C 的 EL 戀人清單從 C.OnlineSharedSettings.AFC.lovers 讀取，
-     *   不依賴 owner 的本地資料，讓戀人自己驗證即可）
+     * owner 始終可解鎖；戀人需穿戴者開啟 enableELLock；主人需開啟 enableOwnerLock。
      */
     function isAllowedToUnlock(C, cfg) {
         if (!C || !cfg) return false;
-        // 鎖的掛鎖者（cfg.owner）→ 始終可解鎖
-        if (Number(cfg.owner) === Number(Player.MemberNumber)) return true;
-        // C 的 BC 原生戀人 → 始終可解鎖
-        if (C.Lovership?.some(l => Number(l.MemberNumber) === Number(Player.MemberNumber))) return true;
-        // C 的 EL 拓展戀人 → 始終可解鎖
-        const elLovers = C.OnlineSharedSettings?.AFC?.lovers ?? [];
-        if (elLovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber))) return true;
-        // C 的主人（BC Ownership）且 C 開啟了 enableOwnerLock → 可解鎖
+        const meNum = Number(Player.MemberNumber);
+        // 掛鎖者始終可解鎖
+        if (Number(cfg.owner) === meNum) return true;
         const lockPerms = C.OnlineSharedSettings?.AFC?.lockPerms;
+        // 主人（需 enableOwnerLock）
         if (lockPerms?.enableOwnerLock &&
             C.Ownership?.MemberNumber != null &&
-            Number(C.Ownership.MemberNumber) === Number(Player.MemberNumber))
-            return true;
+            Number(C.Ownership.MemberNumber) === meNum) return true;
+        // 戀人需 enableELLock
+        if (!lockPerms?.enableELLock) return false;
+        // AFC 戀人
+        const afcLovers = C.OnlineSharedSettings?.AFC?.lovers ?? [];
+        if (afcLovers.some(l => Number(l.memberNumber) === meNum)) return true;
+        // BC 原生戀人
+        if (C.Lovership?.some(l => Number(l.MemberNumber) === meNum)) return true;
         return false;
     }
 
@@ -939,7 +924,7 @@
         if (!itemMiscDef) return false;
         if (itemMiscDef.Asset?.find(a => a.Name === HEARTLOCK_NAME)) { state.assetCreated = true; return true; }
         const group = AssetGroupGet?.('Female3DCG', 'ItemMisc');
-        if (!group) { console.error('[HeartLock] ItemMisc group not ready, will retry.'); return false; }
+        if (!group) { console.error('🐈‍⬛ [HeartLock] ItemMisc group not ready, will retry.'); return false; }
         const def = { AllowType: ['LockPickSeed'], Effect: [], Extended: true, IsLock: true, Name: HEARTLOCK_NAME, PickDifficulty: 20, Time: 10, Value: 70, Wear: false };
         try {
             itemMiscDef.Asset.push(def);
@@ -951,7 +936,7 @@
                 InventoryAdd(Player, HEARTLOCK_NAME, 'ItemMisc');
             state.assetCreated = true;
             log('Asset created.');            return true;
-        } catch (e) { console.error('[HeartLock] Asset creation failed', e); return false; }
+        } catch (e) { console.error('🐈‍⬛ [HeartLock] Asset creation failed', e); return false; }
     }
 
     // ═══════════════════════════════════════════
@@ -970,7 +955,7 @@
             return state.modApi;
         } catch (e) {
             if (!window.bcModSdk.getModsInfo?.().find(m => m.name === MOD_NAME))
-                console.error('[HeartLock] registerMod failed', e);
+                console.error('🐈‍⬛ [HeartLock] registerMod failed', e);
             return null;
         }
     }
@@ -1932,7 +1917,7 @@
         const sdkReady = await waitFor(() => !!window.bcModSdk);
 
         const modApi = getModApi();
-        if (!modApi) { console.error('[HeartLock] modApi unavailable.'); return; }
+        if (!modApi) { console.error('🐈‍⬛ [HeartLock] modApi unavailable.'); return; }
 
         // Phase 2：等玩家登入 + 遊戲資源就緒
         const gameReady = await waitFor(() =>
@@ -1951,7 +1936,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('🐈‍⬛ [HeartLock] v2.3.6 initialized.');
+        log('HeartLock v2.1.1 initialized.');
     }
 
     initialize().catch(e => console.error('🐈‍⬛ [HeartLock] init error', e));
