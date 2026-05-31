@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1.2
+// @version      1.2.0
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,17 +15,26 @@
 (function () {
     'use strict';
 
-    const MOD_VER = '1.1.2';
+    const MOD_VER = '1.3.0';
     const modApi = bcModSdk.registerMod({
         name: 'Liko - FCM', fullName: 'Liko - Friends Room Manager', version: MOD_VER,
     });
     const BTN_X = 955, BTN_Y = 455, BTN_W = 45, BTN_H = 45;
 
     // ═══════════════════════════════════════════════════════════
-    //  LANGUAGE  (#11 bilingual, following CFT pattern)
+    //  WPS SHARE  (LIKOSHARE protocol — compatible with Liko-WPS)
     // ═══════════════════════════════════════════════════════════
-    // Language: cfg.lang overrides; otherwise TranslationLanguage
-    // Covers BC language codes: CN, TW, ZH, zh-TW, zh-CN etc.
+    const WPS_PREFIX    = '[LIKOSHARE]';
+    const WPS_OPEN_MARK = 'LIKOSHARE_OPEN';
+    const WPS_CHUNK     = 800;
+    const _wpsIncoming  = new Map();
+    const _wpsCache     = new Map();
+    // expose for WPS interop
+    if (!window.__LIKOSHARE_CACHE__) window.__LIKOSHARE_CACHE__ = _wpsCache;
+
+    // ═══════════════════════════════════════════════════════════
+    //  LANGUAGE
+    // ═══════════════════════════════════════════════════════════
     function isZh() {
         if (cfg.lang === 'zh') return true;
         if (cfg.lang === 'en') return false;
@@ -38,13 +47,15 @@
     const L = {
         zh: {
             panelTitle: '🎛 FCM ─ 好友與房間管理', tabFriends: '個人關係', tabRoom: '房間管理', tabSettings: '設定',
+            tabPeople: '人員查詢',
             minimize: '—', close: '×', miniLabel: '好友與房間管理',
             search: '搜尋名稱或ID...', roomSearch: '搜尋 / 輸入ID添加...',
-            sortBy: '排序', sortRel: '關係', sortId: 'ID', sortName: '名稱', sortAdded: '添加時間',
+            sortBy: '排序', sortRel: '關係', sortId: 'ID', sortName: '名稱', sortAdded: '添加時間', sortSeen: '最後見面',
             showOnly: '顯示', togNick: '暱稱', togName: '名稱',
             fOnline: '在線', fOffline: '不在線', fOwner: '主人', fLover: '戀人', fSub: '奴隸', fFriend: '好友',
             colName: '名稱', colId: 'ID', colRel: '關係', colZone: '分區', colRoom: '房間',
             colPerm: '權限', colOps: '動作', colMgmt: '房管', colMgmtNoPerm: '房管（無權）',
+            colSeen: '最後見面',
             relOwner: '主人', relLover: '戀人', relSub: '奴隸', relFriend: '好友', relContact: '單向好友',
             zoneF: '♀', zoneM: '♂', zoneX: '♀♂', zoneUnk: '—',
             online: '在線', offline: '不在線',
@@ -59,19 +70,25 @@
             dbOk: '已連線', dbNo: '未連線',
             langLabel: '語言',
             whisperIndicatorLabel: '私聊/BEEP 輸入框提示色',
-            ghostHideLabel: '幽靈名單隱身', ghostHideNote: '幽靈名單中的角色在聊天室不顯示身體（只對自己有效）', whisperIndicatorNote: '輸入 /w /whisper /beep 或進入悄悄話模式時，聊天框會顯示紫色邊框提示', langNote: 'Auto: 依 BC TranslationLanguage（CN/TW→中文，其餘→English）',
+            ghostHideLabel: '幽靈名單隱身', ghostHideNote: '幽靈名單中的角色在聊天室不顯示身體（只對自己有效）',
+            whisperIndicatorNote: '輸入 /w /whisper /beep 或進入悄悄話模式時，聊天框會顯示紫色邊框提示',
+            langNote: 'Auto: 依 BC TranslationLanguage（CN/TW→中文，其餘→English）',
             langDetected: tl => `目前偵測: ${tl || '未設定'}`,
-            btnReloadAvatars: '重新載入頭像', reloadAvatarsNote: '清除頭像快取，重新從角色資料建立',
-            reloadAvatarsDone: '已清除頭像快取，重新加載中...',
+            btnReloadAvatars: '頭像快取管理', reloadAvatarsNote: '清除快取或載入好友頭像',
+            btnLoadFriendAvatars: '載入好友頭像', loadFriendAvatarsNote: '掃描所有好友，讓 BC 緩存外觀後統一截圖（約需數十秒）',
+            btnClearAvatarCache: '清除頭像快取', clearAvatarCacheNote: '清除所有已儲存的頭像快照，下次遇到時重新截取',
+            loadingFriendAvatars: n => `載入好友頭像中... 剩餘 ${n} 人`,
+            loadFriendAvatarsDone: '好友頭像載入完成',
             noProfile: '尚無個人資料\n（需先與此人在同一房間）',
             confirmDel: n => `確定刪除好友「${n}」？`,
             confirmKick: n => `確定逐出「${n}」？`,
             confirmRoom: n => `🚪 前往房間「${n}」？`,
+            confirmAddBan: n => `確定將「${n}」加入黑名單？\n對方將無法與你互動。`,
+            confirmAddGhost: n => `確定將「${n}」加入幽靈名單？\n你將不會再收到任何該玩家的信息。`,
             tabRoomSearch: '查詢房間', roomSearch2: '搜尋房間...', roomSearchBtn: '搜尋',
             roomSearching: '搜尋中...', roomSearchEmpty: '沒有找到房間',
             roomFavLabel: '★ 最愛', roomJoin: '加入', roomMixed: '混合', roomFemale: '女性', roomMale: '男性',
             totalRooms: n => `共 ${n} 間`, roomPrivateLabel: '私人',
-            btnAddWhite: '+白單', btnRmWhite: '-白單', btnAddBan: '+黑單', btnRmBan: '解禁',
             permAdmin: '管理', permPass: 'PASS', permBan: 'BAN', permVisit: '訪客',
             youLabel: '（你）', copyId: '點擊複製ID', copyDone: '已複製！',
             total: n => `共 ${n} 人`,
@@ -86,8 +103,8 @@
             saveModeOff: '不儲存', saveModeName: '僅名稱', saveModeAvatar: '名稱與頭像', saveModeFull: '完整資料（WCE 相容）',
             saveModeDesc_off: '不儲存任何資料。如果你有安裝 WCE 並啟用其 Profiles 功能，建議選此選項避免重複儲存（WCE 已幫你存好了）。',
             saveModeDesc_name: '只儲存成員編號、BC 名稱、暱稱。幾乎不佔空間，可用來顯示離線好友名稱。',
-            saveModeDesc_avatar: '額外儲存頭像圖片（在遇見時自動擷取）。',
-            saveModeDesc_full: '完整儲存：名稱、暱稱、頭像、外觀/BIO/稱號等。與 WCE bce-past-profiles 資料庫完全相容，互相共用。',
+            saveModeDesc_avatar: '額外儲存頭像快照（在遇見時自動擷取，儲存於獨立的 FCM-Snapshot 資料庫）。',
+            saveModeDesc_full: '完整儲存：名稱、暱稱、外觀/BIO/稱號等。與 WCE bce-past-profiles 資料庫完全相容，互相共用。頭像另存於 FCM-Snapshot。',
             wceDetected: '✅ 偵測到 WCE Profiles 功能，已自動設為完整資料模式（與 WCE 共用同一個 DB，避免衝突）',
             wceNotDetected: '未偵測到 WCE。建議若只需顯示名稱則選「僅名稱」，需要頭像則選「名稱與頭像」。',
             reloadStatus: n => n > 0 ? `頭像載入中... 剩餘 ${n} 人，請稍等` : '頭像載入完成',
@@ -98,16 +115,32 @@
             profilesTitle: '已儲存的 Profiles', profilesHint: '點擊開啟角色資訊',
             profilesEmpty: '沒有符合條件的 profiles', profilesTotal: (n, t) => `顯示 ${n} / 共 ${t} 筆`,
             searchProfiles: '搜尋名稱或ID...',
+            // People Search
+            peopleSearchPlaceholder: '輸入名稱或 ID，按 Enter 搜尋...',
+            peopleSearchHint: '顯示最近見過的 100 人 · 輸入後按 Enter 或點「搜尋」',
+            peopleNoResults: '沒有找到符合的人員',
+            peopleUnknownId: n => `請問您是否在搜尋 #${n}？你並無該人員資料`,
+            peopleSimilarIds: '包含此數字的相似 ID：',
+            peopleUnknownName: '名稱未知',
+            peopleOneSidedWarn: () => `⚠ 提醒：此操作為單方面添加。如果有需要，請您主動通知對方。`,
+            peopleTotal: (n, t) => t !== undefined ? `顯示 ${n} / 共 ${t} 筆` : `共 ${n} 筆`,
+            colShare: '分享',
+            btnShare: '分享',
+            shareLocalMsg: (name, id) => `📜 已分享 ${name} (${id}) 的 Profile`,
+            shareRecvMsg: (from, display, date) => `📜 ${from} 分享了 ${display} 保存於: ${date}`,
+            shareOpen: '▶ 開啟',
         },
         en: {
             panelTitle: '🎛 FCM ─ Friends and ChatRoom Manager', tabFriends: 'Relations', tabRoom: 'Room Mgmt', tabSettings: 'Settings',
+            tabPeople: 'People',
             minimize: '—', close: '×', miniLabel: 'Friends and ChatRoom Manager',
             search: 'Search name or ID...', roomSearch: 'Search / Enter ID to add...',
-            sortBy: 'Sort', sortRel: 'Relation', sortId: 'ID', sortName: 'Name', sortAdded: 'Added',
+            sortBy: 'Sort', sortRel: 'Relation', sortId: 'ID', sortName: 'Name', sortAdded: 'Added', sortSeen: 'Last Seen',
             showOnly: 'Show', togNick: 'Nick', togName: 'Name',
             fOnline: 'Online', fOffline: 'Offline', fOwner: 'Owner', fLover: 'Lover', fSub: 'Sub', fFriend: 'Friend',
             colName: 'Name', colId: 'ID', colRel: 'Rel.', colZone: 'Zone', colRoom: 'Room',
             colPerm: 'Perm.', colOps: 'Actions', colMgmt: 'Room Admin', colMgmtNoPerm: 'Room Admin (no perm)',
+            colSeen: 'Last Seen',
             relOwner: 'Owner', relLover: 'Lover', relSub: 'Sub', relFriend: 'Friend', relContact: 'One-way',
             zoneF: '♀', zoneM: '♂', zoneX: '♀♂', zoneUnk: '—',
             online: 'Online', offline: 'Offline',
@@ -117,24 +150,30 @@
             btnAdd: 'Add', btnAddTitle: 'Add ID to list',
             roomTabs: { members: 'Members', admin: 'Admins', white: 'Whitelist', ban: 'Blacklist' },
             notInRoom: 'Not currently in a room', noAdminWarn: '⚠ No admin rights — Room Admin column is view-only',
-            setAvatars: 'Show Avatars', setAvatarsNote: 'Show portraits (saved on encounter or rebuilt from profile data)',
+            setAvatars: 'Show Avatars', setAvatarsNote: 'Show portraits (saved on encounter, stored in FCM-Snapshot DB)',
             setProfiles: 'Enable Profile Auto-Save', setProfilesNote: 'WCE bce-past-profiles compatible',
             dbOk: 'Connected', dbNo: 'Not connected',
             langLabel: 'Language',
             whisperIndicatorLabel: 'Whisper/BEEP Input Glow Color',
-            ghostHideLabel: 'Ghost List Hide', ghostHideNote: 'Characters on your ghost list are hidden in chatroom (only affects your view)', whisperIndicatorNote: 'Shows a purple glow on the chat input when /w /whisper /beep is typed or whisper mode is active', langNote: 'Auto: follows BC TranslationLanguage (CN/TW→Chinese, others→English)',
+            ghostHideLabel: 'Ghost List Hide', ghostHideNote: 'Characters on your ghost list are hidden in chatroom (only affects your view)',
+            whisperIndicatorNote: 'Shows a purple glow on the chat input when /w /whisper /beep is typed or whisper mode is active',
+            langNote: 'Auto: follows BC TranslationLanguage (CN/TW→Chinese, others→English)',
             langDetected: tl => `Detected: ${tl || 'not set'}`,
-            btnReloadAvatars: 'Reload Avatars', reloadAvatarsNote: 'Clear avatar cache and rebuild from profile data',
-            reloadAvatarsDone: 'Avatar cache cleared, reloading...',
+            btnReloadAvatars: 'Avatar Cache', reloadAvatarsNote: 'Clear cache or load friend avatars',
+            btnLoadFriendAvatars: 'Load Friend Avatars', loadFriendAvatarsNote: 'Scan all friends, wait for BC to cache appearances, then snapshot (may take tens of seconds)',
+            btnClearAvatarCache: 'Clear Avatar Cache', clearAvatarCacheNote: 'Delete all saved avatar snapshots — new ones will be captured on next encounter',
+            loadingFriendAvatars: n => `Loading friend avatars... ${n} remaining`,
+            loadFriendAvatarsDone: 'Friend avatar loading complete',
             noProfile: 'No profile data\n(Must have been in same room)',
             confirmDel: n => `Unfriend "${n}"?`,
             confirmKick: n => `Kick "${n}"?`,
             confirmRoom: n => `🚪 Go to room "${n}"?`,
+            confirmAddBan: n => `Blacklist "${n}"?\nThey will no longer be able to interact with you.`,
+            confirmAddGhost: n => `Add "${n}" to ghost list?\nYou will no longer receive any messages from that person.`,
             tabRoomSearch: 'Search Rooms', roomSearch2: 'Search rooms...', roomSearchBtn: 'Search',
             roomSearching: 'Searching...', roomSearchEmpty: 'No rooms found',
             roomFavLabel: '★ Favs', roomJoin: 'Join', roomMixed: 'Mixed', roomFemale: 'Female', roomMale: 'Male',
             totalRooms: n => `Rooms: ${n}`, roomPrivateLabel: 'Private',
-            btnAddWhite: '+White', btnRmWhite: '-White', btnAddBan: '+Ban', btnRmBan: 'Unban',
             permAdmin: 'Admin', permPass: 'PASS', permBan: 'BAN', permVisit: 'Visit',
             youLabel: '(You)', copyId: 'Click to copy ID', copyDone: 'Copied!',
             total: n => `Total: ${n}`,
@@ -149,8 +188,8 @@
             saveModeOff: 'Off', saveModeName: 'Name only', saveModeAvatar: 'Name + Avatar', saveModeFull: 'Full profile (WCE)',
             saveModeDesc_off: "Don't save any data. If you have WCE with Profiles enabled, choose this to avoid duplicates (WCE already saves for you).",
             saveModeDesc_name: 'Save member number, BC name, and nickname only. Minimal space, used for displaying offline friend names.',
-            saveModeDesc_avatar: 'Also save avatar image (auto-captured when encountered).',
-            saveModeDesc_full: 'Full save: name, nickname, avatar, appearance/BIO/title etc. Fully compatible with WCE bce-past-profiles DB.',
+            saveModeDesc_avatar: 'Also save avatar snapshot (auto-captured when encountered, stored in separate FCM-Snapshot DB).',
+            saveModeDesc_full: 'Full save: name, nickname, appearance/BIO/title etc. Fully compatible with WCE bce-past-profiles DB. Avatars stored separately in FCM-Snapshot.',
             wceDetected: '✅ WCE Profiles detected — auto-set to Full mode (shared DB, no conflicts)',
             wceNotDetected: 'WCE not detected. Use Name-only for minimal storage, or Name+Avatar if you want portraits.',
             reloadStatus: n => n > 0 ? `Loading avatars... ${n} remaining, please wait` : 'Avatar loading complete',
@@ -161,6 +200,20 @@
             profilesTitle: 'Saved Profiles', profilesHint: 'Click to open character info',
             profilesEmpty: 'No matching profiles', profilesTotal: (n, t) => `Showing ${n} of ${t}`,
             searchProfiles: 'Search name or ID...',
+            // People Search
+            peopleSearchPlaceholder: 'Name or ID — press Enter to search...',
+            peopleSearchHint: 'Showing last 100 encountered · type then press Enter or click Search',
+            peopleNoResults: 'No matching people found',
+            peopleUnknownId: n => `Did you mean #${n}? No record found for this ID.`,
+            peopleSimilarIds: 'Similar IDs containing this number:',
+            peopleUnknownName: 'Name unknown',
+            peopleOneSidedWarn: () => `⚠ Note: This action is a one-way addition. If necessary, please notify the other party yourself.`,
+            peopleTotal: (n, t) => t !== undefined ? `Showing ${n} of ${t}` : `Total: ${n}`,
+            colShare: 'Share',
+            btnShare: 'Share',
+            shareLocalMsg: (name, id) => `📜 Shared profile: ${name} (${id})`,
+            shareRecvMsg: (from, display, date) => `📜 ${from} shared a profile: ${display} saved: ${date}`,
+            shareOpen: '▶ Open',
         },
     };
     function T(k, ...a) { const d = isZh() ? L.zh : L.en; const v = d[k] ?? L.en[k] ?? k; return typeof v === 'function' ? v(...a) : v; }
@@ -168,12 +221,12 @@
     // ═══════════════════════════════════════════════════════════
     //  SETTINGS
     // ═══════════════════════════════════════════════════════════
-    let cfg = { avatars: false, lang: 'auto', saveMode: 'off', whisperIndicator: false, whisperColor: '#b070e8', ghostHide: false }; // saveMode: 'off'|'name'|'avatar'|'full'
+    let cfg = { avatars: false, lang: 'auto', saveMode: 'off', whisperIndicator: false, whisperColor: '#b070e8', ghostHide: false };
     function loadCfg() { try { const s = localStorage.getItem('LikoFCM'); if (s) Object.assign(cfg, JSON.parse(s)); } catch {} }
     function saveCfg() { try { localStorage.setItem('LikoFCM', JSON.stringify(cfg)); } catch {} }
 
     // ═══════════════════════════════════════════════════════════
-    //  PROFILE DB  (WCE bce-past-profiles compatible)
+    //  PROFILE DB  (WCE bce-past-profiles compatible — NO avatarDataUrl here)
     // ═══════════════════════════════════════════════════════════
     const PDB = {
         db: null,
@@ -202,12 +255,8 @@
             try {
                 const nick = (typeof CharacterNickname === 'function' ? CharacterNickname(C) : '') || C.Nickname || C.Name || '';
                 const now = Date.now();
-                const prof = { memberNumber: C.MemberNumber, name: C.Name || '', lastNick: nick, seen: now, savedAt: now };
-                // avatar: save for 'avatar' and 'full' modes
-                if (cfg.saveMode === 'avatar' || cfg.saveMode === 'full') {
-                    prof.avatarDataUrl = this._face(C);
-                }
-                // bundle: only for 'full' mode (strip large fields like WCE does)
+                // bce-past-profiles: NEVER write avatarDataUrl — keep WCE-compatible
+                const prof = { memberNumber: C.MemberNumber, name: C.Name || '', lastNick: nick, seen: now };
                 if (cfg.saveMode === 'full') {
                     const src = raw || { MemberNumber: C.MemberNumber, Name: C.Name || '', Nickname: C.Nickname || '',
                         LabelColor: C.LabelColor || '#fff', Description: C.Description || '',
@@ -221,6 +270,12 @@
                 }
                 _pc[C.MemberNumber] = prof;
                 this.db.transaction('profiles', 'readwrite').objectStore('profiles').put(prof);
+
+                // Avatar snapshot: stored separately in FCM-Snapshot DB
+                if (cfg.saveMode === 'avatar' || cfg.saveMode === 'full') {
+                    const url = this._face(C);
+                    if (url) Snapshot.save(C.MemberNumber, url);
+                }
             } catch {}
         },
         get(mn) {
@@ -232,12 +287,173 @@
     const _pc = {};
 
     // ═══════════════════════════════════════════════════════════
-    //  #2 AVATAR FROM characterBundle — serial queue (1 at a time) + requestAnimationFrame
+    //  WPS SHARE FUNCTIONS  (LIKOSHARE protocol)
+    // ═══════════════════════════════════════════════════════════
+    async function wpsShareProfile(memberNumber) {
+        if (!PDB.db) return;
+        const mn = parseInt(memberNumber);
+        const prof = await PDB.get(mn);
+        if (!prof) return;
+        const payload = {
+            sharedAt: Date.now(),
+            from: { memberNumber: Player?.MemberNumber, name: Player?.Nickname || Player?.Name || String(Player?.MemberNumber) },
+            profile: { memberNumber: prof.memberNumber, name: prof.name, lastNick: prof.lastNick, seen: prof.seen, characterBundle: prof.characterBundle }
+        };
+        const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+        const shareId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const total = Math.ceil(encoded.length / WPS_CHUNK);
+        for (let i = 0; i < total; i++) {
+            ServerSend('ChatRoomChat', { Type: 'Hidden', Content: `${WPS_PREFIX} ${shareId} ${i+1}/${total} ${encoded.slice(i*WPS_CHUNK, (i+1)*WPS_CHUNK)}` });
+        }
+        const displayName = prof.lastNick || prof.name || mn;
+        if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal(T('shareLocalMsg', displayName, mn), 0);
+    }
+
+    function wpsHandleMessage(data) {
+        if (!data?.Content?.startsWith(WPS_PREFIX)) return false;
+        // If WPS is already loaded it will handle this; skip to avoid double processing
+        if (window.LikoWPSInstance && window.__LIKOSHARE_CACHE__ !== _wpsCache) return false;
+        try {
+            const parts = data.Content.split(' ');
+            const shareId = parts[1];
+            const [idx, total] = parts[2].split('/').map(Number);
+            const chunk = parts.slice(3).join(' ');
+            if (!_wpsIncoming.has(shareId)) _wpsIncoming.set(shareId, { total, chunks: [] });
+            const entry = _wpsIncoming.get(shareId);
+            entry.chunks[idx - 1] = chunk;
+            if (entry.chunks.filter(Boolean).length === entry.total) {
+                _wpsIncoming.delete(shareId);
+                const payload = JSON.parse(decodeURIComponent(escape(atob(entry.chunks.join('')))));
+                const key = `${payload.sharedAt}:${payload.profile.memberNumber}`;
+                _wpsCache.set(key, payload);
+                // Also sync to window.__LIKOSHARE_CACHE__ if WPS is loaded
+                if (window.__LIKOSHARE_CACHE__ && window.__LIKOSHARE_CACHE__ !== _wpsCache) window.__LIKOSHARE_CACHE__.set(key, payload);
+                const p = payload.profile;
+                const from = payload.from || {};
+                const fromName = from.name || from.memberNumber || '?';
+                const isSelf = from.memberNumber === Player?.MemberNumber;
+                const displayName = p.lastNick || p.name || p.memberNumber;
+                const openToken = `[${WPS_OPEN_MARK} ${payload.sharedAt} ${p.memberNumber}]`;
+                const seenDate = new Date(p.seen);
+                const seenText = `${seenDate.getFullYear()}/${seenDate.getMonth()+1}/${seenDate.getDate()}`;
+                if (!isSelf && typeof ChatRoomSendLocal === 'function') {
+                    ChatRoomSendLocal(T('shareRecvMsg', fromName, `${openToken} ${displayName} (${p.memberNumber})`, seenText), 0);
+                }
+                // Save profile if newer
+                if (PDB.db) {
+                    const tx = PDB.db.transaction('profiles', 'readwrite');
+                    const store = tx.objectStore('profiles');
+                    const req = store.get(p.memberNumber);
+                    req.onsuccess = () => { const local = req.result; if (!local || p.seen > local.seen) store.put(p); };
+                }
+                // Process any chat elements with open tokens
+                setTimeout(() => document.querySelectorAll('.ChatMessageLocalMessage').forEach(wpsProcessOpenTokens), 200);
+            }
+        } catch(e) { console.warn('🐈‍⬛ [FCM] WPS parse error', e); }
+        return true;
+    }
+
+    function wpsProcessOpenTokens(element) {
+        if (element.dataset.fcmShareProcessed === '1') return;
+        const html = element.innerHTML;
+        if (!html || !html.includes(WPS_OPEN_MARK)) return;
+        const replaced = html.replace(
+            /\[LIKOSHARE_OPEN\s+(\d+)\s+(\d+)\]/g,
+            (m, sharedAt, memberNumber) => {
+                const key = `${sharedAt}:${memberNumber}`;
+                // Check both caches
+                const payload = _wpsCache.get(key) || (window.__LIKOSHARE_CACHE__ && window.__LIKOSHARE_CACHE__.get(key));
+                if (!payload) return m;
+                return `<span class="fcmShareOpen" data-key="${key}" style="color:#885CB0;cursor:pointer;user-select:none;">${T('shareOpen')}</span>`;
+            }
+        );
+        if (replaced !== html) {
+            element.innerHTML = replaced;
+            element.dataset.fcmShareProcessed = '1';
+            element.querySelectorAll('.fcmShareOpen').forEach(el => {
+                if (el.dataset.bound) return;
+                el.dataset.bound = '1';
+                el.onselectstart = () => false;
+                el.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); });
+                el.addEventListener('click', e => {
+                    e.preventDefault(); e.stopPropagation();
+                    const payload = _wpsCache.get(el.dataset.key) || (window.__LIKOSHARE_CACHE__ && window.__LIKOSHARE_CACHE__.get(el.dataset.key));
+                    if (!payload) return;
+                    const p = payload.profile;
+                    try { const C = CharacterLoadOnline(JSON.parse(p.characterBundle), p.memberNumber); InformationSheetLoadCharacter(C); } catch {}
+                    if (PDB.db) { const tx = PDB.db.transaction('profiles', 'readwrite'); const store = tx.objectStore('profiles'); const req = store.get(p.memberNumber); req.onsuccess = () => { const local = req.result; if (!local || p.seen > local.seen) store.put(p); }; }
+                });
+            });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  FCM-SNAPSHOT DB  (avatar snapshots only, separate from WCE)
+    // ═══════════════════════════════════════════════════════════
+    const Snapshot = {
+        db: null,
+        // In-memory cache: { memberNumber -> avatarDataUrl | null }
+        _cache: {},
+        async init() {
+            return new Promise(res => {
+                try {
+                    const req = indexedDB.open('fcm-snapshot', 1);
+                    req.onupgradeneeded = e => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('avatars')) {
+                            db.createObjectStore('avatars', { keyPath: 'memberNumber' });
+                        }
+                    };
+                    req.onsuccess = () => { this.db = req.result; res(true); };
+                    req.onerror = () => res(false);
+                } catch { res(false); }
+            });
+        },
+        save(mn, dataUrl) {
+            mn = parseInt(mn);
+            if (!this.db || !dataUrl) return;
+            const rec = { memberNumber: mn, avatarDataUrl: dataUrl, savedAt: Date.now() };
+            this._cache[mn] = dataUrl;
+            try { this.db.transaction('avatars', 'readwrite').objectStore('avatars').put(rec); } catch {}
+        },
+        get(mn) {
+            mn = parseInt(mn);
+            if (this._cache[mn] !== undefined) return Promise.resolve(this._cache[mn]);
+            if (!this.db) { this._cache[mn] = null; return Promise.resolve(null); }
+            return new Promise(res => {
+                try {
+                    const req = this.db.transaction('avatars', 'readonly').objectStore('avatars').get(mn);
+                    req.onsuccess = () => { const r = req.result; this._cache[mn] = r ? r.avatarDataUrl : null; res(this._cache[mn]); };
+                    req.onerror = () => { this._cache[mn] = null; res(null); };
+                } catch { this._cache[mn] = null; res(null); }
+            });
+        },
+        async batchGet(mns) {
+            for (const mn of mns) {
+                const k = parseInt(mn);
+                if (this._cache[k] === undefined) await this.get(k);
+            }
+        },
+        async clear() {
+            // Clear memory cache
+            Object.keys(this._cache).forEach(k => delete this._cache[k]);
+            if (!this.db) return;
+            return new Promise(res => {
+                try {
+                    const req = this.db.transaction('avatars', 'readwrite').objectStore('avatars').clear();
+                    req.onsuccess = () => res();
+                    req.onerror = () => res();
+                } catch { res(); }
+            });
+        },
+    };
+
+    // ═══════════════════════════════════════════════════════════
+    //  AVATAR REBUILD QUEUE (from characterBundle, serial, rAF-based)
     // ═══════════════════════════════════════════════════════════
     const _avQueue = []; let _avBusy = false;
-    let _avStatusEl = null; // updated by renderSettings
+    let _avStatusEl = null;
 
-    // Detect if WCE's profile saving is active
     async function detectWCESave() {
         try { if (typeof fbcSettings !== 'undefined' && fbcSettings.pastProfiles === true) return true; } catch {}
         try { if (PDB.db && PDB.db.objectStoreNames.contains('notes')) return true; } catch {}
@@ -247,7 +463,9 @@
 
     function queueAvatarLoad(mn, profile, onDone) {
         mn = parseInt(mn);
-        if (profile.avatarDataUrl) { onDone(profile.avatarDataUrl); return; }
+        // Check Snapshot cache first
+        const cached = Snapshot._cache[mn];
+        if (cached) { onDone(cached); return; }
         if (_avQueue.some(q => q.mn === mn)) return;
         _avQueue.push({ mn, profile, onDone });
         if (!_avBusy) _processAvQueue();
@@ -256,15 +474,12 @@
     async function _processAvQueue() {
         if (_avBusy || _avQueue.length === 0) return;
         _avBusy = true;
-        function updateStatus() {
-            const n = _avQueue.length + 1; // +1 for current
-            if (_avStatusEl) _avStatusEl.textContent = T('reloadStatus', n);
-        }
+        function updateStatus() { const n = _avQueue.length + 1; if (_avStatusEl) _avStatusEl.textContent = T('reloadStatus', n); }
         while (_avQueue.length > 0) {
             const { mn, profile, onDone } = _avQueue.shift();
             updateStatus();
-            if (profile.avatarDataUrl) { onDone(profile.avatarDataUrl); continue; }
-            if (profile._avatarLoading) continue;
+            const alreadyCached = await Snapshot.get(mn);
+            if (alreadyCached && alreadyCached.length > 800) { onDone(alreadyCached); continue; }
             const url = await loadAvatarFromBundle(mn, profile);
             if (url) onDone(url);
             await new Promise(r => setTimeout(r, 80));
@@ -275,22 +490,32 @@
 
     async function loadAvatarFromBundle(mn, profile) {
         mn = parseInt(mn);
-        if (!profile?.characterBundle || profile._avatarLoading || profile.avatarDataUrl) return null;
-        if (inRoom(mn)) return null;
-        profile._avatarLoading = true;
+        if (!profile?.characterBundle) return null;
+        if (inRoomFn(mn)) return null;
         try {
             const data = JSON.parse(profile.characterBundle);
             if (typeof CharacterLoadOnline !== 'function') return null;
             const C = CharacterLoadOnline(data, mn);
             if (!C) return null;
             if (typeof CharacterRefresh === 'function') CharacterRefresh(C, false, undefined);
-            // Use requestAnimationFrame so BC's draw loop runs each iteration
-            let url = '';
-            for (let i = 0; i < 20 && !url; i++) {
+
+            // Wait for canvas to stabilise: 3 consecutive identical frames, up to 40 rAF (~667ms)
+            // This handles 404 assets — they never load, but canvas stops changing once other assets settle
+            let prev = '', stable = 0, url = '';
+            for (let i = 0; i < 40; i++) {
                 await new Promise(r => requestAnimationFrame(r));
-                url = PDB._face(C, 44);
+                const cur = PDB._face(C, 44);
+                if (cur && cur.length > 800) {
+                    if (cur === prev) {
+                        stable++;
+                        if (stable >= 3) { url = cur; break; }
+                    } else {
+                        stable = 0; prev = cur;
+                    }
+                }
             }
-            // Clean up temp character
+
+            // Cleanup temp character
             try {
                 if (Array.isArray(Character)) {
                     const live = new Set((ChatRoomCharacter || []).map(c => c.MemberNumber));
@@ -298,19 +523,37 @@
                     if (idx >= 0) Character.splice(idx, 1);
                 }
             } catch {}
-            if (url) {
-                profile.avatarDataUrl = url;
-                _pc[mn] = profile;
-                if (PDB.db) { try { PDB.db.transaction('profiles', 'readwrite').objectStore('profiles').put(profile); } catch {} }
-            }
+
+            if (url && url.length > 800) Snapshot.save(mn, url);
             return url || null;
         } catch { return null; }
-        finally { profile._avatarLoading = false; }
     }
 
     // ═══════════════════════════════════════════════════════════
     //  ONLINE FRIENDS + AUTO-SAVE HOOKS
     // ═══════════════════════════════════════════════════════════
+    // ─── Auto-snapshot helper ────────────────────────────────────────
+    // Wait for character canvas to stabilise before capturing.
+    // Uses polling: check if the canvas face area has changed between frames.
+    function _captureSnapshotDelayed(C) {
+        if (!C || !C.MemberNumber || C.MemberNumber === parseInt(Player?.MemberNumber)) return;
+        if (Snapshot._cache[C.MemberNumber]) return;
+        const mn = C.MemberNumber;
+        let stable = 0, prev = '';
+        const check = () => {
+            if (Snapshot._cache[mn]) return;          // captured elsewhere in the meantime
+            const url = PDB._face(C, 44);
+            if (url && url.length > 800) {            // non-trivial image
+                if (url === prev) {
+                    stable++;
+                    if (stable >= 3) { Snapshot.save(mn, url); return; }  // stable for 3 checks → save
+                } else { stable = 0; prev = url; }
+            }
+            setTimeout(check, 600);
+        };
+        setTimeout(check, 1500);   // initial delay: let textures start loading
+    }
+
     let onlineFriends = [];
     modApi.hookFunction('FriendListLoadFriendList', 0, (args, next) => {
         const r = next(args);
@@ -319,15 +562,30 @@
     });
     modApi.hookFunction('ChatRoomSync', 0, (args, next) => {
         const r = next(args);
-        if (cfg.profiles) { const raws = (args[0] && args[0].Character) || []; setTimeout(() => raws.forEach(raw => { const C = ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === raw.MemberNumber); if (C) PDB.save(C, raw); }), 800); }
+        const raws = (args[0] && args[0].Character) || [];
+        setTimeout(() => raws.forEach(raw => {
+            const C = ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === raw.MemberNumber);
+            if (C) {
+                if (cfg.saveMode !== 'off') PDB.save(C, raw);
+                _captureSnapshotDelayed(C);
+            }
+        }), 800);
         return r;
     });
     modApi.hookFunction('ChatRoomSyncMemberJoin', 0, (args, next) => {
         const r = next(args);
-        if (cfg.profiles && args[0] && args[0].Character) { const raw = args[0].Character; setTimeout(() => { const C = ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === raw.MemberNumber); if (C) PDB.save(C, raw); }, 900); }
+        if (args[0] && args[0].Character) {
+            const raw = args[0].Character;
+            setTimeout(() => {
+                const C = ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === raw.MemberNumber);
+                if (C) {
+                    if (cfg.saveMode !== 'off') PDB.save(C, raw);
+                    _captureSnapshotDelayed(C);
+                }
+            }, 800);
+        }
         return r;
     });
-    // #6 Refresh room tab on member join/leave/perm change
     modApi.hookFunction('ChatRoomSyncRoomProperties', 0, (args, next) => {
         let r; try { r = next(args); } catch(e) { console.warn('🐈‍⬛ [FCM] SyncRoomProperties:', e); }
         try { if (panelOpen && !panelMini && uiTab === 'room') renderCurrent(); } catch {}
@@ -361,7 +619,6 @@
         if (Player.BlackList && Player.BlackList.includes(mn)) return 'blacklist';
         return 'none';
     }
-    // Returns ALL roles (multi-role support: lover+sub, owner+whitelist etc.)
     function getAllRels(mn) {
         mn = parseInt(mn); if (!Player || mn === parseInt(Player.MemberNumber)) return ['none'];
         const roles = [];
@@ -377,7 +634,6 @@
     }
     const REL_ORDER = { owner: 0, lover: 1, sub: 2, friend: 3, contact: 4, whitelist: 5, blacklist: 6, none: 7 };
 
-    // #3 Show Nickname or Name based on toggle
     let showNickname = true;
     function getDisplayName(mn) {
         mn = parseInt(mn);
@@ -388,11 +644,7 @@
         }
         const online = onlineFriends.find(f => f.MemberNumber === mn);
         if (online && online.MemberName) {
-            // When nickname mode: check profile cache for nickname
-            if (showNickname) {
-                const cached2 = _pc[mn];
-                if (cached2 && cached2.lastNick) return cached2.lastNick;
-            }
+            if (showNickname) { const cached2 = _pc[mn]; if (cached2 && cached2.lastNick) return cached2.lastNick; }
             return online.MemberName;
         }
         if (Player.FriendNames && Player.FriendNames.get(mn)) return Player.FriendNames.get(mn);
@@ -417,7 +669,6 @@
         (ChatRoomCharacter || []).forEach(C => { if (C.Ownership && parseInt(C.Ownership.MemberNumber) === selfMn) add(C.MemberNumber, 0); });
         if (Player.FriendNames) for (const [mn] of Player.FriendNames) add(mn, 0);
         (Player.FriendList || []).forEach(mn => add(mn, 0));
-        // Also include personal whitelist / blacklist members
         (Player.WhiteList || []).forEach(mn => add(mn, 0));
         (Player.BlackList || []).forEach(mn => add(mn, 0));
         try { (Player.GhostList || []).forEach(mn => add(mn, 0)); } catch {}
@@ -428,7 +679,7 @@
         const inRoomC = ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === mn);
         if (inRoomC) { const sp = inRoomC.Pronouns || inRoomC.Gender || ''; if (sp === 'M') return T('zoneM'); return T('zoneF'); }
         const f = onlineFriends.find(f => f.MemberNumber === mn);
-        if (!f) return null; // offline → caller shows '-'
+        if (!f) return null;
         const sp = f.ChatRoomSpace !== undefined ? f.ChatRoomSpace : '';
         if (sp === 'M') return T('zoneM'); if (sp === 'X' || sp === 'B') return T('zoneX'); return T('zoneF');
     }
@@ -439,8 +690,8 @@
         const f = onlineFriends.find(f => f.MemberNumber === mn);
         if (!f) return null;
         if (f.ChatRoomName) return { name: f.ChatRoomName, isPrivate: !!(f.Private), isCurrent: false };
-        if (f.Private) return { name: null, isPrivate: true, isCurrent: false }; // private room, name hidden
-        return null; // lobby / not in a room
+        if (f.Private) return { name: null, isPrivate: true, isCurrent: false };
+        return null;
     }
     function getRoomName(mn) { const r = getRoomInfo(mn); return r ? r.name : null; }
     function getRoomPerms(mn) {
@@ -448,9 +699,9 @@
         const p = []; if (ChatRoomData.Admin && ChatRoomData.Admin.includes(mn)) p.push('admin'); if (ChatRoomData.Whitelist && ChatRoomData.Whitelist.includes(mn)) p.push('pass'); if (ChatRoomData.Ban && ChatRoomData.Ban.includes(mn)) p.push('ban'); if (!p.length) p.push('visit'); return p;
     }
     function amAdmin() { return !!(ChatRoomData && ChatRoomData.Admin && ChatRoomData.Admin.includes(Player.MemberNumber)); }
-    function inRoom(mn) { return !!(ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === parseInt(mn))); }
+    function inRoomFn(mn) { return !!(ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === parseInt(mn))); }
     function isFriendOf(mn) { return !!(Player.FriendList && Player.FriendList.includes(parseInt(mn))); }
-    function canBeep(mn) { if (inRoom(mn)) return true; return onlineFriends.some(f => f.MemberNumber === parseInt(mn)); }
+    function canBeep(mn) { if (inRoomFn(mn)) return true; return onlineFriends.some(f => f.MemberNumber === parseInt(mn)); }
 
     // ═══════════════════════════════════════════════════════════
     //  ROOM ACTIONS
@@ -462,22 +713,16 @@
             case 'makeAdmin': {
                 if (!Array.isArray(ChatRoomData.Admin)) ChatRoomData.Admin = [];
                 if (!ChatRoomData.Admin.some(a => parseInt(a) === mn)) ChatRoomData.Admin.push(mn);
-                if (inRoom(mn)) {
-                    ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Promote' });
-                } else {
-                    ServerSend('ChatRoomAdmin', { MemberNumber: Player.ID, Room: ChatRoomGetSettings(ChatRoomData), Action: 'Update' });
-                }
+                if (inRoomFn(mn)) { ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Promote' }); }
+                else { ServerSend('ChatRoomAdmin', { MemberNumber: Player.ID, Room: ChatRoomGetSettings(ChatRoomData), Action: 'Update' }); }
                 break;
             }
             case 'rmAdmin': {
                 if (!Array.isArray(ChatRoomData.Admin)) ChatRoomData.Admin = [];
                 const _ai = ChatRoomData.Admin.findIndex(a => parseInt(a) === mn);
                 if (_ai >= 0) ChatRoomData.Admin.splice(_ai, 1);
-                if (inRoom(mn)) {
-                    ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Demote' });
-                } else {
-                    ServerSend('ChatRoomAdmin', { MemberNumber: Player.ID, Room: ChatRoomGetSettings(ChatRoomData), Action: 'Update' });
-                }
+                if (inRoomFn(mn)) { ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Demote' }); }
+                else { ServerSend('ChatRoomAdmin', { MemberNumber: Player.ID, Room: ChatRoomGetSettings(ChatRoomData), Action: 'Update' }); }
                 break;
             }
             case 'addWhite': ServerSend('ChatRoomAdmin', { MemberNumber: mn, Action: 'Whitelist' }); break;
@@ -534,9 +779,8 @@
         else if (listType === 'ghost') { try { list = Player.GhostList; } catch { list = null; } }
         if (!Array.isArray(list)) return;
         try {
-            if (typeof ChatRoomListManipulation === 'function') {
-                ChatRoomListManipulation(list, add, String(mn));
-            } else {
+            if (typeof ChatRoomListManipulation === 'function') { ChatRoomListManipulation(list, add, String(mn)); }
+            else {
                 const idx2 = list.indexOf(mn);
                 if (add && idx2 < 0) list.push(mn);
                 else if (!add && idx2 >= 0) list.splice(idx2, 1);
@@ -576,7 +820,6 @@
         overlay.appendChild(box); document.body.appendChild(overlay); setTimeout(() => okBtn.focus(), 50);
     }
 
-    // Click-to-copy ID cell
     function makeIdCell(mn) {
         const td = document.createElement('td'); td.className = 'fcm-id fcm-id-copy'; td.textContent = String(mn); td.title = T('copyId');
         td.addEventListener('click', async () => {
@@ -606,12 +849,10 @@
 .fcm-hbtn{width:28px;height:28px;border-radius:50%;background:#261a40;border:1px solid #5a48a8;color:#c4a0e0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:17px;line-height:1;transition:all .15s;flex-shrink:0;}
 .fcm-hbtn:hover{background:#3a2860;color:#f0d8ff;border-color:#9070d8;}
 #fcm-tabs{display:flex;background:#1a1230;border-bottom:1px solid #4a3890;flex-shrink:0;}
-.fcm-tab{padding:10px 28px;color:#7060a0;cursor:pointer;font-size:11px;letter-spacing:1.2px;font-weight:700;border-bottom:2px solid transparent;transition:all .15s;}
+.fcm-tab{padding:10px 22px;color:#7060a0;cursor:pointer;font-size:11px;letter-spacing:1.2px;font-weight:700;border-bottom:2px solid transparent;transition:all .15s;}
 .fcm-tab:hover{color:#c4a0e0;background:#211540;} .fcm-tab.active{color:#e0b8ff;border-bottom-color:#a078e8;background:#1e1438;}
 #fcm-content{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;}
-/* Toolbar */
 .fcm-toolbar{padding:8px 14px;display:flex;align-items:center;gap:6px;flex-wrap:nowrap;border-bottom:1px solid #362858;flex-shrink:0;background:#211540;overflow-x:auto;}
-/* Search wrap with × */
 .fcm-search-wrap{position:relative;display:inline-flex;align-items:center;width:min(200px,35vw);flex-shrink:0;}
 .fcm-search{background:#1a1030;border:1px solid #5048a0;border-radius:8px;padding:6px 26px 6px 10px;color:#f0e4ff;font-size:12px;width:100%;outline:none;transition:border-color .15s;}
 .fcm-search:focus{border-color:#9078d0;} .fcm-search::placeholder{color:#5a4878;}
@@ -620,27 +861,21 @@
 .fcm-sel{background:#1a1030;border:1px solid #5048a0;border-radius:8px;padding:5px 6px;color:#c4a0e0;font-size:11px;outline:none;cursor:pointer;max-width:110px;flex-shrink:0;}
 .fcm-sel option{background:#1a1030;}
 .fcm-lbl-sm{font-size:10px;color:#6050a0;letter-spacing:1px;font-weight:700;white-space:nowrap;flex-shrink:0;}
-.fcm-spacer{flex:1;}  /* pushes sort to right */
+.fcm-spacer{flex:1;}
 .fcm-ftog{padding:3px 10px;border-radius:12px;border:1px solid #4838a0;background:transparent;color:#6058a0;font-size:10px;cursor:pointer;transition:all .15s;font-weight:700;white-space:nowrap;flex-shrink:0;}
 .fcm-ftog:hover{color:#c4a0e0;border-color:#8068c0;} .fcm-ftog.on{background:#301c58;border-color:#b088e8;color:#e0c0ff;}
-/* nick/name toggle */
 .fcm-nick-tog{padding:3px 10px;border-radius:12px;border:1px solid #4838a0;background:#301c58;color:#e0c0ff;font-size:10px;cursor:pointer;font-weight:700;white-space:nowrap;flex-shrink:0;transition:all .15s;}
 .fcm-nick-tog:hover{border-color:#b088e8;}
-/* Sub-tabs */
 .fcm-subtabs{display:flex;background:#1a1230;border-bottom:1px solid #362858;flex-shrink:0;padding:0 10px;}
 .fcm-stab{padding:7px 18px;color:#5a4880;cursor:pointer;font-size:10px;letter-spacing:1px;font-weight:700;border-bottom:2px solid transparent;transition:all .15s;}
 .fcm-stab:hover{color:#c4a0e0;} .fcm-stab.active{color:#d0a8f8;border-bottom-color:#a078e8;}
-/* Scroll + count */
 .fcm-scroll-wrap{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;}
 .fcm-scroll{flex:1;overflow-y:auto;overflow-x:auto;min-height:0;}
 .fcm-scroll::-webkit-scrollbar{width:5px;height:5px;}
 .fcm-scroll::-webkit-scrollbar-track{background:#1a1030;}
 .fcm-scroll::-webkit-scrollbar-thumb{background:#4838a0;border-radius:3px;}
-/* #1 Count bar */
 .fcm-count{font-size:11px;color:#9080b8;padding:6px 14px;background:#1a1230;border-top:1px solid #2a2048;letter-spacing:1px;flex-shrink:0;text-align:center;}
-/* Table */
 .fcm-tbl{width:100%;border-collapse:collapse;font-size:12px;}
-/* #9 thead center */
 .fcm-tbl th{background:#261a4a;color:#c4a0e0;font-size:10px;letter-spacing:1.2px;padding:9px 10px;text-align:center;border-bottom:2px solid #4a3890;font-weight:700;white-space:nowrap;position:sticky;top:0;z-index:2;}
 .fcm-tbl th.fcm-th-left{text-align:left;}
 .fcm-tbl th.fcm-th-mgmt{color:#f0a060;} .fcm-tbl th.fcm-th-mgmt-off{color:#6050a0;}
@@ -677,12 +912,14 @@
 .fcm-btn{padding:3px 7px;border-radius:6px;border:1px solid #4838a0;background:#1e1635;color:#b098d0;font-size:10px;cursor:pointer;transition:all .15s;white-space:nowrap;font-weight:600;}
 .fcm-btn:hover{background:#2a1e50;border-color:#9070c8;color:#e8d0ff;}
 .fcm-btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none;}
-.fcm-btn-red   {border-color:#801010;color:#f08080;}.fcm-btn-red:hover{background:#2a0808;border-color:#d04040;color:#ffb0b0;}.fcm-btn-purple{border-color:#7030b8;color:#c080f0;}.fcm-btn-purple:hover{background:#2a1040;border-color:#c080f0;}
+.fcm-btn-red   {border-color:#801010;color:#f08080;}.fcm-btn-red:hover{background:#2a0808;border-color:#d04040;color:#ffb0b0;}
+.fcm-btn-purple{border-color:#7030b8;color:#c080f0;}.fcm-btn-purple:hover{background:#2a1040;border-color:#c080f0;}
 .fcm-btn-blue  {border-color:#184888;color:#80c8ff;}.fcm-btn-blue:hover{background:#0a1e38;border-color:#4098d8;color:#c0e8ff;}
 .fcm-btn-green {border-color:#104830;color:#60d890;}.fcm-btn-green:hover{background:#081e10;border-color:#30b858;color:#a0ffc0;}
 .fcm-btn-orange{border-color:#604010;color:#f0a050;}.fcm-btn-orange:hover{background:#281808;border-color:#c06820;color:#ffc880;}
 .fcm-empty{padding:50px;text-align:center;color:#4a3870;font-size:12px;letter-spacing:1px;}
 .fcm-warn{padding:8px 16px;font-size:11px;color:#f0a060;background:#20100a;border-bottom:1px solid #601c08;flex-shrink:0;}
+.fcm-onesided-warn{padding:8px 14px;font-size:11px;color:#e8a040;background:#1e1205;border:1px solid #604010;border-radius:6px;margin:8px 14px;line-height:1.5;}
 .fcm-settings-wrap{padding:24px;display:flex;flex-direction:column;gap:20px;overflow-y:auto;}
 .fcm-set-row{display:flex;align-items:flex-start;gap:14px;padding:6px 0;}
 .fcm-tog{width:42px;height:22px;border-radius:11px;border:1px solid #4838a0;background:#1a1030;cursor:pointer;position:relative;transition:all .2s;flex-shrink:0;margin-top:2px;margin-right:4px;}
@@ -700,6 +937,11 @@
 .fcm-wce-tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle;white-space:nowrap;}
 .fcm-wce-tag-yes{background:rgba(16,80,40,.5);border:1px solid #30a060;color:#70e0a0;}
 .fcm-reload-status{font-size:11px;color:#80c090;min-height:0;transition:opacity .3s;}
+/* People search */
+.fcm-people-hint{padding:10px 16px;font-size:11px;color:#6050a0;background:#1a1230;border-bottom:1px solid #2a2048;letter-spacing:.5px;}
+.fcm-unknown-id-box{margin:16px;padding:14px 16px;background:#1a1030;border:1px solid #5a48a8;border-radius:10px;display:flex;flex-direction:column;gap:10px;}
+.fcm-unknown-id-title{color:#d0a8f0;font-size:13px;font-weight:700;}
+.fcm-seen-date{font-size:10px;color:#6050a0;margin-top:2px;}
         `;
         document.head.appendChild(s);
     }
@@ -707,13 +949,11 @@
     // ═══════════════════════════════════════════════════════════
     //  UI STATE
     // ═══════════════════════════════════════════════════════════
-    // ─── Room state ─────────────────────────────────────────────────────
-    let _roomResults = [];          // current search results (room search tab)
+    let _roomResults = [];
     let _roomZoneFilter = 'X';
     let _roomSearchQ2 = '';
     let _favRooms = new Set(JSON.parse(localStorage.getItem('fcmFavRooms') || '[]'));
     let _roomSortMode = 'fav';
-    // Persistent room info cache (Name → {MemberCount, MemberLimit, Space, ts})
     const _roomCache = new Map();
 
     function saveFavRooms() { try { localStorage.setItem('fcmFavRooms', JSON.stringify([..._favRooms])); } catch {} }
@@ -735,80 +975,119 @@
         try {
             const res = await ServerRoomSearch(query || '', { Language: '', Space: zone, Game: '', FullRooms: false });
             if (!res || res.err || !res.value) return [];
-            _cacheRooms(res.value); // update persistent cache
+            _cacheRooms(res.value);
             return res.value;
         } catch(e) { console.warn('🐈‍⬛ [FCM] doRoomSearch:', e); return []; }
     }
 
-    // Query a specific room by name (tries all zones) - updates cache and DOM cell
     const _pendingRoomQueries = new Set();
     async function queryRoomInfo(roomName, space, onUpdate) {
         if (_pendingRoomQueries.has(roomName)) return;
         _pendingRoomQueries.add(roomName);
         try {
-            // Try friend's known space first, then others if not found
             const zones = space !== undefined ? [space, 'X', '', 'M'] : ['X', '', 'M'];
             for (const z of [...new Set(zones)]) {
                 try {
                     const res = await ServerRoomSearch(roomName, { Language: '', Space: z, Game: '', FullRooms: false });
                     if (!res || res.err || !res.value) continue;
                     const found = res.value.find(r => r.Name === roomName);
-                    if (found) {
-                        _cacheRooms([found]);
-                        if (onUpdate) onUpdate(_roomCache.get(roomName));
-                        break;
-                    }
+                    if (found) { _cacheRooms([found]); if (onUpdate) onUpdate(_roomCache.get(roomName)); break; }
                 } catch {}
             }
         } finally { _pendingRoomQueries.delete(roomName); }
     }
 
     function getCachedRoomInfo(roomName) {
-        // First check _roomCache, then fall back to _roomResults
-        const cached = _roomCache.get(roomName);
-        if (cached) return cached;
+        const cached = _roomCache.get(roomName); if (cached) return cached;
         const fromResults = _roomResults.find(r => r.Name === roomName);
-        if (fromResults) {
-            const mc = fromResults.MemberCount ?? fromResults.NbMember ?? null;
-            const ml = fromResults.MemberLimit ?? fromResults.Limit ?? null;
-            return mc !== null || ml !== null ? { MemberCount: mc, MemberLimit: ml } : null;
-        }
+        if (fromResults) { const mc = fromResults.MemberCount ?? fromResults.NbMember ?? null; const ml = fromResults.MemberLimit ?? fromResults.Limit ?? null; return mc !== null || ml !== null ? { MemberCount: mc, MemberLimit: ml } : null; }
         return null;
     }
 
     let panelEl = null, miniEl = null, panelOpen = false, panelMini = false;
     let uiTab = 'friends', roomSubTab = 'members';
-    let searchQ = '', roomSearchQ = '', sortMode = 'rel', roomSortMode = 'name'; // #5
+    let searchQ = '', roomSearchQ = '', sortMode = 'rel', roomSortMode = 'name';
+    let _peopleQ = '';
     let searchDebounce = null, roomSearchDebounce = null;
     const filters = { online: true, offline: false, owner: false, lover: false, sub: false, friend: false, whitelist: false, blacklist: false };
 
     // ═══════════════════════════════════════════════════════════
     //  ELEMENT HELPERS
     // ═══════════════════════════════════════════════════════════
-    function makeAvEl(mn, profile) {
-        const el = document.createElement('div'); el.className = 'fcm-av';
+    function makeAvEl(mn, snapshotUrl) {
+        mn = parseInt(mn);
+        const el = document.createElement('div'); el.className = 'fcm-av'; el.dataset.mn = mn;
+        el.style.cursor = 'pointer';
+        el.title = isZh() ? '點擊重新抓取頭像' : 'Click to reload avatar';
+        el.addEventListener('click', e => { e.stopPropagation(); _forceLoadAvatar(mn, el); });
+
         if (cfg.avatars) {
-            const C = ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === parseInt(mn));
+            // 1. Live canvas
+            const C = ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === mn);
             if (C && C.Canvas && C.Canvas.width > 0) {
-                try { const cv = document.createElement('canvas'); cv.width = cv.height = 36; const ctx = cv.getContext('2d'), src = C.Canvas; ctx.drawImage(src, src.width * 0.39, src.height * 0.40, src.width * 0.22, src.height * 0.11, 0, 0, 36, 36); const img = document.createElement('img'); img.src = cv.toDataURL('image/jpeg', 0.85); el.appendChild(img); return el; } catch {}
+                try {
+                    const cv = document.createElement('canvas'); cv.width = cv.height = 36;
+                    const ctx = cv.getContext('2d'), src = C.Canvas;
+                    ctx.drawImage(src, src.width * 0.39, src.height * 0.40, src.width * 0.22, src.height * 0.11, 0, 0, 36, 36);
+                    const img = document.createElement('img'); img.src = cv.toDataURL('image/jpeg', 0.85); el.appendChild(img); return el;
+                } catch {}
             }
-            if (profile && profile.avatarDataUrl) {
-                const img = document.createElement('img'); img.src = profile.avatarDataUrl; el.appendChild(img); return el;
+            // 2. Valid snapshot in memory cache
+            const snap = snapshotUrl || Snapshot._cache[mn];
+            if (snap && snap.length > 800) {
+                const img = document.createElement('img'); img.src = snap; el.appendChild(img); return el;
             }
-            // #2 Try async bundle load
-            if (profile && profile.characterBundle && !profile.avatarDataUrl) {
-                queueAvatarLoad(mn, profile, url => {
-                    if (url && el.isConnected) { el.innerHTML = ''; const img = document.createElement('img'); img.src = url; el.appendChild(img); }
-                });
-            }
+            // 3. Async: Snapshot DB → bundle rebuild
+            (async () => {
+                if (!el.isConnected) {
+                    return;
+                }
+                const saved = await Snapshot.get(mn);
+                if (saved && saved.length > 800) {
+                    const t = el.isConnected ? el : panelEl?.querySelector(`.fcm-av[data-mn="${mn}"]`);
+                    if (t) { t.innerHTML = ''; const img = document.createElement('img'); img.src = saved; t.appendChild(img); }
+                    return;
+                }
+                if (_pc[mn] === undefined) await PDB.get(mn);
+                const profile = _pc[mn];
+                _avQueue.push({ mn, profile, onDone: url => {
+                    const t = panelEl?.querySelector(`.fcm-av[data-mn="${mn}"]`);
+                    if (t) { t.innerHTML = ''; const img = document.createElement('img'); img.src = url; t.appendChild(img); }
+                }});
+                if (!_avBusy) _processAvQueue();
+            })();
         }
         el.textContent = getDisplayName(mn).trim().slice(0, 2).toUpperCase() || '?';
         return el;
     }
 
-    const REL_LABEL = () => ({ owner: T('relOwner'), lover: T('relLover'), sub: T('relSub'), friend: T('relFriend'), contact: T('relContact'), whitelist: T('relWhitelist'), blacklist: T('relBlacklist'), ghost: T('relGhost'), none: '—' });
+    // Force rebuild from characterBundle — always, ignoring existing snapshot
+    async function _forceLoadAvatar(mn, el) {
+        mn = parseInt(mn);
+        el.textContent = '…';
+        // Remove from queue if pending
+        const qi = _avQueue.findIndex(q => q.mn === mn); if (qi >= 0) _avQueue.splice(qi, 1);
+        // Ensure profile loaded
+        if (_pc[mn] === undefined) await PDB.get(mn);
+        const profile = _pc[mn];
+        if (!profile) { el.textContent = '?'; console.warn(`🐈‍⬛ [FCM-AV #${mn}] no profile in bce-past-profiles`); return; }
+        if (!profile.characterBundle) { el.textContent = '?'; console.warn(`🐈‍⬛ [FCM-AV #${mn}] no characterBundle (saveMode not "full")`); return; }
+        // Clear existing snapshot so fresh one is saved
+        delete Snapshot._cache[mn];
+        if (Snapshot.db) { try { Snapshot.db.transaction('avatars','readwrite').objectStore('avatars').delete(mn); } catch {} }
+        const url = await loadAvatarFromBundle(mn, profile);
+        const target = el.isConnected ? el : panelEl?.querySelector(`.fcm-av[data-mn="${mn}"]`);
+        if (url && target) {
+            target.innerHTML = ''; const img = document.createElement('img'); img.src = url; target.appendChild(img);
+        } else {
+            if (target) target.textContent = getDisplayName(mn).trim().slice(0, 2).toUpperCase() || '?';
+            console.warn(`🐈‍⬛ [FCM-AV #${mn}] ❌ rebuild failed (url=${url ? url.length+'chars' : 'null'}, target=${!!target})`);
+        }
+    }
+
+
+        const REL_LABEL = () => ({ owner: T('relOwner'), lover: T('relLover'), sub: T('relSub'), friend: T('relFriend'), contact: T('relContact'), whitelist: T('relWhitelist'), blacklist: T('relBlacklist'), ghost: T('relGhost'), none: '—' });
     function makeRelEl(rel) {
-        // Accept either a string or array of roles
         const roles = Array.isArray(rel) ? rel : [rel];
         const wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:2px;';
         const labels = REL_LABEL();
@@ -833,25 +1112,75 @@
         return { wrap, inp };
     }
 
-    // #7 Build FULL room management buttons for all contexts
     function buildMgmtBtns(mn, context) {
         if (!ChatRoomData) return null;
         const wrap = document.createElement('div'); wrap.className = 'fcm-btns';
         const isAdm = !!(ChatRoomData.Admin && ChatRoomData.Admin.some(a => parseInt(a) === mn));
         const isWht = !!(ChatRoomData.Whitelist && ChatRoomData.Whitelist.some(a => parseInt(a) === mn));
         const isBan = !!(ChatRoomData.Ban && ChatRoomData.Ban.some(a => parseInt(a) === mn));
-
-        // Admin toggle
         wrap.appendChild(mkBtn(isAdm ? T('btnRmAdmin') : T('btnAddAdmin'), isAdm ? 'fcm-btn-red' : 'fcm-btn-orange', () => roomOp(mn, isAdm ? 'rmAdmin' : 'makeAdmin')));
-        // Whitelist toggle
         wrap.appendChild(mkBtn(isWht ? T('btnRmWhite') : T('btnAddWhite'), isWht ? 'fcm-btn-red' : 'fcm-btn-green', () => roomOp(mn, isWht ? 'rmWhite' : 'addWhite')));
-        // Ban / Unban toggle
         if (isBan) wrap.appendChild(mkBtn(T('btnRmBan'), 'fcm-btn-green', () => roomOp(mn, 'unban')));
         else wrap.appendChild(mkBtn(T('btnAddBan'), 'fcm-btn-red', () => roomOp(mn, 'ban')));
-        // Kick (only for in-room)
-        if (context === 'members' && inRoom(mn)) wrap.appendChild(mkBtn(T('btnKick'), 'fcm-btn-red', () => showConfirm(T('confirmKick', getDisplayName(mn)), () => roomOp(mn, 'kick'), isZh() ? '逐出' : 'Kick')));
-
+        if (context === 'members' && inRoomFn(mn)) wrap.appendChild(mkBtn(T('btnKick'), 'fcm-btn-red', () => showConfirm(T('confirmKick', getDisplayName(mn)), () => roomOp(mn, 'kick'), isZh() ? '逐出' : 'Kick')));
         return wrap;
+    }
+
+    // ─── Shared: build action buttons for a person ─────────────────
+    function buildPersonOps(mn, { isInRoom = false, isMe = false, oneSided = false } = {}) {
+        mn = parseInt(mn);
+        const ops = document.createElement('div'); ops.className = 'fcm-btns';
+        const profile = _pc[mn] || null;
+        const isFriend = isFriendOf(mn);
+
+        // View: enabled if in room OR has characterBundle in DB
+        const hasProfile = !!(profile && profile.characterBundle);
+        const vb = mkBtn(T('btnView'), '', () => doView(mn));
+        if (!isInRoom && !hasProfile) vb.disabled = true;
+        ops.appendChild(vb);
+
+        if (!isMe) {
+            if (isInRoom) ops.appendChild(mkBtn(T('btnWhisper'), '', () => doWhisper(mn)));
+            if (canBeep(mn)) ops.appendChild(mkBtn(T('btnBeep'), 'fcm-btn-blue', () => doBeep(mn)));
+
+            const _sep = document.createElement('span'); _sep.style.cssText = 'width:6px;display:inline-block;'; ops.appendChild(_sep);
+
+            const _dname = getDisplayName(mn);
+            const _isWhl = (Player.WhiteList || []).includes(mn);
+            const _isBl  = (Player.BlackList || []).includes(mn);
+            const _isGh  = (() => { try { return (Player.GhostList || []).includes(mn); } catch { return false; } })();
+
+            const osSuffix = oneSided ? '\n\n' + T('peopleOneSidedWarn') : '';
+
+            // +/-Friend
+            if (!isFriend) ops.appendChild(mkBtn(T('btnAddFriend'), 'fcm-btn-green',
+                () => showConfirm((isZh() ? `添加「${_dname}」為好友？` : `Add "${_dname}" as friend?`) + osSuffix, () => doAddFriend(mn))));
+            else ops.appendChild(mkBtn(T('btnRmFriend'), 'fcm-btn-red',
+                () => showConfirm(T('confirmDel', _dname), () => doRemoveFriend(mn), isZh() ? '移除' : 'Remove')));
+
+            // +/-Whitelist
+            ops.appendChild(mkBtn(_isWhl ? T('btnRmWhite') : T('btnAddWhite'), _isWhl ? 'fcm-btn-red' : 'fcm-btn-green',
+                () => showConfirm(_isWhl
+                    ? (isZh() ? `移除「${_dname}」白名單？` : `Remove "${_dname}" from whitelist?`)
+                    : (isZh() ? `將「${_dname}」加入白名單？` : `Add "${_dname}" to whitelist?`) + osSuffix,
+                    () => doToggleList(mn, 'white', !_isWhl))));
+
+            // +/-Blacklist
+            ops.appendChild(mkBtn(_isBl ? T('btnRmBan') : T('btnAddBan'), 'fcm-btn-red',
+                () => showConfirm(_isBl
+                    ? (isZh() ? `移除「${_dname}」黑名單？` : `Remove "${_dname}" from blacklist?`)
+                    : T('confirmAddBan', _dname) + osSuffix,
+                    () => doToggleList(mn, 'black', !_isBl),
+                    _isBl ? undefined : (isZh() ? '加入' : 'Add'))));
+
+            // +/-Ghost
+            ops.appendChild(mkBtn(_isGh ? (isZh() ? '-幽靈' : '-Ghost') : (isZh() ? '+幽靈' : '+Ghost'), _isGh ? 'fcm-btn-red' : 'fcm-btn-purple',
+                () => showConfirm(_isGh
+                    ? (isZh() ? `移除「${_dname}」幽靈？` : `Remove "${_dname}" from ghost?`)
+                    : T('confirmAddGhost', _dname) + osSuffix,
+                    () => doToggleList(mn, 'ghost', !_isGh))));
+        }
+        return ops;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -867,13 +1196,13 @@
         const closeBtn = document.createElement('div'); closeBtn.className = 'fcm-hbtn'; closeBtn.textContent = T('close'); closeBtn.addEventListener('click', closePanel);
         hdr.appendChild(title); hdr.appendChild(minBtn); hdr.appendChild(closeBtn);
         const tabBar = document.createElement('div'); tabBar.id = 'fcm-tabs';
-        [['friends', T('tabFriends')], ['room', T('tabRoom')], ['roomSearch', T('tabRoomSearch')], ['settings', T('tabSettings')]].forEach(([key, label]) => {
+        // Tab order: friends | room | roomSearch | people | settings
+        [['friends', T('tabFriends')], ['room', T('tabRoom')], ['roomSearch', T('tabRoomSearch')], ['people', T('tabPeople')], ['settings', T('tabSettings')]].forEach(([key, label]) => {
             const t = document.createElement('div'); t.className = 'fcm-tab' + (key === uiTab ? ' active' : ''); t.dataset.tab = key; t.textContent = label;
             t.addEventListener('click', () => {
-                if (key === 'room' && !(typeof ChatRoomData !== 'undefined' && ChatRoomData)) {
-                    // Not in a room - don't switch but show room tab content (it shows its own message)
-                }
                 uiTab = key;
+                // Clear people search state when leaving the tab
+                if (key !== 'people') { _peopleQ = ''; _peoplePage = 0; }
                 tabBar.querySelectorAll('.fcm-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === key));
                 renderCurrent();
             }); tabBar.appendChild(t);
@@ -881,12 +1210,10 @@
         const content = document.createElement('div'); content.id = 'fcm-content';
         panel.appendChild(hdr); panel.appendChild(tabBar); panel.appendChild(content);
         document.body.appendChild(panel); panelEl = panel;
-        // Drag
         let drag = { on: false, ox: 0, oy: 0 };
         hdr.addEventListener('mousedown', e => { if (e.target === minBtn || e.target === closeBtn) return; drag.on = true; const r = panel.getBoundingClientRect(); drag.ox = e.clientX - r.left; drag.oy = e.clientY - r.top; panel.style.transform = 'none'; e.preventDefault(); });
         document.addEventListener('mousemove', e => { if (!drag.on) return; panel.style.left = (e.clientX - drag.ox) + 'px'; panel.style.top = (e.clientY - drag.oy) + 'px'; });
         document.addEventListener('mouseup', () => { drag.on = false; });
-        // Mini pill
         const mini = document.createElement('div'); mini.id = 'fcm-mini';
         mini.innerHTML = `<span style="font-size:16px">🎛</span><div class="fcm-mini-pill"></div><span class="fcm-mini-lbl">${T('miniLabel')}</span>`;
         mini.addEventListener('click', restorePanel); document.body.appendChild(mini); miniEl = mini;
@@ -902,22 +1229,26 @@
     function renderCurrent() {
         if (!panelEl || !panelOpen || panelMini) return;
         const content = panelEl.querySelector('#fcm-content'); if (!content) return;
-        // Update room tab disabled state dynamically
-        const inRoom = !!(typeof ChatRoomData !== 'undefined' && ChatRoomData);
+        const inARoom = !!(typeof ChatRoomData !== 'undefined' && ChatRoomData);
         panelEl.querySelectorAll('.fcm-tab[data-tab="room"]').forEach(rt => {
-            rt.classList.toggle('fcm-tab-disabled', !inRoom);
-            rt.title = inRoom ? '' : T('notInRoom');
+            rt.classList.toggle('fcm-tab-disabled', !inARoom);
+            rt.title = inARoom ? '' : T('notInRoom');
         });
         const scrollEl = content.querySelector('.fcm-scroll');
         const savedScroll = scrollEl ? scrollEl.scrollTop : 0;
-        const p = uiTab === 'friends' ? renderFriends(content) : uiTab === 'room' ? renderRoom(content) : uiTab === 'roomSearch' ? Promise.resolve(renderRoomSearch(content)) : Promise.resolve(renderSettings(content));
+        let p;
+        if (uiTab === 'friends') p = renderFriends(content);
+        else if (uiTab === 'people') p = renderPeople(content);
+        else if (uiTab === 'room') p = renderRoom(content);
+        else if (uiTab === 'roomSearch') p = Promise.resolve(renderRoomSearch(content));
+        else p = Promise.resolve(renderSettings(content));
         (p || Promise.resolve()).then(() => {
             if (savedScroll > 0) { const ns = content.querySelector('.fcm-scroll'); if (ns) ns.scrollTop = savedScroll; }
         }).catch(e => console.warn('🐈‍⬛ [FCM] render:', e));
     }
 
     function applyFilters(f) {
-        const rel = f.rel, online = isOnline(f.mn);
+        const online = isOnline(f.mn);
         const anyOnline = filters.online || filters.offline;
         if (anyOnline) { if (filters.online && !filters.offline && !online) return false; if (filters.offline && !filters.online && online) return false; }
         const anyRel = filters.owner || filters.lover || filters.sub || filters.friend || filters.whitelist || filters.blacklist;
@@ -932,7 +1263,6 @@
     }
     function isOnline(mn) { mn = parseInt(mn); return !!(ChatRoomCharacter && ChatRoomCharacter.some(c => c.MemberNumber === mn)) || !!(onlineFriends.find(f => f.MemberNumber === mn)); }
 
-    // ─── Helper: make sort+label for toolbar right side ───
     function makeSortSel(currentMode, options, onChange) {
         const lbl = document.createElement('span'); lbl.className = 'fcm-lbl-sm'; lbl.textContent = T('sortBy') + ':';
         const sel = document.createElement('select'); sel.className = 'fcm-sel';
@@ -941,9 +1271,76 @@
         return { lbl, sel };
     }
 
-    // ─── Helper: count bar ───
-    function makeCountBar(n) {
-        const d = document.createElement('div'); d.className = 'fcm-count'; d.textContent = T('total', n); return d;
+    function makeCountBar(n, total) {
+        const d = document.createElement('div'); d.className = 'fcm-count';
+        d.textContent = total !== undefined ? T('peopleTotal', n, total) : T('total', n);
+        return d;
+    }
+
+    // ─── Auto-queue visible entries missing snapshots ───────────────
+    // Called after each render. Queues bundle rebuilds for entries
+    // that have no valid snapshot. Does NOT clear existing snapshots.
+    // One-at-a-time via the existing _avQueue serial processor.
+    async function _autoQueueVisible(mns) {
+        const selfMn = parseInt(Player?.MemberNumber);
+        // Load profiles for this list (fills _pc, non-blocking batch)
+        await PDB.batchGet(mns);
+        let queued = 0;
+        for (const mn of mns) {
+            if (mn === selfMn) continue;
+            const snap = Snapshot._cache[mn];
+            if (snap && snap.length > 800) continue;  // already have valid snapshot
+            if (inRoomFn(mn)) continue;  // live canvas handles it
+            const profile = _pc[mn];
+            if (!profile || !profile.characterBundle) continue;
+            if (_avQueue.some(q => q.mn === mn)) continue;
+            _avQueue.push({ mn, profile, onDone: url => {
+                if (!url) return;
+                const el = panelEl?.querySelector(`.fcm-av[data-mn="${mn}"]`);
+                if (el) { el.innerHTML = ''; const img = document.createElement('img'); img.src = url; el.appendChild(img); }
+            }});
+            queued++;
+        }
+        if (queued > 0) {
+            if (!_avBusy) _processAvQueue();
+        }
+    }
+
+    // ─── Snapshot refresh for a list of MNs ────────────────────────
+    // Used by 🖼 button. Batch-loads all profiles, then queues bundle rebuild
+    // for anyone without a valid snapshot. DOM updates via data-mn.
+    async function refreshSnapshotsForList(mns) {
+        const selfMn = parseInt(Player?.MemberNumber);
+        const toProcess = mns.filter(mn => mn !== selfMn);
+
+        await PDB.batchGet(toProcess);
+
+        let liveCount = 0, queueCount = 0, noBundle = 0;
+        for (const mn of toProcess) {
+            // Always clear existing snapshot (force fresh rebuild, same as _forceLoadAvatar)
+            delete Snapshot._cache[mn];
+            if (Snapshot.db) { try { Snapshot.db.transaction('avatars','readwrite').objectStore('avatars').delete(mn); } catch {} }
+
+            // Remove from queue if already pending (will re-add below)
+            const qi = _avQueue.findIndex(q => q.mn === mn);
+            if (qi >= 0) _avQueue.splice(qi, 1);
+
+            // Live canvas: use _forceLoadAvatar logic (wait for stability)
+            const C = ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === mn);
+            if (C) { _captureSnapshotDelayed(C); liveCount++; continue; }
+
+            // Bundle rebuild
+            const profile = _pc[mn];
+            if (!profile || !profile.characterBundle) { noBundle++; continue; }
+
+            _avQueue.push({ mn, profile, onDone: url => {
+                if (!url) return;
+                const el = panelEl?.querySelector(`.fcm-av[data-mn="${mn}"]`);
+                if (el) { el.innerHTML = ''; const img = document.createElement('img'); img.src = url; el.appendChild(img); }
+            }});
+            queueCount++;
+        }
+        if (!_avBusy && _avQueue.length > 0) _processAvQueue();
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -953,14 +1350,12 @@
         container.innerHTML = '';
         const toolbar = document.createElement('div'); toolbar.className = 'fcm-toolbar';
 
-        // Search + clear
-        const { wrap: sw, inp: searchEl } = makeSearchWrap(searchQ, T('search'), val => {
+        const { wrap: sw } = makeSearchWrap(searchQ, T('search'), val => {
             searchQ = val; clearTimeout(searchDebounce);
             searchDebounce = setTimeout(async () => { const pos = searchQ.length; await renderFriends(container); const ns = container.querySelector('.fcm-toolbar .fcm-search'); if (ns) { ns.focus(); try { ns.setSelectionRange(pos, pos); } catch {} } }, 400);
         });
         toolbar.appendChild(sw);
 
-        // #4 Filters (labeled '顯示') + filter toggles
         const fl = document.createElement('span'); fl.className = 'fcm-lbl-sm'; fl.textContent = T('showOnly') + ':';
         toolbar.appendChild(fl);
         [['online', T('fOnline')], ['offline', T('fOffline')], ['owner', T('fOwner')], ['lover', T('fLover')], ['sub', T('fSub')], ['friend', T('fFriend')], ['whitelist', T('fWhitelist')], ['blacklist', T('fBlacklist')]].forEach(([key, label]) => {
@@ -969,7 +1364,6 @@
             toolbar.appendChild(b);
         });
 
-        // #4 Sort + #3 Nick toggle on far right (Nick left of Sort)
         toolbar.appendChild(Object.assign(document.createElement('span'), { className: 'fcm-spacer' }));
         const nickBtn = document.createElement('button'); nickBtn.className = 'fcm-nick-tog'; nickBtn.textContent = showNickname ? T('togNick') : T('togName');
         nickBtn.title = isZh() ? (showNickname ? '切換為BC名稱' : '切換為暱稱') : (showNickname ? 'Switch to BC name' : 'Switch to nickname');
@@ -977,12 +1371,18 @@
         toolbar.appendChild(nickBtn);
         const { lbl: sl, sel: sortSel } = makeSortSel(sortMode, [['rel', T('sortRel')], ['id', T('sortId')], ['name', T('sortName')], ['added', T('sortAdded')]], v => { sortMode = v; renderFriends(container); });
         toolbar.appendChild(sl); toolbar.appendChild(sortSel);
-        const rBtnF2 = mkBtn('↻', 'fcm-btn', () => renderFriends(container));
-        rBtnF2.title = isZh() ? '重新整理' : 'Refresh'; rBtnF2.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
-        toolbar.appendChild(rBtnF2);
+        const rBtn = mkBtn('↻', 'fcm-btn', () => renderFriends(container));
+        rBtn.title = isZh() ? '重新整理' : 'Refresh'; rBtn.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
+        toolbar.appendChild(rBtn);
+        const avBtn = mkBtn('📸', 'fcm-btn', () => {
+            const curMns = friends.map(f => f.mn);
+            refreshSnapshotsForList(curMns);
+        });
+        avBtn.title = isZh() ? '快照目前名單（強制重建頭像）' : 'Snapshot current list (force rebuild)';
+        avBtn.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
+        toolbar.appendChild(avBtn);
         container.appendChild(toolbar);
 
-        // Data
         let friends = buildFriendList();
         if (searchQ.trim()) { const q = searchQ.trim().toLowerCase(); friends = friends.filter(f => f.name.toLowerCase().includes(q) || String(f.mn).includes(q)); }
         friends = friends.filter(applyFilters);
@@ -993,7 +1393,6 @@
             default:      friends.sort((a, b) => { const d = REL_ORDER[a.rel] - REL_ORDER[b.rel]; return d || a.name.localeCompare(b.name); });
         }
         await PDB.batchGet(friends.map(f => f.mn));
-        // Refresh names now profiles are loaded (profile.name=BC name, profile.lastNick=nickname)
         friends.forEach(f => { f.name = getDisplayName(f.mn); });
 
         const inARoom = !!(typeof ChatRoomData !== 'undefined' && ChatRoomData), isAdmin = inARoom && amAdmin();
@@ -1008,7 +1407,6 @@
 
         const tbl = document.createElement('table'); tbl.className = 'fcm-tbl';
         const thRow = document.createElement('tr');
-        // #9 th center (fcm-th-left for name col)
         [['', 'width:42px'], [T('colName'), 'min-width:120px', 'fcm-th-left'], [T('colId'), ''], [T('colRel'), ''], [T('colZone'), ''], [T('colRoom'), 'min-width:100px'], [T('colOps'), 'min-width:150px']].forEach(([text, style, cls]) => {
             const th = document.createElement('th'); th.textContent = text; if (style) th.style.cssText = style; if (cls) th.className = cls; thRow.appendChild(th);
         });
@@ -1018,25 +1416,21 @@
 
         for (const f of friends) {
             const tr = document.createElement('tr'); tr.className = 'fcm-row';
-            const online = isOnline(f.mn), zone = getZone(f.mn), room = getRoomName(f.mn);
-            const profile = _pc[f.mn] || null, isInRoom = inRoom(f.mn), isFriend = isFriendOf(f.mn);
+            const online = isOnline(f.mn), zone = getZone(f.mn), isInRoom = inRoomFn(f.mn);
+            const snapshotUrl = Snapshot._cache[f.mn] || null;
 
-            const avTd = document.createElement('td'); avTd.appendChild(makeAvEl(f.mn, profile)); tr.appendChild(avTd);
+            const avTd = document.createElement('td'); avTd.appendChild(makeAvEl(f.mn, snapshotUrl)); tr.appendChild(avTd);
             const nameTd = document.createElement('td');
             const nd = document.createElement('div'); nd.className = 'fcm-name'; nd.textContent = f.name; nd.title = f.name;
             const sd = document.createElement('div'); sd.className = 'fcm-sta ' + (online ? 'fcm-online' : 'fcm-offline'); sd.textContent = online ? T('online') : T('offline');
             nameTd.appendChild(nd); nameTd.appendChild(sd); tr.appendChild(nameTd);
             tr.appendChild(makeIdCell(f.mn));
-            // Multi-role relationship
-            const allRoles = getAllRels(f.mn);
-            const relTd = document.createElement('td'); relTd.style.textAlign = 'center'; relTd.style.minWidth = '60px'; relTd.appendChild(makeRelEl(allRoles)); tr.appendChild(relTd);
-            // Zone: '-' if offline
+            const relTd = document.createElement('td'); relTd.style.textAlign = 'center'; relTd.style.minWidth = '60px'; relTd.appendChild(makeRelEl(getAllRels(f.mn))); tr.appendChild(relTd);
             const zt = document.createElement('td'); zt.style.textAlign = 'center';
             const zs = document.createElement('span'); zs.className = 'fcm-zone';
             const riZone = getRoomInfo(f.mn);
             const hideZone = !online || (online && riZone === null) || (riZone && !riZone.name && riZone.isPrivate);
             zs.textContent = hideZone ? '—' : (zone || T('zoneUnk')); zt.appendChild(zs); tr.appendChild(zt);
-            // Room: show from cache immediately; trigger async query if uncached
             const ri = getRoomInfo(f.mn);
             const rt = document.createElement('td');
             function _buildRoomLink(ri2, mc, ml) {
@@ -1051,22 +1445,12 @@
             }
             if (ri && ri.name) {
                 let mc = null, ml = null;
-                if (ri.isCurrent && typeof ChatRoomCharacter !== 'undefined') {
-                    mc = ChatRoomCharacter.length; ml = ChatRoomData?.MemberLimit ?? null;
-                } else {
-                    const cd = getCachedRoomInfo(ri.name);
-                    if (cd) { mc = cd.MemberCount; ml = cd.MemberLimit; }
-                }
+                if (ri.isCurrent && typeof ChatRoomCharacter !== 'undefined') { mc = ChatRoomCharacter.length; ml = ChatRoomData?.MemberLimit ?? null; }
+                else { const cd = getCachedRoomInfo(ri.name); if (cd) { mc = cd.MemberCount; ml = cd.MemberLimit; } }
                 rt.appendChild(_buildRoomLink(ri, mc, ml));
-                // Fire async cache refresh if not in current room and count unknown
                 if (!ri.isCurrent && mc === null) {
                     const friendSpace = onlineFriends.find(ff => ff.MemberNumber === f.mn)?.ChatRoomSpace;
-                    queryRoomInfo(ri.name, friendSpace, data => {
-                        if (data && rt.isConnected) {
-                            rt.innerHTML = '';
-                            rt.appendChild(_buildRoomLink(ri, data.MemberCount, data.MemberLimit));
-                        }
-                    });
+                    queryRoomInfo(ri.name, friendSpace, data => { if (data && rt.isConnected) { rt.innerHTML = ''; rt.appendChild(_buildRoomLink(ri, data.MemberCount, data.MemberLimit)); } });
                 }
             } else if (ri && !ri.name && ri.isPrivate) {
                 const sp = document.createElement('span'); sp.style.cssText = 'font-size:11px;color:#c090f0;font-weight:600;';
@@ -1074,23 +1458,10 @@
             } else { rt.innerHTML = '<span class="fcm-room">—</span>'; }
             tr.appendChild(rt);
 
-            // 其他
-            const opsTd = document.createElement('td'); const ops = document.createElement('div'); ops.className = 'fcm-btns';
-            const hasProfile = !!(profile && profile.characterBundle);
-            const vb = mkBtn(T('btnView'), '', () => doView(f.mn)); if (!isInRoom && !hasProfile) vb.disabled = true; ops.appendChild(vb);
-            if (canBeep(f.mn)) ops.appendChild(mkBtn(T('btnBeep'), 'fcm-btn-blue', () => doBeep(f.mn)));
-            const _sep = document.createElement('span'); _sep.style.cssText = 'width:6px;display:inline-block;'; ops.appendChild(_sep);
-            if (!isFriend) ops.appendChild(mkBtn(T('btnAddFriend'), 'fcm-btn-green', () => showConfirm(isZh()?`添加「${getDisplayName(f.mn)}」為好友？`:`Add "${getDisplayName(f.mn)}" as friend?`, () => doAddFriend(f.mn))));
-            else ops.appendChild(mkBtn(T('btnRmFriend'), 'fcm-btn-red', () => showConfirm(T('confirmDel', getDisplayName(f.mn)), () => doRemoveFriend(f.mn), isZh()?'移除':'Remove')));
-            const _dname = getDisplayName(f.mn);
-            const _isWhl = (Player.WhiteList||[]).includes(f.mn), _isBl = (Player.BlackList||[]).includes(f.mn);
-            const _isGh = (() => { try { return (Player.GhostList||[]).includes(f.mn); } catch { return false; } })();
-            ops.appendChild(mkBtn(_isWhl ? T('btnRmWhite') : T('btnAddWhite'), _isWhl ? 'fcm-btn-red' : 'fcm-btn-green', () => showConfirm(_isWhl?(isZh()?`移除「${_dname}」白名單？`:`Remove "${_dname}" from whitelist?`):(isZh()?`將「${_dname}」加入白名單？`:`Add "${_dname}" to whitelist?`), () => doToggleList(f.mn,'white',!_isWhl))));
-            ops.appendChild(mkBtn(_isBl ? T('btnRmBan') : T('btnAddBan'), 'fcm-btn-red', () => showConfirm(_isBl?(isZh()?`移除「${_dname}」黑名單？`:`Remove "${_dname}" from blacklist?`):(isZh()?`⚠ 加入黑名單「${_dname}」？`:`⚠ Blacklist "${_dname}"?`), () => doToggleList(f.mn,'black',!_isBl), _isBl?undefined:(isZh()?'加入':'Add'))));
-            ops.appendChild(mkBtn(_isGh?(isZh()?'-幽靈':'-Ghost'):(isZh()?'+幽靈':'+Ghost'), _isGh?'fcm-btn-red':'fcm-btn-purple', () => showConfirm(_isGh?(isZh()?`移除「${_dname}」幽靈？`:`Remove "${_dname}" from ghost?`):(isZh()?`將「${_dname}」加入幽靈？`:`Add "${_dname}" to ghost?`), () => doToggleList(f.mn,'ghost',!_isGh))));
-            opsTd.appendChild(ops); tr.appendChild(opsTd);
+            const opsTd = document.createElement('td');
+            opsTd.appendChild(buildPersonOps(f.mn, { isInRoom, oneSided: false }));
+            tr.appendChild(opsTd);
 
-            // 房管
             if (inARoom) {
                 const mgmtTd = document.createElement('td'); mgmtTd.className = 'fcm-td-mgmt' + (isAdmin ? '' : ' no-perm');
                 const mb = buildMgmtBtns(f.mn, 'friends'); if (mb) mgmtTd.appendChild(mb); tr.appendChild(mgmtTd);
@@ -1099,9 +1470,262 @@
         }
         tbl.appendChild(tbody); scroll.appendChild(tbl);
         wrapper.appendChild(scroll);
-        // #1 count bar
         wrapper.appendChild(makeCountBar(friends.length));
         container.appendChild(wrapper);
+
+        // Auto-queue: after render, push visible friends missing snapshots into rebuild queue
+        if (cfg.avatars) _autoQueueVisible(friends.map(f => f.mn));
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  PEOPLE TAB (Profile Search)
+    // ═══════════════════════════════════════════════════════════
+    const PEOPLE_PAGE_SIZE = 100;
+    let _peoplePage = 0; // current page index (0-based)
+
+    async function renderPeople(container) {
+        container.innerHTML = '';
+        if (!PDB.db) {
+            const em = document.createElement('div'); em.className = 'fcm-empty';
+            em.textContent = isZh() ? '資料庫未連線，請確認儲存模式已設定' : 'DB not connected — set a save mode in Settings';
+            container.appendChild(em); return;
+        }
+
+        // ── Toolbar: search input + Search btn + refresh ────────────
+        const toolbar = document.createElement('div'); toolbar.className = 'fcm-toolbar';
+        const sw = document.createElement('div'); sw.style.cssText = 'position:relative;display:inline-flex;align-items:center;flex:1;min-width:180px;max-width:320px;';
+        const inp = document.createElement('input'); inp.className = 'fcm-search'; inp.style.width = '100%';
+        inp.placeholder = T('peopleSearchPlaceholder'); inp.value = _peopleQ;
+        const clrX = document.createElement('button'); clrX.className = 'fcm-clear-btn'; clrX.textContent = '×';
+        clrX.addEventListener('click', () => { inp.value = ''; _peopleQ = ''; _peoplePage = 0; runSearch(''); });
+        sw.appendChild(inp); sw.appendChild(clrX); toolbar.appendChild(sw);
+
+        const srchBtn = mkBtn(isZh() ? '搜尋' : 'Search', 'fcm-btn', () => { _peoplePage = 0; runSearch(inp.value); });
+        srchBtn.style.cssText = 'padding:5px 12px;font-size:12px;flex-shrink:0;';
+        toolbar.appendChild(srchBtn);
+        toolbar.appendChild(Object.assign(document.createElement('span'), { className: 'fcm-spacer' }));
+        const rBtn = mkBtn('↻', 'fcm-btn', () => { _peoplePage = 0; runSearch(inp.value); });
+        rBtn.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
+        toolbar.appendChild(rBtn);
+        container.appendChild(toolbar);
+
+        // Hint bar
+        const hint = document.createElement('div'); hint.className = 'fcm-people-hint'; hint.textContent = T('peopleSearchHint');
+        container.appendChild(hint);
+
+        // Load all profiles once
+        const allProfiles = await new Promise(res => {
+            if (!PDB.db) return res([]);
+            const req = PDB.db.transaction('profiles', 'readonly').objectStore('profiles').getAll();
+            req.onsuccess = () => res(req.result || []);
+            req.onerror = () => res([]);
+        });
+        allProfiles.sort((a, b) => (b.seen || b.savedAt || 0) - (a.seen || a.savedAt || 0));
+
+        const wrapper = document.createElement('div'); wrapper.className = 'fcm-scroll-wrap';
+        const scroll = document.createElement('div'); scroll.className = 'fcm-scroll';
+        const countBar = document.createElement('div'); countBar.className = 'fcm-count';
+
+        // Pagination bar (bottom)
+        const pageBar = document.createElement('div');
+        pageBar.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 12px;background:#1a1230;border-top:1px solid #2a2048;flex-shrink:0;';
+
+        wrapper.appendChild(scroll);
+        wrapper.appendChild(countBar);
+        wrapper.appendChild(pageBar);
+        container.appendChild(wrapper);
+
+        async function runSearch(q) {
+            _peopleQ = q;
+            q = q.trim();
+            scroll.innerHTML = ''; pageBar.innerHTML = '';
+
+            const isNumId = /^\d+$/.test(q) && parseInt(q) > 0;
+            const qLow = q.toLowerCase();
+
+            let filtered = q
+                ? allProfiles.filter(p => (p.name || '').toLowerCase().includes(qLow) || (p.lastNick || '').toLowerCase().includes(qLow) || String(p.memberNumber).includes(q))
+                : allProfiles;
+
+            // Unknown exact numeric ID box
+            if (isNumId) {
+                const mn = parseInt(q);
+                const exactMatch = allProfiles.find(p => p.memberNumber === mn);
+                if (!exactMatch) {
+                    const box = document.createElement('div'); box.className = 'fcm-unknown-id-box';
+                    const boxTitle = document.createElement('div'); boxTitle.className = 'fcm-unknown-id-title';
+                    boxTitle.textContent = T('peopleUnknownId', mn);
+                    box.appendChild(boxTitle);
+                    // Action buttons — oneSided = true, no profile loaded yet
+                    box.appendChild(buildPersonOps(mn, { isInRoom: inRoomFn(mn), oneSided: true }));
+                    scroll.appendChild(box);
+                    if (filtered.length > 0) {
+                        const simLbl = document.createElement('div');
+                        simLbl.style.cssText = 'padding:8px 16px 4px;font-size:11px;color:#7060a0;letter-spacing:.5px;';
+                        simLbl.textContent = T('peopleSimilarIds'); scroll.appendChild(simLbl);
+                    }
+                }
+            }
+
+            const totalFiltered = filtered.length;
+            const totalPages = Math.max(1, Math.ceil(totalFiltered / PEOPLE_PAGE_SIZE));
+            if (_peoplePage >= totalPages) _peoplePage = totalPages - 1;
+            const pageStart = _peoplePage * PEOPLE_PAGE_SIZE;
+            const show = filtered.slice(pageStart, pageStart + PEOPLE_PAGE_SIZE);
+
+            countBar.textContent = q
+                ? T('peopleTotal', totalFiltered, allProfiles.length)
+                : T('peopleTotal', Math.min(allProfiles.length, PEOPLE_PAGE_SIZE * (_peoplePage + 1)), allProfiles.length);
+
+            if (!show.length && !(isNumId && !allProfiles.find(p => p.memberNumber === parseInt(q)))) {
+                if (!scroll.querySelector('.fcm-unknown-id-box')) {
+                    const em = document.createElement('div'); em.className = 'fcm-empty'; em.textContent = T('peopleNoResults');
+                    scroll.appendChild(em);
+                }
+                return;
+            }
+
+            await PDB.batchGet(show.map(p => p.memberNumber));
+
+            const tbl = document.createElement('table'); tbl.className = 'fcm-tbl';
+            const thead = document.createElement('thead');
+            const thRow = document.createElement('tr');
+            // Columns: avatar | name+nick | ID | rel | actions | last seen | share
+            [
+                ['', 'width:42px'],
+                [T('colName'), 'min-width:130px', 'fcm-th-left'],
+                [T('colId'), ''],
+                [T('colRel'), ''],
+                [T('colOps'), 'min-width:200px'],
+                [T('colSeen'), 'min-width:80px'],
+                [T('colShare'), 'min-width:60px'],
+            ].forEach(([text, style, cls]) => {
+                const th = document.createElement('th'); th.textContent = text;
+                if (style) th.style.cssText = style; if (cls) th.className = cls; thRow.appendChild(th);
+            });
+            thead.appendChild(thRow); tbl.appendChild(thead);
+            const tbody = document.createElement('tbody');
+
+            for (const p of show) {
+                const mn = p.memberNumber;
+                const tr = document.createElement('tr'); tr.className = 'fcm-row';
+                const snapshotUrl = Snapshot._cache[mn] || null;
+                const bcName   = p.name    || `#${mn}`;
+                const nickName = p.lastNick || null;
+                const isInRoom = inRoomFn(mn);
+                const oneSided = getAllRels(mn).every(r => r === 'none') && !isInRoom && !onlineFriends.some(f => f.MemberNumber === mn);
+
+                // Avatar — pass profile for bundle rebuild
+                const avTd = document.createElement('td'); avTd.appendChild(makeAvEl(mn, snapshotUrl)); tr.appendChild(avTd);
+
+                // Name cell: BC name on top, nickname below (always show both if available)
+                const nameTd = document.createElement('td');
+                const nd = document.createElement('div'); nd.className = 'fcm-name';
+                nd.textContent = nickName || bcName; nd.title = nickName || bcName; nameTd.appendChild(nd);
+                if (nickName && nickName !== bcName) {
+                    const sub = document.createElement('div'); sub.className = 'fcm-id'; sub.textContent = bcName; nameTd.appendChild(sub);
+                }
+                tr.appendChild(nameTd);
+
+                // ID
+                tr.appendChild(makeIdCell(mn));
+
+                // Rel
+                const relTd = document.createElement('td'); relTd.style.textAlign = 'center'; relTd.appendChild(makeRelEl(getAllRels(mn))); tr.appendChild(relTd);
+
+                // Actions — view btn: always try PDB (profile already loaded via batchGet)
+                const opsTd = document.createElement('td');
+                const freshProf = _pc[mn] || null;
+                const hasBundle = !!(freshProf && freshProf.characterBundle);
+                const opsWrap = document.createElement('div'); opsWrap.className = 'fcm-btns';
+
+                const vb = mkBtn(T('btnView'), '', () => doView(mn));
+                if (!isInRoom && !hasBundle) vb.disabled = true;
+                opsWrap.appendChild(vb);
+
+                if (canBeep(mn)) opsWrap.appendChild(mkBtn(T('btnBeep'), 'fcm-btn-blue', () => doBeep(mn)));
+
+                // Spacer (same as other tabs)
+                const _psep = document.createElement('span'); _psep.style.cssText = 'width:6px;display:inline-block;'; opsWrap.appendChild(_psep);
+
+                const _dname2 = nickName || bcName;
+                const osSuffix = oneSided ? '\n\n' + T('peopleOneSidedWarn') : '';
+                const _isWhl2 = (Player.WhiteList || []).includes(mn);
+                const _isBl2  = (Player.BlackList || []).includes(mn);
+                const _isGh2  = (() => { try { return (Player.GhostList || []).includes(mn); } catch { return false; } })();
+
+                if (!isFriendOf(mn)) opsWrap.appendChild(mkBtn(T('btnAddFriend'), 'fcm-btn-green',
+                    () => showConfirm((isZh() ? `添加「${_dname2}」為好友？` : `Add "${_dname2}" as friend?`) + osSuffix, () => doAddFriend(mn))));
+                else opsWrap.appendChild(mkBtn(T('btnRmFriend'), 'fcm-btn-red',
+                    () => showConfirm(T('confirmDel', _dname2), () => doRemoveFriend(mn), isZh() ? '移除' : 'Remove')));
+
+                opsWrap.appendChild(mkBtn(_isWhl2 ? T('btnRmWhite') : T('btnAddWhite'), _isWhl2 ? 'fcm-btn-red' : 'fcm-btn-green',
+                    () => showConfirm(_isWhl2
+                        ? (isZh() ? `移除「${_dname2}」白名單？` : `Remove "${_dname2}" from whitelist?`)
+                        : (isZh() ? `將「${_dname2}」加入白名單？` : `Add "${_dname2}" to whitelist?`) + osSuffix,
+                        () => doToggleList(mn, 'white', !_isWhl2))));
+
+                opsWrap.appendChild(mkBtn(_isBl2 ? T('btnRmBan') : T('btnAddBan'), 'fcm-btn-red',
+                    () => showConfirm(_isBl2
+                        ? (isZh() ? `移除「${_dname2}」黑名單？` : `Remove "${_dname2}" from blacklist?`)
+                        : T('confirmAddBan', _dname2) + osSuffix,
+                        () => doToggleList(mn, 'black', !_isBl2),
+                        _isBl2 ? undefined : (isZh() ? '加入' : 'Add'))));
+
+                opsWrap.appendChild(mkBtn(_isGh2 ? (isZh() ? '-幽靈' : '-Ghost') : (isZh() ? '+幽靈' : '+Ghost'), _isGh2 ? 'fcm-btn-red' : 'fcm-btn-purple',
+                    () => showConfirm(_isGh2
+                        ? (isZh() ? `移除「${_dname2}」幽靈？` : `Remove "${_dname2}" from ghost?`)
+                        : T('confirmAddGhost', _dname2) + osSuffix,
+                        () => doToggleList(mn, 'ghost', !_isGh2))));
+
+                opsTd.appendChild(opsWrap); tr.appendChild(opsTd);
+
+                // Last seen
+                const seenTime = p.seen;
+                const seenTd = document.createElement('td'); seenTd.className = 'fcm-id'; seenTd.style.textAlign = 'center';
+                seenTd.textContent = seenTime ? new Date(seenTime).toLocaleDateString() : '—'; tr.appendChild(seenTd);
+
+                // Share button (WPS compatible)
+                const shareTd = document.createElement('td'); shareTd.style.textAlign = 'center';
+                if (hasBundle) {
+                    const shareBtn = mkBtn(T('btnShare'), 'fcm-btn-purple', () => wpsShareProfile(mn));
+                    shareTd.appendChild(shareBtn);
+                } else {
+                    shareTd.innerHTML = '<span style="color:#4a3870;font-size:11px;">—</span>';
+                }
+                tr.appendChild(shareTd);
+
+                tbody.appendChild(tr);
+            }
+            tbl.appendChild(tbody); scroll.appendChild(tbl);
+
+            // Pagination controls
+            if (totalPages > 1) {
+                const prevBtn = mkBtn('◀', 'fcm-btn', () => { _peoplePage--; runSearch(inp.value); });
+                prevBtn.disabled = _peoplePage === 0;
+                const nextBtn = mkBtn('▶', 'fcm-btn', () => { _peoplePage++; runSearch(inp.value); });
+                nextBtn.disabled = _peoplePage >= totalPages - 1;
+                const pageInfo = document.createElement('span');
+                pageInfo.style.cssText = 'font-size:11px;color:#9080b8;';
+                pageInfo.textContent = isZh() ? `第 ${_peoplePage+1} / ${totalPages} 頁` : `Page ${_peoplePage+1} / ${totalPages}`;
+                pageBar.appendChild(prevBtn); pageBar.appendChild(pageInfo); pageBar.appendChild(nextBtn);
+                // Quick page jump buttons for up to 7 pages
+                if (totalPages <= 7) {
+                    pageBar.innerHTML = ''; pageBar.appendChild(prevBtn);
+                    for (let i = 0; i < totalPages; i++) {
+                        const pb = mkBtn(String(i+1), i === _peoplePage ? 'fcm-btn fcm-btn-purple' : 'fcm-btn', () => { _peoplePage = parseInt(pb.textContent)-1; runSearch(inp.value); });
+                        pageBar.appendChild(pb);
+                    }
+                    pageBar.appendChild(nextBtn);
+                }
+            }
+        }
+
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') { _peoplePage = 0; runSearch(inp.value); } e.stopPropagation(); });
+
+        // Initial render — show default 100 without waiting for input
+        await runSearch(_peopleQ);
+        inp.focus();
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1113,7 +1737,6 @@
         const isAdmin = amAdmin();
         if (!isAdmin) { const w = document.createElement('div'); w.className = 'fcm-warn'; w.textContent = T('noAdminWarn'); container.appendChild(w); }
 
-        // Sub-tabs
         const stabs = document.createElement('div'); stabs.className = 'fcm-subtabs';
         ['members', 'admin', 'white', 'ban'].forEach(key => {
             const t = document.createElement('div'); t.className = 'fcm-stab' + (roomSubTab === key ? ' active' : ''); t.textContent = T('roomTabs')[key];
@@ -1122,13 +1745,11 @@
         container.appendChild(stabs);
 
         const canAddHere = isAdmin && roomSubTab !== 'members';
-
-        // Toolbar: search + add (left), sort (right)
         const toolbar = document.createElement('div'); toolbar.className = 'fcm-toolbar';
 
         function isNumericQ(v) { const mn = parseInt(v); return mn > 0 && String(mn) === v.trim() && v.trim().length > 0; }
 
-        let addBtn; // ref needed in debounce
+        let addBtn;
         const { wrap: sw, inp: rsEl } = makeSearchWrap(roomSearchQ, T('roomSearch'), val => {
             roomSearchQ = val;
             if (addBtn) addBtn.disabled = !(canAddHere && isNumericQ(val));
@@ -1146,14 +1767,11 @@
 
         if (canAddHere) {
             addBtn = mkBtn(T('btnAdd'), 'fcm-btn-green fcm-add-btn', () => {
-                const mn = parseInt(roomSearchQ);
-                if (!mn || mn < 100) return;
+                const mn = parseInt(roomSearchQ); if (!mn || mn < 100) return;
                 if (roomSubTab === 'admin') roomOp(mn, 'makeAdmin');
                 else if (roomSubTab === 'white') roomOp(mn, 'addWhite');
                 else if (roomSubTab === 'ban') roomOp(mn, 'ban');
-                clearTimeout(roomSearchDebounce);
-                rsEl.value = ''; roomSearchQ = '';
-                addBtn.disabled = true;
+                clearTimeout(roomSearchDebounce); rsEl.value = ''; roomSearchQ = ''; addBtn.disabled = true;
             });
             addBtn.title = T('btnAddTitle');
             addBtn.disabled = !isNumericQ(roomSearchQ);
@@ -1161,20 +1779,23 @@
             toolbar.appendChild(addBtn);
         }
 
-        // Nick toggle + Sort on right
         toolbar.appendChild(Object.assign(document.createElement('span'), { className: 'fcm-spacer' }));
         const rNickBtn = document.createElement('button'); rNickBtn.className = 'fcm-nick-tog'; rNickBtn.textContent = showNickname ? T('togNick') : T('togName');
-        rNickBtn.title = isZh() ? (showNickname ? '切換為BC名稱' : '切換為暱稱') : (showNickname ? 'Switch to BC name' : 'Switch to nickname');
         rNickBtn.addEventListener('click', () => { showNickname = !showNickname; renderRoom(container); });
         toolbar.appendChild(rNickBtn);
         const { lbl: rsl, sel: rsortSel } = makeSortSel(roomSortMode, [['name', T('sortName')], ['id', T('sortId')], ['rel', T('sortRel')], ['perm', T('permAdmin')]], v => { roomSortMode = v; renderRoom(container); });
         toolbar.appendChild(rsl); toolbar.appendChild(rsortSel);
-        const rBtnR = mkBtn('↻', 'fcm-btn', () => renderRoom(container));
-        rBtnR.title = isZh() ? '重新整理' : 'Refresh'; rBtnR.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
-        toolbar.appendChild(rBtnR);
+        const rBtn = mkBtn('↻', 'fcm-btn', () => renderRoom(container));
+        rBtn.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
+        toolbar.appendChild(rBtn);
+        const avBtnR = mkBtn('📸', 'fcm-btn', () => {
+            refreshSnapshotsForList(mns);
+        });
+        avBtnR.title = isZh() ? '快照目前名單（強制重建頭像）' : 'Snapshot current list (force rebuild)';
+        avBtnR.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
+        toolbar.appendChild(avBtnR);
         container.appendChild(toolbar);
 
-        // Member list
         let mns = [];
         if (roomSubTab === 'members') mns = (ChatRoomData.Character || []).map(c => c.MemberNumber);
         else if (roomSubTab === 'admin') mns = [...(ChatRoomData.Admin || [])];
@@ -1183,7 +1804,6 @@
 
         if (roomSearchQ.trim()) { const q = roomSearchQ.trim().toLowerCase(); mns = mns.filter(mn => getDisplayName(mn).toLowerCase().includes(q) || String(mn).includes(q)); }
 
-        // #5 Apply room sort
         switch (roomSortMode) {
             case 'id':   mns.sort((a, b) => a - b); break;
             case 'rel':  mns.sort((a, b) => REL_ORDER[getRel(a)] - REL_ORDER[getRel(b)]); break;
@@ -1210,37 +1830,22 @@
         for (const mn of mns) {
             const tr = document.createElement('tr'); tr.className = 'fcm-row';
             const name = getDisplayName(mn), rel = getRel(mn), perms = getRoomPerms(mn);
-            const profile = _pc[mn] || null, isInRoom = inRoom(mn), isFriend = isFriendOf(mn), isMe = mn === Player.MemberNumber;
+            const snapshotUrl = Snapshot._cache[mn] || null;
+            const isInRoom = inRoomFn(mn), isFriend = isFriendOf(mn), isMe = mn === Player.MemberNumber;
 
-            const avTd = document.createElement('td'); avTd.appendChild(makeAvEl(mn, profile)); tr.appendChild(avTd);
-            const nameTd = document.createElement('td'); const nd = document.createElement('div'); nd.className = 'fcm-name'; nd.textContent = name; nd.title = name; nameTd.appendChild(nd);
+            const avTd = document.createElement('td'); avTd.appendChild(makeAvEl(mn, snapshotUrl)); tr.appendChild(avTd);
+            const nameTd = document.createElement('td');
+            const nd = document.createElement('div'); nd.className = 'fcm-name'; nd.textContent = name; nd.title = name; nameTd.appendChild(nd);
             if (isMe) { const yl = document.createElement('div'); yl.className = 'fcm-you'; yl.textContent = T('youLabel'); nameTd.appendChild(yl); }
             tr.appendChild(nameTd);
             tr.appendChild(makeIdCell(mn));
             const relTd = document.createElement('td'); relTd.style.textAlign = 'center'; relTd.appendChild(makeRelEl(rel)); tr.appendChild(relTd);
             const permTd = document.createElement('td'); const pd = document.createElement('div'); pd.className = 'fcm-perms'; perms.forEach(p => pd.appendChild(makePermEl(p))); permTd.appendChild(pd); tr.appendChild(permTd);
 
-            // 動作
-            const opsTd = document.createElement('td'); const ops = document.createElement('div'); ops.className = 'fcm-btns';
-            const hasProfile = !!(profile && profile.characterBundle);
-            const vb = mkBtn(T('btnView'), '', () => doView(mn)); if (!isInRoom && !hasProfile) vb.disabled = true; ops.appendChild(vb);
-            if (!isMe) {
-                if (isInRoom) ops.appendChild(mkBtn(T('btnWhisper'), '', () => doWhisper(mn)));
-                if (canBeep(mn)) ops.appendChild(mkBtn(T('btnBeep'), 'fcm-btn-blue', () => doBeep(mn)));
-                // Space before friend/list buttons
-                const _rsep = document.createElement('span'); _rsep.style.cssText = 'width:6px;display:inline-block;'; ops.appendChild(_rsep);
-                if (!isFriend) ops.appendChild(mkBtn(T('btnAddFriend'), 'fcm-btn-green', () => showConfirm(isZh()?`添加「${getDisplayName(mn)}」為好友？`:`Add "${getDisplayName(mn)}" as friend?`, () => doAddFriend(mn))));
-                else ops.appendChild(mkBtn(T('btnRmFriend'), 'fcm-btn-red', () => showConfirm(T('confirmDel', getDisplayName(mn)), () => doRemoveFriend(mn), isZh()?'移除':'Remove')));
-                const _rm = getDisplayName(mn);
-                const _rWhl = (Player.WhiteList||[]).includes(mn), _rBl = (Player.BlackList||[]).includes(mn);
-                const _rGh = (() => { try { return (Player.GhostList||[]).includes(mn); } catch { return false; } })();
-                ops.appendChild(mkBtn(_rWhl?T('btnRmWhite'):T('btnAddWhite'), _rWhl?'fcm-btn-red':'fcm-btn-green', () => showConfirm(_rWhl?(isZh()?`移除「${_rm}」白名單？`:`Remove "${_rm}" from whitelist?`):(isZh()?`將「${_rm}」加入白名單？`:`Add "${_rm}" to whitelist?`), () => doToggleList(mn,'white',!_rWhl))));
-                ops.appendChild(mkBtn(_rBl?T('btnRmBan'):T('btnAddBan'), 'fcm-btn-red', () => showConfirm(_rBl?(isZh()?`移除「${_rm}」黑名單？`:`Remove "${_rm}" from blacklist?`):(isZh()?`⚠ 加入黑名單「${_rm}」？`:`⚠ Blacklist "${_rm}"?`), () => doToggleList(mn,'black',!_rBl), _rBl?undefined:(isZh()?'加入':'Add'))));
-                ops.appendChild(mkBtn(_rGh?(isZh()?'-幽靈':'-Ghost'):(isZh()?'+幽靈':'+Ghost'), _rGh?'fcm-btn-red':'fcm-btn-purple', () => showConfirm(_rGh?(isZh()?`移除「${_rm}」幽靈？`:`Remove "${_rm}" from ghost?`):(isZh()?`將「${_rm}」加入幽靈？`:`Add "${_rm}" to ghost?`), () => doToggleList(mn,'ghost',!_rGh))));
-            }
-            opsTd.appendChild(ops); tr.appendChild(opsTd);
+            const opsTd = document.createElement('td');
+            opsTd.appendChild(buildPersonOps(mn, { isInRoom, isMe }));
+            tr.appendChild(opsTd);
 
-            // #7 全功能房管欄 (all sub-tabs get full buttons)
             const mgmtTd = document.createElement('td'); mgmtTd.className = 'fcm-td-mgmt' + (isAdmin && !isMe ? '' : ' no-perm');
             if (!isMe) { const mb = buildMgmtBtns(mn, roomSubTab); if (mb) mgmtTd.appendChild(mb); }
             tr.appendChild(mgmtTd);
@@ -1248,37 +1853,25 @@
         }
         tbl.appendChild(tbody); scroll.appendChild(tbl);
         wrapper.appendChild(scroll);
-        // #1 count bar
         wrapper.appendChild(makeCountBar(mns.length));
         container.appendChild(wrapper);
-    }
 
-    // ─── Settings ───
-    // ═══════════════════════════════════════════════════════════
-    //  PROFILES DB UTILITIES
+        // Auto-queue: push visible members missing snapshots into rebuild queue
+        if (cfg.avatars) _autoQueueVisible(mns);
+    }
     // ═══════════════════════════════════════════════════════════
     async function exportProfiles() {
         try {
             const allProfiles = await new Promise((res, rej) => {
                 const req = PDB.db.transaction('profiles','readonly').objectStore('profiles').getAll();
-                req.onsuccess = () => res(req.result);
-                req.onerror = () => rej(req.error);
+                req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error);
             });
-            // Try to get notes too (if store exists)
             let notes = [];
-            try {
-                if (PDB.db.objectStoreNames.contains('notes')) {
-                    notes = await new Promise((res,rej) => {
-                        const req = PDB.db.transaction('notes','readonly').objectStore('notes').getAll();
-                        req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error);
-                    });
-                }
-            } catch {}
+            try { if (PDB.db.objectStoreNames.contains('notes')) { notes = await new Promise((res,rej) => { const req = PDB.db.transaction('notes','readonly').objectStore('notes').getAll(); req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); }); } } catch {}
             const data = { exportedAt: new Date().toISOString(), dbVersion: PDB.db.version, profiles: allProfiles, notes };
             const today = new Date(); const ymd = today.getFullYear() + String(today.getMonth()+1).padStart(2,'0') + String(today.getDate()).padStart(2,'0');
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = `bce-past-profiles-${ymd}.json`; a.click(); URL.revokeObjectURL(a.href);
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `bce-past-profiles-${ymd}.json`; a.click(); URL.revokeObjectURL(a.href);
             return allProfiles.length;
         } catch(e) { console.error('🐈‍⬛ [FCM] export error:', e); return 0; }
     }
@@ -1288,10 +1881,10 @@
             const data = JSON.parse(await file.text());
             let pc = 0, nc = 0;
             if (Array.isArray(data.profiles) && PDB.db) {
-                const tx = PDB.db.transaction('profiles','readwrite');
-                const store = tx.objectStore('profiles');
+                const tx = PDB.db.transaction('profiles','readwrite'); const store = tx.objectStore('profiles');
                 for (const p of data.profiles) {
-                    // Merge: keep the one with newer 'seen' time
+                    // Strip avatarDataUrl if present in imported data (keep WCE-compatible)
+                    delete p.avatarDataUrl;
                     const existing = await new Promise(res => { const r = store.get(p.memberNumber); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
                     const existSeen = existing?.seen || existing?.savedAt || 0;
                     const newSeen = p.seen || p.savedAt || 0;
@@ -1299,113 +1892,11 @@
                 }
             }
             if (Array.isArray(data.notes) && PDB.db && PDB.db.objectStoreNames.contains('notes')) {
-                const tx2 = PDB.db.transaction('notes','readwrite');
-                const store2 = tx2.objectStore('notes');
+                const tx2 = PDB.db.transaction('notes','readwrite'); const store2 = tx2.objectStore('notes');
                 for (const n of data.notes) { store2.put(n); nc++; }
             }
             return { pc, nc };
         } catch(e) { console.error('🐈‍⬛ [FCM] import error:', e); return { pc:0, nc:0 }; }
-    }
-
-    // Profiles search panel
-    function showProfilesPanel(filter) {
-        const ex = document.getElementById('fcm-profiles-overlay'); if (ex) { ex.remove(); return; }
-        if (!PDB.db) return;
-
-        const overlay = document.createElement('div'); overlay.id = 'fcm-profiles-overlay';
-        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100002;display:flex;align-items:center;justify-content:center;';
-        overlay.addEventListener('click', () => overlay.remove());
-
-        const box = document.createElement('div');
-        box.style.cssText = 'background:#1e1635;border:2px solid #5a48a8;border-radius:14px;padding:20px;width:min(700px,94vw);max-height:80vh;box-shadow:0 12px 60px rgba(0,0,0,.8);display:flex;flex-direction:column;gap:12px;font-family:-apple-system,sans-serif;';
-        box.addEventListener('click', e => e.stopPropagation());
-
-        const hdr = document.createElement('div'); hdr.style.cssText = 'display:flex;align-items:center;gap:10px;';
-        const titleEl = document.createElement('div'); titleEl.style.cssText = 'color:#e8c8ff;font-size:14px;font-weight:700;letter-spacing:1px;flex:1;'; titleEl.textContent = T('profilesTitle');
-        const closeBtn = document.createElement('button'); closeBtn.className = 'fcm-btn'; closeBtn.textContent = '×'; closeBtn.style.cssText = 'width:28px;height:28px;border-radius:50%;font-size:16px;';
-        closeBtn.addEventListener('click', () => overlay.remove());
-        hdr.appendChild(titleEl); hdr.appendChild(closeBtn);
-
-        const searchWrap = document.createElement('div'); searchWrap.className = 'fcm-search-wrap'; searchWrap.style.width = '100%';
-        const searchEl = document.createElement('input'); searchEl.className = 'fcm-search'; searchEl.style.width = '100%';
-        searchEl.placeholder = T('searchProfiles'); searchEl.value = filter || '';
-        const clrBtn = document.createElement('button'); clrBtn.className = 'fcm-clear-btn'; clrBtn.textContent = '×';
-        clrBtn.addEventListener('click', () => { searchEl.value = ''; doSearch(''); });
-        searchWrap.appendChild(searchEl); searchWrap.appendChild(clrBtn);
-
-        const scrollArea = document.createElement('div'); scrollArea.className = 'fcm-scroll'; scrollArea.style.cssText = 'max-height:52vh;border:1px solid #2a2048;border-radius:8px;';
-        const countEl = document.createElement('div'); countEl.className = 'fcm-count';
-
-        const tbl = document.createElement('table'); tbl.className = 'fcm-tbl';
-        tbl.innerHTML = '<thead><tr><th style="width:42px"></th><th style="text-align:left;min-width:140px">' + T('colName') + '</th><th>' + T('colId') + '</th><th>' + T('colRel') + '</th><th>' + (isZh() ? '最後見面' : 'Last Seen') + '</th><th style="min-width:80px"></th></tr></thead>';
-        const tbody = document.createElement('tbody'); tbl.appendChild(tbody);
-        scrollArea.appendChild(tbl);
-
-        box.appendChild(hdr); box.appendChild(searchWrap); box.appendChild(scrollArea); box.appendChild(countEl);
-        overlay.appendChild(box); document.body.appendChild(overlay);
-
-        let allProfiles = [];
-        const req = PDB.db.transaction('profiles','readonly').objectStore('profiles').getAll();
-        req.onsuccess = () => {
-            allProfiles = req.result || [];
-            allProfiles.sort((a,b) => (b.seen||b.savedAt||0) - (a.seen||a.savedAt||0));
-            doSearch(searchEl.value);
-        };
-
-        function doSearch(q) {
-            q = q.trim().toLowerCase();
-            const filtered = q ? allProfiles.filter(p => (p.name||'').toLowerCase().includes(q) || (p.lastNick||'').toLowerCase().includes(q) || String(p.memberNumber).includes(q)) : allProfiles;
-            tbody.innerHTML = '';
-            const show = filtered.slice(0, 100);
-            countEl.textContent = T('profilesTotal', show.length, filtered.length);
-            for (const p of show) {
-                const tr = document.createElement('tr'); tr.className = 'fcm-row';
-                // Avatar
-                const avTd = document.createElement('td'); avTd.appendChild(makeAvEl(p.memberNumber, p)); tr.appendChild(avTd);
-                // Name
-                const nameTd = document.createElement('td'); nameTd.style.maxWidth = '140px';
-                const nd = document.createElement('div'); nd.className = 'fcm-name'; nd.textContent = (showNickname && p.lastNick) || p.name || '#' + p.memberNumber; nd.title = nd.textContent;
-                const sd = document.createElement('div'); sd.className = 'fcm-id'; sd.textContent = (p.lastNick && !showNickname) ? p.name || '' : (p.lastNick ? p.name : '');
-                nameTd.appendChild(nd); if (sd.textContent) nameTd.appendChild(sd); tr.appendChild(nameTd);
-                // ID
-                tr.appendChild(makeIdCell(p.memberNumber));
-                // Rel
-                const relTd = document.createElement('td'); relTd.style.textAlign = 'center'; relTd.appendChild(makeRelEl(getRel(p.memberNumber))); tr.appendChild(relTd);
-                // Last seen
-                const seenTd = document.createElement('td'); seenTd.className = 'fcm-id'; seenTd.style.textAlign = 'center';
-                const seenTime = p.seen || p.savedAt; seenTd.textContent = seenTime ? new Date(seenTime).toLocaleDateString() : '—'; tr.appendChild(seenTd);
-                // Open button
-                const opsTd = document.createElement('td');
-                if (p.characterBundle) {
-                    const openBtn = mkBtn(T('btnView'), '', () => { overlay.remove(); doView(p.memberNumber); });
-                    opsTd.appendChild(openBtn);
-                }
-                tr.appendChild(opsTd);
-                tbody.appendChild(tr);
-            }
-        }
-
-        let debounce;
-        searchEl.addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(() => doSearch(searchEl.value), 300); });
-        searchEl.focus();
-    }
-
-    // Clear avatar cache and trigger reload
-    function reloadAvatarCache() {
-        Object.values(_pc).forEach(p => { if (p) { p.avatarDataUrl = null; p._avatarLoading = false; } });
-        // Clear from DB
-        if (PDB.db) {
-            try {
-                const tx = PDB.db.transaction('profiles', 'readwrite');
-                const store = tx.objectStore('profiles');
-                const req = store.openCursor();
-                req.onsuccess = e => {
-                    const cursor = e.target.result;
-                    if (cursor) { const v = cursor.value; v.avatarDataUrl = null; cursor.update(v); cursor.continue(); }
-                };
-            } catch {}
-        }
-        renderCurrent();
     }
 
     // ─── Room Search ───────────────────────────────────────────────────
@@ -1413,28 +1904,22 @@
         container.innerHTML = '';
         const wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;flex-direction:column;height:100%;';
 
-        // Toolbar: [↻] [search] [搜尋] [混合] [女性] [男性]   [sort]
         const tb = document.createElement('div'); tb.className = 'fcm-toolbar';
 
-        // Refresh (before search)
         const earlyRef = mkBtn('↻', 'fcm-btn', () => runSearch());
         earlyRef.style.cssText = 'padding:5px 8px;border-radius:8px;font-size:14px;flex-shrink:0;';
         earlyRef.title = isZh() ? '刷新' : 'Refresh'; tb.appendChild(earlyRef);
 
-        // Search input
         const sw = document.createElement('div'); sw.style.cssText = 'position:relative;display:inline-flex;align-items:center;flex:1;min-width:120px;max-width:200px;';
-        const inp = document.createElement('input'); inp.className = 'fcm-search'; inp.placeholder = T('roomSearch2'); inp.value = _roomSearchQ2;
-        inp.style.width = '100%';
+        const inp = document.createElement('input'); inp.className = 'fcm-search'; inp.placeholder = T('roomSearch2'); inp.value = _roomSearchQ2; inp.style.width = '100%';
         const clrX = document.createElement('button'); clrX.className = 'fcm-clear-btn'; clrX.textContent = '×';
         clrX.addEventListener('click', () => { inp.value = ''; _roomSearchQ2 = ''; });
         sw.appendChild(inp); sw.appendChild(clrX); tb.appendChild(sw);
 
-        // Search button
         const srchBtn = mkBtn(T('roomSearchBtn'), 'fcm-btn', () => runSearch());
         srchBtn.style.cssText = 'padding:5px 10px;border-radius:8px;border:1.5px solid #4038a0;background:#1e1635;color:#b098d0;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;';
         tb.appendChild(srchBtn);
 
-        // Zone buttons
         const zoneColors = {
             'X': { bg: '#1e1635', active: '#2e2650', label: isZh() ? '混合' : 'Mixed' },
             '':  { bg: '#2a1020', active: '#7a2040', label: isZh() ? '女性' : 'Female' },
@@ -1442,18 +1927,15 @@
         };
         const zoneGroup = document.createElement('div'); zoneGroup.style.cssText = 'display:flex;gap:3px;';
         Object.entries(zoneColors).forEach(([z, info]) => {
-            const b = document.createElement('button'); b.setAttribute('data-space', z);
-            b.textContent = info.label;
+            const b = document.createElement('button'); b.setAttribute('data-space', z); b.textContent = info.label;
             const isActive = _roomZoneFilter === z;
             b.style.cssText = `padding:5px 10px;border-radius:8px;border:1.5px solid ${isActive ? '#d0b8ff' : '#4038a0'};background:${isActive ? info.active : info.bg};color:${isActive ? '#fff' : '#9070b0'};font-size:12px;font-weight:${isActive ? '700' : '400'};cursor:pointer;white-space:nowrap;`;
             b.addEventListener('click', () => {
                 _roomZoneFilter = z;
                 zoneGroup.querySelectorAll('[data-space]').forEach(x => {
                     const xz = x.getAttribute('data-space'), xi = zoneColors[xz], xa = xz === z;
-                    x.style.background = xa ? xi.active : xi.bg;
-                    x.style.borderColor = xa ? '#d0b8ff' : '#4038a0';
-                    x.style.color = xa ? '#fff' : '#9070b0';
-                    x.style.fontWeight = xa ? '700' : '400';
+                    x.style.background = xa ? xi.active : xi.bg; x.style.borderColor = xa ? '#d0b8ff' : '#4038a0';
+                    x.style.color = xa ? '#fff' : '#9070b0'; x.style.fontWeight = xa ? '700' : '400';
                 });
                 runSearch();
             });
@@ -1461,7 +1943,6 @@
         });
         tb.appendChild(zoneGroup);
 
-        // Spacer + sort
         tb.appendChild(Object.assign(document.createElement('span'), { className: 'fcm-spacer' }));
         const sLbl = document.createElement('span'); sLbl.className = 'fcm-lbl-sm'; sLbl.textContent = T('sortBy') + ':'; tb.appendChild(sLbl);
         const sortSel = document.createElement('select'); sortSel.className = 'fcm-sel';
@@ -1470,9 +1951,9 @@
         });
         sortSel.addEventListener('change', () => { _roomSortMode = sortSel.value; renderResults(); });
         tb.appendChild(sortSel);
-        const rBtnRS2 = mkBtn('↻', 'fcm-btn', () => runSearch());
-        rBtnRS2.title = isZh() ? '重新整理' : 'Refresh'; rBtnRS2.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
-        tb.appendChild(rBtnRS2);
+        const rBtn = mkBtn('↻', 'fcm-btn', () => runSearch());
+        rBtn.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
+        tb.appendChild(rBtn);
         wrap.appendChild(tb);
 
         const scroll = document.createElement('div'); scroll.style.cssText = 'flex:1;overflow-y:auto;';
@@ -1518,10 +1999,8 @@
                      'border-bottom:1px solid #2a2048;');
                 card.addEventListener('mouseenter', () => { if (!isFav && !friendsHere.length) card.style.background = '#261a4a'; });
                 card.addEventListener('mouseleave', () => { if (!isFav && !friendsHere.length) card.style.background = ''; });
-
                 const info = document.createElement('div'); info.style.cssText = 'flex:1;min-width:0;';
                 const line1 = document.createElement('div'); line1.style.cssText = 'display:flex;align-items:center;gap:5px;flex-wrap:wrap;';
-                // ★ fav btn before name
                 const favBtn = document.createElement('button');
                 favBtn.style.cssText = 'font-size:15px;padding:0 3px;border:none;background:transparent;cursor:pointer;color:' + (isFav ? '#f0d060' : '#5040a0') + ';flex-shrink:0;';
                 favBtn.textContent = isFav ? '★' : '☆';
@@ -1534,7 +2013,6 @@
                 info.appendChild(line1);
                 if (room.Description) { const desc = document.createElement('div'); desc.style.cssText = 'color:#7060a0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;'; desc.textContent = room.Description; info.appendChild(desc); }
                 card.appendChild(info);
-                // Join button
                 const joinBtn = mkBtn(T('roomJoin'), 'fcm-btn-blue', () => navigateToRoom(room.Name));
                 joinBtn.style.cssText += ';padding:7px 16px;font-size:13px;font-weight:700;flex-shrink:0;';
                 card.appendChild(joinBtn);
@@ -1545,6 +2023,7 @@
         if (_roomResults.length === 0) runSearch(); else renderResults();
     }
 
+    // ─── Settings ───────────────────────────────────────────────────────
     function renderSettings(container) {
         container.innerHTML = '';
         const wrap = document.createElement('div'); wrap.className = 'fcm-settings-wrap';
@@ -1567,17 +2046,14 @@
         langInfo.appendChild(langLbl); langInfo.appendChild(langNote2);
         const langSel = document.createElement('select'); langSel.className = 'fcm-sel'; langSel.style.flexShrink = '0';
         [['auto', 'Auto'], ['zh', '中文'], ['en', 'English']].forEach(([v, l]) => {
-            const o = document.createElement('option'); o.value = v; o.textContent = l;
-            if (v === (cfg.lang || 'auto')) o.selected = true;
-            langSel.appendChild(o);
+            const o = document.createElement('option'); o.value = v; o.textContent = l; if (v === (cfg.lang || 'auto')) o.selected = true; langSel.appendChild(o);
         });
         langSel.addEventListener('change', () => {
             cfg.lang = langSel.value; saveCfg();
             if (panelEl) { panelEl.remove(); panelEl = null; }
             if (miniEl) { miniEl.remove(); miniEl = null; }
             panelOpen = false; panelMini = false;
-            buildPanel();
-                uiTab = 'settings'; openPanel();
+            buildPanel(); uiTab = 'settings'; openPanel();
         });
         langRow.appendChild(langInfo); langRow.appendChild(langSel);
         wrap.appendChild(langRow);
@@ -1585,24 +2061,109 @@
 
         // ── 2. Avatars ───────────────────────────────────────────────
         const avRow = settingRow(T('setAvatars'), T('setAvatarsNote'), cfg.avatars, v => { cfg.avatars = v; saveCfg(); });
-        const reloadBtn = document.createElement('button'); reloadBtn.className = 'fcm-btn fcm-btn-green';
-        reloadBtn.textContent = T('btnReloadAvatars'); reloadBtn.style.cssText = 'font-size:11px;padding:6px 12px;flex-shrink:0;margin-left:auto;';
-        reloadBtn.title = T('reloadAvatarsNote');
-        const statusEl = document.createElement('div'); statusEl.className = 'fcm-reload-status';
-        _avStatusEl = statusEl;
-        reloadBtn.addEventListener('click', () => {
-            reloadBtn.disabled = true; reloadBtn.textContent = isZh() ? '清除中...' : 'Clearing...';
-            reloadAvatarCache();
-            setTimeout(() => { reloadBtn.disabled = false; reloadBtn.textContent = T('btnReloadAvatars'); }, 2000);
-        });
-        avRow.appendChild(reloadBtn);
+
+        // Cache management button — click to expand/collapse options
+        const cacheBtn = document.createElement('button'); cacheBtn.className = 'fcm-btn fcm-btn-blue';
+        cacheBtn.textContent = T('btnReloadAvatars'); cacheBtn.style.cssText = 'font-size:11px;padding:6px 12px;flex-shrink:0;margin-left:auto;';
+        cacheBtn.title = T('reloadAvatarsNote');
+        avRow.appendChild(cacheBtn);
         wrap.appendChild(avRow);
-        wrap.appendChild(statusEl);
+
+        // Expandable options panel (hidden by default)
+        const avPanel = document.createElement('div');
+        avPanel.style.cssText = 'display:none;margin:0 0 4px 0;padding:10px 14px;background:#1a1030;border-radius:8px;border:1px solid #3a2870;display:none;flex-direction:column;gap:8px;';
+        const avStatus = document.createElement('div'); avStatus.className = 'fcm-reload-status'; avStatus.style.textAlign = 'center';
+        _avStatusEl = avStatus;
+
+        // Option 1: Clear cache
+        const clearRow = document.createElement('div'); clearRow.style.cssText = 'display:flex;align-items:center;gap:10px;';
+        const clearInfo = document.createElement('div'); clearInfo.style.flex = '1';
+        const clearLbl = document.createElement('div'); clearLbl.style.cssText = 'color:#e8d4ff;font-size:13px;font-weight:600;'; clearLbl.textContent = T('btnClearAvatarCache');
+        const clearNote = document.createElement('div'); clearNote.className = 'fcm-set-note'; clearNote.textContent = T('clearAvatarCacheNote');
+        clearInfo.appendChild(clearLbl); clearInfo.appendChild(clearNote);
+        const clearExecBtn = document.createElement('button'); clearExecBtn.className = 'fcm-btn fcm-btn-red';
+        clearExecBtn.textContent = isZh() ? '清除' : 'Clear'; clearExecBtn.style.cssText = 'flex-shrink:0;padding:5px 12px;';
+        clearExecBtn.addEventListener('click', async () => {
+            clearExecBtn.disabled = true; clearExecBtn.textContent = isZh() ? '清除中...' : 'Clearing...';
+            await Snapshot.clear();
+            renderCurrent();
+            avStatus.textContent = isZh() ? '✓ 頭像快取已清除' : '✓ Cache cleared';
+            clearExecBtn.disabled = false; clearExecBtn.textContent = isZh() ? '清除' : 'Clear';
+            setTimeout(() => { avStatus.textContent = ''; }, 3000);
+        });
+        clearRow.appendChild(clearInfo); clearRow.appendChild(clearExecBtn);
+
+        // Divider
+        const avOptDiv = document.createElement('div'); avOptDiv.style.cssText = 'height:1px;background:#2a2048;';
+
+        // Option 2: Load friend avatars
+        const loadRow = document.createElement('div'); loadRow.style.cssText = 'display:flex;align-items:center;gap:10px;';
+        const loadInfo = document.createElement('div'); loadInfo.style.flex = '1';
+        const loadLbl = document.createElement('div'); loadLbl.style.cssText = 'color:#e8d4ff;font-size:13px;font-weight:600;'; loadLbl.textContent = T('btnLoadFriendAvatars');
+        const loadNote = document.createElement('div'); loadNote.className = 'fcm-set-note'; loadNote.textContent = T('loadFriendAvatarsNote');
+        loadInfo.appendChild(loadLbl); loadInfo.appendChild(loadNote);
+        const loadExecBtn = document.createElement('button'); loadExecBtn.className = 'fcm-btn fcm-btn-blue';
+        loadExecBtn.textContent = '📸'; loadExecBtn.style.cssText = 'flex-shrink:0;font-size:14px;padding:5px 10px;';
+        loadExecBtn.addEventListener('click', async () => {
+            if (loadExecBtn.disabled) return;
+            loadExecBtn.disabled = true;
+            const friendMns = buildFriendList().map(f => f.mn).filter(mn => {
+                const snap = Snapshot._cache[mn]; return !snap || snap.length <= 800;
+            });
+            const total = friendMns.length;
+            if (total === 0) {
+                avStatus.textContent = isZh() ? '沒有需要載入的好友' : 'No friends need loading';
+                loadExecBtn.disabled = false;
+                setTimeout(() => { avStatus.textContent = ''; }, 3000);
+                return;
+            }
+            const waitMs = Math.min(30000, Math.max(5000, total * 150));
+            // Pre-load bundles so BC starts downloading assets
+            await PDB.batchGet(friendMns);
+            for (const mn of friendMns) {
+                const p = _pc[mn];
+                if (!p || !p.characterBundle) continue;
+                try {
+                    const data = JSON.parse(p.characterBundle);
+                    if (typeof CharacterLoadOnline === 'function') {
+                        const C = CharacterLoadOnline(data, mn);
+                        if (C && typeof CharacterRefresh === 'function') CharacterRefresh(C, false, undefined);
+                    }
+                } catch {}
+                await new Promise(r => setTimeout(r, 20));
+            }
+            // Countdown
+            let remaining = waitMs;
+            const tick = setInterval(() => {
+                remaining -= 1000;
+                avStatus.textContent = remaining > 0
+                    ? (isZh() ? `等待 BC 緩存外觀... 剩餘 ${(remaining/1000).toFixed(0)} 秒` : `Waiting for BC... ${(remaining/1000).toFixed(0)}s left`)
+                    : (isZh() ? '開始截圖...' : 'Snapshotting...');
+            }, 1000);
+            avStatus.textContent = isZh() ? `等待 BC 緩存外觀... ${(waitMs/1000).toFixed(0)} 秒` : `Waiting for BC... ${(waitMs/1000).toFixed(0)}s`;
+            await new Promise(r => setTimeout(r, waitMs));
+            clearInterval(tick);
+            await refreshSnapshotsForList(friendMns);
+            avStatus.textContent = T('loadFriendAvatarsDone');
+            loadExecBtn.disabled = false;
+            setTimeout(() => { avStatus.textContent = ''; }, 4000);
+        });
+        loadRow.appendChild(loadInfo); loadRow.appendChild(loadExecBtn);
+
+        avPanel.appendChild(clearRow); avPanel.appendChild(avOptDiv); avPanel.appendChild(loadRow); avPanel.appendChild(avStatus);
+
+        // Toggle expand on cacheBtn click
+        let avPanelOpen = false;
+        cacheBtn.addEventListener('click', () => {
+            avPanelOpen = !avPanelOpen;
+            avPanel.style.display = avPanelOpen ? 'flex' : 'none';
+            cacheBtn.style.borderColor = avPanelOpen ? '#b090f0' : '';
+        });
+        wrap.appendChild(avPanel);
         divider();
 
-        // ── 3. Whisper indicator + collapsible color picker ──────────
+        // ── 3. Whisper indicator ─────────────────────────────────────
         const wiWrap = document.createElement('div');
-        // Toggle row: left=toggle+info, right=color button
         const wiToggleRow = document.createElement('div'); wiToggleRow.style.cssText = 'display:flex;align-items:center;gap:14px;';
         const wiTog = mkToggle(cfg.whisperIndicator, v => { cfg.whisperIndicator = v; saveCfg(); if (v) startWhisperIndicator(); else stopWhisperIndicator(); });
         wiTog.style.flexShrink = '0';
@@ -1610,51 +2171,29 @@
         const wiLbl = document.createElement('div'); wiLbl.className = 'fcm-set-label'; wiLbl.textContent = T('whisperIndicatorLabel');
         const wiNote = document.createElement('div'); wiNote.className = 'fcm-set-note'; wiNote.textContent = T('whisperIndicatorNote');
         wiInfo.appendChild(wiLbl); wiInfo.appendChild(wiNote);
-        // Color button (right side) with label
         const wiColorLabelBtn = document.createElement('span');
         wiColorLabelBtn.style.cssText = 'font-size:11px;color:#a080c8;white-space:nowrap;flex-shrink:0;cursor:pointer;';
         wiColorLabelBtn.textContent = isZh() ? '修改顏色' : 'Color';
         const wiColorBtn = document.createElement('button');
         wiColorBtn.style.cssText = `width:28px;height:28px;border-radius:50%;background:${cfg.whisperColor||'#b070e8'};border:2px solid #6040a0;cursor:pointer;flex-shrink:0;transition:border-color .15s;`;
-        wiColorBtn.title = isZh() ? '選擇顏色' : 'Pick color';
         let wiColorOpen = false;
-        const wiColorPanel = document.createElement('div');
-        wiColorPanel.style.cssText = 'display:none;padding:10px 0 4px 56px;';
-        // Preset swatches row
+        const wiColorPanel = document.createElement('div'); wiColorPanel.style.cssText = 'display:none;padding:10px 0 4px 56px;';
         const swatchRow = document.createElement('div'); swatchRow.style.cssText = 'display:flex;align-items:center;gap:7px;flex-wrap:wrap;';
         const presets = ['#b070e8','#e870c0','#70aaff','#70e8b0','#f0c040','#e87070','#ff9040','#ffffff'];
-        const updateColorBtn = (color) => {
-            wiColorBtn.style.background = color;
-            wiColorBtn.style.boxShadow = `0 0 0 3px ${color}55`;
-        };
+        const updateColorBtn = (color) => { wiColorBtn.style.background = color; wiColorBtn.style.boxShadow = `0 0 0 3px ${color}55`; };
         const allSwatches = [];
+        const customInp = document.createElement('input'); customInp.type = 'color'; customInp.value = cfg.whisperColor || '#b070e8';
+        customInp.style.cssText = 'width:30px;height:24px;border-radius:6px;border:1px solid #5048a0;background:#1a1030;cursor:pointer;padding:1px;';
         presets.forEach(color => {
             const sw = document.createElement('button');
             sw.style.cssText = `width:24px;height:24px;border-radius:50%;background:${color};border:2.5px solid ${cfg.whisperColor===color?'#fff':'transparent'};cursor:pointer;flex-shrink:0;transition:border .15s;`;
-            sw.addEventListener('click', () => {
-                cfg.whisperColor = color; saveCfg(); updateColorBtn(color);
-                allSwatches.forEach(s => s.style.borderColor = 'transparent');
-                sw.style.borderColor = '#fff';
-                customInp.value = color;
-            });
+            sw.addEventListener('click', () => { cfg.whisperColor = color; saveCfg(); updateColorBtn(color); allSwatches.forEach(s => s.style.borderColor = 'transparent'); sw.style.borderColor = '#fff'; customInp.value = color; });
             allSwatches.push(sw); swatchRow.appendChild(sw);
         });
-        // Custom color input
-        const customInp = document.createElement('input'); customInp.type = 'color'; customInp.value = cfg.whisperColor || '#b070e8';
-        customInp.style.cssText = 'width:30px;height:24px;border-radius:6px;border:1px solid #5048a0;background:#1a1030;cursor:pointer;padding:1px;';
-        customInp.title = isZh() ? '自訂顏色' : 'Custom color';
-        customInp.addEventListener('input', () => {
-            cfg.whisperColor = customInp.value; saveCfg(); updateColorBtn(customInp.value);
-            allSwatches.forEach(s => s.style.borderColor = 'transparent');
-        });
-        swatchRow.appendChild(customInp);
-        wiColorPanel.appendChild(swatchRow);
-        wiColorLabelBtn.addEventListener('click', () => { wiColorBtn.click(); });
-        wiColorBtn.addEventListener('click', () => {
-            wiColorOpen = !wiColorOpen;
-            wiColorPanel.style.display = wiColorOpen ? 'block' : 'none';
-            wiColorBtn.style.borderColor = wiColorOpen ? '#d0a0ff' : '#6040a0';
-        });
+        customInp.addEventListener('input', () => { cfg.whisperColor = customInp.value; saveCfg(); updateColorBtn(customInp.value); allSwatches.forEach(s => s.style.borderColor = 'transparent'); });
+        swatchRow.appendChild(customInp); wiColorPanel.appendChild(swatchRow);
+        wiColorLabelBtn.addEventListener('click', () => wiColorBtn.click());
+        wiColorBtn.addEventListener('click', () => { wiColorOpen = !wiColorOpen; wiColorPanel.style.display = wiColorOpen ? 'block' : 'none'; wiColorBtn.style.borderColor = wiColorOpen ? '#d0a0ff' : '#6040a0'; });
         wiToggleRow.appendChild(wiTog); wiToggleRow.appendChild(wiInfo); wiToggleRow.appendChild(wiColorLabelBtn); wiToggleRow.appendChild(wiColorBtn);
         wiWrap.appendChild(wiToggleRow); wiWrap.appendChild(wiColorPanel);
         wrap.appendChild(wiWrap);
@@ -1662,20 +2201,15 @@
         divider();
 
         // ── 3b. Ghost Hide ───────────────────────────────────────────
-        wrap.appendChild(settingRow(T('ghostHideLabel'), T('ghostHideNote'), cfg.ghostHide, v => {
-            cfg.ghostHide = v; saveCfg(); applyGhostHide(v);
-        }));
+        wrap.appendChild(settingRow(T('ghostHideLabel'), T('ghostHideNote'), cfg.ghostHide, v => { cfg.ghostHide = v; saveCfg(); applyGhostHide(v); }));
         divider();
 
         // ── 4. Save mode ─────────────────────────────────────────────
         const smRow = document.createElement('div'); smRow.className = 'fcm-set-row'; smRow.style.alignItems = 'center';
         const smInfo = document.createElement('div'); smInfo.style.flex = '1'; smInfo.style.display = 'flex'; smInfo.style.alignItems = 'center'; smInfo.style.flexWrap = 'wrap'; smInfo.style.gap = '6px';
-        const smLbl = document.createElement('div'); smLbl.className = 'fcm-set-label'; smLbl.textContent = T('saveModeLabel');
-        smInfo.appendChild(smLbl);
+        const smLbl = document.createElement('div'); smLbl.className = 'fcm-set-label'; smLbl.textContent = T('saveModeLabel'); smInfo.appendChild(smLbl);
         const wceTag = document.createElement('span'); wceTag.style.display = 'none';
-        detectWCESave().then(wceOn => {
-            if (wceOn) { wceTag.className = 'fcm-wce-tag fcm-wce-tag-yes'; wceTag.textContent = isZh() ? '偵測到 WCE Profiles，啟用完整資料模式' : 'WCE Profiles detected'; wceTag.style.display = 'inline-block'; }
-        });
+        detectWCESave().then(wceOn => { if (wceOn) { wceTag.className = 'fcm-wce-tag fcm-wce-tag-yes'; wceTag.textContent = isZh() ? '偵測到 WCE Profiles' : 'WCE detected'; wceTag.style.display = 'inline-block'; } });
         smInfo.appendChild(wceTag);
         const smSel = document.createElement('select'); smSel.className = 'fcm-sel'; smSel.style.flexShrink = '0';
         [['off', T('saveModeOff')], ['name', T('saveModeName')], ['avatar', T('saveModeAvatar')], ['full', T('saveModeFull')]].forEach(([v, l]) => {
@@ -1689,7 +2223,7 @@
         wrap.appendChild(smRow); wrap.appendChild(smDesc);
         divider();
 
-        // ── 5. Export / Import / Browse ──────────────────────────────
+        // ── 5. Export / Import ────────────────────────────────────────
         const exportRow = document.createElement('div'); exportRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
         function mkActionBtn(label, note, cls, cb) {
             const b = document.createElement('button'); b.className = 'fcm-btn ' + cls; b.textContent = label; b.title = note;
@@ -1703,15 +2237,9 @@
         exportRow.appendChild(mkActionBtn(T('importProfiles'), T('importNote'), 'fcm-btn-green', () => {
             if (!PDB.db) return;
             const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json';
-            inp.onchange = async () => {
-                const f = inp.files[0]; if (!f) return;
-                const r = await importProfiles(f);
-                if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal(T('importDone', r.pc, r.nc), 5000);
-                renderCurrent();
-            };
+            inp.onchange = async () => { const f = inp.files[0]; if (!f) return; const r = await importProfiles(f); if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal(T('importDone', r.pc, r.nc), 5000); renderCurrent(); };
             inp.click();
         }));
-        exportRow.appendChild(mkActionBtn(T('profilesTitle'), T('profilesHint'), '', () => showProfilesPanel('')));
         wrap.appendChild(exportRow);
 
         container.appendChild(wrap);
@@ -1720,10 +2248,18 @@
     // ═══════════════════════════════════════════════════════════
     //  PANEL STATE
     // ═══════════════════════════════════════════════════════════
-    function openPanel() { if (!panelEl) buildPanel(); panelEl.classList.remove('hidden'); if (miniEl) miniEl.classList.remove('visible'); panelOpen = true; panelMini = false; ServerSend('AccountQuery', { Query: 'OnlineFriends' }); renderCurrent(); }
+    function openPanel() {
+        if (!panelEl) buildPanel();
+        panelEl.classList.remove('hidden');
+        if (miniEl) miniEl.classList.remove('visible');
+        panelOpen = true; panelMini = false;
+        ServerSend('AccountQuery', { Query: 'OnlineFriends' });
+        renderCurrent();
+    }
+
     function minimizePanel() { if (!panelEl) return; panelEl.classList.add('hidden'); if (miniEl) miniEl.classList.add('visible'); panelMini = true; }
     function restorePanel() { if (!panelEl) buildPanel(); panelEl.classList.remove('hidden'); if (miniEl) miniEl.classList.remove('visible'); panelMini = false; renderCurrent(); }
-    function closePanel() { if (panelEl) panelEl.classList.add('hidden'); if (miniEl) miniEl.classList.remove('visible'); panelOpen = false; panelMini = false; document.getElementById('fcm-beep-overlay')?.remove(); document.getElementById('fcm-confirm-overlay')?.remove(); }
+    function closePanel() { if (panelEl) panelEl.classList.add('hidden'); if (miniEl) miniEl.classList.remove('visible'); panelOpen = false; panelMini = false; _peopleQ = ''; _peoplePage = 0; document.getElementById('fcm-beep-overlay')?.remove(); document.getElementById('fcm-confirm-overlay')?.remove(); }
     function togglePanel() { if (panelOpen || panelMini) closePanel(); else openPanel(); }
 
     // ═══════════════════════════════════════════════════════════
@@ -1731,41 +2267,48 @@
     // ═══════════════════════════════════════════════════════════
     modApi.hookFunction('DrawProcess', 10, (args, next) => {
         next(args);
-        // FCM button
         if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
             DrawButton(BTN_X, BTN_Y, BTN_W, BTN_H, '🎛', (panelOpen || panelMini) ? 'Pink' : 'Gray', '', 'Friends & Room Manager');
         }
-        // Whisper indicator: check every 15 frames (~250ms)
         if (++_whisperDrawCount % 15 === 0) _applyWhisperStyle();
     });
     modApi.hookFunction('ChatRoomClick', 10, (args, next) => { if (MouseIn(BTN_X, BTN_Y, BTN_W, BTN_H)) { buildPanel(); togglePanel(); return; } next(args); });
     modApi.hookFunction('ChatRoomLeave', 0, (args, next) => { closePanel(); return next(args); });
 
+    // WPS: receive Hidden share messages
+    modApi.hookFunction('ChatRoomMessage', 0, (args, next) => {
+        const data = args[0];
+        if (data?.Type === 'Hidden' && data?.Content?.startsWith(WPS_PREFIX)) {
+            // Only handle if WPS is not already loaded (avoid double processing)
+            if (!window.LikoWPSInstance) { wpsHandleMessage(data); return; }
+        }
+        return next(args);
+    });
+
+    // Process open tokens in chat every 500ms (same as WPS)
+    setInterval(() => document.querySelectorAll('.ChatMessageLocalMessage').forEach(wpsProcessOpenTokens), 500);
+
     // ═══════════════════════════════════════════════════════════
-    //  INIT
+    //  GHOST HIDE
     // ═══════════════════════════════════════════════════════════
-    // Ghost hide via DrawCharacter hook (SDK 1.2.0 supports this, BCX-safe)
     modApi.hookFunction('DrawCharacter', 5, (args, next) => {
         try {
             const C = args[0];
-            if (cfg.ghostHide && C && typeof Player !== 'undefined' && Player
-                && C.MemberNumber !== Player.MemberNumber) {
+            if (cfg.ghostHide && C && typeof Player !== 'undefined' && Player && C.MemberNumber !== Player.MemberNumber) {
                 const gl = Player.GhostList;
-                if (Array.isArray(gl) && gl.includes(C.MemberNumber)) return; // skip draw
+                if (Array.isArray(gl) && gl.includes(C.MemberNumber)) return;
             }
         } catch {}
         return next(args);
     });
-    function applyGhostHide(enable) {
-        console.log('🐈‍⬛ [FCM] Ghost hide ' + (enable ? 'enabled' : 'disabled'));
-    }
 
-    // ─── Whisper Indicator (via DrawProcess hook, runs every ~15 frames) ──
+    // ═══════════════════════════════════════════════════════════
+    //  WHISPER INDICATOR
+    // ═══════════════════════════════════════════════════════════
     let _whisperDrawCount = 0;
     function _applyWhisperStyle() {
         try {
-            const el = document.getElementById('InputChat');
-            if (!el) return;
+            const el = document.getElementById('InputChat'); if (!el) return;
             const val = el.value || '';
             const isCmd = /^\/(w|whisper|beep)\s/i.test(val);
             const isTgt = typeof ChatRoomTargetMemberNumber !== 'undefined' && ChatRoomTargetMemberNumber > 0;
@@ -1775,48 +2318,38 @@
                 el.style.setProperty('border', `2px solid ${wc}`, 'important');
                 el.style.setProperty('outline', `1px solid ${wc}66`, 'important');
             } else {
-                el.style.removeProperty('box-shadow');
-                el.style.removeProperty('border');
-                el.style.removeProperty('outline');
+                el.style.removeProperty('box-shadow'); el.style.removeProperty('border'); el.style.removeProperty('outline');
             }
         } catch {}
     }
-    // startWhisperIndicator / stopWhisperIndicator kept for toggle UI compatibility
     function startWhisperIndicator() { _applyWhisperStyle(); }
-    function stopWhisperIndicator() {
-        try {
-            const el = document.getElementById('InputChat');
-            if (el) { el.style.removeProperty('box-shadow'); el.style.removeProperty('border'); el.style.removeProperty('outline'); }
-        } catch {}
-    }
+    function stopWhisperIndicator() { try { const el = document.getElementById('InputChat'); if (el) { el.style.removeProperty('box-shadow'); el.style.removeProperty('border'); el.style.removeProperty('outline'); } } catch {} }
 
+    // ═══════════════════════════════════════════════════════════
+    //  INIT
+    // ═══════════════════════════════════════════════════════════
     function init() {
-        loadCfg(); // Load config first so hooks (ghost hide, etc.) use correct settings
+        loadCfg();
         if (typeof ChatRoomCharacter === 'undefined' || typeof Player === 'undefined') return setTimeout(init, 500);
-        PDB.init().then(async ok => {
-            if (!ok) console.warn('🐈‍⬛ [FCM] Profile DB: no profiles store');
-            // Auto-detect WCE on first run (if saveMode was never explicitly set)
+        Promise.all([PDB.init(), Snapshot.init()]).then(async ([pdbOk]) => {
+            if (!pdbOk) console.warn('🐈‍⬛ [FCM] Profile DB: no profiles store');
             const stored = JSON.parse(localStorage.getItem('LikoFCM') || '{}');
             if (stored.saveMode === undefined) {
                 const wceOn = await detectWCESave();
-                if (wceOn) { cfg.saveMode = 'full'; saveCfg(); console.log('🐈‍⬛ [FCM] WCE detected → saveMode auto-set to full'); }
             }
         });
         buildPanel();
-        // /profiles command
         if (typeof CommandCombine === 'function') {
             CommandCombine([{
                 Tag: 'profiles',
-                Description: isZh() ? '<篩選> - 列出已儲存的 profiles（依名稱或 ID 篩選）' : '<filter> - List saved profiles (filter by name or ID)',
-                Action: arg => showProfilesPanel(arg ? arg.trim() : ''),
+                Description: isZh() ? '<篩選> - 開啟人員查詢（依名稱或 ID 篩選）' : '<filter> - Open People search (filter by name or ID)',
+                Action: arg => { _peopleQ = arg ? arg.trim() : ''; uiTab = 'people'; openPanel(); },
             }]);
         }
-        // Hook InformationSheet — priority 7 so we draw AFTER WCE (priority 6) and other mods
         modApi.hookFunction('InformationSheetRun', 7, (args, next) => {
             const r = next(args);
             const viewingSelf = (typeof InformationSheetSelection !== 'undefined') &&
-                (InformationSheetSelection === Player.MemberNumber ||
-                 InformationSheetSelection?.MemberNumber === Player.MemberNumber);
+                (InformationSheetSelection === Player.MemberNumber || InformationSheetSelection?.MemberNumber === Player.MemberNumber);
             if (viewingSelf && typeof DrawButton === 'function') {
                 DrawButton(1705, 420, 90, 90, '', (panelOpen && !panelMini) ? '#3a1858' : 'White', 'Icons/FriendList.png', 'FCM');
             }
@@ -1824,8 +2357,7 @@
         });
         modApi.hookFunction('InformationSheetClick', 7, (args, next) => {
             const viewingSelf = (typeof InformationSheetSelection !== 'undefined') &&
-                (InformationSheetSelection === Player.MemberNumber ||
-                 InformationSheetSelection?.MemberNumber === Player.MemberNumber);
+                (InformationSheetSelection === Player.MemberNumber || InformationSheetSelection?.MemberNumber === Player.MemberNumber);
             if (viewingSelf && typeof MouseIn === 'function' && MouseIn(1705, 420, 90, 90)) { openPanel(); return; }
             return next(args);
         });
