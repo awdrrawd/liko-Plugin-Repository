@@ -17,7 +17,7 @@
 
     const MOD_VER = '1.1.2';
     const modApi = bcModSdk.registerMod({
-        name: 'LikoFCM', fullName: 'Liko - Friends Room Manager', version: MOD_VER,
+        name: 'Liko - FCM', fullName: 'Liko - Friends Room Manager', version: MOD_VER,
     });
     const BTN_X = 955, BTN_Y = 455, BTN_W = 45, BTN_H = 45;
 
