@@ -1452,8 +1452,8 @@
             // 小螢幕：圖片在上，資訊在下
             el.style.display = 'flex'; el.style.flexDirection = 'column'; el.style.gap = '.5em';
             if (previewSrc) {
-                const img = hlEl('img', 'width:5em;height:5em;object-fit:contain;display:block;margin:0 auto;');
-                img.src = previewSrc; img.onerror = () => { img.style.display='none'; };
+                const img = hlEl('img', 'width:5em;height:5em;object-fit:contain;display:block;margin:0 auto;pointer-events:none;user-select:none;');
+                img.src = previewSrc; img.draggable = false; img.onerror = () => { img.style.display='none'; };
                 el.appendChild(img);
             }
             const info = hlEl('div', 'display:flex;flex-direction:column;gap:.1em;');
@@ -1474,8 +1474,8 @@
             const top = hlEl('div', 'display:flex;gap:1em;margin-bottom:.8em;align-items:flex-start;');
             const imgBox = hlEl('div', 'flex:0 0 40%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;overflow:hidden;');
             if (previewSrc) {
-                const img = hlEl('img', 'width:100%;height:100%;object-fit:contain;');
-                img.src = previewSrc; img.onerror = () => { img.style.display='none'; };
+                const img = hlEl('img', 'width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;');
+                img.src = previewSrc; img.draggable = false; img.onerror = () => { img.style.display='none'; };
                 imgBox.appendChild(img);
             }
             top.appendChild(imgBox);
@@ -1513,12 +1513,12 @@
             // ── 編輯模式（內嵌 textarea）
             const ta = document.createElement('textarea');
             ta.id = NOTE_TA_ID;
-            ta.maxLength = 200;
+            ta.maxLength = maxtest;
             ta.value = state.panel.noteDraft ?? cfg?.note ?? '';
             ta.style.cssText = `flex:1;min-height:8em;background:${CC.panel};color:${CC.text};border:1px solid ${CC.border};` +
                 `padding:.7em;font-size:.95em;resize:none;outline:none;line-height:1.6;border-radius:4px;font-family:inherit;`;
-            const counter = hlEl('div', `color:${CC.sub};font-size:.85em;`, `${ta.value.length} / 200`);
-            ta.oninput = () => { state.panel.noteDraft = ta.value; counter.textContent = `${ta.value.length} / 200`; };
+            const counter = hlEl('div', `color:${CC.sub};font-size:.85em;`, `${ta.value.length} / ${maxtest}`);
+            ta.oninput = () => { state.panel.noteDraft = ta.value; counter.textContent = `${ta.value.length} / ${maxtest}`; };
             const btnRow = hlEl('div', 'display:flex;gap:.6em;justify-content:flex-end;');
             const saveBtn = hlBtn('💾 Save', true, () => {
                 pushConfig(ch, gn, { note: ta.value.slice(0, 200) });
@@ -1659,8 +1659,8 @@
     function hlTabUnlock(el, ch, gn, cfg) {
         const canUnl = _canUnlockHeartLock(ch, cfg);
         el.style.display='flex'; el.style.flexDirection='column'; el.style.alignItems='center'; el.style.gap='.6em';
-        const img = hlEl('img', 'width:9em;height:9em;object-fit:contain;');
-        img.src = HEARTKEY_IMAGE; img.onerror = ()=>{ img.style.display='none'; };
+        const img = hlEl('img', 'width:9em;height:9em;object-fit:contain;pointer-events:none;user-select:none;');
+        img.src = HEARTKEY_IMAGE; img.draggable = false; img.onerror = ()=>{ img.style.display='none'; };
         el.appendChild(img);
         if (cfg) el.appendChild(hlEl('div',`color:${CC.text};font-size:.95em;text-align:center;user-select:none;`,
             `${T('unlockOwner')} ${cfg.ownerName??'?'} #${cfg.owner??'?'}`));
