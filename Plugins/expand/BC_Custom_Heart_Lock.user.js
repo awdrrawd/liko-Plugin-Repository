@@ -2,7 +2,7 @@
 // @name         BC Heart Lock Extension
 // @name:zh      BC 心形鎖拓展
 // @namespace    https://github.com/awdrrawd/
-// @version      2.5.0
+// @version      2.5.1
 // @description  Heart Padlock for Bondage Club with AFC lover integration
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -27,6 +27,7 @@
     const EXT_KEY          = 'HeartLock';
     const HEARTLOCK_IMAGE  = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/main/Images/Heart_Lock.png';
     const VIBE_INTERVAL_MS = 5000;
+    const maxtest          = 500; 
     const VIBE_MSG_CYCLE   = 12;   // 12 × 5s = 60 秒發一次震動訊息
 
     const PX = 1110; const PY  = 15;
@@ -71,7 +72,7 @@
             ownerOnlyEdit  : '只有鎖主可以編輯。',
             ownerOnlyTimer : '只有鎖主可以設置計時器。',
             ownerOnlyCtrl  : '只有鎖主可以更改設定。',
-            maxChars       : '最多 200 字',        editNote    : '✏ 編輯筆記',
+            maxChars       : '最多 500 字',        editNote    : '✏ 編輯筆記',
             setTimer       : '設置計時器',          clearTimer  : '清除計時器',
             settings       : '⚙ 設定',
             editingHint    : '編輯中 — 點擊修改，再儲存',
@@ -114,7 +115,7 @@
             ownerOnlyEdit  : 'Only the lock owner can edit.',
             ownerOnlyTimer : 'Only the lock owner can set the timer.',
             ownerOnlyCtrl  : 'Only the lock owner can change settings.',
-            maxChars       : 'max 200 chars',         editNote    : '✏ Edit Note',
+            maxChars       : 'max 500 chars',         editNote    : '✏ Edit Note',
             setTimer       : 'Set Timer',             clearTimer  : 'Clear Timer',
             settings       : '⚙ Settings',
             editingHint    : 'Editing — click to change, then Save',
@@ -156,7 +157,7 @@
             ownerOnlyEdit  : 'Nur der Schlossbesitzer kann bearbeiten.',
             ownerOnlyTimer : 'Nur der Schlossbesitzer kann den Timer setzen.',
             ownerOnlyCtrl  : 'Nur der Schlossbesitzer kann Einstellungen ändern.',
-            maxChars       : 'max. 200 Zeichen',  editNote    : '✏ bearbeiten',
+            maxChars       : 'max. 500 Zeichen',  editNote    : '✏ bearbeiten',
             setTimer       : 'Timer setzen',      clearTimer  : 'Timer löschen',
             settings       : '⚙ Einstellungen',
             editingHint    : 'Bearbeitung — klicken zum Ändern, dann Speichern',
@@ -196,7 +197,7 @@
             ownerOnlyEdit  : 'Seul le propriétaire peut modifier.',
             ownerOnlyTimer : 'Seul le propriétaire peut définir la minuterie.',
             ownerOnlyCtrl  : 'Seul le propriétaire peut modifier les paramètres.',
-            maxChars       : 'max. 200 caractères',  editNote   : '✏ Modifier',
+            maxChars       : 'max. 500 caractères',  editNote   : '✏ Modifier',
             setTimer       : 'Définir minuterie',    clearTimer : 'Effacer minuterie',
             settings       : '⚙ Paramètres',
             editingHint    : 'Édition — cliquer pour modifier, puis Sauvegarder',
@@ -236,7 +237,7 @@
             ownerOnlyEdit  : 'Только владелец замка может редактировать.',
             ownerOnlyTimer : 'Только владелец замка может задать таймер.',
             ownerOnlyCtrl  : 'Только владелец замка может изменять настройки.',
-            maxChars       : 'макс. 200 символов',  editNote    : '✏ Редактировать',
+            maxChars       : 'макс. 500 символов',  editNote    : '✏ Редактировать',
             setTimer       : 'Задать таймер',       clearTimer  : 'Сбросить таймер',
             settings       : '⚙ Настройки',
             editingHint    : 'Редактирование — нажмите для изменения, затем Сохранить',
@@ -277,7 +278,7 @@
             ownerOnlyEdit  : 'Лише власник замка може редагувати.',
             ownerOnlyTimer : 'Лише власник замка може встановити таймер.',
             ownerOnlyCtrl  : 'Лише власник замка може змінювати налаштування.',
-            maxChars       : 'макс. 200 символів',  editNote    : '✏ Редагувати',
+            maxChars       : 'макс. 500 символів',  editNote    : '✏ Редагувати',
             setTimer       : 'Встановити таймер',   clearTimer  : 'Очистити таймер',
             settings       : '⚙ Налаштування',
             editingHint    : 'Редагування — натисніть для зміни, потім Зберегти',
@@ -1217,7 +1218,7 @@
         const el = document.getElementById(NOTE_TA_ID);
         if (el) {
             el.style.display = '';
-            el.maxLength = 200;
+            el.maxLength = maxtest;
             if (restoreText !== undefined) el.value = restoreText;
         }
         ElementPositionFixed(NOTE_TA_ID, CX, NOTE_BOX_Y, CW, NOTE_BOX_H);
