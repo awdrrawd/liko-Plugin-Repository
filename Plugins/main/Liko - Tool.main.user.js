@@ -1235,5 +1235,3 @@
     .catch(error => { console.error("🐈‍⬛ [LT] ❌ 初始化失敗:", error); });
 
 })();
-
-} // end of __LikoToolLoaded__ guard
