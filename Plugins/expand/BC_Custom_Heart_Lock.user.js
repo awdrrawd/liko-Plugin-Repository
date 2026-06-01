@@ -1502,7 +1502,7 @@
         el.appendChild(hlEl('div',`background:${CC.panel};color:${CC.acc};text-align:center;padding:.35em;font-weight:bold;border-radius:4px 4px 0 0;border:1px solid ${CC.border};border-bottom:none;user-select:none;`,T('noteHeader')));
         const noteBox = hlEl('div',
                              `background:${CC.panel};border:1px solid ${CC.border};border-radius:0 0 4px 4px;` +
-                             `padding:.6em .8em;min-height:5em;max-height:38%;overflow-y:auto;font-size:.9em;` +
+                             `padding:.6em .8em;min-height:5em;max-height:50%;overflow-y:auto;font-size:.9em;` +
                              `color:${cfg?.note?CC.text:CC.dim};white-space:pre-wrap;word-break:break-all;line-height:1.5;user-select:text;-webkit-user-select:text;`);
         renderNoteWithImages(cfg?.note||'', noteBox);
         el.appendChild(noteBox);
