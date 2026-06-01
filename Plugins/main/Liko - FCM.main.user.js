@@ -2222,7 +2222,7 @@
                 if (isCurrent) {
                     const hereBadge = document.createElement('span');
                     hereBadge.style.cssText = 'font-size:11px;background:#3a0828;border:1px solid #e060a0;color:#ff90c0;border-radius:6px;padding:2px 7px;flex-shrink:0;font-weight:700;';
-                    hereBadge.textContent = isZh() ? '🏠 你在這裡' : '🏠 You\'re here';
+                    hereBadge.textContent = isZh() ? '🏠 你' : '🏠 You';
                     line1.appendChild(hereBadge);
                 }
                 if (cStr) { const cnt = document.createElement('span'); cnt.style.cssText = 'color:#9878b8;font-size:12px;flex-shrink:0;'; cnt.textContent = cStr; line1.appendChild(cnt); }
