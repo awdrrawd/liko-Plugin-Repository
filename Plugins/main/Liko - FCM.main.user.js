@@ -154,8 +154,8 @@
             // v1.3.4 new
             whisperAvatarLabel: '私聊時顯示對象頭像',
             whisperAvatarNote: '進入悄悄話/BEEP 模式時，在輸入框旁顯示對象的頭像',
-            oocProtectLabel: 'OOC 保護（悄悄話時停用 Shift+Enter）',
-            oocProtectNote: '悄悄話/BEEP 模式下，封鎖 Shift+Enter 以防止 OOC 內容作為普通對話發出',
+            oocProtectLabel: 'OOC 保護（悄悄話時停用 Ctrl+Enter）',
+            oocProtectNote: '悄悄話/BEEP 模式下，封鎖 Ctrl+Enter 以防止 OOC 內容作為普通對話發出',
             btnVisibilityLabel: '按鈕顯示設定',
             btnVisibilityNote: '控制 FCM 按鈕在各頁面的顯示狀態（至少須保留一個）',
             btnShowChatRoom: '聊天室按鈕',
@@ -248,8 +248,8 @@
             // v1.3.4 new
             whisperAvatarLabel: 'Show target avatar during whisper',
             whisperAvatarNote: 'Displays the target\'s avatar near the chat input when in whisper/BEEP mode',
-            oocProtectLabel: 'OOC Protection (block Shift+Enter during whisper)',
-            oocProtectNote: 'In whisper/BEEP mode, blocks Shift+Enter to prevent OOC content from being sent as normal chat',
+            oocProtectLabel: 'OOC Protection (block Ctrl+Enter during whisper)',
+            oocProtectNote: 'In whisper/BEEP mode, blocks Ctrl+Enter to prevent OOC content from being sent as normal chat',
             btnVisibilityLabel: 'Button Visibility',
             btnVisibilityNote: 'Control which screens show the FCM button (at least one must remain enabled)',
             btnShowChatRoom: 'ChatRoom button',
@@ -1580,7 +1580,7 @@
 
     const _oocKeyHandler = (e) => {
         if (!cfg.oocProtect) return;
-        if (e.key === 'Enter' && e.shiftKey) {
+        if (e.key === 'Enter' && e.ctrlKey) {
             if (_isWhisperMode()) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
