@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.2.7
+// @version      1.3.0
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,9 +13,14 @@
 
 (function() {
     'use strict';
+    if (window.__LikoMATLoaded__) {
+        console.warn('🐈‍⬛ [MAT] ⚠️ 已偵測到重複加載，跳過初始化');
+        return;
+    }
+    window.__LikoMATLoaded__ = true;
 
     let modApi;
-    let myversion = "1.2.7";
+    let myversion = "1.3.0";
     let observer = null;
 
     let config = {
@@ -494,8 +499,14 @@ Settings storage: ExtensionSettings ✅
 
     async function smartTranslate(text, targetLang) {
         if (!config.enabled || !text) return null;
-        if (text.includes('BCX_') || text.match(/^[\d\s:]+$/) ||
-            text.includes(TRANSLATE_MARKER) || text.includes('[🌐]')) return null;
+        if (
+            text.includes('BCX_') ||
+            text.match(/^[\d\s:]+$/) ||
+            text.includes(TRANSLATE_MARKER) ||
+            text.includes('[🌐]') ||
+            text.includes('🔊') ||
+            text.includes('📞')
+        ) return null;
         if (isPureUrl(text)) return null;
         try {
             const { translated, error } = await translateQueue.add(text, targetLang);
