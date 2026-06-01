@@ -13,9 +13,6 @@
 // @run-at       document-end
 // ==/UserScript==
 
-// ── 防重複加載 guard ──────────────────────────────────────────────────────────
-
-
 (function () {
     if (window.__LikoToolLoaded__) {
         console.warn("🐈‍⬛ [LT] ⚠️ 已偵測到重複加載，跳過初始化");
