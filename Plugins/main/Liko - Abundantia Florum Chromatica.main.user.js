@@ -2,7 +2,7 @@
 // @name         Abundantia Florum ─Chromatica─
 // @name:zh      繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6.0
+// @version      0.6.1
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -22,12 +22,17 @@
 
 (function () {
     'use strict';
-
+    if (window.__LikoAFCLoaded__) {
+        console.warn('🐈‍⬛ [AFC] ⚠️ 已偵測到重複加載，跳過初始化');
+        return;
+    }
+    window.__LikoAFCLoaded__ = true;
+    
     // ============================================================
     // 常數
     // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.6.0";
+    const MOD_VERSION  = "0.6.1";
     const EL_BEEP_TYPE = "AFC::Beep";
 
     // ── 全域根節點（其他插件可透過 window.AFC.api 整合）──────────
