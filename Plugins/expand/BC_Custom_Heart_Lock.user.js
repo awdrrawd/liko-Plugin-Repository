@@ -2,7 +2,7 @@
 // @name         BC Heart Lock Extension
 // @name:zh      BC 心形鎖拓展
 // @namespace    https://github.com/awdrrawd/
-// @version      2.5.1
+// @version      2.5.2
 // @description  Heart Padlock for Bondage Club with AFC lover integration
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -13,8 +13,6 @@
 
 (function () {
     'use strict';
-
-    // ── 防止重複執行（油猴裝了獨立版 + EL 又動態載入時只執行一次）──
     if (window._AFC_HeartLockLoaded) {
         console.log("🐈‍⬛ [HeartLock] 已載入，跳過重複執行");
         return;
@@ -24,11 +22,13 @@
     const HEARTLOCK_NAME   = 'Heart Padlock';
     const HSLOCK_NAME      = 'HighSecurityPadlock';
     const MOD_NAME         = 'HeartLockBC';
+    const MOD_VERSION      = '2.5.2';
     const EXT_KEY          = 'HeartLock';
+    const HEARTKEY_IMAGE   = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/main/Images/Heart_key.png';
     const HEARTLOCK_IMAGE  = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/main/Images/Heart_Lock.png';
     const VIBE_INTERVAL_MS = 5000;
-    const maxtest          = 500; 
-    const VIBE_MSG_CYCLE   = 12;   // 12 × 5s = 60 秒發一次震動訊息
+    const MAX_TEXT         = 500; //note最大字數
+    const VIBE_MSG_CYCLE   = 12;  // 12 × 5s = 60 秒發一次震動訊息
 
     const PX = 1110; const PY  = 15;
     const PW = 870;  const PH  = 950;
@@ -72,7 +72,7 @@
             ownerOnlyEdit  : '只有鎖主可以編輯。',
             ownerOnlyTimer : '只有鎖主可以設置計時器。',
             ownerOnlyCtrl  : '只有鎖主可以更改設定。',
-            maxChars       : '最多 500 字',        editNote    : '✏ 編輯筆記',
+            maxChars       : `最多 ${MAX_TEXT} 字`,        editNote    : '✏ 編輯筆記',
             setTimer       : '設置計時器',          clearTimer  : '清除計時器',
             settings       : '⚙ 設定',
             editingHint    : '編輯中 — 點擊修改，再儲存',
@@ -115,7 +115,7 @@
             ownerOnlyEdit  : 'Only the lock owner can edit.',
             ownerOnlyTimer : 'Only the lock owner can set the timer.',
             ownerOnlyCtrl  : 'Only the lock owner can change settings.',
-            maxChars       : 'max 500 chars',         editNote    : '✏ Edit Note',
+            maxChars       : `max ${MAX_TEXT} chars`,         editNote    : '✏ Edit Note',
             setTimer       : 'Set Timer',             clearTimer  : 'Clear Timer',
             settings       : '⚙ Settings',
             editingHint    : 'Editing — click to change, then Save',
@@ -157,7 +157,7 @@
             ownerOnlyEdit  : 'Nur der Schlossbesitzer kann bearbeiten.',
             ownerOnlyTimer : 'Nur der Schlossbesitzer kann den Timer setzen.',
             ownerOnlyCtrl  : 'Nur der Schlossbesitzer kann Einstellungen ändern.',
-            maxChars       : 'max. 500 Zeichen',  editNote    : '✏ bearbeiten',
+            maxChars       : `max ${MAX_TEXT} Zeichen`,  editNote    : '✏ bearbeiten',
             setTimer       : 'Timer setzen',      clearTimer  : 'Timer löschen',
             settings       : '⚙ Einstellungen',
             editingHint    : 'Bearbeitung — klicken zum Ändern, dann Speichern',
@@ -197,7 +197,7 @@
             ownerOnlyEdit  : 'Seul le propriétaire peut modifier.',
             ownerOnlyTimer : 'Seul le propriétaire peut définir la minuterie.',
             ownerOnlyCtrl  : 'Seul le propriétaire peut modifier les paramètres.',
-            maxChars       : 'max. 500 caractères',  editNote   : '✏ Modifier',
+            maxChars       : `max ${MAX_TEXT} caractères`,  editNote   : '✏ Modifier',
             setTimer       : 'Définir minuterie',    clearTimer : 'Effacer minuterie',
             settings       : '⚙ Paramètres',
             editingHint    : 'Édition — cliquer pour modifier, puis Sauvegarder',
@@ -237,7 +237,7 @@
             ownerOnlyEdit  : 'Только владелец замка может редактировать.',
             ownerOnlyTimer : 'Только владелец замка может задать таймер.',
             ownerOnlyCtrl  : 'Только владелец замка может изменять настройки.',
-            maxChars       : 'макс. 500 символов',  editNote    : '✏ Редактировать',
+            maxChars       : `макс ${MAX_TEXT} символов`,  editNote    : '✏ Редактировать',
             setTimer       : 'Задать таймер',       clearTimer  : 'Сбросить таймер',
             settings       : '⚙ Настройки',
             editingHint    : 'Редактирование — нажмите для изменения, затем Сохранить',
@@ -278,7 +278,7 @@
             ownerOnlyEdit  : 'Лише власник замка може редагувати.',
             ownerOnlyTimer : 'Лише власник замка може встановити таймер.',
             ownerOnlyCtrl  : 'Лише власник замка може змінювати налаштування.',
-            maxChars       : 'макс. 500 символів',  editNote    : '✏ Редагувати',
+            maxChars       : `макс ${MAX_TEXT} символів`,  editNote    : '✏ Редагувати',
             setTimer       : 'Встановити таймер',   clearTimer  : 'Очистити таймер',
             settings       : '⚙ Налаштування',
             editingHint    : 'Редагування — натисніть для зміни, потім Зберегти',
@@ -953,7 +953,7 @@
         try {
             state.modApi = window.bcModSdk.registerMod({
                 name: MOD_NAME, fullName: 'Heart Lock BC',
-                version: '2.1.1', repository: 'https://github.com/awdrrawd/liko-Plugin-Repository',
+                version: MOD_VERSION, repository: 'https://github.com/awdrrawd/liko-Plugin-Repository',
             });
             return state.modApi;
         } catch (e) {
@@ -1171,7 +1171,7 @@
             try {
                 const item = InventoryGet?.(Player, gn);
                 const isHearLock = item?.Property?.Name === HEARTLOCK_NAME
-                    || (item?.Property?.LockedBy === HSLOCK_NAME && item?.Property?.HeartLockId);
+                || (item?.Property?.LockedBy === HSLOCK_NAME && item?.Property?.HeartLockId);
                 if (item && isHearLock) {
                     // 若要移除拘束，只移除本次心鎖對應的物品（gn），
                     // 不掃描全身，避免誤觸其他戀人的心鎖物品
@@ -1218,7 +1218,7 @@
         const el = document.getElementById(NOTE_TA_ID);
         if (el) {
             el.style.display = '';
-            el.maxLength = maxtest;
+            el.maxLength = MAX_TEXT;
             if (restoreText !== undefined) el.value = restoreText;
         }
         ElementPositionFixed(NOTE_TA_ID, CX, NOTE_BOX_Y, CW, NOTE_BOX_H);
@@ -1255,7 +1255,6 @@
     //  玩家進出房間不會中斷檢查狀態。
     // ═══════════════════════════════════════════
 
-    const HEARTKEY_IMAGE = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/main/Images/Heart_key.png';
     function _canUnlockHeartLock(ch, cfg) { return isAllowedToUnlock(ch, cfg); }
 
     const HL_PANEL_ID = 'HeartLockDOMPanel';
@@ -1290,21 +1289,26 @@
         return el;
     }
     function hlBtn(label, primary, onClick, extra = '') {
+        const bg  = primary ? '#C2185B' : '#2a0020';
         const btn = hlEl('button',
-            `background:${primary ? CC.btnA : CC.btn};color:${CC.text};border:1px solid ${CC.border};` +
-            `padding:.35em .9em;cursor:pointer;font-size:inherit;border-radius:3px;user-select:none;${extra}`, label);
+                         `background:${bg};color:#fff;border:1px solid #C2185B;padding:8px 18px;` +
+                         `cursor:pointer;font-size:14px;border-radius:3px;${extra}`, label);
         if (onClick) btn.onclick = onClick;
         return btn;
     }
-    function hlRow(lbl, val, valColor) {
+    function hlRow(label, value, color = '#fff') {
         const row = hlEl('div',
-            `display:flex;justify-content:space-between;align-items:baseline;` +
-            `padding:.22em 0;border-bottom:1px solid ${CC.btn};user-select:none;`);
-        row.appendChild(hlEl('span', `color:${CC.sub};flex-shrink:0;padding-right:.5em;`, lbl));
-        row.appendChild(hlEl('span', `color:${valColor || CC.text};text-align:right;font-weight:bold;`, val));
+                         'display:flex;justify-content:space-between;align-items:center;' +
+                         'padding:7px 0;border-bottom:1px solid #2a0020;font-size:14px;');
+        row.appendChild(hlEl('span', 'color:#888;flex-shrink:0;', label));
+        const v = hlEl('span', `color:${color};text-align:right;`, value);
+        row.appendChild(v);
         return row;
     }
-
+    function hlSection(title) {
+        const s = hlEl('div', 'margin:10px 0 4px;color:#FF69B4;font-size:13px;font-weight:bold;', title);
+        return s;
+    }
     // ── 面板開關 ──────────────────────────────
     function openHLPanel(ch, gn) {
         removeHLPanel();
@@ -1320,21 +1324,21 @@
         const r  = c?.getBoundingClientRect() ?? { left:0, top:0, width:window.innerWidth, height:window.innerHeight };
 
         const panel = hlEl('div',
-            `position:fixed;background:${CC.bg};border:2px solid ${CC.border};` +
-            `box-sizing:border-box;display:flex;flex-direction:column;z-index:9999;` +
-            `font-family:"Arial","Microsoft JhengHei","微軟正黑體",sans-serif;color:${CC.text};overflow:hidden;` +
-            `user-select:none;-webkit-user-select:none;`);
+                           `position:fixed;background:${CC.bg};border:2px solid ${CC.border};` +
+                           `box-sizing:border-box;display:flex;flex-direction:column;z-index:9999;` +
+                           `font-family:"Arial","Microsoft JhengHei","微軟正黑體",sans-serif;color:${CC.text};overflow:hidden;` +
+                           `user-select:none;-webkit-user-select:none;`);
         panel.id = HL_PANEL_ID;
 
         // 面板頭：隱形佔位（左）+ 置中標題 + 關閉按鈕（右）
         const header = hlEl('div',
-            `background:${CC.tOff};border-bottom:2px solid ${CC.border};flex-shrink:0;` +
-            `display:grid;grid-template-columns:2em 1fr 2em;align-items:center;padding:.25em .6em;user-select:none;`);
+                            `background:${CC.tOff};border-bottom:2px solid ${CC.border};flex-shrink:0;` +
+                            `display:grid;grid-template-columns:2em 1fr 2em;align-items:center;padding:.25em .6em;user-select:none;`);
         const titleDiv = hlEl('div',
-            `color:${CC.acc};font-weight:bold;font-size:1em;text-align:center;user-select:none;`,
-            '♥ Heart Padlock ♥');
+                              `color:${CC.acc};font-weight:bold;font-size:1em;text-align:center;user-select:none;`,
+                              '♥ Heart Padlock ♥');
         const closeBtn = hlEl('button',
-            `background:none;border:none;color:${CC.sub};cursor:pointer;font-size:1.2em;padding:0;user-select:none;justify-self:end;`, '✕');
+                              `background:none;border:none;color:${CC.sub};cursor:pointer;font-size:1.2em;padding:0;user-select:none;justify-self:end;`, '✕');
         closeBtn.onclick = () => { removeHLPanel(); DialogFocusItem = null; };
         header.appendChild(hlEl('span','')); // 左佔位
         header.appendChild(titleDiv);
@@ -1427,8 +1431,8 @@
             const aLink = hlEl('a', `color:${CC.acc};word-break:break-all;`, url);
             aLink.href = url; aLink.target = '_blank';
             const embedBtn = hlEl('button',
-                `background:none;border:1px solid ${CC.border};color:${CC.acc};cursor:pointer;font-size:.85em;padding:.1em .4em;margin-left:.3em;border-radius:3px;`,
-                '(載入圖片)');
+                                  `background:none;border:1px solid ${CC.border};color:${CC.acc};cursor:pointer;font-size:.85em;padding:.1em .4em;margin-left:.3em;border-radius:3px;`,
+                                  '(載入圖片)');
             embedBtn.onclick = () => {
                 const img = document.createElement('img');
                 img.src = url; img.style.cssText = 'max-width:100%;display:block;margin:.4em 0;border-radius:4px;';
@@ -1497,9 +1501,9 @@
         // 筆記預覽（不可選取標題，可選取內容）
         el.appendChild(hlEl('div',`background:${CC.panel};color:${CC.acc};text-align:center;padding:.35em;font-weight:bold;border-radius:4px 4px 0 0;border:1px solid ${CC.border};border-bottom:none;user-select:none;`,T('noteHeader')));
         const noteBox = hlEl('div',
-            `background:${CC.panel};border:1px solid ${CC.border};border-radius:0 0 4px 4px;` +
-            `padding:.6em .8em;min-height:5em;max-height:38%;overflow-y:auto;font-size:.9em;` +
-            `color:${cfg?.note?CC.text:CC.dim};white-space:pre-wrap;word-break:break-all;line-height:1.5;user-select:text;-webkit-user-select:text;`);
+                             `background:${CC.panel};border:1px solid ${CC.border};border-radius:0 0 4px 4px;` +
+                             `padding:.6em .8em;min-height:5em;max-height:38%;overflow-y:auto;font-size:.9em;` +
+                             `color:${cfg?.note?CC.text:CC.dim};white-space:pre-wrap;word-break:break-all;line-height:1.5;user-select:text;-webkit-user-select:text;`);
         renderNoteWithImages(cfg?.note||'', noteBox);
         el.appendChild(noteBox);
     }
@@ -1513,15 +1517,15 @@
             // ── 編輯模式（內嵌 textarea）
             const ta = document.createElement('textarea');
             ta.id = NOTE_TA_ID;
-            ta.maxLength = maxtest;
+            ta.maxLength = MAX_TEXT;
             ta.value = state.panel.noteDraft ?? cfg?.note ?? '';
             ta.style.cssText = `flex:1;min-height:8em;background:${CC.panel};color:${CC.text};border:1px solid ${CC.border};` +
                 `padding:.7em;font-size:.95em;resize:none;outline:none;line-height:1.6;border-radius:4px;font-family:inherit;`;
-            const counter = hlEl('div', `color:${CC.sub};font-size:.85em;`, `${ta.value.length} / ${maxtest}`);
-            ta.oninput = () => { state.panel.noteDraft = ta.value; counter.textContent = `${ta.value.length} / ${maxtest}`; };
+            const counter = hlEl('div', `color:${CC.sub};font-size:.85em;`, `${ta.value.length} / ${MAX_TEXT}`);
+            ta.oninput = () => { state.panel.noteDraft = ta.value; counter.textContent = `${ta.value.length} / ${MAX_TEXT}`; };
             const btnRow = hlEl('div', 'display:flex;gap:.6em;justify-content:flex-end;');
             const saveBtn = hlBtn('💾 Save', true, () => {
-                pushConfig(ch, gn, { note: ta.value.slice(0, 200) });
+                pushConfig(ch, gn, { note: ta.value.slice(0, MAX_TEXT) });
                 sendSettingsChange(ch, gn);
                 state.panel.noteDraft = null;
                 state.panel.noteEditing = false;
@@ -1538,9 +1542,9 @@
         } else {
             // ── 閱覽模式
             const noteBox = hlEl('div',
-                `background:${CC.panel};border:1px solid ${CC.border};border-radius:4px;` +
-                `padding:.7em 1em;flex:1;min-height:6em;overflow-y:auto;font-size:.95em;` +
-                `color:${cfg?.note?CC.text:CC.dim};white-space:pre-wrap;word-break:break-all;line-height:1.6;user-select:text;`);
+                                 `background:${CC.panel};border:1px solid ${CC.border};border-radius:4px;` +
+                                 `padding:.7em 1em;flex:1;min-height:6em;overflow-y:auto;font-size:.95em;` +
+                                 `color:${cfg?.note?CC.text:CC.dim};white-space:pre-wrap;word-break:break-all;line-height:1.6;user-select:text;`);
             renderNoteWithImages(cfg?.note||'', noteBox);
             el.appendChild(noteBox);
             if (editable) {
@@ -1626,7 +1630,7 @@
 
         // ④ 清除計時器（置中，最下方）
         el.appendChild(hlBtn(T('clearTimer'), false, ()=>{ pushConfig(ch,gn,{unlockTime:null}); sendSettingsChange(ch,gn); timerDelta=0; deltaEl.textContent=''; refresh(); },
-            `background:${CC.danger};display:block;margin:0 auto;padding:.45em 1.5em;font-size:1em;`));
+                             `background:${CC.danger};display:block;margin:0 auto;padding:.45em 1.5em;font-size:1em;`));
     }
 
     // ── Tab: 控制 ─────────────────────────────────
@@ -1663,7 +1667,7 @@
         img.src = HEARTKEY_IMAGE; img.draggable = false; img.onerror = ()=>{ img.style.display='none'; };
         el.appendChild(img);
         if (cfg) el.appendChild(hlEl('div',`color:${CC.text};font-size:.95em;text-align:center;user-select:none;`,
-            `${T('unlockOwner')} ${cfg.ownerName??'?'} #${cfg.owner??'?'}`));
+                                     `${T('unlockOwner')} ${cfg.ownerName??'?'} #${cfg.owner??'?'}`));
         el.appendChild(hlEl('p', `color:#FF9999;text-align:center;font-size:1em;user-select:none;`, T('unlockWarn1')));
         el.appendChild(hlEl('p', `color:${CC.sub};text-align:center;font-size:.9em;user-select:none;`, T('unlockWarn2')));
         if (!canUnl) { el.appendChild(hlEl('p',`color:${CC.dim};text-align:center;font-size:.95em;margin-top:.5em;user-select:none;`,T('unlockNoRight'))); return; }
@@ -1699,43 +1703,6 @@
     }
     function panelDraw()  {}
     function panelClick() {}
-
-
-
-
-    // ── 小工具 ────────────────────────────────
-    function hlEl(tag, css, ...children) {
-        const el = document.createElement(tag);
-        if (css) el.style.cssText = css;
-        for (const c of children) {
-            if (c == null) continue;
-            el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
-        }
-        return el;
-    }
-    function hlBtn(label, primary, onClick, extra = '') {
-        const bg  = primary ? '#C2185B' : '#2a0020';
-        const btn = hlEl('button',
-            `background:${bg};color:#fff;border:1px solid #C2185B;padding:8px 18px;` +
-            `cursor:pointer;font-size:14px;border-radius:3px;${extra}`, label);
-        if (onClick) btn.onclick = onClick;
-        return btn;
-    }
-    function hlRow(label, value, color = '#fff') {
-        const row = hlEl('div',
-            'display:flex;justify-content:space-between;align-items:center;' +
-            'padding:7px 0;border-bottom:1px solid #2a0020;font-size:14px;');
-        row.appendChild(hlEl('span', 'color:#888;flex-shrink:0;', label));
-        const v = hlEl('span', `color:${color};text-align:right;`, value);
-        row.appendChild(v);
-        return row;
-    }
-    function hlSection(title) {
-        const s = hlEl('div', 'margin:10px 0 4px;color:#FF69B4;font-size:13px;font-weight:bold;', title);
-        return s;
-    }
-
-
 
     // ═══════════════════════════════════════════
     //  Hooks（兩處 isLover 改為 isAllowedToLock）
@@ -1951,8 +1918,8 @@
             }
             const C = args[0], itemOrGrp = args[1];
             const item = (itemOrGrp && typeof itemOrGrp === 'object')
-                ? itemOrGrp
-                : InventoryGet?.(C, typeof itemOrGrp === 'string' ? itemOrGrp : null);
+            ? itemOrGrp
+            : InventoryGet?.(C, typeof itemOrGrp === 'string' ? itemOrGrp : null);
             if (item?.Property?.Name !== HEARTLOCK_NAME) {
                 state._unlocking = true; const r = next(args); state._unlocking = false; return r;
             }
@@ -1966,21 +1933,21 @@
             return r;
         });
 
-    /** 清除解鎖後殘留的自訂 Property 欄位（Name / HeartLockId） */
-    function _cleanHeartLockProperty(C, itemOrGrp) {
-        try {
-            const item = (itemOrGrp && typeof itemOrGrp === 'object')
+        /** 清除解鎖後殘留的自訂 Property 欄位（Name / HeartLockId） */
+        function _cleanHeartLockProperty(C, itemOrGrp) {
+            try {
+                const item = (itemOrGrp && typeof itemOrGrp === 'object')
                 ? itemOrGrp
                 : InventoryGet?.(C, typeof itemOrGrp === 'string' ? itemOrGrp : null);
-            if (!item?.Property) return;
-            if (item.Property.Name === HEARTLOCK_NAME) delete item.Property.Name;
-            if (item.Property.HeartLockId !== undefined) delete item.Property.HeartLockId;
-            // 若 Property 已空只剩 Effect:[]，清理讓外觀完全復原
-            const keys = Object.keys(item.Property);
-            if (keys.length === 1 && keys[0] === 'Effect' && item.Property.Effect?.length === 0)
-                item.Property = undefined;
-        } catch {}
-    }
+                if (!item?.Property) return;
+                if (item.Property.Name === HEARTLOCK_NAME) delete item.Property.Name;
+                if (item.Property.HeartLockId !== undefined) delete item.Property.HeartLockId;
+                // 若 Property 已空只剩 Effect:[]，清理讓外觀完全復原
+                const keys = Object.keys(item.Property);
+                if (keys.length === 1 && keys[0] === 'Effect' && item.Property.Effect?.length === 0)
+                    item.Property = undefined;
+            } catch {}
+        }
 
         // ── ChatRoomSyncItem ──────────────────────────────────────────
         modApi.hookFunction('ChatRoomSyncItem', 0, (args, next) => {
@@ -2021,9 +1988,9 @@
                     if (sourceMember != null && Number(sourceMember) === Player.MemberNumber && Number(cfg.owner) === Player.MemberNumber) { deleteConfig(gn); continue; }
                     if (sourceMember != null) {
                         const isELUnlocker = Player.OnlineSharedSettings?.AFC?.lovers
-                            ?.some(l => Number(l.memberNumber) === Number(sourceMember)) ?? false;
+                        ?.some(l => Number(l.memberNumber) === Number(sourceMember)) ?? false;
                         const isBCUnlocker = Player.Lovership
-                            ?.some(l => Number(l.MemberNumber) === Number(sourceMember)) ?? false;
+                        ?.some(l => Number(l.MemberNumber) === Number(sourceMember)) ?? false;
                         if (isELUnlocker || isBCUnlocker) { deleteConfig(gn); continue; }
                     }
                     grabStateChar.count++;
@@ -2073,9 +2040,9 @@
                     // 授權解鎖者（EL 戀人 / BC 戀人）
                     if (sourceMember != null) {
                         const isELUnlocker = Player.OnlineSharedSettings?.AFC?.lovers
-                            ?.some(l => Number(l.memberNumber) === Number(sourceMember)) ?? false;
+                        ?.some(l => Number(l.memberNumber) === Number(sourceMember)) ?? false;
                         const isBCUnlocker = Player.Lovership
-                            ?.some(l => Number(l.MemberNumber) === Number(sourceMember)) ?? false;
+                        ?.some(l => Number(l.MemberNumber) === Number(sourceMember)) ?? false;
                         if (isELUnlocker || isBCUnlocker) { deleteConfig(gn); continue; }
                     }
                     grabStateSingle.count++;
@@ -2141,10 +2108,10 @@
 
         // Phase 2：等玩家登入 + 遊戲資源就緒
         const gameReady = await waitFor(() =>
-            !!window.Player?.AccountName &&
-            !!window.AssetFemale3DCG &&
-            !!AssetGroupGet?.('Female3DCG', 'ItemMisc')
-        );
+                                        !!window.Player?.AccountName &&
+                                        !!window.AssetFemale3DCG &&
+                                        !!AssetGroupGet?.('Female3DCG', 'ItemMisc')
+                                       );
 
         createHeartLockAsset();
         patchFunctions(modApi);
@@ -2156,7 +2123,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log('HeartLock v2.5.0 initialized.');
+        log(`🐈‍⬛ [HeartLock] v${MOD_VERSION} initialized.`);
     }
 
     initialize().catch(e => console.error('🐈‍⬛ [HeartLock] init error', e));
