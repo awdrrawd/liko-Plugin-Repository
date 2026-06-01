@@ -1,16 +1,34 @@
 {
-  "updateId": "260531",
+  "updateId": "260601",
   "changelog": [
-    "⭐FCM - 好友與房間管理 v1.2.0 更新",
-    "新增搜尋功能",
-    "新增分享profiles功能(與WPS功能一致，有裝FCM或WPS都能收到)",
-    "新增頭像刷新功能(點擊頭像能單獨刷新，又上角提供批次刷新，如果頭像顯示不全請多刷新幾次)"
+    "⭐FCM - 好友與房間管理 v1.3.5 更新",
+    "新增按鈕隱藏功能(至少保留一個按鈕顯示，引勉無法呼叫UI)",
+    "新增悄悄話、私信顯示頭像的功能",
+    "新增避免悄悄話、私信時，使用shift+enter變成公開的ooc的問題",
+    "新增尋找房間時顯示自己",
+    "修復房間尋找的錯誤",
+    "⭐AFC - 繁戀如花 ─繽紛─ v0.6.1 更新",
+    "修復Heart Padlock在有人進出房間等動作時會關閉檢查頁面",
+    "新增Heart Padlock支援加入圖片網址",
+    "⭐MAT - 自動翻譯 v1.3.0 更新",
+    "新增跳過帶有📞、🔊的句子翻譯",
+    "⭐TOOL - 工具包 v1.5.1 更新",
+    "新增RP模式按鈕隱藏功能，請用/lt rpbtn進行顯示與隱藏(預設隱藏)"
   ],
   "en_changelog": [
-    "⭐FCM - Friends and ChatRoom Manager v1.2.0 Update",
-    "Add search function",
-    "Add profile sharing function (consistent with WPS functionality; both users with FCM or WPS installed can receive it)",
-    "Add avatar refresh function (tap on avatar to refresh individually, batch refresh option available in the top-right corner; if avatars are not displayed completely, please refresh a few more times)"
+    "⭐FCM - Friends and ChatRoom Manager v1.3.5 Update",
+    "Added button hiding feature (at least one button must remain visible to prevent inability to call UI)",
+    "Added avatar display for whispers and private messages",
+    "Added fix to prevent shift+enter in whispers/private messages from becoming public OOC messages",
+    "Added self-display when searching for rooms",
+    "Fixed room search errors",
+    "⭐AFC - Abundantia Florum ─Chromatica─ v0.6.1 Update",
+    "Fixed Heart Padlock closing the check page when someone enters/exits the room",
+    "Added image URL support for Heart Padlock",
+    "⭐MAT - Messages Auto Translator v1.3.0 Update",
+    "Added skip translation for sentences containing 📞 or 🔊",
+    "⭐TOOL - Tool v1.5.1 Update",
+    "Added RP mode button hiding feature, use /lt rpbtn to show or hide (default is hidden)"
   ],
   "plugins": [
     {
