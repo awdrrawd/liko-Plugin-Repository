@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.5.0
+// @version      1.5.1
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,14 +14,17 @@
 // ==/UserScript==
 
 // ── 防重複加載 guard ──────────────────────────────────────────────────────────
-if (window.__LikoToolLoaded__) {
-    console.warn("🐈‍⬛ [LT] ⚠️ 已偵測到重複加載，跳過初始化");
-} else {
-window.__LikoToolLoaded__ = true;
+
 
 (function () {
+    if (window.__LikoToolLoaded__) {
+        console.warn("🐈‍⬛ [LT] ⚠️ 已偵測到重複加載，跳過初始化");
+        return;
+    }
+    window.__LikoToolLoaded__ = true;
+
     let modApi = null;
-    const modversion = "1.5.0";
+    const modversion = "1.5.1";
 
     const rpBtnX    = 955;
     const rpBtnY    = 855;
@@ -99,21 +102,21 @@ window.__LikoToolLoaded__ = true;
             password:     "密碼",
 
             helpText:
-                "莉柯莉絲工具 使用說明\n\n" +
-                "/lt help              - 顯示此說明\n" +
-                "/lt free [目標]       - 選擇移除束縛\n" +
-                "/lt freetotal [目標]  - 移除所有束縛\n" +
-                "/lt bcximport [目標]  - 導入 BCX 外觀\n" +
-                "/lt fullunlock [目標] - 移除所有鎖\n" +
-                "/lt fulllock [目標] [鎖名稱] - 添加鎖\n" +
-                "/lt undo [目標]       - 外觀回滾\n" +
-                "/lt rpmode            - 切換 RP 模式\n" +
-                "/lt rpbtn             - 顯示/隱藏 RP 按鈕（狀態會保存）\n" +
-                "/lt heightfix         - 趴跪姿時自動拉高（不影響站立）\n" +
-                "/lt heightlock        - 鎖定身高為標準值（強制，可能影響物品）\n" +
-                "/lt geteverything     - 增強功能\n" +
-                "/lt wardrobe          - 開啟衣櫃\n" +
-                "提示：使用 /lt rpbtn 顯示右下角 🔰 按鈕",
+            "莉柯莉絲工具 使用說明\n\n" +
+            "/lt help              - 顯示此說明\n" +
+            "/lt free [目標]       - 選擇移除束縛\n" +
+            "/lt freetotal [目標]  - 移除所有束縛\n" +
+            "/lt bcximport [目標]  - 導入 BCX 外觀\n" +
+            "/lt fullunlock [目標] - 移除所有鎖\n" +
+            "/lt fulllock [目標] [鎖名稱] - 添加鎖\n" +
+            "/lt undo [目標]       - 外觀回滾\n" +
+            "/lt rpmode            - 切換 RP 模式\n" +
+            "/lt rpbtn             - 顯示/隱藏 RP 按鈕（狀態會保存）\n" +
+            "/lt heightfix         - 趴跪姿時自動拉高（不影響站立）\n" +
+            "/lt heightlock        - 鎖定身高為標準值（強制，可能影響物品）\n" +
+            "/lt geteverything     - 增強功能\n" +
+            "/lt wardrobe          - 開啟衣櫃\n" +
+            "提示：使用 /lt rpbtn 顯示右下角 🔰 按鈕",
 
             loaded: "莉柯莉絲工具 v{v} 載入！使用 /lt help 查看說明",
         },
@@ -176,21 +179,21 @@ window.__LikoToolLoaded__ = true;
             password:     "Password",
 
             helpText:
-                "Liko Tool Help\n\n" +
-                "/lt help              - Show this help\n" +
-                "/lt free [target]     - Select restraints to remove\n" +
-                "/lt freetotal [target]- Remove all restraints\n" +
-                "/lt bcximport [target]- Import BCX appearance\n" +
-                "/lt fullunlock [target]-Remove all locks\n" +
-                "/lt fulllock [target] [lock] - Add lock\n" +
-                "/lt undo [target]     - Rollback appearance\n" +
-                "/lt rpmode            - Toggle RP mode\n" +
-                "/lt rpbtn             - Show/hide RP button (state is saved)\n" +
-                "/lt heightfix         - Auto-raise when kneeling/prone\n" +
-                "/lt heightlock        - Lock height to standard value\n" +
-                "/lt geteverything     - Enhancement menu\n" +
-                "/lt wardrobe          - Open wardrobe\n" +
-                "Tip: Use /lt rpbtn to show the bottom-right 🔰 button",
+            "Liko Tool Help\n\n" +
+            "/lt help              - Show this help\n" +
+            "/lt free [target]     - Select restraints to remove\n" +
+            "/lt freetotal [target]- Remove all restraints\n" +
+            "/lt bcximport [target]- Import BCX appearance\n" +
+            "/lt fullunlock [target]-Remove all locks\n" +
+            "/lt fulllock [target] [lock] - Add lock\n" +
+            "/lt undo [target]     - Rollback appearance\n" +
+            "/lt rpmode            - Toggle RP mode\n" +
+            "/lt rpbtn             - Show/hide RP button (state is saved)\n" +
+            "/lt heightfix         - Auto-raise when kneeling/prone\n" +
+            "/lt heightlock        - Lock height to standard value\n" +
+            "/lt geteverything     - Enhancement menu\n" +
+            "/lt wardrobe          - Open wardrobe\n" +
+            "Tip: Use /lt rpbtn to show the bottom-right 🔰 button",
 
             loaded: "Liko Tool v{v} loaded! Use /lt help for help",
         }
@@ -334,19 +337,19 @@ window.__LikoToolLoaded__ = true;
         const poses  = C.ActivePose || [];
         const drawPM = C.DrawPoseMapping || C.PoseMapping || {};
         return GROUND_POSES.some(p =>
-            poses.includes(p) || Object.values(drawPM).includes(p)
-        );
+                                 poses.includes(p) || Object.values(drawPM).includes(p)
+                                );
     }
 
     function _ltGetRealRatio(C) {
         return Object.prototype.hasOwnProperty.call(C, '_ltRealHeightRatio')
             ? C._ltRealHeightRatio
-            : C.HeightRatio;
+        : C.HeightRatio;
     }
     function _ltGetRealModifier(C) {
         return Object.prototype.hasOwnProperty.call(C, '_ltRealHeightModifier')
             ? C._ltRealHeightModifier
-            : C.HeightModifier;
+        : C.HeightModifier;
     }
 
     function _ltClearHeightDefine(C) {
@@ -452,10 +455,10 @@ window.__LikoToolLoaded__ = true;
             return ChatRoomCharacter?.find(c => c.MemberNumber === parseInt(identifier)) || Player;
         }
         return ChatRoomCharacter?.find(c =>
-            c.Name.toLowerCase()        === identifier.toLowerCase() ||
-            c.Nickname?.toLowerCase()   === identifier.toLowerCase() ||
-            c.AccountName.toLowerCase() === identifier.toLowerCase()
-        ) || Player;
+                                       c.Name.toLowerCase()        === identifier.toLowerCase() ||
+                                       c.Nickname?.toLowerCase()   === identifier.toLowerCase() ||
+                                       c.AccountName.toLowerCase() === identifier.toLowerCase()
+                                      ) || Player;
     }
 
     function getNickname(character) {
@@ -480,7 +483,7 @@ window.__LikoToolLoaded__ = true;
         if (Player.LikoTool?.bypassActivities) return true;
         return typeof ServerChatRoomGetAllowItem === "function"
             ? ServerChatRoomGetAllowItem(Player, target)
-            : true;
+        : true;
     }
 
     // ──────────────────────────────────────────
@@ -858,7 +861,7 @@ window.__LikoToolLoaded__ = true;
                 (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
                 if (getES().rpBtnVisible === 1) {
                     DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, "🔰",
-                        getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
+                               getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
                 }
             }
             return result;
@@ -1228,8 +1231,6 @@ window.__LikoToolLoaded__ = true;
     }
 
     initialize().then(() => { setupUnloadHandler(); })
-    .catch(error => { console.error("🐈‍⬛ [LT] ❌ 初始化失敗:", error); });
+        .catch(error => { console.error("🐈‍⬛ [LT] ❌ 初始化失敗:", error); });
 
 })();
-
-} 
