@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.7.7-2
+// @version      0.7.7-3
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -1381,8 +1381,13 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             wrap.style.display = isCollapsed ? '' : 'none';
             btn.textContent    = isCollapsed ? '▶' : '◀';
             positionColorPicker();
-        });
 
+            // hgroup 跟著收納/展開
+            const hgroup = document.getElementById('color-picker-hgroup');
+            if (hgroup) {
+                hgroup.style.display = isCollapsed ? '' : 'none';
+            }
+        });
         sd.getElementById('cp-confirm').addEventListener('click', () => {
             const [r,g,b] = h2r(cpH,cpS,cpV);
             const hex = r2x(r,g,b);
@@ -1459,6 +1464,13 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             collapseBtn.style.display = isBCMode ? 'flex' : 'none';
             collapseBtn.textContent = '▶';
         }
+        // 每次開啟都強制展開，不保留上次的收納狀態
+        const wrap = colorPickerShadow?.getElementById('cp-wrap');
+        if (wrap) wrap.style.display = '';
+
+        // hgroup 也同步還原
+        const hgroup = document.getElementById('color-picker-hgroup');
+        if (hgroup) hgroup.style.display = '';
         positionColorPicker(); // btn 顯示後才定位
         colorPickerShadow.getElementById('cp-outer').classList.add('open');
         colorPickerHostEl.style.pointerEvents = 'none';
