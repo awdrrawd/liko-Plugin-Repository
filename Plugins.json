@@ -1,36 +1,24 @@
 {
-  "updateId": "260601",
+  "updateId": "260603",
   "changelog": [
-    "⭐FCM - 好友與房間管理 v1.3.5 更新",
-    "新增按鈕隱藏功能(至少保留一個按鈕顯示，引勉無法呼叫UI)",
-    "新增悄悄話、私信顯示頭像的功能",
-    "新增避免悄悄話、私信時，使用shift+enter變成公開的ooc的問題",
-    "新增尋找房間時顯示自己",
-    "修復房間尋找的錯誤",
-    "⭐AFC - 繁戀如花 ─繽紛─ v0.6.1 更新",
-    "修復Heart Padlock在有人進出房間等動作時會關閉檢查頁面",
-    "新增Heart Padlock支援加入圖片網址",
-    "修改Heart Padlock現在筆記支援500個字元",
-    "⭐MAT - 自動翻譯 v1.3.0 更新",
-    "新增跳過帶有📞、🔊的句子翻譯",
-    "⭐TOOL - 工具包 v1.5.1 更新",
-    "新增RP模式按鈕隱藏功能，請用/lt rpbtn進行顯示與隱藏(預設隱藏)"
+    "⭐FCM - 好友與房間管理 v1.4.0 更新",
+    "新增BCX的召喚功能(你需要有權限)",
+    "修復私信頭像在錯誤的場合會顯示的問題",
+    "⭐AEE - 外觀編輯拓展 v0.7.7 更新",
+    "新增設定頁面提供部分功能",
+    "替換調色盤為AEE版本",
+    "選定的服裝閃爍系統",
+    "修復部分錯誤"
   ],
   "en_changelog": [
-    "⭐FCM - Friends and ChatRoom Manager v1.3.5 Update",
-    "Added button hiding feature (at least one button must remain visible to prevent inability to call UI)",
-    "Added avatar display for whispers and private messages",
-    "Added fix to prevent shift+enter in whispers/private messages from becoming public OOC messages",
-    "Added self-display when searching for rooms",
-    "Fixed room search errors",
-    "⭐AFC - Abundantia Florum ─Chromatica─ v0.6.1 Update",
-    "Fixed Heart Padlock closing the check page when someone enters/exits the room",
-    "Added image URL support for Heart Padlock",
-    "Modified Heart Padlock: notes now support up to 500 characters",
-    "⭐MAT - Messages Auto Translator v1.3.0 Update",
-    "Added skip translation for sentences containing 📞 or 🔊",
-    "⭐TOOL - Tool v1.5.1 Update",
-    "Added RP mode button hiding feature, use /lt rpbtn to show or hide (default is hidden)"
+    "⭐FCM - Friends and ChatRoom Manager v1.4.0 Update",
+    "Added BCX summon feature (you need to have permission)",
+    "Fixed an issue where private message avatars would display in incorrect contexts",
+    "⭐AEE - Appearance editing extension v0.7.7 Update",
+    "Added settings page providing partial functionality",
+    "Replaced color palette with AEE version",
+    "Selected outfit flickering system",
+    "Fixed some bugs"
   ],
   "plugins": [
     {
