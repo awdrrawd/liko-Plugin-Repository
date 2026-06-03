@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.7.7
+// @version      0.7.7-1
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -2604,7 +2604,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
             let hoveredGroup = null;
             if (typeof MouseX !== 'undefined' && typeof MouseY !== 'undefined' &&
-                MouseX >= 1120 && MouseX < 1975 && MouseY >= 145 && MouseY < 900) {
+                MouseX >= 1120 && MouseX < 1975 && MouseY >= 145 && MouseY < 980) {
                 for (let A = CharacterAppearanceOffset; A < CharacterAppearanceGroups.length && A < CharacterAppearanceOffset + CharacterAppearanceNumGroupPerPage; A++) {
                     const itemY = 145 + (A - CharacterAppearanceOffset) * 95;
                     if (MouseY >= itemY && MouseY < itemY + 65) { hoveredGroup = CharacterAppearanceGroups[A].Name; break; }
