@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.3.5
+// @version      1.4.0
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -22,7 +22,7 @@
     }
     window.LikoFCMInstance = true;
 
-    const MOD_VER = '1.3.5';
+    const MOD_VER = '1.4.0';
     const modApi = bcModSdk.registerMod({
         name: 'Liko - FCM', fullName: 'Liko - Friends Room Manager', version: MOD_VER,
     });
@@ -70,7 +70,7 @@
     const L = {
         zh: {
             panelTitle: '🎛 FCM ─ 好友與房間管理', tabFriends: '個人關係', tabRoom: '房間管理', tabSettings: '設定',
-            tabPeople: '人員查詢',
+            tabPeople: '人員查詢',  tabHelp: '🔖 說明',
             minimize: '—', close: '×', miniLabel: '好友與房間管理',
             search: '搜尋名稱或ID...', roomSearch: '搜尋 / 輸入ID添加...',
             sortBy: '排序', sortRel: '關係', sortId: 'ID', sortName: '名稱', sortAdded: '添加時間', sortSeen: '最後見面',
@@ -118,6 +118,9 @@
             beepTitle: n => `BEEP → ${n}`,
             beepPlaceholder: '輸入訊息（可留空）\nCtrl+Enter 發送',
             beepSend: '發送 BEEP', beepCancel: '取消',
+            beepSummon: '召喚',
+            beepSummonTitle: '請確定您有召喚對方的權限，否則對方只會收到 summon',
+            beepSummonNoRoom: '需在房間內才能召喚',
             noData: '（空白）', noFriends: '沒有符合條件的好友',
             fWhitelist: '白名單', fBlacklist: '黑名單', fGhost: '幽靈',
             relWhitelist: '白名單', relBlacklist: '黑名單', relGhost: '幽靈',
@@ -164,7 +167,7 @@
         },
         en: {
             panelTitle: '🎛 FCM ─ Friends and ChatRoom Manager', tabFriends: 'Relations', tabRoom: 'Room Mgmt', tabSettings: 'Settings',
-            tabPeople: 'People',
+            tabPeople: 'People', tabHelp: '🔖 Help',
             minimize: '—', close: '×', miniLabel: 'Friends and ChatRoom Manager',
             search: 'Search name or ID...', roomSearch: 'Search / Enter ID to add...',
             sortBy: 'Sort', sortRel: 'Relation', sortId: 'ID', sortName: 'Name', sortAdded: 'Added', sortSeen: 'Last Seen',
@@ -212,6 +215,9 @@
             beepTitle: n => `BEEP → ${n}`,
             beepPlaceholder: 'Type message (can be empty)\nCtrl+Enter to send',
             beepSend: 'Send BEEP', beepCancel: 'Cancel',
+            beepSummon: 'Summon',
+            beepSummonTitle: 'You must have the authority to summon the other player.\nOtherwise, they will only receive "summon".',
+            beepSummonNoRoom: 'Must be in a room to summon',
             noData: '(Empty)', noFriends: 'No matching entries',
             fWhitelist: 'Whitelist', fBlacklist: 'Blacklist', fGhost: 'Ghost',
             relWhitelist: 'WL', relBlacklist: 'BL', relGhost: 'Ghost',
@@ -309,9 +315,9 @@
                 const prof = { memberNumber: C.MemberNumber, name: C.Name || '', lastNick: nick, seen: now };
                 if (cfg.saveMode === 'full') {
                     const src = raw || { MemberNumber: C.MemberNumber, Name: C.Name || '', Nickname: C.Nickname || '',
-                        LabelColor: C.LabelColor || '#fff', Description: C.Description || '',
-                        Title: C.Title || '', Appearance: C.Appearance || [],
-                        Lovership: C.Lovership || [], Reputation: C.Reputation || [] };
+                                        LabelColor: C.LabelColor || '#fff', Description: C.Description || '',
+                                        Title: C.Title || '', Appearance: C.Appearance || [],
+                                        Lovership: C.Lovership || [], Reputation: C.Reputation || [] };
                     const b = { ...src };
                     ['ActivePose','Inventory','BlockItems','LimitedItems','FavoriteItems',
                      'ArousalSettings','OnlineSharedSettings','WhiteList','BlackList','Crafting',
@@ -834,7 +840,31 @@
         const sendBtn = document.createElement('button'); sendBtn.textContent = T('beepSend'); sendBtn.style.cssText = 'flex:2;padding:14px;background:#1a3860;border:1.5px solid #4090d8;border-radius:10px;color:#90d0ff;font-size:15px;cursor:pointer;font-weight:700;';
         sendBtn.addEventListener('click', () => { const msg = ta.value.trim(); ServerSend('AccountBeep', { MemberNumber: mn, BeepType: '', Message: msg || undefined }); if (typeof FriendListBeepLog !== 'undefined') FriendListBeepLog.push({ MemberNumber: mn, MemberName: name, Sent: true, Time: new Date(), Message: msg }); overlay.remove(); });
         ta.addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); sendBtn.click(); } if (e.key === 'Escape') overlay.remove(); e.stopPropagation(); });
-        btnRow.appendChild(cancelBtn); btnRow.appendChild(sendBtn);
+        const summonBtn = document.createElement('button');
+        summonBtn.textContent = T('beepSummon');
+        summonBtn.style.cssText = 'flex:1;padding:14px;background:#182a10;border:1.5px solid #40a030;border-radius:10px;color:#80e860;font-size:14px;cursor:pointer;font-weight:700;';
+        summonBtn.addEventListener('click', () => {
+            const msg = (isZh()
+                         ? `請確定您有召喚對方的權限，否則對方只會收到文字 "summon"。\n\n確定要召喚「${name}」嗎？`
+                         : `Make sure you have permission to summon them, otherwise they will only receive the text "summon".\n\nSummon "${name}"?`);
+            showConfirm(msg, () => {
+                try {
+                    ServerSend('AccountBeep', {
+                        MemberNumber: mn, BeepType: '',
+                        Message: 'summon',
+                        ChatRoomName: (typeof ChatRoomData !== 'undefined' && ChatRoomData) ? ChatRoomData.Name : undefined,
+                        ChatRoomSpace: (typeof ChatRoomData !== 'undefined' && ChatRoomData) ? ChatRoomData.Space : undefined,
+                    });
+                } catch(e) { console.warn('🐈‍⬛ [FCM] summon error:', e); }
+                if (typeof FriendListBeepLog !== 'undefined') FriendListBeepLog.push({ MemberNumber: mn, MemberName: name, Sent: true, Time: new Date(), Message: '[summon]' });
+                overlay.remove();
+            }, isZh() ? '召喚' : 'Summon');
+        });
+        if (typeof ChatRoomData === 'undefined' || !ChatRoomData) {
+            summonBtn.disabled = true; summonBtn.style.opacity = '0.35'; summonBtn.style.cursor = 'not-allowed';
+            summonBtn.title = T('beepSummonNoRoom');
+        }
+        btnRow.appendChild(cancelBtn); btnRow.appendChild(summonBtn); btnRow.appendChild(sendBtn);
         pop.appendChild(titleEl); pop.appendChild(ta); pop.appendChild(btnRow);
         overlay.appendChild(pop); document.body.appendChild(overlay); ta.focus();
     }
@@ -1256,28 +1286,28 @@
             const osSuffix = oneSided ? '\n\n' + T('peopleOneSidedWarn') : '';
 
             if (!isFriend) ops.appendChild(mkBtn(T('btnAddFriend'), 'fcm-btn-green',
-                () => showConfirm((isZh() ? `添加「${_dname}」為好友？` : `Add "${_dname}" as friend?`) + osSuffix, () => doAddFriend(mn))));
+                                                 () => showConfirm((isZh() ? `添加「${_dname}」為好友？` : `Add "${_dname}" as friend?`) + osSuffix, () => doAddFriend(mn))));
             else ops.appendChild(mkBtn(T('btnRmFriend'), 'fcm-btn-red',
-                () => showConfirm(T('confirmDel', _dname), () => doRemoveFriend(mn), isZh() ? '移除' : 'Remove')));
+                                       () => showConfirm(T('confirmDel', _dname), () => doRemoveFriend(mn), isZh() ? '移除' : 'Remove')));
 
             ops.appendChild(mkBtn(_isWhl ? T('btnRmWhite') : T('btnAddWhite'), _isWhl ? 'fcm-btn-red' : 'fcm-btn-green',
-                () => showConfirm(_isWhl
-                    ? (isZh() ? `移除「${_dname}」白名單？` : `Remove "${_dname}" from whitelist?`)
-                    : (isZh() ? `將「${_dname}」加入白名單？` : `Add "${_dname}" to whitelist?`) + osSuffix,
-                    () => doToggleList(mn, 'white', !_isWhl))));
+                                  () => showConfirm(_isWhl
+                                                    ? (isZh() ? `移除「${_dname}」白名單？` : `Remove "${_dname}" from whitelist?`)
+                                                    : (isZh() ? `將「${_dname}」加入白名單？` : `Add "${_dname}" to whitelist?`) + osSuffix,
+                                                    () => doToggleList(mn, 'white', !_isWhl))));
 
             ops.appendChild(mkBtn(_isBl ? T('btnRmBan') : T('btnAddBan'), 'fcm-btn-red',
-                () => showConfirm(_isBl
-                    ? (isZh() ? `移除「${_dname}」黑名單？` : `Remove "${_dname}" from blacklist?`)
-                    : T('confirmAddBan', _dname) + osSuffix,
-                    () => doToggleList(mn, 'black', !_isBl),
-                    _isBl ? undefined : (isZh() ? '加入' : 'Add'))));
+                                  () => showConfirm(_isBl
+                                                    ? (isZh() ? `移除「${_dname}」黑名單？` : `Remove "${_dname}" from blacklist?`)
+                                                    : T('confirmAddBan', _dname) + osSuffix,
+                                                    () => doToggleList(mn, 'black', !_isBl),
+                                                    _isBl ? undefined : (isZh() ? '加入' : 'Add'))));
 
             ops.appendChild(mkBtn(_isGh ? (isZh() ? '-幽靈' : '-Ghost') : (isZh() ? '+幽靈' : '+Ghost'), _isGh ? 'fcm-btn-red' : 'fcm-btn-purple',
-                () => showConfirm(_isGh
-                    ? (isZh() ? `移除「${_dname}」幽靈？` : `Remove "${_dname}" from ghost?`)
-                    : T('confirmAddGhost', _dname) + osSuffix,
-                    () => doToggleList(mn, 'ghost', !_isGh))));
+                                  () => showConfirm(_isGh
+                                                    ? (isZh() ? `移除「${_dname}」幽靈？` : `Remove "${_dname}" from ghost?`)
+                                                    : T('confirmAddGhost', _dname) + osSuffix,
+                                                    () => doToggleList(mn, 'ghost', !_isGh))));
         }
         return ops;
     }
@@ -1295,7 +1325,7 @@
         const closeBtn = document.createElement('div'); closeBtn.className = 'fcm-hbtn'; closeBtn.textContent = T('close'); closeBtn.addEventListener('click', closePanel);
         hdr.appendChild(title); hdr.appendChild(minBtn); hdr.appendChild(closeBtn);
         const tabBar = document.createElement('div'); tabBar.id = 'fcm-tabs';
-        [['friends', T('tabFriends')], ['room', T('tabRoom')], ['roomSearch', T('tabRoomSearch')], ['people', T('tabPeople')], ['settings', T('tabSettings')]].forEach(([key, label]) => {
+        [['friends', T('tabFriends')], ['room', T('tabRoom')], ['roomSearch', T('tabRoomSearch')], ['people', T('tabPeople')], ['settings', T('tabSettings')], ['help', T('tabHelp')]].forEach(([key, label]) => {
             const t = document.createElement('div'); t.className = 'fcm-tab' + (key === uiTab ? ' active' : ''); t.dataset.tab = key; t.textContent = label;
             t.addEventListener('click', () => {
                 uiTab = key;
@@ -1338,6 +1368,7 @@
         else if (uiTab === 'people') p = renderPeople(content);
         else if (uiTab === 'room') p = renderRoom(content);
         else if (uiTab === 'roomSearch') p = Promise.resolve(renderRoomSearch(content));
+        else if (uiTab === 'help') p = Promise.resolve(renderHelp(content));
         else p = Promise.resolve(renderSettings(content));
         (p || Promise.resolve()).then(() => {
             if (savedScroll > 0) { const ns = content.querySelector('.fcm-scroll'); if (ns) ns.scrollTop = savedScroll; }
@@ -1352,8 +1383,8 @@
         if (anyRel) {
             const roles = getAllRels(f.mn);
             const match = (filters.owner && roles.includes('owner')) || (filters.lover && roles.includes('lover')) || (filters.sub && roles.includes('sub'))
-                || (filters.friend && (roles.includes('friend') || roles.includes('contact')))
-                || (filters.whitelist && roles.includes('whitelist')) || (filters.blacklist && roles.includes('blacklist'));
+            || (filters.friend && (roles.includes('friend') || roles.includes('contact')))
+            || (filters.whitelist && roles.includes('whitelist')) || (filters.blacklist && roles.includes('blacklist'));
             if (!match) return false;
         }
         return true;
@@ -1783,8 +1814,8 @@
             const isNumId = /^\d+$/.test(q) && parseInt(q) > 0;
             const qLow = q.toLowerCase();
             let filtered = q
-                ? allProfiles.filter(p => (p.name || '').toLowerCase().includes(qLow) || (p.lastNick || '').toLowerCase().includes(qLow) || String(p.memberNumber).includes(q))
-                : allProfiles;
+            ? allProfiles.filter(p => (p.name || '').toLowerCase().includes(qLow) || (p.lastNick || '').toLowerCase().includes(qLow) || String(p.memberNumber).includes(q))
+            : allProfiles;
             if (isNumId) {
                 const mn = parseInt(q);
                 const exactMatch = allProfiles.find(p => p.memberNumber === mn);
@@ -1809,7 +1840,7 @@
             const show = filtered.slice(pageStart, pageStart + PEOPLE_PAGE_SIZE);
             countBar.textContent = q
                 ? T('peopleTotal', totalFiltered, allProfiles.length)
-                : T('peopleTotal', Math.min(allProfiles.length, PEOPLE_PAGE_SIZE * (_peoplePage + 1)), allProfiles.length);
+            : T('peopleTotal', Math.min(allProfiles.length, PEOPLE_PAGE_SIZE * (_peoplePage + 1)), allProfiles.length);
             if (!show.length && !(isNumId && !allProfiles.find(p => p.memberNumber === parseInt(q)))) {
                 if (!scroll.querySelector('.fcm-unknown-id-box')) {
                     const em = document.createElement('div'); em.className = 'fcm-empty'; em.textContent = T('peopleNoResults');
@@ -1863,25 +1894,25 @@
                 const _isBl2  = (Player.BlackList || []).includes(mn);
                 const _isGh2  = (() => { try { return (Player.GhostList || []).includes(mn); } catch { return false; } })();
                 if (!isFriendOf(mn)) opsWrap.appendChild(mkBtn(T('btnAddFriend'), 'fcm-btn-green',
-                    () => showConfirm((isZh() ? `添加「${_dname2}」為好友？` : `Add "${_dname2}" as friend?`) + osSuffix, () => doAddFriend(mn))));
+                                                               () => showConfirm((isZh() ? `添加「${_dname2}」為好友？` : `Add "${_dname2}" as friend?`) + osSuffix, () => doAddFriend(mn))));
                 else opsWrap.appendChild(mkBtn(T('btnRmFriend'), 'fcm-btn-red',
-                    () => showConfirm(T('confirmDel', _dname2), () => doRemoveFriend(mn), isZh() ? '移除' : 'Remove')));
+                                               () => showConfirm(T('confirmDel', _dname2), () => doRemoveFriend(mn), isZh() ? '移除' : 'Remove')));
                 opsWrap.appendChild(mkBtn(_isWhl2 ? T('btnRmWhite') : T('btnAddWhite'), _isWhl2 ? 'fcm-btn-red' : 'fcm-btn-green',
-                    () => showConfirm(_isWhl2
-                        ? (isZh() ? `移除「${_dname2}」白名單？` : `Remove "${_dname2}" from whitelist?`)
-                        : (isZh() ? `將「${_dname2}」加入白名單？` : `Add "${_dname2}" to whitelist?`) + osSuffix,
-                        () => doToggleList(mn, 'white', !_isWhl2))));
+                                          () => showConfirm(_isWhl2
+                                                            ? (isZh() ? `移除「${_dname2}」白名單？` : `Remove "${_dname2}" from whitelist?`)
+                                                            : (isZh() ? `將「${_dname2}」加入白名單？` : `Add "${_dname2}" to whitelist?`) + osSuffix,
+                                                            () => doToggleList(mn, 'white', !_isWhl2))));
                 opsWrap.appendChild(mkBtn(_isBl2 ? T('btnRmBan') : T('btnAddBan'), 'fcm-btn-red',
-                    () => showConfirm(_isBl2
-                        ? (isZh() ? `移除「${_dname2}」黑名單？` : `Remove "${_dname2}" from blacklist?`)
-                        : T('confirmAddBan', _dname2) + osSuffix,
-                        () => doToggleList(mn, 'black', !_isBl2),
-                        _isBl2 ? undefined : (isZh() ? '加入' : 'Add'))));
+                                          () => showConfirm(_isBl2
+                                                            ? (isZh() ? `移除「${_dname2}」黑名單？` : `Remove "${_dname2}" from blacklist?`)
+                                                            : T('confirmAddBan', _dname2) + osSuffix,
+                                                            () => doToggleList(mn, 'black', !_isBl2),
+                                                            _isBl2 ? undefined : (isZh() ? '加入' : 'Add'))));
                 opsWrap.appendChild(mkBtn(_isGh2 ? (isZh() ? '-幽靈' : '-Ghost') : (isZh() ? '+幽靈' : '+Ghost'), _isGh2 ? 'fcm-btn-red' : 'fcm-btn-purple',
-                    () => showConfirm(_isGh2
-                        ? (isZh() ? `移除「${_dname2}」幽靈？` : `Remove "${_dname2}" from ghost?`)
-                        : T('confirmAddGhost', _dname2) + osSuffix,
-                        () => doToggleList(mn, 'ghost', !_isGh2))));
+                                          () => showConfirm(_isGh2
+                                                            ? (isZh() ? `移除「${_dname2}」幽靈？` : `Remove "${_dname2}" from ghost?`)
+                                                            : T('confirmAddGhost', _dname2) + osSuffix,
+                                                            () => doToggleList(mn, 'ghost', !_isGh2))));
                 opsTd.appendChild(opsWrap); tr.appendChild(opsTd);
                 const seenTime = p.seen;
                 const seenTd = document.createElement('td'); seenTd.className = 'fcm-id'; seenTd.style.textAlign = 'center';
@@ -2237,8 +2268,8 @@
                 const joinBtn = mkBtn(joinLabel, joinCls, () => {
                     if (isCurrent) {
                         const msg = isZh()
-                            ? `你已經在「${room.Name}」中了。\n確定要重新進入嗎？`
-                            : `You are already in "${room.Name}".\nRe-enter the room?`;
+                        ? `你已經在「${room.Name}」中了。\n確定要重新進入嗎？`
+                        : `You are already in "${room.Name}".\nRe-enter the room?`;
                         showConfirm(msg, () => navigateToRoom(room.Name), isZh() ? '重新進入' : 'Re-enter');
                     } else {
                         navigateToRoom(room.Name);
@@ -2252,7 +2283,123 @@
 
         if (_roomResults.length === 0) runSearch(); else renderResults();
     }
-
+    function renderHelp(container) {
+        container.innerHTML = '';
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:0;height:100%;';
+        const zh = isZh();
+        const sections = zh ? [
+            { icon: '🎛', title: 'FCM 是什麼？',
+             body: 'FCM（Friends & Chatroom Manager）是一個好友與聊天室管理工具，讓你在同一面板中查看好友狀態、管理房間成員、搜尋房間，以及查詢曾遇過的角色。' },
+            { icon: '⚙', title: '部分功能需在「設定」頁面手動啟用',
+             items: [
+                 '【顯示頭像】— 預設關閉。啟用後在各列表顯示角色頭像（需曾同房或擁有完整資料）。',
+                 '【私聊時顯示對象頭像】— 進入悄悄話 / BEEP 模式時，在畫面左下角顯示對象頭像。僅在聊天室主畫面顯示，查看角色資料、衣櫃等覆蓋畫面時自動隱藏。',
+                 '【儲存模式】— 預設「不儲存」。建議至少選「僅名稱」，否則離線好友將無法顯示名稱，人員查詢頁也沒有資料。',
+                 '【私聊 / BEEP 輸入框提示色】— 輸入 /w 或進入悄悄話模式時，輸入框顯示顏色邊框。',
+                 '【OOC 保護】— 悄悄話模式下封鎖 Ctrl+Enter，防止 OOC 內容被誤發為普通對話。',
+                 '【幽靈名單隱身】— 幽靈名單中的角色在聊天室不顯示身體（只對自己有效）。',
+             ]},
+            { icon: '👥', title: '好友關係顯示「單向好友」是正常的',
+             body: '對方剛添加你時，BC 伺服器尚未將更新資料推送到你的客戶端，所以顯示為「單向好友」。重新登入或等待伺服器同步後即可顯示正確關係。' },
+            { icon: '🏠', title: '房間管理',
+             items: [
+                 '「房間管理」頁需要你目前在某個聊天室中才能使用。',
+                 '管理員功能（踢人、封禁、白名單等）需要你擁有該房間的管理員權限。',
+                 '房間搜尋頁可以搜尋公開房間，並以星號標記最愛房間。',
+             ]},
+            { icon: '📍', title: '召喚功能（BEEP 視窗中的「召喚」按鈕）',
+             body: '按下「召喚」會傳送附帶當前房間資訊的 BEEP。對方必須在 BC 中設定有接受召喚的規則才能自動傳送；否則對方只會收到文字訊息「summon」。需在房間中才能使用。' },
+            { icon: '📜', title: '人員查詢與 Profile 分享',
+             items: [
+                 '「人員查詢」頁顯示你曾在同一房間遇過的角色（需啟用儲存模式）。',
+                 '擁有完整資料（完整模式）的角色可點「分享」，將 Profile 傳送給當前聊天室的其他人。',
+                 '與 WCE（bce-past-profiles）完全相容。若已安裝 WCE 建議儲存模式設為「不儲存」以避免重複儲存。',
+             ]},
+            { icon: '🖼', title: '頭像說明',
+             items: [
+                 '頭像從角色的 BC 畫布截取臉部，需有完整外觀資料才能生成。',
+                 '若頭像顯示文字縮寫，可點擊頭像格子強制重新截取。',
+                 '設定頁的「頭像快取管理」可清除所有頭像或批次載入好友頭像。',
+             ]},
+            { icon: '🔑', title: 'FCM 按鈕位置',
+             items: [
+                 '聊天室右側工具列 — 貓頭圖示按鈕',
+                 '大廳畫面右上角 — 貓頭圖示按鈕',
+                 '自己的個人檔案頁 — 右側按鈕',
+                 '可在設定頁的「按鈕顯示設定」中分別開關各位置的按鈕（至少須保留一個）。',
+             ]},
+        ] : [
+            { icon: '🎛', title: 'What is FCM?',
+             body: "FCM (Friends & Chatroom Manager) is a companion tool for Bondage Club. View friend status, manage room members, search rooms, and look up characters you've encountered — all in one panel." },
+            { icon: '⚙', title: 'Some features must be enabled in Settings first',
+             items: [
+                 '[Show Avatars] — Off by default. Shows portraits in lists (requires having been in the same room or having full profile data).',
+                 '[Save Mode] — Defaults to "Off". Set to at least "Name only" so offline friend names display and the People tab has data.',
+                 "[Show target avatar during whisper] — Displays the target's avatar bottom-left when in whisper/BEEP mode. Only on chatroom main screen; hidden during profile/wardrobe views.",
+                 '[Whisper/BEEP Input Glow] — Shows a colored glow on chat input when /w is typed or whisper mode is active.',
+                 '[OOC Protection] — Blocks Ctrl+Enter in whisper mode to prevent OOC content from being sent as normal chat.',
+                 '[Ghost List Hide] — Characters on your ghost list are hidden in the chatroom (only affects your view).',
+             ]},
+            { icon: '👥', title: '"One-way" relationship is normal',
+             body: "If someone shows as One-way friend, it means they recently added you but BC's server hasn't synced yet. Re-logging or waiting will fix it." },
+            { icon: '🏠', title: 'Room Management',
+             items: [
+                 'The Room Management tab only works while you are in a chatroom.',
+                 'Admin actions (kick, ban, whitelist, etc.) require admin rights in the room.',
+                 'Room Search lets you search public rooms and star favorites.',
+             ]},
+            { icon: '📍', title: 'Summon (button in the BEEP dialog)',
+             body: 'Clicking "Summon" sends a BEEP with your current room info. The target must have a summon rule in BC to be teleported automatically — otherwise they only receive "summon". Must be in a room.' },
+            { icon: '📜', title: 'People tab & Profile sharing',
+             items: [
+                 "The People tab shows characters you've encountered (requires Save Mode).",
+                 'Characters with full profile data can be shared to the chatroom via the Share button.',
+                 "Fully compatible with WCE's bce-past-profiles DB. Use Save Mode \"Off\" if WCE is installed.",
+             ]},
+            { icon: '🖼', title: 'Avatars',
+             items: [
+                 "Avatars are cropped from the character's BC canvas — full appearance data required.",
+                 'Click the avatar cell to force a reload.',
+                 'Use "Avatar Cache" in Settings to clear or batch-load avatars.',
+             ]},
+            { icon: '🔑', title: 'FCM button locations',
+             items: [
+                 'ChatRoom toolbar — cat icon on the right',
+                 'Main Hall — cat icon top-right',
+                 'Your own profile page — right side button',
+                 'Toggle each in Settings → Button Visibility.',
+             ]},
+        ];
+        sections.forEach(sec => {
+            const card = document.createElement('div');
+            card.style.cssText = 'background:#1a1230;border:1px solid #2e2458;border-radius:10px;padding:12px 16px;margin-bottom:8px;transition:border-color .15s;';
+            card.addEventListener('mouseenter', () => { card.style.borderColor = '#5a48a8'; });
+            card.addEventListener('mouseleave', () => { card.style.borderColor = '#2e2458'; });
+            const titleRow = document.createElement('div');
+            titleRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
+            const iconEl = document.createElement('span'); iconEl.style.cssText = 'font-size:15px;flex-shrink:0;'; iconEl.textContent = sec.icon;
+            const titleEl = document.createElement('div'); titleEl.style.cssText = 'color:#e0c8ff;font-size:13px;font-weight:700;'; titleEl.textContent = sec.title;
+            titleRow.appendChild(iconEl); titleRow.appendChild(titleEl); card.appendChild(titleRow);
+            if (sec.body) { const p = document.createElement('div'); p.style.cssText = 'color:#a090c0;font-size:12px;line-height:1.7;'; p.textContent = sec.body; card.appendChild(p); }
+            if (sec.items) {
+                const ul = document.createElement('div'); ul.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
+                sec.items.forEach(item => {
+                    const li = document.createElement('div'); li.style.cssText = 'color:#a090c0;font-size:12px;line-height:1.6;display:flex;gap:6px;';
+                    const dot = document.createElement('span'); dot.style.cssText = 'color:#5a48a0;flex-shrink:0;'; dot.textContent = '•';
+                    const txt = document.createElement('span'); txt.textContent = item;
+                    li.appendChild(dot); li.appendChild(txt); ul.appendChild(li);
+                });
+                card.appendChild(ul);
+            }
+            wrap.appendChild(card);
+        });
+        const footer = document.createElement('div');
+        footer.style.cssText = 'margin-top:4px;padding:10px 0;text-align:center;color:#4a3870;font-size:11px;letter-spacing:1px;';
+        footer.textContent = `FCM v${MOD_VER}  ·  Liko - Friends & Chatroom Manager`;
+        wrap.appendChild(footer);
+        container.appendChild(wrap);
+    }
     // ─── Settings ───────────────────────────────────────────────────────
     function renderSettings(container) {
         container.innerHTML = '';
@@ -2545,7 +2692,9 @@
             _updateWhisperAvatar();
         }
         // Draw whisper avatar on canvas every frame (after next() so it renders on top)
-        if (cfg.whisperAvatar && _wavImageCache) _drawWavOnCanvas();
+        const _inChatMain = (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom')
+        && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null);
+        if (_inChatMain) _drawWavOnCanvas();
     });
 
     modApi.hookFunction('ChatRoomClick', 10, (args, next) => {
@@ -2652,7 +2801,7 @@
         modApi.hookFunction('InformationSheetRun', 7, (args, next) => {
             const r = next(args);
             const viewingSelf = (typeof InformationSheetSelection !== 'undefined') &&
-                (InformationSheetSelection === Player.MemberNumber || InformationSheetSelection?.MemberNumber === Player.MemberNumber);
+                  (InformationSheetSelection === Player.MemberNumber || InformationSheetSelection?.MemberNumber === Player.MemberNumber);
             if (viewingSelf && cfg.btnShowProfile && typeof DrawButton === 'function') {
                 const btnColor = (panelOpen && !panelMini) ? '#3a1858' : 'White';
                 DrawButton(1705, 420, 90, 90, '', btnColor, '', 'FCM');
@@ -2664,7 +2813,7 @@
         });
         modApi.hookFunction('InformationSheetClick', 7, (args, next) => {
             const viewingSelf = (typeof InformationSheetSelection !== 'undefined') &&
-                (InformationSheetSelection === Player.MemberNumber || InformationSheetSelection?.MemberNumber === Player.MemberNumber);
+                  (InformationSheetSelection === Player.MemberNumber || InformationSheetSelection?.MemberNumber === Player.MemberNumber);
             if (viewingSelf && cfg.btnShowProfile && typeof MouseIn === 'function' && MouseIn(1705, 420, 90, 90)) { openPanel(); return; }
             return next(args);
         });
