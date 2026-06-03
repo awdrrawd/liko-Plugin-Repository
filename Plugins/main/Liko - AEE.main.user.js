@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.7.7-1
+// @version      0.7.7-2
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -598,6 +598,7 @@
         scaleLock: true,
         hoverHighlight: false,     // AEE 部件列表懸停閃爍
         hoverHighlightChar: false, // BC 部件列表懸停→角色身上衣服閃爍
+        hideLscgLayers: false,
     };
 
     const LOCKED_GROUPS = new Set(['BodyUpper','BodyLower','Nipples','Pussy','Head']);
@@ -1469,8 +1470,20 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
         const backdrop = colorPickerShadow?.getElementById('cp-backdrop');
         if (backdrop) backdrop.style.display = isBCMode ? 'none' : '';
+        if (isBCMode) _moveColorPickerHgroup(true);
     }
-
+    function _moveColorPickerHgroup(isBCMode) {
+        const hgroup = document.getElementById('color-picker-hgroup');
+        if (!hgroup) return;
+        if (isBCMode) {
+            // AEE 調色盤在左側，hgroup 往右移避免被遮住
+            hgroup.style.marginLeft = '140px';
+            hgroup.style.transition = 'margin-left 0.15s';
+        } else {
+            hgroup.style.marginLeft = '';
+            hgroup.style.transition = '';
+        }
+    }
     function _aeeRestoreBCColorPicker() {
         const main = document.getElementById('color-picker-main');
         const originalFieldset = main?.querySelector('fieldset[name="color-picker"]');
@@ -1491,6 +1504,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
                 opInput.dispatchEvent(new Event('input', { bubbles: true })); opInput.dispatchEvent(new Event('change', { bubbles: true }));
             }
             updateColorUI(idx, hex);
+            _moveColorPickerHgroup(true);
         }, true);
         const backdrop = colorPickerShadow?.getElementById('cp-backdrop');
         if (backdrop) backdrop.style.display = 'none';
@@ -1506,6 +1520,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             colorPickerHostEl._cpInitialHex   = null;
         }
         updateToggleIcons();
+        _moveColorPickerHgroup(false);
     }
 
     // ============================================================
@@ -1921,6 +1936,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             if (settingChk.dataset.setting === 'hoverHighlightChar') {
                 state.hoverHighlightChar = settingChk.checked;
                 if (!settingChk.checked) _stopHoverCharHighlight();
+            }
+            if (settingChk.dataset.setting === 'hideLscgLayers') {
+                state.hideLscgLayers = settingChk.checked;
+                _applyLscgLayersVisibility();
             }
             renderContent(); return;
         }
@@ -2388,11 +2407,17 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     function setAeeSetting(k, v) { _aeeSettings[k] = v; _saveAeeSettings(); }
 
     // 初始化 state 設定值（需在 getAeeSetting 定義後執行）
+    state.hideLscgLayers = getAeeSetting('hideLscgLayers', false);
     state.hoverHighlight     = getAeeSetting('hoverHighlight', false);
     state.hoverHighlightChar = getAeeSetting('hoverHighlightChar', false);
-
+    function _applyLscgLayersVisibility() {
+        const el = document.getElementById('lscg-layers');
+        if (!el) return; // 沒裝 LSCG 就直接跳過
+        el.style.display = state.hideLscgLayers ? 'none' : '';
+    }
     function renderSettingsTab() {
         const useAeeCP    = getAeeSetting('useAeeColorPicker', false);
+        const hideLscg = getAeeSetting('hideLscgLayers', false);
         const hoverHL     = getAeeSetting('hoverHighlight', false);
         const hoverHLChar = getAeeSetting('hoverHighlightChar', false);
         const row = (label, key, val) => `
@@ -2407,6 +2432,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             ${row(isZh()?'取代 BC 調色盤':'Replace BC color picker', 'useAeeColorPicker', useAeeCP)}
             ${row(isZh()?'懸停圖層閃爍（AEE 部件列表）':'Hover layer highlight (AEE)', 'hoverHighlight', hoverHL)}
             ${row(isZh()?'懸停衣服閃爍（角色身上）':'Hover item highlight (character)', 'hoverHighlightChar', hoverHLChar)}
+            ${row(isZh()?'隱藏 LSCG 圖層面板':'Hide LSCG layers panel', 'hideLscgLayers', hideLscg)}
         </div>
         <div class="settings-empty">${isZh()?'更多功能擴充中':'More features coming soon'}</div>`;
     }
@@ -2486,6 +2512,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             const pf = shadowRoot?.getElementById('parts-float');
             if (pf?.classList.contains('open')) updatePartsPanel();
         }
+        _applyLscgLayersVisibility();
     }
 
     try { modApi.hookFunction("CharacterLoadCanvas", 0, (args, next) => { if (args[0]) currentRenderChar = args[0]; return next(args); }); } catch(e) {}
