@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.1
+// @version      1.6.1-1
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,11 +15,12 @@
 // @updateURL    https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
 // ==/UserScript==
 (function() {
-    "use strict";
-
-    // ============================================================
+    if (window.LikoPCMInstance) {
+        console.warn('🐈‍⬛ [PCM] ⚠️ already loaded, skipping duplicate');
+        return;
+    }
+    window.LikoPCMInstance = true;
     // === 基礎設定 ================================================
-    // ============================================================
 
     let modApi;
     const modversion = "1.6.1";
