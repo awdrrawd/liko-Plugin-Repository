@@ -2,7 +2,7 @@
 // @name         Liko - CDT
 // @name:zh      Liko的座標繪製工具
 // @namespace    https://likolisu.dev/
-// @version      1.3
+// @version      1.3-1
 // @description  在BC所有畫面上顯示 UI 座標與滑鼠位置，方便 UI 對齊調整
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,6 +13,12 @@
 // ==/UserScript==
 
 (() => {
+    if (window.LikoCDTInstance) {
+        console.warn('🐈‍⬛ [CDT] ⚠️ already loaded, skipping duplicate');
+        return;
+    }
+    window.LikoCDTInstance = true;
+    
     let modApi;
     const modversion = "1.3";
     try {
