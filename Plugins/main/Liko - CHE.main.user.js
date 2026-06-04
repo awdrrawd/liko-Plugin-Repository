@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.4.4
+// @version      2.4.4-1
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,7 +14,11 @@
 // @run-at       document-end
 // ==/UserScript==
 (function() {
-    "use strict";
+    if (window.LikoCHEInstance) {
+        console.warn('🐈‍⬛ [CHE] ⚠️ already loaded, skipping duplicate');
+        return;
+    }
+    window.LikoCHEInstance = true;
 
     let modApi;
     const modversion = "2.4.4";
