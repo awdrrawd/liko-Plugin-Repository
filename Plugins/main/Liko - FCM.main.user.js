@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.1
+// @version      1.4.1-1
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -590,17 +590,17 @@
     }
 
     let onlineFriends = [];
-modApi.hookFunction('ServerAccountQueryResult', 0, (args, next) => {
-    const data = args[0];
-    if (data?.Query === 'OnlineFriends' && Array.isArray(data.Result)) {
-        onlineFriends = data.Result;
-    }
-    const r = next(args);
-    if (data?.Query === 'OnlineFriends' && panelOpen && !panelMini && (uiTab === 'friends' || uiTab === 'room')) {
-        renderCurrent();
-    }
-    return r;
-});
+    modApi.hookFunction('ServerAccountQueryResult', 0, (args, next) => {
+        const data = args[0];
+        if (data?.Query === 'OnlineFriends' && Array.isArray(data.Result)) {
+            onlineFriends = data.Result;
+        }
+        const r = next(args);
+        if (data?.Query === 'OnlineFriends' && panelOpen && !panelMini && (uiTab === 'friends' || uiTab === 'room')) {
+            renderCurrent();
+        }
+        return r;
+    });
     modApi.hookFunction('ChatRoomSync', 0, (args, next) => {
         const r = next(args);
         const raws = (args[0] && args[0].Character) || [];
@@ -654,7 +654,7 @@ modApi.hookFunction('ServerAccountQueryResult', 0, (args, next) => {
         if (Player.Lovership && Player.Lovership.some(l => parseInt(l.MemberNumber) === mn)) return 'lover';
         if (parseAFC().some(l => parseInt(l.MemberNumber) === mn)) return 'lover';
         if (getSubSet().has(mn)) return 'sub';
-const _of = onlineFriends.find(f => f.MemberNumber === mn);
+        const _of = onlineFriends.find(f => f.MemberNumber === mn);
         if (_of && _of.Type === 'Friend') return 'friend';
         if (Player.FriendList && Player.FriendList.includes(mn)) return 'contact';
         if (Player.WhiteList && Player.WhiteList.includes(mn)) return 'whitelist';
@@ -667,7 +667,7 @@ const _of = onlineFriends.find(f => f.MemberNumber === mn);
         if (Player.Ownership && parseInt(Player.Ownership.MemberNumber) === mn) roles.push('owner');
         if ((Player.Lovership && Player.Lovership.some(l => parseInt(l.MemberNumber) === mn)) || parseAFC().some(l => parseInt(l.MemberNumber) === mn)) roles.push('lover');
         if (getSubSet().has(mn)) roles.push('sub');
-const _of2 = onlineFriends.find(f => f.MemberNumber === mn);
+        const _of2 = onlineFriends.find(f => f.MemberNumber === mn);
         if (!roles.length && _of2 && _of2.Type === 'Friend') roles.push('friend');
         if (!roles.length && Player.FriendList && Player.FriendList.includes(mn)) roles.push('contact');
         if (Player.WhiteList && Player.WhiteList.includes(mn)) roles.push('whitelist');
@@ -744,7 +744,7 @@ const _of2 = onlineFriends.find(f => f.MemberNumber === mn);
     function amAdmin() { return !!(ChatRoomData && ChatRoomData.Admin && ChatRoomData.Admin.includes(Player.MemberNumber)); }
     function inRoomFn(mn) { return !!(ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === parseInt(mn))); }
     function isFriendOf(mn) { return !!(Player.FriendList && Player.FriendList.includes(parseInt(mn))); }
-function canBeep(mn) {
+    function canBeep(mn) {
         mn = parseInt(mn);
         if (inRoomFn(mn)) return true;
         const _of = onlineFriends.find(f => f.MemberNumber === mn);
@@ -2316,7 +2316,7 @@ function canBeep(mn) {
                  '【幽靈名單隱身】— 幽靈名單中的角色在聊天室不顯示身體（只對自己有效）。',
              ]},
             { icon: '👥', title: '好友關係顯示「單向好友」是正常的',
-             body: '對方剛添加你時，BC 伺服器尚未將資料推送到你的客戶端，顯示為「單向好友」是正常的。FCM 以伺服器回傳的即時狀態判斷關係，開啟 FCM 或切換到個人關係頁面時會自動查詢一次。若關係長時間未更新，可點擊重新整理按鈕手動同步。' },
+             body: '對方剛添加你時，BC 伺服器尚未將更新資料推送到你的客戶端，所以顯示為「單向好友」。重新登入或等待伺服器同步後即可顯示正確關係。' },
             { icon: '🏠', title: '房間管理',
              items: [
                  '「房間管理」頁需要你目前在某個聊天室中才能使用。',
@@ -2357,7 +2357,7 @@ function canBeep(mn) {
                  '[Ghost List Hide] — Characters on your ghost list are hidden in the chatroom (only affects your view).',
              ]},
             { icon: '👥', title: '"One-way" relationship is normal',
-             body: 'When someone just added you, it may show as "One-way" until the server syncs. FCM uses the server\'s live data to determine relationships — it queries automatically when you open FCM or switch to the Relations tab. If the status seems stuck, use the refresh button to sync manually.' },
+             body: "If someone shows as One-way friend, it means they recently added you but BC's server hasn't synced yet. Re-logging or waiting will fix it." },
             { icon: '🏠', title: 'Room Management',
              items: [
                  'The Room Management tab only works while you are in a chatroom.',
@@ -2695,11 +2695,10 @@ function canBeep(mn) {
         if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
             if (cfg.btnShowChatRoom) {
                 const btnColor = (panelOpen || panelMini) ? 'Pink' : 'Gray';
+MainCanvas.globalAlpha = 0.75;
                 DrawButton(BTN_X, BTN_Y, BTN_W, BTN_H, '', btnColor, '', 'Friends & Room Manager');
-                if (_fcmIconImg && typeof DrawImageResize === 'function') {
-                    const pad = 4;
-                    DrawImageResize(_fcmIconImg, BTN_X + pad, BTN_Y + pad, BTN_W - pad * 2, BTN_H - pad * 2);
-                }
+                if (_fcmIconImg && typeof DrawImageResize === 'function') { const pad = 4; DrawImageResize(_fcmIconImg, BTN_X + pad, BTN_Y + pad, BTN_W - pad * 2, BTN_H - pad * 2); }
+                MainCanvas.globalAlpha = 1.0;
             }
         }
         if (++_whisperDrawCount % 15 === 0) {
