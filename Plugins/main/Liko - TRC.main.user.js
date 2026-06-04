@@ -2,7 +2,7 @@
 // @name         Liko - TRC
 // @name:zh      Liko的玩具遙控器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.0.1
+// @version      1.1.0
 // @description  玩具遙控 | Toy remote control
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,12 +15,16 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
+    if (window.LikoTRCInstance) {
+        console.warn('🐈‍⬛ [TRC] already loaded, skipping duplicate');
+        return;
+    }
+    window.LikoTRCInstance = true;
 
-    const MOD_Version = "1.0";
+    const MOD_Version = "1.1.0";
     const modApi = bcModSdk.registerMod({
-        name: 'BCRemote',
-        fullName: 'Liko - Toy remote control',
+        name: 'Liko - TRC',
+        fullName: 'Liko - Toy Remote Control',
         version: MOD_Version,
         repository: '玩具遙控器 | ',
     });
@@ -1278,12 +1282,13 @@
             return result;
         });
     } catch {}
-
     modApi.hookFunction('DrawProcess', 10, (args, next) => {
         next(args);
         if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
+            MainCanvas.globalAlpha = 0.75;
             DrawButton(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE, '🎮',
                        (phoneOpen || miniVisible) ? 'Pink' : 'Gray', '', 'Remote Control');
+            MainCanvas.globalAlpha = 1.0;
         }
     });
     modApi.hookFunction('ChatRoomClick', 10, (args, next) => {
