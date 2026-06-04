@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.8.0
+// @version      0.8.0-1
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -1941,34 +1941,32 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
                 : '<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="10" height="10" rx="4" opacity="0.35"/><rect x="10" y="2" width="10" height="10" rx="4"/></svg>';
             return;
         }
-        const settingChk = e.target.closest('[data-setting]');
-        if (settingChk && settingChk.tagName === 'INPUT') {
-            setAeeSetting(settingChk.dataset.setting, settingChk.checked);
-            if (settingChk.dataset.setting === 'hoverHighlight') {
-                state.hoverHighlight = settingChk.checked;
-                if (!settingChk.checked) { _stopHoverHighlight(null, true); _hoverLayerIdx = null; }
-            }
-            if (settingChk.dataset.setting === 'hoverHighlightChar') {
-                state.hoverHighlightChar = settingChk.checked;
-                if (!settingChk.checked) _stopHoverCharHighlight();
-            }
-            if (settingChk.dataset.setting === 'hideLscgLayers') {
-                state.hideLscgLayers = settingChk.checked;
-                _applyLscgLayersVisibility();
-            }
-            if (settingChk.dataset.setting === 'showCharCtrl') {
-                state.showCharCtrl = settingChk.checked;
-                if (!settingChk.checked) _hideCharCtrlPanel();
-                else if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'Appearance') _showCharCtrlPanel();
-            }
-            renderContent(); return;
-        }
+        // checkbox 設定項由 onContentChange 處理（change event 更可靠）
         const mirrorBtn = e.target.closest('[data-mirror]');
         if (mirrorBtn) { handleMirror(mirrorBtn.dataset.mirror); return; }
     }
 
     function onContentChange(e) {
         const el = e.target;
+        // checkbox 設定項：change event 是最可靠的時機（checked 已更新）
+        if (el.tagName === 'INPUT' && el.type === 'checkbox' && el.dataset.setting) {
+            setAeeSetting(el.dataset.setting, el.checked);
+            if (el.dataset.setting === 'hoverHighlight') {
+                state.hoverHighlight = el.checked;
+                if (!el.checked) { _stopHoverHighlight(null, true); _hoverLayerIdx = null; }
+            } else if (el.dataset.setting === 'hoverHighlightChar') {
+                state.hoverHighlightChar = el.checked;
+                if (!el.checked) _stopHoverCharHighlight();
+            } else if (el.dataset.setting === 'hideLscgLayers') {
+                state.hideLscgLayers = el.checked;
+                _applyLscgLayersVisibility();
+            } else if (el.dataset.setting === 'showCharCtrl') {
+                state.showCharCtrl = el.checked;
+                if (!el.checked) _hideCharCtrlPanel();
+                else if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'Appearance') _showCharCtrlPanel();
+            }
+            renderContent(); return;
+        }
         if (el.dataset.dragMode !== undefined) {
             const mode = el.dataset.dragMode;
             if (el.checked) {
@@ -3057,14 +3055,43 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     try {
         modApi.hookFunction("DrawCharacter", 1, (args, next) => {
             if (!_aeeInAppearanceRun) return next(args);
+            const C     = args[0];
             const scale = args[3];
-            // 特寫（scale=4）
-            if (scale === 4) { if (state.hideCloseup) return; return next(args); }
+            const isTarget = C && typeof CharacterAppearanceSelection !== 'undefined'
+                && C === CharacterAppearanceSelection;
+
+            // 特寫（scale=4）：只對目標角色套用隱藏
+            if (scale === 4) {
+                if (!isTarget) return next(args);
+                if (state.hideCloseup) return;
+                return next(args);
+            }
+
             // 全身（scale≈1）
             if (Math.abs(scale - 1) < 0.1 || Math.abs(scale - 0.95) < 0.05) {
+                if (!isTarget) return next(args);
                 if (state.hideFullbody) return;
+
                 const hasOffset = _charOffsetX !== 0 || _charOffsetY !== 0 || _charScale !== 1;
                 if (hasOffset) {
+                    // 用 canvas transform 包住整個 DrawCharacter
+                    // 這樣興奮條、名牌等所有附加元素都會一起移動/縮放
+                    const cv = typeof MainCanvas !== 'undefined' ? MainCanvas : null;
+                    const ctx = cv?.getContext('2d');
+                    if (ctx) {
+                        ctx.save();
+                        // 以角色中心為 pivot 做 translate + scale
+                        const origX = args[1], origY = args[2];
+                        const pivotX = origX + 250 * scale; // 角色中心 X 大約
+                        const pivotY = origY + 500 * scale; // 角色中心 Y 大約
+                        ctx.translate(pivotX + _charOffsetX, pivotY + _charOffsetY);
+                        ctx.scale(_charScale, _charScale);
+                        ctx.translate(-(pivotX), -(pivotY));
+                        const result = next(args);
+                        ctx.restore();
+                        return result;
+                    }
+                    // Canvas 不可用時 fallback 到原本方式（興奮條可能跑位）
                     const n = [...args];
                     n[1] = args[1] + _charOffsetX;
                     n[2] = args[2] + _charOffsetY;
