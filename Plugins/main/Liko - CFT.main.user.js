@@ -2,7 +2,7 @@
 // @name         Liko - Chat Filter Tool
 // @name:zh      Liko的聊天室信息過濾器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1.2
+// @version      1.1.3
 // @description  聊天室信息過濾
 // @author       Liko
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -13,10 +13,14 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
+    if (window.LikoCFTInstance) {
+        console.warn('🐈‍⬛ [CFT] ⚠️ already loaded, skipping duplicate');
+        return;
+    }
+    window.LikoCFTInstance = true;
 
     let modApi = null;
-    const modversion = "1.1.2";
+    const modversion = "1.1.3";
     const BtnX = 955, BtnY = 900, BtnSize = 45;
 
     modApi = bcModSdk.registerMod({
@@ -28,12 +32,12 @@
 
     // ===== 語言偵測 =====
     function isZh() {
-    if (typeof TranslationLanguage !== 'undefined' && TranslationLanguage) {
-        const l = TranslationLanguage.toLowerCase();
-        return l === 'cn' || l === 'tw';
+        if (typeof TranslationLanguage !== 'undefined' && TranslationLanguage) {
+            const l = TranslationLanguage.toLowerCase();
+            return l === 'cn' || l === 'tw';
+        }
+        return (navigator.language || '').toLowerCase().startsWith('zh');
     }
-    return (navigator.language || '').toLowerCase().startsWith('zh');
-}
 
     const LANG = {
         zh: {
@@ -472,8 +476,8 @@
 
         function getValues() {
             return [...wrap.querySelectorAll(".cfp-chip")].map(c =>
-                numericOnly ? Number(c.dataset.val) : c.dataset.val
-            );
+                                                               numericOnly ? Number(c.dataset.val) : c.dataset.val
+                                                              );
         }
 
         function addChip(label, value) {
@@ -589,11 +593,11 @@
         refs.modeButtons = {};
         [{k:MODE.OFF,lk:'modeOff'},{k:MODE.FILTER,lk:'modeFilter'},{k:MODE.CLEAN,lk:'modeClean'}]
             .forEach(({ k, lk }) => {
-                const btn = document.createElement("button"); btn.className = "cfp-mode-btn";
-                btn.dataset.mode = k; btn.textContent = t(lk);
-                btn.addEventListener("click", () => setMode(k));
-                modeGroup.appendChild(btn); refs.modeButtons[k] = btn;
-            });
+            const btn = document.createElement("button"); btn.className = "cfp-mode-btn";
+            btn.dataset.mode = k; btn.textContent = t(lk);
+            btn.addEventListener("click", () => setMode(k));
+            modeGroup.appendChild(btn); refs.modeButtons[k] = btn;
+        });
         const cleanWarn = document.createElement("div"); cleanWarn.id = "cfp-clean-warn"; cleanWarn.textContent = t('cleanWarn');
         refs.cleanWarn = cleanWarn;
         modeSec.appendChild(modeGroup); modeSec.appendChild(cleanWarn);
@@ -606,13 +610,13 @@
         refs.typeItems = {};
         [{key:"showChat",lk:"chat"},{key:"showEmote",lk:"emote"},{key:"showAction",lk:"action"},{key:"showActivity",lk:"activity"}]
             .forEach(({ key, lk }) => {
-                const item = document.createElement("div"); item.className = "cfp-check-item";
-                const tog = document.createElement("div"); tog.className = "cfp-tog";
-                const clbl = document.createElement("span"); clbl.className = "cfp-check-label"; clbl.textContent = t(lk);
-                item.appendChild(tog); item.appendChild(clbl);
-                item.addEventListener("click", () => item.classList.toggle("on"));
-                typesGrid.appendChild(item); refs.typeItems[key] = item;
-            });
+            const item = document.createElement("div"); item.className = "cfp-check-item";
+            const tog = document.createElement("div"); tog.className = "cfp-tog";
+            const clbl = document.createElement("span"); clbl.className = "cfp-check-label"; clbl.textContent = t(lk);
+            item.appendChild(tog); item.appendChild(clbl);
+            item.addEventListener("click", () => item.classList.toggle("on"));
+            typesGrid.appendChild(item); refs.typeItems[key] = item;
+        });
         typesSec.appendChild(typesLbl); typesSec.appendChild(typesGrid);
         content.appendChild(typesSec); content.appendChild(mkHr());
 
@@ -784,17 +788,19 @@
         if (settings.mode === MODE.CLEAN)  return "Orange";
         return "Gray";
     }
-try {
-    modApi.hookFunction("DrawProcess", 10, (args, next) => {
-        const result = next(args);
-        if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
-            DrawButton(BtnX, BtnY, BtnSize, BtnSize, "📋", getBtnColor(), "", "Chat Filter");
-        }
-        return result;
-    });
-} catch (e) {
-    console.error("🐈‍⬛ [CFT] ❌ Hook DrawProcess 失敗:", e.message);
-}
+    try {
+        modApi.hookFunction("DrawProcess", 10, (args, next) => {
+            const result = next(args);
+            if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
+                MainCanvas.globalAlpha = 0.75;
+                DrawButton(BtnX, BtnY, BtnSize, BtnSize, "📋", getBtnColor(), "", "Chat Filter");
+                MainCanvas.globalAlpha = 1.0;
+            }
+            return result;
+        });
+    } catch (e) {
+        console.error("🐈‍⬛ [CFT] ❌ Hook DrawProcess 失敗:", e.message);
+    }
     modApi.hookFunction("ChatRoomClick", 10, (args, next) => {
         if (MouseIn(BtnX, BtnY, BtnSize, BtnSize)) { openPanel(); return; }
         next(args);
