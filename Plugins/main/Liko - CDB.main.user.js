@@ -15,11 +15,12 @@
 // ==/UserScript==
 
 (function() {
-    'use strict';
+    if (window.LikoCDBInstance) {
+        console.warn('🐈‍⬛ [CDB] ⚠️ already loaded, skipping duplicate');
+        return;
+    }
+    window.LikoCDBInstance = true;
 
-    // ================================
-    // 語言工具
-    // ================================
     const Lang = {
         _lang: null,
 
