@@ -2,7 +2,7 @@
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.3.0
+// @version      1.3.0-1
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,7 +13,12 @@
 // ==/UserScript==
 
 (function () {
-    "use strict";
+    if (window.LikoACVInstance) {
+        console.warn('🐈‍⬛ [ACV] ⚠️ already loaded, skipping duplicate');
+        return;
+    }
+    window.LikoACVInstance = true;
+    
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
