@@ -13,7 +13,11 @@
 // @run-at       document-end
 // ==/UserScript==
 (function() {
-    'use strict';
+    if (window.LikoNOIInstance) {
+        console.warn('🐈‍⬛ [NOI] ⚠️ already loaded, skipping duplicate');
+        return;
+    }
+    window.LikoNOIInstance = true;
 
     // ------------ 日誌控制 ------------
     const debugMode = false;
