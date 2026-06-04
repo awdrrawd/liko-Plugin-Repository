@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.0-1
+// @version      1.4.1
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -22,7 +22,8 @@
     }
     window.LikoFCMInstance = true;
 
-    const MOD_VER = '1.4.0';
+    const MOD_VER = '1.4.1';
+    let _renderToken = 0;
     const modApi = bcModSdk.registerMod({
         name: 'Liko - FCM', fullName: 'Liko - Friends and ChatRoom Manager', version: MOD_VER,
     });
@@ -589,11 +590,17 @@
     }
 
     let onlineFriends = [];
-    modApi.hookFunction('FriendListLoadFriendList', 0, (args, next) => {
-        const r = next(args);
-        if (Array.isArray(args[0])) { onlineFriends = args[0]; if (panelOpen && !panelMini && uiTab === 'friends') renderCurrent(); }
-        return r;
-    });
+modApi.hookFunction('ServerAccountQueryResult', 0, (args, next) => {
+    const data = args[0];
+    if (data?.Query === 'OnlineFriends' && Array.isArray(data.Result)) {
+        onlineFriends = data.Result;
+    }
+    const r = next(args);
+    if (data?.Query === 'OnlineFriends' && panelOpen && !panelMini && (uiTab === 'friends' || uiTab === 'room')) {
+        renderCurrent();
+    }
+    return r;
+});
     modApi.hookFunction('ChatRoomSync', 0, (args, next) => {
         const r = next(args);
         const raws = (args[0] && args[0].Character) || [];
@@ -647,7 +654,8 @@
         if (Player.Lovership && Player.Lovership.some(l => parseInt(l.MemberNumber) === mn)) return 'lover';
         if (parseAFC().some(l => parseInt(l.MemberNumber) === mn)) return 'lover';
         if (getSubSet().has(mn)) return 'sub';
-        if (Player.FriendNames && Player.FriendNames.get(mn)) return 'friend';
+const _of = onlineFriends.find(f => f.MemberNumber === mn);
+        if (_of && _of.Type === 'Friend') return 'friend';
         if (Player.FriendList && Player.FriendList.includes(mn)) return 'contact';
         if (Player.WhiteList && Player.WhiteList.includes(mn)) return 'whitelist';
         if (Player.BlackList && Player.BlackList.includes(mn)) return 'blacklist';
@@ -659,7 +667,8 @@
         if (Player.Ownership && parseInt(Player.Ownership.MemberNumber) === mn) roles.push('owner');
         if ((Player.Lovership && Player.Lovership.some(l => parseInt(l.MemberNumber) === mn)) || parseAFC().some(l => parseInt(l.MemberNumber) === mn)) roles.push('lover');
         if (getSubSet().has(mn)) roles.push('sub');
-        if (!roles.length && Player.FriendNames && Player.FriendNames.get(mn)) roles.push('friend');
+const _of2 = onlineFriends.find(f => f.MemberNumber === mn);
+        if (!roles.length && _of2 && _of2.Type === 'Friend') roles.push('friend');
         if (!roles.length && Player.FriendList && Player.FriendList.includes(mn)) roles.push('contact');
         if (Player.WhiteList && Player.WhiteList.includes(mn)) roles.push('whitelist');
         if (Player.BlackList && Player.BlackList.includes(mn)) roles.push('blacklist');
@@ -735,7 +744,12 @@
     function amAdmin() { return !!(ChatRoomData && ChatRoomData.Admin && ChatRoomData.Admin.includes(Player.MemberNumber)); }
     function inRoomFn(mn) { return !!(ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === parseInt(mn))); }
     function isFriendOf(mn) { return !!(Player.FriendList && Player.FriendList.includes(parseInt(mn))); }
-    function canBeep(mn) { if (inRoomFn(mn)) return true; return onlineFriends.some(f => f.MemberNumber === parseInt(mn)); }
+function canBeep(mn) {
+        mn = parseInt(mn);
+        if (inRoomFn(mn)) return true;
+        const _of = onlineFriends.find(f => f.MemberNumber === mn);
+        return !!(_of && _of.Type === 'Friend');
+    }
 
     // ─── Detect current whisper target MN ────────────────────────
     function _getWhisperTargetMN() {
@@ -1360,14 +1374,16 @@
         });
         const scrollEl = content.querySelector('.fcm-scroll');
         const savedScroll = scrollEl ? scrollEl.scrollTop : 0;
+        const _myToken = ++_renderToken;
         let p;
-        if (uiTab === 'friends') p = renderFriends(content);
-        else if (uiTab === 'people') p = renderPeople(content);
+        if (uiTab === 'friends') p = renderFriends(content, _myToken);
+        else if (uiTab === 'people') p = renderPeople(content, _myToken);
         else if (uiTab === 'room') p = renderRoom(content);
         else if (uiTab === 'roomSearch') p = Promise.resolve(renderRoomSearch(content));
         else if (uiTab === 'help') p = Promise.resolve(renderHelp(content));
         else p = Promise.resolve(renderSettings(content));
         (p || Promise.resolve()).then(() => {
+            if (_myToken !== _renderToken) return;
             if (savedScroll > 0) { const ns = content.querySelector('.fcm-scroll'); if (ns) ns.scrollTop = savedScroll; }
         }).catch(e => console.warn('🐈‍⬛ [FCM] render:', e));
     }
@@ -1628,7 +1644,7 @@
     // ═══════════════════════════════════════════════════════════
     //  FRIENDS TAB
     // ═══════════════════════════════════════════════════════════
-    async function renderFriends(container) {
+    async function renderFriends(container, _myToken) {
         container.innerHTML = '';
         const toolbar = document.createElement('div'); toolbar.className = 'fcm-toolbar';
 
@@ -1672,6 +1688,7 @@
             default:      friends.sort((a, b) => { const d = REL_ORDER[a.rel] - REL_ORDER[b.rel]; return d || a.name.localeCompare(b.name); });
         }
         await PDB.batchGet(friends.map(f => f.mn));
+        if (_myToken !== _renderToken) return;
         friends.forEach(f => { f.name = getDisplayName(f.mn); });
 
         const inARoom = !!(typeof ChatRoomData !== 'undefined' && ChatRoomData), isAdmin = inARoom && amAdmin();
@@ -1761,7 +1778,7 @@
     const PEOPLE_PAGE_SIZE = 100;
     let _peoplePage = 0;
 
-    async function renderPeople(container) {
+    async function renderPeople(container, _myToken) {
         container.innerHTML = '';
         if (!PDB.db) {
             const em = document.createElement('div'); em.className = 'fcm-empty';
@@ -1795,6 +1812,7 @@
             req.onsuccess = () => res(req.result || []);
             req.onerror = () => res([]);
         });
+        if (_myToken !== _renderToken) return;
         allProfiles.sort((a, b) => (b.seen || b.savedAt || 0) - (a.seen || a.savedAt || 0));
 
         const wrapper = document.createElement('div'); wrapper.className = 'fcm-scroll-wrap';
@@ -2298,7 +2316,7 @@
                  '【幽靈名單隱身】— 幽靈名單中的角色在聊天室不顯示身體（只對自己有效）。',
              ]},
             { icon: '👥', title: '好友關係顯示「單向好友」是正常的',
-             body: '對方剛添加你時，BC 伺服器尚未將更新資料推送到你的客戶端，所以顯示為「單向好友」。重新登入或等待伺服器同步後即可顯示正確關係。' },
+             body: '對方剛添加你時，BC 伺服器尚未將資料推送到你的客戶端，顯示為「單向好友」是正常的。FCM 以伺服器回傳的即時狀態判斷關係，開啟 FCM 或切換到個人關係頁面時會自動查詢一次。若關係長時間未更新，可點擊重新整理按鈕手動同步。' },
             { icon: '🏠', title: '房間管理',
              items: [
                  '「房間管理」頁需要你目前在某個聊天室中才能使用。',
@@ -2339,7 +2357,7 @@
                  '[Ghost List Hide] — Characters on your ghost list are hidden in the chatroom (only affects your view).',
              ]},
             { icon: '👥', title: '"One-way" relationship is normal',
-             body: "If someone shows as One-way friend, it means they recently added you but BC's server hasn't synced yet. Re-logging or waiting will fix it." },
+             body: 'When someone just added you, it may show as "One-way" until the server syncs. FCM uses the server\'s live data to determine relationships — it queries automatically when you open FCM or switch to the Relations tab. If the status seems stuck, use the refresh button to sync manually.' },
             { icon: '🏠', title: 'Room Management',
              items: [
                  'The Room Management tab only works while you are in a chatroom.',
@@ -2817,5 +2835,4 @@
         console.log(`🐈‍⬛ [FCM] ✅ v${MOD_VER} loaded`);
     }
     init();
-
 })();
