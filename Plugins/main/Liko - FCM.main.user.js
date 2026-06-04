@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.0
+// @version      1.4.0-1
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -24,7 +24,7 @@
 
     const MOD_VER = '1.4.0';
     const modApi = bcModSdk.registerMod({
-        name: 'Liko - FCM', fullName: 'Liko - Friends Room Manager', version: MOD_VER,
+        name: 'Liko - FCM', fullName: 'Liko - Friends and ChatRoom Manager', version: MOD_VER,
     });
     const BTN_X = 955, BTN_Y = 455, BTN_W = 45, BTN_H = 45;
 
@@ -154,7 +154,6 @@
             shareLocalMsg: (name, id) => `📜 已分享 ${name} (${id}) 的 Profile`,
             shareRecvMsg: (from, display, date) => `📜 ${from} 分享了 ${display} 保存於: ${date}`,
             shareOpen: '▶ 開啟',
-            // v1.3.4 new
             whisperAvatarLabel: '私聊時顯示對象頭像',
             whisperAvatarNote: '進入悄悄話/BEEP 模式時，在輸入框旁顯示對象的頭像',
             oocProtectLabel: 'OOC 保護（悄悄話時停用 Ctrl+Enter）',
@@ -251,7 +250,6 @@
             shareLocalMsg: (name, id) => `📜 Shared profile: ${name} (${id})`,
             shareRecvMsg: (from, display, date) => `📜 ${from} shared a profile: ${display} saved: ${date}`,
             shareOpen: '▶ Open',
-            // v1.3.4 new
             whisperAvatarLabel: 'Show target avatar during whisper',
             whisperAvatarNote: 'Displays the target\'s avatar near the chat input when in whisper/BEEP mode',
             oocProtectLabel: 'OOC Protection (block Ctrl+Enter during whisper)',
@@ -272,7 +270,6 @@
         avatars: false, lang: 'auto', saveMode: 'off',
         whisperIndicator: false, whisperColor: '#b070e8',
         ghostHide: false,
-        // v1.3.4
         whisperAvatar: false,
         oocProtect: false,
         btnShowChatRoom: true,
@@ -1589,7 +1586,7 @@
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  OOC PROTECTION  (v1.3.4 new feature)
+    //  OOC PROTECTION
     // ═══════════════════════════════════════════════════════════
     function _isWhisperMode() {
         try {
