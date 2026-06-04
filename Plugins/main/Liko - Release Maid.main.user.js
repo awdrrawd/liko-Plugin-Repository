@@ -2,7 +2,7 @@
 // @name         Liko - Release Maid
 // @name:zh      Liko的解綁女僕
 // @namespace    https://likulisu.dev/
-// @version      1.2
+// @version      1.2-1
 // @description  自動回應「救我 / 救救 / help」來解除拘束，支援指定救人
 // @author       莉柯莉絲(Likolisu)
 // @match        https://bondageprojects.elementfx.com/*
@@ -19,7 +19,12 @@
 
 (function() {
     'use strict';
-
+    if (window.LikoReleaseMaidInstance) {
+        console.warn('🐈‍⬛ [RM] already loaded, skipping duplicate');
+        return;
+    }
+    window.LikoReleaseMaidInstance = true;
+    
     let modApi = null;
 
     // 等待 bcModSdk 載入的函數
