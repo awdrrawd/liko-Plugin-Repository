@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.7.7-3
+// @version      0.8.0
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -22,7 +22,7 @@
     window.__LikoAEELoaded__ = true;
 
     const MOD_NAME = "Liko - AEE";
-    const MOD_Version = "0.7.7";
+    const MOD_Version = "0.8.0";
     if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
     const modApi = bcModSdk.registerMod({
         name: MOD_NAME, fullName: "Liko - Appearance Editor",
@@ -62,7 +62,7 @@
             settingsEmpty: '⚙️ 設定\n功能擴充中',
         },
         en: {
-            tabEdit: 'Edit', tabOpacity: 'Opacity', tabLayers: 'Layers', tabSettings: '⚙',
+            tabEdit: 'Edit', tabOpacity: 'Opacity', tabLayers: 'Layers', tabSettings: 'Settings',
             secPart: 'Layers', allParts: 'Whole Item',
             opacity: 'Opacity',
             coord: 'Position', coordDrag: 'Drag',
@@ -110,7 +110,6 @@
     modApi.hookFunction("GLDrawAppearanceBuild", 1, (args, next) => {
         const C = args[0];
         currentRenderChar = C;
-
         const savedPri = [];
         C.Appearance?.forEach(item => {
             const assetLayers = item.Asset?.Layer;
@@ -126,16 +125,12 @@
                 });
             }
         });
-
         const result = next(args);
-
         savedPri.forEach(({ layer, original }) => { layer.Priority = original; });
-
         C.AppearanceLayers?.forEach(layer => {
             const asset = layer.Asset?.Name, group = layer.Asset?.Group?.Name;
             if (asset && group) assetGroupMap.set(asset, group);
         });
-
         return result;
     });
 
@@ -186,7 +181,7 @@
             if (td.mirrorCopy || td.mirrorCopyV) {
                 _aeeLastMatData = m; _aeeLastMatLoc = loc; _aeeLastGl = this;
                 _aeeMCFlags = { mirrorCopy: td.mirrorCopy, mirrorCopyV: td.mirrorCopyV,
-                               mirrorCopyAxisX: td.mirrorCopyAxisX ?? 0.5, mirrorCopyAxisY: td.mirrorCopyAxisY ?? 0.5 };
+                                mirrorCopyAxisX: td.mirrorCopyAxisX ?? 0.5, mirrorCopyAxisY: td.mirrorCopyAxisY ?? 0.5 };
             } else {
                 _aeeLastMatData = null; _aeeMCFlags = null;
             }
@@ -228,125 +223,78 @@
     // ============================================================
     // HOVER HIGHLIGHT
     // 兩種閃爍：
-    //   hoverHighlight     — AEE 部件列表懸停，透過 GLDrawAppearanceBuild 臨時注入 opacity
-    //   hoverHighlightChar — BC Appearance 部件列表懸停，角色身上對應衣服閃爍
-    //
-    // 核心原則：閃爍完全不碰 Property.Opacity，
-    //   只在 GLDrawAppearanceBuild 的 draw 期間臨時覆蓋，draw 後立刻還原。
-    //   Property.Opacity 永遠是使用者設定的真實值，BC 的 cancel/undo 不受影響。
+    //   hoverHighlight     — AEE 部件列表懸停時，用 Property.Opacity 做 sine 波動畫
+    //   hoverHighlightChar — BC Appearance 部件列表懸停時，角色身上對應衣服閃爍
     // ============================================================
 
     // ── AEE 部件列表閃爍 ──
     let _hoverHighlightAnimFrame = null;
     let _hoverHighlightStartTime = null;
-    let _hoverHighlightItem      = null;
-    let _hoverHighlightIndices   = [];
-    let _hoverHighlightActive    = false;
     let _hoverFlashData          = null; // { item, overrides: Map<layerIdx, opacity> }
-
-    // ── 角色身上整件衣服閃爍 ──
-    let _hoverCharAnimFrame  = null;
-    let _hoverCharTimer      = null;
-    let _hoverCharStartTime  = null;
-    let _hoverCharGroup      = null;
-    let _hoverCharActive     = false;
-    let _hoverCharHiddenGroup = new Set(); // fallback 硬切用
-    let _hoverCharFlashData  = null; // { item, overrides: Map<layerIdx, opacity> }
-
-    // ── GLDrawAppearanceBuild 注入點（在現有 hook 裡加入）──
-    // 找到現有的 GLDrawAppearanceBuild hook，在 next(args) 前後加入以下邏輯：
-    //
-    //   【next 之前】
-    //   let savedFlash = null;
-    //   if (_hoverFlashData?.item) {
-    //       const fi = _hoverFlashData.item;
-    //       if (C.Appearance?.includes(fi) && Array.isArray(fi.Property?.Opacity)) {
-    //           savedFlash = { item: fi, origOpacity: [...fi.Property.Opacity] };
-    //           _hoverFlashData.overrides.forEach((val, i) => {
-    //               if (i < fi.Property.Opacity.length) fi.Property.Opacity[i] = val;
-    //           });
-    //       }
-    //   }
-    //   let savedCharFlash = null;
-    //   if (_hoverCharFlashData?.item) {
-    //       const fi = _hoverCharFlashData.item;
-    //       if (C.Appearance?.includes(fi) && Array.isArray(fi.Property?.Opacity)) {
-    //           savedCharFlash = { item: fi, origOpacity: [...fi.Property.Opacity] };
-    //           _hoverCharFlashData.overrides.forEach((val, i) => {
-    //               if (i < fi.Property.Opacity.length) fi.Property.Opacity[i] = val;
-    //           });
-    //       }
-    //   }
-    //
-    //   【next 之後，savedPri 還原之前】
-    //   if (savedFlash)     savedFlash.item.Property.Opacity     = savedFlash.origOpacity;
-    //   if (savedCharFlash) savedCharFlash.item.Property.Opacity = savedCharFlash.origOpacity;
+    let _hoverCharFlashData      = null; // { item, overrides: Map<layerIdx, opacity> }
+    // ── 閃爍實作：完全透過 _hoverFlashData + BeforeDraw 臨時 override opacity ──
+    // 完全不修改 Property.Opacity，退出時無殘留（0.7.6 原始做法）
 
     function _startHoverHighlight(item, layerIdx) {
-        if (!state.hoverHighlight) return;
-        if (!item) return;
-        if (_hoverHighlightActive && _hoverHighlightItem === item) return;
-        _stopHoverHighlight();
+        if (!state.hoverHighlight || !item) return;
+        if (_hoverHighlightAnimFrame !== null && _hoverFlashData?.item === item) return; // 同物件已在閃爍
+        _stopHoverHighlight(item, false);
 
-        _hoverHighlightItem    = item;
-        _hoverHighlightIndices = layerIdx === 'all'
+        const indices = layerIdx === 'all'
             ? Array.from({ length: item.Asset?.Layer?.length || 1 }, (_, i) => i)
-        : [parseInt(layerIdx)];
-        _hoverHighlightActive    = true;
+            : [parseInt(layerIdx)];
+
         _hoverHighlightStartTime = performance.now();
 
         function animate() {
-            if (!_hoverHighlightActive) return;
-            const t       = ((performance.now() - _hoverHighlightStartTime) % 1500) / 1500;
+            if (!_hoverHighlightAnimFrame) return; // 已被停止
+            const t = ((performance.now() - _hoverHighlightStartTime) % 1500) / 1500;
             const opacity = 0.5 + 0.5 * Math.cos(t * Math.PI * 2);
-
-            // 只更新覆蓋 Map，不碰 Property.Opacity
             const overrides = new Map();
-            _hoverHighlightIndices.forEach(i => overrides.set(i, opacity));
+            indices.forEach(i => overrides.set(i, opacity));
             _hoverFlashData = { item, overrides };
-
             const _rc = CharacterAppearanceSelection || _aeeItemColorChar;
             if (_rc) { try { CharacterLoadCanvas(_rc); } catch(e) {} }
-
             _hoverHighlightAnimFrame = requestAnimationFrame(animate);
         }
-
         _hoverHighlightAnimFrame = requestAnimationFrame(animate);
     }
 
-    function _stopHoverHighlight() {
-        _hoverHighlightActive = false;
+    function _stopHoverHighlight(item, refresh) {
         if (_hoverHighlightAnimFrame !== null) {
             cancelAnimationFrame(_hoverHighlightAnimFrame);
             _hoverHighlightAnimFrame = null;
         }
-
-        // 清除覆蓋，下次 draw 不注入，Property.Opacity 不需要手動還原
-        _hoverFlashData        = null;
-        _hoverHighlightItem    = null;
-        _hoverHighlightIndices = [];
+        _hoverFlashData = null;          // 清除臨時 override，BeforeDraw 不再套用
         _hoverHighlightStartTime = null;
-
-        // 觸發一次重繪讓覆蓋消失
-        const _rc = CharacterAppearanceSelection || _aeeItemColorChar;
-        if (_rc) { try { CharacterLoadCanvas(_rc); } catch(e) {} }
+        if (refresh) {
+            const _rc = CharacterAppearanceSelection || _aeeItemColorChar;
+            if (_rc) { try { CharacterLoadCanvas(_rc); } catch(e) {} }
+        }
     }
 
-    function _startHoverCharHighlight(groupName) {
-        _hoverCharActive    = true;
-        _hoverCharStartTime = performance.now();
+    // ── 角色身上衣服閃爍（BC Appearance 部件列表）──
+    let _hoverCharGroup = null;
+    let _hoverCharHiddenGroup = new Set(); // 僅供 fallback 硬切使用
+    let _hoverCharAnimFrame = null;
+    let _hoverCharTimer = null;
+    let _hoverCharStartTime = null;
+    let _hoverCharOriginalOpacities = new Map();
 
+    function _startHoverCharHighlight(groupName) {
+        _hoverCharStartTime = performance.now();
         const C = typeof CharacterAppearanceSelection !== 'undefined' ? CharacterAppearanceSelection : null;
         if (!C) return;
 
         const item = typeof InventoryGet === 'function' ? InventoryGet(C, groupName) : null;
         if (!item) { _startHoverCharHighlightFallback(groupName); return; }
 
+        // 0.7.6 方式：透過 _hoverCharFlashData + BeforeDraw 臨時 override，不碰 Property.Opacity
         const layerCount = item.Asset?.Layer?.length || 1;
 
         function animate() {
             if (!_hoverCharActive || _hoverCharGroup !== groupName) return;
-            const t       = ((performance.now() - _hoverCharStartTime) % 1500) / 1500;
+            const t = ((performance.now() - _hoverCharStartTime) % 1500) / 1500;
             const opacity = 0.2 + 0.8 * Math.abs(Math.cos(t * Math.PI));
             const overrides = new Map();
             for (let i = 0; i < layerCount; i++) overrides.set(i, opacity);
@@ -354,12 +302,12 @@
             if (typeof CharacterLoadCanvas === 'function') CharacterLoadCanvas(C);
             _hoverCharAnimFrame = requestAnimationFrame(animate);
         }
-
+        _hoverCharActive = true;
         _hoverCharAnimFrame = requestAnimationFrame(animate);
     }
 
+    // fallback：item 為 None 時改用顯示/隱藏交替（透過 CharacterAppearanceVisible hook）
     function _startHoverCharHighlightFallback(groupName) {
-        // item 為 None 時改用顯示/隱藏交替（CharacterAppearanceVisible hook）
         const C = typeof CharacterAppearanceSelection !== 'undefined' ? CharacterAppearanceSelection : null;
         const blink = () => {
             if (_hoverCharGroup !== groupName) return;
@@ -374,17 +322,13 @@
     }
 
     function _stopHoverCharHighlight() {
-        _hoverCharActive = false;
+        _hoverCharActive    = false;
+        _hoverCharFlashData = null;    // 清除臨時 override
+        _hoverCharGroup     = null;
+        _hoverCharStartTime = null;
+        _hoverCharHiddenGroup.clear();
         if (_hoverCharAnimFrame !== null) { cancelAnimationFrame(_hoverCharAnimFrame); _hoverCharAnimFrame = null; }
         if (_hoverCharTimer     !== null) { clearTimeout(_hoverCharTimer);             _hoverCharTimer     = null; }
-        _hoverCharHiddenGroup.clear();
-
-        // 清除覆蓋，不需要手動還原 Property.Opacity
-        _hoverCharFlashData  = null;
-        const groupName      = _hoverCharGroup;
-        _hoverCharGroup      = null;
-        _hoverCharStartTime  = null;
-
         const C = typeof CharacterAppearanceSelection !== 'undefined' ? CharacterAppearanceSelection : null;
         if (C && typeof CharacterLoadCanvas === 'function') CharacterLoadCanvas(C);
     }
@@ -395,7 +339,7 @@
         const C = args[0];
         const groupName = args[2];
         const isAppearanceChar = typeof CharacterAppearanceSelection !== 'undefined'
-        && CharacterAppearanceSelection === C;
+            && CharacterAppearanceSelection === C;
         if (isAppearanceChar && _hoverCharGroup && groupName === _hoverCharGroup
             && _hoverCharHiddenGroup.has(groupName)) {
             return false;
@@ -448,8 +392,8 @@
         ensureLO(item);
         const count = item.Asset?.Layer?.length || 1;
         const indices = layerIdx === 'all'
-        ? Array.from({ length: count }, (_, i) => i)
-        : [parseInt(layerIdx)];
+            ? Array.from({ length: count }, (_, i) => i)
+            : [parseInt(layerIdx)];
         if (_aeeItemColorChar) _aeeItemColorDirty = true;
 
         if (key === 'Opacity') {
@@ -591,14 +535,10 @@
     // ============================================================
 
     const state = {
-        tab: 'edit',
-        selectedLayer: null,
-        collapsed: false,
-        activeDrag: null,
-        scaleLock: true,
-        hoverHighlight: false,     // AEE 部件列表懸停閃爍
-        hoverHighlightChar: false, // BC 部件列表懸停→角色身上衣服閃爍
-        hideLscgLayers: false,
+        tab: 'edit', selectedLayer: null, collapsed: false, activeDrag: null, scaleLock: true,
+        hoverHighlight: false, hoverHighlightChar: false,
+        hideLscgLayers: false, showCharCtrl: false,
+        hideCloseup: false, hideFullbody: false, fullbodyOffsetX: 0,
     };
 
     const LOCKED_GROUPS = new Set(['BodyUpper','BodyLower','Nipples','Pussy','Head']);
@@ -651,8 +591,8 @@
         ensureLO(item);
         const count = item.Asset?.Layer?.length||1;
         const indices = xyDragState.layerIdx === 'all'
-        ? Array.from({length:count},(_,i)=>i)
-        : [parseInt(xyDragState.layerIdx)];
+            ? Array.from({length:count},(_,i)=>i)
+            : [parseInt(xyDragState.layerIdx)];
         indices.forEach(i => {
             const lo = item.Property.LayerOverrides[i]||{};
             lo.DrawingLeft = {"": Math.round(xyDragState.origX + (xyDragState.flipX?-dx:dx))};
@@ -1381,13 +1321,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             wrap.style.display = isCollapsed ? '' : 'none';
             btn.textContent    = isCollapsed ? '▶' : '◀';
             positionColorPicker();
-
-            // hgroup 跟著收納/展開
+            // hgroup 跟著收納/展開（同 0.7.7-3）
             const hgroup = document.getElementById('color-picker-hgroup');
-            if (hgroup) {
-                hgroup.style.display = isCollapsed ? '' : 'none';
-            }
+            if (hgroup) hgroup.style.display = isCollapsed ? '' : 'none';
         });
+
         sd.getElementById('cp-confirm').addEventListener('click', () => {
             const [r,g,b] = h2r(cpH,cpS,cpV);
             const hex = r2x(r,g,b);
@@ -1441,7 +1379,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         wrap.style.transform = ''; wrap.style.transformOrigin = '';
         outer.style.left = outerLeft + 'px'; outer.style.top = outerTop + 'px';
 
-        // collapse btn 定位：展開貼在 cp-wrap 左側，收納貼在 canvas 右側，Y 均為 canvas 50%
+        // collapse btn 定位：展開貼在 cp-wrap 左側，收納貼在 canvas 右側，Y 均為 canvas 50%（0.7.7-3 原版）
         if (btn && btn.style.display !== 'none') {
             const isCollapsed = wrap.style.display === 'none';
             btn.style.left = isCollapsed ? (r.right - 20) + 'px' : (outerLeft - 20) + 'px';
@@ -1449,7 +1387,41 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         }
     }
 
-    function openColorPicker(initialHex, onLiveChange, isBCMode = false) {
+    // ── 調色盤拖移（每次開啟重置位置，開著時可拖移）──
+    let _cpDragState = null;
+    function _initColorPickerDrag() {
+        if (!colorPickerShadow) return;
+        const outer = colorPickerShadow.getElementById('cp-outer');
+        const wrap  = colorPickerShadow.getElementById('cp-wrap');
+        const titleRow = colorPickerShadow.getElementById('cp-title-row');
+        if (!outer || !wrap || !titleRow) return;
+        // 確保 outer 為 relative/fixed，wrap 直接移動
+        // 拖移把手：title row
+        if (titleRow._cpDragBound) return; // 避免重複綁定
+        titleRow._cpDragBound = true;
+        titleRow.style.cursor = 'grab';
+        titleRow.addEventListener('pointerdown', ev => {
+            if (ev.target.closest('#cp-cancel, #cp-confirm, [id$="-btn"]')) return;
+            ev.preventDefault();
+            titleRow.setPointerCapture(ev.pointerId);
+            const or = outer.getBoundingClientRect();
+            _cpDragState = { sx: ev.clientX, sy: ev.clientY, ol: or.left, ot: or.top };
+            titleRow.style.cursor = 'grabbing';
+        });
+        titleRow.addEventListener('pointermove', ev => {
+            if (!_cpDragState) return;
+            const dx = ev.clientX - _cpDragState.sx;
+            const dy = ev.clientY - _cpDragState.sy;
+            outer.style.left = (_cpDragState.ol + dx) + 'px';
+            outer.style.top  = (_cpDragState.ot + dy) + 'px';
+        });
+        titleRow.addEventListener('pointerup', () => {
+            _cpDragState = null; titleRow.style.cursor = 'grab';
+        });
+        titleRow.addEventListener('pointercancel', () => { _cpDragState = null; });
+    }
+
+        function openColorPicker(initialHex, onLiveChange, isBCMode = false) {
         buildColorPicker();
         if (colorPickerHostEl) {
             colorPickerHostEl._cpInitialHex = initialHex || '#FFFFFF';
@@ -1464,17 +1436,23 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             collapseBtn.style.display = isBCMode ? 'flex' : 'none';
             collapseBtn.textContent = '▶';
         }
-        // 每次開啟都強制展開，不保留上次的收納狀態
-        const wrap = colorPickerShadow?.getElementById('cp-wrap');
-        if (wrap) wrap.style.display = '';
-
-        // hgroup 也同步還原
-        const hgroup = document.getElementById('color-picker-hgroup');
-        if (hgroup) hgroup.style.display = '';
-        positionColorPicker(); // btn 顯示後才定位
+        // collapse-btn：只在 BC 染色模式顯示（0.7.7-3 原版）
+        const _cpCollapseBtn = colorPickerShadow?.getElementById('cp-collapse-btn');
+        if (_cpCollapseBtn) { _cpCollapseBtn.style.display = isBCMode ? 'flex' : 'none'; _cpCollapseBtn.textContent = '▶'; }
+        // 每次開啟強制展開 cp-wrap
+        const _cpWrapEl = colorPickerShadow?.getElementById('cp-wrap');
+        if (_cpWrapEl) _cpWrapEl.style.display = '';
+        // 每次開啟還原 hgroup
+        const _hgroupEl = document.getElementById('color-picker-hgroup');
+        if (_hgroupEl) _hgroupEl.style.display = '';
+        // 每次開啟重置位置（不記憶拖移座標）
+        _cpDragOffset = null;
+        positionColorPicker();
         colorPickerShadow.getElementById('cp-outer').classList.add('open');
         colorPickerHostEl.style.pointerEvents = 'none';
         colorPickerShadow?.getElementById('cp-outer')?.setAttribute('style', colorPickerShadow.getElementById('cp-outer').getAttribute('style') + ';pointer-events:auto');
+        // 每次開啟後初始化拖移（套用在 cp-wrap 上）
+        _initColorPickerDrag();
         updateToggleIcons();
 
         const footerRow = colorPickerShadow?.getElementById('cp-footer-row');
@@ -1482,27 +1460,21 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
         const backdrop = colorPickerShadow?.getElementById('cp-backdrop');
         if (backdrop) backdrop.style.display = isBCMode ? 'none' : '';
-        if (isBCMode) _moveColorPickerHgroup(true);
-    }
-    function _moveColorPickerHgroup(isBCMode) {
-        const hgroup = document.getElementById('color-picker-hgroup');
-        if (!hgroup) return;
+        // BC 染色模式：移動 hgroup 避免遮擋
         if (isBCMode) {
-            // AEE 調色盤在左側，hgroup 往右移避免被遮住
-            hgroup.style.marginLeft = '140px';
-            hgroup.style.transition = 'margin-left 0.15s';
+            if (_hgroupEl) { _hgroupEl.style.marginLeft = '140px'; _hgroupEl.style.transition = 'margin-left 0.15s'; }
         } else {
-            hgroup.style.marginLeft = '';
-            hgroup.style.transition = '';
+            if (_hgroupEl) { _hgroupEl.style.marginLeft = ''; _hgroupEl.style.transition = ''; }
         }
     }
+
     function _aeeRestoreBCColorPicker() {
         const main = document.getElementById('color-picker-main');
         const originalFieldset = main?.querySelector('fieldset[name="color-picker"]');
         if (!originalFieldset || originalFieldset.style.display !== 'none') return;
         const hexInput = main.querySelector('input[name="output"]');
         const domHex6 = hexInput?.value?.match(/^#[0-9a-fA-F]{6}$/) ? hexInput.value
-        : hexInput?.value?.match(/^#[0-9a-fA-F]{8}$/) ? hexInput.value.slice(0, 7) : '#FFFFFF';
+                      : hexInput?.value?.match(/^#[0-9a-fA-F]{8}$/) ? hexInput.value.slice(0, 7) : '#FFFFFF';
         const idx = state.selectedLayer ?? 'all';
         openColorPicker(domHex6, (hex) => {
             const cpRoot = document.getElementById('color-picker');
@@ -1516,13 +1488,14 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
                 opInput.dispatchEvent(new Event('input', { bubbles: true })); opInput.dispatchEvent(new Event('change', { bubbles: true }));
             }
             updateColorUI(idx, hex);
-            _moveColorPickerHgroup(true);
         }, true);
         const backdrop = colorPickerShadow?.getElementById('cp-backdrop');
         if (backdrop) backdrop.style.display = 'none';
     }
 
     function closeColorPicker() {
+        const _btnClose = colorPickerShadow?.getElementById('cp-collapse-btn');
+        if (_btnClose) _btnClose.style.display = 'none';
         const _cpOuter = colorPickerShadow?.getElementById('cp-outer');
         if (_cpOuter) _cpOuter.style.pointerEvents = '';
         colorPickerShadow?.getElementById('cp-outer')?.classList.remove('open');
@@ -1532,7 +1505,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             colorPickerHostEl._cpInitialHex   = null;
         }
         updateToggleIcons();
-        _moveColorPickerHgroup(false);
     }
 
     // ============================================================
@@ -1794,7 +1766,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         <div class="tab" data-tab="settings">${t('tabSettings')}</div>
       </div>
       <div id="item-name">
-        <span id="item-name-text">—</span>
+        <span id="item-name-text" style="font-size:11px;color:var(--text-dim);font-weight:400">AEE v${MOD_Version}</span>
         <button id="parts-toggle-btn" class="iname-btn" title="${isZh()?'部件':'Layers'}">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="1" width="12" height="3" rx="1"/><rect x="1" y="5.5" width="12" height="3" rx="1"/><rect x="1" y="10" width="12" height="3" rx="1"/></svg>
         </button>
@@ -1839,25 +1811,51 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         const _stopStepRepeat = () => { clearTimeout(_stepRepeatTimer); clearInterval(_stepRepeatTimer); _stepRepeatTimer = null; _stepRepeatBtn = null; _stepRepeatType = null; };
         content.addEventListener('mousedown', e => {
             const opBtn  = e.target.closest('[data-op-step]');  if (opBtn)  { e.preventDefault(); _startStepRepeat(opBtn,  'op');  return; }
-            const priBtn = e.target.closest('[data-pri-step]'); if (priBtn) { e.preventDefault(); _startStepRepeat(priBtn, 'pri'); return; }
+            const priBtn = e.target.closest('[data-pri-step]');
+            if (priBtn && !e.target.closest('[data-pri-reset]')) { e.preventDefault(); _startStepRepeat(priBtn, 'pri'); return; }
             const btn    = e.target.closest('[data-step]');     if (btn)    { e.preventDefault(); _startStepRepeat(btn,    'prop'); }
         });
         content.addEventListener('mouseleave', _stopStepRepeat);
         document.addEventListener('mouseup', _stopStepRepeat);
 
-        // 懸停閃爍：mouseover/mouseout 偵測部件按鈕
-        content.addEventListener('mouseover', e => {
-            const btn = e.target.closest('[data-select-layer]'); if (!btn) return;
-            const item = getCurrentItem(); if (!item) return;
-            _startHoverHighlight(item, btn.dataset.selectLayer);
-        });
-
-        content.addEventListener('mouseout', e => {
-            const btn = e.target.closest('[data-select-layer]'); if (!btn) return;
-            // e.relatedTarget 是移入的新元素，如果還在同一個 btn 內就不停
-            if (btn.contains(e.relatedTarget)) return;
-            _stopHoverHighlight();
-        });
+        // 懸停閃爍：mouseover 啟動，mouseout 停止
+        // 每幀 mousemove 判斷（AppearanceRun 裡）也會自動停止不在按鈕上的閃爍
+        function _setupLayerHover(container) {
+            if (!container || container._hoverBound) return;
+            container._hoverBound = true;
+            container.addEventListener('mouseover', e => {
+                if (!state.hoverHighlight) return;
+                const btn = e.target.closest('[data-select-layer]'); if (!btn) return;
+                const item = getCurrentItem(); if (!item) return;
+                _startHoverHighlight(item, btn.dataset.selectLayer);
+            });
+            container.addEventListener('mouseout', e => {
+                if (!state.hoverHighlight) return;
+                const btn = e.target.closest('[data-select-layer]'); if (!btn) return;
+                // 確認真的離開按鈕（不是移到子元素）
+                if (btn.contains(e.relatedTarget)) return;
+                // 確認沒有移到另一個同容器的 select-layer 按鈕
+                const relBtn = e.relatedTarget?.closest('[data-select-layer]');
+                if (relBtn && container.contains(relBtn)) {
+                    // 移到另一個按鈕，讓 mouseover 接手
+                    return;
+                }
+                const item = getCurrentItem(); if (!item) return;
+                _stopHoverHighlight(item, true);
+            });
+        }
+        _setupLayerHover(content);
+        // parts-float（可能在 buildPanel 後才出現，延遲綁定）
+        const partsBody = shadowRoot?.getElementById('parts-float-body');
+        if (partsBody) _setupLayerHover(partsBody);
+        // 動態產生的 parts-float 也要支援：透過 MutationObserver 監聽
+        if (shadowRoot) {
+            const _partsMO = new MutationObserver(() => {
+                const pb = shadowRoot.getElementById('parts-float-body');
+                if (pb) _setupLayerHover(pb);
+            });
+            _partsMO.observe(shadowRoot, { childList: true, subtree: true });
+        }
 
         alignHost(); positionPanel(); updateTogglePos();
         buildRotOverlay(); alignRotOverlay();
@@ -1915,6 +1913,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     // ============================================================
 
     function onContentClick(e) {
+        // 點擊時清除閃爍並設冷卻（防止下一幀立即重啟）
+        _hoverCooldownUntil = Date.now() + 800;
+        _stopHoverHighlight(null, true);
+        _hoverLayerIdx = null;
         const colorEditBtn = e.target.closest('[data-color-edit]');
         if (colorEditBtn) {
             const layerIdx = colorEditBtn.dataset.colorEdit;
@@ -1924,6 +1926,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         }
         const priStep  = e.target.closest('[data-pri-step]');  if (priStep)  { handlePriorityStep(priStep);   return; }
         const priReset = e.target.closest('[data-pri-reset]'); if (priReset) { handlePriorityReset(priReset); return; }
+        const priRange = e.target.closest('[data-pri-range]'); if (priRange) { handlePriorityRange(priRange); return; }
         const layerBtn = e.target.closest('[data-select-layer]');
         if (layerBtn) { state.selectedLayer = layerBtn.dataset.selectLayer; renderContent(); updateOpacityTab(); return; }
         const stepBtn    = e.target.closest('[data-step]');    if (stepBtn)    { handleStep(stepBtn);    return; }
@@ -1935,7 +1938,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             scaleLockBtn.classList.toggle('locked', state.scaleLock);
             scaleLockBtn.innerHTML = state.scaleLock
                 ? '<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="10" height="10" rx="4"/><rect x="9" y="2" width="10" height="10" rx="4"/></svg>'
-            : '<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="10" height="10" rx="4" opacity="0.35"/><rect x="10" y="2" width="10" height="10" rx="4"/></svg>';
+                : '<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="10" height="10" rx="4" opacity="0.35"/><rect x="10" y="2" width="10" height="10" rx="4"/></svg>';
             return;
         }
         const settingChk = e.target.closest('[data-setting]');
@@ -1943,7 +1946,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             setAeeSetting(settingChk.dataset.setting, settingChk.checked);
             if (settingChk.dataset.setting === 'hoverHighlight') {
                 state.hoverHighlight = settingChk.checked;
-                if (!settingChk.checked) _stopHoverHighlight();
+                if (!settingChk.checked) { _stopHoverHighlight(null, true); _hoverLayerIdx = null; }
             }
             if (settingChk.dataset.setting === 'hoverHighlightChar') {
                 state.hoverHighlightChar = settingChk.checked;
@@ -1952,6 +1955,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             if (settingChk.dataset.setting === 'hideLscgLayers') {
                 state.hideLscgLayers = settingChk.checked;
                 _applyLscgLayersVisibility();
+            }
+            if (settingChk.dataset.setting === 'showCharCtrl') {
+                state.showCharCtrl = settingChk.checked;
+                if (!settingChk.checked) _hideCharCtrlPanel();
+                else if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'Appearance') _showCharCtrlPanel();
             }
             renderContent(); return;
         }
@@ -1990,6 +1998,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
     function onContentInput(e) {
         const el = e.target;
+        // 圖層優先度 range slider
+        if (el.dataset.priRange !== undefined) {
+            handlePriorityRange(el);
+            return;
+        }
         if (el.dataset.editOp && state.selectedLayer !== null) {
             const item = getCurrentItem(); if (!item) return;
             const val = parseFloat(el.value) / 100;
@@ -2139,7 +2152,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
     function renderContent() {
         if (!shadowRoot) return;
-        _stopHoverHighlight();
+        // 渲染前停止閃爍，避免殘留（0.7.6 原始邏輯）
+        _stopHoverHighlight(null, true);
+        _hoverLayerIdx = null;
+        _hoverCooldownUntil = Date.now() + 300;
         const item  = getCurrentItem();
         const group = getCurrentGroup();
         const isWardrobeColor = (typeof CharacterAppearanceMode !== 'undefined' && CharacterAppearanceMode === 'Color');
@@ -2152,8 +2168,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         alignHost(); positionPanel(); updateTogglePos();
         showTouchBlocker();
 
-        const _nameEl = shadowRoot.getElementById('item-name-text');
-        if (_nameEl) _nameEl.textContent = `${group} / ${item.Asset?.Description || item.Asset?.Name || ''}`;
+        // item-name 顯示版本號，不更新 item 名稱
 
         const layers  = item.Asset?.Layer || [];
         const content = shadowRoot.getElementById('content');
@@ -2182,7 +2197,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
     function updatePartsPanel() {
         if (!shadowRoot) return;
-        _stopHoverHighlight();
         const item   = getCurrentItem(); if (!item) return;
         const layers = item.Asset?.Layer || [];
         const body   = shadowRoot.getElementById('parts-float-body'); if (!body) return;
@@ -2230,19 +2244,19 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     <input type="range" class="range" data-edit-op="1" min="0" max="100" step="1" value="${op}">
   </div>
   ${(function(){
-                if (isGroupLocked()) return '<div style="color:var(--text-dim);font-size:12px;text-align:center;padding:10px;line-height:1.8;">' + (isZh()?'此部位已鎖定變形編輯<br><span style="font-size:10px;">仍可編輯透明度與圖層</span>':'Transform editing locked<br><span style="font-size:10px;">Opacity &amp; layers still available</span>') + '</div>';
-                return '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('coord') + '</span>' + dragCheckbox('xy',t('coordDrag')) + '</div>' + propRow('X',x,'x',[-5,-1,1,5]) + propRow('Y',y,'y',[-5,-1,1,5]) + '</div>';
-            })()}
+      if (isGroupLocked()) return '<div style="color:var(--text-dim);font-size:12px;text-align:center;padding:10px;line-height:1.8;">' + (isZh()?'此部位已鎖定變形編輯<br><span style="font-size:10px;">仍可編輯透明度與圖層</span>':'Transform editing locked<br><span style="font-size:10px;">Opacity &amp; layers still available</span>') + '</div>';
+      return '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('coord') + '</span>' + dragCheckbox('xy',t('coordDrag')) + '</div>' + propRow('X',x,'x',[-5,-1,1,5]) + propRow('Y',y,'y',[-5,-1,1,5]) + '</div>';
+  })()}
   ${(function(){
-                if (isGroupLocked()) return '';
-                const scaleLockSvg = state.scaleLock
-                ? '<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="10" height="10" rx="4"/><rect x="9" y="2" width="10" height="10" rx="4"/></svg>'
-                : '<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="10" height="10" rx="4" opacity="0.35"/><rect x="10" y="2" width="10" height="10" rx="4"/></svg>';
-                const rotHtml   = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('rotate') + '</span>' + dragCheckbox('rot',t('rotateDrag')) + '</div>' + propRow('°',rot,'rot',[-5,-1,1,5]) + '</div>';
-                const scaleHtml = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('scale') + '</span><button class="scale-lock-btn' + (state.scaleLock?' locked':'') + '" id="scale-lock-btn" title="' + (isZh()?'等比縮放':'Proportional scale') + '">' + scaleLockSvg + '</button>' + dragCheckbox('scale',t('scaleDrag')) + '</div>' + propRow('X',sx.toFixed(2),'sx',[-0.3,-0.1,0.1,0.3]) + propRow('Y',sy.toFixed(2),'sy',[-0.3,-0.1,0.1,0.3]) + '</div>';
-                const skewHtml  = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('skew') + '</span>' + dragCheckbox('skew', t('coordDrag')) + '</div>' + propRow('X°',(lo.SkewX??0).toFixed(1),'skx',[-5,-1,1,5]) + propRow('Y°',(lo.SkewY??0).toFixed(1),'sky',[-5,-1,1,5]) + '</div>';
-                const mcx = (lo.MirrorCopyAxisX??0.5).toFixed(2), mcy = (lo.MirrorCopyAxisY??0.5).toFixed(2);
-                const copyAxisRow = `<div style="display:flex;align-items:center;gap:4px;margin-top:5px;font-size:11px;color:var(--text-dim)">
+      if (isGroupLocked()) return '';
+      const scaleLockSvg = state.scaleLock
+          ? '<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="10" height="10" rx="4"/><rect x="9" y="2" width="10" height="10" rx="4"/></svg>'
+          : '<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="10" height="10" rx="4" opacity="0.35"/><rect x="10" y="2" width="10" height="10" rx="4"/></svg>';
+      const rotHtml   = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('rotate') + '</span>' + dragCheckbox('rot',t('rotateDrag')) + '</div>' + propRow('°',rot,'rot',[-5,-1,1,5]) + '</div>';
+      const scaleHtml = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('scale') + '</span><button class="scale-lock-btn' + (state.scaleLock?' locked':'') + '" id="scale-lock-btn" title="' + (isZh()?'等比縮放':'Proportional scale') + '">' + scaleLockSvg + '</button>' + dragCheckbox('scale',t('scaleDrag')) + '</div>' + propRow('X',sx.toFixed(2),'sx',[-0.3,-0.1,0.1,0.3]) + propRow('Y',sy.toFixed(2),'sy',[-0.3,-0.1,0.1,0.3]) + '</div>';
+      const skewHtml  = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('skew') + '</span>' + dragCheckbox('skew', t('coordDrag')) + '</div>' + propRow('X°',(lo.SkewX??0).toFixed(1),'skx',[-5,-1,1,5]) + propRow('Y°',(lo.SkewY??0).toFixed(1),'sky',[-5,-1,1,5]) + '</div>';
+      const mcx = (lo.MirrorCopyAxisX??0.5).toFixed(2), mcy = (lo.MirrorCopyAxisY??0.5).toFixed(2);
+      const copyAxisRow = `<div style="display:flex;align-items:center;gap:4px;margin-top:5px;font-size:11px;color:var(--text-dim)">
         <span style="flex-shrink:0">${t('mirrorCenter')}</span>
         <span style="flex-shrink:0">H</span>
         <button class="step" style="width:20px;height:18px;font-size:9px" data-step="fcx" data-delta="-0.05">-</button>
@@ -2254,17 +2268,17 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         <button class="step" style="width:20px;height:18px;font-size:9px" data-step="fcy" data-delta="0.05">+</button>
         <button class="step-reset" data-reset="mc" title="↺" style="width:18px;height:18px;font-size:11px">↺</button>
       </div>`;
-                const mirrorHtml = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('mirror') + '</span></div>'
-                + '<div class="mirror-grid">'
-                + '<div class="mirror-group"><div class="mirror-group-title">' + (isZh()?'鏡射':'Mirror') + '</div>'
-                + '<div class="mirror-pair"><button class="mirror-btn ' + (lo.FlipX?'active':'') + '" data-mirror="FlipX">' + t('mirrorH') + '</button>'
-                + '<button class="mirror-btn ' + (lo.FlipY?'active':'') + '" data-mirror="FlipY">' + t('mirrorV') + '</button></div></div>'
-                + '<div class="mirror-group"><div class="mirror-group-title">' + (isZh()?'複製':'Copy') + '</div>'
-                + '<div class="mirror-pair"><button class="mirror-btn ' + (lo.MirrorCopy?'active':'') + '" data-mirror="MirrorCopy">' + t('mirrorH') + '</button>'
-                + '<button class="mirror-btn ' + (lo.MirrorCopyV?'active':'') + '" data-mirror="MirrorCopyV">' + t('mirrorV') + '</button></div></div>'
-                + '</div>' + copyAxisRow + '</div>';
-                return rotHtml + scaleHtml + skewHtml + mirrorHtml;
-            })()}
+      const mirrorHtml = '<div class="prop-group"><div class="prop-group-header"><span class="prop-group-title">' + t('mirror') + '</span></div>'
+          + '<div class="mirror-grid">'
+          + '<div class="mirror-group"><div class="mirror-group-title">' + (isZh()?'鏡射':'Mirror') + '</div>'
+          + '<div class="mirror-pair"><button class="mirror-btn ' + (lo.FlipX?'active':'') + '" data-mirror="FlipX">' + t('mirrorH') + '</button>'
+          + '<button class="mirror-btn ' + (lo.FlipY?'active':'') + '" data-mirror="FlipY">' + t('mirrorV') + '</button></div></div>'
+          + '<div class="mirror-group"><div class="mirror-group-title">' + (isZh()?'複製':'Copy') + '</div>'
+          + '<div class="mirror-pair"><button class="mirror-btn ' + (lo.MirrorCopy?'active':'') + '" data-mirror="MirrorCopy">' + t('mirrorH') + '</button>'
+          + '<button class="mirror-btn ' + (lo.MirrorCopyV?'active':'') + '" data-mirror="MirrorCopyV">' + t('mirrorV') + '</button></div></div>'
+          + '</div>' + copyAxisRow + '</div>';
+      return rotHtml + scaleHtml + skewHtml + mirrorHtml;
+  })()}
 </div>`;
         }
 
@@ -2376,8 +2390,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             current = (typeof op === 'object' && op?.[layerName] != null) ? op[layerName] : (layers[i]?.Priority ?? 0);
         }
         const newVal = applyPriority(item, rawIdx, current + delta);
-        const input  = shadowRoot?.querySelector(`[data-pri-input="${rawIdx}"]`);
-        if (input) input.value = newVal;
+        // 同步 range slider 和 val display
+        const rangeEl = shadowRoot?.querySelector(`[data-pri-range="${rawIdx}"]`);
+        if (rangeEl) rangeEl.value = newVal;
+        const valSpan = shadowRoot?.getElementById('pri-val-' + rawIdx);
+        if (valSpan) valSpan.textContent = newVal;
     }
 
     function handlePriorityInput(input) {
@@ -2391,19 +2408,23 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     function handlePriorityReset(btn) {
         const item = getCurrentItem(); if (!item) return;
         const rawIdx = btn.dataset.priReset, layers = item.Asset?.Layer || [];
+        let resetVal;
         if (rawIdx === 'all') {
             if (item.Property) delete item.Property.OverridePriority;
-            const input = shadowRoot?.querySelector('[data-pri-input="all"]');
-            if (input) input.value = item.Asset?.DrawingPriority ?? 0;
+            resetVal = item.Asset?.DrawingPriority ?? 0;
         } else {
             const i = parseInt(rawIdx), layerName = layers[i]?.Name;
             if (layerName && typeof item.Property?.OverridePriority === 'object') {
                 delete item.Property.OverridePriority[layerName];
                 if (Object.keys(item.Property.OverridePriority).length === 0) delete item.Property.OverridePriority;
             }
-            const input = shadowRoot?.querySelector(`[data-pri-input="${rawIdx}"]`);
-            if (input) input.value = layers[i]?.Priority ?? 0;
+            resetVal = layers[parseInt(rawIdx)]?.Priority ?? 0;
         }
+        // 同步 range slider 和 val display
+        const rangeEl = shadowRoot?.querySelector(`[data-pri-range="${rawIdx}"]`);
+        if (rangeEl) rangeEl.value = resetVal;
+        const valSpan = shadowRoot?.getElementById('pri-val-' + rawIdx);
+        if (valSpan) valSpan.textContent = resetVal;
         { const _rc = CharacterAppearanceSelection || _aeeItemColorChar; if (_rc) CharacterRefresh(_rc, false, false); }
     }
 
@@ -2418,18 +2439,54 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     function getAeeSetting(k, def) { return _aeeSettings[k] ?? def; }
     function setAeeSetting(k, v) { _aeeSettings[k] = v; _saveAeeSettings(); }
 
-    // 初始化 state 設定值（需在 getAeeSetting 定義後執行）
-    state.hideLscgLayers = getAeeSetting('hideLscgLayers', false);
+    // 初始化 state 設定值
     state.hoverHighlight     = getAeeSetting('hoverHighlight', false);
     state.hoverHighlightChar = getAeeSetting('hoverHighlightChar', false);
-    function _applyLscgLayersVisibility() {
-        const el = document.getElementById('lscg-layers');
-        if (!el) return; // 沒裝 LSCG 就直接跳過
-        el.style.display = state.hideLscgLayers ? 'none' : '';
-    }
+    state.hideLscgLayers     = getAeeSetting('hideLscgLayers', false);
+    state.showCharCtrl       = getAeeSetting('showCharCtrl', false);
+    state.hideCloseup        = getAeeSetting('hideCloseup', false);
+    state.hideFullbody       = getAeeSetting('hideFullbody', false);
+    state.fullbodyOffsetX    = getAeeSetting('fullbodyOffsetX', 0);
+
+    // ── CharCtrl 面板狀態 ──
+    let _charCtrlHost = null, _charCtrlShadow = null, _charCtrlOpen = false, _charCtrlDrag = null;
+    let _charCtrlCustomPos = null;
+    // 展開方向設定（持久化）
+    let _ctrlExpandUp  = getAeeSetting('ctrlExpandUp',  true);  // true=向上, false=向下
+    let _ctrlSubLeft   = getAeeSetting('ctrlSubLeft',   true);  // true=子清單向左, false=向右
+    const _savedCtrlPos = getAeeSetting('charCtrlPos', null);
+    if (_savedCtrlPos) _charCtrlCustomPos = _savedCtrlPos;
+    const _CTRL_BTN_SIZE   = 52;
+    const _CTRL_ICON_MAIN  = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/AEE_ICON.png';
+    const _CTRL_ICON_FRAME = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/AEE_ICON2.png';
+
+    // ── 背景系統狀態 ──
+    let _bgEnabled       = getAeeSetting('bgEnabled',      false);
+    let _bgColor         = getAeeSetting('bgColor',        '#87CEEB');
+    let _bgGridEnabled   = getAeeSetting('bgGridEnabled',  false);
+    let _bgGridMode      = getAeeSetting('bgGridMode',     'line');
+    let _bgGridPx        = getAeeSetting('bgGridPx',       25);
+    let _bgGridColor     = getAeeSetting('bgGridColor',    '#ffffff');
+    let _bgGridOpacity   = getAeeSetting('bgGridOpacity',  0.25);
+    let _bgGridLayer     = getAeeSetting('bgGridLayer',    'below');
+    let _bgImgEnabled    = getAeeSetting('bgImgEnabled',   false);
+    let _bgImgBtnVisible = getAeeSetting('bgImgBtnVisible',false);
+    let _bgImgUrl        = getAeeSetting('bgImgUrl',       '');
+    let _bgImgEl = null, _bgOrigDrawImage = null;
+    let _bgSettingHost = null, _bgSettingOpen = false;
+    let _bgSubOpen     = false;
+    let _cpDragOffset  = null;
+
+    // ── 位移面板 / POSE 狀態 ──
+    let _offsetPanelHost = null, _offsetPanelOpen = false, _offsetPanelCollapsed = false;
+    let _charOffsetX = getAeeSetting('charOffsetX', 0);
+    let _charOffsetY = getAeeSetting('charOffsetY', 0);
+    let _charScale   = getAeeSetting('charScale',   1.0);
+    let _wheelCtrlOn = false, _wheelMoveMode = false;
+    let _poseFloatHost = null, _poseFloatOpen = false;
+
     function renderSettingsTab() {
         const useAeeCP    = getAeeSetting('useAeeColorPicker', false);
-        const hideLscg = getAeeSetting('hideLscgLayers', false);
         const hoverHL     = getAeeSetting('hoverHighlight', false);
         const hoverHLChar = getAeeSetting('hoverHighlightChar', false);
         const row = (label, key, val) => `
@@ -2440,13 +2497,22 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
                 <span style="font-size:12px;color:var(--text-dim)">${val?(isZh()?'啟用':'ON'):(isZh()?'停用':'OFF')}</span>
             </label>
         </div>`;
+        const showCharCtrl  = getAeeSetting('showCharCtrl', false);
+        const hideLscg      = getAeeSetting('hideLscgLayers', false);
+        const aeeMenu = getAeeSetting('enableAeeMenu', false);
         return `<div class="section">
+            ${row(isZh()?'更衣室視圖控制':'Appearance View Control', 'showCharCtrl', showCharCtrl)}
             ${row(isZh()?'取代 BC 調色盤':'Replace BC color picker', 'useAeeColorPicker', useAeeCP)}
-            ${row(isZh()?'懸停圖層閃爍（AEE 部件列表）':'Hover layer highlight (AEE)', 'hoverHighlight', hoverHL)}
+            ${row(isZh()?'懸停圖層閃爍（AEE）':'Hover layer highlight (AEE)', 'hoverHighlight', hoverHL)}
             ${row(isZh()?'懸停衣服閃爍（角色身上）':'Hover item highlight (character)', 'hoverHighlightChar', hoverHLChar)}
             ${row(isZh()?'隱藏 LSCG 圖層面板':'Hide LSCG layers panel', 'hideLscgLayers', hideLscg)}
+            ${row(isZh()?'啟用按鈕替換（匯出/匯入）':'Enable button replacement (Export/Import)', 'enableAeeMenu', aeeMenu)}
         </div>
-        <div class="settings-empty">${isZh()?'更多功能擴充中':'More features coming soon'}</div>`;
+        <div class="settings-empty" style="text-align:left;padding:16px 14px;font-size:12px;color:var(--text-dim);line-height:1.9">
+            ${(()=>{ const zh=isZh(); return zh
+              ? '<b style="color:var(--text-sec);font-size:13px">關於 AEE</b><br>• 不需要 LSCG 也能使用透明度與位移效果<br>• 旋轉、縮放、傾斜、鏡射為測試功能，不保證長期穩定<br>• 插件具有高度自定義功能，可能存在少量錯誤<br>• 如遇問題歡迎回報'
+              : '<b style="color:var(--text-sec);font-size:13px">About AEE</b><br>• Opacity &amp; offset work without LSCG<br>• Rotate / scale / skew / mirror are experimental<br>• Highly customizable — minor bugs may occur<br>• Feedback welcome if issues arise'; })()}
+        </div>`;
     }
 
     function renderLayersTab(item, layers) {
@@ -2456,32 +2522,40 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         const itemCurrent = typeof overPri === 'number' ? overPri : itemBase;
         const allOverride = typeof overPri === 'number';
 
-        const allRow = `<div class="layer-pri-row" style="border-bottom:2px solid var(--border)">
-  <span class="layer-pri-name" style="font-weight:700;${allOverride ? 'color:var(--accent2)' : ''}">
-    ${t('allParts')} <span style="font-size:10px;color:var(--text-dim)">(base:${itemBase})</span>
-  </span>
-  <button class="step" style="width:28px;flex:none" data-pri-step="all" data-pri-delta="-1">-1</button>
-  <input type="text" class="pri-input" data-pri-input="all" value="${itemCurrent}" min="-99" max="99">
-  <button class="step" style="width:28px;flex:none" data-pri-step="all" data-pri-delta="1">+1</button>
-  <button class="step-reset" data-pri-reset="all" title="↺" style="width:22px">↺</button>
+        const priRow = (priKey, name, base, current, isOverridden, isAll) => `<div class="op-tab-row">
+  <div class="op-tab-name">
+    <span class="op-tab-label" style="${isOverridden?'color:var(--accent2)':''}">${name}<span style="font-size:10px;color:var(--text-dim);margin-left:4px">(${base})</span></span>
+    <div class="op-step-row">
+      <button class="op-step" data-pri-step="${priKey}" data-pri-delta="-1">−1</button>
+      <span class="op-val-display" id="pri-val-${priKey}">${current}</span>
+      <button class="op-step" data-pri-step="${priKey}" data-pri-delta="1">+1</button>
+      <button class="op-step" data-pri-reset="${priKey}" style="min-width:22px;padding:0 4px" title="↺">↺</button>
+    </div>
+  </div>
+  <div style="position:relative;display:flex;align-items:center;">
+    <input type="range" class="range" data-pri-range="${priKey}" min="-99" max="99" step="1" value="${Math.max(-99,Math.min(99,current))}" style="flex:1">
+    <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:2px;height:10px;background:rgba(124,106,247,0.5);pointer-events:none;border-radius:1px"></div>
+  </div>
 </div>`;
 
-        const layerRows = layers.map((layer, i) => {
+        let html = priRow('all', `<strong>${t('allParts')}</strong>`, itemBase, itemCurrent, allOverride, true);
+        layers.forEach((layer, i) => {
             const basePri    = typeof layer?.Priority === 'number' ? layer.Priority : 0;
             const op         = item.Property?.OverridePriority;
             const currentPri = (typeof op === 'object' && op?.[layer.Name] != null) ? op[layer.Name] : basePri;
             const isOverridden = typeof op === 'object' && op?.[layer.Name] != null;
-            return `<div class="layer-pri-row">
-  <span class="layer-pri-name" style="${isOverridden ? 'color:var(--accent2)' : ''}">${getLayerDisplayName(layer, i)}
-    <span style="font-size:10px;color:var(--text-dim)">(${basePri})</span>
-  </span>
-  <button class="step" style="width:28px;flex:none" data-pri-step="${i}" data-pri-delta="-1">-1</button>
-  <input type="text" class="pri-input" data-pri-input="${i}" value="${currentPri}" min="-99" max="99">
-  <button class="step" style="width:28px;flex:none" data-pri-step="${i}" data-pri-delta="1">+1</button>
-  <button class="step-reset" data-pri-reset="${i}" title="↺" style="width:22px">↺</button>
-</div>`;
-        }).join('');
-        return allRow + layerRows;
+            html += priRow(String(i), getLayerDisplayName(layer, i), basePri, currentPri, isOverridden, false);
+        });
+        return html;
+    }
+
+    function handlePriorityRange(rangeEl) {
+        const item = getCurrentItem(); if (!item) return;
+        const key = rangeEl.dataset.priRange;
+        const val = parseInt(rangeEl.value);
+        applyPriority(item, key, val);
+        const valSpan = shadowRoot?.getElementById('pri-val-' + key);
+        if (valSpan) valSpan.textContent = val;
     }
 
     function layerBtnRow(idx, name, color) {
@@ -2505,12 +2579,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         const group = getCurrentGroup();
         const mode  = typeof CharacterAppearanceMode !== 'undefined' ? CharacterAppearanceMode : null;
         buildPanel();
+        _applyLscgLayersVisibility();
 
         const itemChanged = (group !== lastGroup || item?.Asset?.Name !== lastAsset);
         if (itemChanged || mode !== lastMode) {
             if (itemChanged) {
-                _stopHoverHighlight();
-                //_stopHoverCharHighlight();
                 state.selectedLayer = null; state.activeDrag = null;
                 hideRotOverlay(); hideTouchBlocker(); updateToggleIcons();
                 const pf  = shadowRoot?.getElementById('parts-float');
@@ -2524,41 +2597,42 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             const pf = shadowRoot?.getElementById('parts-float');
             if (pf?.classList.contains('open')) updatePartsPanel();
         }
-        _applyLscgLayersVisibility();
     }
 
-    try { modApi.hookFunction("CharacterLoadCanvas", 0, (args, next) => { if (args[0]) currentRenderChar = args[0]; return next(args); }); } catch(e) {}
+    try {
+        modApi.hookFunction("CharacterLoadCanvas", 0, (args, next) => {
+            if (args[0]) currentRenderChar = args[0];
+            const result = next(args);
 
-    // ── CommonDrawAppearanceBuild：DynamicBeforeDraw + 閃爍 item 標記 ──
+            return result;
+        });
+    } catch(e) {}
+
+    // 對有 transform 的 item 暫時開啟 DynamicBeforeDraw，確保 BC 呼叫 BeforeDraw hook
     try {
         modApi.hookFunction("CommonDrawAppearanceBuild", 1, (args, next) => {
             const C = args[0];
             const toRestore = [];
-
             C?.Appearance?.forEach(item => {
                 const los = item.Property?.LayerOverrides;
-                const needsBeforeDraw = Array.isArray(los) && los.some(lo => lo &&
-                                                                       (lo.DrawingLeft != null || lo.DrawingTop != null ||
-                                                                        lo.Rotation != null || lo.ScaleX != null || lo.ScaleY != null ||
-                                                                        lo.SkewX != null || lo.SkewY != null ||
-                                                                        lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV));
-
-                // 閃爍中的 item 也需要 DynamicBeforeDraw
+                const needsTransform = Array.isArray(los) && los.some(lo => lo &&
+                    (lo.DrawingLeft != null || lo.DrawingTop != null || lo.Rotation != null ||
+                     lo.ScaleX != null || lo.ScaleY != null || lo.SkewX != null || lo.SkewY != null ||
+                     lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV));
+                // 閃爍的 item 也需要 DynamicBeforeDraw 才能讓 BeforeDraw hook 被呼叫
                 const needsFlash = (item === _hoverFlashData?.item || item === _hoverCharFlashData?.item);
-
-                if (needsBeforeDraw || needsFlash) {
+                if (needsTransform || needsFlash) {
                     toRestore.push({ asset: item.Asset, orig: item.Asset.DynamicBeforeDraw });
                     item.Asset.DynamicBeforeDraw = true;
                 }
             });
-
             const result = next(args);
             toRestore.forEach(({ asset, orig }) => { asset.DynamicBeforeDraw = orig; });
             return result;
         });
     } catch(e) {}
 
-    // ── CommonCallFunctionByNameWarn：BeforeDraw hook（transform + 位移 + 閃爍 opacity）──
+    // BeforeDraw hook：從 Item 讀取 transform 設定 _aeePendingTd，並處理 X/Y 位移
     try {
         modApi.hookFunction("CommonCallFunctionByNameWarn", 3, (args, next) => {
             const funcName = args[0], params = args[1];
@@ -2575,17 +2649,14 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
                     const lo = CA.Property?.LayerOverrides?.[layerIdx];
                     if (lo) {
                         const hasTransform = lo.FlipX || lo.FlipY || lo.MirrorCopy || lo.MirrorCopyV ||
-                              lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null ||
-                              lo.SkewX != null || lo.SkewY != null;
+                            lo.ScaleX != null || lo.ScaleY != null || lo.Rotation != null || lo.SkewX != null || lo.SkewY != null;
                         if (hasTransform) {
                             _aeePendingTd = {
                                 flipX: !!lo.FlipX, flipY: !!lo.FlipY,
                                 mirrorCopy: !!lo.MirrorCopy, mirrorCopyV: !!lo.MirrorCopyV,
-                                mirrorCopyAxisX: lo.MirrorCopyAxisX ?? 0.5,
-                                mirrorCopyAxisY: lo.MirrorCopyAxisY ?? 0.5,
+                                mirrorCopyAxisX: lo.MirrorCopyAxisX ?? 0.5, mirrorCopyAxisY: lo.MirrorCopyAxisY ?? 0.5,
                                 scaleX: lo.ScaleX ?? 1, scaleY: lo.ScaleY ?? 1,
-                                rotation: lo.Rotation ?? 0,
-                                skewX: lo.SkewX ?? 0, skewY: lo.SkewY ?? 0,
+                                rotation: lo.Rotation ?? 0, skewX: lo.SkewX ?? 0, skewY: lo.SkewY ?? 0,
                             };
                             aeeLog(`BeforeDraw: ${CA.Asset?.Name}[${layerIdx}]=${layerName} rot=${_aeePendingTd.rotation}`);
                         }
@@ -2596,7 +2667,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             const fnExists = typeof window[funcName] === 'function';
             const ret = fnExists ? (next(args) ?? {}) : {};
 
-            // X/Y 位移
+            // X/Y 位移透過 BeforeDraw 回傳值傳入，不走 prototype patch
             const Property = params.Property;
             if (CA && Property) {
                 let rawName = (params.L ?? '').trim();
@@ -2607,35 +2678,342 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
                     if (lo) {
                         const dx = lo.DrawingLeft?.[''], dy = lo.DrawingTop?.[''];
                         if (dx != null && ret.X == null) ret.X = dx;
-                        if (dy != null && ret.Y == null)
-                            ret.Y = dy + (typeof CanvasUpperOverflow !== 'undefined' ? CanvasUpperOverflow : 0);
+                        if (dy != null && ret.Y == null) ret.Y = dy + (typeof CanvasUpperOverflow !== 'undefined' ? CanvasUpperOverflow : 0);
                     }
                 }
             }
-
-            // 閃爍 opacity（透過 BeforeDraw 回傳，完全不碰 Property.Opacity）
+            // 閃爍 opacity（透過 BeforeDraw 回傳，不碰 Property.Opacity）
             if (CA) {
-                let rawName = (params.L ?? '').trim();
-                if (rawName[0] === '_') rawName = rawName.slice(1);
-                const layerIx = CA.Asset?.Layer?.findIndex(l => (l.Name ?? '') === rawName) ?? -1;
-                if (layerIx >= 0) {
-                    if (_hoverFlashData?.item === CA && _hoverFlashData.overrides.has(layerIx)) {
-                        ret.Opacity = _hoverFlashData.overrides.get(layerIx);
-                    } else if (_hoverCharFlashData?.item === CA && _hoverCharFlashData.overrides.has(layerIx)) {
-                        ret.Opacity = _hoverCharFlashData.overrides.get(layerIx);
-                    }
+                let rawName2 = (params.L ?? '').trim();
+                if (rawName2[0] === '_') rawName2 = rawName2.slice(1);
+                const layerIx2 = CA.Asset?.Layer?.findIndex(l => (l.Name ?? '') === rawName2) ?? -1;
+                if (layerIx2 >= 0) {
+                    if (_hoverFlashData?.item === CA && _hoverFlashData.overrides.has(layerIx2))
+                        ret.Opacity = _hoverFlashData.overrides.get(layerIx2);
+                    else if (_hoverCharFlashData?.item === CA && _hoverCharFlashData.overrides.has(layerIx2))
+                        ret.Opacity = _hoverCharFlashData.overrides.get(layerIx2);
                 }
             }
 
             return ret;
         });
     } catch(e) {}
+
+    // ============================================================
+    // AppearanceMenu 按鈕操作（參考 CDB）
+    // 刪除：WearRandom、Random
+    // 替換：Copy→AEE匯出、Paste→AEE匯入（帶衣服種類選擇）
+    // ============================================================
+
+    // BCX 格式匯出匯入（來自 CDB）
+    function _bcxExport(C) {
+        try {
+            // BCX 格式：{ Group, Name, Color?, Property?, Difficulty? }
+            const bundle = (C.Appearance || []).map(item => {
+                const e = {
+                    Group: item.Asset?.Group?.Name ?? item.Group,
+                    Name:  item.Asset?.Name        ?? item.Name
+                };
+                if (!e.Group || !e.Name) return null;
+                if (item.Color      != null) e.Color      = item.Color;
+                if (item.Property   != null) e.Property   = item.Property;
+                if (item.Difficulty != null) e.Difficulty = item.Difficulty;
+                return e;
+            }).filter(Boolean);
+
+            if (!bundle.length) { alert('[AEE] No appearance data'); return; }
+
+            if (typeof LZString === 'undefined') {
+                alert('[AEE] LZString not available - cannot export in BCX format');
+                return;
+            }
+            const out = LZString.compressToBase64(JSON.stringify(bundle));
+            navigator.clipboard.writeText(out).then(() => {
+                if (typeof ChatRoomSendLocal === 'function')
+                    ChatRoomSendLocal(isZh() ? `✅ [AEE] 外觀已匯出（${bundle.length} 件）` : `✅ [AEE] Exported ${bundle.length} items`);
+            }).catch(e => {
+                // clipboard 失敗時 fallback：顯示字串讓用戶手動複製
+                prompt('[AEE] Copy this:', out);
+            });
+        } catch(e) { console.error('[AEE] 匯出失敗:', e); alert('[AEE] Export failed: ' + e); }
+    }
+
+    async function _bcxImport(C) {
+        let bcxCode;
+        try { bcxCode = await navigator.clipboard.readText(); }
+        catch(e) { console.error('[AEE] 讀取剪貼板失敗:', e); return; }
+        try {
+            const appearance = JSON.parse(LZString.decompressFromBase64(bcxCode));
+            if (!Array.isArray(appearance)) throw new Error('invalid format');
+            if (typeof ServerAppearanceLoadFromBundle === 'function') {
+                ServerAppearanceLoadFromBundle(C, C.AssetFamily, appearance, Player.MemberNumber);
+                CharacterRefresh(C, false);
+                if (typeof ChatRoomCharacterUpdate === 'function' && typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom')
+                    ChatRoomCharacterUpdate(C);
+            } else {
+                for (const entry of appearance) {
+                    if (entry.Group && entry.Name && typeof AppearanceGroupAllowed === 'function' && AppearanceGroupAllowed(C, entry.Group))
+                        InventoryWear(C, entry.Name, entry.Group, entry.Color ?? null, null, null, entry.Property ?? null, false);
+                }
+                CharacterRefresh(C, false);
+            }
+            if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal('✅ [AEE] Appearance Imported');
+        } catch(e) {
+            // 嘗試 BC 原生格式
+            try { if (typeof CharacterAppearancePaste === 'function') CharacterAppearancePaste(C, bcxCode, false); }
+            catch(_) {}
+        }
+    }
+
+    // 判斷 Appearance item 的種類
+    // item 可能是 { Group:'BodyUpper', Name:'...' } 或 { Asset:{Group:{Name:'...'}} }
+    function _getAppearanceItemCat(item) {
+        const groupName = item.Asset?.Group?.Name ?? item.Group;
+        if (!groupName) return 'other';
+        // 從 BC 全域 AssetGroup 陣列查找 group 物件
+        const g = typeof AssetGroup !== 'undefined'
+            ? AssetGroup.find(x => x.Name === groupName)
+            : null;
+        if (!g) return 'other';
+        // BC Category：'Appearance' 是外觀，'Item' 是物件/拘束
+        if (g.Category === 'Appearance') {
+            // Clothing=false 通常是身體部位（皮膚、眼睛、頭髮等）
+            if (g.Clothing === false) return 'body';
+            return 'clothes';  // Cosplay 也歸入衣服（待之後確認 BC 分類）
+        }
+        return 'restraints';
+    }
+
+    // 匯入種類勾選 UI
+    function _showImportCategoryUI(C, appearance) {
+        if (!Array.isArray(appearance) || !appearance.length) {
+            alert('[AEE] ' + (isZh() ? '無法解析外觀資料' : 'Cannot parse appearance data'));
+            return;
+        }
+
+        const host = document.createElement('div');
+        host.style.cssText = 'position:fixed;z-index:999999;inset:0;pointer-events:all;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;';
+        document.body.appendChild(host);
+
+        const cats = [
+            { key: 'clothes',    zh: '衣服',   en: 'Clothes',    icon: '👗', on: true  },
+            { key: 'body',       zh: '身體',   en: 'Body',        icon: '🧍', on: true  },
+            { key: 'restraints', zh: '拘束',   en: 'Restraints',  icon: '⛓',  on: false },
+        ];
+
+        const panel = document.createElement('div');
+        panel.style.cssText = 'background:#0d0d0f;border:1px solid #7c6af7;border-radius:12px;padding:20px;min-width:280px;font-family:"Segoe UI",sans-serif;color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.8)';
+
+        const title = document.createElement('div');
+        title.style.cssText = 'font-size:14px;font-weight:700;color:#a89ef8;margin-bottom:14px';
+        title.textContent = isZh() ? '選擇匯入種類' : 'Select Import Categories';
+        panel.appendChild(title);
+
+        const catsEl = document.createElement('div');
+        catsEl.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-bottom:16px';
+        panel.appendChild(catsEl);
+
+        cats.forEach(cat => {
+            const lbl = document.createElement('label');
+            lbl.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:#161619;border:1px solid #2a2a35;border-radius:6px;cursor:pointer';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox'; cb.checked = cat.on; cb.dataset.catKey = cat.key;
+            cb.style.cssText = 'width:16px;height:16px;accent-color:#7c6af7;cursor:pointer;flex-shrink:0';
+            const sp = document.createElement('span');
+            sp.textContent = cat.icon + ' ' + (isZh() ? cat.zh : cat.en);
+            sp.style.cssText = 'font-size:13px;color:#fff';
+            lbl.appendChild(cb); lbl.appendChild(sp);
+            catsEl.appendChild(lbl);
+        });
+
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:8px';
+        const btnOK = document.createElement('button');
+        btnOK.textContent = isZh() ? '匯入' : 'Import';
+        btnOK.style.cssText = 'flex:1;padding:9px;background:#7c6af7;border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:13px;font-weight:700';
+        const btnCancel = document.createElement('button');
+        btnCancel.textContent = isZh() ? '取消' : 'Cancel';
+        btnCancel.style.cssText = 'flex:1;padding:9px;background:#1e1e23;border:1px solid #2a2a35;border-radius:6px;color:#a0a0b0;cursor:pointer;font-size:13px';
+        btnRow.appendChild(btnOK); btnRow.appendChild(btnCancel);
+        panel.appendChild(btnRow);
+        host.appendChild(panel);
+
+        btnOK.onclick = () => {
+            const selected = new Set([...catsEl.querySelectorAll('input[type=checkbox]')].filter(cb => cb.checked).map(cb => cb.dataset.catKey));
+            document.body.removeChild(host);
+            const filtered = appearance.filter(item => selected.has(_getAppearanceItemCat(item)));
+            if (!filtered.length) { alert('[AEE] ' + (isZh() ? '沒有符合的物件' : 'No matching items')); return; }
+
+            try {
+                // 步驟1：移除所選種類的所有現有物件（讓匯入結果跟 bundle 完全一致）
+                const existingToRemove = C.Appearance.filter(a => {
+                    const gn = a.Asset?.Group?.Name ?? a.Group;
+                    if (!gn) return false;
+                    return selected.has(_getAppearanceItemCat({ Group: gn }));
+                });
+                for (const a of existingToRemove) {
+                    const gn = a.Asset?.Group?.Name ?? a.Group;
+                    if (typeof InventoryRemove === 'function') {
+                        try { InventoryRemove(C, gn, false); } catch(_) {}
+                    } else {
+                        const idx = C.Appearance.findIndex(x => (x.Asset?.Group?.Name ?? x.Group) === gn);
+                        if (idx >= 0) C.Appearance.splice(idx, 1);
+                    }
+                }
+
+                // 步驟2：穿上新物件並完整複製 Property
+                for (const entry of filtered) {
+                    const groupName = entry.Asset?.Group?.Name ?? entry.Group;
+                    const itemName  = entry.Asset?.Name        ?? entry.Name;
+                    if (!groupName || !itemName) continue;
+                    try {
+                        if (typeof InventoryWear === 'function') {
+                            InventoryWear(C, itemName, groupName,
+                                entry.Color ?? 'Default',
+                                null, null, null, false);
+                            if (entry.Property != null) {
+                                const worn = typeof InventoryGet === 'function'
+                                    ? InventoryGet(C, groupName)
+                                    : C.Appearance.find(a => (a.Asset?.Group?.Name ?? a.Group) === groupName);
+                                if (worn) worn.Property = JSON.parse(JSON.stringify(entry.Property));
+                            }
+                            if (entry.Difficulty != null) {
+                                const worn2 = typeof InventoryGet === 'function'
+                                    ? InventoryGet(C, groupName)
+                                    : C.Appearance.find(a => (a.Asset?.Group?.Name ?? a.Group) === groupName);
+                                if (worn2) worn2.Difficulty = entry.Difficulty;
+                            }
+                        }
+                    } catch(e) { console.warn('[AEE] InventoryWear failed:', groupName, itemName, e); }
+                }
+                if (typeof CharacterRefresh === 'function') CharacterRefresh(C, false);
+                if (typeof ChatRoomCharacterUpdate === 'function' && typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom')
+                    ChatRoomCharacterUpdate(C);
+                if (typeof ChatRoomSendLocal === 'function')
+                    ChatRoomSendLocal(isZh() ? `✅ [AEE] 已匯入 ${filtered.length} 個物件` : `✅ [AEE] Imported ${filtered.length} items`);
+            } catch(e) { console.error('[AEE] 匯入失敗:', e); alert('[AEE] Import failed: ' + e); }
+        };
+        btnCancel.onclick = () => document.body.removeChild(host);
+        host.onclick = (e) => { if (e.target === host) document.body.removeChild(host); };
+    }
+
+    async function _bcxImportWithCategory(C) {
+        let bcxCode;
+        try { bcxCode = await navigator.clipboard.readText(); }
+        catch(e) { console.error('[AEE] 讀取剪貼板失敗:', e); alert('[AEE] Cannot read clipboard'); return; }
+        if (!bcxCode || !bcxCode.trim()) { alert('[AEE] Clipboard is empty'); return; }
+        bcxCode = bcxCode.trim();
+
+        // BCX/AEE 格式：LZString.compressToBase64(JSON.stringify(Appearance[]))
+        // Appearance 陣列每個元素是 BC Appearance item（有 Asset.Group.Name, Asset.Name, Color, Property 等）
+        let appearance = null;
+
+        // 方式1: LZString（BCX 格式）
+        if (typeof LZString !== 'undefined') {
+            try {
+                const dec = LZString.decompressFromBase64(bcxCode);
+                if (dec) {
+                    const arr = JSON.parse(dec);
+                    if (Array.isArray(arr) && arr.length) appearance = arr;
+                }
+            } catch(_) {}
+        }
+        // 方式2: btoa（AEE 自己的 fallback）
+        if (!appearance) {
+            try {
+                const dec = decodeURIComponent(escape(atob(bcxCode)));
+                const arr = JSON.parse(dec);
+                if (Array.isArray(arr) && arr.length) appearance = arr;
+            } catch(_) {}
+        }
+
+        if (appearance) {
+            // 正規化：BCX 格式 item 可能有 Asset 物件（完整 BC item）或只有 Group/Name 字串
+            const normalized = appearance.map(item => {
+                if (item.Asset) return item; // 完整格式
+                // 最小格式 {Group, Name, Color, Property}
+                return {
+                    Asset: { Group: { Name: item.Group }, Name: item.Name },
+                    Group: item.Group, Name: item.Name,
+                    Color: item.Color, Property: item.Property, Difficulty: item.Difficulty
+                };
+            });
+            _showImportCategoryUI(C, normalized);
+            return;
+        }
+
+        // Fallback：BC 原生 CharacterAppearancePaste
+        if (typeof CharacterAppearancePaste === 'function') {
+            try { CharacterAppearancePaste(C, bcxCode, false); return; } catch(_) {}
+        }
+        alert('[AEE] ' + (isZh() ? '無法解析剪貼板內容（請先用 AEE/BCX 匯出）' : 'Cannot parse clipboard content (please export with AEE/BCX first)'));
+    }
+
+    try {
+        modApi.hookFunction('AppearanceMenuBuild', 10, (args, next) => {
+            next(args);
+            if (!getAeeSetting('enableAeeMenu', false)) return;
+            if (typeof CharacterAppearanceMode === 'undefined' || CharacterAppearanceMode !== '') return;
+            // 刪除 WearRandom、Random
+            AppearanceMenu = AppearanceMenu.filter(b => b !== 'WearRandom' && b !== 'Random');
+            // 替換 Copy→AEE_Export、Paste→AEE_Import
+            AppearanceMenu = AppearanceMenu.map(b => {
+                if (b === 'Copy')  return 'AEE_Export';
+                if (b === 'Paste') return 'AEE_Import';
+                return b;
+            });
+            // 注入文字避免 MISSING TEXT（若 TextGet 函式存在）
+            if (typeof TextGet === 'function' && typeof TextCache !== 'undefined') {
+                try {
+                    TextCache['Text_Appearance'] = TextCache['Text_Appearance'] || {};
+                    TextCache['Text_Appearance']['AEE_Export'] = isZh() ? 'BCX匯出' : 'Export';
+                    TextCache['Text_Appearance']['AEE_Import'] = isZh() ? 'BCX匯入' : 'Import';
+                } catch(_) {}
+            }
+        });
+    } catch(e) {}
+
+    try {
+        modApi.hookFunction('AppearanceMenuDraw', 10, (args, next) => {
+            next(args);  // 先讓 BC 畫完
+            if (!getAeeSetting('enableAeeMenu', false)) return;
+            const menu = AppearanceMenu;
+            const X = 2000 - menu.length * 117;
+            for (let B = 0; B < menu.length; B++) {
+                const btnX = X + 117 * B;
+                // 蓋掉 BC 畫的（空白或 MISSING TEXT），重新用正確圖示畫
+                if (menu[B] === 'AEE_Export') {
+                    DrawButton(btnX, 25, 90, 90, '', 'White', 'Icons/Copy.png', isZh() ? 'BCX 匯出外觀至剪貼板' : 'BCX Export appearance to clipboard');
+                }
+                if (menu[B] === 'AEE_Import') {
+                    DrawButton(btnX, 25, 90, 90, '', 'White', 'Icons/Paste.png', isZh() ? 'BCX 匯入外觀（選擇種類）' : 'BCX Import appearance (select categories)');
+                }
+            }
+        });
+    } catch(e) {}
+
+    try {
+        modApi.hookFunction('AppearanceMenuClick', 10, (args, next) => {
+            const C = typeof CharacterAppearanceSelection !== 'undefined' ? CharacterAppearanceSelection : null;
+            const menu = AppearanceMenu;
+            const X = 2000 - menu.length * 117;
+            for (let B = 0; B < menu.length; B++) {
+                if (!MouseXIn(X + 117 * B, 90)) continue;
+                if (menu[B] === 'AEE_Export') { _bcxExport(C); return; }
+                if (menu[B] === 'AEE_Import') { _bcxImportWithCategory(C); return; }
+            }
+            return next(args);
+        });
+    } catch(e) {}
+
     // AppearanceRun：aeeCheckAndRender + hoverHighlightChar 偵測
+    let _aeeInAppearanceRun = false;
     modApi.hookFunction("AppearanceRun", 1, (args, next) => {
+        const isAppearance = typeof CurrentScreen !== 'undefined' && CurrentScreen === 'Appearance';
+        if (isAppearance && state.showCharCtrl) _showCharCtrlPanel();
         aeeCheckAndRender();
 
-        if (state.hoverHighlightChar &&
-            typeof CurrentScreen !== 'undefined' && CurrentScreen === 'Appearance' &&
+        if (state.hoverHighlightChar && isAppearance &&
             typeof CharacterAppearanceMode !== 'undefined' && CharacterAppearanceMode === '' &&
             typeof CharacterAppearanceGroups !== 'undefined' &&
             typeof CharacterAppearanceOffset !== 'undefined' &&
@@ -2658,8 +3036,58 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             if (_hoverCharGroup !== null) _stopHoverCharHighlight();
         }
 
-        return next(args);
+        _aeeInAppearanceRun = true;
+        const result = next(args);
+        _aeeInAppearanceRun = false;
+
+        // 格線 above：在角色繪製完後疊上去
+        if (_bgGridEnabled && _bgGridLayer === 'above' && isAppearance) {
+            try {
+                const mc = getCanvas();
+                if (mc) {
+                    const mctx = mc.getContext('2d');
+                    _drawBgGrid(mctx, mc, 'above');
+                }
+            } catch(e) {}
+        }
+        return result;
     });
+
+    // DrawCharacter hook：更衣室特寫/全身隱藏、位移、縮放
+    try {
+        modApi.hookFunction("DrawCharacter", 1, (args, next) => {
+            if (!_aeeInAppearanceRun) return next(args);
+            const scale = args[3];
+            // 特寫（scale=4）
+            if (scale === 4) { if (state.hideCloseup) return; return next(args); }
+            // 全身（scale≈1）
+            if (Math.abs(scale - 1) < 0.1 || Math.abs(scale - 0.95) < 0.05) {
+                if (state.hideFullbody) return;
+                const hasOffset = _charOffsetX !== 0 || _charOffsetY !== 0 || _charScale !== 1;
+                if (hasOffset) {
+                    const n = [...args];
+                    n[1] = args[1] + _charOffsetX;
+                    n[2] = args[2] + _charOffsetY;
+                    n[3] = args[3] * _charScale;
+                    return next(n);
+                }
+                return next(args);
+            }
+            return next(args);
+        });
+    } catch(e) {}
+
+    // 更衣室進出
+    modApi.hookFunction("AppearanceExit", 1, (args, next) => { _hideCharCtrlPanel(); _removeBgHook(); return next(args); });
+    try { modApi.hookFunction("CharacterAppearanceExit", 1, (args, next) => { _hideCharCtrlPanel(); return next(args); }); } catch(e) {}
+    try { modApi.hookFunction("CharacterAppearanceWardrobeLoad", 1, (args, next) => { _hideCharCtrlPanel(); return next(args); }); } catch(e) {}
+    try {
+        modApi.hookFunction("CommonSetScreen", 1, (args, next) => {
+            const result = next(args);
+            if (typeof CurrentScreen !== 'undefined' && CurrentScreen !== 'Appearance') _hideCharCtrlPanel();
+            return result;
+        });
+    } catch(e) {}
 
     function _aeeIsEditing() { return !!(hostEl && hostEl.style.display !== 'none' && state.activeDrag); }
 
@@ -2713,6 +3141,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     // ItemColor 模式的閃爍偵測（每幀透過 ItemColorDraw hook）
     // BC 的 MouseX/MouseY 是遊戲座標，需轉換為 clientX/Y 後對比 DOM 按鈕位置
     let _hoverLayerIdx = null;
+    let _hoverCooldownUntil = 0; // 點擊後冷卻時間戳（ms）
     try {
         modApi.hookFunction("ItemColorDraw", 0, (args, next) => {
             if (args[0]) _aeeItemColorChar = args[0];
@@ -2735,8 +3164,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
                             });
                         }
                     }
-                    if (foundIdx !== _hoverLayerIdx) {
-                        if (_hoverLayerIdx !== null) _stopHoverHighlight();
+                    // 冷卻期間不重啟閃爍（點擊後 800ms 內忽略）
+                    if (Date.now() < _hoverCooldownUntil) {
+                        if (_hoverLayerIdx !== null) { _stopHoverHighlight(null, true); _hoverLayerIdx = null; }
+                    } else if (foundIdx !== _hoverLayerIdx) {
+                        if (_hoverLayerIdx !== null) _stopHoverHighlight(null, true);
                         _hoverLayerIdx = foundIdx;
                         if (foundIdx !== null) _startHoverHighlight(item, foundIdx);
                     }
@@ -2749,17 +3181,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
     try {
         modApi.hookFunction("ItemColorLoad", 0, (args, next) => {
-            _stopHoverHighlight(); // ← 加這行，進入 color 模式前先停止閃爍
-            _aeeItemColorChar  = args[0];
-            _aeeItemColorItem  = args[1];
-            _aeeItemColorDirty = false;
+            _aeeItemColorChar = args[0]; _aeeItemColorItem = args[1]; _aeeItemColorDirty = false;
             const result = next(args);
             aeeCheckAndRender();
-            Promise.resolve(result).then(() => {
-                setTimeout(() => {
-                    if (shadowRoot && hostEl?.style.display !== 'none') renderContent();
-                }, 300);
-            });
+            Promise.resolve(result).then(() => { setTimeout(() => { if (shadowRoot && hostEl?.style.display !== 'none') renderContent(); }, 300); });
             return result;
         });
     } catch(e) {}
@@ -2818,7 +3243,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             const idx = state.selectedLayer ?? 'all';
             const hexInput = main.querySelector('input[name="output"]');
             const domHex6 = hexInput?.value?.match(/^#[0-9a-fA-F]{6}$/) ? hexInput.value
-            : hexInput?.value?.match(/^#[0-9a-fA-F]{8}$/) ? hexInput.value.slice(0, 7) : null;
+                          : hexInput?.value?.match(/^#[0-9a-fA-F]{8}$/) ? hexInput.value.slice(0, 7) : null;
             colorPickerHostEl._cpIsDefault = !domHex6;
             const cachedHex = domHex6 || (bcItem ? getLayerColor(bcItem, idx) : null) || '#FFFFFF';
 
@@ -2830,8 +3255,8 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
             if (layerName && _aeePickerContext?.item) {
                 const layers = _aeePickerContext.item.Asset?.Layer;
                 pickerLayerIdx = layers?.findIndex((l, i) =>
-                                                   getLayerDisplayName(l, i) === layerName || l.Name === layerName || layerName.includes(l.Name)
-                                                  ) ?? -1;
+                    getLayerDisplayName(l, i) === layerName || l.Name === layerName || layerName.includes(l.Name)
+                ) ?? -1;
             }
 
             let currentOpacityPct = 100;
@@ -2861,15 +3286,1300 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         });
     } catch(e) {}
 
-    try { modApi.hookFunction("DialogRun", 0, (args, next) => { aeeCheckAndRender(); return next(args); }); } catch(e) {}
+    try {
+        modApi.hookFunction("DialogRun", 0, (args, next) => {
+            aeeCheckAndRender();
+            if (typeof CurrentScreen !== 'undefined' && CurrentScreen !== 'Appearance') _hideCharCtrlPanel();
+            return next(args);
+        });
+    } catch(e) {}
 
     window.addEventListener('resize', () => {
         alignHost(); alignRotOverlay(); alignOpOverlay(); _alignTouchBlocker(); positionPanel(); updateTogglePos(); positionColorPicker();
+        _alignCharCtrlPanel();
+        if (_bgSettingOpen) _bgSettingHost?._reposition?.();
         if (state.activeDrag === 'rot') {
             const item = getCurrentItem();
             if (item && state.selectedLayer !== null) { const lo = getLO(item, state.selectedLayer); updateRotOverlay(lo.Rotation??0); }
         }
     });
+
+
+    // ============================================================
+    // LSCG 圖層面板隱藏
+    // ============================================================
+    function _applyLscgLayersVisibility() {
+        const el = document.getElementById('lscg-layers'); if (!el) return;
+        el.style.display = state.hideLscgLayers ? 'none' : '';
+    }
+
+    // ============================================================
+    // 背景系統
+    // ============================================================
+    function _hexToRgbBg(hex) {
+        const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return r ? { r: parseInt(r[1],16), g: parseInt(r[2],16), b: parseInt(r[3],16) } : {r:128,g:128,b:128};
+    }
+
+    function _drawBgGrid(ctx, canvas, forceLayer) {
+        if (!_bgGridEnabled) return;
+        const layer = forceLayer || _bgGridLayer;
+        ctx.save();
+        const op = _bgGridOpacity;
+        const hex = _bgGridColor || '#ffffff';
+        const rgb = _hexToRgbBg(hex);
+        const clr  = `rgba(${rgb.r},${rgb.g},${rgb.b},${op})`;
+        const clr2 = `rgba(${rgb.r},${rgb.g},${rgb.b},${Math.min(1, op + 0.15)})`;
+        const px = _bgGridPx || 25;
+        const bigPx = px * 4;
+        if (_bgGridMode === 'line') {
+            ctx.lineWidth = 1; ctx.strokeStyle = clr;
+            for (let x = 0; x < canvas.width; x += px) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+            for (let y = 0; y < canvas.height; y += px) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+            ctx.strokeStyle = clr2; ctx.lineWidth = 1.5;
+            for (let x = 0; x < canvas.width; x += bigPx) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+            for (let y = 0; y < canvas.height; y += bigPx) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+        } else {
+            const sz = px;
+            for (let x = 0; x < canvas.width; x += sz) {
+                for (let y = 0; y < canvas.height; y += sz) {
+                    const even = (Math.floor(x/sz)+Math.floor(y/sz)) % 2 === 0;
+                    const r2 = _hexToRgbBg(hex);
+                    ctx.fillStyle = even
+                        ? `rgba(${r2.r},${r2.g},${r2.b},${op})`
+                        : `rgba(${Math.max(0,r2.r-60)},${Math.max(0,r2.g-60)},${Math.max(0,r2.b-60)},${op})`;
+                    ctx.fillRect(x, y, sz, sz);
+                }
+            }
+        }
+        ctx.restore();
+    }
+
+    function _applyBgHook() {
+        if (_bgOrigDrawImage) return;
+        _bgOrigDrawImage = CanvasRenderingContext2D.prototype.drawImage;
+        CanvasRenderingContext2D.prototype.drawImage = function(img, ...rest) {
+            if (typeof img?.src === 'string' && img.src.includes('Backgrounds/Dressing') &&
+                typeof CurrentScreen !== 'undefined' && CurrentScreen === 'Appearance') {
+                const cv = this.canvas;
+                if (cv?.width > 0 && cv?.height > 0) {
+                    this.save();
+                    const hasBg = _bgEnabled || (_bgImgEnabled && _bgImgEl?.complete);
+                    if (!hasBg && !_bgGridEnabled) {
+                        this.restore(); return _bgOrigDrawImage.apply(this,[img,...rest]);
+                    }
+                    if (_bgEnabled) { this.fillStyle = _bgColor; this.fillRect(0,0,cv.width,cv.height); }
+                    if (_bgImgEnabled && _bgImgEl?.complete)
+                        _bgOrigDrawImage.call(this, _bgImgEl, 0,0,_bgImgEl.width,_bgImgEl.height, 0,0,cv.width,cv.height);
+                    if (!hasBg) _bgOrigDrawImage.apply(this,[img,...rest]); // 無背景但有格線：先畫原背景
+                    if (_bgGridLayer === 'below') _drawBgGrid(this, cv, 'below');
+                    this.restore(); return;
+                }
+            }
+            return _bgOrigDrawImage.apply(this,[img,...rest]);
+        };
+    }
+
+    function _removeBgHook() {
+        if (!_bgOrigDrawImage) return;
+        CanvasRenderingContext2D.prototype.drawImage = _bgOrigDrawImage;
+        _bgOrigDrawImage = null;
+    }
+
+    function _bgSaveAndRefresh() {
+        setAeeSetting('bgEnabled',       _bgEnabled);
+        setAeeSetting('bgColor',         _bgColor);
+        setAeeSetting('bgGridEnabled',   _bgGridEnabled);
+        setAeeSetting('bgGridMode',      _bgGridMode);
+        setAeeSetting('bgGridPx',        _bgGridPx);
+        setAeeSetting('bgGridColor',     _bgGridColor);
+        setAeeSetting('bgGridOpacity',   _bgGridOpacity);
+        setAeeSetting('bgGridLayer',     _bgGridLayer);
+        setAeeSetting('bgImgEnabled',    _bgImgEnabled);
+        setAeeSetting('bgImgBtnVisible', _bgImgBtnVisible);
+        setAeeSetting('bgImgUrl',        _bgImgUrl);
+        const needHook = _bgEnabled || (_bgImgEnabled && _bgImgEl?.complete) || _bgGridEnabled;
+        if (needHook) _applyBgHook(); else _removeBgHook();
+        const C = typeof CharacterAppearanceSelection !== 'undefined' ? CharacterAppearanceSelection : null;
+        if (C) { try { CharacterLoadCanvas(C); } catch(e) {} }
+        _rebuildCharCtrlButtons();
+        _syncBgSettingPanel();
+    }
+
+    function _loadBgImage(url) {
+        _bgImgEl = null; if (!url) return;
+        const img = new Image(); img.crossOrigin = 'anonymous';
+        img.onload = () => { _bgImgEl = img; _bgSaveAndRefresh(); };
+        img.onerror = () => { _bgImgEl = null; };
+        img.src = url;
+    }
+
+    // 初始化背景 hook
+    if (_bgImgEnabled && _bgImgUrl) _loadBgImage(_bgImgUrl);
+    if (_bgEnabled || _bgGridEnabled) _applyBgHook();
+
+    // ── 背景設定面板 ──
+    // ── 背景子按鈕列展開狀態（BG主按鈕控制）──
+    function _buildBgSettingPanel() {
+        if (_bgSettingHost) return;
+        _bgSettingHost = document.createElement('div');
+        _bgSettingHost.style.cssText = 'position:fixed;z-index:999992;pointer-events:none;top:0;left:0;width:0;height:0;overflow:visible;';
+        document.body.appendChild(_bgSettingHost);
+        const sd = _bgSettingHost.attachShadow({ mode: 'open' });
+
+        // AEE 風格 CSS
+        const CSS = `
+:host{all:initial;display:block}*{box-sizing:border-box;user-select:none;-webkit-user-select:none;font-family:'Segoe UI',sans-serif}
+#outer{position:fixed;top:0;left:0;display:none;pointer-events:none;width:0;height:0;overflow:visible}
+#outer.open{display:block}
+#panel{
+  position:fixed;width:360px;
+  background:#0d0d0f;border:1px solid #2a2a35;border-radius:12px;overflow:hidden;
+  box-shadow:0 8px 32px rgba(0,0,0,0.8),0 0 0 1px rgba(124,106,247,0.1);
+  pointer-events:all;
+}
+#drag-handle{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;background:#161619;border-bottom:1px solid #2a2a35;
+  cursor:grab;flex-shrink:0;
+}
+#drag-handle:active{cursor:grabbing}
+#hdr-title{font-size:11px;font-weight:700;color:#7c6af7;letter-spacing:.08em;text-transform:uppercase}
+#close-btn{width:20px;height:20px;background:transparent;border:1px solid #2a2a35;border-radius:4px;cursor:pointer;color:#a0a0b0;font-size:13px;display:flex;align-items:center;justify-content:center;line-height:1}
+#close-btn:hover{border-color:#f87;color:#f87;background:rgba(255,80,80,0.1)}
+.body{padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+/* section */
+.sec{background:#161619;border:1px solid #2a2a35;border-radius:8px;overflow:hidden}
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid #1e1e23}
+.sec-title{font-size:12px;font-weight:700;color:#ffffff;letter-spacing:.03em}
+.sec-body{padding:8px 10px;display:flex;flex-direction:column;gap:7px}
+/* toggle */
+.tog-row{display:flex;align-items:center;gap:8px}
+.tog{width:34px;height:18px;border-radius:9px;background:#2a2a35;position:relative;border:none;cursor:pointer;padding:0;transition:background .15s;flex-shrink:0}
+.tog.on{background:#7c6af7}
+.tog::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+.tog.on::after{left:18px}
+.tog-label{font-size:11px;color:#a0a0b0;flex:1}
+/* color chip */
+.color-chip{width:30px;height:30px;border-radius:5px;border:1px solid #2a2a35;cursor:pointer;flex-shrink:0;position:relative;overflow:hidden;background:repeating-conic-gradient(#1a1a1a 0% 25%,#111 0% 50%) 0 0/6px 6px;transition:border-color .12s}
+.color-chip:hover{border-color:#7c6af7}
+.color-chip-fill{position:absolute;inset:0}
+/* row */
+.row{display:flex;align-items:center;gap:8px}
+.row-label{font-size:11px;color:#a0a0b0;white-space:nowrap;min-width:52px}
+.row-val{font-size:11px;color:#7c6af7;min-width:30px;text-align:right;font-variant-numeric:tabular-nums}
+/* slider */
+.sl{flex:1;height:3px;appearance:none;border-radius:2px;outline:none;cursor:pointer;background:#2a2a35}
+.sl::-webkit-slider-thumb{appearance:none;width:13px;height:13px;border-radius:50%;background:#7c6af7;border:2px solid #fff;cursor:pointer}
+/* mode btns */
+.mode-row{display:flex;gap:5px}
+.mode-btn{flex:1;padding:4px 2px;background:#0d0d0f;border:1px solid #2a2a35;border-radius:4px;cursor:pointer;color:#a0a0b0;font-size:10px;font-weight:600;text-align:center;transition:all .12s}
+.mode-btn.active,.mode-btn:hover{border-color:#7c6af7;color:#a89ef8;background:rgba(124,106,247,0.15)}
+/* layer btns */
+.layer-row{display:flex;gap:5px}
+.layer-btn{flex:1;padding:4px 2px;background:#0d0d0f;border:1px solid #2a2a35;border-radius:4px;cursor:pointer;color:#a0a0b0;font-size:10px;font-weight:600;text-align:center;transition:all .12s}
+.layer-btn.active,.layer-btn:hover{border-color:#4ecdc4;color:#4ecdc4;background:rgba(78,205,196,0.1)}
+/* url */
+.url-row{display:flex;gap:6px}
+.url-in{flex:1;background:#0d0d0f;border:1px solid #2a2a35;border-radius:5px;color:#fff;padding:5px 8px;font-size:11px;outline:none;font-family:'Segoe UI',sans-serif}
+.url-in:focus{border-color:#7c6af7}
+.url-btn,.url-del{padding:5px 10px;background:rgba(124,106,247,0.15);border:1px solid rgba(124,106,247,0.3);border-radius:5px;color:#a89ef8;cursor:pointer;font-size:10px;white-space:nowrap;font-family:'Segoe UI',sans-serif;transition:background .12s}
+.url-btn:hover{background:rgba(124,106,247,0.3)}
+.url-del{background:rgba(255,80,80,0.1);border-color:rgba(255,80,80,0.3);color:#f87}
+.url-del:hover{background:rgba(255,80,80,0.25)}
+/* px input */
+.px-in{width:46px;background:#0d0d0f;border:1px solid #2a2a35;border-radius:4px;color:#7c6af7;padding:3px 5px;font-size:11px;outline:none;text-align:center;font-family:'SF Mono','Fira Mono',monospace;user-select:text;-webkit-user-select:text}
+.px-in:focus{border-color:#7c6af7}`;
+
+        sd.innerHTML = `<style>${CSS}</style>
+<div id="outer">
+  <div id="panel">
+    <div id="drag-handle">
+      <span id="hdr-title">🎨 ${isZh()?'背景設定':'BG Settings'}</span>
+      <button id="close-btn">✕</button>
+    </div>
+    <div class="body">
+      <!-- 素色背景 -->
+      <div class="sec">
+        <div class="sec-hdr">
+          <span class="sec-title">${isZh()?'素色背景':'Solid Color'}</span>
+          <div class="tog-row">
+            <button class="tog ${_bgEnabled?'on':''}" id="tog-solid"></button>
+            <span class="tog-label">${_bgEnabled?(isZh()?'啟用':'ON'):(isZh()?'停用':'OFF')}</span>
+          </div>
+        </div>
+        <div class="sec-body">
+          <div class="row">
+            <div class="color-chip" id="color-chip"><div class="color-chip-fill" id="color-fill" style="background:${_bgColor}"></div></div>
+            <span style="font-size:11px;color:#a0a0b0;flex:1">${isZh()?'點擊選色':'Click to pick'}</span>
+          </div>
+        </div>
+      </div>
+      <!-- 格線 -->
+      <div class="sec">
+        <div class="sec-hdr">
+          <span class="sec-title">${isZh()?'格線':'Grid'}</span>
+          <div class="tog-row">
+            <button class="tog ${_bgGridEnabled?'on':''}" id="tog-grid"></button>
+            <span class="tog-label">${_bgGridEnabled?(isZh()?'啟用':'ON'):(isZh()?'停用':'OFF')}</span>
+          </div>
+        </div>
+        <div class="sec-body">
+          <div class="mode-row">
+            <button class="mode-btn ${_bgGridMode==='line'?'active':''}" data-gm="line">☰ ${isZh()?'線格':'Line'}</button>
+            <button class="mode-btn ${_bgGridMode==='checker'?'active':''}" data-gm="checker">▦ ${isZh()?'棋盤':'Checker'}</button>
+          </div>
+          <div class="row">
+            <span class="row-label">${isZh()?'顏色':'Color'}</span>
+            <div class="color-chip" id="grid-chip"><div class="color-chip-fill" id="grid-fill" style="background:${_bgGridColor}"></div></div>
+          </div>
+          <div class="row">
+            <span class="row-label">${isZh()?'大小 (px)':'Size (px)'}</span>
+            <input type="number" class="px-in" id="grid-px" min="5" max="200" step="5" value="${_bgGridPx}">
+          </div>
+          <div class="row">
+            <span class="row-label">${isZh()?'透明度':'Opacity'}</span>
+            <input type="range" class="sl" id="op-sl" min="5" max="80" step="5" value="${Math.round(_bgGridOpacity*100)}">
+            <span class="row-val" id="op-val">${Math.round(_bgGridOpacity*100)}%</span>
+          </div>
+          <div class="row">
+            <span class="row-label">${isZh()?'圖層':'Layer'}</span>
+            <div class="layer-row" style="flex:1">
+              <button class="layer-btn ${_bgGridLayer==='below'?'active':''}" data-gl="below">${isZh()?'人物下':'Below'}</button>
+              <button class="layer-btn ${_bgGridLayer==='above'?'active':''}" data-gl="above">${isZh()?'人物上':'Above'}</button>
+            </div>
+          </div>
+          <div class="row">
+            <span class="row-label">${isZh()?'圖層透明':'Layer op'}</span>
+            <input type="range" class="sl" id="layer-op-sl" min="0" max="100" step="5" value="${Math.round(_bgGridOpacity*100)}" style="background:#2a2a35">
+            <span class="row-val" id="layer-op-val">${Math.round(_bgGridOpacity*100)}%</span>
+          </div>
+        </div>
+      </div>
+      <!-- 圖片背景 -->
+      <div class="sec">
+        <div class="sec-hdr">
+          <span class="sec-title">${isZh()?'圖片背景':'Image BG'}</span>
+          <div class="tog-row">
+            <span class="tog-label" style="flex:1">${isZh()?'啟用':'Enable'}</span>
+            <button class="tog ${_bgImgEnabled?'on':''}" id="tog-img"></button>
+          </div>
+        </div>
+        <div class="sec-body">
+          <div class="url-row">
+            <input type="text" class="url-in" id="url-in" value="${_bgImgUrl||''}" placeholder="${isZh()?'圖片網址...':'Image URL...'}">
+            <button class="url-btn" id="url-load">${isZh()?'載入':'Load'}</button>
+            <button class="url-del" id="url-del" title="${isZh()?'清除':'Clear'}">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+
+        // ── 位置：固定在 canvas 右側 66%，每次開啟重置 ──
+        function _resetPos() {
+            const r = getCanvasRect(); if (!r) return;
+            const panel = sd.getElementById('panel');
+            panel.style.left = (r.left + r.width * 0.38) + 'px';
+            panel.style.top  = (r.top  + r.height * 0.15) + 'px';
+        }
+        _bgSettingHost._reposition = _resetPos;
+
+        // ── 拖移 ──
+        const dragHandle = sd.getElementById('drag-handle');
+        const panel = sd.getElementById('panel');
+        let _bgPanelDrag = null;
+        dragHandle.addEventListener('pointerdown', ev => {
+            if (ev.target === sd.getElementById('close-btn')) return;
+            ev.preventDefault(); dragHandle.setPointerCapture(ev.pointerId);
+            _bgPanelDrag = { sx: ev.clientX, sy: ev.clientY, ol: parseFloat(panel.style.left)||0, ot: parseFloat(panel.style.top)||0 };
+        });
+        dragHandle.addEventListener('pointermove', ev => {
+            if (!_bgPanelDrag) return;
+            panel.style.left = (_bgPanelDrag.ol + ev.clientX - _bgPanelDrag.sx) + 'px';
+            panel.style.top  = (_bgPanelDrag.ot + ev.clientY - _bgPanelDrag.sy) + 'px';
+        });
+        dragHandle.addEventListener('pointerup', () => { _bgPanelDrag = null; });
+
+        // ── 關閉 ──
+        sd.getElementById('close-btn').addEventListener('click', _closeBgSetting);
+
+        // ── 素色 toggle ──
+        const togSolid = sd.getElementById('tog-solid');
+        togSolid.addEventListener('click', () => {
+            _bgEnabled = !_bgEnabled;
+            togSolid.classList.toggle('on', _bgEnabled);
+            togSolid.nextElementSibling.textContent = _bgEnabled ? (isZh()?'啟用':'ON') : (isZh()?'停用':'OFF');
+            _bgSaveAndRefresh();
+        });
+
+        // ── 素色調色盤（呼叫 AEE 調色盤，設定面板置頂確保不被蓋住）──
+        sd.getElementById('color-chip').addEventListener('click', () => {
+            openColorPicker(_bgColor, (hex) => {
+                _bgColor = hex;
+                const fill = sd.getElementById('color-fill'); if (fill) fill.style.background = hex;
+                _bgSaveAndRefresh();
+            }, false);
+        });
+
+        // ── 格線 toggle ──
+        const togGrid = sd.getElementById('tog-grid');
+        togGrid.addEventListener('click', () => {
+            _bgGridEnabled = !_bgGridEnabled;
+            togGrid.classList.toggle('on', _bgGridEnabled);
+            togGrid.nextElementSibling.textContent = _bgGridEnabled ? (isZh()?'啟用':'ON') : (isZh()?'停用':'OFF');
+            _bgSaveAndRefresh();
+        });
+
+        // ── 格線模式 ──
+        sd.querySelectorAll('[data-gm]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _bgGridMode = btn.dataset.gm;
+                sd.querySelectorAll('[data-gm]').forEach(b => b.classList.toggle('active', b.dataset.gm === _bgGridMode));
+                _bgSaveAndRefresh();
+            });
+        });
+
+        // ── 格線顏色 ──
+        sd.getElementById('grid-chip').addEventListener('click', () => {
+            openColorPicker(_bgGridColor, (hex) => {
+                _bgGridColor = hex;
+                const fill = sd.getElementById('grid-fill'); if (fill) fill.style.background = hex;
+                _bgSaveAndRefresh();
+            }, false);
+        });
+
+        // ── 格線 px ──
+        const gridPxIn = sd.getElementById('grid-px');
+        gridPxIn.addEventListener('change', () => {
+            const v = Math.max(5, Math.min(200, parseInt(gridPxIn.value) || 25));
+            _bgGridPx = v; gridPxIn.value = v; _bgSaveAndRefresh();
+        });
+        gridPxIn.addEventListener('mousedown', e => e.stopPropagation());
+        gridPxIn.addEventListener('click', e => e.stopPropagation());
+
+        // ── 格線透明度 ──
+        const opSl = sd.getElementById('op-sl'), opValEl = sd.getElementById('op-val');
+        opSl.addEventListener('input', () => {
+            const v = parseInt(opSl.value);
+            _bgGridOpacity = v / 100;
+            opValEl.textContent = v + '%';
+            _bgSaveAndRefresh();
+        });
+
+        // ── 格線圖層 ──
+        sd.querySelectorAll('[data-gl]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _bgGridLayer = btn.dataset.gl;
+                sd.querySelectorAll('[data-gl]').forEach(b => b.classList.toggle('active', b.dataset.gl === _bgGridLayer));
+                _bgSaveAndRefresh();
+            });
+        });
+
+        const layerOpSl = sd.getElementById('layer-op-sl');
+        const layerOpVal = sd.getElementById('layer-op-val');
+        if (layerOpSl) layerOpSl.addEventListener('input', () => {
+            const v = parseInt(layerOpSl.value);
+            _bgGridOpacity = v / 100;
+            if (layerOpVal) layerOpVal.textContent = v + '%';
+            // 同步上方透明度 slider
+            const opSl2 = sd.getElementById('op-sl');
+            const opVal2 = sd.getElementById('op-val');
+            if (opSl2) opSl2.value = v;
+            if (opVal2) opVal2.textContent = v + '%';
+            _bgSaveAndRefresh();
+        });
+
+        // ── 圖片顯示按鈕 toggle ──
+        // ── 圖片啟用 toggle ──
+        const togImg = sd.getElementById('tog-img');
+        togImg.addEventListener('click', () => {
+            _bgImgEnabled = !_bgImgEnabled;
+            togImg.classList.toggle('on', _bgImgEnabled);
+            _bgSaveAndRefresh();
+        });
+
+        // ── 載入圖片 ──
+        sd.getElementById('url-load').addEventListener('click', () => {
+            const url = sd.getElementById('url-in').value.trim(); if (!url) return;
+            _bgImgUrl = url; _loadBgImage(url);
+        });
+
+        // ── 清除圖片 ──
+        sd.getElementById('url-del').addEventListener('click', () => {
+            _bgImgUrl = ''; _bgImgEnabled = false; _bgImgEl = null;
+            sd.getElementById('url-in').value = '';
+            togImg.classList.remove('on');
+            _bgSaveAndRefresh();
+        });
+    }
+
+    function _syncBgSettingPanel() {
+        if (!_bgSettingHost) return;
+        const sd = _bgSettingHost.shadowRoot;
+        const fill = sd?.getElementById('color-fill'); if (fill) fill.style.background = _bgColor;
+        const gfill = sd?.getElementById('grid-fill'); if (gfill) gfill.style.background = _bgGridColor;
+    }
+
+        function _syncBgSettingPanel() {
+        if (!_bgSettingHost) return;
+        const fill = _bgSettingHost.shadowRoot?.getElementById('color-fill');
+        if (fill) fill.style.background = _bgColor;
+    }
+
+    function _openBgSetting() {
+        _buildBgSettingPanel(); _bgSettingOpen = true;
+        const outer = _bgSettingHost.shadowRoot.getElementById('outer');
+        if (outer) outer.classList.add('open');
+        _bgSettingHost.style.pointerEvents = 'auto';
+        requestAnimationFrame(() => { _bgSettingHost._reposition?.(); });
+    }
+
+    function _closeBgSetting() {
+        _bgSettingOpen = false;
+        _bgSettingHost?.shadowRoot?.getElementById('outer')?.classList.remove('open');
+        if (_bgSettingHost) _bgSettingHost.style.pointerEvents = 'none';
+        _rebuildCharCtrlButtons();
+    }
+
+    // ============================================================
+    // 位移面板（CharOffset）
+    // ============================================================
+    function _buildOffsetPanel() {
+        if (_offsetPanelHost) return;
+        _offsetPanelHost = document.createElement('div');
+        _offsetPanelHost.style.cssText = 'position:fixed;z-index:999993;pointer-events:none;top:0;left:0;width:0;height:0;overflow:visible;';
+        document.body.appendChild(_offsetPanelHost);
+        const sd = _offsetPanelHost.attachShadow({ mode: 'open' });
+
+        sd.innerHTML = `
+<style>
+  :host{all:initial;display:block}*{box-sizing:border-box;user-select:none;-webkit-user-select:none;font-family:'Segoe UI',sans-serif}
+  #win{position:fixed;width:260px;background:#0d0d0f;border:1px solid #2a2a35;border-radius:10px;display:none;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.8);overflow:hidden}
+  #win.open{display:flex}
+  #hdr{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#161619;border-bottom:1px solid #2a2a35;cursor:grab;flex-shrink:0}
+  #hdr:active{cursor:grabbing}
+  #hdr-title{font-size:11px;font-weight:700;color:#7c6af7;letter-spacing:.06em;text-transform:uppercase}
+  .hdr-btns{display:flex;gap:5px}
+  .hdr-btn{width:22px;height:22px;background:transparent;border:1px solid #2a2a35;border-radius:4px;cursor:pointer;color:#a0a0b0;font-size:11px;display:flex;align-items:center;justify-content:center;transition:border-color .12s,color .12s}
+  .hdr-btn:hover{border-color:#7c6af7;color:#a89ef8}
+  .hdr-btn.active{border-color:#7c6af7;color:#a89ef8;background:rgba(124,106,247,0.15)}
+  #body{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+  #body.collapsed{display:none}
+  .row{display:flex;align-items:center;gap:6px}
+  .row-label{font-size:11px;color:#a0a0b0;width:36px;flex-shrink:0}
+  .row-val{font-size:11px;color:#7c6af7;min-width:36px;text-align:right;font-variant-numeric:tabular-nums}
+  .sl{flex:1;height:3px;appearance:none;border-radius:2px;outline:none;cursor:pointer;background:#2a2a35}
+  .sl::-webkit-slider-thumb{appearance:none;width:13px;height:13px;border-radius:50%;background:#7c6af7;border:2px solid #fff;cursor:pointer}
+  .reset-btn{width:22px;height:22px;background:transparent;border:1px solid #2a2a35;border-radius:3px;cursor:pointer;color:#a0a0b0;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .12s,color .12s}
+  .reset-btn:hover{border-color:#f87;color:#f87}
+  .divider{height:1px;background:#1e1e23;margin:2px 0}
+  .wheel-row{display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .wheel-label{font-size:11px;color:#a0a0b0;flex:1}
+  .tog{width:34px;height:18px;border-radius:9px;background:#2a2a35;position:relative;border:none;cursor:pointer;padding:0;transition:background .15s;flex-shrink:0}
+  .tog.on{background:#7c6af7}
+  .tog::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+  .tog.on::after{left:18px}
+  .hint{font-size:9px;color:#555;line-height:1.4}
+</style>
+<div id="win">
+  <div id="hdr">
+    <span id="hdr-title">⟳ ${isZh()?'位移控制':'Offset'}</span>
+    <div class="hdr-btns">
+      <button class="hdr-btn" id="lock-btn" title="${isZh()?'收納/展開':'Collapse'}">▼</button>
+      <button class="hdr-btn" id="reset-all-btn" title="${isZh()?'全部重置':'Reset All'}">↺</button>
+      <button class="hdr-btn" id="close-btn">✕</button>
+    </div>
+  </div>
+  <!-- 小地圖（canvas 2:1，人物區域約 1:2，顯示人物在哪裡）-->
+  <div id="minimap-wrap" style="padding:6px 10px 0;background:#0d0d0f">
+    <div id="minimap" style="
+      position:relative;width:100%;height:120px;
+      background:#111;border:1px solid #2a2a35;border-radius:4px;
+      cursor:crosshair;overflow:visible;flex-shrink:0;
+    ">
+      <!-- 人物指示點 -->
+      <div id="mm-char" style="
+        position:absolute;width:10px;height:10px;border-radius:50%;
+        background:#7c6af7;border:2px solid #fff;transform:translate(-50%,-50%);
+        pointer-events:none;transition:left .05s,top .05s;
+      "></div>
+      <!-- 視圖框（遊戲顯示區，固定為整個 canvas，這裡不需要但保留擴展空間）-->
+    </div>
+    <div style="font-size:9px;color:#444;text-align:center;margin-top:2px;letter-spacing:.03em">
+      ${isZh()?'點擊/拖移移動人物':'Click/drag to move character'}
+    </div>
+  </div>
+  <div id="body">
+    <div class="row">
+      <span class="row-label">${isZh()?'左右':'X'}</span>
+      <input type="range" class="sl" id="sl-x" min="-700" max="800" step="10" value="0">
+      <span class="row-val" id="val-x">0</span>
+      <button class="reset-btn" id="reset-x">↺</button>
+    </div>
+    <div class="row">
+      <span class="row-label">${isZh()?'上下':'Y'}</span>
+      <input type="range" class="sl" id="sl-y" min="-2000" max="2000" step="10" value="0">
+      <span class="row-val" id="val-y">0</span>
+      <button class="reset-btn" id="reset-y">↺</button>
+    </div>
+    <div class="row">
+      <span class="row-label">${isZh()?'縮放':'Scale'}</span>
+      <input type="range" class="sl" id="sl-sc" min="20" max="500" step="5" value="100">
+      <span class="row-val" id="val-sc">100%</span>
+      <button class="reset-btn" id="reset-sc">↺</button>
+    </div>
+    <div class="divider"></div>
+    <div class="wheel-row">
+      <span class="wheel-label">${isZh()?'滾輪/鍵盤控制':'Wheel/Key ctrl'}</span>
+      <button class="tog" id="tog-wheel"></button>
+    </div>
+    <div class="hint" id="wheel-hint" style="display:none">${isZh()?'滾輪按住/空白鍵=移動\n滾動/Ctrl+±=縮放':'Hold wheel/Space=Move\nScroll/Ctrl+±=Scale'}</div>
+  </div>
+</div>`;
+
+        const win  = sd.getElementById('win');
+        const hdr  = sd.getElementById('hdr');
+        const body = sd.getElementById('body');
+
+        // 小地圖互動
+        const minimap = sd.getElementById('minimap');
+        const mmChar  = sd.getElementById('mm-char');
+
+        // X: -700~+800 (range 1500), offset=0 → 700/1500≈46.7%
+        // Y: -2000~+2000 (range 4000), offset=0 → 50%
+        const MM_X_MIN = -700, MM_X_MAX = 800, MM_X_RANGE = 1500;
+        const MM_Y_MIN = -2000, MM_Y_MAX = 2000, MM_Y_RANGE = 4000;
+
+        function _updateMinimap() {
+            if (!minimap || !mmChar) return;
+            const px = Math.max(2, Math.min(98, ((_charOffsetX - MM_X_MIN) / MM_X_RANGE) * 100));
+            const py = Math.max(2, Math.min(98, ((_charOffsetY - MM_Y_MIN) / MM_Y_RANGE) * 100));
+            mmChar.style.left = px + '%';
+            mmChar.style.top  = py + '%';
+        }
+
+        function _minimapToOffset(clientX, clientY) {
+            const r = minimap.getBoundingClientRect();
+            const rx = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+            const ry = Math.max(0, Math.min(1, (clientY - r.top)  / r.height));
+            _charOffsetX = Math.round(MM_X_MIN + rx * MM_X_RANGE);
+            _charOffsetY = Math.round(MM_Y_MIN + ry * MM_Y_RANGE);
+            setAeeSetting('charOffsetX', _charOffsetX);
+            setAeeSetting('charOffsetY', _charOffsetY);
+            _syncSliders(); _updateMinimap(); _rebuildCharCtrlButtons();
+        }
+
+        let _mmDragging = false;
+        minimap.addEventListener('pointerdown', ev => {
+            _mmDragging = true; minimap.setPointerCapture(ev.pointerId);
+            _minimapToOffset(ev.clientX, ev.clientY); ev.preventDefault();
+        });
+        minimap.addEventListener('pointermove', ev => {
+            if (!_mmDragging) return;
+            _minimapToOffset(ev.clientX, ev.clientY);
+        });
+        minimap.addEventListener('pointerup', () => { _mmDragging = false; });
+
+        // 同步 slider 初始值
+        function _syncSliders() {
+            const slX = sd.getElementById('sl-x'), slY = sd.getElementById('sl-y'), slSc = sd.getElementById('sl-sc');
+            const vX  = sd.getElementById('val-x'),vY  = sd.getElementById('val-y'),vSc  = sd.getElementById('val-sc');
+            if (slX)  { slX.value = _charOffsetX;  if (vX)  vX.textContent  = (_charOffsetX>0?'+':'')+_charOffsetX; }
+            if (slY)  { slY.value = Math.max(-2000, Math.min(2000, _charOffsetY));  if (vY)  vY.textContent  = (_charOffsetY>0?'+':'')+_charOffsetY; }
+            if (slSc) { slSc.value = Math.round(_charScale*100); if (vSc) vSc.textContent = Math.round(_charScale*100)+'%'; }
+            const tog = sd.getElementById('tog-wheel');
+            if (tog) tog.classList.toggle('on', _wheelCtrlOn);
+            const hint = sd.getElementById('wheel-hint');
+            if (hint) hint.style.display = _wheelCtrlOn ? 'block' : 'none';
+            _updateMinimap();
+        }
+        _syncSliders();
+
+        // X slider
+        const slX = sd.getElementById('sl-x');
+        slX.addEventListener('input', () => {
+            _charOffsetX = parseInt(slX.value);
+            sd.getElementById('val-x').textContent = (_charOffsetX>0?'+':'')+_charOffsetX;
+            setAeeSetting('charOffsetX', _charOffsetX);
+            _updateMinimap(); _rebuildCharCtrlButtons();
+        });
+        // Y slider
+        const slY = sd.getElementById('sl-y');
+        slY.addEventListener('input', () => {
+            _charOffsetY = parseInt(slY.value);
+            sd.getElementById('val-y').textContent = (_charOffsetY>0?'+':'')+_charOffsetY;
+            setAeeSetting('charOffsetY', _charOffsetY);
+            _updateMinimap(); _rebuildCharCtrlButtons();
+        });
+        // Scale slider
+        const slSc = sd.getElementById('sl-sc');
+        slSc.addEventListener('input', () => {
+            _charScale = parseInt(slSc.value) / 100;
+            sd.getElementById('val-sc').textContent = Math.round(_charScale*100)+'%';
+            setAeeSetting('charScale', _charScale);
+            _rebuildCharCtrlButtons();
+        });
+        // Reset buttons
+        sd.getElementById('reset-x').addEventListener('click', () => {
+            _charOffsetX = 0; slX.value = 0; sd.getElementById('val-x').textContent = '0';
+            setAeeSetting('charOffsetX', 0); _rebuildCharCtrlButtons();
+        });
+        sd.getElementById('reset-y').addEventListener('click', () => {
+            _charOffsetY = 0; slY.value = 0; sd.getElementById('val-y').textContent = '0';
+            setAeeSetting('charOffsetY', 0); _rebuildCharCtrlButtons();
+        });
+        sd.getElementById('reset-sc').addEventListener('click', () => {
+            _charScale = 1; slSc.value = 100; sd.getElementById('val-sc').textContent = '100%';
+            setAeeSetting('charScale', 1); _rebuildCharCtrlButtons();
+        });
+        sd.getElementById('reset-all-btn').addEventListener('click', () => {
+            _charOffsetX = 0; _charOffsetY = 0; _charScale = 1;
+            setAeeSetting('charOffsetX', 0); setAeeSetting('charOffsetY', 0); setAeeSetting('charScale', 1);
+            _syncSliders(); _updateMinimap(); _rebuildCharCtrlButtons();
+        });
+
+        // 滾輪/鍵盤開關
+        const togWheel = sd.getElementById('tog-wheel');
+        togWheel.addEventListener('click', () => {
+            _wheelCtrlOn = !_wheelCtrlOn;
+            togWheel.classList.toggle('on', _wheelCtrlOn);
+            const hint = sd.getElementById('wheel-hint');
+            if (hint) hint.style.display = _wheelCtrlOn ? 'block' : 'none';
+        });
+
+        // 收納/展開
+        const lockBtn = sd.getElementById('lock-btn');
+        lockBtn.addEventListener('click', () => {
+            _offsetPanelCollapsed = !_offsetPanelCollapsed;
+            body.style.display = _offsetPanelCollapsed ? 'none' : '';
+            lockBtn.textContent = _offsetPanelCollapsed ? '▲' : '▼';
+        });
+
+        // 關閉
+        sd.getElementById('close-btn').addEventListener('click', _closeOffsetPanel);
+
+        // 拖移
+        let _opDrag = null;
+        hdr.addEventListener('pointerdown', ev => {
+            if (ev.target !== hdr && !ev.target.classList.contains('hdr-title') && ev.target.id !== 'hdr-title') {
+                if (ev.target.closest('.hdr-btn')) return;
+            }
+            ev.preventDefault(); hdr.setPointerCapture(ev.pointerId);
+            _opDrag = { sx: ev.clientX, sy: ev.clientY, ol: parseFloat(win.style.left)||0, ot: parseFloat(win.style.top)||0 };
+        });
+        hdr.addEventListener('pointermove', ev => {
+            if (!_opDrag) return;
+            win.style.left = (_opDrag.ol + ev.clientX - _opDrag.sx) + 'px';
+            win.style.top  = (_opDrag.ot + ev.clientY - _opDrag.sy) + 'px';
+        });
+        hdr.addEventListener('pointerup', () => { _opDrag = null; });
+
+        _offsetPanelHost._syncSliders   = _syncSliders;
+        _offsetPanelHost._updateMinimap = _updateMinimap;
+    }
+
+    function _openOffsetPanel() {
+        _buildOffsetPanel(); _offsetPanelOpen = true;
+        _offsetPanelHost.style.pointerEvents = 'auto';
+        const win = _offsetPanelHost.shadowRoot?.getElementById('win');
+        if (win) {
+            win.classList.add('open');
+            if (!win.style.left) {
+                const r = getCanvasRect();
+                if (r) {
+                    win.style.left = (r.left + r.width * 0.40) + 'px';
+                    win.style.top  = (r.top  + r.height * 0.30) + 'px';
+                }
+            }
+        }
+        _offsetPanelHost._syncSliders?.();
+        _rebuildCharCtrlButtons();
+    }
+
+    function _closeOffsetPanel() {
+        _offsetPanelOpen = false;
+        if (_offsetPanelHost) _offsetPanelHost.style.pointerEvents = 'none';
+        _offsetPanelHost?.shadowRoot?.getElementById('win')?.classList.remove('open');
+        _rebuildCharCtrlButtons();
+    }
+
+    // 滾輪+鍵盤控制人物（_wheelCtrlOn 啟用時）
+    (function() {
+        let _spaceDown = false;
+        let _wheelBtnDown = false;
+
+        // ── 鍵盤 ──
+        document.addEventListener('keydown', e => {
+            if (!_wheelCtrlOn) return;
+            if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'Appearance') return;
+            if (e.code === 'Space' && !e.repeat) { _spaceDown = true; e.preventDefault(); }
+            if (e.ctrlKey && (e.code === 'Equal' || e.code === 'NumpadAdd')) {
+                _charScale = Math.min(5, +(_charScale + 0.05).toFixed(2));
+                setAeeSetting('charScale', _charScale);
+                _offsetPanelHost?._syncSliders?.(); _rebuildCharCtrlButtons(); e.preventDefault();
+            }
+            if (e.ctrlKey && (e.code === 'Minus' || e.code === 'NumpadSubtract')) {
+                _charScale = Math.max(0.1, +(_charScale - 0.05).toFixed(2));
+                setAeeSetting('charScale', _charScale);
+                _offsetPanelHost?._syncSliders?.(); _rebuildCharCtrlButtons(); e.preventDefault();
+            }
+        }, true);
+        document.addEventListener('keyup', e => {
+            if (e.code === 'Space') _spaceDown = false;
+        }, true);
+
+        // ── 滾輪中鍵 + 空白鍵左鍵 → mousemove 拖移 ──
+        document.addEventListener('mousedown', e => {
+            if (!_wheelCtrlOn) return;
+            if (e.button === 1) { _wheelBtnDown = true; e.preventDefault(); }
+        }, true);
+        document.addEventListener('mouseup', e => {
+            if (e.button === 1) _wheelBtnDown = false;
+        }, true);
+        document.addEventListener('mousemove', e => {
+            if (!_wheelCtrlOn) return;
+            if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'Appearance') return;
+            const isDragging = _wheelBtnDown || (_spaceDown && e.buttons === 1);
+            if (!isDragging) return;
+            const c = getCanvas(); if (!c) return;
+            const r = c.getBoundingClientRect();
+            const sc = (c.width || 2000) / r.width;
+            _charOffsetX = Math.max(-700,  Math.min(800,  _charOffsetX + Math.round(e.movementX * sc)));
+            _charOffsetY = Math.max(-2000, Math.min(2000, _charOffsetY + Math.round(e.movementY * sc)));
+            setAeeSetting('charOffsetX', _charOffsetX);
+            setAeeSetting('charOffsetY', _charOffsetY);
+            _offsetPanelHost?._syncSliders?.(); _offsetPanelHost?._updateMinimap?.(); _rebuildCharCtrlButtons();
+        }, true);
+
+        // ── 滾輪 → 縮放（以滑鼠位置為中心點）──
+        document.addEventListener('wheel', e => {
+            if (!_wheelCtrlOn) return;
+            if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'Appearance') return;
+            if (_spaceDown || _wheelBtnDown) return;
+            const c = getCanvas(); if (!c) return;
+            const r = c.getBoundingClientRect();
+            if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+            e.preventDefault();
+            const oldScale = _charScale;
+            const delta = e.deltaY > 0 ? -0.05 : 0.05;
+            const newScale = Math.max(0.1, Math.min(5, +(oldScale + delta).toFixed(2)));
+            if (newScale === oldScale) return;
+            // 計算滑鼠在 canvas 上的位置（canvas 座標，2000x1000）
+            const cw = c.width || 2000, ch = c.height || 1000;
+            const mouseCanvasX = (e.clientX - r.left) / r.width * cw;
+            const mouseCanvasY = (e.clientY - r.top)  / r.height * ch;
+            // 縮放以滑鼠位置為中心，調整 offset 使滑鼠指向的點保持不動
+            // 人物繪製參考點約在 canvas (500, 0)，offset 是相對偏移
+            const CHAR_BASE_X = 500, CHAR_BASE_Y = 0;
+            const pivotX = mouseCanvasX - CHAR_BASE_X;
+            const pivotY = mouseCanvasY - CHAR_BASE_Y;
+            const ratio = newScale / oldScale;
+            _charOffsetX = Math.round(pivotX + (_charOffsetX - pivotX) * ratio);
+            _charOffsetY = Math.round(pivotY + (_charOffsetY - pivotY) * ratio);
+            _charScale = newScale;
+            setAeeSetting('charScale', _charScale);
+            setAeeSetting('charOffsetX', _charOffsetX);
+            setAeeSetting('charOffsetY', _charOffsetY);
+            _offsetPanelHost?._syncSliders?.(); _offsetPanelHost?._updateMinimap?.(); _rebuildCharCtrlButtons();
+        }, { passive: false });
+    })();
+
+        // ============================================================
+    // POSE 浮動視窗
+    // ============================================================
+    const _POSES = [
+        {name:'BaseUpper',      zh:'放鬆手臂', en:'Arms Relaxed'},
+        {name:'Yoked',          zh:'高舉雙手', en:'Hands Raised'},
+        {name:'OverTheHead',    zh:'雙手過頭', en:'Over Head'},
+        {name:'BackBoxTie',     zh:'反綁雙手', en:'Box Tie'},
+        {name:'BackElbowTouch', zh:'肘部相觸', en:'Elbow Touch'},
+        {name:'BackCuffs',      zh:'右手反抓', en:'Back Cuffs'},
+        {name:'BaseLower',      zh:'站立',     en:'Standing'},
+        {name:'LegsClosed',     zh:'併腿',     en:'Legs Closed'},
+        {name:'Kneel',          zh:'跪下',     en:'Kneeling'},
+        {name:'KneelingSpread', zh:'跪姿分腿', en:'Kneeling Spread'},
+        {name:'AllFours',       zh:'趴跪',     en:'All Fours'},
+    ];
+
+    function _getPoseIconURL(name) {
+        const href = window.location.href;
+        return href.substring(0, href.lastIndexOf('/')+1) + 'Icons/Poses/' + name + '.png';
+    }
+
+    function _buildPoseWindow() {
+        if (_poseFloatHost) return;
+        _poseFloatHost = document.createElement('div');
+        _poseFloatHost.style.cssText = 'position:fixed;z-index:999990;pointer-events:none;top:0;left:0;width:0;height:0;overflow:visible;';
+        document.body.appendChild(_poseFloatHost);
+        const sd = _poseFloatHost.attachShadow({ mode: 'open' });
+        const BTN=58, GAP=6, COLS=4;
+
+        sd.innerHTML = `
+<style>
+  :host{all:initial;display:block}*{box-sizing:border-box;user-select:none;-webkit-user-select:none;font-family:'Segoe UI',sans-serif}
+  #win{position:absolute;pointer-events:all;background:#0d0d0f;border:1px solid #2a2a35;border-radius:10px;display:none;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.8);width:${COLS*(BTN+GAP)-GAP+20}px}
+  #win.open{display:flex}
+  #header{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#161619;border-bottom:1px solid #2a2a35;border-radius:9px 9px 0 0;cursor:grab;flex-shrink:0}
+  #header:active{cursor:grabbing}
+  #title{font-size:11px;font-weight:700;color:#7c6af7;letter-spacing:.06em;text-transform:uppercase}
+  #close-btn{width:20px;height:20px;background:transparent;border:1px solid #2a2a35;border-radius:4px;cursor:pointer;color:#a0a0b0;font-size:13px;display:flex;align-items:center;justify-content:center;transition:border-color .12s,color .12s}
+  #close-btn:hover{border-color:#f87;color:#f87}
+  #grid{display:grid;grid-template-columns:repeat(${COLS},${BTN}px);gap:${GAP}px;padding:10px}
+  .pb{width:${BTN}px;height:${BTN}px;padding:2px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:background .12s,border-color .12s;overflow:hidden}
+  .pb:hover,.pb.active{background:rgba(124,106,247,0.35);border-color:#7c6af7}
+  .pb img{width:${BTN-16}px;height:${BTN-16}px;object-fit:contain;pointer-events:none;display:block}
+  .pn{font-size:7px;color:#a0a0b0;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;padding:0 2px;pointer-events:none}
+  .pb.active .pn{color:#a89ef8}
+</style>
+<div id="win">
+  <div id="header">
+    <span id="title">🧍 ${isZh()?'POSE 選擇':'Pose Select'}</span>
+    <button id="close-btn">✕</button>
+  </div>
+  <div id="grid"></div>
+</div>`;
+
+        const win = sd.getElementById('win'), header = sd.getElementById('header');
+        const grid = sd.getElementById('grid');
+
+        _POSES.forEach((pose, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'pb'; btn.dataset.poseIdx = idx;
+            btn.title = isZh() ? pose.zh : pose.en;
+            const img = document.createElement('img');
+            img.src = _getPoseIconURL(pose.name); img.alt = pose.name;
+            img.onerror = () => { img.style.display = 'none'; };
+            const name = document.createElement('div');
+            name.className = 'pn'; name.textContent = isZh() ? pose.zh : pose.en;
+            btn.appendChild(img); btn.appendChild(name);
+            btn.addEventListener('click', () => _applyPose(idx));
+            grid.appendChild(btn);
+        });
+
+        sd.getElementById('close-btn').addEventListener('click', _closePoseWindow);
+
+        let _wd = null;
+        header.addEventListener('pointerdown', ev => {
+            if (ev.target === sd.getElementById('close-btn')) return;
+            ev.preventDefault(); header.setPointerCapture(ev.pointerId);
+            _wd = { sx: ev.clientX, sy: ev.clientY, ol: parseFloat(win.style.left)||0, ot: parseFloat(win.style.top)||0 };
+        });
+        header.addEventListener('pointermove', ev => {
+            if (!_wd) return;
+            win.style.left = (_wd.ol + ev.clientX - _wd.sx)+'px';
+            win.style.top  = (_wd.ot + ev.clientY - _wd.sy)+'px';
+        });
+        header.addEventListener('pointerup', () => { _wd = null; });
+
+        _poseFloatHost._updateActive = (activeIdx) => {
+            sd.querySelectorAll('.pb').forEach(b => b.classList.toggle('active', parseInt(b.dataset.poseIdx) === activeIdx));
+        };
+    }
+
+    function _applyPose(idx) {
+        const pose = _POSES[idx]; if (!pose) return;
+        try {
+            const C = typeof CharacterAppearanceSelection !== 'undefined' ? CharacterAppearanceSelection : null;
+            const target = C || (typeof Player !== 'undefined' ? Player : null);
+            if (!target) return;
+            if (typeof CharacterSetActivePose === 'function') {
+                CharacterSetActivePose(target, pose.name);
+                if (typeof CharacterRefresh === 'function') CharacterRefresh(target);
+            }
+            _poseFloatHost?._updateActive(idx);
+        } catch(e) {}
+    }
+
+    function _openPoseWindow() {
+        _buildPoseWindow(); _poseFloatOpen = true;
+        _poseFloatHost.style.pointerEvents = 'auto';
+        const win = _poseFloatHost.shadowRoot?.getElementById('win');
+        if (win) {
+            win.classList.add('open');
+            if (!win.style.left) {
+                const r = getCanvasRect();
+                if (r) { win.style.left = Math.round(r.left + r.width*0.36)+'px'; win.style.top = Math.round(r.top + r.height*0.08)+'px'; }
+            }
+        }
+        _rebuildCharCtrlButtons();
+    }
+
+    function _closePoseWindow() {
+        _poseFloatOpen = false;
+        if (_poseFloatHost) _poseFloatHost.style.pointerEvents = 'none';
+        _poseFloatHost?.shadowRoot?.getElementById('win')?.classList.remove('open');
+        _rebuildCharCtrlButtons();
+    }
+
+    // ============================================================
+    // 更衣室視圖控制浮動面板（CharCtrl）
+    // ============================================================
+    function _updateExpandDirection() {
+        if (!_charCtrlShadow) return;
+        const sd2      = _charCtrlShadow;
+        const expanded = sd2.getElementById('expanded');
+        // bg-row 和 hide-row 已改為 absolute 定位，不再需要 flexDirection 控制
+        if (!expanded) return;
+
+        // 上/下展開
+        expanded.style.left = '0px';
+        expanded.style.removeProperty('right');
+        if (_ctrlExpandUp) {
+            expanded.style.removeProperty('top');
+            expanded.style.bottom = (_CTRL_BTN_SIZE + 8) + 'px';
+            expanded.style.flexDirection = 'column-reverse';
+        } else {
+            expanded.style.removeProperty('bottom');
+            expanded.style.top = (_CTRL_BTN_SIZE + 8) + 'px';
+            expanded.style.flexDirection = 'column';
+        }
+
+        // 子清單左/右展開：absolute 定位，直接設 left 或 right
+        const S2 = _CTRL_BTN_SIZE;
+        const gap2 = 6;
+        const bgSubEl   = _charCtrlShadow?.getElementById('bg-sub');
+        const hideSubEl = _charCtrlShadow?.getElementById('hide-sub');
+        if (_ctrlSubLeft) {
+            // 向左：sub 出現在主按鈕左邊
+            if (bgSubEl)   { bgSubEl.style.left = 'auto'; bgSubEl.style.right = (S2 + gap2) + 'px'; bgSubEl.style.flexDirection = 'row-reverse'; }
+            if (hideSubEl) { hideSubEl.style.left = 'auto'; hideSubEl.style.right = (S2 + gap2) + 'px'; hideSubEl.style.flexDirection = 'row-reverse'; }
+        } else {
+            // 向右：sub 出現在主按鈕右邊
+            if (bgSubEl)   { bgSubEl.style.left = (S2 + gap2) + 'px'; bgSubEl.style.right = 'auto'; bgSubEl.style.flexDirection = 'row'; }
+            if (hideSubEl) { hideSubEl.style.left = (S2 + gap2) + 'px'; hideSubEl.style.right = 'auto'; hideSubEl.style.flexDirection = 'row'; }
+        }
+        // expanded 本身靠左（所有主按鈕 X = main-btn X）
+        expanded.style.alignItems = 'flex-start';
+    }
+
+    function _buildCharCtrlPanel() {
+        if (_charCtrlHost) return;
+        _charCtrlHost = document.createElement('div');
+        _charCtrlHost.style.cssText = 'position:fixed;z-index:999995;pointer-events:none;';
+        document.body.appendChild(_charCtrlHost);
+        _charCtrlShadow = _charCtrlHost.attachShadow({ mode: 'open' });
+        const S = _CTRL_BTN_SIZE;
+
+        _charCtrlShadow.innerHTML = `
+<style>
+  :host{all:initial;display:block}*{box-sizing:border-box;user-select:none;-webkit-user-select:none;font-family:'Segoe UI',sans-serif}
+  #wrap{position:absolute;width:${S}px;height:${S}px;pointer-events:none}
+  #main-btn{position:absolute;top:0;left:0;width:${S}px;height:${S}px;cursor:grab;pointer-events:all;border-radius:8px;overflow:hidden;border:none;background:transparent;padding:0}
+  #main-btn:active{cursor:grabbing;opacity:0.85}
+  #main-btn img{width:100%;height:100%;display:block;pointer-events:none}
+  #expanded{position:absolute;display:none;flex-direction:column-reverse;gap:6px;pointer-events:none;align-items:flex-start}
+  #expanded.open{display:flex}
+  #offset-row,#bg-row,#hide-row{display:flex;flex-direction:row;align-items:center;gap:6px;pointer-events:all}
+  .char-btn-row{display:flex;pointer-events:all}
+  .ctrl-btn{width:${S}px;height:${S}px;flex-shrink:0;position:relative;cursor:pointer;pointer-events:all;border:none;background:transparent;padding:0;border-radius:8px;overflow:hidden}
+  .ctrl-btn .frame{position:absolute;inset:0;background-image:url('${_CTRL_ICON_FRAME}');background-size:100% 100%;pointer-events:none}
+  .ctrl-btn .icon{position:absolute;inset:8px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .ctrl-btn .icon svg{width:28px;height:28px}
+  .ctrl-btn .label{position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:8px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.9);pointer-events:none;letter-spacing:.04em}
+  .ctrl-btn.active .frame{filter:hue-rotate(160deg) brightness(1.3)}
+  #bg-sub,#hide-sub{
+    display:none;flex-direction:row;gap:4px;pointer-events:all;
+    position:absolute;top:0;
+  }
+  #bg-sub.open,#hide-sub.open{display:flex;}
+  .sub-btn{width:${S}px;height:${S}px;flex-shrink:0;position:relative;cursor:pointer;pointer-events:all;border:none;background:transparent;padding:0;border-radius:8px;overflow:hidden}
+  .sub-btn .frame{position:absolute;inset:0;background-image:url('${_CTRL_ICON_FRAME}');background-size:100% 100%;pointer-events:none}
+  .sub-btn .icon{position:absolute;inset:8px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .sub-btn .icon svg{width:28px;height:28px}
+  .sub-btn .label{position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:8px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.9);pointer-events:none;letter-spacing:.04em}
+  .sub-btn.active .frame{filter:hue-rotate(160deg) brightness(1.3)}
+</style>
+<div id="wrap">
+  <button id="main-btn" title="${isZh()?'視圖控制':'View Control'}">
+    <img src="${_CTRL_ICON_MAIN}" alt="AEE">
+  </button>
+  <div id="expanded">
+    <!-- 位移按鈕 -->
+    <div class="char-btn-row">
+      <button class="ctrl-btn ${_charOffsetX||_charOffsetY||_charScale!==1?'active':''}" id="btn-offset" title="${isZh()?'位移':'Offset'}">
+        <div class="frame"></div>
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M5 12l4-4M5 12l4 4M19 12l-4-4M19 12l-4 4"/><path d="M12 5v14M8 9l4-4 4 4M8 15l4 4 4-4"/></svg></div>
+        <div class="label">${isZh()?'位移':'Offset'}</div>
+      </button>
+    </div>
+    <!-- 背景：btn-bg + 絕對定位的 bg-sub -->
+    <div class="char-btn-row" style="position:relative">
+      <button class="ctrl-btn ${_bgEnabled||_bgGridEnabled?'active':''}" id="btn-bg" title="${isZh()?'背景':'BG'}">
+        <div class="frame"></div>
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="#fff" stroke="none"/><path d="M21 15l-5-5L5 21"/></svg></div>
+        <div class="label">${isZh()?'背景':'BG'}</div>
+      </button>
+      <div id="bg-sub" style="display:none;position:absolute;top:0;left:${S+6}px;flex-direction:row;gap:4px">
+        <button class="sub-btn ${_bgEnabled?'active':''}" id="sub-solid" title="${isZh()?'素色':'Solid'}">
+          <div class="frame"></div>
+          <div class="icon"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="3" fill="#fff" opacity="0.8"/></svg></div>
+          <div class="label">${isZh()?'素色':'Solid'}</div>
+        </button>
+        <button class="sub-btn ${_bgGridEnabled?'active':''}" id="sub-grid" title="${isZh()?'格線':'Grid'}">
+          <div class="frame"></div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M3 8h18M3 16h18M8 3v18M16 3v18"/></svg></div>
+          <div class="label">${isZh()?'格線':'Grid'}</div>
+        </button>
+        <button class="sub-btn ${_bgImgEnabled?'active':''}" id="sub-img" title="${isZh()?'圖片':'Image'}" style="display:block">
+          <div class="frame"></div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="#fff" stroke="none"/><path d="M21 15l-5-5L5 21"/></svg></div>
+          <div class="label">${isZh()?'圖片':'Image'}</div>
+        </button>
+        <button class="sub-btn ${_bgSettingOpen?'active':''}" id="sub-setting" title="${isZh()?'設定':'Setting'}">
+          <div class="frame"></div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+          <div class="label">${isZh()?'設定':'Setting'}</div>
+        </button>
+      </div>
+    </div>
+    <!-- POSE -->
+    <div class="char-btn-row">
+      <button class="ctrl-btn" id="btn-pose" title="POSE">
+        <div class="frame"></div>
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="4" r="2"/><path d="M9 8h6l-1 6H10zM10 14l-2 7M14 14l2 7M9 11l-3 2M15 11l3 2"/></svg></div>
+        <div class="label">POSE</div>
+      </button>
+    </div>
+    <!-- 隱藏：btn-hide + 絕對定位的 hide-sub -->
+    <div class="char-btn-row" style="position:relative">
+      <button class="ctrl-btn ${state.hideCloseup||state.hideFullbody?'active':''}" id="btn-hide" title="${isZh()?'隱藏':'Hide'}">
+        <div class="frame"></div>
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></div>
+        <div class="label">${isZh()?'隱藏':'Hide'}</div>
+      </button>
+      <div id="hide-sub" style="display:none;position:absolute;top:0;left:${S+6}px;flex-direction:row;gap:4px">
+        <button class="sub-btn ${state.hideFullbody?'active':''}" id="sub-fullbody" title="${isZh()?'全身':'Fullbody'}">
+          <div class="frame"></div>
+          <div class="icon" id="icon-fullbody"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="2"/><path d="M12 7v7M9 10l3 2 3-2M9 21l3-7 3 7"/>${state.hideFullbody?'<line x1="3" y1="3" x2="21" y2="21" stroke=\"#f87\"/>':''}</svg></div>
+          <div class="label">${isZh()?'全身':'Full'}</div>
+        </button>
+        <button class="sub-btn ${state.hideCloseup?'active':''}" id="sub-closeup" title="${isZh()?'特寫':'Closeup'}">
+          <div class="frame"></div>
+          <div class="icon" id="icon-closeup"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>${state.hideCloseup?'<line x1="3" y1="3" x2="21" y2="21" stroke=\"#f87\"/>':''}</svg></div>
+          <div class="label">${isZh()?'特寫':'Close'}</div>
+        </button>
+      </div>
+    </div>
+    <!-- 方向控制列：半高，兩個按鈕並排 -->
+    <div class="char-btn-row" id="dir-row" style="pointer-events:all;gap:2px">
+      <button id="dir-updown" title="${isZh()?'上下展開':'Vertical'}"
+        style="width:${Math.floor(S/2)-1}px;height:${Math.floor(S/2)}px;background:#0d0d0f;border:1px solid #2a2a35;border-radius:4px;cursor:pointer;color:#a0a0b0;font-size:11px;font-family:'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;pointer-events:all;flex-shrink:0">
+        ${_ctrlExpandUp ? '▲' : '▼'}
+      </button>
+      <button id="dir-leftright" title="${isZh()?'左右展開':'Horizontal'}"
+        style="width:${Math.floor(S/2)-1}px;height:${Math.floor(S/2)}px;background:#0d0d0f;border:1px solid #2a2a35;border-radius:4px;cursor:pointer;color:#a0a0b0;font-size:11px;font-family:'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;pointer-events:all;flex-shrink:0">
+        ${_ctrlSubLeft ? '◀' : '▶'}
+      </button>
+    </div>
+  </div>
+</div>`;
+
+        // 宣告面板內元素
+        const sd         = _charCtrlShadow;
+        const mainBtn    = sd.getElementById('main-btn');
+        const expanded   = sd.getElementById('expanded');
+
+        // 預設方向
+        // expanded 向上展開（從主按鈕上方依序排列）
+        expanded.style.removeProperty('right');
+        expanded.style.left = '0px';
+        expanded.style.bottom = (_CTRL_BTN_SIZE + 8) + 'px';
+        expanded.style.removeProperty('top');
+        expanded.style.flexDirection = 'column-reverse';
+        // 背景子按鈕列預設收納
+        const bgSubInit = sd.getElementById('bg-sub');
+        if (bgSubInit) bgSubInit.style.display = 'none';
+
+        // 主按鈕拖移 / 點擊
+        let _didDrag = false;
+        mainBtn.addEventListener('pointerdown', ev => {
+            ev.preventDefault(); mainBtn.setPointerCapture(ev.pointerId);
+            const wrap = sd.getElementById('wrap');
+            _charCtrlDrag = { startX: ev.clientX, startY: ev.clientY, origLeft: parseFloat(wrap.style.left)||0, origTop: parseFloat(wrap.style.top)||0 };
+            _didDrag = false;
+        });
+        mainBtn.addEventListener('pointermove', ev => {
+            if (!_charCtrlDrag) return;
+            const dx = ev.clientX - _charCtrlDrag.startX, dy = ev.clientY - _charCtrlDrag.startY;
+            if (Math.abs(dx)>3||Math.abs(dy)>3) _didDrag = true;
+            if (_didDrag) {
+                const wrap = sd.getElementById('wrap');
+                const r = getCanvasRect();
+                let left = _charCtrlDrag.origLeft + dx, top = _charCtrlDrag.origTop + dy;
+                if (r) { left=Math.max(0,Math.min(r.width-_CTRL_BTN_SIZE,left)); top=Math.max(0,Math.min(r.height-_CTRL_BTN_SIZE,top)); }
+                wrap.style.left=left+'px'; wrap.style.top=top+'px';
+                _charCtrlCustomPos = { left, top };
+            }
+        });
+        mainBtn.addEventListener('pointerup', () => {
+            if (!_didDrag) {
+                if (!_charCtrlOpen) _updateExpandDirection();
+                _charCtrlOpen = !_charCtrlOpen;
+                expanded.classList.toggle('open', _charCtrlOpen);
+                mainBtn.classList.toggle('open', _charCtrlOpen);
+                // 收納主按鈕時不關閉位移面板（面板獨立）
+                // if (!_charCtrlOpen) _closeOffsetPanel();
+            } else {
+                const r = getCanvasRect(); const wrap = sd.getElementById('wrap');
+                if (r && wrap) { _clampCharCtrlPos(wrap, r); setAeeSetting('charCtrlPos', _charCtrlCustomPos); }
+            }
+            _charCtrlDrag = null; _didDrag = false;
+        });
+        mainBtn.addEventListener('pointercancel', () => { _charCtrlDrag = null; _didDrag = false; });
+
+        // 位移按鈕：開/關位移面板
+        sd.getElementById('btn-offset').addEventListener('click', () => {
+            if (_offsetPanelOpen) _closeOffsetPanel(); else _openOffsetPanel();
+        });
+
+        // 背景主按鈕：展開/收納子按鈕列
+        sd.getElementById('btn-bg').addEventListener('click', () => {
+            _bgSubOpen = !_bgSubOpen;
+            const bgSub = sd.getElementById('bg-sub');
+            if (bgSub) { bgSub.style.display = _bgSubOpen ? 'flex' : 'none'; }
+            _updateExpandDirection();
+            sd.getElementById('btn-bg').classList.toggle('active', _bgSubOpen || _bgEnabled || _bgGridEnabled);
+        });
+        sd.getElementById('sub-solid').addEventListener('click', () => { _bgEnabled = !_bgEnabled; _bgSaveAndRefresh(); });
+        sd.getElementById('sub-grid').addEventListener('click',  () => { _bgGridEnabled = !_bgGridEnabled; _bgSaveAndRefresh(); });
+        sd.getElementById('sub-img').addEventListener('click',   () => {
+            if (!_bgImgUrl) { _openBgSetting(); return; }
+            _bgImgEnabled = !_bgImgEnabled; _bgSaveAndRefresh();
+        });
+        sd.getElementById('sub-setting').addEventListener('click', () => {
+            if (_bgSettingOpen) _closeBgSetting(); else _openBgSetting();
+        });
+
+        // POSE
+        sd.getElementById('btn-pose').addEventListener('click', () => {
+            if (_poseFloatOpen) _closePoseWindow(); else _openPoseWindow();
+        });
+
+        // 方向設定按鈕
+        sd.getElementById('dir-updown').addEventListener('click', () => {
+            _ctrlExpandUp = !_ctrlExpandUp;
+            setAeeSetting('ctrlExpandUp', _ctrlExpandUp);
+            const btn = sd.getElementById('dir-updown');
+            if (btn) btn.textContent = _ctrlExpandUp ? '▲' : '▼';
+            _updateExpandDirection();
+        });
+        sd.getElementById('dir-leftright').addEventListener('click', () => {
+            _ctrlSubLeft = !_ctrlSubLeft;
+            setAeeSetting('ctrlSubLeft', _ctrlSubLeft);
+            const btn = sd.getElementById('dir-leftright');
+            if (btn) btn.textContent = _ctrlSubLeft ? '◀' : '▶';
+            _updateExpandDirection();
+        });
+
+        // 隱藏主按鈕：展開/收納子按鈕列
+        sd.getElementById('btn-hide').addEventListener('click', () => {
+            const hideSub = sd.getElementById('hide-sub');
+            const isOpen = hideSub.style.display !== 'none';
+            hideSub.style.display = isOpen ? 'none' : 'flex';
+        });
+        // 隱藏子按鈕
+        sd.getElementById('sub-fullbody').addEventListener('click', () => {
+            state.hideFullbody = !state.hideFullbody;
+            setAeeSetting('hideFullbody', state.hideFullbody);
+            _rebuildCharCtrlButtons();
+        });
+        sd.getElementById('sub-closeup').addEventListener('click', () => {
+            state.hideCloseup = !state.hideCloseup;
+            setAeeSetting('hideCloseup', state.hideCloseup);
+            _rebuildCharCtrlButtons();
+        });
+    }
+
+    function _rebuildCharCtrlButtons() {
+        if (!_charCtrlShadow) return;
+        const sd = _charCtrlShadow;
+
+        // 展開方向（由設定控制）
+        _updateExpandDirection();
+
+        // bg-sub 展開狀態同步
+        const bgSub2 = sd.getElementById('bg-sub');
+        if (bgSub2) bgSub2.style.display = _bgSubOpen ? 'flex' : 'none';
+        // 圖片按鈕：永遠顯示
+        const subImg2 = sd.getElementById('sub-img');
+        if (subImg2) subImg2.style.display = 'block';
+        // 套用方向設定
+        _updateExpandDirection();
+
+        // 各按鈕 active
+        const btnBg  = sd.getElementById('btn-bg');
+        if (btnBg)   btnBg.classList.toggle('active', _bgSubOpen || _bgEnabled || _bgGridEnabled || (_bgImgEnabled && !!_bgImgEl?.complete));
+        const subSolid = sd.getElementById('sub-solid'); if (subSolid) subSolid.classList.toggle('active', _bgEnabled);
+        const subGrid  = sd.getElementById('sub-grid');  if (subGrid)  subGrid.classList.toggle('active',  _bgGridEnabled);
+        const subImg   = sd.getElementById('sub-img');   if (subImg)   subImg.classList.toggle('active',   _bgImgEnabled && !!_bgImgEl?.complete);
+        const subSet   = sd.getElementById('sub-setting'); if (subSet) subSet.classList.toggle('active', _bgSettingOpen);
+
+        const btnOffset = sd.getElementById('btn-offset');
+        if (btnOffset) btnOffset.classList.toggle('active', _offsetPanelOpen || _charOffsetX !== 0 || _charOffsetY !== 0 || _charScale !== 1);
+
+        const btnPose = sd.getElementById('btn-pose');
+        if (btnPose)  btnPose.classList.toggle('active', _poseFloatOpen);
+
+        // 隱藏按鈕
+        const btnHide = sd.getElementById('btn-hide');
+        if (btnHide) btnHide.classList.toggle('active', state.hideCloseup || state.hideFullbody);
+
+        // 方向按鈕圖示同步（只在需要時更新，避免每幀重繪）
+        const dirUD = sd.getElementById('dir-updown');
+        const dirLR = sd.getElementById('dir-leftright');
+        const wantUD = _ctrlExpandUp ? '▲' : '▼';
+        const wantLR = _ctrlSubLeft  ? '◀' : '▶';
+        if (dirUD && dirUD.textContent !== wantUD) dirUD.textContent = wantUD;
+        if (dirLR && dirLR.textContent !== wantLR) dirLR.textContent = wantLR;
+
+        const subFull   = sd.getElementById('sub-fullbody');
+        const subClose  = sd.getElementById('sub-closeup');
+        if (subFull)  subFull.classList.toggle('active',  state.hideFullbody);
+        if (subClose) subClose.classList.toggle('active', state.hideCloseup);
+
+        // 更新隱藏圖示
+        const iconFull  = sd.getElementById('icon-fullbody');
+        const iconClose = sd.getElementById('icon-closeup');
+        if (iconFull)  iconFull.innerHTML  = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="2"/><path d="M12 7v7M9 10l3 2 3-2M9 21l3-7 3 7"/>${state.hideFullbody?'<line x1="3" y1="3" x2="21" y2="21" stroke="#f87"/>':''}</svg>`;
+        if (iconClose) iconClose.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>${state.hideCloseup?'<line x1="3" y1="3" x2="21" y2="21" stroke="#f87"/>':''}</svg>`;
+    }
+
+    function _clampCharCtrlPos(wrap, r) {
+        if (!wrap||!r) return;
+        let left = _charCtrlCustomPos!=null ? _charCtrlCustomPos.left : (parseFloat(wrap.style.left)||0);
+        let top  = _charCtrlCustomPos!=null ? _charCtrlCustomPos.top  : (parseFloat(wrap.style.top) ||0);
+        left = Math.max(0, Math.min(r.width -_CTRL_BTN_SIZE, left));
+        top  = Math.max(0, Math.min(r.height-_CTRL_BTN_SIZE, top));
+        wrap.style.left=left+'px'; wrap.style.top=top+'px';
+        _charCtrlCustomPos = { left, top };
+    }
+
+    function _alignCharCtrlPanel() {
+        if (!_charCtrlHost) return;
+        const r = getCanvasRect(); if (!r) return;
+        _charCtrlHost.style.left=r.left+'px'; _charCtrlHost.style.top=r.top+'px';
+        _charCtrlHost.style.width=r.width+'px'; _charCtrlHost.style.height=r.height+'px';
+        const wrap = _charCtrlShadow?.getElementById('wrap'); if (!wrap) return;
+        if (_charCtrlCustomPos) _clampCharCtrlPos(wrap, r);
+        else { wrap.style.left=(r.width*0.01)+'px'; wrap.style.top=(r.height*0.87)+'px'; }
+    }
+
+    function _showCharCtrlPanel() {
+        _buildCharCtrlPanel(); _rebuildCharCtrlButtons(); _updateExpandDirection();
+        _charCtrlHost.style.display='block'; _alignCharCtrlPanel();
+        if (_bgEnabled || _bgGridEnabled || (_bgImgEnabled&&_bgImgEl?.complete)) _applyBgHook();
+    }
+
+    function _hideCharCtrlPanel() {
+        if (!_charCtrlHost) return;
+        _charCtrlHost.style.display='none'; _charCtrlOpen=false;
+        _charCtrlShadow?.getElementById('expanded')?.classList.remove('open');
+        _charCtrlShadow?.getElementById('main-btn')?.classList.remove('open');
+        _charCtrlShadow?.getElementById('slider-panel')?.classList.remove('open');
+        _closeOffsetPanel(); _closePoseWindow(); _closeBgSetting();
+    }
 
     console.log("🐈‍⬛ [AEE] ✅ 初始化完成 v" + MOD_Version);
 })();
