@@ -5,8 +5,10 @@
 // @description  Hidden Arousal in Appearance, InformationSheet, ChatRoom+CurrentCharacter
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
 // @run-at       document-end
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // ==/UserScript==
 
 (function () {
@@ -91,10 +93,10 @@
         if (typeof bcModSdk !== 'undefined' && bcModSdk.registerMod) {
             try {
                 modApi = bcModSdk.registerMod({
-                    name: MOD_NAME,
-                    fullName: 'Hide Arousal In Wardrobe',
+                    name: "HHA",
+                    fullName: MOD_NAME,
                     version: MOD_VERSION,
-                    repository: 'https://likolisu.dev/'
+                    repository: 'Hidden Arousal in Appearance, InformationSheet, ChatRoom+CurrentCharacter'
                 });
                 console.log('🐈‍⬛ [HAIW] ✅ 已透過 bcModSdk 註冊');
             } catch (e) {
