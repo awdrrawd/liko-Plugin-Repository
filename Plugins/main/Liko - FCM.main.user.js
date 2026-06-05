@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.1-1
+// @version      1.4.2
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -22,7 +22,7 @@
     }
     window.LikoFCMInstance = true;
 
-    const MOD_VER = '1.4.1';
+    const MOD_VER = '1.4.2';
     let _renderToken = 0;
     const modApi = bcModSdk.registerMod({
         name: 'Liko - FCM', fullName: 'Liko - Friends and ChatRoom Manager', version: MOD_VER,
@@ -747,6 +747,8 @@
     function canBeep(mn) {
         mn = parseInt(mn);
         if (inRoomFn(mn)) return true;
+        const rel = getRel(mn);
+        if (rel === 'owner' || rel === 'lover' || rel === 'sub') return true;
         const _of = onlineFriends.find(f => f.MemberNumber === mn);
         return !!(_of && _of.Type === 'Friend');
     }
@@ -1839,7 +1841,25 @@
                     const boxTitle = document.createElement('div'); boxTitle.className = 'fcm-unknown-id-title';
                     boxTitle.textContent = T('peopleUnknownId', mn);
                     box.appendChild(boxTitle);
-                    box.appendChild(buildPersonOps(mn, { isInRoom: inRoomFn(mn), oneSided: true }));
+                    const allBtns = buildPersonOps(mn, { isInRoom: inRoomFn(mn), oneSided: true });
+                    // 如果在房間裡，把房管按鈕直接加到同一個 fcm-btns div
+                    if (typeof ChatRoomData !== 'undefined' && ChatRoomData) {
+                        const sep = document.createElement('span');
+                        sep.style.cssText = 'display:inline-block;width:1px;height:14px;background:#3a2870;margin:0 6px;vertical-align:middle;';
+                        allBtns.appendChild(sep);
+                        const boxMgmtWrap = document.createElement('div');
+                        boxMgmtWrap.className = 'fcm-td-mgmt' + (amAdmin() ? '' : ' no-perm');
+                        boxMgmtWrap.style.display = 'contents'; // 讓子元素直接流入父 flex
+                        const boxMb = buildMgmtBtns(mn, 'people');
+                        if (boxMb) {
+                            // 把 boxMb 裡的按鈕一個個搬進 allBtns
+                            Array.from(boxMb.children).forEach(btn => {
+                                if (!amAdmin()) btn.disabled = true;
+                                allBtns.appendChild(btn);
+                            });
+                        }
+                    }
+                    box.appendChild(allBtns);
                     scroll.appendChild(box);
                     if (filtered.length > 0) {
                         const simLbl = document.createElement('div');
@@ -1869,7 +1889,9 @@
             const thRow = document.createElement('tr');
             [
                 ['', 'width:42px'], [T('colName'), 'min-width:130px', 'fcm-th-left'], [T('colId'), ''],
-                [T('colRel'), ''], [T('colOps'), 'min-width:200px'], [T('colSeen'), 'min-width:80px'], [T('colShare'), 'min-width:60px'],
+                [T('colRel'), ''], [T('colOps'), 'min-width:200px'],
+                ...((!!(typeof ChatRoomData !== 'undefined' && ChatRoomData)) ? [[T('colMgmt'), 'min-width:130px']] : []),
+                [T('colSeen'), 'min-width:80px'], [T('colShare'), 'min-width:60px'],
             ].forEach(([text, style, cls]) => {
                 const th = document.createElement('th'); th.textContent = text;
                 if (style) th.style.cssText = style; if (cls) th.className = cls; thRow.appendChild(th);
@@ -1929,9 +1951,17 @@
                                                             : T('confirmAddGhost', _dname2) + osSuffix,
                                                             () => doToggleList(mn, 'ghost', !_isGh2))));
                 opsTd.appendChild(opsWrap); tr.appendChild(opsTd);
-                const seenTime = p.seen;
-                const seenTd = document.createElement('td'); seenTd.className = 'fcm-id'; seenTd.style.textAlign = 'center';
-                seenTd.textContent = seenTime ? new Date(seenTime).toLocaleDateString() : '—'; tr.appendChild(seenTd);
+                // ── Room admin column ─────────────────────────────────────────
+                const _inARoom_p = !!(typeof ChatRoomData !== 'undefined' && ChatRoomData);
+                if (_inARoom_p) {
+                    const _isAdmin_p = amAdmin();
+                    const mgmtTd_p = document.createElement('td');
+                    mgmtTd_p.className = 'fcm-td-mgmt' + (_isAdmin_p ? '' : ' no-perm');
+                    mgmtTd_p.style.maxWidth = '145px';
+                    const mb_p = buildMgmtBtns(mn, 'people');
+                    if (mb_p) mgmtTd_p.appendChild(mb_p);
+                    tr.appendChild(mgmtTd_p);
+                }
                 const shareTd = document.createElement('td'); shareTd.style.textAlign = 'center';
                 if (hasBundle) {
                     const shareBtn = mkBtn(T('btnShare'), 'fcm-btn-purple', () => wpsShareProfile(mn));
@@ -1943,6 +1973,9 @@
                 } else {
                     shareTd.innerHTML = '<span style="color:#4a3870;font-size:11px;">—</span>';
                 }
+                const seenTime = p.seen;
+                const seenTd = document.createElement('td'); seenTd.className = 'fcm-id'; seenTd.style.textAlign = 'center';
+                seenTd.textContent = seenTime ? new Date(seenTime).toLocaleDateString() : '—'; tr.appendChild(seenTd);
                 tr.appendChild(shareTd);
                 tbody.appendChild(tr);
             }
@@ -2264,16 +2297,10 @@
                 favBtn.addEventListener('click', e => { e.stopPropagation(); if (_favRooms.has(room.Name)) _favRooms.delete(room.Name); else _favRooms.add(room.Name); saveFavRooms(); renderResults(); });
                 line1.appendChild(favBtn);
                 const nm = document.createElement('span'); nm.style.cssText = 'color:#e8c8ff;font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;'; nm.textContent = room.Name || '?'; nm.title = room.Name; line1.appendChild(nm);
-                // "You are here" badge
-                if (isCurrent) {
-                    const hereBadge = document.createElement('span');
-                    hereBadge.style.cssText = 'font-size:11px;background:#3a0828;border:1px solid #e060a0;color:#ff90c0;border-radius:6px;padding:2px 7px;flex-shrink:0;font-weight:700;';
-                    hereBadge.textContent = isZh() ? '🏠 你' : '🏠 You';
-                    line1.appendChild(hereBadge);
-                }
-                if (cStr) { const cnt = document.createElement('span'); cnt.style.cssText = 'color:#9878b8;font-size:12px;flex-shrink:0;'; cnt.textContent = cStr; line1.appendChild(cnt); }
-                if (friendsHere.length > 0) { const fb = document.createElement('span'); fb.style.cssText = 'font-size:11px;background:#102038;border:1px solid #4080d8;color:#80c8ff;border-radius:6px;padding:2px 7px;flex-shrink:0;'; fb.textContent = `👥${friendsHere.length}: ${friendsHere.map(f => f.MemberName||'#'+f.MemberNumber).join(', ')}`; line1.appendChild(fb); }
                 if (room.Private) { const priv = document.createElement('span'); priv.style.cssText = 'font-size:11px;background:#2a1048;border:1px solid #8060b0;color:#c090f0;border-radius:6px;padding:2px 7px;flex-shrink:0;'; priv.textContent = T('roomPrivateLabel'); line1.appendChild(priv); }
+                if (room.Creator) { const cr = document.createElement('span'); cr.style.cssText = 'font-size:14px;color:#e8c8ff;font-weight:700;flex-shrink:0;'; cr.textContent = '- ' + room.Creator; line1.appendChild(cr); }                if (cStr) { const cnt = document.createElement('span'); cnt.style.cssText = 'color:#9878b8;font-size:12px;flex-shrink:0;'; cnt.textContent = cStr; line1.appendChild(cnt); }
+                if (isCurrent) { const hereBadge = document.createElement('span'); hereBadge.style.cssText = 'font-size:11px;background:#3a0828;border:1px solid #e060a0;color:#ff90c0;border-radius:6px;padding:2px 7px;flex-shrink:0;font-weight:700;'; hereBadge.textContent = isZh() ? '🏠 你' : '🏠 You'; line1.appendChild(hereBadge); }
+                if (friendsHere.length > 0) { const fb = document.createElement('span'); fb.style.cssText = 'font-size:11px;background:#102038;border:1px solid #4080d8;color:#80c8ff;border-radius:6px;padding:2px 7px;flex-shrink:0;'; fb.textContent = `👥${friendsHere.length}: ${friendsHere.map(f => f.MemberName||'#'+f.MemberNumber).join(', ')}`; line1.appendChild(fb); }
                 info.appendChild(line1);
                 if (room.Description) { const desc = document.createElement('div'); desc.style.cssText = 'color:#7060a0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;'; desc.textContent = room.Description; info.appendChild(desc); }
                 card.appendChild(info);
@@ -2695,7 +2722,7 @@
         if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' && (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
             if (cfg.btnShowChatRoom) {
                 const btnColor = (panelOpen || panelMini) ? 'Pink' : 'Gray';
-MainCanvas.globalAlpha = 0.75;
+                MainCanvas.globalAlpha = 0.75;
                 DrawButton(BTN_X, BTN_Y, BTN_W, BTN_H, '', btnColor, '', 'Friends & Room Manager');
                 if (_fcmIconImg && typeof DrawImageResize === 'function') { const pad = 4; DrawImageResize(_fcmIconImg, BTN_X + pad, BTN_Y + pad, BTN_W - pad * 2, BTN_H - pad * 2); }
                 MainCanvas.globalAlpha = 1.0;
