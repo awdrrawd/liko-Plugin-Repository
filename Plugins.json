@@ -324,6 +324,18 @@
       "icon": "👥",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20FCM.main.user.js",
       "priority": 3
+    },
+    {
+      "id": "fix-HHA",
+      "name": "臨時修復興奮條隱藏",
+      "en_name": "Hotfix for Hidden Arousal",
+      "description": "在更衣室、個人資訊、角色互動中隱藏興奮條",
+      "en_description": "Hidden Arousal in Appearance, InformationSheet, ChatRoom+CurrentCharacter",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "💉",
+      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Hotfix/HHA.user.js",
+      "priority": 10
     }
   ]
 }
