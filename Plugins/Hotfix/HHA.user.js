@@ -10,7 +10,7 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
+    // Hotfix for R128
 
     if (window.LikoHAIWInstance) {
         console.warn('🐈‍⬛ [HHA] already loaded, skipping duplicate');
