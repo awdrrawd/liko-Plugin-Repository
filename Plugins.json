@@ -1,15 +1,19 @@
 {
   "updateId": "260605",
   "changelog": [
-    "⭐FCM - 好友與房間管理 v1.4.1 更新",
+    "⭐FCM - 好友與房間管理 v1.4.2 更新",
+    "新增房間搜尋時能看到房主",
     "修正聊天室按鈕半透明化",
+    "修正當你與對方先是戀人、主奴關係然後才添加好友，導致beep按鈕丟失問題",
     "修復好友狀態的更新時間(單向好友)",
     "⭐AEE - 外觀編輯拓展 v0.8.0 更新",
     "新增更衣室人物隱藏、位移、縮放、替換背景等功能(需在設定中啟用)"
   ],
   "en_changelog": [
     "⭐FCM - Friends and ChatRoom Manager v1.4.1 Update",
+    "Added the ability to see the room host when searching for rooms.",
     "Revise the semi-transparent chat room button",
+    "Fixed the issue where the beep button would go missing if you first had a lover or master/slave relationship with someone before adding them as a friend.",
     "Fixed friend status update time (one-way friends)",
     "⭐AEE - Appearance Editing Extension v0.8.0 Update",
     "Added features: character hiding, repositioning, scaling, and background replacement in the dressing room (requires enabling in settings)"
