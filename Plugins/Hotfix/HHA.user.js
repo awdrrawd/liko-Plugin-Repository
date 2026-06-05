@@ -12,11 +12,11 @@
 // ==/UserScript==
 
 (function () {
-    if (window.LikoHAIWInstance) {
+    if (window.LikoHHAInstance) {
         console.warn('🐈‍⬛ [HHA] already loaded, skipping duplicate');
         return;
     }
-    window.LikoHAIWInstance = true;
+    window.LikoHHAInstance = true;
 
     const MOD_NAME    = "HHA";
     const MOD_FULL    = "Hotfix - Hidden Arousal";
@@ -80,9 +80,7 @@
             console.error('🐈‍⬛ [HHA] ❌ SDK 註冊失敗:', e);
             return;
         }
-
-        // ── 用 hookFunction 攔截，不直接覆寫全局 ──
-        // BCX 只追蹤透過 SDK hook 的函數，這樣就不會觸發警告
+        
         modApi.hookFunction('PreferenceArousalAtLeast', 1, function (args, next) {
             if (shouldHide()) return false;
             return next(args);
