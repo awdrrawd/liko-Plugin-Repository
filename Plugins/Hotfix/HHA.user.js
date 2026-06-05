@@ -84,7 +84,7 @@
     Promise.all([waitForGame(), waitForSdk()]).then(function (results) {
         const gameOk = results[0];
         if (!gameOk) {
-            console.error('🐈‍⬛ [HAIW] ❌ 遊戲載入逾時，無法初始化');
+            console.error('🐈‍⬛ [HHA] ❌ 遊戲載入逾時，無法初始化');
             return;
         }
 
@@ -98,12 +98,12 @@
                     version: MOD_VERSION,
                     repository: 'Hidden Arousal in Appearance, InformationSheet, ChatRoom+CurrentCharacter'
                 });
-                console.log('🐈‍⬛ [HAIW] ✅ 已透過 bcModSdk 註冊');
+                console.log('🐈‍⬛ [HHA] ✅ 已透過 bcModSdk 註冊');
             } catch (e) {
-                console.warn('🐈‍⬛ [HAIW] ⚠️ bcModSdk 註冊失敗，改用 standalone 模式:', e);
+                console.warn('🐈‍⬛ [HHA] ⚠️ bcModSdk 註冊失敗，改用 standalone 模式:', e);
             }
         } else {
-            console.log('🐈‍⬛ [HAIW] ℹ️ bcModSdk 未找到，使用 standalone 模式');
+            console.log('🐈‍⬛ [HHA] ℹ️ bcModSdk 未找到，使用 standalone 模式');
         }
 
         setup(modApi);
