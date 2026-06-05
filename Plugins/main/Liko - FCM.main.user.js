@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.2
+// @version      1.4.2-1
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -654,6 +654,7 @@
         if (Player.Lovership && Player.Lovership.some(l => parseInt(l.MemberNumber) === mn)) return 'lover';
         if (parseAFC().some(l => parseInt(l.MemberNumber) === mn)) return 'lover';
         if (getSubSet().has(mn)) return 'sub';
+        if (Player.FriendNames && Player.FriendNames.has(mn)) return 'friend';
         const _of = onlineFriends.find(f => f.MemberNumber === mn);
         if (_of && _of.Type === 'Friend') return 'friend';
         if (Player.FriendList && Player.FriendList.includes(mn)) return 'contact';
@@ -667,6 +668,7 @@
         if (Player.Ownership && parseInt(Player.Ownership.MemberNumber) === mn) roles.push('owner');
         if ((Player.Lovership && Player.Lovership.some(l => parseInt(l.MemberNumber) === mn)) || parseAFC().some(l => parseInt(l.MemberNumber) === mn)) roles.push('lover');
         if (getSubSet().has(mn)) roles.push('sub');
+        if (!roles.length && Player.FriendNames && Player.FriendNames.has(mn)) roles.push('friend');
         const _of2 = onlineFriends.find(f => f.MemberNumber === mn);
         if (!roles.length && _of2 && _of2.Type === 'Friend') roles.push('friend');
         if (!roles.length && Player.FriendList && Player.FriendList.includes(mn)) roles.push('contact');
@@ -1247,12 +1249,16 @@
 
     // ── Bug fix: all search inputs stop keydown propagation to prevent
     // BC's global Enter handler from triggering room joins / profile opens.
-    function makeSearchWrap(initialValue, placeholder, onInput, extraClass) {
+    function makeSearchWrap(initialValue, placeholder, onInput, extraClass, onClear) {
         const wrap = document.createElement('div'); wrap.className = 'fcm-search-wrap';
         const inp = document.createElement('input'); inp.className = 'fcm-search' + (extraClass ? ' ' + extraClass : ''); inp.placeholder = placeholder; inp.value = initialValue;
         const clrBtn = document.createElement('button'); clrBtn.className = 'fcm-clear-btn'; clrBtn.textContent = '×'; clrBtn.title = 'Clear';
-        clrBtn.addEventListener('click', e => { e.stopPropagation(); inp.value = ''; inp.focus(); onInput(''); });
-        inp.addEventListener('input', () => onInput(inp.value));
+        clrBtn.addEventListener('click', e => {
+            e.stopPropagation(); inp.value = ''; inp.focus();
+            onInput('');
+            if (onClear) onClear();
+        });
+        inp.addEventListener('input', () => { onInput(inp.value); }); // 只更新 searchQ 狀態
         // Bug fix: stop all keydown propagation from search inputs
         inp.addEventListener('keydown', e => { e.stopPropagation(); });
         wrap.appendChild(inp); wrap.appendChild(clrBtn);
@@ -1650,28 +1656,31 @@
         container.innerHTML = '';
         const toolbar = document.createElement('div'); toolbar.className = 'fcm-toolbar';
 
-        const { wrap: sw } = makeSearchWrap(searchQ, T('search'), val => {
-            searchQ = val; clearTimeout(searchDebounce);
-            searchDebounce = setTimeout(async () => { const pos = searchQ.length; await renderFriends(container); const ns = container.querySelector('.fcm-toolbar .fcm-search'); if (ns) { ns.focus(); try { ns.setSelectionRange(pos, pos); } catch {} } }, 400);
+        const { wrap: sw, inp: searchInp } = makeSearchWrap(searchQ, T('search'), val => {
+            searchQ = val;
+        }, 'fcm-search', () => renderCurrent());
+
+        searchInp.addEventListener('keydown', e => {
+            e.stopPropagation();
+            if (e.key === 'Enter') renderCurrent();
         });
         toolbar.appendChild(sw);
-
         const fl = document.createElement('span'); fl.className = 'fcm-lbl-sm'; fl.textContent = T('showOnly') + ':';
         toolbar.appendChild(fl);
         [['online', T('fOnline')], ['offline', T('fOffline')], ['owner', T('fOwner')], ['lover', T('fLover')], ['sub', T('fSub')], ['friend', T('fFriend')], ['whitelist', T('fWhitelist')], ['blacklist', T('fBlacklist')]].forEach(([key, label]) => {
             const b = document.createElement('button'); b.className = 'fcm-ftog' + (filters[key] ? ' on' : ''); b.textContent = label;
-            b.addEventListener('click', () => { filters[key] = !filters[key]; b.classList.toggle('on', filters[key]); renderFriends(container); });
+            b.addEventListener('click', () => { filters[key] = !filters[key]; b.classList.toggle('on', filters[key]); renderCurrent(); });
             toolbar.appendChild(b);
         });
 
         toolbar.appendChild(Object.assign(document.createElement('span'), { className: 'fcm-spacer' }));
         const nickBtn = document.createElement('button'); nickBtn.className = 'fcm-nick-tog'; nickBtn.textContent = showNickname ? T('togNick') : T('togName');
         nickBtn.title = isZh() ? (showNickname ? '切換為BC名稱' : '切換為暱稱') : (showNickname ? 'Switch to BC name' : 'Switch to nickname');
-        nickBtn.addEventListener('click', () => { showNickname = !showNickname; renderFriends(container); });
+        nickBtn.addEventListener('click', () => { showNickname = !showNickname; renderCurrent(); });
         toolbar.appendChild(nickBtn);
-        const { lbl: sl, sel: sortSel } = makeSortSel(sortMode, [['rel', T('sortRel')], ['id', T('sortId')], ['name', T('sortName')], ['added', T('sortAdded')]], v => { sortMode = v; renderFriends(container); });
+        const { lbl: sl, sel: sortSel } = makeSortSel(sortMode, [['rel', T('sortRel')], ['id', T('sortId')], ['name', T('sortName')], ['added', T('sortAdded')]], v => { sortMode = v; renderCurrent(); });
         toolbar.appendChild(sl); toolbar.appendChild(sortSel);
-        const rBtn = mkBtn('↻', 'fcm-btn', () => renderFriends(container));
+        const rBtn = mkBtn('↻', 'fcm-btn', () => renderCurrent());
         rBtn.title = isZh() ? '重新整理' : 'Refresh'; rBtn.style.cssText = 'padding:4px 7px;border-radius:50%;font-size:13px;flex-shrink:0;';
         toolbar.appendChild(rBtn);
         const avBtn = mkBtn('📸', 'fcm-btn', () => { const curMns = friends.map(f => f.mn); refreshSnapshotsForList(curMns); });
