@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.2
+// @version      1.6.1-1
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -23,7 +23,7 @@
     // === 基礎設定 ================================================
 
     let modApi;
-    const modversion = "1.6.2";
+    const modversion = "1.6.1";
 
     // === 生命週期管理 ===
     let isInitialized = false;
@@ -58,21 +58,28 @@
     const hoveredCharacters = new Set();
     const characterDrawPositions = new Map();
 
+    // 清除舊版 OnlineSharedSettings.PCM 殘留，並設定自身 PCM 狀態
+    // OnlineSharedSettings 本身保留，未來可擴充其他用途
     function cleanupLegacyOnlineSettings() {
         const doSetup = () => {
             try {
+                // 清除舊版殘留
                 if (Player?.OnlineSharedSettings?.PCM) {
                     delete Player.OnlineSharedSettings.PCM;
                     console.log("🐈‍⬛ [PCM] 🧹 已清除舊版 OnlineSharedSettings.PCM 殘留");
                 }
+                // 設定自身 PCM 狀態，讓自己頭上也能顯示徽章
                 Player.PCM = { version: modversion };
+                // Player 就緒後立即載入帳戶插件設定
                 accountPluginSettings = loadAccountSettings();
+                // 套用帳戶層級的浮動按鈕顯示設定
                 const cfg = loadAccountConfig();
                 accountFloatingBtnVisible = cfg.showFloatingBtn !== false;
                 applyFloatingBtnVisibility();
                 console.log("🐈‍⬛ [PCM] ☁️ 帳戶插件設定已載入");
             } catch(e) {}
         };
+        // Player 已就緒則立即執行，否則輪詢等待
         if (typeof Player !== 'undefined' && Player?.AccountName) {
             doSetup();
         } else {
@@ -85,6 +92,7 @@
         }
     }
 
+    // 廣播 PCM 在線訊息（握手）
     function sendPCMInitialization(requestReply = false) {
         try {
             if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom') return;
@@ -102,19 +110,25 @@
         } catch(e) {}
     }
 
+    // 解析收到的 PCM 握手訊息，只寫記憶體，離開房間自動消失
     function parsePCMMessage(data) {
         try {
             if (data.Type !== "Hidden" || data.Content !== PCM_HIDDEN_MSG) return;
+            // Character 全域變數在 BC 完全初始化前可能不存在
             if (typeof Character === 'undefined') return;
             const sender = Character.find(c => c.MemberNumber === data.Sender);
             if (!sender || sender.ID === 0) return;
+
             const pcmData = data.Dictionary?.[0]?.pcm;
             if (!pcmData) return;
+
             sender.PCM = { version: pcmData.version };
+
             if (pcmData.replyRequested) sendPCMInitialization(false);
         } catch(e) {}
     }
 
+    // 徽章圖片初始化
     function initializePCMBadgeImage() {
         if (!pcmBadgeImage) {
             pcmBadgeImage = new Image();
@@ -125,6 +139,7 @@
         }
     }
 
+    // Hover 追蹤
     function setupHoverTracking() {
         let rafPending = false;
         function onMouseMove() {
@@ -150,6 +165,7 @@
         document.addEventListener("mousemove", onMouseMove);
     }
 
+    // 繪製徽章，查 character.PCM（記憶體）
     function drawPCMBadge(character, x, y, zoom) {
         try {
             if (!hoveredCharacters.has(character.MemberNumber)) return;
@@ -191,6 +207,7 @@
         } catch(e) {}
     }
 
+    // 房間人員同步
     function syncDrawPositionsWithRoom() {
         if (typeof ChatRoomCharacter === 'undefined' || !Array.isArray(ChatRoomCharacter)) return;
         const currentIds = new Set(
@@ -204,7 +221,7 @@
         }
     }
 
-    // Hook 角色繪製 + DrawScreen（取代 MutationObserver）
+    // Hook 角色繪製
     function hookCharacterDrawing() {
         if (!modApi || typeof modApi.hookFunction !== 'function') return;
         const safeHook = (fnName, priority, fn) => {
@@ -214,6 +231,7 @@
         safeHook('DrawCharacter', 5, (args, next) => {
             const [character, x, y, zoom] = args;
             const result = next(args);
+            // 查 character.PCM（記憶體），角色離開房間後自動消失
             if (character?.PCM && character.MemberNumber !== undefined) {
                 characterDrawPositions.set(character.MemberNumber, { x, y, zoom });
                 drawPCMBadge(character, x, y, zoom);
@@ -230,31 +248,16 @@
         safeHook('ChatRoomSync', 5, (args, next) => {
             const result = next(args);
             syncDrawPositionsWithRoom();
+            // 進房間 / 房間更新時廣播，要求對方回應
             sendPCMInitialization(true);
-            return result;
-        });
-
-        // ─── 取代 MutationObserver：hook DrawScreen 偵測畫面切換 ───
-        // BC 每次切換畫面都會呼叫 DrawScreen，比監聽 DOM 更精準
-        let _lastScreen = null;
-        safeHook('DrawScreen', 1, (args, next) => {
-            const result = next(args);
-            try {
-                const currentScreen = typeof CurrentScreen !== 'undefined' ? CurrentScreen : null;
-                if (currentScreen !== _lastScreen) {
-                    _lastScreen = currentScreen;
-                    checkLanguageChange();
-                    createManagerUI();
-                    if (!localLoadStarted) loadLocalPluginsPhase();
-                    if (!accountLoadStarted) loadAccountPluginsPhase();
-                }
-            } catch(e) {}
             return result;
         });
     }
 
+    // 統一註冊入口
     function registerPCMBadge() {
         const waitForModApi = () => {
+            // 等待 modApi 與 ServerSocket 都就緒
             if (!modApi || typeof modApi.hookFunction !== 'function') {
                 setTimeout(waitForModApi, 500);
                 return;
@@ -269,8 +272,10 @@
             cleanupLegacyOnlineSettings();
             hookCharacterDrawing();
 
+            // 監聽其他玩家的握手訊息
             ServerSocket.on("ChatRoomMessage", parsePCMMessage);
 
+            // 若已在房間（重載情境），立刻廣播
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
                 sendPCMInitialization(true);
             }
@@ -306,14 +311,17 @@
     // ============================================================
 
     function detectLanguage() {
+        // 1. BC runtime 值（遊戲初始化後）
         if (typeof TranslationLanguage !== 'undefined') {
             const l = TranslationLanguage.toLowerCase();
             return l === 'tw' || l === 'cn';
         }
+        // 2. BC 存在 localStorage 的語言快取（啟動早期）
         try {
             const saved = localStorage.getItem("BondageClubLanguage");
             if (saved) return saved.toLowerCase() === 'tw' || saved.toLowerCase() === 'cn';
         } catch(e) {}
+
         return false;
     }
     let _isCN = detectLanguage();
@@ -369,8 +377,8 @@
         }
     };
 
-    function getMessage(key) { return messages[detectLanguage() ? 'zh' : 'en'][key]; }
-    function getPluginName(plugin) { return detectLanguage() ? plugin.name : plugin.en_name; }
+    function getMessage(key) { return messages[_isCN ? 'zh' : 'en'][key]; }
+    function getPluginName(plugin) { return _isCN ? plugin.name : plugin.en_name; }
     function getPluginDescription(plugin) { return detectLanguage() ? plugin.description : plugin.en_description; }
     function getPluginAdditionalInfo(plugin) { return detectLanguage() ? plugin.additionalInfo : plugin.en_additionalInfo; }
 
@@ -383,15 +391,18 @@
         if (isTriStatePlugin(plugin)) return plugin.state !== "off";
         return plugin.enabled;
     }
+    // 查帳戶設定中的啟用狀態（1/"stable"/"beta" 視為啟用，0/undefined/"off" 視為停用）
     function isPluginEnabledInAccount(plugin) {
         const val = accountPluginSettings[plugin.id];
         return val !== undefined && val !== 0 && val !== "off";
     }
+    // 本地或帳戶任一啟用即需要載入，防止雙重載入依靠 loadedPlugins.has()
     function isPluginEnabledForLoading(plugin) {
         return isPluginEnabled(plugin) || isPluginEnabledInAccount(plugin);
     }
     function getActivePluginUrl(plugin) {
         if (plugin.altUrl) {
+            // 本地或帳戶任一為 beta 都使用 beta URL
             const localState = plugin.state || "off";
             const accountState = accountPluginSettings[plugin.id] || "off";
             if (localState === "beta" || accountState === "beta") return plugin.altUrl;
@@ -429,7 +440,7 @@
     }
 
     // ============================================================
-    // === 設定保存（localStorage，只存設定值，幾KB）==============
+    // === 設定保存 ================================================
     // ============================================================
 
     let saveSettingsTimer;
@@ -444,6 +455,7 @@
     }
     let pluginSettings = loadSettings();
 
+    // 帳戶插件設定（存於 Player.ExtensionSettings，跨裝置同步）
     let accountPluginSettings = {};
 
     function loadAccountSettings() {
@@ -451,6 +463,7 @@
             if (typeof Player === 'undefined' || !Player?.ExtensionSettings) return {};
             const raw = Player.ExtensionSettings.PCMAccount;
             if (!raw) return {};
+            // 相容直接存物件或 JSON 字串兩種情況
             if (typeof raw === 'object') return raw;
             return JSON.parse(raw) || {};
         } catch(e) { return {}; }
@@ -459,17 +472,20 @@
     function saveAccountSettings() {
         try {
             if (typeof Player === 'undefined' || !Player?.ExtensionSettings) return;
+            // 只儲存已啟用的插件：binary 用 1，tri-state 用 "stable"/"beta"，停用的直接不存
             const compact = {};
             for (const [id, val] of Object.entries(accountPluginSettings)) {
                 if (val === 1 || val === true) compact[id] = 1;
                 else if (val === "stable" || val === "beta") compact[id] = val;
+                // val 為 0、false、"off" 或 undefined 時不寫入
             }
             Player.ExtensionSettings.PCMAccount = JSON.stringify(compact);
             ServerPlayerExtensionSettingsSync("PCMAccount");
         } catch(e) { console.error("🐈‍⬛ [PCM] ❌ 帳戶設定保存失敗:", e); }
     }
 
-    let accountFloatingBtnVisible = true;
+    // 帳戶層級的 UI 設定（與插件啟停分開儲存）
+    let accountFloatingBtnVisible = true; // 登入前預設顯示
 
     function loadAccountConfig() {
         try {
@@ -490,72 +506,63 @@
     }
 
     // ============================================================
-    // === 插件腳本快取（Cache API，取代 localStorage）============
+    // === 插件快取（SWR，TTL 24小時）=============================
     // ============================================================
-    // Cache API 專為快取外部資源設計，容量遠大於 localStorage（幾GB）
-    // API 是 Promise-based，與現有 async/await 完全相容
 
-    const PCM_CACHE_NAME = "pcm-plugin-cache-v1";
-    const JSON_CACHE_KEY = "pcm_json_cache"; // JSON 快取繼續用 localStorage（體積小）
+    const CACHE_PREFIX = "pcm_plugin_cache_";
+    const CACHE_META_KEY = "pcm_plugin_cache_meta";
+    const JSON_CACHE_KEY = "pcm_json_cache";
     const CACHE_TTL = 24 * 60 * 60 * 1000;
 
+    // priority ≤ 2 的插件啟用 SWR 快取
     function shouldUseCache(plugin) {
         return (plugin.priority || 5) <= 2;
     }
 
-    // 用假 URL 作為 Cache API 的 key（Cache API 以 URL 為索引）
-    function pluginCacheUrl(pluginId) {
-        return `https://pcm-cache.local/plugin/${pluginId}`;
-    }
-
-    async function getCachedPlugin(pluginId) {
+    function getCachedPlugin(pluginId) {
         try {
-            const cache = await caches.open(PCM_CACHE_NAME);
-            const response = await cache.match(pluginCacheUrl(pluginId));
-            if (!response) return null;
-
-            // 從 response header 讀取存入時間，判斷是否過期
-            const cachedTime = response.headers.get('x-pcm-cached-at');
-            if (cachedTime && Date.now() - parseInt(cachedTime) > CACHE_TTL) {
+            const meta = JSON.parse(localStorage.getItem(CACHE_META_KEY) || "{}");
+            const entry = meta[pluginId];
+            if (!entry) return null;
+            if (Date.now() - entry.time > CACHE_TTL) {
                 console.log(`🐈‍⬛ [PCM] ⏰ ${pluginId} 快取已過期，將重新抓取`);
-                await cache.delete(pluginCacheUrl(pluginId));
+                _clearCachedPlugin(pluginId);
                 return null;
             }
-
-            return await response.text();
+            return localStorage.getItem(CACHE_PREFIX + pluginId) || null;
         } catch(e) { return null; }
     }
 
-    async function setCachedPlugin(pluginId, code) {
+    function setCachedPlugin(pluginId, code) {
         try {
-            const cache = await caches.open(PCM_CACHE_NAME);
-            const response = new Response(code, {
-                headers: {
-                    'Content-Type': 'application/javascript',
-                    'x-pcm-cached-at': String(Date.now())
-                }
-            });
-            await cache.put(pluginCacheUrl(pluginId), response);
+            localStorage.setItem(CACHE_PREFIX + pluginId, code);
+            const meta = JSON.parse(localStorage.getItem(CACHE_META_KEY) || "{}");
+            meta[pluginId] = { time: Date.now() };
+            localStorage.setItem(CACHE_META_KEY, JSON.stringify(meta));
         } catch(e) { console.warn("🐈‍⬛ [PCM] ⚠️ 插件快取寫入失敗:", e.message); }
     }
 
-    async function _clearCachedPlugin(pluginId) {
+    function _clearCachedPlugin(pluginId) {
         try {
-            const cache = await caches.open(PCM_CACHE_NAME);
-            await cache.delete(pluginCacheUrl(pluginId));
+            localStorage.removeItem(CACHE_PREFIX + pluginId);
+            const meta = JSON.parse(localStorage.getItem(CACHE_META_KEY) || "{}");
+            delete meta[pluginId];
+            localStorage.setItem(CACHE_META_KEY, JSON.stringify(meta));
         } catch(e) {}
     }
 
-    async function clearAllPluginCache() {
+    function clearAllPluginCache() {
         try {
-            await caches.delete(PCM_CACHE_NAME);
+            const meta = JSON.parse(localStorage.getItem(CACHE_META_KEY) || "{}");
+            Object.keys(meta).forEach(id => localStorage.removeItem(CACHE_PREFIX + id));
+            localStorage.removeItem(CACHE_META_KEY);
             localStorage.removeItem(JSON_CACHE_KEY);
             console.log("🐈‍⬛ [PCM] 🗑️ 所有快取已清除");
         } catch(e) {}
     }
 
     // ============================================================
-    // === JSON 快取（SWR，localStorage）==========================
+    // === JSON 快取（SWR）========================================
     // ============================================================
 
     function getCachedJSON() {
@@ -615,9 +622,10 @@
             font-family: 'Noto Sans TC', sans-serif; color: #fff;
         `;
 
+        // 在顯示時才決定語言，與其他 UI 元素行為一致
         const changelog = detectLanguage()
-        ? (remoteChangelogZh.length > 0 ? remoteChangelogZh : remoteChangelogEn)
-        : (remoteChangelogEn.length > 0 ? remoteChangelogEn : remoteChangelogZh);
+            ? (remoteChangelogZh.length > 0 ? remoteChangelogZh : remoteChangelogEn)
+            : (remoteChangelogEn.length > 0 ? remoteChangelogEn : remoteChangelogZh);
         const items = (changelog.length > 0 ? changelog : ["載入更新日誌中..."]).map(c => `<li style="margin:6px 0; font-size:13px; color:#d4c8f5;">${c}</li>`).join("");
 
         box.innerHTML = `
@@ -646,6 +654,8 @@
     const _pluginsJSONPromise = fetchPluginsJSON();
     const _pluginsProcessPromise = loadPluginsJSON();
 
+    // JSON 網路抓取（RAW 優先，CDN 備援）
+    // 強制略過瀏覽器 HTTP 快取，確保拿到最新版本
     async function fetchJSONFromNetwork() {
         for (const url of PLUGINS_JSON_URLS) {
             try {
@@ -674,6 +684,7 @@
             }
         }
 
+        // 所有 URL 都失敗，保留舊快取
         const oldCache = getCachedJSON();
         if (oldCache) {
             console.warn(`🐈‍⬛ [PCM] ⚠️ 網路版本有問題，保留舊快取`);
@@ -684,6 +695,7 @@
         return null;
     }
 
+    // SWR：有快取立即回傳，同時背景更新
     async function fetchPluginsJSON() {
         const cached = getCachedJSON();
         if (cached) {
@@ -731,14 +743,13 @@
     // === 載入子插件 =============================================
     // ============================================================
 
-    // loadedPlugins：防止 Phase 1 & Phase 2 對同一插件重複 fetch + inject
-    // 插件本身有 window.LikoXxxInstance 防重複執行，但這裡防的是載入器層面的重複請求
     let loadedPlugins = new Set();
     let isLoadingPlugins = false;
-    let localLoadStarted = false;
-    let accountLoadStarted = false;
+    let localLoadStarted = false;   // Phase 1：本地插件
+    let accountLoadStarted = false; // Phase 2：帳戶插件
 
     function injectScript(pluginId, code) {
+        // 若取得的內容是 HTML（如 404 頁面），拒絕注入避免 SyntaxError
         if (code.trimStart().startsWith('<')) {
             throw new Error(`Invalid content: received HTML instead of JavaScript`);
         }
@@ -748,6 +759,7 @@
         document.body.appendChild(script);
     }
 
+    // RAW 優先，CDN 備援（串行 fallback）
     async function tryFetch(urls) {
         for (const url of urls) {
             try {
@@ -763,37 +775,44 @@
 
     function buildFetchUrls(plugin) {
         const rawUrl = getActivePluginUrl(plugin);
+
+        // 將任意 raw.githubusercontent.com URL 轉換為 jsDelivr CDN 備援
+        // 格式：https://raw.githubusercontent.com/{user}/{repo}/{branch}/{path}
+        //   →  https://cdn.jsdelivr.net/gh/{user}/{repo}@{branch}/{path}
         const cdnUrl = rawUrl.replace(
             /^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/,
             "https://cdn.jsdelivr.net/gh/$1/$2@$3/$4"
         );
+
         return cdnUrl !== rawUrl ? [rawUrl, cdnUrl] : [rawUrl];
     }
 
-    async function loadSubPlugin(plugin) {
-        if (!isPluginEnabledForLoading(plugin) || loadedPlugins.has(plugin.id)) return;
+    function loadSubPlugin(plugin) {
+        if (!isPluginEnabledForLoading(plugin) || loadedPlugins.has(plugin.id)) return Promise.resolve();
         if (isPluginSkippedByVersion(plugin)) {
             console.log(`🐈‍⬛ [PCM] ⏭️ ${plugin.name} 版本過舊自動跳過`);
             loadedPlugins.add(plugin.id);
-            return;
+            return Promise.resolve();
         }
 
         // inlineCode 支援
         if (!plugin.url && plugin.inlineCode) {
-            try {
-                injectScript(plugin.id, plugin.inlineCode);
-                loadedPlugins.add(plugin.id);
-            } catch(e) { console.error(`🐈‍⬛ [PCM] ❌ inlineCode 載入失敗: ${plugin.name}`, e); }
-            return;
+            return new Promise((resolve) => {
+                try {
+                    injectScript(plugin.id, plugin.inlineCode);
+                    loadedPlugins.add(plugin.id);
+                } catch(e) { console.error(`🐈‍⬛ [PCM] ❌ inlineCode 載入失敗: ${plugin.name}`, e); }
+                resolve();
+            });
         }
 
-        if (!plugin.url) return;
+        if (!plugin.url) return Promise.resolve();
 
         const urls = buildFetchUrls(plugin);
 
-        // SWR 快取邏輯（priority ≤ 2）：Cache API 版
+        // SWR 快取邏輯（priority ≤ 2）
         if (shouldUseCache(plugin)) {
-            const cached = await getCachedPlugin(plugin.id);
+            const cached = getCachedPlugin(plugin.id);
             if (cached) {
                 try {
                     injectScript(plugin.id, cached);
@@ -801,37 +820,43 @@
                     console.log(`🐈‍⬛ [PCM] ⚡ ${plugin.name} 從快取秒載`);
                 } catch(e) {
                     console.error(`🐈‍⬛ [PCM] ❌ ${plugin.name} 快取執行失敗，清除並重新抓取`, e);
-                    await _clearCachedPlugin(plugin.id);
+                    _clearCachedPlugin(plugin.id);
                 }
 
                 if (loadedPlugins.has(plugin.id)) {
                     // 背景更新快取
-                    tryFetch(urls).then(async newCode => {
+                    tryFetch(urls).then(newCode => {
                         if (newCode && newCode !== cached) {
-                            await setCachedPlugin(plugin.id, newCode);
+                            setCachedPlugin(plugin.id, newCode);
                             console.log(`🐈‍⬛ [PCM] 🔄 ${plugin.name} 背景快取已更新（下次生效）`);
                         }
                     }).catch(() => {});
-                    return;
+                    return Promise.resolve();
                 }
             }
         }
 
         // 正常抓取
-        const code = await tryFetch(urls);
-        if (!code) {
-            showNotification("❌", `${getPluginName(plugin)} 載入失敗`, "請檢查網絡或插件URL");
-            throw new Error("🐈‍⬛ [PCM] ❌ all urls failed");
-        }
-        injectScript(plugin.id, code);
-        loadedPlugins.add(plugin.id);
-        console.log(`🐈‍⬛ [PCM] ✅ -SubPlugin- ${plugin.name} 載入成功`);
-        if (shouldUseCache(plugin)) await setCachedPlugin(plugin.id, code);
+        return tryFetch(urls).then(code => {
+            if (!code) {
+                showNotification("❌", `${getPluginName(plugin)} 載入失敗`, "請檢查網絡或插件URL");
+                throw new Error("🐈‍⬛ [PCM] ❌ all urls failed");
+            }
+            injectScript(plugin.id, code);
+            loadedPlugins.add(plugin.id);
+            console.log(`🐈‍⬛ [PCM] ✅ -SubPlugin- ${plugin.name} 載入成功`);
+            if (shouldUseCache(plugin)) setCachedPlugin(plugin.id, code);
+        }).catch(err => {
+            console.error(`🐈‍⬛ [PCM] ❌ ${plugin.name} 無法載入:`, err);
+            throw err;
+        });
     }
 
     function isPlayerLoaded() { return typeof Player !== 'undefined'; }
 
+    // ─── 共用批次載入 ────────────────────────────────────────────
     async function runPluginBatch(plugins) {
+        // 等待另一批次完成，避免並發衝突
         while (isLoadingPlugins) await new Promise(r => setTimeout(r, 200));
         if (plugins.length === 0) return;
         isLoadingPlugins = true;
@@ -852,16 +877,17 @@
             const failedCount = plugins.length - successCount;
             if (failedCount > 0) {
                 showNotification("⚠️", getMessage('pluginLoadComplete'),
-                                 `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}，${failedCount} ${getMessage('failed')}`);
+                    `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}，${failedCount} ${getMessage('failed')}`);
             } else if (plugins.length > 0) {
                 showNotification("✅", getMessage('pluginLoadComplete'),
-                                 `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}`);
+                    `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}`);
             }
         } catch(e) {
             console.error("🐈‍⬛ [PCM] ❌ 批次載入錯誤:", e);
         } finally { isLoadingPlugins = false; }
     }
 
+    // ─── Phase 1：本地插件，只要 Player 存在就啟動 ───────────────
     async function loadLocalPluginsPhase() {
         if (localLoadStarted) return;
         localLoadStarted = true;
@@ -885,6 +911,7 @@
         await runPluginBatch(localEnabled);
     }
 
+    // ─── Phase 2：帳戶插件，等 AccountName 就緒後啟動，跳過已載入 ─
     async function loadAccountPluginsPhase() {
         if (accountLoadStarted) return;
         accountLoadStarted = true;
@@ -903,11 +930,13 @@
         }
         if (!Player?.AccountName) { accountLoadStarted = false; return; }
 
+        // AccountName 就緒，重新載入帳戶設定確保是最新的
         accountPluginSettings = loadAccountSettings();
 
+        // 只取帳戶啟用且尚未被本地階段載入的插件
         const accountOnly = subPlugins.filter(p =>
-                                              isPluginEnabledInAccount(p) && !loadedPlugins.has(p.id)
-                                             );
+            isPluginEnabledInAccount(p) && !loadedPlugins.has(p.id)
+        );
         console.log(`🐈‍⬛ [PCM] ☁️ Phase 2 帳戶插件：${accountOnly.length} 個（新增）`);
         await runPluginBatch(accountOnly);
     }
@@ -922,37 +951,21 @@
         isRefreshing = true;
         showNotification("↻", getMessage('refreshTitle'), getMessage('refreshing'));
 
-        await clearAllPluginCache();
+        clearAllPluginCache();
         await fetchJSONFromNetwork();
 
         if (subPlugins.length > 0) {
             const cacheableEnabled = subPlugins.filter(p => shouldUseCache(p) && isPluginEnabled(p));
-            await Promise.allSettled(cacheableEnabled.map(async plugin => {
+            await Promise.allSettled(cacheableEnabled.map(plugin => {
                 const urls = buildFetchUrls(plugin);
-                const code = await tryFetch(urls);
-                if (code) {
-                    await setCachedPlugin(plugin.id, code);
-                    console.log(`🐈‍⬛ [PCM] 🔄 ${plugin.name} 強制更新快取完成`);
-                }
+                return tryFetch(urls).then(code => {
+                    if (code) {
+                        setCachedPlugin(plugin.id, code);
+                        console.log(`🐈‍⬛ [PCM] 🔄 ${plugin.name} 強制更新快取完成`);
+                    }
+                }).catch(() => {});
             }));
         }
-
-        loadedPlugins.clear();
-
-        // 重新解析 JSON，更新記憶體中的 subPlugins
-        pluginsLoaded = false;
-        await loadPluginsJSON();
-
-        // 重建本地分頁 UI
-        const localContent = document.getElementById("bc-plugin-content-local");
-        if (localContent) {
-            localContent.innerHTML = '';
-            subPlugins.forEach(plugin => localContent.appendChild(buildPluginItem(plugin, 'local')));
-        }
-
-        // 重建帳戶分頁 UI（如果已登入）
-        const accountContent = document.getElementById("bc-plugin-content-account");
-        if (accountContent) buildAccountContent(accountContent);
 
         isRefreshing = false;
         showNotification("✅", getMessage('refreshTitle'), getMessage('refreshDone'));
@@ -1294,6 +1307,7 @@
             .bc-plugin-panel { max-height: calc(100vh - 80px); top: 10px; }
         }
 
+        /* 分頁列 */
         .bc-plugin-tabs {
             display: flex; flex-shrink: 0;
             background: rgba(0,0,0,0.25);
@@ -1313,6 +1327,7 @@
         .bc-plugin-tab.active {
             color: #fff; border-bottom-color: #A78BFA;
         }
+        /* 帳戶未登入時的覆蓋提示 */
         .bc-plugin-account-locked {
             display: flex; flex-direction: column; align-items: center;
             justify-content: center; padding: 40px 20px;
@@ -1328,12 +1343,14 @@
     // ============================================================
 
     let currentUIState = null;
+    // 追蹤 document click listener，避免重建 UI 時累積
     let _docClickHandler = null;
 
     function buildPluginItem(plugin, source = 'local') {
         const item = document.createElement("div");
         const isTri = isTriStatePlugin(plugin);
 
+        // 根據來源讀取對應的啟用狀態
         let currentState, isEnabled, isBeta;
         if (source === 'account') {
             currentState = isTri ? (accountPluginSettings[plugin.id] || "off") : null;
@@ -1347,12 +1364,12 @@
         item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}`;
 
         const iconDisplay = plugin.customIcon
-        ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
-        : plugin.icon;
+            ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
+            : plugin.icon;
 
         const infoBtnHtml = plugin.website
-        ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
-        : '';
+            ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
+            : '';
 
         const buildTriToggle = (p, state, src) => {
             const labels = getTriLabels(p);
@@ -1367,8 +1384,8 @@
         };
 
         const toggleHtml = isTri
-        ? buildTriToggle(plugin, currentState, source)
-        : `<button class="bc-plugin-toggle ${isEnabled ? 'active' : ''}" data-plugin="${plugin.id}" data-source="${source}" aria-label="${getPluginName(plugin)}"></button>`;
+            ? buildTriToggle(plugin, currentState, source)
+            : `<button class="bc-plugin-toggle ${isEnabled ? 'active' : ''}" data-plugin="${plugin.id}" data-source="${source}" aria-label="${getPluginName(plugin)}"></button>`;
 
         item.innerHTML = `
             ${infoBtnHtml}
@@ -1384,11 +1401,13 @@
         return item;
     }
 
+    // 浮動按鈕可見性控制（登入前永遠顯示，登入後依帳戶設定）
     function applyFloatingBtnVisibility() {
         const group = document.getElementById("bc-plugin-btn-group");
         if (group) group.style.display = accountFloatingBtnVisible ? "" : "none";
     }
 
+    // 建立帳戶分頁內容（未登入顯示鎖定提示）
     function buildAccountContent(container) {
         container.innerHTML = '';
         const isLoggedIn = typeof Player !== 'undefined' && !!Player?.AccountName;
@@ -1407,9 +1426,11 @@
         subPlugins.forEach(plugin => container.appendChild(buildPluginItem(plugin, 'account')));
     }
 
+    // 統一的 toggle 點擊處理器（本地 & 帳戶共用）
     function handlePluginToggle(e) {
         if (e.target.closest(".bc-plugin-info-btn")) { e.stopPropagation(); return; }
 
+        // 二段開關
         const toggle = e.target.closest(".bc-plugin-toggle");
         if (toggle) {
             const pluginId = toggle.getAttribute("data-plugin");
@@ -1449,6 +1470,7 @@
             return;
         }
 
+        // 三段開關
         const triToggle = e.target.closest(".bc-plugin-toggle-tri");
         if (triToggle) {
             const pluginId = triToggle.getAttribute("data-plugin-tri");
@@ -1457,15 +1479,15 @@
             if (!plugin || !isTriStatePlugin(plugin)) return;
 
             const currentState = source === 'account'
-            ? (accountPluginSettings[pluginId] || "off")
-            : (plugin.state || "off");
+                ? (accountPluginSettings[pluginId] || "off")
+                : (plugin.state || "off");
             const nextState = cycleTriState(currentState);
 
             if (source === 'account') {
                 if (nextState === "off") {
                     delete accountPluginSettings[pluginId];
                 } else {
-                    accountPluginSettings[pluginId] = nextState;
+                    accountPluginSettings[pluginId] = nextState; // "stable" or "beta"
                 }
                 saveAccountSettings();
             } else {
@@ -1481,8 +1503,8 @@
             if (nextState === "beta") item.classList.add("beta-enabled");
             const labels = getTriLabels(plugin);
             const notifTitle = nextState === "off"
-            ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
-            : `${getPluginName(plugin)} ${labels[nextState === "stable" ? 1 : 2]} ${getMessage('pluginEnabled')}`;
+                ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
+                : `${getPluginName(plugin)} ${labels[nextState === "stable" ? 1 : 2]} ${getMessage('pluginEnabled')}`;
             showToggleNotification(
                 nextState === "off" ? "🐾" : nextState === "stable" ? "🐈‍⬛" : "🧪",
                 notifTitle,
@@ -1516,6 +1538,7 @@
         if (existingPanel) existingPanel.remove();
         injectStyles();
 
+        // 按鈕群組
         const btnGroup = document.createElement("div");
         btnGroup.id = "bc-plugin-btn-group";
         btnGroup.className = "bc-plugin-btn-group";
@@ -1543,6 +1566,7 @@
         document.body.appendChild(btnGroup);
         applyFloatingBtnVisibility();
 
+        // Panel
         const panel = document.createElement("div");
         panel.id = "bc-plugin-panel";
         panel.className = "bc-plugin-panel";
@@ -1551,6 +1575,7 @@
         header.className = "bc-plugin-header";
         header.innerHTML = `<h3 class="bc-plugin-title">${getMessage('welcomeTitle')}</h3>`;
 
+        // 分頁列
         const tabsBar = document.createElement("div");
         tabsBar.className = "bc-plugin-tabs";
         const localTab = document.createElement("button");
@@ -1562,6 +1587,7 @@
         tabsBar.appendChild(localTab);
         tabsBar.appendChild(accountTab);
 
+        // 本地內容
         const localContent = document.createElement("div");
         localContent.id = "bc-plugin-content-local";
         localContent.className = "bc-plugin-content";
@@ -1571,6 +1597,7 @@
             subPlugins.forEach(plugin => localContent.appendChild(buildPluginItem(plugin, 'local')));
         }
 
+        // 帳戶內容
         const accountContent = document.createElement("div");
         accountContent.id = "bc-plugin-content-account";
         accountContent.className = "bc-plugin-content";
@@ -1595,6 +1622,7 @@
             changelogBtn.style.display = visible ? "flex" : "none";
         };
 
+        // 分頁切換
         localTab.addEventListener("click", () => {
             localTab.classList.add("active");
             accountTab.classList.remove("active");
@@ -1606,6 +1634,7 @@
             localTab.classList.remove("active");
             localContent.style.display = "none";
             accountContent.style.display = "";
+            // 每次切換到帳戶分頁時重建內容，確保登入狀態正確
             buildAccountContent(accountContent);
         });
 
@@ -1614,6 +1643,7 @@
             isOpen = !isOpen;
             panel.classList.toggle("show", isOpen);
             setSubBtnsVisible(isOpen);
+            // JSON 載入完成但 UI 還在 loading 狀態時補刷本地內容
             if (isOpen && pluginsLoaded && localContent.querySelector('.bc-plugin-loading')) {
                 localContent.innerHTML = '';
                 subPlugins.forEach(plugin => localContent.appendChild(buildPluginItem(plugin, 'local')));
@@ -1634,9 +1664,11 @@
             showChangelogModal();
         });
 
+        // 本地 & 帳戶分頁的 toggle 點擊都走同一個 handler
         localContent.addEventListener("click", handlePluginToggle);
         accountContent.addEventListener("click", handlePluginToggle);
 
+        // 移除舊的 listener（若 UI 重建），再掛新的
         if (_docClickHandler) document.removeEventListener("click", _docClickHandler);
         _docClickHandler = (e) => {
             if (!panel.contains(e.target) && !btnGroup.contains(e.target) && isOpen) {
@@ -1652,6 +1684,7 @@
     // === 通知系統 ===============================================
     // ============================================================
 
+    // 開關插件提示（panel 底部往下展開）
     let toggleNotifTimer = null;
     function showToggleNotification(icon, title, message) {
         let notif = document.getElementById("pcm-toggle-notif");
@@ -1693,6 +1726,7 @@
         }, 2500);
     }
 
+    // 系統通知（右上角）
     let systemNotifTimer = null;
     function showNotification(icon, title, message) {
         let notif = document.getElementById("pcm-system-notif");
@@ -1751,18 +1785,37 @@
     }
 
     // ============================================================
-    // === 頁面監控（DrawScreen hook 取代 MutationObserver）=======
+    // === MutationObserver =======================================
     // ============================================================
-    // MutationObserver 和 URL 輪詢已移除，改由 hookCharacterDrawing()
-    // 內的 DrawScreen hook 負責偵測畫面切換，更精準且無多餘開銷。
-    // 語言檢查 setInterval 保留，因為語言切換不一定伴隨畫面切換。
 
     function monitorPageChanges() {
-        // 語言變化每 5 秒輪詢一次（輕量，保留）
+        let debounceTimer;
+
+        const handleChange = () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                checkLanguageChange();
+                createManagerUI();
+                if (!localLoadStarted) loadLocalPluginsPhase();
+                if (!accountLoadStarted) loadAccountPluginsPhase();
+            }, 300);
+        };
+
+        _lifecycle.observer = new MutationObserver(handleChange);
+        _lifecycle.observer.observe(document.body, { childList: true, subtree: false });
+
+        let lastUrl = window.location.href;
+        const urlCheckId = setInterval(() => {
+            if (window.location.href !== lastUrl) {
+                lastUrl = window.location.href;
+                handleChange();
+            }
+        }, 1000);
+        _lifecycle.intervals.push(urlCheckId);
+
         const langCheckId = setInterval(() => { checkLanguageChange(); }, 5000);
         _lifecycle.intervals.push(langCheckId);
 
-        // 初始化時執行一次 UI 建立
         createManagerUI();
     }
 
@@ -1820,7 +1873,7 @@
 
     function tryRegisterCommand() {
         let attempts = 0;
-        const maxAttempts = 20;
+        const maxAttempts = 20; // 最多重試 20 次（約 60 秒）
         const tryRegister = () => {
             attempts++;
             try {
@@ -1852,6 +1905,7 @@
                 }
             };
             check();
+            // 60 秒逾時保險，避免無限等待
             setTimeout(() => { if (!resolved) { resolved = true; resolve(false); } }, 60000);
         });
         waitForChatRoom().then((success) => {
@@ -1869,6 +1923,7 @@
     // ============================================================
 
     async function registerPreferencePage() {
+        // 等待 BC preference 系統就緒
         let attempts = 0;
         while (typeof PreferenceRegisterExtensionSetting !== 'function' && attempts < 60) {
             await new Promise(r => setTimeout(r, 1000));
@@ -1895,6 +1950,8 @@
                 500, 355, "Black", "Gray"
             );
 
+            // 浮動按鈕顯示開關：勾選框在左，說明文字在右
+            // 勾選 = 隱藏，所以顯示 !accountFloatingBtnVisible
             DrawCheckbox(500, 455, 64, 64, "", !accountFloatingBtnVisible);
             DrawText(
                 _isCN ? "隱藏浮動按鈕" : "Hide floating button",
@@ -1910,6 +1967,7 @@
 
         window.PreferenceSubscreenPCMSettingsClick = function() {
             if (MouseIn(1815, 75, 90, 90)) { PreferenceSubscreenPCMSettingsExit(); return; }
+            // 浮動按鈕開關，存入帳戶設定
             if (MouseIn(500, 455, 64, 64)) {
                 accountFloatingBtnVisible = !accountFloatingBtnVisible;
                 const cfg = loadAccountConfig();
@@ -1957,26 +2015,13 @@
     async function initialize() {
         if (isInitialized) return;
         isInitialized = true;
-
-        await new Promise(resolve => {
-            const check = () => {
-                if (typeof TranslationLanguage !== 'undefined' && TranslationLanguage !== 'EN') {
-                    resolve();
-                } else {
-                    setTimeout(check, 100);
-                }
-            };
-            check();
-            setTimeout(resolve, 3000);
-        });
-
         lastDetectedLanguage = detectLanguage();
-        _isCN = detectLanguage();
 
         injectStyles();
         monitorPageChanges();
         tryRegisterCommand();
 
+        // JSON 載入完後補刷 UI 與版本更新彈窗
         _pluginsProcessPromise.then((success) => {
             if (!success) return;
             const localContent = document.getElementById("bc-plugin-content-local");
@@ -1993,8 +2038,10 @@
             }
         });
 
+        // 兩個載入階段各自獨立啟動，互不阻塞
         loadLocalPluginsPhase();
         loadAccountPluginsPhase();
+        setTimeout(() => { checkLanguageChange(); }, 10000);
         registerPreferencePage();
 
         if (modApi && typeof modApi.onUnload === 'function') {
@@ -2019,5 +2066,5 @@
         initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
     }
 
-    console.log("🐈‍⬛ [PCM] ✅ v1.6.2 Script loading complete");
+    console.log("🐈‍⬛ [PCM] ✅ v1.6.1 腳本載入完成");
 })();
