@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.5.2
+// @version      1.5.2-1
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -861,8 +861,10 @@
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' &&
                 (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
                 if (getES().rpBtnVisible === 1) {
+                    MainCanvas.globalAlpha = 0.75;
                     DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, "🔰",
                         getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
+                    MainCanvas.globalAlpha = 1.0;
                 }
             }
             return result;
