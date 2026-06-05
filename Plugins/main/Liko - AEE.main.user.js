@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.8.0-1
+// @version      0.8.0-2
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -3074,24 +3074,6 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
                 const hasOffset = _charOffsetX !== 0 || _charOffsetY !== 0 || _charScale !== 1;
                 if (hasOffset) {
-                    // 用 canvas transform 包住整個 DrawCharacter
-                    // 這樣興奮條、名牌等所有附加元素都會一起移動/縮放
-                    const cv = typeof MainCanvas !== 'undefined' ? MainCanvas : null;
-                    const ctx = cv?.getContext('2d');
-                    if (ctx) {
-                        ctx.save();
-                        // 以角色中心為 pivot 做 translate + scale
-                        const origX = args[1], origY = args[2];
-                        const pivotX = origX + 250 * scale; // 角色中心 X 大約
-                        const pivotY = origY + 500 * scale; // 角色中心 Y 大約
-                        ctx.translate(pivotX + _charOffsetX, pivotY + _charOffsetY);
-                        ctx.scale(_charScale, _charScale);
-                        ctx.translate(-(pivotX), -(pivotY));
-                        const result = next(args);
-                        ctx.restore();
-                        return result;
-                    }
-                    // Canvas 不可用時 fallback 到原本方式（興奮條可能跑位）
                     const n = [...args];
                     n[1] = args[1] + _charOffsetX;
                     n[2] = args[2] + _charOffsetY;
@@ -3191,8 +3173,10 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
                             });
                         }
                     }
-                    // 冷卻期間不重啟閃爍（點擊後 800ms 內忽略）
-                    if (Date.now() < _hoverCooldownUntil) {
+                    // BC 分層面板（#layering）開啟時停止閃爍
+                    const _layeringOpen = !!document.getElementById('layering');
+                    // 冷卻期間或分層面板開啟時停止閃爍
+                    if (Date.now() < _hoverCooldownUntil || _layeringOpen) {
                         if (_hoverLayerIdx !== null) { _stopHoverHighlight(null, true); _hoverLayerIdx = null; }
                     } else if (foundIdx !== _hoverLayerIdx) {
                         if (_hoverLayerIdx !== null) _stopHoverHighlight(null, true);
