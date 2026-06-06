@@ -16,8 +16,8 @@
 (function() {
     window.Liko = window.Liko ?? {};
     const MOD_VER = "2.4.4";
-    if (window.Liko.) return;
-    window.Liko. = MOD_VER;
+    if (window.Liko.CHE) return;
+    window.Liko.CHE = MOD_VER;
 
     let modApi;
     let currentMessageCount = 0;
