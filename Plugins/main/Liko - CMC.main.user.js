@@ -13,7 +13,11 @@
 // ==/UserScript==
 
 (function() {
-    'use strict';
+    if (window.__LikoCMCLoaded__) {
+        console.warn("🐈‍⬛ [CMC] ⚠️ 已偵測到重複加載，跳過初始化");
+        return;
+    }
+    window.__LikoCMCLoaded__ = true;
 
     const MOD_VERSION = "1.1.0";
     const debugMode = false;
