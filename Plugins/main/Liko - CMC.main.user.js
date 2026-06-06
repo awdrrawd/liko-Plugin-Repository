@@ -13,13 +13,11 @@
 // ==/UserScript==
 
 (function() {
-    if (window.__LikoCMCLoaded__) {
-        console.warn("🐈‍⬛ [CMC] ⚠️ 已偵測到重複加載，跳過初始化");
-        return;
-    }
-    window.__LikoCMCLoaded__ = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.1.0";
+    if (window.Liko.) return;
+    window.Liko. = MOD_VER;
 
-    const MOD_VERSION = "1.1.0";
     const debugMode = false;
 
     function log(...args) {
@@ -1780,7 +1778,7 @@
                     checkAndPlayBCMusic();
 
                     if (!window.CMCWelcomed) {
-                        sendLocalMsg("CHAT MUSIC CONTROLLER v" + MOD_VERSION + " | /cmc show");
+                        sendLocalMsg(`CHAT MUSIC CONTROLLER v${MOD_VER} | /cmc show`);
                         window.CMCWelcomed = true;
                     }
                 }, 1000);
@@ -1840,7 +1838,7 @@
             const controller = isFirstController() ? "主控制者" : canControlMusic() ? "管理员" : "普通用户";
 
             sendLocalMsg(
-                `CMC v${MOD_VERSION}\n` +
+                `CMC v${MOD_VER}\n` +
                 `状态: ${status} | 自定义: ${customized} | 身份: ${controller}\n` +
                 `播放列表: ${musicPlayer.playlist.length}首 (IndexedDB)\n\n` +
                 "命令列表:\n" +
@@ -1964,7 +1962,7 @@
             }
             case "export": {
                 const exportData = {
-                    version: MOD_VERSION,
+                    version: MOD_VER,
                     playlist: musicPlayer.playlist,
                     volume: musicPlayer.volume,
                     isLooping: musicPlayer.isLooping,
@@ -2042,7 +2040,7 @@
             modApi = bcModSdk.registerMod({
                 name: "liko - CMC",
                 fullName: "Chat Music Controller",
-                version: MOD_VERSION,
+                version: MOD_VER,
                 repository: '聊天室音樂控制器 | Chat Music Controller'
             });
             log('ModSDK注册成功');
