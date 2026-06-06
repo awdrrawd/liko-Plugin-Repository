@@ -2,7 +2,7 @@
 // @name         Liko - Region switch
 // @name:zh      快速切換混合&女性區
 // @namespace    https://likolisu.dev/
-// @version      1.2-2
+// @version      1.2-3
 // @description  快速切換混合/女性區 | Region switch
 // @author       Likolisu & yu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,14 +13,12 @@
 // ==/UserScript==
 
 (function() {
-    if (window.LikoRegionswitchInstance) {
-        console.warn('🐈‍⬛ [Region switch] ⚠️ already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoRegionswitchInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.2";
+    if (window.Liko.RegionSwitch) return;
+    window.Liko.RegionSwitch = MOD_VER;
 
     let modApi = null;
-    const modversion = "1.2";
     let inMixedZone = true;
     let switchButton = null;
 
@@ -148,7 +146,7 @@
             modApi = bcModSdk.registerMod({
                 name: "liko - Region switch",
                 fullName: "Region switch",
-                version: modversion,
+                version: MOD_VER,
                 repository: "快速切換混合&女性區 | Region switch"
             });
 
