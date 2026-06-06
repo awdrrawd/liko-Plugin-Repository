@@ -14,16 +14,12 @@
 // ==/UserScript==
 
 (function() {
-    'use strict';
-
-    if (window.LIKO_PRANK_LOADED) {
-        console.log("liko's prank Plugin is already loaded");
-        return;
-    }
-    window.LIKO_PRANK_LOADED = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.5.3";
+    if (window.Liko.) return;
+    window.Liko. = MOD_VER;
 
     let modApi;
-    const modversion = "1.5.3";
 
     // ===== 图片路径辅助工具 =====
     const ImagePathHelper = {
@@ -59,7 +55,7 @@
 
     const messages = {
         en: {
-            loaded: `Liko's Prank Plugin v${modversion} Loaded!`,
+            loaded: `Liko's Prank Plugin v${MOD_VER} Loaded!`,
             notFound: "Target not found",
             noPermission: "No permission",
             noUnderwear: "has no underwear",
@@ -114,7 +110,7 @@
             actRemoveHoldSocksSelf: "SourceCharacter pulls off their own socks and holds them"
         },
         zh: {
-            loaded: `Liko的恶作剧插件 v${modversion} 载入完成！`,
+            loaded: `Liko的恶作剧插件 v${MOD_VER} 载入完成！`,
             notFound: "找不到目标",
             noPermission: "无权限",
             noUnderwear: "没有穿内裤",
@@ -1038,7 +1034,7 @@
                 modApi = bcModSdk.registerMod({
                     name: "liko - prank",
                     fullName: "Likolisu's prank on her friends",
-                    version: modversion,
+                    version: MOD_VER,
                     repository: "Liko's prank"
                 });
                 console.log("🐈‍⬛ [prank] ✅ Mod registered with bcModSdk");
