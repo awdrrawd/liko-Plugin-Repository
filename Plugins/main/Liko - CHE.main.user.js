@@ -14,14 +14,12 @@
 // @run-at       document-end
 // ==/UserScript==
 (function() {
-    if (window.LikoCHEInstance) {
-        console.warn('🐈‍⬛ [CHE] ⚠️ already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoCHEInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "2.4.4";
+    if (window.Liko.) return;
+    window.Liko. = MOD_VER;
 
     let modApi;
-    const modversion = "2.4.4";
     let currentMessageCount = 0;
     const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
     let autoSaveTimer = null;
@@ -54,7 +52,7 @@
         zh: {
             btnHTML:"📥 HTML匯出",btnExcel:"📥 Excel匯出",btnClear:"🗑️ 清除聊天室",
             btnCache:"💾 緩存管理",btnModeCache:"💾 緩存中",btnModeStopped:"⏸️ 停用",
-            tooltipTitle:"聊天室記錄管理器 v2.4",
+            tooltipTitle:`聊天室記錄管理器 v${MOD_VER}`,
             promptPrivate:"請問是否保存包含\n悄悄話(whisper)與私信(beep)的信息?",
             promptClear:"確定要清空當前聊天室的訊息嗎？\n（緩存數據庫不會被清空）",
             promptNoCache:"沒有緩存數據。是否保存當前聊天室的訊息？",
@@ -87,7 +85,7 @@
         en: {
             btnHTML:"📥 Export HTML",btnExcel:"📥 Export Excel",btnClear:"🗑️ Clear Chat",
             btnCache:"💾 Cache Manager",btnModeCache:"💾 Caching",btnModeStopped:"⏸️ Stopped",
-            tooltipTitle:"Chat History Export v2.4",
+            tooltipTitle:`Chat History Export v${MOD_VER}`,
             promptPrivate:"Include whisper and beep messages in export?",
             promptClear:"Clear current chat log?\n(Cache database will not be cleared)",
             promptNoCache:"No cached data. Save current chat messages?",
@@ -1719,7 +1717,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         run() {
             const zh = isZh();
             const T = {
-                title:    zh ? "書記官設定  v" + modversion : "CHE Settings  v" + modversion,
+                title:    zh ? "書記官設定  v" + MOD_VER : "CHE Settings  v" + MOD_VER,
                 back:     zh ? "返回" : "Back",
                 helpTip:  zh ? "顯示說明" : "Show guide",
                 secL:     zh ? "── 顯示 ──"  : "── Display ──",
@@ -2054,7 +2052,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 modApi = bcModSdk.registerMod({
                     name: "Liko - CHE",
                     fullName: "Chat History Exporter",
-                    version: modversion,
+                    version: MOD_VER,
                     repository: "Chat room history export with 7-day cache",
                 });
             }
