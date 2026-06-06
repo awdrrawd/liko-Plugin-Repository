@@ -17,8 +17,8 @@
 (function() {
     window.Liko = window.Liko ?? {};
     const MOD_VER = "1.6.3";
-    if (window.Liko.) return;
-    window.Liko. = MOD_VER;
+    if (window.Liko.PCM) return;
+    window.Liko.PCM = MOD_VER;
     
     let modApi;
 
