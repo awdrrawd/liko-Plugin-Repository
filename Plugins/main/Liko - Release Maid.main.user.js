@@ -398,7 +398,7 @@
                 });
             }
 
-            console.log("🐈‍⬛ [Release Maid] ✅ 初始化完成 v1.1");
+            console.log(`🐈‍⬛ [Release Maid] ✅ 初始化完成 v${MOD_VER}`);
 
             // 如果在聊天室中，顯示載入訊息
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
