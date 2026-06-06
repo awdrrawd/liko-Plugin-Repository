@@ -2,7 +2,7 @@
 // @name         Abundantia Florum ─Chromatica─
 // @name:zh      繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6.1
+// @version      0.6.1-1
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -27,7 +27,7 @@
         return;
     }
     window.__LikoAFCLoaded__ = true;
-    
+
     // ============================================================
     // 常數
     // ============================================================
@@ -487,8 +487,8 @@
         try {
             const isLegacy = !raw.startsWith('{') && !raw.startsWith('[');
             const parsed = isLegacy
-                ? JSON.parse(LZString.decompressFromBase64(raw))
-                : JSON.parse(raw);
+            ? JSON.parse(LZString.decompressFromBase64(raw))
+            : JSON.parse(raw);
 
             // 舊版 JSON 格式（有 "version" 長 key）→ 自動升級
             if (isLegacy || parsed.version !== undefined) {
@@ -881,7 +881,7 @@
         if (!targetHasEL(C)) return false;
         const iHaveC = isELLover(C.MemberNumber);
         const cHasMe = C.OnlineSharedSettings?.AFC?.lovers
-            ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
+        ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
         // 情況A：對方有我但我沒有對方 | 情況B：我有對方但對方沒有我
         return (iHaveC && !cHasMe) || (!iHaveC && cHasMe);
     };
@@ -898,7 +898,7 @@
         const target = C.MemberNumber;
         const iHaveC = isELLover(target);
         const cHasMe = C.OnlineSharedSettings?.AFC?.lovers
-            ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
+        ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
 
         let stage, startDate, stageDate;
         if (iHaveC && !cHasMe) {
@@ -909,7 +909,7 @@
         } else if (!iHaveC && cHasMe) {
             // 情況A：對方有我的記錄，讀取後傳
             const theirEntry = C.OnlineSharedSettings?.AFC?.lovers
-                ?.find(l => Number(l.memberNumber) === Number(Player.MemberNumber));
+            ?.find(l => Number(l.memberNumber) === Number(Player.MemberNumber));
             if (!theirEntry) return;
             stage = theirEntry.stage; startDate = theirEntry.startDate; stageDate = theirEntry.stageDate;
         } else { return; }
@@ -940,7 +940,7 @@
         if (!el) return;
 
         const iv = startCountdown(uiId, `${uiId}-sub`,
-            () => cleanupRestoreUI(senderNum), null);
+                                  () => cleanupRestoreUI(senderNum), null);
         pendingRestoreInc[senderNum] = { timer: iv, uiId };
     }
 
@@ -954,7 +954,7 @@
         if (!alreadyHave) {
             // Case B：我（丟失方）收到保有方的申請，直接 addLover
             s.lovers.push({ memberNumber: senderNum, name: senderName,
-                stage, startDate, stageDate, lockEnabled: false });
+                           stage, startDate, stageDate, lockEnabled: false });
             saveSharedSettings();
             broadcastAFCData();
         }
@@ -983,10 +983,10 @@
             const s = getSharedSettings();
             if (s && !s.lovers.some(l => Number(l.memberNumber) === Number(fromNum))) {
                 s.lovers.push({ memberNumber: fromNum, name: receiverName,
-                    stage: stage ?? STAGE.DATING,
-                    startDate: startDate ?? Date.now(),
-                    stageDate: stageDate ?? Date.now(),
-                    lockEnabled: false });
+                               stage: stage ?? STAGE.DATING,
+                               startDate: startDate ?? Date.now(),
+                               stageDate: stageDate ?? Date.now(),
+                               lockEnabled: false });
                 saveSharedSettings();
                 broadcastAFCData();
             }
@@ -1034,8 +1034,8 @@
             if (dialog[i]?.[EL_MARKER]) dialog.splice(i, 1);
 
         const backIndex = dialog.findIndex(d =>
-            d?.Stage === "RelationshipSubmenu" && d?.NextStage === "10"
-        );
+                                           d?.Stage === "RelationshipSubmenu" && d?.NextStage === "10"
+                                          );
         if (backIndex === -1) return;
 
         const toInsert = [];
@@ -1179,7 +1179,7 @@
         // 若已是戀人（雙向確認）則不需要再提案
         const senderChar = ChatRoomCharacter?.find(c => c.MemberNumber === senderNum);
         const senderHasMe = senderChar?.OnlineSharedSettings?.AFC?.lovers
-            ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
+        ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
         if (isELLover(senderNum) || isNativeLover(senderNum)) return;  // 已是戀人
         // （senderHasMe 只是資料丟失時的容錯，仍允許顯示申請 UI）
 
@@ -1197,7 +1197,7 @@
         if (!el) return;
 
         const iv = startCountdown(uiId, `${uiId}-sub`, () => cleanupIncomingUI(senderNum),
-            t('proposeExpired', senderName));
+                                  t('proposeExpired', senderName));
         pendingIncoming[senderNum] = { timer: iv, uiId };
     }
 
@@ -1270,7 +1270,7 @@
         // 雙向驗證：自己有對方 OR 對方有自己（容許單方面資料丟失）
         const senderChar = ChatRoomCharacter?.find(c => c.MemberNumber === senderNum);
         const senderHasMe = senderChar?.OnlineSharedSettings?.AFC?.lovers
-            ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
+        ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
         if (!isELLover(senderNum) && !senderHasMe) return;
 
         const key   = `${senderNum}_${newStage}`;
@@ -1288,7 +1288,7 @@
         if (!el) return;
 
         const iv = startCountdown(uiId, `${uiId}-sub`, () => cleanupStageUI(key, uiId),
-            t('stageExpired', senderName, label));
+                                  t('stageExpired', senderName, label));
         pendingStageInc[key] = { timer: iv, uiId };
     }
 
@@ -1422,10 +1422,10 @@
                 break;
             case BEEP.RESTORE_PROPOSE:
                 handleIncomingRestore(from, data.SenderName ?? fromName,
-                    data.Stage, data.StartDate, data.StageDate); break;
+                                      data.Stage, data.StartDate, data.StageDate); break;
             case BEEP.RESTORE_ACCEPT:
                 handleRestoreAccepted(from, data.ReceiverName ?? fromName,
-                    data.Stage, data.StartDate, data.StageDate); break;
+                                      data.Stage, data.StartDate, data.StageDate); break;
 
             case BEEP.PROPOSE_ENGAGE:
                 handleIncomingStageProposal(from, data.SenderName ?? fromName, STAGE.ENGAGED); break;
@@ -1496,7 +1496,7 @@
         const lovers = getViewingCharacterELLovers();
         const label  = profilePanelOpen ? t('btnClose') : t('btnOpen', lovers.length);
         DrawButton(PROFILE_BTN_X, PROFILE_BTN_Y, PROFILE_BTN_W, PROFILE_BTN_H,
-            label, "White", "", "Extended Lover List");
+                   label, "White", "", "Extended Lover List");
     }
 
     // 畫線上狀態燈號
@@ -1746,7 +1746,7 @@
             const shiftY     = needScroll ? 10 : 0;
             // lastSeen now in lover.lastSeen
 
-                if (total === 0) {
+            if (total === 0) {
                 const p = MainCanvas.textAlign; MainCanvas.textAlign = "center";
                 DrawText(t('noLovers'), 1450, R_START_Y + shiftY + 40, "#888", "Black");
                 MainCanvas.textAlign = p;
@@ -1755,11 +1755,11 @@
                     // 上卷按鈕（緊貼第一行上方）
                     const upY = R_START_Y + shiftY - SCROLL_H - 2;
                     DrawButton(R_BTN_X, upY, SCROLL_W, SCROLL_H,
-                        "▲", _scrollOffset > 0 ? "White" : "#333", "");
+                               "▲", _scrollOffset > 0 ? "White" : "#333", "");
                     // 下卷按鈕（緊貼最後行下方）
                     const downY = R_START_Y + shiftY + R_MAX * R_ROW_H + 2;
                     DrawButton(R_BTN_X, downY, SCROLL_W, SCROLL_H,
-                        "▼", _scrollOffset + R_MAX < total ? "White" : "#333", "");
+                               "▼", _scrollOffset + R_MAX < total ? "White" : "#333", "");
                 }
 
                 const visEnd = Math.min(total, _scrollOffset + R_MAX);
@@ -1780,8 +1780,8 @@
                     const canBreakup = warn;
                     const btnColor   = canBreakup ? "#8B1A2E" : "#444444";
                     DrawButton(R_BTN_X, rowY,
-                        R_BTN_W, R_BTN_H, t('breakupBtn'), btnColor, "",
-                        canBreakup ? t('breakupBtn') : t('sevenDay'));
+                               R_BTN_W, R_BTN_H, t('breakupBtn'), btnColor, "",
+                               canBreakup ? t('breakupBtn') : t('sevenDay'));
                 }
             }
 
@@ -1927,8 +1927,8 @@
             MainCanvas.fill(); MainCanvas.stroke();
             MainCanvas.restore();
             const msg = _restoreConfirm.idx === -1
-                ? t('restoreConfirmAll', t(_restoreConfirm.source==='online'?'restoreOnline':'restoreBackup'))
-                : t('restoreConfirm1', _restoreConfirm.name);
+            ? t('restoreConfirmAll', t(_restoreConfirm.source==='online'?'restoreOnline':'restoreBackup'))
+            : t('restoreConfirm1', _restoreConfirm.name);
             DrawTextFit(msg, 1000, cy + 74, cw - 40, "White", "transparent");
             // 使用正確的 i18n key（確認復原，非確認解除）
             DrawButton(cx + 50,      cy + ch - 64, 240, 50, t('restoreConfirmBtn'), "#9a1a1a", "");
@@ -1952,11 +1952,11 @@
             if (MouseIn(allLX, RUI.allBtnY, RUI.allBtnW, RUI.allBtnH)) { _restoreConfirm = { source:'online', idx:-1, name:'' }; return; }
             if (MouseIn(allRX, RUI.allBtnY, RUI.allBtnW, RUI.allBtnH)) { _restoreConfirm = { source:'backup', idx:-1, name:'' }; return; }
             _clickRestoreColumn(onL, RUI.colLX, 'online', _restoreScrollL,
-                ()=>{ _restoreScrollL=Math.max(0,_restoreScrollL-1); },
-                ()=>{ if(_restoreScrollL+RUI.visRows<onL.length)_restoreScrollL++; });
+                                ()=>{ _restoreScrollL=Math.max(0,_restoreScrollL-1); },
+                                ()=>{ if(_restoreScrollL+RUI.visRows<onL.length)_restoreScrollL++; });
             _clickRestoreColumn(onR, RUI.colRX, 'backup', _restoreScrollR,
-                ()=>{ _restoreScrollR=Math.max(0,_restoreScrollR-1); },
-                ()=>{ if(_restoreScrollR+RUI.visRows<onR.length)_restoreScrollR++; });
+                                ()=>{ _restoreScrollR=Math.max(0,_restoreScrollR-1); },
+                                ()=>{ if(_restoreScrollR+RUI.visRows<onR.length)_restoreScrollR++; });
         }
 
         function _clickRestoreColumn(lovers, colX, source, scroll, onUp, onDown) {
@@ -2114,7 +2114,7 @@
                 const l    = lovers[i];
                 const rowY = R_START_Y + shiftY + (i - _scrollOffset) * R_ROW_H;
                 if (MouseIn(R_BTN_X, rowY, R_BTN_W, R_BTN_H)) {
-                    const ts  = lastSeenMap[l.memberNumber];
+                    const ts  = l.lastSeen;          // ← 改這裡
                     const ok  = ts && daysSince(ts) >= 7;
                     if (ok) _breakupModal = { memberNumber: l.memberNumber, name: l.name };
                     return;
@@ -2283,11 +2283,11 @@
         try {
             // 與 BC 原始碼相同的判斷方式
             const hasNick  = typeof CharacterNickname === 'function'
-                             ? C.Name !== CharacterNickname(C)
-                             : !!(C.Nickname && C.Nickname !== C.Name);
+            ? C.Name !== CharacterNickname(C)
+            : !!(C.Nickname && C.Nickname !== C.Name);
             const hasTitle = typeof TitleGet === 'function'
-                             ? TitleGet(C) !== "None"
-                             : !!(C.Title);
+            ? TitleGet(C) !== "None"
+            : !!(C.Title);
             let y = BASE_Y;
             if (!hasNick)  y -= SPACING;
             if (!hasTitle) y -= SPACING;
@@ -2345,7 +2345,7 @@
 
             // 取得好友列表容器（相容 R128）
             const containerId = (typeof FriendListIDs !== 'undefined' && FriendListIDs.friendList)
-                ?? 'FriendListContent';
+            ?? 'FriendListContent';
             const container = document.getElementById(containerId);
             if (!container) return;
 
@@ -2363,7 +2363,7 @@
 
                 // 覆蓋文字節點（如 BCT 改過也會被我們蓋掉）
                 const textNode = Array.from(relEl.childNodes)
-                    .find(n => n.nodeType === Node.TEXT_NODE);
+                .find(n => n.nodeType === Node.TEXT_NODE);
                 if (textNode) textNode.textContent = label;
                 else relEl.prepend(document.createTextNode(label));
 
@@ -2556,9 +2556,9 @@
 
         // 2. 等待 bcModSdk（無超時）
         await waitFor(() =>
-            typeof bcModSdk !== 'undefined' && !!bcModSdk?.registerMod ||
-            typeof window.bcModSdk !== 'undefined' && !!window.bcModSdk?.registerMod
-        );
+                      typeof bcModSdk !== 'undefined' && !!bcModSdk?.registerMod ||
+                      typeof window.bcModSdk !== 'undefined' && !!window.bcModSdk?.registerMod
+                     );
         const sdk = window.bcModSdk ?? bcModSdk;
         modApi = sdk.registerMod({
             name:       MOD_NAME,
@@ -2577,10 +2577,10 @@
 
         // 3. 等待 ServerSocket 就緒（無超時）
         await waitFor(() =>
-            typeof ServerSocket !== 'undefined' &&
-            ServerSocket !== null &&
-            typeof ServerSocket.on === 'function'
-        );
+                      typeof ServerSocket !== 'undefined' &&
+                      ServerSocket !== null &&
+                      typeof ServerSocket.on === 'function'
+                     );
 
         // ── 階段二：登入後（需要 Player + 設定資料）───────────────
         // completeInit 在 LoginResponse 後觸發，此時：
@@ -2641,7 +2641,7 @@
                         const perms  = ch?.OnlineSharedSettings?.AFC?.lockPerms;
                         if (!perms?.enableELLock) return false;
                         return lovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber))
-                            || (Player.Lovership?.some(l => Number(l.MemberNumber) === Number(ch?.MemberNumber)) ?? false);
+                        || (Player.Lovership?.some(l => Number(l.MemberNumber) === Number(ch?.MemberNumber)) ?? false);
                     },
                     /** 取得戀人清單（唯讀複本）*/
                     getLovers:        () => [...(getSharedSettings()?.lovers ?? [])],
