@@ -682,25 +682,40 @@
     let showNickname = true;
     function getDisplayName(mn) {
         mn = parseInt(mn);
+        // 1. 在線角色（房間內）
         const C = ChatRoomCharacter && ChatRoomCharacter.find(c => c.MemberNumber === mn);
         if (C) {
-            if (showNickname && typeof CharacterNickname === 'function') { const n = CharacterNickname(C); if (n) return n; }
+            if (showNickname && typeof CharacterNickname === 'function') {
+                const n = CharacterNickname(C); if (n) return n;
+            }
             return C.Name || `#${mn}`;
         }
+        // 2. 線上好友
         const online = onlineFriends.find(f => f.MemberNumber === mn);
-        if (online && online.MemberName) {
-            if (showNickname) { const cached2 = _pc[mn]; if (cached2 && cached2.lastNick) return cached2.lastNick; }
-            return online.MemberName;
+        if (online) {
+            // 優先檢查快取暱稱
+            if (showNickname) {
+                const cached = _pc[mn];
+                if (cached && cached.lastNick) return cached.lastNick;
+            }
+            if (online.MemberName) return online.MemberName;
         }
+        // 3. ★ 對所有離線玩家，先查 _pc 快取的暱稱
+        if (showNickname) {
+            const cached = _pc[mn];
+            if (cached && cached.lastNick) return cached.lastNick;
+        }
+        // 4. fallback：各種關係資料中的名稱
         if (Player.FriendNames && Player.FriendNames.get(mn)) return Player.FriendNames.get(mn);
-        const lover = Player.Lovership && Player.Lovership.find(l => parseInt(l.MemberNumber) === mn); if (lover && lover.Name) return lover.Name;
-        const afc = parseAFC().find(l => l.MemberNumber === mn); if (afc && afc.Name) return afc.Name;
-        if (Player.Ownership && parseInt(Player.Ownership.MemberNumber) === mn) return Player.Ownership.Name || `#${mn}`;
+        const lover = Player.Lovership && Player.Lovership.find(l => parseInt(l.MemberNumber) === mn);
+        if (lover && lover.Name) return lover.Name;
+        const afc = parseAFC().find(l => l.MemberNumber === mn);
+        if (afc && afc.Name) return afc.Name;
+        if (Player.Ownership && parseInt(Player.Ownership.MemberNumber) === mn)
+            return Player.Ownership.Name || `#${mn}`;
+        // 5. 最後用快取的 BC 名稱
         const cached = _pc[mn];
-        if (cached) {
-            if (showNickname && cached.lastNick) return cached.lastNick;
-            return cached.name || `#${mn}`;
-        }
+        if (cached) return cached.name || `#${mn}`;
         return `#${mn}`;
     }
 
@@ -1690,7 +1705,14 @@
         container.appendChild(toolbar);
 
         let friends = buildFriendList();
-        if (searchQ.trim()) { const q = searchQ.trim().toLowerCase(); friends = friends.filter(f => f.name.toLowerCase().includes(q) || String(f.mn).includes(q)); }
+        if (searchQ.trim()) { const q = searchQ.trim().toLowerCase();
+                             friends = friends.filter(f => {
+                                 const nick = _pc[f.mn]?.lastNick || '';
+                                 return f.name.toLowerCase().includes(q)
+                                 || nick.toLowerCase().includes(q)
+                                 || String(f.mn).includes(q);
+                             });
+                            }
         friends = friends.filter(applyFilters);
         switch (sortMode) {
             case 'id':    friends.sort((a, b) => a.mn - b.mn); break;
