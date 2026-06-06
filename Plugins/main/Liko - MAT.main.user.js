@@ -12,15 +12,12 @@
 // ==/UserScript==
 
 (function() {
-    'use strict';
-    if (window.__LikoMATLoaded__) {
-        console.warn('🐈‍⬛ [MAT] ⚠️ 已偵測到重複加載，跳過初始化');
-        return;
-    }
-    window.__LikoMATLoaded__ = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.3.0";
+    if (window.Liko.) return;
+    window.Liko. = MOD_VER;
 
     let modApi;
-    let myversion = "1.3.0";
     let observer = null;
 
     let config = {
@@ -39,7 +36,7 @@
 
     (function injectStyles() {
         const style = document.createElement('style');
-        style.textContent = `/* MAT v${myversion} */`;
+        style.textContent = `/* MAT v${MOD_VER} */`;
         document.head.appendChild(style);
     })();
 
@@ -355,7 +352,7 @@ Settings storage: ExtensionSettings ✅
             modApi = bcModSdk.registerMod({
                 name: "Liko - MAT",
                 fullName: "Liko's Messages Auto Translator",
-                version: myversion,
+                version: MOD_VER,
                 repository: "Auto translate chat messages(Supports bio translation)",
             });
             console.log("🐈‍⬛ [MAT] ✅ SDK loaded");
@@ -1213,7 +1210,7 @@ Settings storage: ExtensionSettings ✅
             };
 
             DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", ui('btnBack'));
-            DrawText(ui('pageTitle', myversion), 1000, 105, "Black", "Gray");
+            DrawText(ui('pageTitle', MOD_VER), 1000, 105, "Black", "Gray");
             DrawText(ui('secLive'), 630,  secY, "#2e7d32", "Gray");
             DrawText(ui('secLang'), 1300, secY, "#2e7d32", "Gray");
 
@@ -1559,7 +1556,7 @@ Settings storage: ExtensionSettings ✅
                 const args = text.split(" ");
                 const cmd = args[0]?.toLowerCase();
                 switch(cmd) {
-                    case "": case "help":   ChatRoomSendLocal(ui('help', myversion)); break;
+                    case "": case "help":   ChatRoomSendLocal(ui('help', MOD_VER)); break;
                     case "on":              config.enabled = true;  startObserver(); saveSettings(); ChatRoomSendLocal(ui('cmdOn'));  break;
                     case "off":             config.enabled = false; stopObserver();  saveSettings(); ChatRoomSendLocal(ui('cmdOff')); break;
                     case "recv":            config.translateReceived  = !config.translateReceived;  saveSettings(); ChatRoomSendLocal(ui('cmdRecv',      config.translateReceived));  break;
@@ -1569,14 +1566,14 @@ Settings storage: ExtensionSettings ✅
                     case "autoscroll":      config.autoScroll         = !config.autoScroll;         saveSettings(); ChatRoomSendLocal(ui('cmdAutoScroll', config.autoScroll)); break;
                     case "sendlang":        handleLangCommand(args[1], 'send'); break;
                     case "recvlang":        handleLangCommand(args[1], 'recv'); break;
-                    case "status":          ChatRoomSendLocal(ui('status', myversion, config, hotkeyToString(config.hotkeys.toggle), getLangName)); break;
+                    case "status":          ChatRoomSendLocal(ui('status', MOD_VER, config, hotkeyToString(config.hotkeys.toggle), getLangName)); break;
                     case "hotkey":          handleHotkeyCommand(args.slice(1)); break;
                     default:                ChatRoomSendLocal(ui('cmdUnknown'));
                 }
             }
         }]);
 
-        ChatRoomSendLocal(ui('loaded', myversion));
+        ChatRoomSendLocal(ui('loaded', MOD_VER));
     }
 
     function handleHotkeyCommand(args) {
