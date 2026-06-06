@@ -16,8 +16,8 @@
 (function() {
     window.Liko = window.Liko ?? {};
     const MOD_VER = "1.5.3";
-    if (window.Liko.) return;
-    window.Liko. = MOD_VER;
+    if (window.Liko.Prank) return;
+    window.Liko.Prank = MOD_VER;
 
     let modApi;
 
