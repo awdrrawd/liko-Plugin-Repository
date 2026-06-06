@@ -13,20 +13,18 @@
 // ==/UserScript==
 
 (function () {
-    if (window.LikoCFTInstance) {
-        console.warn('🐈‍⬛ [CFT] ⚠️ already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoCFTInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.1.3";
+    if (window.Liko.CFT) return;
+    window.Liko.CFT = MOD_VER;
 
     let modApi = null;
-    const modversion = "1.1.3";
     const BtnX = 955, BtnY = 900, BtnSize = 45;
 
     modApi = bcModSdk.registerMod({
         name: "Liko's CFT",
         fullName: "Liko's Chat Filter Tool",
-        version: modversion,
+        version: MOD_VER,
         repository: "聊天室信息過濾 | Chat room message filtering",
     });
 
