@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Liko - Chat TtoB
+// @name         Liko - Chat toB
 // @name:zh      Liko的對話變按鈕
 // @namespace    https://likolisu.dev/
-// @version      1.1.1
+// @version      1.1.1-1
 // @description  display command buttons in chatroom, copying command to input and showing description
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,16 +13,12 @@
 // ==/UserScript==
 
 (function () {
-    "use strict";
-
-    // 檢查是否已經載入過，避免重複載入
-    if (window.LikoChatTtoBInstance) {
-        console.warn("🐈‍⬛ [CtoB] ⚠️ 已經載入，跳過重複載入");
-        return;
-    }
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.1.1";
+    if (window.Liko.CTB) return;
+    window.Liko.CTB = MOD_VER;
 
     let modApi;
-    const modversion = "1.1.1";
     let isEnabled = true;
     let scanInterval;
     let descElement;
@@ -51,17 +47,17 @@
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
-                name: "Liko - Chat TtoB",
+                name: "Liko - CTB",
                 fullName: 'BC - Chat room text conversion button',
-                version: modversion,
+                version: MOD_VER,
                 repository: '聊天室[指令]、[!!內文]與[#房間#]轉按鈕\nChat Room [Commands], [!!Content], and [#RoomName#] conversion button.',
             });
-            console.log("🐈‍⬛ [CtoB] ✅ 啟動完成");
+            console.log("🐈‍⬛ [CTB] ✅ 啟動完成");
         } else {
-            console.error("🐈‍⬛ [CtoB] ❌ bcModSdk 或 registerMod 不可用");
+            console.error("🐈‍⬛ [CTB] ❌ bcModSdk 或 registerMod 不可用");
         }
     } catch (e) {
-        console.error("🐈‍⬛ [CtoB] ❌ 初始化失敗:", e.message);
+        console.error("🐈‍⬛ [CTB] ❌ 初始化失敗:", e.message);
     }
 
     // 創建描述框
@@ -396,7 +392,7 @@
 
     function enablePlugin() {
         isEnabled = true;
-        console.log("🐈‍⬛ [CtoB] ✅ 已啟用");
+        console.log("🐈‍⬛ [CTB] ✅ 已啟用");
         if (!scanInterval) {
             scanInterval = setInterval(scanChat, 500);
             resources.intervals.push(scanInterval);
@@ -409,7 +405,7 @@
 
     function disablePlugin() {
         isEnabled = false;
-        console.log("🐈‍⬛ [CtoB] ❌ 已停用");
+        console.log("🐈‍⬛ [CTB] ❌ 已停用");
         hideDesc();
         if (scanInterval) {
             clearInterval(scanInterval);
@@ -431,7 +427,7 @@
 
     // 完全銷毀插件 - 供外部載入器使用
     function destroyPlugin() {
-        console.log("🐈‍⬛ [CtoB] 🔥 正在銷毀...");
+        console.log("🐈‍⬛ [CTB] 🔥 正在銷毀...");
 
         // 停用功能
         disablePlugin();
@@ -469,7 +465,7 @@
         delete window.LikoChatTtoBInstance;
         delete window.LikoChatTtoBWelcomed;
 
-        console.log("🐈‍⬛ [CtoB] 🗑️ 已完全銷毀");
+        console.log("🐈‍⬛ [CTB] 🗑️ 已完全銷毀");
     }
 
     function restoreOriginalText() {
@@ -515,7 +511,7 @@
             // 提供清理函數
             hookCleanup = () => {
                 // bcModSdk 通常不提供直接的 unhook 方法，但我們可以標記
-                console.log("🐈‍⬛ [CtoB] 🧹 清理 ChatRoomLoad Hook");
+                console.log("🐈‍⬛ [CTB] 🧹 清理 ChatRoomLoad Hook");
             };
         }
     }
@@ -525,7 +521,7 @@
     hookChatRoomLoad();
     enablePlugin();
 
-    console.log("🐈‍⬛ [CtoB] ✅ 載入完成");
+    console.log("🐈‍⬛ [CTB] ✅ 載入完成");
 
     // 監聽頁面卸載事件，自動清理
     window.addEventListener('beforeunload', destroyPlugin);
