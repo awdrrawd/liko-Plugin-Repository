@@ -18,8 +18,8 @@
 (function () {
     window.Liko = window.Liko ?? {};
     const MOD_VER = "1.5.2";
-    if (window.Liko.) return;
-    window.Liko. = MOD_VER;
+    if (window.Liko.LT) return;
+    window.Liko.LT = MOD_VER;
     
     let modApi = null;
 
