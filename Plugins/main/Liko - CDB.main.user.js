@@ -15,11 +15,10 @@
 // ==/UserScript==
 
 (function() {
-    if (window.LikoCDBInstance) {
-        console.warn('🐈‍⬛ [CDB] ⚠️ already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoCDBInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.5.2";
+    if (window.Liko.CDB) return;
+    window.Liko.CDB = MOD_VER;
 
     const Lang = {
         _lang: null,
@@ -185,7 +184,6 @@
     };
 
     const CONFIG = {
-        VERSION: "1.5.1",
         DEFAULT_BG_URL: "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/Leonardo_Anime_XL_anime_style_outdoor_magical_wedding_backgrou_2.jpg",
 
         POSE_BUTTON_X: 30,
@@ -356,7 +354,7 @@
                     gridOpacity: state.gridOpacity,
                     poseChangerEnabled: poseState.enabled,
                     currentPoseIndex: state.currentPoseIndex,
-                    version: CONFIG.VERSION
+                    version: MOD_VER
                 };
                 if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                     ServerPlayerExtensionSettingsSync("CDBEnhanced");
@@ -1908,7 +1906,7 @@
                 modApi = bcModSdk.registerMod({
                     name: "Liko - CDB",
                     fullName: "Liko's Custom Dressing Background",
-                    version: CONFIG.VERSION,
+                    version: MOD_VER,
                     repository: '自訂更衣室背景 | Custom Dressing Background'
                 });
                 return modApi;
@@ -1970,7 +1968,7 @@
     function initialize() {
         if (isInitialized) return;
         isInitialized = true;
-        safeLog("🐈‍⬛ [CDB] ⌛ 初始化 v" + CONFIG.VERSION + "...");
+        safeLog(`🐈‍⬛ [CDB] ⌛ 初始化 v${MOD_VER} ...`);
 
         waitForGame().then(function(gameLoaded) {
             if (!gameLoaded) safeError("🐈‍⬛ [CDB] ⚠️ 遊戲載入失敗，使用簡化模式");
@@ -2004,7 +2002,7 @@
                 bcxExport: bcxExport,
                 bcxImport: bcxImport,
                 test: function() {
-                    safeLog("📋 CDB v" + CONFIG.VERSION);
+                    safeLog(`📋 CDB v${MOD_VER}`);
                     safeLog("🌐 語言: " + Lang.get());
                     safeLog("🖥️ 當前畫面: " + (typeof CurrentScreen !== 'undefined' ? CurrentScreen : '未知'));
                     safeLog("👗 在更衣室主畫面: " + isMainAppearanceMode());
@@ -2014,7 +2012,7 @@
                 }
             };
 
-            safeLog("🐈‍⬛ [CDB] ✅ 初始化完成 v" + CONFIG.VERSION);
+            safeLog(`🐈‍⬛ [CDB] ✅ 初始化完成 v${MOD_VER}`);
         }).catch(function(e) {
             safeError("🐈‍⬛ [CDB] ❌ 初始化失敗:", e);
             isInitialized = false;
