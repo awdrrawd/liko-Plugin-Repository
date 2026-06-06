@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.5.2-1
+// @version      1.5.2-2
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,13 +16,12 @@
 // ── 防重複加載 guard ──────────────────────────────────────────────────────────
 
 (function () {
-    if (window.__LikoToolLoaded__) {
-        console.warn("🐈‍⬛ [LT] ⚠️ 已偵測到重複加載，跳過初始化");
-        return;
-    }
-    window.__LikoToolLoaded__ = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.5.2";
+    if (window.Liko.) return;
+    window.Liko. = MOD_VER;
+    
     let modApi = null;
-    const modversion = "1.5.2";
 
     const rpBtnX    = 955;
     const rpBtnY    = 855;
@@ -238,7 +237,7 @@
             modApi = bcModSdk.registerMod({
                 name: "Liko - tool",
                 fullName: "Liko's tool",
-                version: modversion,
+                version: MOD_VER,
                 repository: '莉柯莉絲的工具包'
             });
             console.log("🐈‍⬛ [LT] ✅ modApi 初始化完成");
@@ -1214,10 +1213,10 @@
         }
 
         waitFor(() => CurrentScreen === "ChatRoom").then(() => {
-            ChatRoomSendLocal(t('loaded', { v: modversion }), 30000);
+            ChatRoomSendLocal(t('loaded', { v: MOD_VER }), 30000);
         });
 
-        console.log("🐈‍⬛ [LT] ✅ 插件已載入 (v" + modversion + ")");
+        console.log(`🐈‍⬛ [LT] ✅ 插件已載入 v${myversion}`);
     }
 
     // ──────────────────────────────────────────
