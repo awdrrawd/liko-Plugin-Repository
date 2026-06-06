@@ -12,17 +12,14 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
-    if (window._AFC_HeartLockLoaded) {
-        console.log("🐈‍⬛ [HeartLock] 已載入，跳過重複執行");
-        return;
-    }
-    window._AFC_HeartLockLoaded = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = '2.5.2';
+    if (window.Liko.AFC_HeartLock) return;
+    window.Liko.AFC_HeartLock = MOD_VER;
 
     const HEARTLOCK_NAME   = 'Heart Padlock';
     const HSLOCK_NAME      = 'HighSecurityPadlock';
     const MOD_NAME         = 'HeartLockBC';
-    const MOD_VERSION      = '2.5.2';
     const EXT_KEY          = 'HeartLock';
     const HEARTKEY_IMAGE   = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/main/Images/Heart_key.png';
     const HEARTLOCK_IMAGE  = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/main/Images/Heart_Lock.png';
@@ -953,7 +950,7 @@
         try {
             state.modApi = window.bcModSdk.registerMod({
                 name: MOD_NAME, fullName: 'Heart Lock BC',
-                version: MOD_VERSION, repository: 'https://github.com/awdrrawd/liko-Plugin-Repository',
+                version: MOD_VER, repository: 'https://github.com/awdrrawd/liko-Plugin-Repository',
             });
             return state.modApi;
         } catch (e) {
@@ -2123,7 +2120,7 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
-        log(`🐈‍⬛ [HeartLock] v${MOD_VERSION} initialized.`);
+        log(`🐈‍⬛ [HeartLock] v${MOD_VER} initialized.`);
     }
 
     initialize().catch(e => console.error('🐈‍⬛ [HeartLock] init error', e));
