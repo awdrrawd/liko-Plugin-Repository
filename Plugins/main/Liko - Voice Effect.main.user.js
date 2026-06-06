@@ -2,7 +2,7 @@
 // @name         Liko - Voice Effect
 // @name:zh      Liko的聲音催眠效果
 // @namespace    https://likulisu.dev/
-// @version      1.0
+// @version      1.0.1
 // @description  收到 [Voice] 訊息時觸發催眠視覺效果、彈幕、氣喘粒子、表情變化
 // @author       莉柯莉絲(Likolisu)
 // @match        https://bondageprojects.elementfx.com/*
@@ -18,13 +18,10 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
-
-    if (window.LikoVoiceEffectInstance) {
-        console.warn('🎵 [VoiceEffect] already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoVoiceEffectInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.0.1";
+    if (window.Liko.VE) return;
+    window.Liko.VE = MOD_VER;
 
     let modApi = null;
 
@@ -663,7 +660,7 @@
 
         hookDrawCharacter();
         waitForChatRoom();
-        console.log('🎵 [VoiceEffect] ✅ 初始化完成 v1.3.0');
+        console.log('🎵 [VoiceEffect] ✅ 初始化完成 v1.0.1');
     }
 
     initialize();
