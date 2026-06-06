@@ -15,18 +15,16 @@
 // ==/UserScript==
 
 (function () {
-    if (window.__LikoAEELoaded__) {
-        console.warn("🐈‍⬛ [AEE] ⚠️ 已偵測到重複加載，跳過初始化");
-        return;
-    }
-    window.__LikoAEELoaded__ = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "0.8.0";
+    if (window.Liko.AEE) return;
+    window.Liko.AEE = MOD_VER;
 
     const MOD_NAME = "Liko - AEE";
-    const MOD_Version = "0.8.0";
     if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
     const modApi = bcModSdk.registerMod({
         name: MOD_NAME, fullName: "Liko - Appearance Editor",
-        version: MOD_Version, repository: "外觀編輯拓展 | Appearance editing extension."
+        version: MOD_VER, repository: "外觀編輯拓展 | Appearance editing extension."
     });
 
     // ============================================================
@@ -1766,7 +1764,7 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         <div class="tab" data-tab="settings">${t('tabSettings')}</div>
       </div>
       <div id="item-name">
-        <span id="item-name-text" style="font-size:11px;color:var(--text-dim);font-weight:400">AEE v${MOD_Version}</span>
+        <span id="item-name-text" style="font-size:11px;color:var(--text-dim);font-weight:400">AEE v${MOD_VER}</span>
         <button id="parts-toggle-btn" class="iname-btn" title="${isZh()?'部件':'Layers'}">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="1" width="12" height="3" rx="1"/><rect x="1" y="5.5" width="12" height="3" rx="1"/><rect x="1" y="10" width="12" height="3" rx="1"/></svg>
         </button>
@@ -4592,5 +4590,5 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         _closeOffsetPanel(); _closePoseWindow(); _closeBgSetting();
     }
 
-    console.log("🐈‍⬛ [AEE] ✅ 初始化完成 v" + MOD_Version);
+    console.log(`🐈‍⬛ [AEE] ✅ 初始化完成 v${MOD_VER}`);
 })();
