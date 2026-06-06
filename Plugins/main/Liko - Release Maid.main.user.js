@@ -18,12 +18,10 @@
 // ==/UserScript==
 
 (function() {
-    'use strict';
-    if (window.LikoReleaseMaidInstance) {
-        console.warn('🐈‍⬛ [RM] already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoReleaseMaidInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.2";
+    if (window.Liko.RM) return;
+    window.Liko.RM = MOD_VER;
     
     let modApi = null;
 
@@ -57,7 +55,7 @@
             modApi = bcModSdk.registerMod({
                 name: 'Liko - Release Maid',
                 fullName: 'Bondage Club - Liko Auto Release Maid',
-                version: '1.2',
+                version: MOD_VER,
                 repository: '莉柯莉絲的自動解鎖女僕',
             });
             console.log("🐈‍⬛ [Release Maid] ✅ 註冊成功");
