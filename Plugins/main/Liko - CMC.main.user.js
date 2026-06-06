@@ -15,8 +15,8 @@
 (function() {
     window.Liko = window.Liko ?? {};
     const MOD_VER = "1.1.0";
-    if (window.Liko.) return;
-    window.Liko. = MOD_VER;
+    if (window.Liko.CMC) return;
+    window.Liko.CMC = MOD_VER;
 
     const debugMode = false;
 
