@@ -15,15 +15,12 @@
 // @updateURL    https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
 // ==/UserScript==
 (function() {
-    if (window.LikoPCMInstance) {
-        console.warn('🐈‍⬛ [PCM] ⚠️ already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoPCMInstance = true;
-    // === 基礎設定 ================================================
-
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.6.3";
+    if (window.Liko.) return;
+    window.Liko. = MOD_VER;
+    
     let modApi;
-    const modversion = "1.6.3";
 
     // === 生命週期管理 ===
     let isInitialized = false;
@@ -63,7 +60,7 @@
                     delete Player.OnlineSharedSettings.PCM;
                     console.log("🐈‍⬛ [PCM] 🧹 已清除舊版 OnlineSharedSettings.PCM 殘留");
                 }
-                Player.PCM = { version: modversion };
+                Player.PCM = { version: MOD_VER };
                 accountPluginSettings = loadAccountSettings();
                 const cfg = loadAccountConfig();
                 accountFloatingBtnVisible = cfg.showFloatingBtn !== false;
@@ -92,7 +89,7 @@
                 Sender: Player.MemberNumber,
                 Dictionary: [{
                     pcm: {
-                        version: modversion,
+                        version: MOD_VER,
                         replyRequested: requestReply
                     }
                 }]
@@ -332,7 +329,7 @@
 
     const messages = {
         en: {
-            loaded: `Liko's Plugin Collection Manager v${modversion} Loaded! Click the floating button to manage plugins.`,
+            loaded: `Liko's Plugin Collection Manager v${MOD_VER} Loaded! Click the floating button to manage plugins.`,
             shortLoaded: `📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button in the top right to open management panel\n• Toggle switches to enable/disable plugins\n\n📝 Available Commands:\n/pcm help - Show this manual\n/pcm list - View descriptions for all available plugins.\n\n💡 Tips:\nPlugins will auto-load after enabling, or take effect on next page refresh.\nRecommend selectively enabling plugins for the best experience.`,
             welcomeTitle: "🐈‍⬛ Plugin Manager",
             helpCommand: "Use floating button or /pcm help for more information",
@@ -356,7 +353,7 @@
             refreshDone: "Cache updated! Refresh page to apply latest plugins"
         },
         zh: {
-            loaded: `Liko的插件管理器 v${modversion} 載入完成！點擊浮動按鈕管理插件。`,
+            loaded: `Liko的插件管理器 v${MOD_VER} 載入完成！點擊浮動按鈕管理插件。`,
             shortLoaded: `📋 Liko 插件管理器 說明書\n\n🎮 使用方法：\n• 點擊右上角的浮動按鈕開啟管理面板\n• 切換開關來啟用/停用插件\n\n📝 可用指令：\n/pcm help - 顯示此說明書\n/pcm list - 查看所有可用插件說明\n\n💡 小提示：\n插件啟用後會自動載入，或在下次刷新頁面時生效。\n建議根據需要選擇性啟用插件以獲得最佳體驗。`,
             welcomeTitle: "🐈‍⬛ 插件管理器",
             helpCommand: "使用浮動按鈕或 /pcm help 查看更多信息",
@@ -594,7 +591,7 @@
 
     let remoteChangelogZh = [];
     let remoteChangelogEn = [];
-    let remoteVersion = modversion;
+    let remoteVersion = MOD_VER;
     let remoteUpdateId = null;
 
     function checkVersionUpdate() {
@@ -728,7 +725,7 @@
             showNotification("❌", "PCM", getMessage('loadPluginsFailed'));
             return false;
         }
-        remoteVersion = data.version || modversion;
+        remoteVersion = data.version || MOD_VER;
         remoteUpdateId = data.updateId || null;
         remoteChangelogZh = data.changelog || [];
         remoteChangelogEn = data.en_changelog || data.changelog || [];
@@ -1598,7 +1595,7 @@
 
         const footer = document.createElement("div");
         footer.className = "bc-plugin-footer";
-        footer.innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://awdrrawd.github.io/liko-Plugin-Repository/" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${modversion}</a> ❖ by Likolisu`;
+        footer.innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://awdrrawd.github.io/liko-Plugin-Repository/" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${MOD_VER}</a> ❖ by Likolisu`;
 
         panel.appendChild(header);
         panel.appendChild(tabsBar);
@@ -1959,7 +1956,7 @@
             modApi = bcModSdk.registerMod({
                 name: "Liko's PCM",
                 fullName: 'Liko - Plugin Collection Manager',
-                version: modversion,
+                version: MOD_VER,
                 repository: 'Liko的插件管理器 | Plugin collection manager',
             });
             registerPCMBadge();
@@ -2034,5 +2031,5 @@
         initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
     }
 
-    console.log("🐈‍⬛ [PCM] ✅ v1.6.3 Script loading complete");
+    console.log(`🐈‍⬛ [PCM] ✅ v${MOD_VER} Script loading complete`);
 })();
