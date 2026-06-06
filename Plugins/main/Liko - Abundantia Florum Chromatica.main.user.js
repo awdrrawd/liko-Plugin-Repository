@@ -21,24 +21,16 @@
  */
 
 (function () {
-    'use strict';
-    if (window.__LikoAFCLoaded__) {
-        console.warn('🐈‍⬛ [AFC] ⚠️ 已偵測到重複加載，跳過初始化');
-        return;
-    }
-    window.__LikoAFCLoaded__ = true;
-
-    // ============================================================
-    // 常數
-    // ============================================================
     const MOD_NAME     = "AbundantiaFlorumChromatica";
     const MOD_VERSION  = "0.6.1";
     const EL_BEEP_TYPE = "AFC::Beep";
-
-    // ── 全域根節點（其他插件可透過 window.AFC.api 整合）──────────
-    window.AFC         = window.AFC ?? {};
-    window.AFC.version = MOD_VERSION;
-    window.AFC.api     = window.AFC.api ?? {};
+    window.Liko.AFC    = window.Liko.AFC ?? {};
+    if (window.Liko.AFC.version) {
+        console.warn('🐈‍⬛ [AFC] ⚠️ 已偵測到重複加載，跳過初始化');
+        return;
+    }
+    window.Liko.AFC.version = MOD_VERSION;
+    window.Liko.AFC.api     = window.Liko.AFC.api ?? {};
 
     const BEEP = {
         PROPOSE:          "ELPropose",
@@ -2629,8 +2621,7 @@
                     canOwnerLock: ()    => getPrivateSettings()?.enableOwnerLock ?? false,
                 });
 
-                window.AFC.api = {
-                    version:          MOD_VERSION,
+                window.Liko.AFC.api = {
                     /** 對方是否為 AFC 拓展戀人 */
                     isLover:          (num) => isELLover(num),
                     /** 對方的戀人階段（0/1/2，若非戀人則 null）*/
@@ -2646,8 +2637,8 @@
                     /** 取得戀人清單（唯讀複本）*/
                     getLovers:        () => [...(getSharedSettings()?.lovers ?? [])],
                 };
-                // modApi 唯讀參考（供外部插件用 window.AFC.modApi 查詢，勿用於 hook 註冊）
-                window.AFC.modApi = modApi;
+                // modApi 唯讀參考（供外部插件用 window.Liko.AFC.modApi 查詢，勿用於 hook 註冊）
+                window.Liko.AFC.modApi = modApi;
 
                 // Toast 通知成功
                 toast(t('toastLoaded'), 5000, "#C2185B");
@@ -2682,5 +2673,4 @@
     }
 
     initialize();
-
 })();
