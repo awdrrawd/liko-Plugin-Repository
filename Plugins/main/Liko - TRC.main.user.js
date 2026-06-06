@@ -15,17 +15,15 @@
 // ==/UserScript==
 
 (function () {
-    if (window.LikoTRCInstance) {
-        console.warn('🐈‍⬛ [TRC] already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoTRCInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.1.0";
+    if (window.Liko.TRC) return;
+    window.Liko.TRC = MOD_VER;
 
-    const MOD_Version = "1.1.0";
     const modApi = bcModSdk.registerMod({
         name: 'Liko - TRC',
         fullName: 'Liko - Toy Remote Control',
-        version: MOD_Version,
+        version: MOD_VER,
         repository: '玩具遙控器 | ',
     });
 
@@ -1337,7 +1335,7 @@
         if (typeof ChatRoomCharacter === 'undefined' || typeof Player === 'undefined') return setTimeout(waitForBC, 500);
         buildPanel();
         applyI18n();
-        console.log("🐈‍⬛ [TRC] ✅ 初始化完成 v" + MOD_Version);
+        console.log(`🐈‍⬛ [TRC] ✅ 初始化完成 v${myversion}`);
     }
     waitForBC();
 
