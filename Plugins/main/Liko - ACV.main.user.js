@@ -2,7 +2,7 @@
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.3.0-1
+// @version      1.3.0-2
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,16 +13,14 @@
 // ==/UserScript==
 
 (function () {
-    if (window.LikoACVInstance) {
-        console.warn('🐈‍⬛ [ACV] ⚠️ already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoACVInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.3.0";
+    if (window.Liko.ACV) return;
+    window.Liko.ACV = MOD_VER;
     
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
-    const modVersion = "1.3.0";
     let isEnabled = true;
     let scanInterval;
 
@@ -374,7 +372,7 @@
                     )].join(", ");
                     ChatRoomSendLocal(
                         `<p style='background:#4C2772;color:#EEE;display:block;padding:5px;'>
-                         <b>🎬 Liko's ACV v${modVersion}</b>
+                         <b>🎬 Liko's ACV v${MOD_VER}</b>
                          <br>· 偵測影片連結，插入 🎬 按鈕，點擊展開播放器
                          <br>· 支援: ${platforms}
                          </p>`.replace(/\s+/g, " "),
@@ -410,7 +408,7 @@
             modApi = bcModSdk.registerMod({
                 name: "Liko - ACV",
                 fullName: "Liko's Automatically create video.",
-                version: modVersion,
+                version: MOD_VER,
                 repository: "自動創建影片 | Automatically create video.",
             });
         }
