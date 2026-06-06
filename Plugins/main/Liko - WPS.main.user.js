@@ -12,17 +12,14 @@
 // ==/UserScript==
 
 (function () {
-    "use strict";
-
-    /* ================= 防止重複載入 ================= */
-    if (window.LikoWPSInstance) return;
-    window.LikoWPSInstance = true;
-
-    /* ================= 基本設定 ================= */
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.1.2";
+    if (window.Liko.WPS) return;
+    window.Liko.WPS = MOD_VER;
+    
     const PREFIX = "[LIKOSHARE]";
     const OPEN_MARK = "LIKOSHARE_OPEN";
     const CHUNK_SIZE = 800;
-    const VERSION = "1.1.2";
 
     const incoming = new Map();
     const cache = new Map();
@@ -268,7 +265,7 @@
     const modApi = bcModSdk.registerMod({
         name: "Liko - WPS",
         fullName: "Liko's WCE Profile Share",
-        version: VERSION,
+        version: MOD_VER,
         repository: "WCE個人資料分享 | WCE Profile Share"
     });
 
