@@ -13,20 +13,18 @@
 // ==/UserScript==
 
 (() => {
-    if (window.LikoCDTInstance) {
-        console.warn('🐈‍⬛ [CDT] ⚠️ already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoCDTInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.3";
+    if (window.Liko.CDT) return;
+    window.Liko.CDT = MOD_VER;
     
     let modApi;
-    const modversion = "1.3";
     try {
         if (bcModSdk?.registerMod) {
             modApi = bcModSdk.registerMod({
                 name: 'CDT',
                 fullName: 'Bondage Club - Universal Coordinate adjustment tool',
-                version: modversion,
+                version: MOD_VER,
                 repository: '座標繪製工具 | Coordinate adjustment tool',
             });
             console.log("🐈‍⬛ [CDT] ✅ Universal 腳本啟動完成");
