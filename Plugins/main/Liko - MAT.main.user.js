@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.3.0
+// @version      1.3.0-1
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,8 +14,8 @@
 (function() {
     window.Liko = window.Liko ?? {};
     const MOD_VER = "1.3.0";
-    if (window.Liko.) return;
-    window.Liko. = MOD_VER;
+    if (window.Liko.MAT) return;
+    window.Liko.MAT = MOD_VER;
 
     let modApi;
     let observer = null;
