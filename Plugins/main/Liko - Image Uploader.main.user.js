@@ -14,14 +14,12 @@
 // ==/UserScript==
 
 (function () {
-    if (window.__LikoIMGLoaded__) {
-        console.warn('🐈‍⬛ [IMG] ⚠️ 已偵測到重複加載，跳過初始化');
-        return;
-    }
-    window.__LikoIMGLoaded__ = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.6.1";
+    if (window.Liko.IMG) return;
+    window.Liko.IMG = MOD_VER;
 
     let modApi = null;
-    const modversion = "1.6.1";
     let imageHost       = "litterbox";
     let zoomEnabled     = false;   // 懸停放大（桌面）
     let clickZoomEnabled = false;  // 點擊放大（手機友善）
@@ -685,7 +683,7 @@
                         setupChatObserver();
                         if (!window.LikoImageUploaderWelcomed) {
                             ChatRoomSendLocalStyled(
-                                `🖼️ Liko 圖片上傳器 v${modversion} 載入！使用(use) /img help 查看說明`,
+                                `🖼️ Liko 圖片上傳器 v${MOD_VER} 載入！使用(use) /img help 查看說明`,
                                 5000
                             );
                             window.LikoImageUploaderWelcomed = true;
@@ -711,7 +709,7 @@
             modApi = bcModSdk.registerMod({
                 name: "Liko - Image Uploader",
                 fullName: 'BC - Image Uploader',
-                version: modversion,
+                version: MOD_VER,
                 repository: '圖片拖曳上傳並分享 | Image to litterbox/uguu/imgbb/tmpfiles and share'
             });
         } catch (e) {
