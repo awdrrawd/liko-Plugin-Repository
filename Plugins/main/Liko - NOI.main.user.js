@@ -13,11 +13,12 @@
 // @run-at       document-end
 // ==/UserScript==
 (function() {
-    if (window.LikoNOIInstance) {
-        console.warn('🐈‍⬛ [NOI] ⚠️ already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoNOIInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.1";
+    if (window.Liko.) return;
+    window.Liko. = MOD_VER;
+    
+    let modApi = null;
 
     // ------------ 日誌控制 ------------
     const debugMode = false;
@@ -55,10 +56,6 @@
             check();
         });
     }
-
-    // ------------ mod 註冊 ------------
-    let modApi = null;
-    const modversion = "1.1";
 
     // ------------ 狀態管理 ------------
     let isInitialized = false;
@@ -235,7 +232,7 @@
 
         if (!sub || sub === "help") {
             ChatRoomSendLocal(
-                "Liko的邀请通知器 v1.1 | Notify on Invite：\n" +
+                "Liko的邀请通知器 | Notify on Invite：\n" +
                 "/noi help - 显示说明 | Show this help\n" +
                 "/noi whitemsg <文字> - 设置白名单新增时的消息\n" +
                 "/noi blackmsg <文字> - 设置黑名单新增时的消息\n" +
