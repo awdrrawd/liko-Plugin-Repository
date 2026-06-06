@@ -1216,7 +1216,7 @@
             ChatRoomSendLocal(t('loaded', { v: MOD_VER }), 30000);
         });
 
-        console.log(`🐈‍⬛ [LT] ✅ 插件已載入 v${myversion}`);
+        console.log(`🐈‍⬛ [LT] ✅ 插件已載入 v${MOD_VER}`);
     }
 
     // ──────────────────────────────────────────
