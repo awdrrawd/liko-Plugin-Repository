@@ -13,14 +13,12 @@
 // ==/UserScript==
 
 (function() {
-    if (window.LikoCPBInstance) {
-        console.warn('🐈‍⬛ [CPB] ⚠️ already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoCPBInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VER = "1.2.2";
+    if (window.Liko.CPB) return;
+    window.Liko.CPB = MOD_VER;
 
     let modApi = null;
-    const modversion = "1.2.2";
     let customBG = null;
     let buttonImage = null;
     let isInitialized = false;
@@ -981,7 +979,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             modApi = bcModSdk.registerMod({
                 name: "liko - CPB",
                 fullName: "liko's Custom Profile Background",
-                version: modversion,
+                version: MOD_VER,
                 repository: '自訂個人資料頁面背景 | Custom Profile Background'
             });
             console.log("🐈‍⬛ [CPB] ✅ 模組註冊成功");
