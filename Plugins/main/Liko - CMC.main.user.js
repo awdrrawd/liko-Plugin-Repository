@@ -2,7 +2,7 @@
 // @name         Liko - Chat Music Controller
 // @name:zh      Liko的聊天室音樂控制器
 // @namespace    https://likolisu.dev/
-// @version      1.0.1
+// @version      1.1.0
 // @description  Chat Music Controller with lyrics support (Bug Fixes)
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 (function() {
     'use strict';
 
-    const MOD_VERSION = "1.0.1";
+    const MOD_VERSION = "1.1.0";
     const debugMode = false;
 
     function log(...args) {
@@ -72,11 +72,16 @@
         myControllerRank: -1,
         activeController: null,
         progressInterval: null,
+        preloadPlayer: null,
         controllerCheckInterval: null,
         currentLyrics: [],
         currentLyricIndex: -1,
         bcMusicURL: "",
-        bcMusicMuted: false
+        bcMusicMuted: false,
+
+        ytPlayer: null,
+        ytReady: false,
+        isYouTube: false,
     };
 
     // ============ URL验证 ============
@@ -89,7 +94,38 @@
             return false;
         }
     }
-
+    function isBCCompatibleURL(url) {
+        try {
+            const lower = url.toLowerCase().split('?')[0];
+            return lower.endsWith('.mp3') || lower.endsWith('.ogg') || lower.endsWith('.mp4');
+        } catch(e) {
+            return false;
+        }
+    }
+    function isYouTubeURL(url) {
+        try {
+            const parsed = new URL(url);
+            const hostname = parsed.hostname.toLowerCase();
+            return hostname.includes('youtube.com') || hostname === 'youtu.be' || hostname === 'www.youtu.be';
+        } catch(e) {
+            return false;
+        }
+    }
+    function getYouTubeID(url) {
+        try {
+            const parsed = new URL(url);
+            const hostname = parsed.hostname.toLowerCase();
+            if (hostname === 'youtu.be' || hostname === 'www.youtu.be') {
+                return parsed.pathname.slice(1).split('?')[0];
+            }
+            if (parsed.pathname === '/watch') return parsed.searchParams.get('v');
+            if (parsed.pathname.startsWith('/shorts/')) return parsed.pathname.split('/')[2];
+            if (parsed.pathname.startsWith('/embed/')) return parsed.pathname.split('/')[2];
+            return null;
+        } catch(e) {
+            return null;
+        }
+    }
     function sanitizeHTML(str) {
         const div = document.createElement('div');
         div.textContent = str;
@@ -156,21 +192,26 @@
     function isFirstController() {
         return musicPlayer.myControllerRank === 0;
     }
-
+    function muteBCIfNeeded(url) {
+        if (isBCCompatibleURL(url)) {
+            muteBCMusic();
+        }
+    }
     // ============ BC音乐静音 ============
     function muteBCMusic() {
-        if (ChatAdminRoomCustomizationMusic != null && !musicPlayer.bcMusicMuted) {
-            ChatAdminRoomCustomizationMusic.volume = 0;
-            musicPlayer.bcMusicMuted = true;
-            log('BC音乐已静音');
-        }
+        try {
+            AudioBackgroundMusic.volume = 0;
+        } catch(e) {}
+        setTimeout(() => {
+            try {
+                AudioBackgroundMusicStop();
+            } catch(e) {}
+        }, 100);
+        musicPlayer.bcMusicMuted = true;
+        log('BC音樂已靜音');
     }
 
-    function unmuteBCMusic() {
-        if (ChatAdminRoomCustomizationMusic != null && musicPlayer.bcMusicMuted) {
-            musicPlayer.bcMusicMuted = false;
-        }
-    }
+    function unmuteBCMusic() {musicPlayer.bcMusicMuted = false;}
 
     // ============ IndexedDB ============
     async function initIndexedDB() {
@@ -390,7 +431,7 @@
         if (!ChatRoomPlayerIsAdmin()) return;
 
         try {
-            // 确保 Custom 对象存在
+            muteBCMusic(); // 發送前先禁音
             ChatRoomData.Custom = ChatRoomData.Custom || {};
             ChatRoomData.Custom.MusicURL = url;
 
@@ -402,17 +443,6 @@
 
             log('已更新房间音乐URL:', url);
 
-            // 备用方法：通过 input 设置
-            setTimeout(() => {
-                const musicInput = document.getElementById("InputMusic");
-                if (musicInput && musicInput.value !== url) {
-                    musicInput.value = url;
-                    const event = new Event('change', { bubbles: true });
-                    musicInput.dispatchEvent(event);
-                    log('已更新音乐 input');
-                }
-            }, 100);
-
         } catch (e) {
             error('更新房间音乐URL失败:', e);
         }
@@ -422,14 +452,15 @@
     function cleanupAudioPlayer() {
         if (musicPlayer.audioPlayer) {
             try {
-                musicPlayer.audioPlayer.pause();
-                musicPlayer.audioPlayer.src = '';
                 musicPlayer.audioPlayer.onended = null;
                 musicPlayer.audioPlayer.onerror = null;
                 musicPlayer.audioPlayer.oncanplay = null;
                 musicPlayer.audioPlayer.onloadedmetadata = null;
                 musicPlayer.audioPlayer.onplay = null;
                 musicPlayer.audioPlayer.onpause = null;
+                const p = musicPlayer.audioPlayer.pause();
+                if (p && p.catch) p.catch(() => {});
+                musicPlayer.audioPlayer.src = '';
                 musicPlayer.audioPlayer = null;
                 log('Audio资源已清理');
             } catch (e) {
@@ -438,7 +469,24 @@
             }
         }
     }
+    function cleanupYouTubePlayer() {
+        if (musicPlayer.ytPlayer) {
+            try {
+                musicPlayer.ytPlayer.stopVideo();
+                musicPlayer.ytPlayer.destroy();
+                musicPlayer.ytPlayer = null;
+                log('YouTube播放器已清理');
+            } catch(e) {
+                error('清理YouTube播放器出錯:', e);
+                musicPlayer.ytPlayer = null;
+            }
+        }
+        musicPlayer.ytReady = false;
+        musicPlayer.isYouTube = false;
 
+        const old = document.getElementById('cmc-yt-player');
+        if (old) old.remove();
+    }
     // ============ 音频加载 ============
     function loadAudioTrack(url, onSuccess, onError) {
         if (musicPlayer.isLoading) {
@@ -453,12 +501,13 @@
         }
 
         musicPlayer.isLoading = true;
+        muteBCIfNeeded(url); // ← 移到這裡，最早的時機點
 
         if (musicPlayer.loadingTimeout) {
             clearTimeout(musicPlayer.loadingTimeout);
             musicPlayer.loadingTimeout = null;
         }
-
+        cleanupYouTubePlayer();
         cleanupAudioPlayer();
 
         setTimeout(() => {
@@ -472,17 +521,19 @@
                 musicPlayer.audioPlayer.src = url;
                 musicPlayer.audioPlayer.volume = musicPlayer.volume;
 
-                musicPlayer.audioPlayer.onerror = (e) => {
-                    error('音频加载错误:', e, 'URL:', url);
-                    musicPlayer.loadingTimeout = setTimeout(() => {
+                // 強制解鎖，防止 isLoading 永遠卡住
+                const forceUnlockTimeout = setTimeout(() => {
+                    if (musicPlayer.isLoading) {
+                        error('強制解除 isLoading 鎖');
                         musicPlayer.isLoading = false;
                         musicPlayer.isPlaying = false;
                         updatePanelUI();
-                        if (onError) onError(e);
-                    }, CONSTANTS.LOADING_TIMEOUT);
-                };
+                    }
+                }, CONSTANTS.LOADING_TIMEOUT + 2000);
 
+                // 在 oncanplay 裡清掉它
                 musicPlayer.audioPlayer.oncanplay = () => {
+                    clearTimeout(forceUnlockTimeout);
                     if (musicPlayer.loadingTimeout) {
                         clearTimeout(musicPlayer.loadingTimeout);
                         musicPlayer.loadingTimeout = null;
@@ -491,20 +542,20 @@
                 };
 
                 log('开始播放:', url);
+                muteBCIfNeeded(url);
                 musicPlayer.audioPlayer.play()
                     .then(() => {
-                        musicPlayer.isPlaying = true;
-                        musicPlayer.isLoading = false;
-                        muteBCMusic();
-                        log('播放成功');
-                        if (onSuccess) onSuccess();
-                    })
+                    musicPlayer.isPlaying = true;
+                    musicPlayer.isLoading = false;
+                    log('播放成功');
+                    if (onSuccess) onSuccess();
+                })
                     .catch(err => {
-                        error('播放失败:', err.name, err.message);
-                        musicPlayer.isLoading = false;
-                        musicPlayer.isPlaying = false;
-                        if (onError) onError(err);
-                    });
+                    error('播放失败:', err.name, err.message);
+                    musicPlayer.isLoading = false;
+                    musicPlayer.isPlaying = false;
+                    if (onError) onError(err);
+                });
             } catch (e) {
                 error('加载异常:', e);
                 musicPlayer.isLoading = false;
@@ -523,29 +574,129 @@
             sendLocalMsg(`BC音乐加载失败: ${err.message}`);
         });
     }
+    function loadYouTubeTrack(url, onSuccess, onError) {
+        const id = getYouTubeID(url);
+        if (!id) {
+            if (onError) onError(new Error('無法解析YouTube ID'));
+            return;
+        }
 
+        musicPlayer.isLoading = true;
+        musicPlayer.isYouTube = true;
+
+        cleanupAudioPlayer();
+        cleanupYouTubePlayer();
+        musicPlayer.isYouTube = true;
+
+        const iframe = document.createElement('iframe');
+        iframe.id = 'cmc-yt-player';
+        iframe.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&enablejsapi=1&loop=1&playlist=${id}`;
+        iframe.allow = 'autoplay';
+        iframe.style.cssText = `
+        position: fixed;
+        left: -9999px;
+        top: -9999px;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
+        border: none;
+    `;
+        document.body.appendChild(iframe);
+
+        // 強制解鎖保護
+        const forceUnlock = setTimeout(() => {
+            if (musicPlayer.isLoading) {
+                error('YouTube強制解除isLoading鎖');
+                musicPlayer.isLoading = false;
+                musicPlayer.isPlaying = false;
+                updatePanelUI();
+            }
+        }, CONSTANTS.LOADING_TIMEOUT + 2000);
+
+        musicPlayer.ytPlayer = new YT.Player('cmc-yt-player', {
+            events: {
+                onReady: (e) => {
+                    clearTimeout(forceUnlock);
+                    e.target.setVolume(musicPlayer.volume * 100);
+                    musicPlayer.ytReady = true;
+                    musicPlayer.isLoading = false;
+                    musicPlayer.isPlaying = true;
+                    muteBCIfNeeded(url);
+                    startProgressUpdate();
+                    updatePanelUI(); // 加這行
+                    log('YouTube播放器就緒');
+                    if (onSuccess) onSuccess();
+                },
+                onStateChange: (e) => {
+                    // 0 = 結束
+                    if (e.data === 0 && !musicPlayer.isLooping) {
+                        const nextIndex = (musicPlayer.currentIndex + 1) % musicPlayer.playlist.length;
+                        setTimeout(() => playTrack(nextIndex, true), 300);
+                    }
+                },
+                onError: (e) => {
+                    clearTimeout(forceUnlock);
+                    error('YouTube播放錯誤:', e.data);
+                    musicPlayer.isLoading = false;
+                    musicPlayer.isPlaying = false;
+                    if (onError) onError(new Error('YouTube播放錯誤: ' + e.data));
+                }
+            }
+        });
+    }
+    function preloadNextTrack() {
+        const nextIndex = (musicPlayer.currentIndex + 1) % musicPlayer.playlist.length;
+        if (nextIndex === musicPlayer.currentIndex) return;
+        if (musicPlayer.playlist.length < 2) return;
+
+        const nextTrack = musicPlayer.playlist[nextIndex];
+        if (!isValidURL(nextTrack.url)) return;
+
+        // 清掉舊的預載
+        if (musicPlayer.preloadPlayer) {
+            musicPlayer.preloadPlayer.src = '';
+            musicPlayer.preloadPlayer = null;
+        }
+
+        musicPlayer.preloadPlayer = new Audio();
+        musicPlayer.preloadPlayer.src = nextTrack.url;
+        musicPlayer.preloadPlayer.volume = 0;
+        musicPlayer.preloadPlayer.preload = 'auto';
+        log('預載下一首:', nextTrack.name);
+    }
     // ============ 播放控制 ============
     function playTrack(trackIndex, sendNotification = true) {
         if (trackIndex < 0 || trackIndex >= musicPlayer.playlist.length) return;
         if (musicPlayer.isLoading) return;
 
-        if (!canControlMusic() && sendNotification) {
-            sendLocalMsg("只有房管可以切换歌曲");
+        // 加這個：已在播放同一首就不重複
+        if (musicPlayer.isPlaying && musicPlayer.currentIndex === trackIndex &&
+            !musicPlayer.isLoading) {
+            log('已在播放同一首，跳過');
             return;
         }
-
+        muteBCMusic();
         const track = musicPlayer.playlist[trackIndex];
         musicPlayer.currentIndex = trackIndex;
 
-        loadAudioTrack(track.url, () => {
-            musicPlayer.audioPlayer.loop = musicPlayer.isLooping;
+        const trackLoader = isYouTubeURL(track.url) ? loadYouTubeTrack : loadAudioTrack;
 
-            musicPlayer.audioPlayer.onended = () => {
-                if (!musicPlayer.isLooping) {
-                    const nextIndex = (musicPlayer.currentIndex + 1) % musicPlayer.playlist.length;
-                    setTimeout(() => playTrack(nextIndex, true), 300);
-                }
-            };
+        trackLoader(track.url, () => {
+            muteBCIfNeeded(track.url);
+
+            if (!musicPlayer.isYouTube) {
+                if (!musicPlayer.audioPlayer) return;
+                musicPlayer.audioPlayer.loop = musicPlayer.isLooping;
+                musicPlayer.audioPlayer.onended = () => {
+                    if (!musicPlayer.isLooping) {
+                        const nextIndex = (musicPlayer.currentIndex + 1) % musicPlayer.playlist.length;
+                        setTimeout(() => playTrack(nextIndex, true), 300);
+                    }
+                };
+            } else {
+                // YT loop 已在 iframe URL 設定，onended 不需要
+            }
 
             updatePanelUI();
             saveSettings();
@@ -555,54 +706,71 @@
             }
 
             startProgressUpdate();
-            loadLyrics(track.name);
+
+            if (!musicPlayer.isYouTube) {
+                loadLyrics(track.name);
+                preloadNextTrack();
+            }
 
             const needUpdate = musicPlayer.bcMusicURL !== track.url;
-            musicPlayer.bcMusicURL = track.url;
+            musicPlayer.bcMusicURL = track.url; // 先同步，讓 checkAndPlayBCMusic 不再觸發
 
-            if (needUpdate) {
+            if (needUpdate && isFirstController()) {
                 updateRoomMusicURL(track.url);
             }
+
         }, (err) => {
             sendLocalMsg(`播放失败: ${track.name}`);
         });
     }
 
     function pauseMusic() {
-        if (musicPlayer.audioPlayer && !musicPlayer.audioPlayer.paused) {
+        if (musicPlayer.isYouTube && musicPlayer.ytPlayer && musicPlayer.ytReady) {
+            try {
+                musicPlayer.ytPlayer.pauseVideo();
+                musicPlayer.isPlaying = false;
+                updatePanelUI();
+                stopProgressUpdate();
+                if (isFirstController()) sendMusicState();
+            } catch(e) {}
+        } else if (musicPlayer.audioPlayer && !musicPlayer.audioPlayer.paused) {
             musicPlayer.audioPlayer.pause();
             musicPlayer.isPlaying = false;
             updatePanelUI();
             stopProgressUpdate();
-
-            if (isFirstController()) {
-                sendMusicState();
-            }
+            if (isFirstController()) sendMusicState();
         }
     }
 
     function resumeMusic() {
-        if (musicPlayer.audioPlayer && musicPlayer.audioPlayer.paused) {
+        if (musicPlayer.isYouTube && musicPlayer.ytPlayer && musicPlayer.ytReady) {
+            try {
+                musicPlayer.ytPlayer.playVideo();
+                musicPlayer.isPlaying = true;
+                updatePanelUI();
+                muteBCMusic();
+                startProgressUpdate();
+                if (isFirstController()) sendMusicState();
+            } catch(e) {}
+        } else if (musicPlayer.audioPlayer && musicPlayer.audioPlayer.paused) {
             musicPlayer.audioPlayer.play()
                 .then(() => {
-                    musicPlayer.isPlaying = true;
-                    updatePanelUI();
-                    muteBCMusic();
-                    startProgressUpdate();
-
-                    if (isFirstController()) {
-                        sendMusicState();
-                    }
-                })
+                musicPlayer.isPlaying = true;
+                updatePanelUI();
+                muteBCMusic();
+                startProgressUpdate();
+                if (isFirstController()) sendMusicState();
+            })
                 .catch(err => {
-                    error('恢复播放失败:', err);
-                    musicPlayer.isPlaying = false;
-                });
+                error('恢復播放失敗:', err);
+                musicPlayer.isPlaying = false;
+            });
         }
     }
 
     function stopMusic() {
         cleanupAudioPlayer();
+        cleanupYouTubePlayer();
         musicPlayer.isPlaying = false;
         stopProgressUpdate();
         updatePanelUI();
@@ -636,12 +804,14 @@
     }
 
     function playNext() {
+        muteBCMusic();
         if (musicPlayer.playlist.length === 0 || musicPlayer.isLoading) return;
 
         if (canControlMusic() && !ChatRoomCustomized) {
             ChatRoomCustomized = true;
             ChatRoomCustomizationClear();
-            muteBCMusic();
+            const currentTrackUrl = musicPlayer.playlist[musicPlayer.currentIndex]?.url || '';
+            muteBCIfNeeded(currentTrackUrl);
             log('切换歌曲，ChatRoomCustomized = true');
         }
 
@@ -650,12 +820,14 @@
     }
 
     function playPrevious() {
+        muteBCMusic();
         if (musicPlayer.playlist.length === 0 || musicPlayer.isLoading) return;
 
         if (canControlMusic() && !ChatRoomCustomized) {
             ChatRoomCustomized = true;
             ChatRoomCustomizationClear();
-            muteBCMusic();
+            const currentTrackUrl = musicPlayer.playlist[musicPlayer.currentIndex]?.url || '';
+            muteBCIfNeeded(currentTrackUrl);
             log('切换歌曲，ChatRoomCustomized = true');
         }
 
@@ -666,9 +838,15 @@
 
     function setVolume(vol) {
         musicPlayer.volume = Math.max(0, Math.min(1, vol));
-        if (musicPlayer.audioPlayer) {
+
+        if (musicPlayer.isYouTube && musicPlayer.ytPlayer && musicPlayer.ytReady) {
+            try {
+                musicPlayer.ytPlayer.setVolume(musicPlayer.volume * 100);
+            } catch(e) {}
+        } else if (musicPlayer.audioPlayer) {
             musicPlayer.audioPlayer.volume = musicPlayer.volume;
         }
+
         updatePanelUI();
         saveSettings();
     }
@@ -710,34 +888,51 @@
     }
 
     function updateProgress() {
-        if (!musicPlayer.audioPlayer || !musicPlayer.floatingPanel) return;
+        if (!musicPlayer.floatingPanel) return;
 
         const progressBar = musicPlayer.floatingPanel.querySelector('#progress-bar');
         const timeDisplay = musicPlayer.floatingPanel.querySelector('#time-display');
 
-        if (progressBar && timeDisplay) {
-            const current = musicPlayer.audioPlayer.currentTime;
-            const duration = musicPlayer.audioPlayer.duration;
+        if (!progressBar || !timeDisplay) return;
 
-            if (!isNaN(duration) && duration > 0) {
-                const percent = (current / duration) * 100;
-                progressBar.style.width = percent + '%';
+        let current = 0;
+        let duration = 0;
 
-                const formatTime = (sec) => {
-                    const m = Math.floor(sec / 60);
-                    const s = Math.floor(sec % 60);
-                    return `${m}:${s.toString().padStart(2, '0')}`;
-                };
+        if (musicPlayer.isYouTube && musicPlayer.ytPlayer && musicPlayer.ytReady) {
+            try {
+                current = musicPlayer.ytPlayer.getCurrentTime() || 0;
+                duration = musicPlayer.ytPlayer.getDuration() || 0;
+            } catch(e) {}
+        } else if (musicPlayer.audioPlayer) {
+            current = musicPlayer.audioPlayer.currentTime;
+            duration = musicPlayer.audioPlayer.duration;
+        }
 
-                timeDisplay.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
-            }
+        if (!isNaN(duration) && duration > 0) {
+            const percent = (current / duration) * 100;
+            progressBar.style.width = percent + '%';
+
+            const formatTime = (sec) => {
+                const m = Math.floor(sec / 60);
+                const s = Math.floor(sec % 60);
+                return `${m}:${s.toString().padStart(2, '0')}`;
+            };
+
+            timeDisplay.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
         }
 
         updateLyricHighlight();
     }
 
     function seekTo(percent) {
-        if (musicPlayer.audioPlayer && musicPlayer.audioPlayer.duration) {
+        if (musicPlayer.isYouTube && musicPlayer.ytPlayer && musicPlayer.ytReady) {
+            try {
+                const duration = musicPlayer.ytPlayer.getDuration();
+                if (duration) {
+                    musicPlayer.ytPlayer.seekTo((percent / 100) * duration, true);
+                }
+            } catch(e) {}
+        } else if (musicPlayer.audioPlayer && musicPlayer.audioPlayer.duration) {
             musicPlayer.audioPlayer.currentTime = (percent / 100) * musicPlayer.audioPlayer.duration;
         }
     }
@@ -762,14 +957,14 @@
         });
 
         if (bcMusicActive && newURL) {
-            muteBCMusic();
+            muteBCIfNeeded(newURL);
 
             if (musicPlayer.bcMusicURL !== newURL) {
                 musicPlayer.bcMusicURL = newURL;
 
                 if (canControlMusic() && musicPlayer.playlist.length > 0) {
                     const indexToPlay = musicPlayer.currentIndex >= 0 ? musicPlayer.currentIndex : 0;
-                    playTrack(indexToPlay, true);
+                    playTrack(indexToPlay, false);
                 } else if (!musicPlayer.isPlaying) {
                     playBCMusicDirectly(newURL);
                 }
@@ -780,7 +975,6 @@
                 log('ChatRoomCustomized = false，停止音乐');
             }
             musicPlayer.bcMusicURL = "";
-            unmuteBCMusic();
         }
     }
 
@@ -877,10 +1071,10 @@
 
         const currentTime = musicPlayer.audioPlayer.currentTime;
         let idx = musicPlayer.currentLyrics.findIndex((line, lineIdx) =>
-            lineIdx < musicPlayer.currentLyrics.length - 1
-                ? currentTime >= line.time && currentTime < musicPlayer.currentLyrics[lineIdx + 1].time
-                : currentTime >= line.time
-        );
+                                                      lineIdx < musicPlayer.currentLyrics.length - 1
+                                                      ? currentTime >= line.time && currentTime < musicPlayer.currentLyrics[lineIdx + 1].time
+                                                      : currentTime >= line.time
+                                                     );
 
         if (idx !== -1 && idx !== musicPlayer.currentLyricIndex) {
             musicPlayer.currentLyricIndex = idx;
@@ -1306,7 +1500,7 @@
         if (loopBtn) {
             loopBtn.style.background = musicPlayer.isLooping ?
                 `linear-gradient(135deg, ${COLORS.accent} 0%, ${COLORS.highlight} 100%)` :
-                `linear-gradient(135deg, ${COLORS.dark} 0%, #4a2d6a 100%)`;
+            `linear-gradient(135deg, ${COLORS.dark} 0%, #4a2d6a 100%)`;
         }
 
         volumeSlider.value = musicPlayer.volume * 100;
@@ -1353,6 +1547,8 @@
         container.querySelectorAll('[data-track-index]').forEach(el => {
             el.addEventListener('click', (e) => {
                 if (!e.target.hasAttribute('data-remove-index')) {
+                    const clickedUrl = musicPlayer.playlist[parseInt(el.getAttribute('data-track-index'))]?.url || '';
+                    muteBCIfNeeded(clickedUrl);
                     playTrack(parseInt(el.getAttribute('data-track-index')), true);
                 }
             });
@@ -1540,7 +1736,7 @@
     function cleanup() {
         log('开始清理资源...');
 
-        stopMusic();
+        stopMusic(); // 這行已經會呼叫 cleanupYouTubePlayer()
 
         if (musicPlayer.controllerCheckInterval) {
             clearInterval(musicPlayer.controllerCheckInterval);
@@ -1555,7 +1751,6 @@
         removeFromControllers();
 
         musicPlayer.bcMusicURL = "";
-        unmuteBCMusic();
 
         if (cmcDB) {
             saveSettingsToDB().catch(e => error('保存设置失败:', e));
@@ -1569,14 +1764,13 @@
         if (!modApi?.hookFunction) return;
 
         modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
+            muteBCMusic(); // 進房間/齒輪啟用時立刻禁音
             return next(args).then(() => {
                 setTimeout(async () => {
-                    // 确保 Custom 对象存在
                     if (ChatRoomData && !ChatRoomData.Custom) {
                         ChatRoomData.Custom = {};
                         log('初始化 ChatRoomData.Custom');
                     }
-
                     updateControllerRank();
                     muteBCMusic();
                     checkAndPlayBCMusic();
@@ -1586,7 +1780,7 @@
                         window.CMCWelcomed = true;
                     }
                 }, 1000);
-            })
+            });
         });
 
         modApi.hookFunction("ChatRoomLeave", 0, (args, next) => {
@@ -1603,21 +1797,31 @@
         });
 
         modApi.hookFunction("ChatRoomMenuClick", 0, (args, next) => {
-            next(args);
+            muteBCMusic();
+            const result = next(args);
+            if (result && result.catch) result.catch(() => {});
             setTimeout(() => {
                 muteBCMusic();
                 checkAndPlayBCMusic();
             }, 100);
+            return result;
         });
 
         modApi.hookFunction("ChatRoomSyncRoomProperties", 0, (args, next) => {
+            muteBCMusic();
             next(args);
-            setTimeout(() => checkAndPlayBCMusic(), 100);
+            muteBCMusic(); // next 之後 BC 可能重設音量，再壓一次
+            if (!isFirstController()) {
+                setTimeout(() => checkAndPlayBCMusic(), 100);
+            }
         });
 
         modApi.hookFunction("ChatRoomCustomizationClear", 0, (args, next) => {
-            next(args);
             muteBCMusic();
+            const result = next(args);
+            if (result && result.catch) result.catch(() => {});
+            muteBCMusic();
+            return result;
         });
     }
 
@@ -1648,7 +1852,7 @@
                 "/cmc export - 导出播放列表\n" +
                 "/cmc cleardb - 清空本地数据\n" +
                 "/cmc debug - 切换调试模式"
-            , 25000);
+                , 25000);
             return;
         }
 
@@ -1719,19 +1923,19 @@
                 }
 
                 const storageInfo =
-                    `=== CMC 存储信息 ===\n` +
-                    `播放列表: IndexedDB (本地)\n` +
-                    `控制者列表: OnlineSharedSettings\n` +
-                    `同步方式: Hidden Message\n\n` +
-                    `播放列表: ${musicPlayer.playlist.length} 首歌曲\n` +
-                    `音量: ${Math.round(musicPlayer.volume * 100)}%\n` +
-                    `循环: ${musicPlayer.isLooping ? '开启' : '关闭'}\n` +
-                    `当前索引: ${musicPlayer.currentIndex}\n\n` +
-                    `控制者列表: ${getControllerList().join(', ') || '空'}\n` +
-                    `我的排名: ${musicPlayer.myControllerRank >= 0 ? musicPlayer.myControllerRank : '未加入'}\n` +
-                    `第一控制者: ${musicPlayer.activeController || '无'}\n\n` +
-                    `当前房间音乐URL: ${ChatRoomData?.Custom?.MusicURL || '未设置'}\n` +
-                    `CMC音乐URL: ${musicPlayer.bcMusicURL || '未设置'}`;
+                      `=== CMC 存储信息 ===\n` +
+                      `播放列表: IndexedDB (本地)\n` +
+                      `控制者列表: OnlineSharedSettings\n` +
+                      `同步方式: Hidden Message\n\n` +
+                      `播放列表: ${musicPlayer.playlist.length} 首歌曲\n` +
+                      `音量: ${Math.round(musicPlayer.volume * 100)}%\n` +
+                      `循环: ${musicPlayer.isLooping ? '开启' : '关闭'}\n` +
+                      `当前索引: ${musicPlayer.currentIndex}\n\n` +
+                      `控制者列表: ${getControllerList().join(', ') || '空'}\n` +
+                      `我的排名: ${musicPlayer.myControllerRank >= 0 ? musicPlayer.myControllerRank : '未加入'}\n` +
+                      `第一控制者: ${musicPlayer.activeController || '无'}\n\n` +
+                      `当前房间音乐URL: ${ChatRoomData?.Custom?.MusicURL || '未设置'}\n` +
+                      `CMC音乐URL: ${musicPlayer.bcMusicURL || '未设置'}`;
                 sendLocalMsg(storageInfo, 15000);
                 break;
             }
@@ -1784,6 +1988,17 @@
 
     // ============ 初始化 ============
     async function initialize() {
+        // 載入 YT IFrame API
+        if (!window.YT) {
+            await new Promise(resolve => {
+                const tag = document.createElement('script');
+                tag.src = 'https://www.youtube.com/iframe_api';
+                tag.onload = resolve;
+                document.head.appendChild(tag);
+            });
+            await waitFor(() => window.YT && window.YT.Player, 10000);
+        }
+
         await waitFor(() => typeof Player?.MemberNumber === 'number', 30000);
 
         try {
@@ -1811,7 +2026,7 @@
                 checkAndPlayBCMusic();
             }
         }, CONSTANTS.CONTROLLER_CHECK_INTERVAL);
-
+        window._CMC = musicPlayer;
         log('初始化完成');
     }
 
@@ -1821,7 +2036,7 @@
 
         try {
             modApi = bcModSdk.registerMod({
-                name: "CMC",
+                name: "liko - CMC",
                 fullName: "Chat Music Controller",
                 version: MOD_VERSION,
                 repository: '聊天室音樂控制器 | Chat Music Controller'
