@@ -21,7 +21,6 @@
                 version: "1.0",
                 repository: "BC綑綁刷新 | Bondage renew"
             });
-
             modApi.hookFunction("ChatRoomMessage", 1, (args, next) => {
                 const data = args[0];
                 try {
