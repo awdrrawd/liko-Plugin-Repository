@@ -12,15 +12,13 @@
 // ==/UserScript==
 //修復訪問衣櫃時，興奮條異常殘留
 (function () {
-    if (window.LikoHHAInstance) {
-        console.warn('🐈‍⬛ [HHA] already loaded, skipping duplicate');
-        return;
-    }
-    window.LikoHHAInstance = true;
+    window.Liko = window.Liko ?? {};
+    const MOD_VERSION = "0.2";
+    if (window.Liko.HHA) return;
+    window.Liko.HHA = MOD_VER;
 
     const MOD_NAME    = "HHA";
     const MOD_FULL    = "Hotfix - Hidden Arousal";
-    const MOD_VERSION = "0.2";
 
     function waitFor(predicate, timeout) {
         timeout = timeout || 20000;
