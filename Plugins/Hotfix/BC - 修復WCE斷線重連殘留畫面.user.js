@@ -17,9 +17,6 @@
 // ==/UserScript==
 
 (() => {
-    "use strict";
-
-    // 註冊 bcModSdk
     const modApi = bcModSdk.registerMod({
         name: "[WCE]Fix Relog Screen",
         fullName: "Fix Relog Screen After WCE Reconnect",
