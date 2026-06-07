@@ -15,7 +15,7 @@
     window.Liko = window.Liko ?? {};
     const MOD_VERSION = "0.2";
     if (window.Liko.HHA) return;
-    window.Liko.HHA = MOD_VER;
+    window.Liko.HHA = MOD_VERSION;
 
     const MOD_NAME    = "HHA";
     const MOD_FULL    = "Hotfix - Hidden Arousal";
