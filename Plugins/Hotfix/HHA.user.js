@@ -10,7 +10,7 @@
 // @run-at       document-end
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // ==/UserScript==
-
+//修復訪問衣櫃時，興奮條異常殘留
 (function () {
     if (window.LikoHHAInstance) {
         console.warn('🐈‍⬛ [HHA] already loaded, skipping duplicate');
