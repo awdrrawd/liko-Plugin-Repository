@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BC Abundantia Florum ─Chromatica─
 // @name:zh      BC 繁戀如花 ─繽紛─
-// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @namespace    https://github.com/awdrrawd/BC-AEE
 // @version      1.0
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
@@ -11,7 +11,6 @@
 // @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
 // @run-at       document-end
 // ==/UserScript==
-https://github.com/awdrrawd/BC-AFC/raw/refs/heads/main/Plugins/Liko-AFC.user.js
 (function () {
     "use strict";
     const url = `https://raw.githubusercontent.com/awdrrawd/BC-AFC/main/Plugins/Liko-AFC.user.js?timestamp=${Date.now()}`;
