@@ -380,6 +380,101 @@
           "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20FCM.main.user.js"
         }
       ]
+    },
+    {
+      "id": "Liko-BMM",
+      "name": "Liko的地圖房迷你地圖 —— Liko's Bondage Map Minimap",
+      "description": "BC 地圖房迷你地圖\nBC map room minimap",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20BMM.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko-CMC",
+      "name": "Liko的聊天室音樂控制器 —— Liko's Chat Music Controller",
+      "description": "支援歌詞(需要有曲名)、歌曲列表、flac等格式\nSupports lyrics (must have song title), song list, flac and other formats.",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CMC.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko-IVH",
+      "name": "沉浸式聲音催眠效果 —— Immersive Voice Hypnosis",
+      "description": "配合BCX的聽我聲音功能增加沉浸體驗\nEnhance the immersive experience with BCX's 'Listen to My Voice' feature.",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20IVH.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko-PAT_All",
+      "name": "Liko的對大家互動 —— Liko's PAT All",
+      "description": "一個對房間內所有人執行互動的緊湊按鈕\nA compact button to perform activity on everyone in room.",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20PAT%20All.main.user.js"
+        }
+      ]
+    },
+    {
+      "id": "Liko-Voice_Effect",
+      "name": "Liko的聲音催眠效果 —— Liko's Voice Effect",
+      "description": "收到 [Voice] 訊息時觸發催眠視覺效果、彈幕、氣喘粒子、表情變化\nTrigger hypnotic visual effects, bullet comments, breathing particles, and expression changes when receiving [Voice] messages.",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "noCacheBusting": true,
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Voice%20Effect.main.user.js"
+        }
+      ]
     }
   ]
 }
