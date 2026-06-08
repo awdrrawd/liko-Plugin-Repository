@@ -1092,6 +1092,7 @@
     //  聲音系統
     //  音源系統：預載 GitHub 音源，有快取才播放
     //  載入失敗 → 本地聊天訊息提示（10秒後自動消失）
+    //  音源來自 https://www.pincree.jp/
     // ════════════════════════════════════════
     const SOUND_URLS = [
         'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/pincree_kitakami_tsubasa_groan1.mp3',
