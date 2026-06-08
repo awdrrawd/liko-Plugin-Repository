@@ -1200,19 +1200,29 @@
     // ════════════════════════════════════════
     //  9. 興奮度
     // ════════════════════════════════════════
-    function addArousal() {
-        if (!CONFIG.arousal) return 1;
-        try {
-            if (!Player.ArousalSettings || Player.ArousalSettings.Active === "Inactive") return 1;
-            const current = Player.ArousalSettings.Progress ?? 0;
-            const add     = randInt(1, 5);
-            if (current < 95) {
-                const newVal = Math.min(current + add, 100);
-                ActivitySetArousal(Player, newVal);
-            }
-            return add;
-        } catch (e) { return 1; }
+function addArousal() {
+    if (!CONFIG.arousal) return 1;
+    try {
+        if (!Player.ArousalSettings || Player.ArousalSettings.Active === "Inactive") return 1;
+
+        const current = Player.ArousalSettings.Progress ?? 0;
+        
+        let add = randInt(1, 5);
+        
+        // 越接近滿值增加越慢（更自然）
+        if (current > 80) add = randInt(1, 3);
+        if (current > 92) add = randInt(1, 2);
+
+        const newVal = Math.min(current + add, 100);
+        
+        ActivitySetArousal(Player, newVal);
+
+        return add;
+    } catch (e) {
+        console.error("[IVH] addArousal 錯誤:", e);
+        return 1;
     }
+}
 
     // ════════════════════════════════════════
     //  主效果流程
