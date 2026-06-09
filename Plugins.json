@@ -5,16 +5,18 @@
     "配合BCX的聽我聲音功能增加沉浸體驗，使用/ivh show進行設置",
     "⭐臨時修復興奮條隱藏 新增",
     "臨時修復興奮條殘留在更衣室問題",
-    "⭐牽引補丁 新增",
-    "修復部分牽引失敗的錯誤(不保證有效)"
+    "⭐牽引補丁(測試) 新增",
+    "修復部分牽引失敗的錯誤",
+    "這是一個測試功能，不保證有效，可能會有其他問題"
   ],
   "en_changelog": [
     "⭐IVH - Immersive Voice Hypnosis v1.0 add",
     "Add an immersive experience to BCX's 'Listen to My Voice' feature, and use /ivh show to configure it.",
     "⭐Hotfix for Hidden Arousal add",
     "Hidden Arousal in Appearance, InformationSheet, ChatRoom+CurrentCharacter",
-    "⭐Leash Fix add",
-    "Fix some Leash failures(Effectiveness not guaranteed)"
+    "⭐Leash Fix(test) add",
+    "Fix some Leash failures",
+    "This is a test feature and its effectiveness is not guaranteed; other issues may arise."
   ],
   "plugins": [
     {
@@ -365,8 +367,8 @@
     },
     {
       "id": "Fix-HLF",
-      "name": "牽引補丁",
-      "en_name": "Leash Fix",
+      "name": "牽引補丁(測試)",
+      "en_name": "Leash Fix(test)",
       "description": "修復部分牽引失敗的錯誤",
       "en_description": "Fix some Leash failures",
       "additionalInfo": "",
