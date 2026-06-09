@@ -4,13 +4,17 @@
     "⭐IVH - 沉浸式聲音催眠效果 v1.0 新增",
     "配合BCX的聽我聲音功能增加沉浸體驗，使用/ivh show進行設置",
     "⭐臨時修復興奮條隱藏 新增",
-    "臨時修復興奮條殘留在更衣室問題"
+    "臨時修復興奮條殘留在更衣室問題",
+    "⭐牽引補丁 新增",
+    "修復部分牽引失敗的錯誤(不保證有效)"
   ],
   "en_changelog": [
     "⭐IVH - Immersive Voice Hypnosis v1.0 add",
     "Add an immersive experience to BCX's 'Listen to My Voice' feature, and use /ivh show to configure it.",
     "⭐Hotfix for Hidden Arousal add",
-    "Hidden Arousal in Appearance, InformationSheet, ChatRoom+CurrentCharacter"
+    "Hidden Arousal in Appearance, InformationSheet, ChatRoom+CurrentCharacter",
+    "⭐Leash Fix add",
+    "Fix some Leash failures(Effectiveness not guaranteed)"
   ],
   "plugins": [
     {
