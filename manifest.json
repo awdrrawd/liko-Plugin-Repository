@@ -456,25 +456,6 @@
           "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20PAT%20All.main.user.js"
         }
       ]
-    },
-    {
-      "id": "Liko-Voice_Effect",
-      "name": "Liko的聲音催眠效果 —— Liko's Voice Effect",
-      "description": "收到 [Voice] 訊息時觸發催眠視覺效果、彈幕、氣喘粒子、表情變化\nTrigger hypnotic visual effects, bullet comments, breathing particles, and expression changes when receiving [Voice] messages.",
-      "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
-      "author": "莉柯莉絲(Likolisu)",
-      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
-      "tags": [
-        "enhancements"
-      ],
-      "type": "module",
-      "noCacheBusting": true,
-      "versions": [
-        {
-          "distribution": "stable",
-          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Voice%20Effect.main.user.js"
-        }
-      ]
     }
   ]
 }
