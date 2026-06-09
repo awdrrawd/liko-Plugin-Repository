@@ -2,7 +2,7 @@
 // @name         Abundantia Florum ─Chromatica─
 // @name:zh      繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6.1-1
+// @version      0.6.1-2
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -21,6 +21,7 @@
  */
 
 (function () {
+    window.Liko        = window.Liko ?? {};
     const MOD_NAME     = "AbundantiaFlorumChromatica";
     const MOD_VERSION  = "0.6.1";
     const EL_BEEP_TYPE = "AFC::Beep";
@@ -2583,7 +2584,9 @@
 
         function completeInit() {
             if (isInitialized) return;
-            if (!Player?.OnlineSharedSettings || !Player?.ExtensionSettings) return;
+            if (!Player?.MemberNumber) return;
+            if (!Player?.OnlineSharedSettings) return;
+            if (!Player?.ExtensionSettings) return;
 
             try {
                 getSharedSettings();  // 初始化 AFC（含備份恢復）
@@ -2649,14 +2652,15 @@
             }
         }
 
-        // 監聽 LoginResponse（每次登入都會觸發，重載插件也能正確執行）
         ServerSocket.on("LoginResponse", () => {
             initTried = true;
             setTimeout(completeInit, 500);
         });
 
-        // 若已經在遊戲中（插件重載情況），立即嘗試
-        completeInit();
+        // 等待 MemberNumber 存在後再嘗試（相容重載與正常登入）
+        waitFor(() => typeof Player?.MemberNumber === "number").then(() => {
+            completeInit();
+        });
     }
 
     function cleanup() {
