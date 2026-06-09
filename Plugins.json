@@ -348,7 +348,7 @@
       "priority": 5
     },
     {
-      "id": "fix-HHA",
+      "id": "Fix-HHA",
       "name": "臨時修復興奮條隱藏",
       "en_name": "Hotfix for Hidden Arousal",
       "description": "在更衣室、個人資訊、角色互動中隱藏興奮條",
@@ -357,6 +357,18 @@
       "en_additionalInfo": "",
       "icon": "💉",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Hotfix/HHA.user.js",
+      "priority": 10
+    },
+    {
+      "id": "Fix-HLF",
+      "name": "牽引補丁",
+      "en_name": "Leash Fix",
+      "description": "修復部分牽引失敗的錯誤",
+      "en_description": "Fix some Leash failures",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "💉",
+      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Hotfix/HLF.user.js",
       "priority": 10
     }
   ]
