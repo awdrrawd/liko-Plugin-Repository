@@ -364,7 +364,7 @@
       "icon": "📱",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20MPL.main.user.js",
       "priority": 5
-    ,
+    },
     {
       "id": "Fix-HHA",
       "name": "臨時修復興奮條隱藏",
