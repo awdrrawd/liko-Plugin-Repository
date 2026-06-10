@@ -354,6 +354,18 @@
       "priority": 5
     },
     {
+      "id": "Liko-MPL",
+      "name": "手機直版佈局(測試)",
+      "en_name": "Mobile Portrait Layout(test)",
+      "description": "支援房間搜尋與聊天室的直版佈局",
+      "en_description": "ESupports vertical layout for ChatSearch and ChatRoom.",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "📱",
+      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20MPL.main.user.js",
+      "priority": 5
+    ,
+    {
       "id": "Fix-HHA",
       "name": "臨時修復興奮條隱藏",
       "en_name": "Hotfix for Hidden Arousal",
