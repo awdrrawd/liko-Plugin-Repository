@@ -2,27 +2,28 @@
 // @name           Liko - Mobile Portrait Layout
 // @name:zh        Liko的手機直版佈局
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.2.0
+// @version        0.3.0
 // @description    Supports vertical layout for ChatSearch and ChatRoom
 // @description:zh 支援房間搜尋與聊天室的直版佈局
+// @author         Likolisu
 // @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon           https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
-// @author         Likolisu
 // @grant          none
-// @require        https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
+// @require        https://cdn.jsdelivr.net/gh/Jomshir98/bondage-club-mod-sdk@0.3.3/dist/bcmodsdk.js
 // @run-at         document-end
 // ==/UserScript==
 
 (function () {
-    'use strict';
     window.Liko = window.Liko ?? {};
-    const MOD_VER = '0.2.0';
     if (window.Liko.MPL) return;
-    window.Liko.MPL = MOD_VER;
+    window.Liko.MPL = window.Liko.MPL ?? {};
 
+    const MOD_VER = '0.3.0';
     const modApi = bcModSdk.registerMod({
-        name:'Liko - MPL', fullName:'Mobile Portrait Layout', version:MOD_VER,
-        repository: 'Supports vertical layout for ChatSearch and ChatRoom, This is a trial piece; continuous updates are not guaranteed.',
+        name:       'Liko - MPL',
+        fullName:   'Mobile Portrait Layout',
+        version:    MOD_VER,
+        repository: 'Supports vertical layout for ChatSearch and ChatRoom.',
     });
 
     // ─── 常數 ───────────────────────────────────────────────────────────────────
@@ -89,10 +90,8 @@
 
     // ════════════════════════════════════════════════════════════════════════════
     // 玩家關係工具
-    //   依賴：Player 全域變數（由 BC 提供）
     // ════════════════════════════════════════════════════════════════════════════
 
-    /** 遞迴收集物件中的成員編號（數字 or 純數字字串） */
     function collectMemberNumbers(value, seen = new Set()) {
         const out = new Set();
         const walk = (v) => {
@@ -139,7 +138,6 @@
         return set;
     }
 
-    /** 回傳成員與玩家的關係：'owner' | 'lover' | 'friend' | null */
     function getRelation(memberNumber) {
         const mn = Number(memberNumber);
         if (!Number.isFinite(mn)) return null;
@@ -149,12 +147,10 @@
         return null;
     }
 
-    /** 關係中文標籤 */
     function getRelationLabel(rel) {
         return rel === 'owner' ? '主人' : rel === 'lover' ? '戀人' : rel === 'friend' ? '好友' : '';
     }
 
-    /** 取得房間內與玩家有關係的成員列表，依關係優先度排序 */
     function getRoomRelations(room) {
         const friends = Array.isArray(room?.Friends) ? room.Friends : [];
         const RANK = { owner: 3, lover: 2, friend: 1 };
@@ -168,7 +164,6 @@
             .sort((a, b) => (RANK[b.relation] ?? 0) - (RANK[a.relation] ?? 0));
     }
 
-    /** 取得房間中最高優先度的關係 */
     function getTopRelation(room) {
         const people = getRoomRelations(room);
         return people.length ? people[0].relation : null;
@@ -182,9 +177,7 @@
         try {
             const genders = typeof Player?.GetGenders === 'function' ? Player.GetGenders() : [];
             return Array.isArray(genders) && genders.includes('M');
-        } catch {
-            return false;
-        }
+        } catch { return false; }
     }
 
     function getCurrentSpace() {
@@ -192,7 +185,6 @@
         return typeof ChatSearchSpace !== 'undefined' ? ChatSearchSpace : 'X';
     }
 
-    /** 依目前狀態決定空間切換按鈕顯示的圖示 */
     function getSpaceButtonIcon() {
         const base = gameBase();
         if (playerHasMaleGender() || getCurrentSpace() === 'X')
@@ -200,7 +192,6 @@
         return base + 'Screens/Online/ChatSelect/Female.png';
     }
 
-    /** 依目前狀態決定空間切換按鈕的 aria-label */
     function getSpaceButtonLabel() {
         if (playerHasMaleGender()) return '目前在混區（含 M 角色固定混區）';
         return getCurrentSpace() === 'X'
@@ -208,13 +199,11 @@
             : '目前在女區，點擊切換到混區';
     }
 
-    /** 計算下一個要切換的空間 */
     function getToggleTargetSpace() {
         if (playerHasMaleGender()) return 'X';
         return getCurrentSpace() === 'X' ? '' : 'X';
     }
 
-    /** 套用空間並觸發搜尋 */
     function applySpace(space, queryText = '') {
         try {
             if (typeof Player !== 'undefined' && Player?.ChatSearchSettings)
@@ -232,7 +221,7 @@
     // ════════════════════════════════════════════════════════════════════════════
 
     let crActive   = false;
-    let crOrigRect = null;   // 僅於第一次進入時儲存，離開後清除
+    let crOrigRect = null;
 
     function crCalc() {
         const vw = window.innerWidth, vh = window.innerHeight;
@@ -275,7 +264,6 @@
             #chat-room-div      { position: fixed !important; z-index: 10 !important }
         `);
         forceCanvasStyle(L.cvH);
-        // 僅在尚未儲存時記錄原始 Rect（避免 crRemove 後再 crApply 覆蓋還原值）
         if (!crOrigRect && typeof ChatRoomDivRect !== 'undefined')
             crOrigRect = [...ChatRoomDivRect];
         if (typeof ChatRoomDivRect !== 'undefined') {
@@ -297,7 +285,6 @@
         removeStyle('liko-ml-cr');
         if (crOrigRect && typeof ChatRoomDivRect !== 'undefined')
             [0, 1, 2, 3].forEach(i => ChatRoomDivRect[i] = crOrigRect[i]);
-        // 離開後清除，確保下次進入房間能重新記錄正確的原始值
         crOrigRect = null;
         if (typeof ChatRoomResize === 'function') try { ChatRoomResize(false); } catch {}
     }
@@ -313,7 +300,6 @@
         const base = gameBase();
         injectStyle('liko-ml-cs', `
             html, body { overflow-x: hidden !important }
-
             #liko-cs-bg {
                 position: fixed; inset: 0; z-index: 100;
                 overflow: hidden; background: #111;
@@ -331,8 +317,6 @@
                 padding: 28px 24px; box-sizing: border-box;
                 background: rgba(0,0,0,0.40);
             }
-
-            /* 離開按鈕 */
             #liko-cs-exit {
                 position: absolute; top: 10px; right: 10px; z-index: 102;
                 width: 42px; height: 42px; border-radius: 8px;
@@ -344,8 +328,6 @@
             }
             #liko-cs-exit img { width: 26px; height: 26px; object-fit: contain; }
             #liko-cs-exit:active { background: rgba(120,20,20,0.80); }
-
-            /* 選項列 */
             .liko-cs-row {
                 width: 100%; max-width: 480px;
                 display: flex; flex-direction: column;
@@ -365,7 +347,6 @@
             .liko-cs-btn:active { background: rgba(80,50,200,0.65); }
             .liko-cs-btn.disabled { opacity: 0.35; pointer-events: none; }
             .liko-cs-btn img { width: 34px; height: 34px; flex-shrink: 0; }
-
             .liko-cs-desc {
                 font-size: 13px; line-height: 1.5;
                 color: rgba(230,220,255,0.78); text-align: center;
@@ -382,14 +363,12 @@
         const T = typeof TextGet === 'function' ? TextGet : k => k;
 
         const bg = document.createElement('div'); bg.id = 'liko-cs-bg';
-
         const bgImg = document.createElement('img'); bgImg.id = 'liko-cs-bg-img';
         bgImg.src = base + 'Backgrounds/BrickWall.jpg'; bgImg.alt = '';
         bg.appendChild(bgImg);
 
         const ol = document.createElement('div'); ol.id = 'liko-cs-overlay';
 
-        // 離開按鈕
         const exitBtn = document.createElement('button'); exitBtn.id = 'liko-cs-exit';
         exitBtn.setAttribute('aria-label', '離開');
         const exitImg = document.createElement('img'); exitImg.src = base + 'Icons/Exit.png';
@@ -401,7 +380,6 @@
         });
         ol.appendChild(exitBtn);
 
-        // 三個選項按鈕
         const options = [
             {
                 icon:  base + 'Screens/Online/ChatSelect/Female.png',
@@ -428,10 +406,8 @@
 
         for (const opt of options) {
             const row = document.createElement('div'); row.className = 'liko-cs-row';
-
             const btn = document.createElement('button');
             btn.className = 'liko-cs-btn' + (opt.ok ? '' : ' disabled');
-
             const img = document.createElement('img'); img.src = opt.icon;
             img.onerror = () => img.style.display = 'none';
             btn.appendChild(img);
@@ -440,10 +416,8 @@
                 if (!opt.ok) return;
                 if (typeof ChatSelectStartSearch === 'function') ChatSelectStartSearch(opt.space);
             });
-
             const desc = document.createElement('div'); desc.className = 'liko-cs-desc';
             desc.textContent = opt.desc;
-
             row.appendChild(btn); row.appendChild(desc);
             ol.appendChild(row);
         }
@@ -463,13 +437,12 @@
     // ChatSearch 直版模式（cshXxx）
     // ════════════════════════════════════════════════════════════════════════════
 
-    let cshActive    = false;
-    let cshSyncTimer = null;
-    let cshNeedSync  = false;
-    let cshPage      = 1;
+    let cshActive     = false;
+    let cshSyncTimer  = null;
+    let cshNeedSync   = false;
+    let cshPage       = 1;
     let cshRoomsCache = [];
 
-    // BC 原生元素 ID（搜尋模式啟動時隱藏）
     const CSH_BC_IDS = [
         'chat-search-room-header',
         'chat-search-body',
@@ -477,8 +450,6 @@
         'chat-search-search-menu',
         'chat-search-filter-help-screen',
     ];
-
-    // ── 資料來源 ────────────────────────────────────────────────────────────────
 
     function getCshRoomsSource() {
         if (typeof ChatSearchGetRooms === 'function') {
@@ -490,7 +461,6 @@
         return [];
     }
 
-    /** 依視窗高度計算每頁最多顯示幾間房間（2 欄） */
     function calcCshPerPage() {
         const HEADER_H = 52, FOOTER_H = 48, PADDING = 12;
         const listH = window.innerHeight - HEADER_H - FOOTER_H - PADDING * 2;
@@ -498,13 +468,11 @@
         return rows * 2;
     }
 
-    // ── 房間資訊頁籤工具 ────────────────────────────────────────────────────────
-
     function buildRoomTags(room) {
         const tags = [];
-        if (room.Space     !== undefined && typeof ChatSearchGetSpaceName    === 'function') tags.push(ChatSearchGetSpaceName(room.Space));
-        if (room.Language               && typeof ChatSearchGetLanguageName  === 'function') tags.push(ChatSearchGetLanguageName(room.Language));
-        if (room.Game                   && typeof TextGet                    === 'function') tags.push(TextGet(room.Game) || room.Game);
+        if (room.Space !== undefined && typeof ChatSearchGetSpaceName === 'function') tags.push(ChatSearchGetSpaceName(room.Space));
+        if (room.Language && typeof ChatSearchGetLanguageName === 'function') tags.push(ChatSearchGetLanguageName(room.Language));
+        if (room.Game && typeof TextGet === 'function') tags.push(TextGet(room.Game) || room.Game);
         if (room.MapType && room.MapType !== 'Never' && typeof ChatSearchGetRoomTypeName === 'function')
             tags.push(ChatSearchGetRoomTypeName(room.MapType));
         if (Array.isArray(room.BlockCategory))
@@ -518,19 +486,15 @@
         return tags;
     }
 
-    // ── 空間切換按鈕狀態刷新 ────────────────────────────────────────────────────
-
     function refreshCshSpaceButton() {
         const btn = document.getElementById('liko-csh-space-btn');
         if (!btn) return;
         const img = btn.querySelector('img');
         if (img) img.src = getSpaceButtonIcon();
         btn.setAttribute('aria-label', getSpaceButtonLabel());
-        btn.style.opacity   = playerHasMaleGender() ? '0.85' : '1';
-        btn.dataset.locked  = playerHasMaleGender() ? 'true' : 'false';
+        btn.style.opacity  = playerHasMaleGender() ? '0.85' : '1';
+        btn.dataset.locked = playerHasMaleGender() ? 'true' : 'false';
     }
-
-    // ── CSS ─────────────────────────────────────────────────────────────────────
 
     function cshApply() {
         cshActive   = true;
@@ -539,22 +503,17 @@
 
         forceCanvasStyle(0);
 
-        // 隱藏 BC 原生介面
         injectStyle('liko-ml-csh-hide',
             CSH_BC_IDS.map(id => `#${id} { display: none !important }`).join('\n'));
 
         injectStyle('liko-ml-csh', `
             html, body { overflow-x: hidden !important }
-
-            /* ── Shell ── */
             #liko-csh-shell {
                 position: fixed; inset: 0; z-index: 50;
                 display: flex; flex-direction: column;
                 background: #0a0a14; overflow: hidden;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             }
-
-            /* ── Header ── */
             #liko-csh-header {
                 flex-shrink: 0; height: ${HEADER_H}px;
                 display: flex; align-items: center; gap: 5px;
@@ -580,23 +539,19 @@
                 font-size: 15px; cursor: pointer; padding: 0; line-height: 1; display: none;
             }
             #liko-csh-clear.visible { display: block; }
-
-            /* 標頭按鈕（無 hover，僅 active） */
             .liko-csh-hbtn {
-                flex-shrink: 0; width: 36px; height: 36px; border-radius: 9px;
+                flex-shrink: 0; width: 44px; height: 44px; border-radius: 10px;
                 border: 1px solid rgba(255,255,255,0.18);
                 background: rgba(255,255,255,0.07);
                 display: flex; align-items: center; justify-content: center;
                 cursor: pointer; padding: 0;
             }
-            .liko-csh-hbtn img { width: 22px; height: 22px; object-fit: contain; }
+            .liko-csh-hbtn img { width: 26px; height: 26px; object-fit: contain; }
             .liko-csh-hbtn:active { background: rgba(255,255,255,0.18); }
             .liko-csh-hbtn.create {
                 border-color: rgba(120,80,220,0.60);
                 background: rgba(100,60,200,0.25);
             }
-
-            /* ── 房間列表（2 欄 Grid） ── */
             #liko-csh-list {
                 flex: 1; overflow-y: auto; overflow-x: hidden;
                 display: grid; grid-template-columns: 1fr 1fr;
@@ -607,8 +562,6 @@
             #liko-csh-list::-webkit-scrollbar-thumb {
                 background: rgba(255,255,255,0.18); border-radius: 2px;
             }
-
-            /* 房間卡片 */
             .liko-csh-card {
                 background: rgba(255,255,255,0.05);
                 border: 1px solid rgba(255,255,255,0.10);
@@ -632,16 +585,12 @@
                 background: linear-gradient(180deg, rgba(82,214,109,0.06), rgba(82,214,109,0.02)),
                             rgba(255,255,255,0.03);
             }
-
-            /* 卡片頂列 */
             .liko-csh-card-top { display: flex; align-items: flex-start; gap: 3px; padding-right: 22px; }
             .liko-csh-card-lock { font-size: 11px; flex-shrink: 0; line-height: 1.4; }
             .liko-csh-card-name {
                 font-size: 12px; font-weight: 600; color: #f0e8ff;
                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
             }
-
-            /* 資訊按鈕 */
             .liko-csh-card-info {
                 position: absolute; top: 5px; right: 5px;
                 width: 18px; height: 18px; border-radius: 4px;
@@ -652,8 +601,6 @@
                 cursor: pointer; flex-shrink: 0;
             }
             .liko-csh-card-info:active { background: rgba(255,255,255,0.22); }
-
-            /* 卡片其他文字 */
             .liko-csh-card-owner {
                 font-size: 10px; color: rgba(180,170,210,0.60);
                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -664,8 +611,6 @@
                 -webkit-line-clamp: 2; -webkit-box-orient: vertical;
                 line-height: 1.35; flex: 1;
             }
-
-            /* 卡片底列 */
             .liko-csh-card-foot {
                 display: flex; justify-content: flex-start; align-items: center;
                 font-size: 10px; color: rgba(160,200,255,0.72);
@@ -673,8 +618,6 @@
             }
             .liko-csh-card-count { white-space: nowrap; }
             .liko-csh-card-count.full { color: rgba(255,90,90,0.98); font-weight: 800; }
-
-            /* 關係標籤（帶色點） */
             .liko-csh-card-rel {
                 display: inline-flex; align-items: center; gap: 4px;
                 white-space: nowrap; font-size: 10px; font-weight: 700;
@@ -686,14 +629,10 @@
             .liko-csh-card-rel.lover  .dot { background: #ff66c4; }
             .liko-csh-card-rel.owner  { color: rgba(255,175,90,0.98); }
             .liko-csh-card-rel.owner  .dot { background: #ff9b3d; }
-
-            /* 空狀態 */
             .liko-csh-empty {
                 grid-column: 1 / -1; text-align: center;
                 color: rgba(255,255,255,0.28); font-size: 13px; padding: 50px 0;
             }
-
-            /* ── Footer ── */
             #liko-csh-footer {
                 flex-shrink: 0; height: ${FOOTER_H}px;
                 display: flex; align-items: center;
@@ -704,7 +643,6 @@
             #liko-csh-foot-left  { flex: 1; }
             #liko-csh-foot-pages { display: flex; align-items: center; gap: 6px; flex: 2; justify-content: center; }
             #liko-csh-foot-right { flex: 1; display: flex; justify-content: flex-end; }
-
             .liko-csh-page-btn {
                 height: 34px; padding: 0 14px; border-radius: 8px;
                 border: 1px solid rgba(255,255,255,0.18);
@@ -714,7 +652,6 @@
             .liko-csh-page-btn:active   { background: rgba(255,255,255,0.18); }
             .liko-csh-page-btn.disabled { opacity: 0.30; pointer-events: none; }
             #liko-csh-pageinfo { font-size: 11px; color: rgba(255,255,255,0.45); white-space: nowrap; }
-
             #liko-csh-exit-btn {
                 height: 34px; padding: 0 14px; border-radius: 8px;
                 border: 1px solid rgba(255,100,100,0.30);
@@ -722,8 +659,6 @@
                 color: rgba(255,160,160,0.85); font-size: 12px; cursor: pointer;
             }
             #liko-csh-exit-btn:active { background: rgba(120,30,30,0.60); }
-
-            /* ── 房間資訊底板（bottom sheet） ── */
             #liko-csh-info-backdrop {
                 position: fixed; inset: 0; z-index: 80;
                 background: rgba(0,0,0,0.52);
@@ -788,9 +723,6 @@
         buildCshShell();
     }
 
-    // ── UI 建構 ─────────────────────────────────────────────────────────────────
-
-    /** 建立標頭小按鈕（圖示 + aria-label，無 title tooltip） */
     function makeHBtn(imgSrc, ariaLabel, onClick, extraClass = '') {
         const btn = document.createElement('button');
         btn.className = 'liko-csh-hbtn' + (extraClass ? ' ' + extraClass : '');
@@ -798,7 +730,7 @@
         if (imgSrc) {
             const img = document.createElement('img');
             img.src = imgSrc;
-            img.style.cssText = 'width:22px;height:22px;object-fit:contain;pointer-events:none;';
+            img.style.cssText = 'width:26px;height:26px;object-fit:contain;pointer-events:none;';
             img.onerror = () => { img.style.display = 'none'; btn.textContent = ariaLabel.slice(0, 2); };
             btn.appendChild(img);
         }
@@ -812,10 +744,8 @@
 
         const shell = document.createElement('div'); shell.id = 'liko-csh-shell';
 
-        // ── Header ──────────────────────────────────────────────────
         const header = document.createElement('div'); header.id = 'liko-csh-header';
 
-        // 搜尋框
         const wrap   = document.createElement('div');   wrap.id = 'liko-csh-search-wrap';
         const inp    = document.createElement('input'); inp.type = 'text'; inp.placeholder = '🔍 搜尋房間...';
         inp.value = typeof ChatSearchQueryString !== 'undefined' ? ChatSearchQueryString : '';
@@ -836,13 +766,11 @@
         wrap.appendChild(inp); wrap.appendChild(clearBtn);
         header.appendChild(wrap);
 
-        // 篩選按鈕
         header.appendChild(makeHBtn(base + 'Icons/Search.png', '篩選', () => {
             const bcFilterBtn = document.querySelector('#chat-search-room-header button[id*="filter"]');
             if (bcFilterBtn) { bcFilterBtn.style.removeProperty('display'); bcFilterBtn.click(); }
         }));
 
-        // 空間切換按鈕
         const spaceBtn = makeHBtn(getSpaceButtonIcon(), getSpaceButtonLabel(), () => {
             if (playerHasMaleGender()) { refreshCshSpaceButton(); return; }
             const q = inp.value ?? (typeof ChatSearchQueryString !== 'undefined' ? ChatSearchQueryString : '');
@@ -852,7 +780,6 @@
         spaceBtn.id = 'liko-csh-space-btn';
         header.appendChild(spaceBtn);
 
-        // 建立房間按鈕
         header.appendChild(makeHBtn(base + 'Icons/Plus.png', '建立房間', () => {
             const bcCreate = document.querySelector('#chat-search-room-header button[id*="create"]')
                           || document.querySelector('[id*="chat-search"][id*="create"]');
@@ -862,11 +789,9 @@
 
         shell.appendChild(header);
 
-        // ── 列表區 ──────────────────────────────────────────────────
         const list = document.createElement('div'); list.id = 'liko-csh-list';
         shell.appendChild(list);
 
-        // ── Footer ──────────────────────────────────────────────────
         const footer    = document.createElement('div'); footer.id = 'liko-csh-footer';
         const footLeft  = document.createElement('div'); footLeft.id  = 'liko-csh-foot-left';
         const footPages = document.createElement('div'); footPages.id = 'liko-csh-foot-pages';
@@ -910,14 +835,12 @@
         footer.appendChild(footLeft); footer.appendChild(footPages); footer.appendChild(footRight);
         shell.appendChild(footer);
 
-        // 儲存分頁控件參照，供 renderCshList 更新
         shell._prev     = prevBtn;
         shell._next     = nextBtn;
         shell._pageInfo = pageInfo;
 
         document.body.appendChild(shell);
 
-        // 若玩家有男性角色，強制切到混區
         if (playerHasMaleGender() && getCurrentSpace() !== 'X')
             applySpace('X', inp.value ?? '');
 
@@ -925,7 +848,6 @@
         renderCshList();
     }
 
-    /** 渲染房間列表（從 BC 取資料） */
     function renderCshList(resetPage = false) {
         const shell = document.getElementById('liko-csh-shell');
         const list  = document.getElementById('liko-csh-list');
@@ -951,9 +873,7 @@
             emp.textContent = '沒有找到房間';
             list.appendChild(emp);
         } else {
-            for (const room of pageRooms) {
-                list.appendChild(buildRoomCard(room));
-            }
+            for (const room of pageRooms) list.appendChild(buildRoomCard(room));
         }
 
         if (shell) {
@@ -964,23 +884,21 @@
         refreshCshSpaceButton();
     }
 
-    /** 建構單一房間卡片 DOM */
     function buildRoomCard(room) {
-        const joinBtn    = room?.Order != null ? document.getElementById(`chat-search-room-join-button-${room.Order}`) : null;
-        const name       = room.Name || '未命名房間';
-        const creator    = room.Creator || '';
-        const desc       = room.Description || '';
+        const joinBtn     = room?.Order != null ? document.getElementById(`chat-search-room-join-button-${room.Order}`) : null;
+        const name        = room.Name || '未命名房間';
+        const creator     = room.Creator || '';
+        const desc        = room.Description || '';
         const memberCount = room.MemberCount ?? null;
-        const limit      = room.MemberLimit ?? null;
-        const locked     = !room.CanJoin;
-        const isFull     = memberCount !== null && limit !== null && memberCount >= limit;
-        const hasFriend  = Array.isArray(room.Friends) && room.Friends.length > 0;
-        const topRel     = getTopRelation(room);
+        const limit       = room.MemberLimit ?? null;
+        const locked      = !room.CanJoin;
+        const isFull      = memberCount !== null && limit !== null && memberCount >= limit;
+        const hasFriend   = Array.isArray(room.Friends) && room.Friends.length > 0;
+        const topRel      = getTopRelation(room);
 
         const card = document.createElement('div');
         card.className = 'liko-csh-card' + (isFull ? ' full' : '') + (hasFriend ? ' has-friend' : '');
 
-        // 頂列（鎖頭 + 名稱）
         const top = document.createElement('div'); top.className = 'liko-csh-card-top';
         if (locked) {
             const lockEl = document.createElement('span');
@@ -992,43 +910,42 @@
         top.appendChild(nameEl);
         card.appendChild(top);
 
-        // 資訊按鈕（右上角絕對定位）
         const infoBtn = document.createElement('button'); infoBtn.className = 'liko-csh-card-info';
         infoBtn.textContent = 'ⓘ'; infoBtn.setAttribute('aria-label', '房間資訊');
         infoBtn.addEventListener('click', e => { e.stopPropagation(); cshShowRoomInfo(room); });
         card.appendChild(infoBtn);
 
-        // 創建者
         if (creator) {
             const ownerEl = document.createElement('div'); ownerEl.className = 'liko-csh-card-owner';
             ownerEl.textContent = `by ${creator}`;
             card.appendChild(ownerEl);
         }
 
-        // 描述
         if (desc) {
             const descEl = document.createElement('div'); descEl.className = 'liko-csh-card-desc';
             descEl.textContent = desc;
             card.appendChild(descEl);
         }
 
-        // 底列（人數 + 關係標籤）
         const foot = document.createElement('div'); foot.className = 'liko-csh-card-foot';
         const cnt  = document.createElement('span'); cnt.className = 'liko-csh-card-count' + (isFull ? ' full' : '');
         cnt.textContent = memberCount !== null ? `👥 ${memberCount}${limit !== null ? '/' + limit : ''}` : '';
         foot.appendChild(cnt);
 
-        if (topRel) {
-            const rel  = document.createElement('span'); rel.className = `liko-csh-card-rel ${topRel}`;
+        // 顯示所有關係（可能同時有主人/戀人/好友）
+        const allRelations = getRoomRelations(room);
+        // 去重：同一個人只顯示最高關係，但不同人的不同關係都顯示
+        const relTypes = [...new Set(allRelations.map(p => p.relation))];
+        for (const relType of relTypes) {
+            const REL_LABEL = { owner: '主人', lover: '戀人', friend: '好友' };
+            const rel  = document.createElement('span'); rel.className = `liko-csh-card-rel ${relType}`;
             const dot  = document.createElement('span'); dot.className = 'dot';
-            const text = document.createElement('span');
-            text.textContent = topRel === 'owner' ? '主人' : topRel === 'lover' ? '戀人' : '好友';
+            const text = document.createElement('span'); text.textContent = REL_LABEL[relType] ?? relType;
             rel.appendChild(dot); rel.appendChild(text);
             foot.appendChild(rel);
         }
         card.appendChild(foot);
 
-        // 點擊進入房間
         card.addEventListener('click', () => {
             if (joinBtn) joinBtn.click();
             else if (typeof ChatSearchClickRoom === 'function') ChatSearchClickRoom(room);
@@ -1036,8 +953,6 @@
 
         return card;
     }
-
-    // ── 房間資訊底板 ────────────────────────────────────────────────────────────
 
     function cshCloseRoomInfo() {
         document.getElementById('liko-csh-info-backdrop')?.remove();
@@ -1052,11 +967,9 @@
         const sheet = document.createElement('div'); sheet.id = 'liko-csh-info-sheet';
         sheet.addEventListener('click', e => e.stopPropagation());
 
-        // 拖曳把手（視覺提示）
         const handle = document.createElement('div'); handle.id = 'liko-csh-info-handle';
         sheet.appendChild(handle);
 
-        // 標題區
         const head  = document.createElement('div'); head.id = 'liko-csh-info-head';
         const main  = document.createElement('div'); main.id = 'liko-csh-info-main';
         const title = document.createElement('div'); title.id = 'liko-csh-info-title'; title.textContent = room.Name || '未命名房間';
@@ -1067,12 +980,10 @@
         head.appendChild(main); head.appendChild(closeBtn);
         sheet.appendChild(head);
 
-        // 描述
         const descEl = document.createElement('div'); descEl.id = 'liko-csh-info-desc';
         descEl.textContent = room.Description || '沒有描述';
         sheet.appendChild(descEl);
 
-        // 標籤
         const tagsWrap = document.createElement('div'); tagsWrap.id = 'liko-csh-info-tags';
         for (const tagText of buildRoomTags(room)) {
             const tag = document.createElement('div'); tag.className = 'liko-csh-tag';
@@ -1081,7 +992,6 @@
         }
         sheet.appendChild(tagsWrap);
 
-        // 關係人列表
         const people = getRoomRelations(room);
         if (people.length) {
             const peopleWrap = document.createElement('div'); peopleWrap.id = 'liko-csh-info-people';
@@ -1097,7 +1007,6 @@
             sheet.appendChild(peopleWrap);
         }
 
-        // 底列：人數 + 加入按鈕
         const footer  = document.createElement('div'); footer.id = 'liko-csh-info-footer';
         const members = document.createElement('div'); members.id = 'liko-csh-info-members';
         members.textContent = `${room.MemberCount ?? 0} / ${room.MemberLimit ?? '?'}`;
@@ -1122,8 +1031,6 @@
         document.body.appendChild(backdrop);
     }
 
-    // ── 清除 ────────────────────────────────────────────────────────────────────
-
     function cshRemove() {
         if (!cshActive) return;
         cshActive = false;
@@ -1140,6 +1047,200 @@
     }
 
     // ════════════════════════════════════════════════════════════════════════════
+    // Dialog 直版模式（drXxx）
+    //
+    // 原理：
+    //   上半螢幕：canvas 顯示左半（人物區，BC 虛擬 x:0~1000）
+    //   下半螢幕：mirror canvas 複製主 canvas 右半（Dialog 區，BC 虛擬 x:1000~2000）
+    //
+    //   點擊下半時，把螢幕座標換算成 BC 虛擬座標，
+    //   直接設定 BC 全域 MouseX/MouseY 後呼叫 DialogMenuButtonClick()，
+    //   讓 BC 自己處理所有點擊邏輯，不需要移動任何 DOM。
+    // ════════════════════════════════════════════════════════════════════════════
+
+    let drActive      = false;
+    let drMirrorRAF   = null;   // mirror canvas 的 requestAnimationFrame handle
+    let drCapture     = null;   // { overlay, onMouseDown, onTouchStart }
+
+    /** 把下半螢幕點擊座標轉成 BC 虛擬座標，直接觸發 BC 點擊邏輯 */
+    function drInjectClick(screenX, screenY) {
+        const vw  = window.innerWidth;
+        const cvH = Math.round(window.innerHeight * 0.5);
+
+        // 下半螢幕 → BC 右半虛擬座標 [1000~2000, 0~1000]
+        const bcX = 1000 + (screenX / vw) * 1000;
+        const bcY = ((screenY - cvH) / cvH) * 1000;
+
+        // 直接設定 BC 全域滑鼠座標並呼叫點擊處理
+        // eslint-disable-next-line no-implicit-globals
+        if (typeof MouseX !== 'undefined') MouseX = bcX;
+        // eslint-disable-next-line no-implicit-globals
+        if (typeof MouseY !== 'undefined') MouseY = bcY;
+        if (typeof DialogMenuButtonClick === 'function') {
+            try { DialogMenuButtonClick(); } catch(e) {}
+        }
+    }
+
+    /** 只移動 dialog-root 頂層容器到下半螢幕，子元素不動（保持相對定位） */
+    function drMoveDomElements() {
+        if (!drActive) return;
+        const vw  = window.innerWidth;
+        const cvH = Math.round(window.innerHeight * 0.5);
+
+        document.querySelectorAll('.dialog-root').forEach(el => {
+            // 取 BC 設定的原始 left/top（px 值）
+            const origLeft = parseFloat(el.style.left) || 0;
+            const origTop  = parseFloat(el.style.top)  || 0;
+            const origW    = parseFloat(el.style.width) || 0;
+
+            // 只處理在右半（超出螢幕）的 dialog-root
+            if (origLeft < vw - 10) return;
+
+            // 映射到下半：x 對應到 0~vw，y 從 cvH 開始
+            // origLeft 是相對 BC 2000px 虛擬座標系縮放後的 px，
+            // 右半起點大約是 vw（螢幕寬），對應 BC x=1000
+            // newLeft = origLeft - vw（讓右半從 0 開始）
+            const newLeft = origLeft - vw;
+            const newTop  = origTop  + cvH;
+
+            el.style.setProperty('left',    newLeft + 'px', 'important');
+            el.style.setProperty('top',     newTop  + 'px', 'important');
+            el.style.setProperty('z-index', '20',           'important');
+            // 寬度拉到 vw（填滿螢幕寬度）
+            el.style.setProperty('width',   vw + 'px',      'important');
+        });
+    }
+
+    /** 建立／更新 mirror canvas（複製主 canvas 右半到下半螢幕） */
+    function drStartMirror() {
+        const cvH = Math.round(window.innerHeight * 0.5);
+        const vw  = window.innerWidth;
+
+        // 移除舊的
+        document.getElementById('liko-dr-mirror')?.remove();
+        if (drMirrorRAF) { cancelAnimationFrame(drMirrorRAF); drMirrorRAF = null; }
+
+        const mirror = document.createElement('canvas');
+        mirror.id = 'liko-dr-mirror';
+        // 用實際像素大小，避免模糊
+        mirror.width  = vw;
+        mirror.height = cvH;
+        mirror.style.cssText = `
+            position: fixed !important;
+            top: ${cvH}px !important; left: 0 !important;
+            width: ${vw}px !important; height: ${cvH}px !important;
+            z-index: 6 !important;
+            pointer-events: none !important;
+        `;
+        document.body.appendChild(mirror);
+
+        const ctx = mirror.getContext('2d');
+        const src = getCanvas();
+        let frameCount = 0;
+
+        function loop() {
+            drMirrorRAF = requestAnimationFrame(loop);
+            if (!drActive || !src) return;
+            frameCount++;
+            // 背景每 2 幀複製一次（30fps 足夠）
+            if (frameCount % 2 === 0) {
+                ctx.clearRect(0, 0, vw, cvH);
+                try { ctx.drawImage(src, 1000, 0, 1000, 1000, 0, 0, vw, cvH); } catch(e) {}
+            }
+            // DOM 搬移每幀執行（BC 每幀重設位置）
+            drMoveDomElements();
+        }
+        loop();
+    }
+
+    function drApply() {
+        if (drActive) return;
+        drActive = true;
+
+        const cvH = Math.round(window.innerHeight * 0.5);
+        forceCanvasStyle(cvH);
+
+        injectStyle('liko-ml-dr', `
+            html, body { overflow-x: hidden !important }
+            #liko-dr-overlay {
+                position: fixed;
+                top: ${cvH}px; left: 0;
+                width: 100vw; height: calc(100vh - ${cvH}px);
+                z-index: 10 !important;   /* dialog-root z-index:20 在上面，可直接點 */
+                cursor: pointer;
+                -webkit-tap-highlight-color: transparent;
+                background: transparent;
+            }
+            /* dialog-root 搬到下半後確保可點擊 */
+            .dialog-root {
+                pointer-events: auto !important;
+                overflow-y: auto !important;
+            }
+        `);
+
+        // 啟動 mirror
+        drStartMirror();
+
+        // 建立點擊攔截 overlay
+        document.getElementById('liko-dr-overlay')?.remove();
+        const overlay = document.createElement('div');
+        overlay.id = 'liko-dr-overlay';
+
+        const onPointer = (e) => {
+            if (!drActive) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const x = e.clientX ?? e.changedTouches?.[0]?.clientX;
+            const y = e.clientY ?? e.changedTouches?.[0]?.clientY;
+            if (x != null && y != null) drInjectClick(x, y);
+        };
+
+        overlay.addEventListener('mousedown',  onPointer, { passive: false });
+        overlay.addEventListener('touchstart', onPointer, { passive: false });
+        document.body.appendChild(overlay);
+
+        drCapture = { overlay, onPointer };
+        // DOM 搬移已整合進 drStartMirror 的 rAF loop，不需要額外 timer
+        drMoveDomElements();
+    }
+
+    function drRemove() {
+        if (!drActive) return;
+        drActive = false;
+
+        // 停止 DOM 搬移（已整合進 mirror rAF loop）
+
+        // 停止 mirror
+        if (drMirrorRAF) { cancelAnimationFrame(drMirrorRAF); drMirrorRAF = null; }
+        document.getElementById('liko-dr-mirror')?.remove();
+
+        // 還原 dialog-root 位置（BC 下一幀會重設回正確值）
+        document.querySelectorAll('.dialog-root').forEach(el => {
+            el.style.removeProperty('left');
+            el.style.removeProperty('top');
+            el.style.removeProperty('z-index');
+            el.style.removeProperty('width');
+        });
+
+        clearCanvasStyle();
+        removeStyle('liko-ml-dr');
+
+        if (drCapture) {
+            const { overlay, onPointer } = drCapture;
+            overlay.removeEventListener('mousedown',  onPointer);
+            overlay.removeEventListener('touchstart', onPointer);
+            overlay.remove();
+            drCapture = null;
+        }
+    }
+
+    function drMaintain() {
+        if (!drActive) return;
+        forceCanvasStyle(Math.round(window.innerHeight * 0.5));
+        // mirror canvas 由自己的 rAF loop 維持，不需要額外呼叫
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
     // 場景偵測（每幀呼叫）
     // ════════════════════════════════════════════════════════════════════════════
 
@@ -1148,27 +1249,37 @@
             if (crActive)  crRemove();
             if (csActive)  csRemove();
             if (cshActive) cshRemove();
+            if (drActive)  drRemove();
             return;
         }
-        const scr      = typeof CurrentScreen   !== 'undefined' ? CurrentScreen   : '';
-        const noDialog = typeof CurrentCharacter === 'undefined' || CurrentCharacter === null;
+        const scr       = typeof CurrentScreen    !== 'undefined' ? CurrentScreen    : '';
+        const hasDialog = typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null;
 
-        if (scr === 'ChatRoom' && noDialog) {
+        if (scr === 'ChatRoom' && hasDialog) {
             if (csActive)  csRemove();
             if (cshActive) cshRemove();
+            if (crActive)  crRemove();
+            if (!drActive) drApply();
+        } else if (scr === 'ChatRoom' && !hasDialog) {
+            if (csActive)  csRemove();
+            if (cshActive) cshRemove();
+            if (drActive)  drRemove();
             if (!crActive) crApply();
         } else if (scr === 'ChatSearch') {
             if (crActive)  crRemove();
             if (csActive)  csRemove();
+            if (drActive)  drRemove();
             if (!cshActive) cshApply();
         } else if (scr === 'ChatSelect') {
             if (crActive)  crRemove();
             if (cshActive) cshRemove();
+            if (drActive)  drRemove();
             if (!csActive) csApply();
         } else {
             if (crActive)  crRemove();
             if (csActive)  csRemove();
             if (cshActive) cshRemove();
+            if (drActive)  drRemove();
         }
     }
 
@@ -1176,7 +1287,18 @@
     // BC 函數鉤子（Hooks）
     // ════════════════════════════════════════════════════════════════════════════
 
-    // ChatRoom
+    modApi.hookFunction('DialogLoad', 0, (args, next) => {
+        const r = next(args);
+        if (isPortrait() && !drActive) drApply();
+        return r;
+    });
+
+    modApi.hookFunction('DialogLeave', 0, (args, next) => {
+        const r = next(args);
+        if (drActive) drRemove();
+        return r;
+    });
+
     modApi.hookFunction('ChatRoomTopMenuPosition', 0, (args, next) => {
         if (crActive) { crMaintain(); return; }
         return next(args);
@@ -1188,7 +1310,6 @@
         crRemove(); return next(args);
     });
 
-    // ChatSearch — 結果回來後標記需要同步，並在下一次 Run 時觸發（避免競態）
     modApi.hookFunction('ChatSearchResultResponse', 0, (args, next) => {
         const r = next(args);
         if (cshActive) cshNeedSync = true;
@@ -1206,7 +1327,6 @@
         return r;
     });
 
-    // ChatSelect / ChatSearch 重新載入
     modApi.hookFunction('ChatSelectLoad', 0, (args, next) => {
         const r = next(args);
         if (csActive) requestAnimationFrame(buildCsBg);
@@ -1218,11 +1338,11 @@
         return r;
     });
 
-    // DrawProcess：場景偵測 + Canvas 維持
     modApi.hookFunction('DrawProcess', 5, (args, next) => {
         next(args);
         checkScene();
         if (crActive) forceCanvasStyle(Math.round(window.innerHeight * 0.5));
+        if (drActive) drMaintain();
     });
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -1234,13 +1354,14 @@
         if (crActive)  { crRemove();  if (p) crApply();  }
         if (csActive)  { csRemove();  if (p) csApply();  }
         if (cshActive) { cshRemove(); if (p) cshApply(); }
+        if (drActive)  { drRemove();  if (p) { drApply(); } }
     }
 
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', () => setTimeout(handleResize, 250));
 
     // ════════════════════════════════════════════════════════════════════════════
-    // 初始化（等待 BC 載入完畢）
+    // 初始化
     // ════════════════════════════════════════════════════════════════════════════
 
     function waitForBC() {
@@ -1249,19 +1370,23 @@
 
         console.log(`🐈‍⬛ [MPL] ✅ 初始化完成 v${MOD_VER}`);
 
-        // 開發用 debug API
-        window.CSHMobilePatch = {
-            render:              renderCshList,
-            refreshSpaceButton:  refreshCshSpaceButton,
-            getOwnerSet:         () => [...getOwnerSet()],
-            getLoverSet:         () => [...getLoverSet()],
-            getFriendSet:        () => [...getFriendSet()],
-            debugFirstRoom:      () => {
+        window.Liko.MPL = {
+            version            : MOD_VER,
+            render             : renderCshList,
+            refreshSpaceButton : refreshCshSpaceButton,
+            getOwnerSet        : () => [...getOwnerSet()],
+            getLoverSet        : () => [...getLoverSet()],
+            getFriendSet       : () => [...getFriendSet()],
+            debugFirstRoom     : () => {
                 const room = getCshRoomsSource()[0];
                 return room
                     ? { room, relations: getRoomRelations(room), topRelation: getTopRelation(room) }
                     : null;
             },
+            // screenY 需大於 cvH（下半）才會觸發 dialog 點擊
+            testClick: drInjectClick,
+            // 強制重建 mirror（解析度改變時）
+            rebuildMirror: drStartMirror,
         };
     }
 
