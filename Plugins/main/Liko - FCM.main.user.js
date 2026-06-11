@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.2-2
+// @version      1.4.2-3
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -80,7 +80,7 @@
             online: '在線', offline: '不在線',
             btnView: '查看', btnBeep: '私訊', btnWhisper: '悄悄話', btnAddFriend: '+好友', btnRmFriend: '-好友',
             btnAddAdmin: '+管理', btnRmAdmin: '-管理', btnAddWhite: '+白單', btnRmWhite: '-白單',
-            btnAddBan: '+黑單', btnRmBan: '解禁', btnKick: '逐出',
+            btnAddBan: '+黑單', btnRmBan: '-黑單', btnKick: '逐出', btnAddBlack: '+黑單', btnRmBlack: '-黑單',
             btnAdd: '添加', btnAddTitle: '添加ID到名單',
             roomTabs: { members: '房內人員', admin: '管理者', white: '白名單', ban: '黑名單' },
             notInRoom: '目前不在任何房間中', noAdminWarn: '⚠ 無管理員權限，房管欄僅供查看',
@@ -176,7 +176,7 @@
             online: 'Online', offline: 'Offline',
             btnView: 'View', btnBeep: 'BEEP', btnWhisper: 'Msg', btnAddFriend: '+Frnd', btnRmFriend: '-Frnd',
             btnAddAdmin: '+Admin', btnRmAdmin: '-Admin', btnAddWhite: '+White', btnRmWhite: '-White',
-            btnAddBan: '+Ban', btnRmBan: 'Unban', btnKick: 'Kick',
+            btnAddBan: '+BAN', btnRmBan: '-BAN', btnKick: 'Kick',  btnAddBlack: '+Black', btnRmBlack: '-Black',
             btnAdd: 'Add', btnAddTitle: 'Add ID to list',
             roomTabs: { members: 'Members', admin: 'Admins', white: 'Whitelist', ban: 'Blacklist' },
             notInRoom: 'Not currently in a room', noAdminWarn: '⚠ No admin rights — Room Admin column is view-only',
@@ -1325,7 +1325,7 @@
                                                     : (isZh() ? `將「${_dname}」加入白名單？` : `Add "${_dname}" to whitelist?`) + osSuffix,
                                                     () => doToggleList(mn, 'white', !_isWhl))));
 
-            ops.appendChild(mkBtn(_isBl ? T('btnRmBan') : T('btnAddBan'), 'fcm-btn-red',
+            ops.appendChild(mkBtn(_isBl ? T('btnRmBlack') : T('btnAddBlack'), 'fcm-btn-red',
                                   () => showConfirm(_isBl
                                                     ? (isZh() ? `移除「${_dname}」黑名單？` : `Remove "${_dname}" from blacklist?`)
                                                     : T('confirmAddBan', _dname) + osSuffix,
@@ -1965,7 +1965,7 @@
                                                             ? (isZh() ? `移除「${_dname2}」白名單？` : `Remove "${_dname2}" from whitelist?`)
                                                             : (isZh() ? `將「${_dname2}」加入白名單？` : `Add "${_dname2}" to whitelist?`) + osSuffix,
                                                             () => doToggleList(mn, 'white', !_isWhl2))));
-                opsWrap.appendChild(mkBtn(_isBl2 ? T('btnRmBan') : T('btnAddBan'), 'fcm-btn-red',
+                opsWrap.appendChild(mkBtn(_isBl2 ? T('btnRmBlack') : T('btnAddBlack'), 'fcm-btn-red',
                                           () => showConfirm(_isBl2
                                                             ? (isZh() ? `移除「${_dname2}」黑名單？` : `Remove "${_dname2}" from blacklist?`)
                                                             : T('confirmAddBan', _dname2) + osSuffix,
