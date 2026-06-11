@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.2-3
+// @version      1.4.2-４
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -78,9 +78,9 @@
             relOwner: '主人', relLover: '戀人', relSub: '奴隸', relFriend: '好友', relContact: '單向好友',
             zoneF: '♀', zoneM: '♂', zoneX: '♀♂', zoneUnk: '—',
             online: '在線', offline: '不在線',
-            btnView: '查看', btnBeep: '私訊', btnWhisper: '悄悄話', btnAddFriend: '+好友', btnRmFriend: '-好友',
-            btnAddAdmin: '+管理', btnRmAdmin: '-管理', btnAddWhite: '+白單', btnRmWhite: '-白單',
-            btnAddBan: '+黑單', btnRmBan: '-黑單', btnKick: '逐出', btnAddBlack: '+黑單', btnRmBlack: '-黑單',
+            btnView: '查看', btnBeep: '私訊', btnWhisper: '悄悄話', btnAddFriend: '＋好友', btnRmFriend: '－好友',
+            btnAddAdmin: '＋管理', btnRmAdmin: '－管理', btnAddWhite: '＋白單', btnRmWhite: '－白單',
+            btnAddBan: '＋黑單', btnRmBan: '－黑單', btnKick: '逐出', btnAddBlack: '＋黑單', btnRmBlack: '－黑單',
             btnAdd: '添加', btnAddTitle: '添加ID到名單',
             roomTabs: { members: '房內人員', admin: '管理者', white: '白名單', ban: '黑名單' },
             notInRoom: '目前不在任何房間中', noAdminWarn: '⚠ 無管理員權限，房管欄僅供查看',
@@ -175,8 +175,8 @@
             zoneF: '♀', zoneM: '♂', zoneX: '♀♂', zoneUnk: '—',
             online: 'Online', offline: 'Offline',
             btnView: 'View', btnBeep: 'BEEP', btnWhisper: 'Msg', btnAddFriend: '+Frnd', btnRmFriend: '-Frnd',
-            btnAddAdmin: '+Admin', btnRmAdmin: '-Admin', btnAddWhite: '+White', btnRmWhite: '-White',
-            btnAddBan: '+BAN', btnRmBan: '-BAN', btnKick: 'Kick',  btnAddBlack: '+Black', btnRmBlack: '-Black',
+            btnAddAdmin: '＋Admin', btnRmAdmin: '－Admin', btnAddWhite: '＋White', btnRmWhite: '－White',
+            btnAddBan: '＋BAN', btnRmBan: '－BAN', btnKick: 'Kick',  btnAddBlack: '＋Black', btnRmBlack: '－Black',
             btnAdd: 'Add', btnAddTitle: 'Add ID to list',
             roomTabs: { members: 'Members', admin: 'Admins', white: 'Whitelist', ban: 'Blacklist' },
             notInRoom: 'Not currently in a room', noAdminWarn: '⚠ No admin rights — Room Admin column is view-only',
@@ -1332,7 +1332,7 @@
                                                     () => doToggleList(mn, 'black', !_isBl),
                                                     _isBl ? undefined : (isZh() ? '加入' : 'Add'))));
 
-            ops.appendChild(mkBtn(_isGh ? (isZh() ? '-幽靈' : '-Ghost') : (isZh() ? '+幽靈' : '+Ghost'), _isGh ? 'fcm-btn-red' : 'fcm-btn-purple',
+            ops.appendChild(mkBtn(_isGh ? (isZh() ? '－幽靈' : '－Ghost') : (isZh() ? '＋幽靈' : '＋Ghost'), _isGh ? 'fcm-btn-red' : 'fcm-btn-purple',
                                   () => showConfirm(_isGh
                                                     ? (isZh() ? `移除「${_dname}」幽靈？` : `Remove "${_dname}" from ghost?`)
                                                     : T('confirmAddGhost', _dname) + osSuffix,
