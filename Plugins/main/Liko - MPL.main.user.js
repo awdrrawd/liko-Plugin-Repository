@@ -2,7 +2,7 @@
 // @name           Liko - Mobile Portrait Layout
 // @name:zh        Liko的手機直版佈局
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.3.0
+// @version        0.3.1
 // @description    Supports vertical layout for ChatSearch and ChatRoom
 // @description:zh 支援房間搜尋與聊天室的直版佈局
 // @author         Likolisu
@@ -20,7 +20,7 @@
     window.Liko = window.Liko ?? {};
     if (window.Liko.MPL) return;
 
-    const MOD_VER = '0.3.0';
+    const MOD_VER = '0.3.1';
     const modApi = bcModSdk.registerMod({
         name:       'Liko - MPL',
         fullName:   'Mobile Portrait Layout',
@@ -1202,21 +1202,41 @@
     let drCapture     = null;   // { overlay, onMouseDown, onTouchStart }
 
     /** 把下半螢幕點擊座標轉成 BC 虛擬座標，直接觸發 BC 點擊邏輯 */
-    function drInjectClick(screenX, screenY) {
-        const vw  = window.innerWidth;
-        const cvH = Math.round(window.innerHeight * 0.5);
+function drInjectClick(screenX, screenY) {
+    const vw  = window.innerWidth;
+    const cvH = Math.round(window.innerHeight * 0.5);
 
-        // 下半螢幕 → BC 右半虛擬座標 [1000~2000, 0~1000]
-        const bcX = 1000 + (screenX / vw) * 1000;
-        const bcY = ((screenY - cvH) / cvH) * 1000;
+    // 下半螢幕 → BC canvas 右半的像素座標
+    // 主 canvas 的實際尺寸是 vw*2 × cvH（你在 forceCanvasStyle 設定的）
+    // BC 虛擬座標 [0~2000] × [0~1000]
+    // 右半對應 canvas 像素 x: vw ~ vw*2, y: 0 ~ cvH
+    const canvasPixelX = vw + (screenX / vw) * vw;   // 映射到右半
+    const canvasPixelY = (screenY - cvH) / cvH * cvH; // 映射到上半高度
 
-        // 直接設定 BC 全域滑鼠座標並呼叫點擊處理
-        if (typeof MouseX !== 'undefined') MouseX = bcX;
-        if (typeof MouseY !== 'undefined') MouseY = bcY;
-        if (typeof DialogMenuButtonClick === 'function') {
-            try { DialogMenuButtonClick(); } catch(e) {}
-        }
-    }
+    const cv = getCanvas();
+    if (!cv) return;
+
+    // 方法一：直接在 canvas 上 dispatch MouseEvent（最乾淨）
+    const rect = cv.getBoundingClientRect();
+    // canvas 被放在 left:0, 但寬度是 vw*2，所以右半在螢幕外
+    // 需要 dispatch 到 canvas 的實際像素位置
+
+    // 設定 BC 全域座標（BC 在 click handler 裡會讀這些）
+    if (typeof MouseX !== 'undefined') MouseX = 1000 + (screenX / vw) * 1000;
+    if (typeof MouseY !== 'undefined') MouseY = ((screenY - cvH) / cvH) * 1000;
+
+    // 模擬完整的 click 事件鏈，讓 BC 自己判斷要呼叫哪個函數
+    const eventOpts = {
+        bubbles: true,
+        cancelable: true,
+        clientX: canvasPixelX + rect.left,
+        clientY: canvasPixelY + rect.top,
+    };
+
+    cv.dispatchEvent(new MouseEvent('mousedown', eventOpts));
+    cv.dispatchEvent(new MouseEvent('mouseup',   eventOpts));
+    cv.dispatchEvent(new MouseEvent('click',     eventOpts));
+}
 
     /** 只移動 dialog-root 頂層容器到下半螢幕，子元素不動（保持相對定位） */
     function drMoveDomElements() {
