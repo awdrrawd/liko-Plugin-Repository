@@ -2,7 +2,7 @@
 // @name           Liko - Mobile Portrait Layout
 // @name:zh        Liko的手機直版佈局
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.3.1
+// @version        0.3.2
 // @description    Supports vertical layout for ChatSearch and ChatRoom
 // @description:zh 支援房間搜尋與聊天室的直版佈局
 // @author         Likolisu
@@ -20,7 +20,7 @@
     window.Liko = window.Liko ?? {};
     if (window.Liko.MPL) return;
 
-    const MOD_VER = '0.3.1';
+    const MOD_VER = '0.3.2';
     const modApi = bcModSdk.registerMod({
         name:       'Liko - MPL',
         fullName:   'Mobile Portrait Layout',
@@ -245,8 +245,7 @@
 
     // ── 假輸入框覆蓋層 ──────────────────────────────────────────────────────────
     // 攔截 chat-room-div 內的 input/textarea focus，
-    // 顯示全螢幕覆蓋層 + 假輸入框，讓使用者確認後再送出，
-    // 避免手機鍵盤彈出推動畫面。
+    // 顯示全螢幕覆蓋層 + 假輸入框，讓使用者確認後再送出，避免手機鍵盤彈出推動畫面。
 
     let crFakeInputActive = false;
 
@@ -254,72 +253,73 @@
         if (crFakeInputActive) return;
         crFakeInputActive = true;
 
-        // 把 real input 的 blur 先觸發，避免鍵盤自動彈出
+        realInput.setAttribute('readonly', 'true');
         realInput.blur();
 
+        requestAnimationFrame(() => {
+            realInput.removeAttribute('readonly');
+        });
+
+        // 建立 overlay
         const overlay = document.createElement('div');
         overlay.id = 'liko-cr-fake-input-overlay';
         overlay.style.cssText = `
-            position: fixed; inset: 0; z-index: 200;
-            background: rgba(0,0,0,0.72);
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: flex-start;
-            padding-top: 18px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        `;
+        position: fixed; inset: 0; z-index: 200;
+        background: rgba(0,0,0,0.72);
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: flex-start;
+        padding-top: 18px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    `;
 
-        // 輸入框容器
         const box = document.createElement('div');
         box.style.cssText = `
-            width: 92%; max-width: 520px;
-            background: #1a1a2e;
-            border: 1px solid rgba(255,255,255,0.18);
-            border-radius: 14px;
-            padding: 12px 14px;
-            display: flex; flex-direction: column; gap: 10px;
-        `;
+        width: 92%; max-width: 520px;
+        background: #1a1a2e;
+        border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 14px;
+        padding: 12px 14px;
+        display: flex; flex-direction: column; gap: 10px;
+    `;
 
-        // 標題
         const title = document.createElement('div');
         title.textContent = '輸入訊息';
         title.style.cssText = 'color: rgba(255,255,255,0.55); font-size: 12px;';
         box.appendChild(title);
 
-        // 假 textarea
         const ta = document.createElement('textarea');
         ta.value       = realInput.value || '';
         ta.placeholder = realInput.placeholder || '';
         ta.rows        = 4;
         ta.style.cssText = `
-            width: 100%; box-sizing: border-box;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.18);
-            border-radius: 9px; color: #fff; font-size: 15px;
-            padding: 10px 12px; outline: none; resize: none;
-            font-family: inherit; line-height: 1.5;
-        `;
+        width: 100%; box-sizing: border-box;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 9px; color: #fff; font-size: 15px;
+        padding: 10px 12px; outline: none; resize: none;
+        font-family: inherit; line-height: 1.5;
+    `;
 
-        // 按鈕列
         const btnRow = document.createElement('div');
         btnRow.style.cssText = 'display: flex; gap: 8px; justify-content: flex-end;';
 
         const cancelBtn = document.createElement('button');
         cancelBtn.textContent = '取消';
         cancelBtn.style.cssText = `
-            padding: 8px 20px; border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.18);
-            background: rgba(255,255,255,0.07);
-            color: #fff; font-size: 14px; cursor: pointer;
-        `;
+        padding: 8px 20px; border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.07);
+        color: #fff; font-size: 14px; cursor: pointer;
+    `;
 
         const sendBtn = document.createElement('button');
         sendBtn.textContent = '送出';
         sendBtn.style.cssText = `
-            padding: 8px 20px; border-radius: 8px;
-            border: 1px solid rgba(100,80,220,0.60);
-            background: rgba(80,60,200,0.40);
-            color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
-        `;
+        padding: 8px 20px; border-radius: 8px;
+        border: 1px solid rgba(100,80,220,0.60);
+        background: rgba(80,60,200,0.40);
+        color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
+    `;
 
         const close = () => {
             crFakeInputActive = false;
@@ -329,11 +329,9 @@
         cancelBtn.addEventListener('click', close);
 
         sendBtn.addEventListener('click', () => {
-            // 把文字寫回 real input 再觸發 Enter
             realInput.value = ta.value;
             realInput.dispatchEvent(new Event('input', { bubbles: true }));
-            // 觸發送出（Enter keydown/keyup）
-            ['keydown','keypress','keyup'].forEach(type => {
+            ['keydown', 'keypress', 'keyup'].forEach(type => {
                 realInput.dispatchEvent(new KeyboardEvent(type, {
                     key: 'Enter', code: 'Enter', keyCode: 13,
                     bubbles: true, cancelable: true,
@@ -342,10 +340,7 @@
             close();
         });
 
-        // 點背景關閉
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) close();
-        });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
         btnRow.appendChild(cancelBtn);
         btnRow.appendChild(sendBtn);
@@ -354,11 +349,16 @@
         overlay.appendChild(box);
         document.body.appendChild(overlay);
 
-        // 延遲 focus 讓 overlay 先渲染
-        setTimeout(() => ta.focus(), 80);
+        // iOS 需要在 user gesture 的同步呼叫或極短延遲內 focus
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                ta.focus();
+                ta.selectionStart = ta.selectionEnd = ta.value.length;
+            });
+        });
     }
 
-    /** 攔截聊天輸入框的 focus 事件 */
+    // ── 攔截聊天輸入框 ────────────────────────────────────────────────────────
     function crHookChatInput() {
         const chatDiv = document.getElementById('chat-room-div');
         if (!chatDiv || chatDiv._likoFakeInputHooked) return;
@@ -369,8 +369,8 @@
             const el = e.target;
             if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
             e.preventDefault();
-            crShowFakeInput(el);
-        }, true);   // capture phase，在 BC 之前攔截
+            crShowFakeInput(el);   // ← 直接呼叫，不用 crBuildFakeInputOverlay
+        }, true);
     }
 
     function crMaintain() {
@@ -391,7 +391,7 @@
 
     function crApply() {
         crActive   = true;
-        crLockedVH = window.innerHeight;   // 鎖定當前高度
+        crLockedVH = getLockedVH();
         const L = crCalc();
         injectStyle('liko-ml-cr', `
             html, body { overflow-x: hidden !important }
@@ -1202,41 +1202,45 @@
     let drCapture     = null;   // { overlay, onMouseDown, onTouchStart }
 
     /** 把下半螢幕點擊座標轉成 BC 虛擬座標，直接觸發 BC 點擊邏輯 */
-function drInjectClick(screenX, screenY) {
-    const vw  = window.innerWidth;
-    const cvH = Math.round(window.innerHeight * 0.5);
+    function drInjectClick(screenX, screenY) {
+        const vw  = window.innerWidth;
+        const cvH = Math.round(window.innerHeight * 0.5);
 
-    // 下半螢幕 → BC canvas 右半的像素座標
-    // 主 canvas 的實際尺寸是 vw*2 × cvH（你在 forceCanvasStyle 設定的）
-    // BC 虛擬座標 [0~2000] × [0~1000]
-    // 右半對應 canvas 像素 x: vw ~ vw*2, y: 0 ~ cvH
-    const canvasPixelX = vw + (screenX / vw) * vw;   // 映射到右半
-    const canvasPixelY = (screenY - cvH) / cvH * cvH; // 映射到上半高度
+        // 下半螢幕 → BC canvas 右半的像素座標
+        // 主 canvas 的實際尺寸是 vw*2 × cvH（你在 forceCanvasStyle 設定的）
+        // BC 虛擬座標 [0~2000] × [0~1000]
+        // 右半對應 canvas 像素 x: vw ~ vw*2, y: 0 ~ cvH
+        const canvasPixelX = vw + (screenX / vw) * vw;   // 映射到右半
+        const canvasPixelY = (screenY - cvH) / cvH * cvH; // 映射到上半高度
 
-    const cv = getCanvas();
-    if (!cv) return;
+        const cv = getCanvas();
+        if (!cv) return;
 
-    // 方法一：直接在 canvas 上 dispatch MouseEvent（最乾淨）
-    const rect = cv.getBoundingClientRect();
-    // canvas 被放在 left:0, 但寬度是 vw*2，所以右半在螢幕外
-    // 需要 dispatch 到 canvas 的實際像素位置
+        // 直接在 canvas 上 dispatch MouseEvent
+        const rect = cv.getBoundingClientRect();
+        // canvas 被放在 left:0, 但寬度是 vw*2，所以右半在螢幕外
+        // 需要 dispatch 到 canvas 的實際像素位置
 
-    // 設定 BC 全域座標（BC 在 click handler 裡會讀這些）
-    if (typeof MouseX !== 'undefined') MouseX = 1000 + (screenX / vw) * 1000;
-    if (typeof MouseY !== 'undefined') MouseY = ((screenY - cvH) / cvH) * 1000;
+        // 設定 BC 全域座標（BC 在 click handler 裡會讀這些）
+        if (typeof MouseX !== 'undefined') MouseX = 1000 + (screenX / vw) * 1000;
+        if (typeof MouseY !== 'undefined') MouseY = ((screenY - cvH) / cvH) * 1000;
 
-    // 模擬完整的 click 事件鏈，讓 BC 自己判斷要呼叫哪個函數
-    const eventOpts = {
-        bubbles: true,
-        cancelable: true,
-        clientX: canvasPixelX + rect.left,
-        clientY: canvasPixelY + rect.top,
-    };
+        // 模擬完整的 click 事件鏈，讓 BC 自己判斷要呼叫哪個函數
+        const eventOpts = {
+            bubbles: true,
+            cancelable: true,
+            clientX: canvasPixelX + rect.left,
+            clientY: canvasPixelY + rect.top,
+        };
 
-    cv.dispatchEvent(new MouseEvent('mousedown', eventOpts));
-    cv.dispatchEvent(new MouseEvent('mouseup',   eventOpts));
-    cv.dispatchEvent(new MouseEvent('click',     eventOpts));
-}
+        cv.dispatchEvent(new MouseEvent('mousedown', eventOpts));
+        cv.dispatchEvent(new MouseEvent('mouseup',   eventOpts));
+        cv.dispatchEvent(new MouseEvent('click',     eventOpts));
+        requestAnimationFrame(() => {
+            if (typeof MouseX !== 'undefined') MouseX = -1;
+            if (typeof MouseY !== 'undefined') MouseY = -1;
+        });
+    }
 
     /** 只移動 dialog-root 頂層容器到下半螢幕，子元素不動（保持相對定位） */
     function drMoveDomElements() {
@@ -1244,27 +1248,17 @@ function drInjectClick(screenX, screenY) {
         const vw  = window.innerWidth;
         const cvH = Math.round(window.innerHeight * 0.5);
 
-        document.querySelectorAll('.dialog-root').forEach(el => {
-            // 取 BC 設定的原始 left/top（px 值）
-            const origLeft = parseFloat(el.style.left) || 0;
-            const origTop  = parseFloat(el.style.top)  || 0;
-            const origW    = parseFloat(el.style.width) || 0;
+        document.querySelectorAll('.dialog-root, #color-picker, #layering').forEach(el => {
+            const r = el.getBoundingClientRect();
+            // 元素在螢幕右側外（超出 vw）才處理
+            if (r.left < vw * 0.5) return;
 
-            // 只處理在右半（超出螢幕）的 dialog-root
-            if (origLeft < vw - 10) return;
-
-            // 映射到下半：x 對應到 0~vw，y 從 cvH 開始
-            // origLeft 是相對 BC 2000px 虛擬座標系縮放後的 px，
-            // 右半起點大約是 vw（螢幕寬），對應 BC x=1000
-            // newLeft = origLeft - vw（讓右半從 0 開始）
-            const newLeft = origLeft - vw;
-            const newTop  = origTop  + cvH;
-
-            el.style.setProperty('left',    newLeft + 'px', 'important');
-            el.style.setProperty('top',     newTop  + 'px', 'important');
-            el.style.setProperty('z-index', '20',           'important');
-            // 寬度拉到 vw（填滿螢幕寬度）
-            el.style.setProperty('width',   vw + 'px',      'important');
+            el.style.setProperty('left',    (r.left - vw) + 'px', 'important');
+            el.style.setProperty('top',     (r.top  + cvH) + 'px', 'important');
+            el.style.setProperty('z-index', '20', 'important');
+            if (el.classList.contains('dialog-root')) {
+                el.style.setProperty('width', vw + 'px', 'important');
+            }
         });
     }
 
@@ -1318,27 +1312,24 @@ function drInjectClick(screenX, screenY) {
         forceCanvasStyle(cvH);
 
         injectStyle('liko-ml-dr', `
-            html, body { overflow-x: hidden !important }
-            #liko-dr-overlay {
-                position: fixed;
-                top: ${cvH}px; left: 0;
-                width: 100vw; height: calc(100vh - ${cvH}px);
-                z-index: 10 !important;   /* dialog-root z-index:20 在上面，可直接點 */
-                cursor: pointer;
-                -webkit-tap-highlight-color: transparent;
-                background: transparent;
-            }
-            /* dialog-root 搬到下半後確保可點擊 */
-            .dialog-root {
-                pointer-events: auto !important;
-                overflow-y: auto !important;
-            }
-        `);
+        html, body { overflow-x: hidden !important }
+        #liko-dr-overlay {
+            position: fixed;
+            top: ${cvH}px; left: 0;
+            width: 100vw; height: calc(100vh - ${cvH}px);
+            z-index: 10 !important;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            background: transparent;
+        }
+        .dialog-root {
+            pointer-events: auto !important;
+            overflow-y: auto !important;
+        }
+    `);
 
-        // 啟動 mirror
         drStartMirror();
 
-        // 建立點擊攔截 overlay
         document.getElementById('liko-dr-overlay')?.remove();
         const overlay = document.createElement('div');
         overlay.id = 'liko-dr-overlay';
@@ -1357,21 +1348,15 @@ function drInjectClick(screenX, screenY) {
         document.body.appendChild(overlay);
 
         drCapture = { overlay, onPointer };
-        // DOM 搬移已整合進 drStartMirror 的 rAF loop，不需要額外 timer
         drMoveDomElements();
     }
-
     function drRemove() {
         if (!drActive) return;
         drActive = false;
 
-        // 停止 DOM 搬移（已整合進 mirror rAF loop）
-
-        // 停止 mirror
         if (drMirrorRAF) { cancelAnimationFrame(drMirrorRAF); drMirrorRAF = null; }
         document.getElementById('liko-dr-mirror')?.remove();
 
-        // 還原 dialog-root 位置（BC 下一幀會重設回正確值）
         document.querySelectorAll('.dialog-root').forEach(el => {
             el.style.removeProperty('left');
             el.style.removeProperty('top');
@@ -1513,7 +1498,18 @@ function drInjectClick(screenX, screenY) {
         if (cshActive) { cshRemove(); if (p) cshApply(); }
         if (drActive)  { drRemove();  if (p) { drApply(); } }
     }
+    // ── 工具：取得視窗高度（排除軟鍵盤）──────────────────────────────────────
+    function getLockedVH() {
+        return window.visualViewport
+            ? window.visualViewport.height
+        : window.innerHeight;
+    }
 
+    // 監聽 visualViewport resize，防止 overlay 被鍵盤推走
+    window.visualViewport?.addEventListener('resize', () => {
+        const overlay = document.getElementById('liko-cr-fake-input-overlay');
+        if (overlay) overlay.style.height = getLockedVH() + 'px';
+    });
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', () => setTimeout(handleResize, 250));
 
