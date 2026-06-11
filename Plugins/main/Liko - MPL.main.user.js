@@ -14,9 +14,11 @@
 // ==/UserScript==
 
 (function () {
+    'use strict';
+
+    // ─── 防止重複載入 ───────────────────────────────────────────────────────────
     window.Liko = window.Liko ?? {};
     if (window.Liko.MPL) return;
-    window.Liko.MPL = window.Liko.MPL ?? {};
 
     const MOD_VER = '0.3.0';
     const modApi = bcModSdk.registerMod({
@@ -156,11 +158,11 @@
         const RANK = { owner: 3, lover: 2, friend: 1 };
         return friends
             .map(f => {
-                const memberNumber = Number(typeof f === 'object' ? f.MemberNumber : f);
-                const memberName   = typeof f === 'object' ? (f.MemberName || String(memberNumber)) : String(memberNumber);
-                const relation     = getRelation(memberNumber) || 'friend';
-                return { memberNumber, memberName, relation };
-            })
+            const memberNumber = Number(typeof f === 'object' ? f.MemberNumber : f);
+            const memberName   = typeof f === 'object' ? (f.MemberName || String(memberNumber)) : String(memberNumber);
+            const relation     = getRelation(memberNumber) || 'friend';
+            return { memberNumber, memberName, relation };
+        })
             .sort((a, b) => (RANK[b.relation] ?? 0) - (RANK[a.relation] ?? 0));
     }
 
@@ -196,7 +198,7 @@
         if (playerHasMaleGender()) return '目前在混區（含 M 角色固定混區）';
         return getCurrentSpace() === 'X'
             ? '目前在混區，點擊切換到女區'
-            : '目前在女區，點擊切換到混區';
+        : '目前在女區，點擊切換到混區';
     }
 
     function getToggleTargetSpace() {
@@ -222,9 +224,11 @@
 
     let crActive   = false;
     let crOrigRect = null;
+    let crLockedVH = 0;   // 鎖定進入聊天室時的視窗高度，防止鍵盤彈出時重算
 
     function crCalc() {
-        const vw = window.innerWidth, vh = window.innerHeight;
+        const vw = window.innerWidth;
+        const vh = crLockedVH || window.innerHeight;   // 使用鎖定高度
         const cvW = vw * 2,         cvH = Math.round(vh * 0.5);
         const sx = cvW / 2000,      sy  = cvH / 1000;
         const mLY = Math.round(cvH / sy);
@@ -237,6 +241,136 @@
             cLY: Math.round(cSY / sy),
             cLH: Math.round(cSH / sy),
         };
+    }
+
+    // ── 假輸入框覆蓋層 ──────────────────────────────────────────────────────────
+    // 攔截 chat-room-div 內的 input/textarea focus，
+    // 顯示全螢幕覆蓋層 + 假輸入框，讓使用者確認後再送出，
+    // 避免手機鍵盤彈出推動畫面。
+
+    let crFakeInputActive = false;
+
+    function crShowFakeInput(realInput) {
+        if (crFakeInputActive) return;
+        crFakeInputActive = true;
+
+        // 把 real input 的 blur 先觸發，避免鍵盤自動彈出
+        realInput.blur();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'liko-cr-fake-input-overlay';
+        overlay.style.cssText = `
+            position: fixed; inset: 0; z-index: 200;
+            background: rgba(0,0,0,0.72);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: flex-start;
+            padding-top: 18px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        `;
+
+        // 輸入框容器
+        const box = document.createElement('div');
+        box.style.cssText = `
+            width: 92%; max-width: 520px;
+            background: #1a1a2e;
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 14px;
+            padding: 12px 14px;
+            display: flex; flex-direction: column; gap: 10px;
+        `;
+
+        // 標題
+        const title = document.createElement('div');
+        title.textContent = '輸入訊息';
+        title.style.cssText = 'color: rgba(255,255,255,0.55); font-size: 12px;';
+        box.appendChild(title);
+
+        // 假 textarea
+        const ta = document.createElement('textarea');
+        ta.value       = realInput.value || '';
+        ta.placeholder = realInput.placeholder || '';
+        ta.rows        = 4;
+        ta.style.cssText = `
+            width: 100%; box-sizing: border-box;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 9px; color: #fff; font-size: 15px;
+            padding: 10px 12px; outline: none; resize: none;
+            font-family: inherit; line-height: 1.5;
+        `;
+
+        // 按鈕列
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display: flex; gap: 8px; justify-content: flex-end;';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = '取消';
+        cancelBtn.style.cssText = `
+            padding: 8px 20px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.07);
+            color: #fff; font-size: 14px; cursor: pointer;
+        `;
+
+        const sendBtn = document.createElement('button');
+        sendBtn.textContent = '送出';
+        sendBtn.style.cssText = `
+            padding: 8px 20px; border-radius: 8px;
+            border: 1px solid rgba(100,80,220,0.60);
+            background: rgba(80,60,200,0.40);
+            color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
+        `;
+
+        const close = () => {
+            crFakeInputActive = false;
+            overlay.remove();
+        };
+
+        cancelBtn.addEventListener('click', close);
+
+        sendBtn.addEventListener('click', () => {
+            // 把文字寫回 real input 再觸發 Enter
+            realInput.value = ta.value;
+            realInput.dispatchEvent(new Event('input', { bubbles: true }));
+            // 觸發送出（Enter keydown/keyup）
+            ['keydown','keypress','keyup'].forEach(type => {
+                realInput.dispatchEvent(new KeyboardEvent(type, {
+                    key: 'Enter', code: 'Enter', keyCode: 13,
+                    bubbles: true, cancelable: true,
+                }));
+            });
+            close();
+        });
+
+        // 點背景關閉
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) close();
+        });
+
+        btnRow.appendChild(cancelBtn);
+        btnRow.appendChild(sendBtn);
+        box.appendChild(ta);
+        box.appendChild(btnRow);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        // 延遲 focus 讓 overlay 先渲染
+        setTimeout(() => ta.focus(), 80);
+    }
+
+    /** 攔截聊天輸入框的 focus 事件 */
+    function crHookChatInput() {
+        const chatDiv = document.getElementById('chat-room-div');
+        if (!chatDiv || chatDiv._likoFakeInputHooked) return;
+        chatDiv._likoFakeInputHooked = true;
+
+        chatDiv.addEventListener('focusin', (e) => {
+            if (!crActive || !isPortrait()) return;
+            const el = e.target;
+            if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+            e.preventDefault();
+            crShowFakeInput(el);
+        }, true);   // capture phase，在 BC 之前攔截
     }
 
     function crMaintain() {
@@ -256,7 +390,8 @@
     }
 
     function crApply() {
-        crActive = true;
+        crActive   = true;
+        crLockedVH = window.innerHeight;   // 鎖定當前高度
         const L = crCalc();
         injectStyle('liko-ml-cr', `
             html, body { overflow-x: hidden !important }
@@ -275,12 +410,16 @@
         requestAnimationFrame(() => {
             crMaintain();
             if (typeof ChatRoomResize === 'function') try { ChatRoomResize(false); } catch {}
+            crHookChatInput();   // hook 輸入框
         });
     }
 
     function crRemove() {
         if (!crActive) return;
-        crActive = false;
+        crActive   = false;
+        crLockedVH = 0;
+        crFakeInputActive = false;
+        document.getElementById('liko-cr-fake-input-overlay')?.remove();
         clearCanvasStyle();
         removeStyle('liko-ml-cr');
         if (crOrigRect && typeof ChatRoomDivRect !== 'undefined')
@@ -504,7 +643,7 @@
         forceCanvasStyle(0);
 
         injectStyle('liko-ml-csh-hide',
-            CSH_BC_IDS.map(id => `#${id} { display: none !important }`).join('\n'));
+                    CSH_BC_IDS.map(id => `#${id} { display: none !important }`).join('\n'));
 
         injectStyle('liko-ml-csh', `
             html, body { overflow-x: hidden !important }
@@ -782,7 +921,7 @@
 
         header.appendChild(makeHBtn(base + 'Icons/Plus.png', '建立房間', () => {
             const bcCreate = document.querySelector('#chat-search-room-header button[id*="create"]')
-                          || document.querySelector('[id*="chat-search"][id*="create"]');
+            || document.querySelector('[id*="chat-search"][id*="create"]');
             if (bcCreate) { bcCreate.style.removeProperty('display'); bcCreate.click(); return; }
             if (typeof ChatSearchCreateRoom === 'function') ChatSearchCreateRoom();
         }, 'create'));
@@ -825,7 +964,7 @@
         exitBtn.textContent = '離開';
         exitBtn.addEventListener('click', () => {
             const bcExit = document.querySelector('#chat-search-room-header button[id*="exit"]')
-                        || document.querySelector('[id*="chat-search"][id*="exit"]');
+            || document.querySelector('[id*="chat-search"][id*="exit"]');
             if (bcExit) { bcExit.click(); return; }
             if (typeof ChatSearchExit === 'function') ChatSearchExit();
             else if (typeof CommonSetScreen === 'function') CommonSetScreen('Online', 'ChatSelect');
@@ -1019,7 +1158,7 @@
             if (!canJoin) return;
             cshCloseRoomInfo();
             const joinBtnDom = room?.Order != null
-                ? document.getElementById(`chat-search-room-join-button-${room.Order}`) : null;
+            ? document.getElementById(`chat-search-room-join-button-${room.Order}`) : null;
             if (joinBtnDom) joinBtnDom.click();
             else if (typeof ChatSearchClickRoom === 'function') ChatSearchClickRoom(room);
         });
@@ -1072,9 +1211,7 @@
         const bcY = ((screenY - cvH) / cvH) * 1000;
 
         // 直接設定 BC 全域滑鼠座標並呼叫點擊處理
-        // eslint-disable-next-line no-implicit-globals
         if (typeof MouseX !== 'undefined') MouseX = bcX;
-        // eslint-disable-next-line no-implicit-globals
         if (typeof MouseY !== 'undefined') MouseY = bcY;
         if (typeof DialogMenuButtonClick === 'function') {
             try { DialogMenuButtonClick(); } catch(e) {}
@@ -1371,17 +1508,17 @@
         console.log(`🐈‍⬛ [MPL] ✅ 初始化完成 v${MOD_VER}`);
 
         window.Liko.MPL = {
-            version            : MOD_VER,
-            render             : renderCshList,
-            refreshSpaceButton : refreshCshSpaceButton,
-            getOwnerSet        : () => [...getOwnerSet()],
-            getLoverSet        : () => [...getLoverSet()],
-            getFriendSet       : () => [...getFriendSet()],
-            debugFirstRoom     : () => {
+            version:            MOD_VER,
+            render:             renderCshList,
+            refreshSpaceButton: refreshCshSpaceButton,
+            getOwnerSet:        () => [...getOwnerSet()],
+            getLoverSet:        () => [...getLoverSet()],
+            getFriendSet:       () => [...getFriendSet()],
+            debugFirstRoom:     () => {
                 const room = getCshRoomsSource()[0];
                 return room
                     ? { room, relations: getRoomRelations(room), topRelation: getTopRelation(room) }
-                    : null;
+                : null;
             },
             // screenY 需大於 cvH（下半）才會觸發 dialog 點擊
             testClick: drInjectClick,
