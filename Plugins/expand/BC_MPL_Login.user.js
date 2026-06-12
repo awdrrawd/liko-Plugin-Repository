@@ -12,12 +12,12 @@
 // @run-at       document-end
 // ==/UserScript==
 
-(function () {
+/*(function () {
     'use strict';
     window.Liko = window.Liko ?? {};
     if (window.Liko.MPL_Login) return;
     const MOD_VERSION = '1.0';
-    window.Liko.MPL_Login = MOD_VERSION;
+    window.Liko.MPL_Login = MOD_VERSION;*/
 
     const MPL_KEY       = 'mpl_accounts';
     const IDB_NAME      = 'mpl-profiles';
@@ -1327,4 +1327,4 @@
         document.addEventListener('DOMContentLoaded', init, { once: true });
     else
         init();
-})();
+//})();
