@@ -1315,12 +1315,12 @@
         }).catch(e => {
             console.warn('🐈‍⬛ [MPL] 加密系統初始化失敗:', e);
         });
-        function waitForBC() {
+        /*function waitForBC() {
             if (typeof CurrentScreen === 'undefined') return setTimeout(waitForBC, 500);
             checkScene();
             console.log(`🐈‍⬛ [MPL] ✅ v${MOD_VERSION} 已載入`);
         }
-        waitForBC();
+        waitForBC();*/
     }
 
     if (document.readyState === 'loading')
