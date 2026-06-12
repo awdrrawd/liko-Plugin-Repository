@@ -273,6 +273,7 @@
 
     // ── 角色身上衣服閃爍（BC Appearance 部件列表）──
     let _hoverCharGroup = null;
+    let _hoverCharActive = false;
     let _hoverCharHiddenGroup = new Set(); // 僅供 fallback 硬切使用
     let _hoverCharAnimFrame = null;
     let _hoverCharTimer = null;
