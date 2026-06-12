@@ -1,16 +1,20 @@
 {
-  "updateId": "260610",
+  "updateId": "260612",
   "changelog": [
-    "⭐MPL - 手機豎版畫面(測試) 新增",
-    "支援房間搜尋與聊天室的直版佈局",
-    "⭐牽引補丁(測試) 0.2",
-    "加入性別判定，並且如果因性別問題牽引失敗會有通知"
+    "⭐MPL - 手機豎版畫面(測試) v0.5 更新",
+    "新增登入畫面UI",
+    "新增支援BC的所有語系",
+    "修復android無法輸入文字",
+    "修復轉成橫式時，還是直式畫面",
+    "修復開啟染色器導致座標異常"
   ],
   "en_changelog": [
-    "⭐MPL - Mobile Portrait Layout(test) add",
-    "Supports vertical layout for ChatSearch and ChatRoom.",
-    "⭐Leash Fix(test) v0.2 updata",
-    "Added gender check. If leashing fails due to gender mismatch, a notification will be triggered."
+    "⭐MPL - Mobile Portrait Layout(test) v0.5 updata",
+    "Added login screen UI",
+    "Added support for all BC languages",
+    "Fixed Android unable to input text",
+    "Fixed orientation remaining portrait when switched to landscape",
+    "Fixed coordinate anomaly caused by enabling colorizer"
   ],
   "plugins": [
     {
