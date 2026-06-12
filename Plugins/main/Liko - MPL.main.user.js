@@ -2,7 +2,7 @@
 // @name           Liko - Mobile Portrait Layout
 // @name:zh        Liko的手機直版佈局
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.5.1
+// @version        0.5.2
 // @description    Supports vertical layout for ChatSearch and ChatRoom
 // @description:zh 支援房間搜尋與聊天室的直版佈局
 // @author         Likolisu
@@ -23,7 +23,7 @@
     window.Liko.MPL = window.Liko.MPL ?? {};
     if (window.Liko.MPL.version) return;
 
-    const MOD_VER = '0.5.1';
+    const MOD_VER = '0.5.2';
     window.Liko.MPL.version = MOD_VER;
 
     const modApi = bcModSdk.registerMod({
@@ -589,6 +589,7 @@
             const fs = typeof ChatRoomFontSize !== 'undefined' ? ChatRoomFontSize : 30;
             ElementPositionFix('chat-room-top-menu', fs, 0, L.mLY, L.mLW, L.mLH);
         }
+        crHookChatInput();
     }
 
     /** 啟用 ChatRoom 直版模式 */
@@ -805,6 +806,8 @@
     let cshNeedSync   = false;  // 標記是否需要在下一個 Run tick 重刷列表
     let cshPage       = 1;
     let cshRoomsCache = [];     // 目前取得的完整房間列表
+    let cshAnimating  = false;
+    let cshDrag       = null;
 
     // BC 原生 ChatSearch DOM 元素的 id 列表（進入直版模式時隱藏）
     const CSH_BC_IDS = [
@@ -900,10 +903,11 @@
 
     /** 啟用 ChatSearch 直版模式 */
     function cshApply() {
-        cshActive   = true;
-        cshNeedSync = false;
-        cshPage     = 1;
-
+        cshActive     = true;
+        cshNeedSync   = false;
+        cshPage       = 1;
+        cshAnimating  = false;
+        cshDrag       = null;
         const HEADER_H = 52, FOOTER_H = 48;
 
         // 隱藏 canvas（ChatSearch 頁不需要顯示角色）
@@ -962,12 +966,38 @@
                 background:rgba(100,60,200,0.25);
             }
             /* ── 房間卡片列表 ── */
-            #liko-csh-list {
-                flex:1; overflow-y:auto; overflow-x:hidden;
-                display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
-                gap:${CARD_GAP}px; padding:6px; box-sizing:border-box;
-                align-content:start;
-            }
+#liko-csh-list {
+    flex:1;
+    overflow:hidden;
+    position:relative;
+    touch-action:none;
+}
+#liko-csh-track {
+    position:absolute;
+    inset:0;
+    will-change:transform;
+}
+
+.liko-csh-page {
+    position:absolute;
+    top:0;
+    width:100%;
+    height:100%;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:5px;
+    padding:6px;
+    box-sizing:border-box;
+    align-content:start;
+}
+
+.liko-csh-page.prev { left:-100%; }
+.liko-csh-page.curr { left:0; }
+.liko-csh-page.next { left:100%; }
+
+#liko-csh-track.animating {
+    transition:transform 220ms ease;
+}
             #liko-csh-list::-webkit-scrollbar { width:3px; }
             #liko-csh-list::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.18); border-radius:2px; }
             /* ── 卡片 ── */
@@ -1158,196 +1188,34 @@
         if (onClick) btn.addEventListener('click', onClick);
         return btn;
     }
+    function cshGoPrevPage() { cshAnimatePageTurn(-1); }
+    function cshGoNextPage() { cshAnimatePageTurn(1); }
 
-    /** 建立 ChatSearch 直版殼層（header + 列表 + footer） */
-    function buildCshShell() {
-        document.getElementById('liko-csh-shell')?.remove();
-        const shell = document.createElement('div'); shell.id = 'liko-csh-shell';
-
-        // ── Header ────────────────────────────────────────────────────────────
-        const header = document.createElement('div'); header.id = 'liko-csh-header';
-
-        const wrap     = document.createElement('div');   wrap.id = 'liko-csh-search-wrap';
-        const inp      = document.createElement('input'); inp.type = 'text';
-        i18nAttr(inp, 'placeholder', 'chatsearch.search_ph');
-        inp.value = typeof ChatSearchQueryString !== 'undefined' ? ChatSearchQueryString : '';
-
-        const clearBtn = document.createElement('button'); clearBtn.id = 'liko-csh-clear';
-        clearBtn.textContent = '✕';
-        i18nAttr(clearBtn, 'aria-label', 'chatsearch.clear_aria');
-        if (inp.value) clearBtn.classList.add('visible');
-
-        clearBtn.addEventListener('click', () => {
-            inp.value = '';
-            clearBtn.classList.remove('visible');
-            if (typeof ChatSearchQuery === 'function') ChatSearchQuery('');
-        });
-
-        inp.addEventListener('input', () => {
-            clearBtn.classList.toggle('visible', inp.value.length > 0);
-            clearTimeout(inp._deb);
-            inp._deb = setTimeout(() => {
-                if (typeof ChatSearchQuery === 'function') ChatSearchQuery(inp.value);
-            }, 400);
-        });
-
-        wrap.appendChild(inp);
-        wrap.appendChild(clearBtn);
-        header.appendChild(wrap);
-
-        // 篩選按鈕
-        header.appendChild(makeHBtn(
-            BASE_URL + 'Icons/Search.png',
-            MPLT('chatsearch.filter_aria'),
-            () => {
-                const bcFilterBtn = findChatSearchButton('filter');
-                if (bcFilterBtn) { bcFilterBtn.style.removeProperty('display'); bcFilterBtn.click(); }
-                else console.warn('🐈‍⬛ [MPL] 找不到原生篩選按鈕，BC 介面可能已更新');
-            }
-        ));
-
-        // 空間切換按鈕
-        const spaceBtn = makeHBtn(
-            getSpaceButtonIcon(),
-            getSpaceButtonLabel(),
-            () => {
-                if (playerHasMaleGender()) { refreshCshSpaceButton(); return; }
-                const q = inp.value ?? (typeof ChatSearchQueryString !== 'undefined' ? ChatSearchQueryString : '');
-                applySpace(getToggleTargetSpace(), q);
-                refreshCshSpaceButton();
-            }
-        );
-        spaceBtn.id = 'liko-csh-space-btn';
-        header.appendChild(spaceBtn);
-
-        // 建立房間按鈕
-        header.appendChild(makeHBtn(
-            BASE_URL + 'Icons/Plus.png',
-            MPLT('chatsearch.create_aria'),
-            () => {
-                const bcCreate = findChatSearchButton('create');
-                if (bcCreate) { bcCreate.style.removeProperty('display'); bcCreate.click(); return; }
-                if (typeof ChatSearchCreateRoom === 'function') ChatSearchCreateRoom();
-                else console.warn('🐈‍⬛ [MPL] 找不到原生建立房間按鈕，BC 介面可能已更新');
-            },
-            'create'
-        ));
-
-        shell.appendChild(header);
-
-        // ── 房間卡片列表 ──────────────────────────────────────────────────────
-        const list = document.createElement('div'); list.id = 'liko-csh-list';
-        shell.appendChild(list);
-
-        // ── Footer ────────────────────────────────────────────────────────────
-        const footer    = document.createElement('div'); footer.id = 'liko-csh-footer';
-        const footLeft  = document.createElement('div'); footLeft.id  = 'liko-csh-foot-left';
-        const footPages = document.createElement('div'); footPages.id = 'liko-csh-foot-pages';
-        const footRight = document.createElement('div'); footRight.id = 'liko-csh-foot-right';
-
-        const prevBtn = document.createElement('button');
-        prevBtn.className = 'liko-csh-page-btn disabled';
-        prevBtn.textContent = '‹';
-        i18nAttr(prevBtn, 'aria-label', 'chatsearch.prev_aria');
-        prevBtn.addEventListener('click', () => {
-            if (cshPage <= 1) return;
-            cshPage--;
-            renderCshList(false);
-        });
-
-        const pageInfo = document.createElement('span'); pageInfo.id = 'liko-csh-pageinfo';
-
-        const nextBtn = document.createElement('button');
-        nextBtn.className = 'liko-csh-page-btn disabled';
-        nextBtn.textContent = '›';
-        i18nAttr(nextBtn, 'aria-label', 'chatsearch.next_aria');
-        nextBtn.addEventListener('click', () => {
-            const perPage    = Math.max(1, calcCshPerPage());
-            const totalPages = Math.max(1, Math.ceil(cshRoomsCache.length / perPage));
-            if (cshPage >= totalPages) return;
-            cshPage++;
-            renderCshList(false);
-        });
-
-        footPages.appendChild(prevBtn);
-        footPages.appendChild(pageInfo);
-        footPages.appendChild(nextBtn);
-
-        const exitBtn = document.createElement('button'); exitBtn.id = 'liko-csh-exit-btn';
-        i18nText(exitBtn, 'chatsearch.exit_btn');
-        exitBtn.addEventListener('click', () => {
-            const bcExit = findChatSearchButton('exit');
-            if (bcExit) { bcExit.click(); return; }
-            if (typeof ChatSearchExit === 'function') ChatSearchExit();
-            else if (typeof CommonSetScreen === 'function') CommonSetScreen('Online', 'ChatSelect');
-            else console.warn('🐈‍⬛ [MPL] 找不到原生離開按鈕，BC 介面可能已更新');
-        });
-        footRight.appendChild(exitBtn);
-
-        footer.appendChild(footLeft);
-        footer.appendChild(footPages);
-        footer.appendChild(footRight);
-        shell.appendChild(footer);
-
-        // 儲存翻頁控制元素參考，供 renderCshList 更新狀態
-        shell._prev     = prevBtn;
-        shell._next     = nextBtn;
-        shell._pageInfo = pageInfo;
-
-        document.body.appendChild(shell);
-
-        // 男性角色強制混區
-        if (playerHasMaleGender() && getCurrentSpace() !== 'X')
-            applySpace('X', inp.value ?? '');
-
-        refreshCshSpaceButton();
-        renderCshList();
-    }
-
-    /**
-     * 渲染（或重新渲染）當前頁的房間卡片列表。
-     * @param {boolean} [resetPage=false] - 是否重置到第一頁
-     */
-    function renderCshList(resetPage = false) {
+    function cshAnimatePageTurn(dir) {
         const shell = document.getElementById('liko-csh-shell');
-        const list  = document.getElementById('liko-csh-list');
-        if (!list) return;
+        const track = shell?._track;
+        if (!track || cshAnimating) return;
 
-        cshRoomsCache = getCshRoomsSource();
+        const perPage = Math.max(1, calcCshPerPage());
+        const totalPages = Math.max(1, Math.ceil(cshRoomsCache.length / perPage));
+        const targetPage = cshPage + dir;
 
-        const perPage    = Math.max(1, calcCshPerPage());
-        const totalRooms = cshRoomsCache.length;
-        const totalPages = Math.max(1, Math.ceil(totalRooms / perPage));
+        if (targetPage < 1 || targetPage > totalPages) return;
 
-        if (resetPage) cshPage = 1;
-        cshPage = Math.min(Math.max(1, cshPage), totalPages);
+        cshAnimating = true;
+        track.classList.add('animating');
+        // dir = 1（下一頁）→ track 往左移 → translateX(-100%)
+        // dir = -1（上一頁）→ track 往右移 → translateX(+100%)
+        track.style.transform = `translateX(${dir > 0 ? '-100%' : '100%'})`;
 
-        const start     = (cshPage - 1) * perPage;
-        const pageRooms = cshRoomsCache.slice(start, start + perPage);
-
-        list.innerHTML = '';
-
-        if (!pageRooms.length) {
-            const emp = document.createElement('div');
-            emp.className = 'liko-csh-empty';
-            i18nText(emp, 'chatsearch.no_rooms');
-            list.appendChild(emp);
-        } else {
-            for (const room of pageRooms) list.appendChild(buildRoomCard(room));
-        }
-
-        // 更新翻頁按鈕狀態
-        if (shell) {
-            shell._prev.className = 'liko-csh-page-btn' + (cshPage > 1          ? '' : ' disabled');
-            shell._next.className = 'liko-csh-page-btn' + (cshPage < totalPages ? '' : ' disabled');
-            shell._pageInfo.textContent = totalRooms > 0
-                ? MPLT('chatsearch.page_info', { page: cshPage, total: totalPages, count: totalRooms })
-            : '0/0';
-        }
-
-        refreshCshSpaceButton();
+        const done = () => {
+            track.removeEventListener('transitionend', done);
+            cshPage = targetPage;
+            renderCshList(false);
+            cshAnimating = false;
+        };
+        track.addEventListener('transitionend', done, { once: true });
     }
-
     /**
      * 建立單張房間卡片 DOM 元素。
      * @param {object} room - BC 房間資料物件
@@ -1436,6 +1304,308 @@
 
         return card;
     }
+    /** 建立 ChatSearch 直版殼層（header + 列表 + footer） */
+    function buildCshShell() {
+        document.getElementById('liko-csh-shell')?.remove();
+        const shell = document.createElement('div'); shell.id = 'liko-csh-shell';
+
+        // ── Header ────────────────────────────────────────────────────────────
+        const header = document.createElement('div'); header.id = 'liko-csh-header';
+
+        const wrap     = document.createElement('div');   wrap.id = 'liko-csh-search-wrap';
+        const inp      = document.createElement('input'); inp.type = 'text';
+        i18nAttr(inp, 'placeholder', 'chatsearch.search_ph');
+        inp.value = typeof ChatSearchQueryString !== 'undefined' ? ChatSearchQueryString : '';
+
+        const clearBtn = document.createElement('button'); clearBtn.id = 'liko-csh-clear';
+        clearBtn.textContent = '✕';
+        i18nAttr(clearBtn, 'aria-label', 'chatsearch.clear_aria');
+        if (inp.value) clearBtn.classList.add('visible');
+
+        clearBtn.addEventListener('click', () => {
+            inp.value = '';
+            clearBtn.classList.remove('visible');
+            if (typeof ChatSearchQuery === 'function') ChatSearchQuery('');
+        });
+
+        inp.addEventListener('input', () => {
+            clearBtn.classList.toggle('visible', inp.value.length > 0);
+            clearTimeout(inp._deb);
+            inp._deb = setTimeout(() => {
+                if (typeof ChatSearchQuery === 'function') ChatSearchQuery(inp.value);
+            }, 400);
+        });
+
+        wrap.appendChild(inp);
+        wrap.appendChild(clearBtn);
+        header.appendChild(wrap);
+
+        // 篩選按鈕
+        header.appendChild(makeHBtn(
+            BASE_URL + 'Icons/Search.png',
+            MPLT('chatsearch.filter_aria'),
+            () => {
+                const bcFilterBtn = findChatSearchButton('filter');
+                if (bcFilterBtn) { bcFilterBtn.style.removeProperty('display'); bcFilterBtn.click(); }
+                else console.warn('🐈‍⬛ [MPL] 找不到原生篩選按鈕，BC 介面可能已更新');
+            }
+        ));
+
+        // 空間切換按鈕
+        const spaceBtn = makeHBtn(
+            getSpaceButtonIcon(),
+            getSpaceButtonLabel(),
+            () => {
+                if (playerHasMaleGender()) { refreshCshSpaceButton(); return; }
+                const q = inp.value ?? (typeof ChatSearchQueryString !== 'undefined' ? ChatSearchQueryString : '');
+                applySpace(getToggleTargetSpace(), q);
+                refreshCshSpaceButton();
+            }
+        );
+        spaceBtn.id = 'liko-csh-space-btn';
+        header.appendChild(spaceBtn);
+
+        // 建立房間按鈕
+        header.appendChild(makeHBtn(
+            BASE_URL + 'Icons/Plus.png',
+            MPLT('chatsearch.create_aria'),
+            () => {
+                const bcCreate = findChatSearchButton('create');
+                if (bcCreate) { bcCreate.style.removeProperty('display'); bcCreate.click(); return; }
+                if (typeof ChatSearchCreateRoom === 'function') ChatSearchCreateRoom();
+                else console.warn('🐈‍⬛ [MPL] 找不到原生建立房間按鈕，BC 介面可能已更新');
+            },
+            'create'
+        ));
+
+        shell.appendChild(header);
+
+        // ── 房間卡片列表 ──────────────────────────────────────────────────────
+        const list = document.createElement('div'); list.id = 'liko-csh-list';
+
+        const track = document.createElement('div'); track.id = 'liko-csh-track';
+
+        list.appendChild(track);
+
+        shell._list  = list;
+        shell._track = track;
+
+        shell.appendChild(list);
+
+        // ── Footer ────────────────────────────────────────────────────────────
+        const footer    = document.createElement('div'); footer.id = 'liko-csh-footer';
+        const footLeft  = document.createElement('div'); footLeft.id  = 'liko-csh-foot-left';
+        const footPages = document.createElement('div'); footPages.id = 'liko-csh-foot-pages';
+        const footRight = document.createElement('div'); footRight.id = 'liko-csh-foot-right';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'liko-csh-page-btn disabled';
+        prevBtn.textContent = '‹';
+        i18nAttr(prevBtn, 'aria-label', 'chatsearch.prev_aria');
+        prevBtn.addEventListener('click', cshGoPrevPage);
+
+        const pageInfo = document.createElement('span'); pageInfo.id = 'liko-csh-pageinfo';
+
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'liko-csh-page-btn disabled';
+        nextBtn.textContent = '›';
+        i18nAttr(nextBtn, 'aria-label', 'chatsearch.next_aria');
+        nextBtn.addEventListener('click', cshGoNextPage);
+
+        footPages.appendChild(prevBtn);
+        footPages.appendChild(pageInfo);
+        footPages.appendChild(nextBtn);
+
+        const exitBtn = document.createElement('button'); exitBtn.id = 'liko-csh-exit-btn';
+        i18nText(exitBtn, 'chatsearch.exit_btn');
+        exitBtn.addEventListener('click', () => {
+            const bcExit = findChatSearchButton('exit');
+            if (bcExit) { bcExit.click(); return; }
+            if (typeof ChatSearchExit === 'function') ChatSearchExit();
+            else if (typeof CommonSetScreen === 'function') CommonSetScreen('Online', 'ChatSelect');
+            else console.warn('🐈‍⬛ [MPL] 找不到原生離開按鈕，BC 介面可能已更新');
+        });
+        footRight.appendChild(exitBtn);
+
+        footer.appendChild(footLeft);
+        footer.appendChild(footPages);
+        footer.appendChild(footRight);
+        shell.appendChild(footer);
+
+        // 儲存翻頁控制元素參考，供 renderCshList 更新狀態
+        shell._prev     = prevBtn;
+        shell._next     = nextBtn;
+        shell._pageInfo = pageInfo;
+
+        document.body.appendChild(shell);
+
+        // 男性角色強制混區
+        if (playerHasMaleGender() && getCurrentSpace() !== 'X')
+            applySpace('X', inp.value ?? '');
+
+        refreshCshSpaceButton();
+        renderCshList();
+        cshBindSwipe(list);
+    }
+
+    /**
+     * 渲染（或重新渲染）當前頁的房間卡片列表。
+     * @param {boolean} [resetPage=false] - 是否重置到第一頁
+     */
+    function getCshPageRooms(page) {
+        const perPage = Math.max(1, calcCshPerPage());
+        const totalRooms = cshRoomsCache.length;
+        const totalPages = Math.max(1, Math.ceil(totalRooms / perPage));
+        if (page < 1 || page > totalPages) return [];
+        const start = (page - 1) * perPage;
+        return cshRoomsCache.slice(start, start + perPage);
+    }
+
+    function fillCshPage(panel, rooms) {
+        panel.innerHTML = '';
+        if (!rooms.length) return;
+        for (const room of rooms) panel.appendChild(buildRoomCard(room));
+    }
+    function cshResetTrackPosition(track, value = 'translateX(0)') {
+        if (!track) return;
+        track.classList.remove('animating');
+        track.style.setProperty('transition', 'none', 'important');
+        track.style.transform = value;
+        track.offsetHeight; // 強制 reflow，確保 none 生效後再解除
+        track.style.removeProperty('transition');
+    }
+    function renderCshList(resetPage = false) {
+        const shell = document.getElementById('liko-csh-shell');
+        const track = shell?._track;
+        if (!shell || !track) return;
+
+        cshRoomsCache = getCshRoomsSource();
+
+        const perPage = Math.max(1, calcCshPerPage());
+        const totalRooms = cshRoomsCache.length;
+        const totalPages = Math.max(1, Math.ceil(totalRooms / perPage));
+
+        if (resetPage) cshPage = 1;
+        cshPage = Math.min(Math.max(1, cshPage), totalPages);
+
+        track.innerHTML = '';
+
+        const prev = document.createElement('div');
+        prev.className = 'liko-csh-page prev';
+
+        const curr = document.createElement('div');
+        curr.className = 'liko-csh-page curr';
+
+        const next = document.createElement('div');
+        next.className = 'liko-csh-page next';
+
+        fillCshPage(prev, getCshPageRooms(cshPage - 1));
+        fillCshPage(curr, getCshPageRooms(cshPage));
+        fillCshPage(next, getCshPageRooms(cshPage + 1));
+
+        if (!curr.childElementCount) {
+            const emp = document.createElement('div');
+            emp.className = 'liko-csh-empty';
+            i18nText(emp, 'chatsearch.no_rooms');
+            curr.appendChild(emp);
+        }
+
+        track.appendChild(prev);
+        track.appendChild(curr);
+        track.appendChild(next);
+        cshResetTrackPosition(track, 'translateX(0)');
+
+        shell._prev.className = 'liko-csh-page-btn' + (cshPage > 1 ? '' : ' disabled');
+        shell._next.className = 'liko-csh-page-btn' + (cshPage < totalPages ? '' : ' disabled');
+        shell._pageInfo.textContent = totalRooms > 0
+            ? MPLT('chatsearch.page_info', { page: cshPage, total: totalPages, count: totalRooms })
+        : '0/0';
+
+        refreshCshSpaceButton();
+    }
+    function cshBindSwipe(list) {
+        if (!list || list._likoSwipeBound) return;
+        list._likoSwipeBound = true;
+
+        list.addEventListener('pointerdown', e => {
+            if (cshAnimating) return;
+            cshDrag = {
+                startX: e.clientX,
+                dx: 0,
+                dragging: true,
+            };
+        });
+
+        list.addEventListener('pointermove', e => {
+            if (!cshDrag?.dragging) return;
+
+            const shell = document.getElementById('liko-csh-shell');
+            const track = shell?._track;
+            if (!track) return;
+
+            let dx = e.clientX - cshDrag.startX;
+
+            const perPage = Math.max(1, calcCshPerPage());
+            const totalPages = Math.max(1, Math.ceil(cshRoomsCache.length / perPage));
+            const atFirst = cshPage <= 1;
+            const atLast = cshPage >= totalPages;
+
+            if ((dx > 0 && atFirst) || (dx < 0 && atLast)) {
+                dx *= 0.22;
+            }
+
+            cshDrag.dx = dx;
+            track.classList.remove('animating');
+            track.style.transform = `translateX(${dx}px)`;
+        }, { passive: true });
+
+        function endDrag() {
+            if (!cshDrag?.dragging) return;
+
+            const shell = document.getElementById('liko-csh-shell');
+            const track = shell?._track;
+            if (!track) return;
+
+            const dx = cshDrag.dx;
+            cshDrag = null;
+
+            const perPage = Math.max(1, calcCshPerPage());
+            const totalPages = Math.max(1, Math.ceil(cshRoomsCache.length / perPage));
+            const threshold = Math.min(120, window.innerWidth * 0.20);
+
+            if (dx > threshold && cshPage > 1) {
+                cshAnimating = true;
+                track.classList.add('animating');
+                track.style.transform = 'translateX(100%)';
+                track.addEventListener('transitionend', function done() {
+                    track.removeEventListener('transitionend', done);
+                    cshAnimating = false;
+                    cshPage--;
+                    renderCshList(false);
+                }, { once: true });
+                return;
+            }
+
+            if (dx < -threshold && cshPage < totalPages) {
+                cshAnimating = true;
+                track.classList.add('animating');
+                track.style.transform = 'translateX(-100%)';
+                track.addEventListener('transitionend', function done() {
+                    track.removeEventListener('transitionend', done);
+                    cshAnimating = false;
+                    cshPage++;
+                    renderCshList(false);
+                }, { once: true });
+                return;
+            }
+
+            track.classList.add('animating');
+            track.style.transform = 'translateX(0)';
+        }
+
+        list.addEventListener('pointerup', endDrag);
+        list.addEventListener('pointercancel', endDrag);
+    }
 
     /** 關閉房間詳情 bottom sheet */
     function cshCloseRoomInfo() {
@@ -1451,6 +1621,9 @@
 
         const backdrop = document.createElement('div'); backdrop.id = 'liko-csh-info-backdrop';
         backdrop.addEventListener('click', cshCloseRoomInfo);
+        backdrop.addEventListener('pointerdown', e => e.stopPropagation());
+        backdrop.addEventListener('pointermove', e => e.stopPropagation());
+        backdrop.addEventListener('pointerup',   e => e.stopPropagation());
 
         const sheet = document.createElement('div'); sheet.id = 'liko-csh-info-sheet';
         sheet.addEventListener('click', e => e.stopPropagation());
@@ -1539,9 +1712,13 @@
     /** 關閉 ChatSearch 直版模式 */
     function cshRemove() {
         if (!cshActive) return;
-        cshActive = false;
-        if (cshSyncTimer) { clearTimeout(cshSyncTimer); cshSyncTimer = null; }
-        cshNeedSync = false;
+        cshActive     = false;
+        cshAnimating  = false;
+        cshDrag       = null;
+
+        if (cshSyncTimer) clearTimeout(cshSyncTimer);
+        cshSyncTimer = null;
+        cshNeedSync  = false;
         cshCloseRoomInfo();
         clearCanvasStyle();
         removeStyle('liko-ml-csh-hide');
@@ -1846,7 +2023,7 @@
         const result = next(args);
         // 登入成功後 4 秒擷取角色快照（等待角色資料完全載入）
         if (args[0] && typeof args[0] === 'object')
-            setTimeout(captureAndSaveProfile, 4000);
+            setTimeout(captureAndSaveProfile, 5000);
         return result;
     });
 
@@ -3194,9 +3371,15 @@
      * 等待 BC 核心物件就緒後才初始化插件。
      * 每 500ms 輪詢，就緒後載入 i18n 並掛載公開 API。
      */
-    function waitForBC() {
-        if (typeof Player === 'undefined' || typeof CurrentScreen === 'undefined')
-            return setTimeout(waitForBC, 500);
+    function waitForBC(retryCount = 0) {
+        const MAX_RETRIES = 120; // 最多等 60 秒
+        if (typeof Player === 'undefined' || typeof CurrentScreen === 'undefined') {
+            if (retryCount >= MAX_RETRIES) {
+                console.warn('🐈‍⬛ [MPL] 等待 BC 核心逾時，插件停止初始化');
+                return;
+            }
+            return setTimeout(() => waitForBC(retryCount + 1), 500);
+        }
 
         ensureI18n()
             .then(() => {
