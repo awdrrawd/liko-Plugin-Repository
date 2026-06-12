@@ -1287,6 +1287,7 @@
             clientY: canvasPixelY + rect.top,
             pointerType,
             isPrimary: true,
+            pointerId: -1
         };
 
         // 同時 dispatch PointerEvent 與 MouseEvent：
