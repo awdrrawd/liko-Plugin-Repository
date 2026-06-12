@@ -425,7 +425,7 @@
 
 /* ── 1. 頂部 ── */
 #mpl-top {
-    width: 100%; padding: 35px 24px 5px;
+    width: 100%; padding: 30px 24px 5px;
     text-align: center;
     background: linear-gradient(180deg, rgba(0,0,0,0.55) 0%, transparent 100%);
 }
@@ -433,10 +433,6 @@
     font-size: 28px; font-weight: 700; color: #e8dcff;
     letter-spacing: 2px;
     text-shadow: 0 0 24px rgba(167,139,250,0.50);
-}
-#mpl-subtitle {
-    font-size: 18px; color: rgba(200,185,230,0.55);
-    margin-top: 3px; letter-spacing: 1px;
 }
 #mpl-status {
     margin-top: 10px; font-size: 19px;
@@ -449,11 +445,7 @@
 #mpl-accounts-section {
     width: 100%; max-width: 560px; padding: 0 20px;
 }
-#mpl-accounts-label {
-    font-size: 17px; color: rgba(210,195,240,0.55);
-    letter-spacing: 0.5px; margin-bottom: 8px; padding-left: 2px;
-    text-align: center;
-}
+
 #mpl-accounts-row {
     display: flex; gap: 14px;
     overflow-x: auto; overflow-y: visible;
@@ -545,7 +537,7 @@
     border-radius: 11px;
     color: #1a1a2e;
     -webkit-text-fill-color: #1a1a2e;
-    padding: 11px 15px; font-size: 21px; font-family: inherit;
+    padding: 5px 15px; font-size: 21px; font-family: inherit;
     outline: none; flex: 1;
     transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -565,7 +557,7 @@
     align-items: stretch;
 }
 #mpl-btn-login {
-    width: 100%; padding: 13px;
+    width: 100%; padding: 10px;
     background: rgba(127,83,205,0.30);
     border: 1.5px solid rgba(200,170,255,0.55);
     border-radius: 12px; color: #e8dcff;
@@ -581,7 +573,7 @@
 }
 #mpl-btn-save-acct,
 #mpl-btn-reset {
-    flex: 1; min-width: 0; padding: 13px;
+    flex: 1; min-width: 0; padding: 10px;
     background: rgba(14,10,28,0.55); backdrop-filter: blur(8px);
     border: 1.5px solid rgba(200,180,255,0.35);
     border-radius: 12px; color: rgba(220,210,245,0.85);
@@ -609,7 +601,7 @@
 .mpl-div-line { flex: 1; height: 0.5px; background: rgba(200,185,230,0.15); }
 .mpl-div-text { font-size: 17px; color: rgba(200,185,230,0.45); }
 #mpl-btn-register {
-    width: 70%; padding: 12px;
+    width: 70%; padding: 10px;
     background: rgba(14,10,28,0.55); backdrop-filter: blur(8px);
     border: 1.5px solid rgba(200,180,255,0.28);
     border-radius: 12px; color: rgba(220,210,245,0.85);
@@ -799,8 +791,7 @@
         // ── 1. 頂部 ──
         const top = document.createElement('div'); top.id = 'mpl-top';
         top.innerHTML = `
-            <div id="mpl-title">束縛俱樂部</div>
-            <div id="mpl-subtitle">Bondage Club</div>
+            <div id="mpl-title">Bondage Club</div>
             <div id="mpl-status"></div>
         `;
         root.appendChild(top);
@@ -808,7 +799,6 @@
         // ── 2. 帳號列 ──
         const acctSection = document.createElement('div'); acctSection.id = 'mpl-accounts-section';
         acctSection.innerHTML = `
-            <div id="mpl-accounts-label">已儲存的帳號</div>
             <div id="mpl-accounts-row"></div>
         `;
         root.appendChild(acctSection);
