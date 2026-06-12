@@ -317,12 +317,12 @@
             UA: 'Кімната без назви'
         },
         'room.by_prefix': {
-            TW: 'by ',
+            TW: '來自 ',
             EN: 'by ',
             DE: 'von ',
             FR: 'par ',
             RU: 'от ',
-            CN: 'by ',
+            CN: '来自 ',
             UA: 'від '
         },
         'room.info_aria': {
