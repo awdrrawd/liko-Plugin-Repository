@@ -2,7 +2,7 @@
 // @name         MPL Login
 // @name:zh      MPL 登入介面
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.2-1
+// @version      1.2-2
 // @description  Mobile-first portrait login screen for Bondage Club (with AES-GCM encrypted account storage)
 // @description:zh 手機直版優化的登入介面，含 AES-GCM 加密帳號管理
 // @author       Likolisu
@@ -555,6 +555,7 @@
     width: 70%; max-width: 420px; padding: 0;
     display: flex; flex-direction: column; gap: 8px;
     align-items: stretch;
+    margin-top: 10px;
 }
 #mpl-btn-login {
     width: 100%; padding: 10px;
@@ -614,7 +615,7 @@
 #mpl-bottom {
     width: 100%; padding: 10px 20px 30px;
     background: linear-gradient(0deg, rgba(0,0,0,0.55) 0%, transparent 100%);
-    display: flex; flex-direction: column; gap: 30px; align-items: center;
+    display: flex; flex-direction: column; gap: 20px; align-items: center;
 }
 #mpl-bottom-controls {
     width: 100%; max-width: 560px;
