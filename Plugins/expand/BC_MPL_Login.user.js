@@ -1277,7 +1277,7 @@
     // BC DrawProcess / polling hook
     // ════════════════════════════════════════════════════════════════════════════
 
-    function hookDrawProcess() {
+    /*function hookDrawProcess() {
         if (typeof bcModSdk === 'undefined') {
             setInterval(checkScene, 1000);
             return;
@@ -1301,7 +1301,7 @@
             console.warn('🐈‍⬛ [MPL] bcModSdk hook 失敗，使用 polling', e);
             setInterval(checkScene, 1000);
         }
-    }
+    }*/
 
     // ════════════════════════════════════════════════════════════════════════════
     // 初始化
