@@ -27,7 +27,7 @@
     // ════════════════════════════════════════════════════════════════════════════
     // 工具
     // ════════════════════════════════════════════════════════════════════════════
-
+    //function isPortrait() { return window.innerWidth <= 768 || window.innerWidth < window.innerHeight; }
     function getBgUrl() {
         const href = window.location.href;
         // 確保 base 有 trailing slash，避免路徑拼接錯誤
