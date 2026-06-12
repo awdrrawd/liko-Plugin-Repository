@@ -37,9 +37,7 @@
     // 工具函數
     // ════════════════════════════════════════════════════════════════════════════
 
-    function isPortrait() {
-        return window.innerWidth <= PORTRAIT_MAX_WIDTH || window.innerWidth < window.innerHeight;
-    }
+    function isPortrait() { return window.innerWidth < window.innerHeight; }
 
     function getCanvas() {
         return document.getElementById('MainCanvas') || document.querySelector('canvas');
@@ -1294,13 +1292,13 @@
         // 同時 dispatch PointerEvent 與 MouseEvent：
         // - PointerEvent 涵蓋現代瀏覽器對 touch/mouse 統一處理的互動（拖曳、長按等）
         // - MouseEvent 作為相容性後備，給只監聽滑鼠事件的舊邏輯使用
-    if (typeof PointerEvent === 'function') {
-        try { cv.dispatchEvent(new PointerEvent('pointerdown', eventOpts)); } catch(e) {}
-        try { cv.dispatchEvent(new PointerEvent('pointerup',   eventOpts)); } catch(e) {}
-    }
-    cv.dispatchEvent(new MouseEvent('mousedown', eventOpts));
-    cv.dispatchEvent(new MouseEvent('mouseup',   eventOpts));
-    cv.dispatchEvent(new MouseEvent('click',     eventOpts));
+        if (typeof PointerEvent === 'function') {
+            try { cv.dispatchEvent(new PointerEvent('pointerdown', eventOpts)); } catch(e) {}
+            try { cv.dispatchEvent(new PointerEvent('pointerup',   eventOpts)); } catch(e) {}
+        }
+        cv.dispatchEvent(new MouseEvent('mousedown', eventOpts));
+        cv.dispatchEvent(new MouseEvent('mouseup',   eventOpts));
+        cv.dispatchEvent(new MouseEvent('click',     eventOpts));
 
         // 延遲兩個 frame 再把 MouseX/MouseY 重置為 -1：
         // 如果 BC 是在下一幀的 DrawProcess 才讀取座標，單層 rAF 可能會在
