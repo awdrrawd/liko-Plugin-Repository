@@ -2,7 +2,7 @@
 // @name           Liko - Mobile Portrait Layout
 // @name:zh        Liko的手機直版佈局
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.3.3
+// @version        0.3.3-1
 // @description    Supports vertical layout for ChatSearch and ChatRoom
 // @description:zh 支援房間搜尋與聊天室的直版佈局
 // @author         Likolisu
@@ -1262,55 +1262,49 @@
     let drCapture     = null;   // { overlay, onPointer }
 
     /** 把下半螢幕點擊座標轉成 BC 虛擬座標，直接觸發 BC 點擊邏輯 */
-    function drInjectClick(screenX, screenY, pointerType = 'touch') {
-        const vw  = window.innerWidth;
-        const cvH = Math.round(window.innerHeight * 0.5);
+ function drInjectClick(screenX, screenY, pointerType = 'touch') {
+    const vw  = window.innerWidth;
+    const cvH = Math.round(window.innerHeight * 0.5);
+    const canvasPixelX = vw + screenX;
+    const canvasPixelY = screenY - cvH;
+    const cv = getCanvas();
+    if (!cv) return;
+    const rect = cv.getBoundingClientRect();
 
-        // 下半螢幕 (0~vw, cvH~vh) → BC canvas 右半 (vw~vw*2, 0~cvH) 的像素座標。
-        // 因為下半螢幕的寬/高分別與 vw / cvH 相同，這其實是 1:1 平移，
-        // 不是縮放（原本寫成 (screenX/vw)*vw 容易誤導成有額外比例）。
-        const canvasPixelX = vw + screenX;
-        const canvasPixelY = screenY - cvH;
+    if (typeof MouseX !== 'undefined') MouseX = 1000 + (screenX / vw) * 1000;
+    if (typeof MouseY !== 'undefined') MouseY = (screenY - cvH) / cvH * 1000;
 
-        const cv = getCanvas();
-        if (!cv) return;
-        const rect = cv.getBoundingClientRect();
+    const eventOpts = {
+        bubbles: true,
+        cancelable: true,
+        clientX: canvasPixelX + rect.left,
+        clientY: canvasPixelY + rect.top,
+        pointerType,
+        isPrimary: true,
+    };
 
-        // 設定 BC 全域座標（BC 在 click handler / 下一幀 DrawProcess 裡會讀這些）
-        if (typeof MouseX !== 'undefined') MouseX = 1000 + (screenX / vw) * 1000;
-        if (typeof MouseY !== 'undefined') MouseY = (screenY - cvH) / cvH * 1000;
-
-        const eventOpts = {
-            bubbles: true,
-            cancelable: true,
-            clientX: canvasPixelX + rect.left,
-            clientY: canvasPixelY + rect.top,
-            pointerType,
-            isPrimary: true,
-            pointerId: -1
-        };
-
-        // 同時 dispatch PointerEvent 與 MouseEvent：
-        // - PointerEvent 涵蓋現代瀏覽器對 touch/mouse 統一處理的互動（拖曳、長按等）
-        // - MouseEvent 作為相容性後備，給只監聽滑鼠事件的舊邏輯使用
-        if (typeof PointerEvent === 'function') {
-            try { cv.dispatchEvent(new PointerEvent('pointerdown', eventOpts)); } catch(e) {}
-            try { cv.dispatchEvent(new PointerEvent('pointerup',   eventOpts)); } catch(e) {}
+    if (typeof PointerEvent === 'function') {
+        // 暫時封住 setPointerCapture，避免 BC 對合成事件呼叫它時丟 NotFoundError
+        const orig = cv.setPointerCapture.bind(cv);
+        cv.setPointerCapture = () => {};
+        try {
+            cv.dispatchEvent(new PointerEvent('pointerdown', eventOpts));
+            cv.dispatchEvent(new PointerEvent('pointerup',   eventOpts));
+        } finally {
+            cv.setPointerCapture = orig;  // 無論如何都要還原
         }
-        cv.dispatchEvent(new MouseEvent('mousedown', eventOpts));
-        cv.dispatchEvent(new MouseEvent('mouseup',   eventOpts));
-        cv.dispatchEvent(new MouseEvent('click',     eventOpts));
-
-        // 延遲兩個 frame 再把 MouseX/MouseY 重置為 -1：
-        // 如果 BC 是在下一幀的 DrawProcess 才讀取座標，單層 rAF 可能會在
-        // BC 讀到值之前就把它歸零，導致點擊被判定在畫面外。
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                if (typeof MouseX !== 'undefined') MouseX = -1;
-                if (typeof MouseY !== 'undefined') MouseY = -1;
-            });
-        });
     }
+    cv.dispatchEvent(new MouseEvent('mousedown', eventOpts));
+    cv.dispatchEvent(new MouseEvent('mouseup',   eventOpts));
+    cv.dispatchEvent(new MouseEvent('click',     eventOpts));
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            if (typeof MouseX !== 'undefined') MouseX = -1;
+            if (typeof MouseY !== 'undefined') MouseY = -1;
+        });
+    });
+}
 
     // 記錄每個被搬移過的 dialog 元素「上一次我們設定的 left/top」，
     // 用來判斷 BC 這一幀是否重新定位過它 —— 避免每幀都用「目前已被我們
