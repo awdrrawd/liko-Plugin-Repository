@@ -1,20 +1,24 @@
 {
   "updateId": "260612",
   "changelog": [
-    "⭐MPL - 手機豎版畫面(測試) v0.5 更新",
+    "⭐MPL - 手機豎版畫面(測試) v0.5.2 更新",
     "新增登入畫面UI",
     "新增支援BC的所有語系",
+    "新增房間搜尋時，支援左右滑動",
     "修復android無法輸入文字",
     "修復轉成橫式時，還是直式畫面",
-    "修復開啟染色器導致座標異常"
+    "修復開啟染色器導致座標異常",
+    "修復手機鍵盤的Enter無法發送信息"
   ],
   "en_changelog": [
-    "⭐MPL - Mobile Portrait Layout(test) v0.5 updata",
+    "⭐MPL - Mobile Portrait Layout(test) v0.5.2 updata",
     "Added login screen UI",
     "Added support for all BC languages",
-    "Fixed Android unable to input text",
-    "Fixed orientation remaining portrait when switched to landscape",
-    "Fixed coordinate anomaly caused by enabling colorizer"
+    "Add support for left/right swiping during room search.",
+    "Fixed Android unable to input text.",
+    "Fixed orientation remaining portrait when switched to landscape.",
+    "Fixed coordinate anomaly caused by enabling colorizer.",
+    "Fix issue where the Enter key on the mobile keyboard cannot send messages."
   ],
   "plugins": [
     {
