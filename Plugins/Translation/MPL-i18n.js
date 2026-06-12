@@ -421,5 +421,14 @@
             CN: '发送',
             UA: 'Надіслати'
         },
+        'login.marquee_thanks': {
+            TW: '感謝 ',
+            EN: 'Thanks to ',
+            DE: 'Danke an ',
+            FR: 'Merci à ',
+            RU: 'Спасибо ',
+            CN: '感谢 ',
+            UA: 'Дякуємо '
+        },
     });
 })();
