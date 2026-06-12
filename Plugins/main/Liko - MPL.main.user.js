@@ -2,7 +2,7 @@
 // @name           Liko - Mobile Portrait Layout
 // @name:zh        Liko的手機直版佈局
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.5
+// @version        0.5.1
 // @description    Supports vertical layout for ChatSearch and ChatRoom
 // @description:zh 支援房間搜尋與聊天室的直版佈局
 // @author         Likolisu
@@ -23,7 +23,7 @@
     window.Liko.MPL = window.Liko.MPL ?? {};
     if (window.Liko.MPL.version) return;
 
-    const MOD_VER = '0.5';
+    const MOD_VER = '0.5.1';
     window.Liko.MPL.version = MOD_VER;
 
     const modApi = bcModSdk.registerMod({
@@ -427,14 +427,16 @@
 
     let crFakeInputActive = false;
 
-    /**
-     * 顯示假輸入框覆蓋層，攔截手機鍵盤彈出。
-     * @param {HTMLInputElement | HTMLTextAreaElement} realInput - 被 focus 的原始輸入框
-     */
+    //顯示假輸入框覆蓋層，攔截手機鍵盤彈出。
     function crShowFakeInput(realInput) {
         if (crFakeInputActive) return;
         crFakeInputActive = true;
+        injectStyle('liko-cr-keyboard-lock', `html, body { height: 100vh !important; overflow: hidden !important;}`);
+        const realInputId = realInput.id || null;   // ★ 記住 id，供之後即時查詢
 
+        /** ★ 取得目前 DOM 中真正的輸入框（避免拿到已被 BC 重建移除的舊節點） */
+        const getLiveInput = () =>
+        (realInputId && document.getElementById(realInputId)) || realInput;
         // 暫時設 readonly 後立刻移除，讓 iOS 不彈出鍵盤
         realInput.setAttribute('readonly', 'true');
         realInput.blur();
@@ -469,6 +471,7 @@
         ta.value       = realInput.value || '';
         ta.placeholder = realInput.placeholder || '';
         ta.rows        = 4;
+        ta.setAttribute('enterkeyhint', 'send')
         ta.style.cssText = `
             width:100%; box-sizing:border-box;
             background:rgba(255,255,255,0.08);
@@ -501,23 +504,31 @@
 
         const close = () => {
             crFakeInputActive = false;
+            removeStyle('liko-cr-keyboard-lock');
             overlay.remove();
         };
 
         cancelBtn.addEventListener('click', close);
 
         sendBtn.addEventListener('click', () => {
-            realInput.value = ta.value;
-            realInput.dispatchEvent(new Event('input', { bubbles: true }));
+            const target = getLiveInput();   // ★ 改用即時查詢的元素
+            target.value = ta.value;
+            target.dispatchEvent(new Event('input', { bubbles: true }));
             ['keydown', 'keypress', 'keyup'].forEach(type => {
-                realInput.dispatchEvent(new KeyboardEvent(type, {
+                target.dispatchEvent(new KeyboardEvent(type, {
                     key: 'Enter', code: 'Enter', keyCode: 13,
                     bubbles: true, cancelable: true,
                 }));
             });
             close();
         });
-
+        // Enter送出
+        ta.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendBtn.click();
+            }
+        });
         // 點擊遮罩關閉
         overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
@@ -562,10 +573,8 @@
         delete chatDiv._likoFakeInputHandler;
     }
 
-    /**
-     * 每幀維護 ChatRoom 直版版面（供 DrawProcess hook 呼叫）。
-     * 同步更新 canvas、選單與聊天框的位置。
-     */
+    //每幀維護 ChatRoom 直版版面（供 DrawProcess hook 呼叫）。同步更新 canvas、選單與聊天框的位置。
+
     function crMaintain() {
         if (!crActive) return;
         const L = crCalc();
@@ -622,6 +631,7 @@
         crFakeInputActive = false;
 
         document.getElementById('liko-cr-fake-input-overlay')?.remove();
+        removeStyle('liko-cr-keyboard-lock');
         crUnhookChatInput();
         clearCanvasStyle();
         removeStyle('liko-ml-cr');
@@ -1949,14 +1959,8 @@
         }
     }
 
-    /**
-     * 取得排除軟體鍵盤後的視窗高度。
-     * 優先使用 visualViewport.height（iOS/Android 鍵盤彈出後會縮小）。
-     * @returns {number}
-     */
-    function getLockedVH() {
-        return window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    }
+    // 取得排除軟體鍵盤後的視窗高度。 優先使用 visualViewport.height（iOS/Android 鍵盤彈出後會縮小）。
+    function getLockedVH() { return window.visualViewport ? window.visualViewport.height : window.innerHeight; }
 
     // visualViewport resize：調整假輸入框覆蓋層高度，防止被鍵盤推走
     window.visualViewport?.addEventListener('resize', () => {
@@ -1982,10 +1986,7 @@
     const IDB_STORE     = 'profiles';       // 角色快照的 ObjectStore
     const IDB_KEY_STORE = 'cryptokeys';     // AES-GCM 金鑰的 ObjectStore
 
-    /**
-     * 取得登入背景圖 URL。
-     * @returns {string}
-     */
+    //取得登入背景圖 URL。
     function getBgUrl() {
         const href = window.location.href;
         const base = href.includes('/')
@@ -2005,11 +2006,7 @@
         return buf.buffer;
     };
 
-    /**
-     * 懶載入 AES-GCM 金鑰（存放於 IndexedDB，首次使用時自動生成）。
-     * 失敗時重置 Promise 讓下次重試。
-     * @type {Promise<CryptoKey> | null}
-     */
+    //AES-GCM 金鑰（存放於 IndexedDB，首次使用時自動生成）。
     let _cryptoKeyPromise = null;
 
     function getCryptoKey() {
@@ -2041,11 +2038,7 @@
         return _cryptoKeyPromise;
     }
 
-    /**
-     * 加密明文密碼，格式：base64(iv) + ':' + base64(ciphertext)
-     * @param {string} plaintext
-     * @returns {Promise<string>}
-     */
+    //加密明文密碼，格式：base64(iv) + ':' + base64(ciphertext)
     async function encryptPassword(plaintext) {
         const key    = await getCryptoKey();
         const iv     = crypto.getRandomValues(new Uint8Array(12));
@@ -2099,11 +2092,7 @@
         });
     }
 
-    /**
-     * 從 IndexedDB 取得角色快照。
-     * @param {string} accountName
-     * @returns {Promise<object | null>}
-     */
+    //從 IndexedDB 取得角色快照。
     async function dbGet(accountName) {
         const db = await openDB();
         return new Promise(resolve => {
@@ -2113,11 +2102,7 @@
         });
     }
 
-    /**
-     * 寫入角色快照到 IndexedDB。
-     * @param {object} profile
-     * @returns {Promise<boolean>}
-     */
+    //寫入角色快照到 IndexedDB。
     async function dbPut(profile) {
         const db = await openDB();
         return new Promise(resolve => {
@@ -2127,11 +2112,7 @@
         });
     }
 
-    /**
-     * 從 IndexedDB 刪除角色快照。
-     * @param {string} accountName
-     * @returns {Promise<boolean>}
-     */
+    //從 IndexedDB 刪除角色快照。
     async function dbDelete(accountName) {
         const key = String(accountName || '').toUpperCase();
         if (!key) return false;
@@ -2156,12 +2137,7 @@
         localStorage.setItem(MPL_KEY, JSON.stringify(list));
     }
 
-    /**
-     * 新增或更新一個帳號（密碼加密後存入）。
-     * @param {string} accountName
-     * @param {string} plainPassword
-     * @returns {Promise<string>} 正規化後的 key（大寫）
-     */
+    //新增或更新一個帳號（密碼加密後存入）。
     async function addOrUpdateAccount(accountName, plainPassword) {
         const key       = accountName.toUpperCase();
         const encrypted = await encryptPassword(plainPassword);
@@ -2182,11 +2158,7 @@
 
     // ── 角色快照（頭像 + 暱稱 + ID）──────────────────────────────────────────
 
-    /**
-     * 從 Player.Canvas 擷取頭像縮圖（臉部區域），回傳 Data URL。
-     * @param {number} [size=48]
-     * @returns {string | null}
-     */
+    //從 Player.Canvas 擷取頭像縮圖（臉部區域），回傳 Data URL。
     function makeAvatarDataUrl(size = 48) {
         try {
             const src = Player?.Canvas;
@@ -2303,10 +2275,7 @@
         }
     }
 
-    /**
-     * 監聽 FUSAM container 從 DOM 中移除的事件，移除後還原祖先元素的樣式。
-     * 避免 FUSAM 關閉後父元素殘留高 z-index 影響其他 UI。
-     */
+    //監聽 FUSAM container 從 DOM 中移除的事件，移除後還原祖先元素的樣式。 避免 FUSAM 關閉後父元素殘留高 z-index 影響其他 UI。
     function watchFusamContainerRemoval() {
         const container = document.getElementById('fusam-addon-manager-container');
         if (!container) return;
@@ -2474,7 +2443,7 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 35px;
+    gap: 40px;
     width: 100%;
 }
 .mpl-field-label {
@@ -2506,7 +2475,7 @@
 
 /* ── 按鈕列 ── */
 #mpl-btn-row {
-    width:70%; max-width:420px; padding:0;
+    width:80%; max-width:420px; padding:0;
     display:flex; flex-direction:column; gap:8px; align-items:stretch; margin-top:10px;
 }
 #mpl-btn-login {
@@ -2518,7 +2487,7 @@
 }
 #mpl-btn-login:hover    { background:rgba(127,83,205,0.48); }
 #mpl-btn-login:disabled { opacity:0.40; cursor:default; }
-#mpl-btn-row-secondary  { display:flex; gap:8px; width:100%; }
+#mpl-btn-row-secondary  { display:flex; gap:10px; width:100%; }
 #mpl-btn-save-acct,
 #mpl-btn-reset {
     flex:1; min-width:0; padding:10px;
@@ -2531,7 +2500,7 @@
 #mpl-btn-reset:hover { background:rgba(127,83,205,0.22); border-color:rgba(200,170,255,0.55); }
 #mpl-privacy-note {
     font-size:13px; color:rgba(180,170,210,0.45);
-    text-align:center; letter-spacing:0.3px; margin-top:1px;
+    text-align:center; letter-spacing:0.5px; margin-top:1px;
 }
 
 /* ── 建立角色 ── */
@@ -2543,10 +2512,10 @@
 .mpl-div-line { flex:1; height:0.5px; background:rgba(200,185,230,0.15); }
 .mpl-div-text { font-size:17px; color:rgba(200,185,230,0.45); }
 #mpl-btn-register {
-    width:70%; padding:10px;
+    width:80%; padding:10px;
     background:rgba(14,10,28,0.55); backdrop-filter:blur(8px);
     border:1.5px solid rgba(200,180,255,0.28); border-radius:12px;
-    color:rgba(220,210,245,0.85); font-size:20px; font-family:inherit;
+    color:rgba(220,210,245,0.85); font-size:18px; font-family:inherit;
     cursor:pointer; transition:background .15s,border-color .15s;
 }
 #mpl-btn-register:hover { background:rgba(127,83,205,0.18); border-color:rgba(200,170,255,0.50); }
