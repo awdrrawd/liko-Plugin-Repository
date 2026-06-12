@@ -2,7 +2,7 @@
 // @name           Liko - Mobile Portrait Layout
 // @name:zh        Liko的手機直版佈局
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.3.3
+// @version        0.3.4
 // @description    Supports vertical layout for ChatSearch and ChatRoom
 // @description:zh 支援房間搜尋與聊天室的直版佈局
 // @author         Likolisu
@@ -17,7 +17,7 @@
     window.Liko = window.Liko ?? {};
     window.Liko.MPL = window.Liko.MPL ?? {};
     if (window.Liko.MPL.version) return;
-    const MOD_VER = '0.3.3';
+    const MOD_VER = '0.3.4';
     window.Liko.MPL.version = MOD_VER;
     const modApi = bcModSdk.registerMod({
         name:       'Liko - MPL',
@@ -37,9 +37,7 @@
     // 工具函數
     // ════════════════════════════════════════════════════════════════════════════
 
-    function isPortrait() {
-        return window.innerWidth <= PORTRAIT_MAX_WIDTH || window.innerWidth < window.innerHeight;
-    }
+    function isPortrait() { return window.innerWidth < window.innerHeight; }
 
     function getCanvas() {
         return document.getElementById('MainCanvas') || document.querySelector('canvas');
@@ -1267,20 +1265,14 @@
     function drInjectClick(screenX, screenY, pointerType = 'touch') {
         const vw  = window.innerWidth;
         const cvH = Math.round(window.innerHeight * 0.5);
-
-        // 下半螢幕 (0~vw, cvH~vh) → BC canvas 右半 (vw~vw*2, 0~cvH) 的像素座標。
-        // 因為下半螢幕的寬/高分別與 vw / cvH 相同，這其實是 1:1 平移，
-        // 不是縮放（原本寫成 (screenX/vw)*vw 容易誤導成有額外比例）。
         const canvasPixelX = vw + screenX;
         const canvasPixelY = screenY - cvH;
-
         const cv = getCanvas();
         if (!cv) return;
         const rect = cv.getBoundingClientRect();
 
-        // 設定 BC 全域座標（BC 在 click handler / 下一幀 DrawProcess 裡會讀這些）
-        if (typeof MouseX !== 'undefined') MouseX = 1000 + (screenX / vw) * 1000;
-        if (typeof MouseY !== 'undefined') MouseY = (screenY - cvH) / cvH * 1000;
+        if (typeof MouseX !== 'undefined') window.MouseX = 1000 + (screenX / vw) * 1000;
+        if (typeof MouseY !== 'undefined') window.MouseY = (screenY - cvH) / cvH * 1000;
 
         const eventOpts = {
             bubbles: true,
@@ -1291,24 +1283,33 @@
             isPrimary: true,
         };
 
-        // 同時 dispatch PointerEvent 與 MouseEvent：
-        // - PointerEvent 涵蓋現代瀏覽器對 touch/mouse 統一處理的互動（拖曳、長按等）
-        // - MouseEvent 作為相容性後備，給只監聽滑鼠事件的舊邏輯使用
         if (typeof PointerEvent === 'function') {
-            cv.dispatchEvent(new PointerEvent('pointerdown', eventOpts));
-            cv.dispatchEvent(new PointerEvent('pointerup',   eventOpts));
+            // BC 的 GamePointerDown/GamePointerUp 會對收到的 pointerdown/pointerup 呼叫
+            // setPointerCapture/releasePointerCapture，但合成事件的 pointerId 沒有對應
+            // 真實的活躍 pointer，瀏覽器會丟 NotFoundError。
+            // 暫時用空函式取代這兩個方法，dispatch 完畢後在 finally 還原。
+            const origSet     = cv.setPointerCapture.bind(cv);
+            const origRelease = cv.releasePointerCapture.bind(cv);
+            cv.setPointerCapture     = () => {};
+            cv.releasePointerCapture = () => {};
+            try {
+                cv.dispatchEvent(new PointerEvent('pointerdown', eventOpts));
+                cv.dispatchEvent(new PointerEvent('pointerup',   eventOpts));
+            } finally {
+                cv.setPointerCapture     = origSet;
+                cv.releasePointerCapture = origRelease;
+            }
         }
         cv.dispatchEvent(new MouseEvent('mousedown', eventOpts));
         cv.dispatchEvent(new MouseEvent('mouseup',   eventOpts));
         cv.dispatchEvent(new MouseEvent('click',     eventOpts));
 
-        // 延遲兩個 frame 再把 MouseX/MouseY 重置為 -1：
-        // 如果 BC 是在下一幀的 DrawProcess 才讀取座標，單層 rAF 可能會在
-        // BC 讀到值之前就把它歸零，導致點擊被判定在畫面外。
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                if (typeof MouseX !== 'undefined') MouseX = -1;
-                if (typeof MouseY !== 'undefined') MouseY = -1;
+
+                if (typeof MouseX !== 'undefined') window.MouseX = -1;
+                if (typeof MouseY !== 'undefined') window.MouseY = -1;
+
             });
         });
     }
