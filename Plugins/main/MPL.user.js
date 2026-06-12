@@ -2,7 +2,7 @@
 // @name           Liko - Mobile Portrait Layout
 // @name:zh        Liko的手機直版佈局
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.3.3-1
+// @version        0.3.3-2
 // @description    Supports vertical layout for ChatSearch and ChatRoom
 // @description:zh 支援房間搜尋與聊天室的直版佈局
 // @author         Likolisu
@@ -1283,20 +1283,22 @@
         isPrimary: true,
     };
 
-    if (typeof PointerEvent === 'function') {
-        // 暫時封住 setPointerCapture，避免 BC 對合成事件呼叫它時丟 NotFoundError
-        const orig = cv.setPointerCapture.bind(cv);
-        cv.setPointerCapture = () => {};
-        try {
-            cv.dispatchEvent(new PointerEvent('pointerdown', eventOpts));
-            cv.dispatchEvent(new PointerEvent('pointerup',   eventOpts));
-        } finally {
-            cv.setPointerCapture = orig;  // 無論如何都要還原
-        }
+if (typeof PointerEvent === 'function') {
+    const origSet     = cv.setPointerCapture.bind(cv);
+    const origRelease = cv.releasePointerCapture.bind(cv);
+    cv.setPointerCapture     = () => {};
+    cv.releasePointerCapture = () => {};
+    try {
+        cv.dispatchEvent(new PointerEvent('pointerdown', eventOpts));
+        cv.dispatchEvent(new PointerEvent('pointerup',   eventOpts));
+    } finally {
+        cv.setPointerCapture     = origSet;
+        cv.releasePointerCapture = origRelease;
     }
-    cv.dispatchEvent(new MouseEvent('mousedown', eventOpts));
-    cv.dispatchEvent(new MouseEvent('mouseup',   eventOpts));
-    cv.dispatchEvent(new MouseEvent('click',     eventOpts));
+}
+cv.dispatchEvent(new MouseEvent('mousedown', eventOpts));
+cv.dispatchEvent(new MouseEvent('mouseup',   eventOpts));
+cv.dispatchEvent(new MouseEvent('click',     eventOpts));
 
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
