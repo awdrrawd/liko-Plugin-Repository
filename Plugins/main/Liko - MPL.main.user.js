@@ -3213,13 +3213,24 @@
         if (nameEl) nameEl.value = acct.accountName;
         if (passEl) passEl.value = '';
 
+        // 只切換 active class，不重建整個列（避免抖動）
+        const row = document.getElementById('mpl-accounts-row');
+        const cards = row?.querySelectorAll('.mpl-acct-card');
+        cards?.forEach((card, i) => card.classList.toggle('active', i === idx));
+
+        // 將選中卡片捲動到列中央
+        const selectedCard = cards?.[idx];
+        if (row && selectedCard) {
+            const targetScroll = selectedCard.offsetLeft - (row.offsetWidth - selectedCard.offsetWidth) / 2;
+            row.scrollTo({ left: targetScroll, behavior: 'smooth' });
+        }
+        requestAnimationFrame(updateCoverflowTransforms);
+
         decryptPassword(acct.password).then(plain => {
             if (selectedIdx !== currentSelection) return; // 使用者已切換其他帳號
             const el = document.getElementById('mpl-input-pass');
             if (el) el.value = plain ?? '';
         });
-
-        mplRefreshAccountRow();
     }
 
     /** @param {number} idx */
