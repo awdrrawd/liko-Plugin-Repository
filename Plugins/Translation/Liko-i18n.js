@@ -60,5 +60,7 @@
         return str;
     }
 
-    window.Liko.i18n = { version: ENGINE_VER, register, t, detectLang };
+    function has(ns, key) { return !!_store[ns]?.[key]; }
+
+    window.Liko.i18n = { version: ENGINE_VER, register, t, has, detectLang };
 })();

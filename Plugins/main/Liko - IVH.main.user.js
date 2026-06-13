@@ -1237,8 +1237,7 @@ function addArousal() {
         // ① 先存原始表情，立即套用新表情
         //    如果本次會觸發高潮（BC 自帶表情），跳過 IVH 的表情替換
         const orgasmStageNow = Player?.ArousalSettings?.OrgasmStage ?? 0;
-        const willOrgasm = orgasmStageNow >= 2 ||
-              (getArousalLevel() >= 100 && Player?.ArousalSettings?.OrgasmTimer > 0);
+        const willOrgasm = orgasmStageNow === 2;
         let savedExpr = null;
         if (CONFIG.expression && !willOrgasm) {
             try { savedExpr = saveExpression(); } catch(e) {}
@@ -1268,7 +1267,7 @@ function addArousal() {
         //   OrgasmStage=0: 正常, =1: 抵抗中, =2: 真正高潮（不抵抗或抵抗失敗）
         const arousalNow   = getArousalLevel();
         const orgasmStage  = Player?.ArousalSettings?.OrgasmStage ?? 0;
-        const bcOrgasming  = orgasmStage >= 2 || (arousalNow >= 100 && orgasmStage >= 1);
+        const bcOrgasming  = orgasmStage === 2;
         const doClimax     = CONFIG.climax && (
             CONFIG.climaxMode === 'always' ||
             bcOrgasming ||
@@ -1866,32 +1865,31 @@ function addArousal() {
 
     function hookOrgasmStage() {
         if (!modApi) return;
-        try {
-            // ActivityOrgasmPrepare 在 Progress=100 時被 BC 呼叫，之後 stage 變化
-            // 用 ActivityOrgasm 或 ActivityOrgasmPrepare hook 更直接
-            modApi.hookFunction('ActivityOrgasm', 0, (args, next) => {
-                const result = next(args);
-                const [C] = args;
-                // 只處理玩家自己的高潮
-                if (C && typeof C.IsPlayer === 'function' && C.IsPlayer()
-                    && typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
-                    if (CONFIG.climax && !_climaxCooldown) {
-                        _climaxCooldown = true;
-                        const scale = effectScale();
-                        setTimeout(() => {
-                            triggerClimaxEffect(scale);
-                            // 高潮也觸發一次粉紅暈染和震動
-                            triggerPinkFlash();
-                        }, 400);
-                        // 冷卻 8 秒，避免重複觸發
-                        setTimeout(() => { _climaxCooldown = false; }, 8000);
-                    }
+
+        const orgasmHandler = (args, next) => {
+            const result = next(args);
+            const [C] = args;
+            if (C && typeof C.IsPlayer === 'function' && C.IsPlayer()
+                && typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+                if (CONFIG.climax && !_climaxCooldown) {
+                    _climaxCooldown = true;
+                    const scale = effectScale();
+                    setTimeout(() => {
+                        triggerClimaxEffect(scale);
+                        triggerPinkFlash();
+                    }, 400);
+                    setTimeout(() => { _climaxCooldown = false; }, 8000);
                 }
-                return result;
-            });
+            }
+            return result;
+        };
+
+        // ActivityOrgasm = stage 2 真正高潮時觸發；ActivityOrgasmPrepare = stage 1 抵抗開始（時機太早）
+        // 只嘗試 ActivityOrgasm，失敗就用輪詢（輪詢同樣只在 stage 2 觸發）
+        try {
+            modApi.hookFunction('ActivityOrgasm', 0, orgasmHandler);
         } catch (e) {
-            // ActivityOrgasm 可能不存在於所有版本，改用 DrawProcess 輪詢
-            console.warn('🐈‍⬛ [IVH] ActivityOrgasm hook 失敗，改用輪詢:', e.message);
+            console.warn('🐈‍⬛ [IVH] ActivityOrgasm hook 失敗，改用輪詢模式:', e.message);
             _hookOrgasmPoll();
         }
     }
