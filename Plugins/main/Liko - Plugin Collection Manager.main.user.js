@@ -1459,14 +1459,6 @@
     // === 初始化 =================================================
     // ============================================================
 
-    // ============================================================
-    // === 自載依賴（直裝主體時自行拉取）==========================
-    // ============================================================
-
-    // ============================================================
-    // === 自載依賴（直裝主體或載入器均適用）======================
-    // ============================================================
-
     const _PCM_CDN = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/";
 
     function _loadScriptTag(url) {
@@ -1488,7 +1480,7 @@
         // Remaining deps — skip if already provided
         const rest = [
             { url: _PCM_CDN + "Translation/Liko-i18n.js", ready: () => !!window.Liko?.i18n?.version },
-            { url: _PCM_CDN + "Translation/PCM-i18n.js",  ready: () => window.Liko?.i18n?.has('PCM', 'tabLocal') },
+            { url: _PCM_CDN + "Translation/PCM-i18n.js",  ready: () => window.Liko?.i18n?.t('PCM', 'tabLocal') !== 'tabLocal' },
             { url: _PCM_CDN + "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.Toast },
         ];
         for (const { url, ready } of rest) {
