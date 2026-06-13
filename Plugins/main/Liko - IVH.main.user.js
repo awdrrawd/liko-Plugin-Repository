@@ -1884,12 +1884,21 @@ function addArousal() {
             return result;
         };
 
-        // ActivityOrgasm = stage 2 真正高潮時觸發；ActivityOrgasmPrepare = stage 1 抵抗開始（時機太早）
-        // 只嘗試 ActivityOrgasm，失敗就用輪詢（輪詢同樣只在 stage 2 觸發）
-        try {
-            modApi.hookFunction('ActivityOrgasm', 0, orgasmHandler);
-        } catch (e) {
-            console.warn('🐈‍⬛ [IVH] ActivityOrgasm hook 失敗，改用輪詢模式:', e.message);
+        // 嘗試多個 BC 版本中可能存在的高潮函數名，靜默嘗試，失敗就用輪詢
+        const orgasmFnCandidates = [
+            'ActivityOrgasm',
+            'ActivityOrgasmStart',
+            'ActivityOrgasmPrepare',
+        ];
+        let orgasmHooked = false;
+        for (const fn of orgasmFnCandidates) {
+            try {
+                modApi.hookFunction(fn, 0, orgasmHandler);
+                orgasmHooked = true;
+                break;
+            } catch { /* 函數不存在，試下一個 */ }
+        }
+        if (!orgasmHooked) {
             _hookOrgasmPoll();
         }
     }
@@ -2078,21 +2087,26 @@ function addArousal() {
                     version:    MOD_VER,
                     repository: '沉浸式催眠效果 | Immersive Voice Hypnosis',
                 });
-
-                modApi.onUnload(() => {
-                    if (_domObserver)      { _domObserver.disconnect(); _domObserver = null; }
-                    if (_fallbackInterval) { clearInterval(_fallbackInterval); _fallbackInterval = null; }
-                    removePanel();
-                    const overlay = document.getElementById('ivh-overlay');
-                    if (overlay) overlay.remove();
-                    const styles = document.getElementById('ivh-styles');
-                    if (styles) styles.remove();
-                    // 還原 canvas
-                    const canvas = document.getElementById('MainCanvas') || document.querySelector('canvas');
-                    if (canvas) { canvas.style.filter = ''; canvas.style.transform = ''; }
-                });
             } catch (e) {
-                console.warn('🐈‍⬛ [IVH] ⚠️ 相容模式:', e.message);
+                console.warn('🐈‍⬛ [IVH] ⚠️ registerMod 失敗，進入相容模式:', e.message);
+            }
+
+            if (modApi) {
+                try {
+                    modApi.onUnload(() => {
+                        if (_domObserver)      { _domObserver.disconnect(); _domObserver = null; }
+                        if (_fallbackInterval) { clearInterval(_fallbackInterval); _fallbackInterval = null; }
+                        removePanel();
+                        const overlay = document.getElementById('ivh-overlay');
+                        if (overlay) overlay.remove();
+                        const styles = document.getElementById('ivh-styles');
+                        if (styles) styles.remove();
+                        const canvas = document.getElementById('MainCanvas') || document.querySelector('canvas');
+                        if (canvas) { canvas.style.filter = ''; canvas.style.transform = ''; }
+                    });
+                } catch (e) {
+                    // 舊版 bcModSdk 不支援 onUnload，忽略即可
+                }
             }
         }
 
