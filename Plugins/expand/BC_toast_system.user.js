@@ -1,107 +1,79 @@
 // toast-system.js
-// 版本: 1.1 - 調整訊息起始高度
-// 用法: ChatRoomSendLocalStyled(message, duration, color, x, y, fontSize)
-//      或: ChatRoomSendLocalStyled(message, { duration, color, x, y, fontSize })
-
 (function() {
-
-    console.log("🐈‍⬛ [GlobalToast] ⌛ 初始化...");
+    window.Liko = window.Liko ?? {};
+    if (window.Liko.Toast) return;
+    const MOD_VER = "1.2";
 
     let activeMessages = [];
-    let lastPromptTime = 0;
 
-    // 調整這些數值來改變訊息位置
-    const BASE_HEIGHT = 120;  // 起始高度 (原本是 20px，現在改為 80px)
-    const MESSAGE_SPACING = 35; // 訊息間距 (原本是 35px，現在改為 40px)
+    const BASE_HEIGHT  = 120;
+    const MSG_SPACING  = 35;
 
     function repositionMessages() {
-        activeMessages.forEach((msg, index) => {
-            if (msg && msg.style) {
-                msg.style.bottom = `${BASE_HEIGHT + index * MESSAGE_SPACING}px`;
-            }
+        activeMessages.forEach((msg, i) => {
+            if (msg?.style) msg.style.bottom = `${BASE_HEIGHT + i * MSG_SPACING}px`;
         });
     }
 
-    window.ChatRoomSendLocalStyled = function (message, duration = 3000, color = "#ff69b4", x = null, y = null, fontSize = "24px") {
+    function ChatRoomSendLocalStyled(message, duration = 3000, color = "#ff69b4", x = null, y = null, fontSize = "24px") {
         try {
             if (typeof duration === 'object' && duration !== null) {
-                const options = duration;
-                const config = {
-                    duration: 3000,
-                    color: "#ff69b4",
-                    x: null,
-                    y: null,
-                    fontSize: "20px",
-                    ...options
-                };
-                duration = config.duration;
-                color = config.color;
-                x = config.x;
-                y = config.y;
-                fontSize = config.fontSize;
+                ({ duration = 3000, color = "#ff69b4", x = null, y = null, fontSize = "20px" } = duration);
             }
 
-            const config = { duration, color, x, y, fontSize };
-            const now = Date.now();
-            // if (now - lastPromptTime < 200) return; // 避免洗屏
-            lastPromptTime = now;
+            const cfg = { duration, color, x, y, fontSize };
 
             const msgEl = document.createElement("div");
             msgEl.classList.add("liko-toast");
             msgEl.textContent = message;
-            msgEl.style.position = "fixed";
-            msgEl.style.background = "rgba(0,0,0,0.7)";
-            msgEl.style.color = config.color;
-            msgEl.style.padding = "8px 15px";
-            msgEl.style.borderRadius = "10px";
-            msgEl.style.fontSize = typeof config.fontSize === "number" ? config.fontSize + "px" : config.fontSize;
-            msgEl.style.fontWeight = "bold";
-            msgEl.style.opacity = "0";
-            msgEl.style.transition = "opacity 0.5s, transform 0.5s";
-            msgEl.style.zIndex = 9999;
 
-            if (config.x !== null) {
-                msgEl.style.left = config.x + "px";
-                msgEl.style.transform = "translateX(0)";
-            } else {
-                msgEl.style.left = "50%";
-                msgEl.style.transform = "translateX(-50%)";
-            }
+            const translateX = cfg.x !== null ? '0' : '-50%';
 
-            if (config.y !== null) {
-                msgEl.style.bottom = config.y + "px";
-            } else {
-                msgEl.style.bottom = `${BASE_HEIGHT + activeMessages.length * MESSAGE_SPACING}px`;
-            }
+            Object.assign(msgEl.style, {
+                position:     'fixed',
+                background:   'rgba(0,0,0,0.7)',
+                color:        cfg.color,
+                padding:      '8px 15px',
+                borderRadius: '10px',
+                fontSize:     typeof cfg.fontSize === 'number' ? cfg.fontSize + 'px' : cfg.fontSize,
+                fontWeight:   'bold',
+                opacity:      '0',
+                transition:   'opacity 0.5s, transform 0.5s',
+                zIndex:       '9999',
+                left:         cfg.x !== null ? cfg.x + 'px' : '50%',
+                bottom:       cfg.y !== null ? cfg.y + 'px' : `${BASE_HEIGHT + activeMessages.length * MSG_SPACING}px`,
+                transform:    `translateX(${translateX}) translateY(0px)`,
+            });
 
             document.body.appendChild(msgEl);
             activeMessages.push(msgEl);
 
             requestAnimationFrame(() => {
-                msgEl.style.opacity = "1";
-                msgEl.style.transform += " translateY(-20px)";
+                requestAnimationFrame(() => {
+                    msgEl.style.opacity   = '1';
+                    msgEl.style.transform = `translateX(${translateX}) translateY(-20px)`;
+                });
             });
 
             setTimeout(() => {
-                msgEl.style.opacity = "0";
-                msgEl.style.transform += " translateY(-40px)";
+                msgEl.style.opacity   = '0';
+                msgEl.style.transform = `translateX(${translateX}) translateY(-40px)`;
                 setTimeout(() => {
-                    if (msgEl && msgEl.parentNode) {
-                        msgEl.remove();
-                    }
+                    msgEl?.parentNode?.removeChild(msgEl);
                     activeMessages = activeMessages.filter(m => m !== msgEl);
-                    if (config.y === null) repositionMessages();
+                    if (cfg.y === null) repositionMessages();
                 }, 500);
-            }, config.duration);
+            }, cfg.duration);
 
-        } catch (error) {
-            console.error("🐈‍⬛ [GlobalToast] ❌ 錯誤:", error);
+        } catch (e) {
+            console.error("🐈‍⬛ [GlobalToast] ❌", e);
         }
-    };
+    }
 
-    // 添加版本標記
-    window.ChatRoomSendLocalStyled._version = "1.1";
-    window.ChatRoomSendLocalStyled._loadTime = Date.now();
+    ChatRoomSendLocalStyled._version  = MOD_VER;
+    ChatRoomSendLocalStyled._loadTime = Date.now();
 
-    console.log("🐈‍⬛ [GlobalToast] ✅ v1.1 載入完成");
+    window.Liko.Toast              = ChatRoomSendLocalStyled;
+    window.ChatRoomSendLocalStyled = ChatRoomSendLocalStyled;
+    console.log(`🐈‍⬛ [GlobalToast] ✅ v${MOD_VER} loaded`);
 })();
