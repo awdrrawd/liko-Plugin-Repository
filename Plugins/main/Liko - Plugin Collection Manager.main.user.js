@@ -2,13 +2,11 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.3
+// @version      2.0.0
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
-// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
-// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_toast_system.user.js
 // @grant        none
 // @run-at       document-end
 // @downloadURL  https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
@@ -16,92 +14,112 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.3";
+    const MOD_VER = "2.0.0";
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
-    
+
     let modApi;
-
-    // === 生命週期管理 ===
     let isInitialized = false;
-    const _lifecycle = {
-        intervals: [],
-        observer: null,
-        mousemoveHandler: null,
-    };
-
-    // === 角色快取 ===
-    let cachedViewingCharacter = null;
-    let lastCharacterCheck = 0;
-    let lastScreenCheck = null;
-    let lastScreenCheckTime = 0;
+    const _lifecycle = { intervals: [], mousemoveHandler: null };
 
     // ============================================================
-    // === PCM 徽章系統（BCT 握手模式）============================
+    // === i18n ===================================================
+    // ============================================================
+
+    const t = (key, vars) => window.Liko.i18n?.t('PCM', key, vars) ?? key;
+
+    function registerI18n() {
+        // EN strings are the authoritative fallback — other languages live in PCM-i18n.js
+        window.Liko.i18n?.register('PCM', {
+            'loaded':           { EN: 'Liko\'s Plugin Collection Manager v{ver} loaded! Click the floating button to manage plugins.' },
+            'shortLoaded':      { EN: '📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button to open panel\n• Toggle switches to enable/disable plugins\n• Three-state toggle: OFF → ON → BETA\n\n📝 Commands:\n/pcm help — show this\n/pcm list — list all plugins\n\n💡 Plugins load on enable, or take effect on next refresh.' },
+            'welcomeTitle':     { EN: '🐈‍⬛ Plugin Manager' },
+            'tabLocal':         { EN: '📱 Local' },
+            'tabAccount':       { EN: '☁️ Account' },
+            'tabCustom':        { EN: '🔧 Custom' },
+            'searchPlaceholder':{ EN: 'Search plugins...' },
+            'filterAll':        { EN: 'Showing: All' },
+            'filterEnabled':    { EN: 'Showing: Enabled' },
+            'filterDisabled':   { EN: 'Showing: Disabled' },
+            'pluginEnabled':    { EN: 'enabled' },
+            'pluginDisabled':   { EN: 'disabled' },
+            'willTakeEffect':   { EN: 'Plugin loaded or will take effect on next refresh' },
+            'willNotStart':       { EN: 'Will not start on next load' },
+            'visitWebsite':       { EN: 'Visit website' },
+            'changelogTitle':     { EN: '📋 Update Log' },
+            'changelogClose':     { EN: 'Close' },
+            'newVersionTitle':    { EN: '✨ PCM Updated' },
+            'newVersionHint':     { EN: 'Click 📋 to view again anytime' },
+            'loadingPlugins':     { EN: 'Loading plugin list...' },
+            'loadPluginsFailed':  { EN: 'Failed to load plugin list, please refresh' },
+            'refreshTitle':       { EN: 'Refresh' },
+            'refreshing':         { EN: 'Fetching latest plugin list...' },
+            'refreshDone':        { EN: 'Plugin list updated!' },
+            'refreshFailed':      { EN: 'Update failed, using cached list' },
+            'pluginLoadComplete': { EN: 'Plugin loading complete' },
+            'successLoaded':      { EN: 'Loaded' },
+            'plugins':            { EN: 'plugins' },
+            'failed':             { EN: 'failed' },
+            'pluginLoadFailed':   { EN: '{name} failed to load' },
+            'pluginLoadRetry':    { EN: 'Click ↺ on the plugin to retry' },
+            'accountNotLoggedIn': { EN: '🔒\nPlease log in to use account settings' },
+            'customAddTitle':     { EN: 'Add Custom Plugin' },
+            'customFieldName':    { EN: 'Plugin name *' },
+            'customFieldUrl':     { EN: 'URL (.js) *' },
+            'customFieldIcon':    { EN: 'Icon — emoji or image URL (optional)' },
+            'customFieldDesc':    { EN: 'Description (optional)' },
+            'customBtnAdd':       { EN: 'Add' },
+            'customBtnCancel':    { EN: 'Cancel' },
+            'customDeleteConfirm':{ EN: 'Remove "{name}"?' },
+            'customDeleteYes':    { EN: 'Remove' },
+            'customAdded':        { EN: '{name} added' },
+            'customDeleted':      { EN: '{name} removed' },
+            'customUrlInvalid':   { EN: 'URL must end in .js' },
+            'customNameRequired': { EN: 'Please enter a name' },
+            'customEmptyHint':    { EN: 'No custom plugins yet.\nClick ⚙ above to add one.' },
+        });
+    }
+
+    // ============================================================
+    // === PCM 徽章系統（不變）====================================
     // ============================================================
 
     const PCM_HIDDEN_MSG = "PCM_BADGE_INIT";
-
-    const PCM_BADGE_CONFIG = {
-        offsetX: 240, offsetY: 25, size: 36,
-        showBackground: false,
-        backgroundColor: "#7F53CD", borderColor: "#FFFFFF", borderWidth: 1
-    };
-
-    let pcmBadgeImage = null;
-    let pcmImageLoaded = false;
-    const hoveredCharacters = new Set();
-    const characterDrawPositions = new Map();
+    const PCM_BADGE_CONFIG = { offsetX: 240, offsetY: 25, size: 36, showBackground: false, backgroundColor: "#7F53CD", borderColor: "#FFFFFF", borderWidth: 1 };
+    let pcmBadgeImage = null, pcmImageLoaded = false;
+    const hoveredCharacters = new Set(), characterDrawPositions = new Map();
+    let cachedViewingCharacter = null, lastCharacterCheck = 0;
+    let lastScreenCheck = null, lastScreenCheckTime = 0;
+    const CHARACTER_CACHE_TIME = 500;
 
     function cleanupLegacyOnlineSettings() {
         const doSetup = () => {
             try {
-                if (Player?.OnlineSharedSettings?.PCM) {
-                    delete Player.OnlineSharedSettings.PCM;
-                    console.log("🐈‍⬛ [PCM] 🧹 已清除舊版 OnlineSharedSettings.PCM 殘留");
-                }
+                if (Player?.OnlineSharedSettings?.PCM) delete Player.OnlineSharedSettings.PCM;
                 Player.PCM = { version: MOD_VER };
                 accountPluginSettings = loadAccountSettings();
                 const cfg = loadAccountConfig();
                 accountFloatingBtnVisible = cfg.showFloatingBtn !== false;
                 applyFloatingBtnVisibility();
-                console.log("🐈‍⬛ [PCM] ☁️ 帳戶插件設定已載入");
             } catch(e) {}
         };
-        if (typeof Player !== 'undefined' && Player?.AccountName) {
-            doSetup();
-        } else {
-            const checkId = setInterval(() => {
-                if (typeof Player !== 'undefined' && Player?.AccountName) {
-                    clearInterval(checkId);
-                    doSetup();
-                }
-            }, 500);
+        if (typeof Player !== 'undefined' && Player?.AccountName) doSetup();
+        else {
+            const id = setInterval(() => { if (typeof Player !== 'undefined' && Player?.AccountName) { clearInterval(id); doSetup(); } }, 500);
         }
     }
 
     function sendPCMInitialization(requestReply = false) {
         try {
             if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom') return;
-            ServerSend("ChatRoomChat", {
-                Type: "Hidden",
-                Content: PCM_HIDDEN_MSG,
-                Sender: Player.MemberNumber,
-                Dictionary: [{
-                    pcm: {
-                        version: MOD_VER,
-                        replyRequested: requestReply
-                    }
-                }]
-            });
+            ServerSend("ChatRoomChat", { Type: "Hidden", Content: PCM_HIDDEN_MSG, Sender: Player.MemberNumber, Dictionary: [{ pcm: { version: MOD_VER, replyRequested: requestReply } }] });
         } catch(e) {}
     }
 
     function parsePCMMessage(data) {
         try {
             if (data.Type !== "Hidden" || data.Content !== PCM_HIDDEN_MSG) return;
-            if (typeof Character === 'undefined') return;
-            const sender = Character.find(c => c.MemberNumber === data.Sender);
+            const sender = Character?.find(c => c.MemberNumber === data.Sender);
             if (!sender || sender.ID === 0) return;
             const pcmData = data.Dictionary?.[0]?.pcm;
             if (!pcmData) return;
@@ -114,191 +132,94 @@
         if (!pcmBadgeImage) {
             pcmBadgeImage = new Image();
             pcmBadgeImage.crossOrigin = "anonymous";
-            pcmBadgeImage.onload = function() { pcmImageLoaded = true; };
-            pcmBadgeImage.onerror = function() { pcmImageLoaded = false; };
+            pcmBadgeImage.onload = () => { pcmImageLoaded = true; };
+            pcmBadgeImage.onerror = () => { pcmImageLoaded = false; };
             pcmBadgeImage.src = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_4.png";
         }
     }
 
     function setupHoverTracking() {
         let rafPending = false;
-        function onMouseMove() {
+        const onMouseMove = () => {
             if (rafPending) return;
             rafPending = true;
             requestAnimationFrame(() => {
                 rafPending = false;
                 hoveredCharacters.clear();
                 try {
-                    if (typeof CurrentScreen === 'undefined' || CurrentScreen !== "ChatRoom") return;
-                    if (typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null) return;
+                    if (CurrentScreen !== "ChatRoom" || typeof CurrentCharacter !== 'undefined' && CurrentCharacter !== null) return;
                     if (typeof ChatRoomHideIconState !== 'undefined' && ChatRoomHideIconState !== 0) return;
                     if (typeof MouseHovering !== 'function') return;
-                    for (const [memberNumber, pos] of characterDrawPositions) {
-                        if (MouseHovering(pos.x, pos.y, 400 * pos.zoom, 100 * pos.zoom)) {
-                            hoveredCharacters.add(memberNumber);
-                        }
+                    for (const [mn, pos] of characterDrawPositions) {
+                        if (MouseHovering(pos.x, pos.y, 400 * pos.zoom, 100 * pos.zoom)) hoveredCharacters.add(mn);
                     }
                 } catch(e) {}
             });
-        }
+        };
         _lifecycle.mousemoveHandler = onMouseMove;
         document.addEventListener("mousemove", onMouseMove);
     }
 
     function drawPCMBadge(character, x, y, zoom) {
         try {
-            if (!hoveredCharacters.has(character.MemberNumber)) return;
-            if (!character.PCM) return;
+            if (!hoveredCharacters.has(character.MemberNumber) || !character.PCM) return;
             if (!pcmBadgeImage) { initializePCMBadgeImage(); return; }
-
-            const badgeX = x + (PCM_BADGE_CONFIG.offsetX * zoom);
-            const badgeY = y + (PCM_BADGE_CONFIG.offsetY * zoom);
-            const badgeSize = PCM_BADGE_CONFIG.size * zoom;
-
+            const bx = x + PCM_BADGE_CONFIG.offsetX * zoom, by = y + PCM_BADGE_CONFIG.offsetY * zoom, bs = PCM_BADGE_CONFIG.size * zoom;
             if (PCM_BADGE_CONFIG.showBackground) {
                 MainCanvas.fillStyle = PCM_BADGE_CONFIG.backgroundColor;
-                MainCanvas.beginPath();
-                MainCanvas.arc(badgeX, badgeY, badgeSize / 2, 0, 2 * Math.PI);
-                MainCanvas.fill();
-                if (PCM_BADGE_CONFIG.borderWidth > 0) {
-                    MainCanvas.strokeStyle = PCM_BADGE_CONFIG.borderColor;
-                    MainCanvas.lineWidth = PCM_BADGE_CONFIG.borderWidth * zoom;
-                    MainCanvas.stroke();
-                }
+                MainCanvas.beginPath(); MainCanvas.arc(bx, by, bs / 2, 0, 2 * Math.PI); MainCanvas.fill();
+                if (PCM_BADGE_CONFIG.borderWidth > 0) { MainCanvas.strokeStyle = PCM_BADGE_CONFIG.borderColor; MainCanvas.lineWidth = PCM_BADGE_CONFIG.borderWidth * zoom; MainCanvas.stroke(); }
             }
-
-            if (pcmImageLoaded && pcmBadgeImage.complete) {
-                MainCanvas.drawImage(
-                    pcmBadgeImage,
-                    badgeX - badgeSize / 2,
-                    badgeY - badgeSize / 2,
-                    badgeSize, badgeSize
-                );
-            } else {
-                MainCanvas.save();
-                MainCanvas.fillStyle = "#FFFFFF";
-                MainCanvas.font = `bold ${Math.max(10, badgeSize / 3)}px Arial`;
-                MainCanvas.textAlign = "center";
-                MainCanvas.textBaseline = "middle";
-                MainCanvas.fillText("PCM", badgeX, badgeY);
-                MainCanvas.restore();
-            }
+            if (pcmImageLoaded && pcmBadgeImage.complete) { MainCanvas.drawImage(pcmBadgeImage, bx - bs / 2, by - bs / 2, bs, bs); }
+            else { MainCanvas.save(); MainCanvas.fillStyle = "#FFFFFF"; MainCanvas.font = `bold ${Math.max(10, bs / 3)}px Arial`; MainCanvas.textAlign = "center"; MainCanvas.textBaseline = "middle"; MainCanvas.fillText("PCM", bx, by); MainCanvas.restore(); }
         } catch(e) {}
     }
 
     function syncDrawPositionsWithRoom() {
-        if (typeof ChatRoomCharacter === 'undefined' || !Array.isArray(ChatRoomCharacter)) return;
-        const currentIds = new Set(
-            ChatRoomCharacter.map(c => c?.MemberNumber).filter(id => id !== undefined)
-        );
-        for (const id of characterDrawPositions.keys()) {
-            if (!currentIds.has(id)) {
-                characterDrawPositions.delete(id);
-                hoveredCharacters.delete(id);
-            }
-        }
+        if (!Array.isArray(ChatRoomCharacter)) return;
+        const ids = new Set(ChatRoomCharacter.map(c => c?.MemberNumber).filter(id => id !== undefined));
+        for (const id of characterDrawPositions.keys()) { if (!ids.has(id)) { characterDrawPositions.delete(id); hoveredCharacters.delete(id); } }
     }
 
-    // Hook 角色繪製 + DrawScreen（取代 MutationObserver）
     function hookCharacterDrawing() {
         if (!modApi || typeof modApi.hookFunction !== 'function') return;
-        const safeHook = (fnName, priority, fn) => {
-            try { modApi.hookFunction(fnName, priority, fn); } catch(e) {}
-        };
-
-        safeHook('DrawCharacter', 5, (args, next) => {
-            const [character, x, y, zoom] = args;
-            const result = next(args);
-            if (character?.PCM && character.MemberNumber !== undefined) {
-                characterDrawPositions.set(character.MemberNumber, { x, y, zoom });
-                drawPCMBadge(character, x, y, zoom);
-            }
+        const sh = (fn, pri, cb) => { try { modApi.hookFunction(fn, pri, cb); } catch(e) {} };
+        sh('DrawCharacter', 5, (args, next) => {
+            const [c, x, y, zoom] = args, result = next(args);
+            if (c?.PCM && c.MemberNumber !== undefined) { characterDrawPositions.set(c.MemberNumber, { x, y, zoom }); drawPCMBadge(c, x, y, zoom); }
             return result;
         });
-
-        safeHook('ChatRoomClearAllElements', 5, (args, next) => {
-            characterDrawPositions.clear();
-            hoveredCharacters.clear();
-            return next(args);
-        });
-
-        safeHook('ChatRoomSync', 5, (args, next) => {
-            const result = next(args);
-            syncDrawPositionsWithRoom();
-            sendPCMInitialization(true);
-            return result;
-        });
-
-        safeHook('CommonSetScreen', 1, (args, next) => {
-            const result = next(args);
-            try {
-                lastScreenCheck = null;
-                lastScreenCheckTime = 0;
-                cachedViewingCharacter = null;
-                lastCharacterCheck = 0;
-                currentUIState = null;
-                checkLanguageChange();
-                createManagerUI();
-                if (!localLoadStarted) loadLocalPluginsPhase();
-                if (!accountLoadStarted) loadAccountPluginsPhase();
-            } catch(e) {}
-            return result;
+        sh('ChatRoomClearAllElements', 5, (args, next) => { characterDrawPositions.clear(); hoveredCharacters.clear(); return next(args); });
+        sh('ChatRoomSync', 5, (args, next) => { const r = next(args); syncDrawPositionsWithRoom(); sendPCMInitialization(true); return r; });
+        sh('CommonSetScreen', 1, (args, next) => {
+            const r = next(args);
+            try { lastScreenCheck = null; lastScreenCheckTime = 0; cachedViewingCharacter = null; lastCharacterCheck = 0; currentUIState = null; checkLanguageChange(); createManagerUI(); if (!localLoadStarted) loadLocalPluginsPhase(); if (!accountLoadStarted) loadAccountPluginsPhase(); } catch(e) {}
+            return r;
         });
         let _lastBcxState = false;
-        safeHook('GameRun', 1, (args, next) => {
-            const result = next(args);
+        sh('GameRun', 1, (args, next) => {
+            const r = next(args);
             try {
-                const currentBcxState = (window.bcx?.inBcxSubscreen?.() ?? false) ||
-                      (window.LITTLISH_CLUB?.inModSubscreen?.() ?? false);
-                if (currentBcxState !== _lastBcxState) {
-                    _lastBcxState = currentBcxState;
-                    lastScreenCheck = null;
-                    lastScreenCheckTime = 0;
-                    currentUIState = null;
-                    createManagerUI();
-                }
+                const cur = (window.bcx?.inBcxSubscreen?.() ?? false) || (window.LITTLISH_CLUB?.inModSubscreen?.() ?? false);
+                if (cur !== _lastBcxState) { _lastBcxState = cur; lastScreenCheck = null; lastScreenCheckTime = 0; currentUIState = null; createManagerUI(); }
             } catch(e) {}
-            return result;
+            return r;
         });
     }
 
     function registerPCMBadge() {
-        const waitForModApi = () => {
-            if (!modApi || typeof modApi.hookFunction !== 'function') {
-                setTimeout(waitForModApi, 500);
-                return;
-            }
-            if (typeof ServerSocket === 'undefined' || !ServerSocket) {
-                setTimeout(waitForModApi, 500);
-                return;
-            }
-
-            initializePCMBadgeImage();
-            setupHoverTracking();
-            cleanupLegacyOnlineSettings();
-            hookCharacterDrawing();
-
+        const wait = () => {
+            if (!modApi?.hookFunction || typeof ServerSocket === 'undefined' || !ServerSocket) { setTimeout(wait, 500); return; }
+            initializePCMBadgeImage(); setupHoverTracking(); cleanupLegacyOnlineSettings(); hookCharacterDrawing();
             ServerSocket.on("ChatRoomMessage", parsePCMMessage);
-
-            if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
-                sendPCMInitialization(true);
-            }
-
-            if (typeof modApi.onUnload === 'function') {
-                modApi.onUnload(() => {
-                    try {
-                        ServerSocket.off("ChatRoomMessage", parsePCMMessage);
-                        if (_lifecycle.mousemoveHandler) {
-                            document.removeEventListener("mousemove", _lifecycle.mousemoveHandler);
-                            _lifecycle.mousemoveHandler = null;
-                        }
-                        hoveredCharacters.clear();
-                        characterDrawPositions.clear();
-                    } catch(e) {}
-                });
-            }
+            if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') sendPCMInitialization(true);
+            if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
+                try { ServerSocket.off("ChatRoomMessage", parsePCMMessage); } catch(e) {}
+                if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
+                hoveredCharacters.clear(); characterDrawPositions.clear();
+            });
         };
-        waitForModApi();
+        wait();
     }
 
     // ============================================================
@@ -307,454 +228,228 @@
 
     const PLUGINS_JSON_URLS = [
         "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
-        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json"
+        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
     ];
 
     // ============================================================
-    // === 語言 ====================================================
+    // === 設定存取 ================================================
     // ============================================================
 
-    function detectLanguage() {
-        if (typeof TranslationLanguage !== 'undefined') {
-            const l = TranslationLanguage.toLowerCase();
-            return l === 'tw' || l === 'cn';
-        }
-        try {
-            const saved = localStorage.getItem("BondageClubLanguage");
-            if (saved) return saved.toLowerCase() === 'tw' || saved.toLowerCase() === 'cn';
-        } catch(e) {}
-        return false;
-    }
-    let _isCN = detectLanguage();
-
-    const messages = {
-        en: {
-            loaded: `Liko's Plugin Collection Manager v${MOD_VER} Loaded! Click the floating button to manage plugins.`,
-            shortLoaded: `📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button in the top right to open management panel\n• Toggle switches to enable/disable plugins\n\n📝 Available Commands:\n/pcm help - Show this manual\n/pcm list - View descriptions for all available plugins.\n\n💡 Tips:\nPlugins will auto-load after enabling, or take effect on next page refresh.\nRecommend selectively enabling plugins for the best experience.`,
-            welcomeTitle: "🐈‍⬛ Plugin Manager",
-            helpCommand: "Use floating button or /pcm help for more information",
-            pluginLoadComplete: "Plugin loading completed",
-            successLoaded: "Successfully loaded",
-            plugins: "plugins",
-            failed: "failed",
-            pluginEnabled: "enabled",
-            pluginDisabled: "disabled",
-            willTakeEffect: "Plugin loaded or will take effect on next refresh",
-            willNotStart: "Will not start on next load",
-            visitWebsite: "Visit website",
-            changelogTitle: "📋 Update Log",
-            changelogClose: "Close",
-            newVersionTitle: "✨ PCM Updated",
-            newVersionHint: "Click 📋 to view again anytime",
-            loadingPlugins: "Loading plugin list...",
-            loadPluginsFailed: "Failed to load plugin list, please refresh the page",
-            refreshTitle: "Force Refresh",
-            refreshing: "Clearing cache and fetching latest...",
-            refreshDone: "Cache updated! Refresh page to apply latest plugins"
-        },
-        zh: {
-            loaded: `Liko的插件管理器 v${MOD_VER} 載入完成！點擊浮動按鈕管理插件。`,
-            shortLoaded: `📋 Liko 插件管理器 說明書\n\n🎮 使用方法：\n• 點擊右上角的浮動按鈕開啟管理面板\n• 切換開關來啟用/停用插件\n\n📝 可用指令：\n/pcm help - 顯示此說明書\n/pcm list - 查看所有可用插件說明\n\n💡 小提示：\n插件啟用後會自動載入，或在下次刷新頁面時生效。\n建議根據需要選擇性啟用插件以獲得最佳體驗。`,
-            welcomeTitle: "🐈‍⬛ 插件管理器",
-            helpCommand: "使用浮動按鈕或 /pcm help 查看更多信息",
-            pluginLoadComplete: "插件載入完成",
-            successLoaded: "已成功載入",
-            plugins: "個插件",
-            failed: "個失敗",
-            pluginEnabled: "已啟用",
-            pluginDisabled: "已停用",
-            willTakeEffect: "插件已載入或將在下次刷新生效",
-            willNotStart: "下次載入時將不會啟動",
-            visitWebsite: "訪問網站",
-            changelogTitle: "📋 更新日誌",
-            changelogClose: "關閉",
-            newVersionTitle: "✨ PCM 已更新",
-            newVersionHint: "隨時點擊 📋 再次查看",
-            loadingPlugins: "正在載入插件清單...",
-            loadPluginsFailed: "插件清單載入失敗，請刷新頁面",
-            refreshTitle: "即刻更新",
-            refreshing: "正在清除快取並抓取最新版本...",
-            refreshDone: "快取已更新！重新整理頁面以套用最新插件"
-        }
-    };
-
-    function getMessage(key) { return messages[detectLanguage() ? 'zh' : 'en'][key]; }
-    function getPluginName(plugin) { return detectLanguage() ? plugin.name : plugin.en_name; }
-    function getPluginDescription(plugin) { return detectLanguage() ? plugin.description : plugin.en_description; }
-    function getPluginAdditionalInfo(plugin) { return detectLanguage() ? plugin.additionalInfo : plugin.en_additionalInfo; }
-
-    // ============================================================
-    // === 三段開關輔助 ============================================
-    // ============================================================
-
-    function isTriStatePlugin(plugin) { return !!plugin.altUrl; }
-    function isPluginEnabled(plugin) {
-        if (isTriStatePlugin(plugin)) return plugin.state !== "off";
-        return plugin.enabled;
-    }
-    function isPluginEnabledInAccount(plugin) {
-        const val = accountPluginSettings[plugin.id];
-        return val !== undefined && val !== 0 && val !== "off";
-    }
-    function isPluginEnabledForLoading(plugin) {
-        return isPluginEnabled(plugin) || isPluginEnabledInAccount(plugin);
-    }
-    function getActivePluginUrl(plugin) {
-        if (plugin.altUrl) {
-            const localState = plugin.state || "off";
-            const accountState = accountPluginSettings[plugin.id] || "off";
-            if (localState === "beta" || accountState === "beta") return plugin.altUrl;
-        }
-        return plugin.url;
-    }
-    function getTriLabels(plugin) {
-        if (plugin.triLabels && plugin.triLabels.length === 3) return plugin.triLabels;
-        return ["OFF", "ON", "BETA"];
-    }
-    function cycleTriState(current) {
-        if (current === "off") return "stable";
-        if (current === "stable") return "beta";
-        return "off";
-    }
-
-    // ============================================================
-    // === 版本比對 ================================================
-    // ============================================================
-
-    function parseGameVersion(versionStr) {
-        if (!versionStr) return 0;
-        const match = String(versionStr).match(/R?(\d+)/i);
-        return match ? parseInt(match[1], 10) : 0;
-    }
-    function getCurrentGameVersion() {
-        try { if (typeof GameVersion !== 'undefined') return parseGameVersion(GameVersion); } catch(e) {}
-        return 0;
-    }
-    function isPluginSkippedByVersion(plugin) {
-        if (!plugin.autoDisableAfterVersion) return false;
-        const currentVer = getCurrentGameVersion();
-        if (currentVer === 0) return false;
-        return currentVer > parseGameVersion(plugin.autoDisableAfterVersion);
-    }
-
-    // ============================================================
-    // === 設定保存（localStorage，只存設定值，幾KB）==============
-    // ============================================================
-
-    let saveSettingsTimer;
-    function saveSettings(settings) {
-        clearTimeout(saveSettingsTimer);
-        saveSettingsTimer = setTimeout(() => {
-            localStorage.setItem("BC_PluginManager_Settings", JSON.stringify(settings));
-        }, 100);
-    }
-    function loadSettings() {
-        return JSON.parse(localStorage.getItem("BC_PluginManager_Settings") || "{}");
-    }
+    let saveTimer;
+    function saveSettings(s) { clearTimeout(saveTimer); saveTimer = setTimeout(() => localStorage.setItem("BC_PluginManager_Settings", JSON.stringify(s)), 100); }
+    function loadSettings() { return JSON.parse(localStorage.getItem("BC_PluginManager_Settings") || "{}"); }
     let pluginSettings = loadSettings();
-
     let accountPluginSettings = {};
 
     function loadAccountSettings() {
-        try {
-            if (typeof Player === 'undefined' || !Player?.ExtensionSettings) return {};
-            const raw = Player.ExtensionSettings.PCMAccount;
-            if (!raw) return {};
-            if (typeof raw === 'object') return raw;
-            return JSON.parse(raw) || {};
-        } catch(e) { return {}; }
+        try { const raw = Player?.ExtensionSettings?.PCMAccount; if (!raw) return {}; return typeof raw === 'object' ? raw : JSON.parse(raw) || {}; } catch(e) { return {}; }
     }
-
     function saveAccountSettings() {
         try {
-            if (typeof Player === 'undefined' || !Player?.ExtensionSettings) return;
-            const compact = {};
-            for (const [id, val] of Object.entries(accountPluginSettings)) {
-                if (val === 1 || val === true) compact[id] = 1;
-                else if (val === "stable" || val === "beta") compact[id] = val;
-            }
-            Player.ExtensionSettings.PCMAccount = JSON.stringify(compact);
+            if (!Player?.ExtensionSettings) return;
+            const c = {};
+            for (const [id, v] of Object.entries(accountPluginSettings)) { if (v === 1 || v === true) c[id] = 1; else if (v === "stable" || v === "beta") c[id] = v; }
+            Player.ExtensionSettings.PCMAccount = JSON.stringify(c);
             ServerPlayerExtensionSettingsSync("PCMAccount");
-        } catch(e) { console.error("🐈‍⬛ [PCM] ❌ 帳戶設定保存失敗:", e); }
-    }
-
-    let accountFloatingBtnVisible = true;
-
-    function loadAccountConfig() {
-        try {
-            if (typeof Player === 'undefined' || !Player?.ExtensionSettings) return {};
-            const raw = Player.ExtensionSettings.PCMConfig;
-            if (!raw) return {};
-            if (typeof raw === 'object') return raw;
-            return JSON.parse(raw) || {};
-        } catch(e) { return {}; }
-    }
-
-    function saveAccountConfig(config) {
-        try {
-            if (typeof Player === 'undefined' || !Player?.ExtensionSettings) return;
-            Player.ExtensionSettings.PCMConfig = JSON.stringify(config);
-            ServerPlayerExtensionSettingsSync("PCMConfig");
         } catch(e) {}
     }
+    let accountFloatingBtnVisible = true;
+    function loadAccountConfig() { try { const raw = Player?.ExtensionSettings?.PCMConfig; if (!raw) return {}; return typeof raw === 'object' ? raw : JSON.parse(raw) || {}; } catch(e) { return {}; } }
+    function saveAccountConfig(cfg) { try { if (!Player?.ExtensionSettings) return; Player.ExtensionSettings.PCMConfig = JSON.stringify(cfg); ServerPlayerExtensionSettingsSync("PCMConfig"); } catch(e) {} }
 
     // ============================================================
-    // === 插件腳本快取（Cache API，取代 localStorage）============
+    // === 插件腳本快取（僅 JsDelivr）============================
     // ============================================================
-    // Cache API 專為快取外部資源設計，容量遠大於 localStorage（幾GB）
-    // API 是 Promise-based，與現有 async/await 完全相容
 
-    const PCM_CACHE_NAME = "pcm-plugin-cache-v1";
-    const JSON_CACHE_KEY = "pcm_json_cache"; // JSON 快取繼續用 localStorage（體積小）
-    const CACHE_TTL = 24 * 60 * 60 * 1000;
+    const PLUGIN_CACHE_PREFIX = 'pcm_p_';
+    const PLUGIN_CACHE_TTL    = 24 * 60 * 60 * 1000;
 
-    function shouldUseCache(plugin) {
-        return (plugin.priority || 5) <= 2;
-    }
+    function isJsDelivrUrl(url) { return typeof url === 'string' && url.includes('cdn.jsdelivr.net'); }
 
-    // 用假 URL 作為 Cache API 的 key（Cache API 以 URL 為索引）
-    function pluginCacheUrl(pluginId) {
-        return `https://pcm-cache.local/plugin/${pluginId}`;
-    }
-
-    async function getCachedPlugin(pluginId) {
+    function getCachedPluginCode(id) {
         try {
-            const cache = await caches.open(PCM_CACHE_NAME);
-            const response = await cache.match(pluginCacheUrl(pluginId));
-            if (!response) return null;
-
-            // 從 response header 讀取存入時間，判斷是否過期
-            const cachedTime = response.headers.get('x-pcm-cached-at');
-            if (cachedTime && Date.now() - parseInt(cachedTime) > CACHE_TTL) {
-                console.log(`🐈‍⬛ [PCM] ⏰ ${pluginId} 快取已過期，將重新抓取`);
-                await cache.delete(pluginCacheUrl(pluginId));
-                return null;
-            }
-
-            return await response.text();
+            const c = JSON.parse(localStorage.getItem(PLUGIN_CACHE_PREFIX + id) || 'null');
+            if (!c) return null;
+            if (Date.now() - c.time > PLUGIN_CACHE_TTL) { localStorage.removeItem(PLUGIN_CACHE_PREFIX + id); return null; }
+            return c.code;
         } catch(e) { return null; }
     }
-
-    async function setCachedPlugin(pluginId, code) {
-        try {
-            const cache = await caches.open(PCM_CACHE_NAME);
-            const response = new Response(code, {
-                headers: {
-                    'Content-Type': 'application/javascript',
-                    'x-pcm-cached-at': String(Date.now())
-                }
-            });
-            await cache.put(pluginCacheUrl(pluginId), response);
-        } catch(e) { console.warn("🐈‍⬛ [PCM] ⚠️ 插件快取寫入失敗:", e.message); }
-    }
-
-    async function _clearCachedPlugin(pluginId) {
-        try {
-            const cache = await caches.open(PCM_CACHE_NAME);
-            await cache.delete(pluginCacheUrl(pluginId));
-        } catch(e) {}
-    }
-
-    async function clearAllPluginCache() {
-        try {
-            await caches.delete(PCM_CACHE_NAME);
-            localStorage.removeItem(JSON_CACHE_KEY);
-            console.log("🐈‍⬛ [PCM] 🗑️ 所有快取已清除");
-        } catch(e) {}
+    function setCachedPluginCode(id, code) {
+        try { localStorage.setItem(PLUGIN_CACHE_PREFIX + id, JSON.stringify({ time: Date.now(), code })); } catch(e) {}
     }
 
     // ============================================================
-    // === JSON 快取（SWR，localStorage）==========================
+    // === JSON 快取（SWR）=======================================
     // ============================================================
+
+    const JSON_CACHE_KEY = 'pcm_json_cache';
+    const JSON_CACHE_TTL = 24 * 60 * 60 * 1000;
 
     function getCachedJSON() {
-        try {
-            const cached = JSON.parse(localStorage.getItem(JSON_CACHE_KEY) || "null");
-            if (!cached) return null;
-            if (Date.now() - cached.time > CACHE_TTL) {
-                localStorage.removeItem(JSON_CACHE_KEY);
-                return null;
-            }
-            return cached.data;
-        } catch(e) { return null; }
+        try { const c = JSON.parse(localStorage.getItem(JSON_CACHE_KEY) || 'null'); if (!c || Date.now() - c.time > JSON_CACHE_TTL) { if (c) localStorage.removeItem(JSON_CACHE_KEY); return null; } return c.data; } catch(e) { return null; }
     }
-
-    function setCachedJSON(data) {
-        try {
-            localStorage.setItem(JSON_CACHE_KEY, JSON.stringify({ time: Date.now(), data }));
-        } catch(e) {}
-    }
+    function setCachedJSON(data) { try { localStorage.setItem(JSON_CACHE_KEY, JSON.stringify({ time: Date.now(), data })); } catch(e) {} }
 
     // ============================================================
-    // === 版本更新檢查 ============================================
-    // ============================================================
-
-    let remoteChangelogZh = [];
-    let remoteChangelogEn = [];
-    let remoteVersion = MOD_VER;
-    let remoteUpdateId = null;
-
-    function checkVersionUpdate() {
-        const savedUpdateId = pluginSettings["_pcm_updateId"];
-        if (remoteUpdateId && savedUpdateId !== remoteUpdateId) {
-            pluginSettings["_pcm_updateId"] = remoteUpdateId;
-            saveSettings(pluginSettings);
-            return true;
-        }
-        return false;
-    }
-
-    function showChangelogModal() {
-        const existing = document.getElementById("pcm-changelog-modal");
-        if (existing) { existing.remove(); return; }
-
-        const overlay = document.createElement("div");
-        overlay.id = "pcm-changelog-modal";
-        overlay.style.cssText = `
-            position: fixed; inset: 0; z-index: 2147483648;
-            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
-            display: flex; align-items: center; justify-content: center;
-        `;
-
-        const box = document.createElement("div");
-        box.style.cssText = `
-            background: rgba(26,32,46,0.98); border: 1px solid rgba(127,83,205,0.4);
-            border-radius: 16px; padding: 24px; max-width: 340px; width: 90%;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-            font-family: 'Noto Sans TC', sans-serif; color: #fff;
-        `;
-
-        const changelog = detectLanguage()
-        ? (remoteChangelogZh.length > 0 ? remoteChangelogZh : remoteChangelogEn)
-        : (remoteChangelogEn.length > 0 ? remoteChangelogEn : remoteChangelogZh);
-        const items = (changelog.length > 0 ? changelog : ["載入更新日誌中..."]).map(c => `<li style="margin:6px 0; font-size:13px; color:#d4c8f5;">${c}</li>`).join("");
-
-        box.innerHTML = `
-            <div style="font-size:16px; font-weight:600; margin-bottom:4px;">${getMessage('changelogTitle')}</div>
-            <div style="font-size:12px; color:#a0a9c0; margin-bottom:16px;">v${remoteVersion}</div>
-            <ul style="padding-left:18px; margin:0 0 20px 0; list-style:disc;">${items}</ul>
-            <button id="pcm-changelog-close" style="
-                width:100%; padding:10px; border:none; border-radius:10px;
-                background: linear-gradient(135deg, #7F53CD, #A78BFA);
-                color:white; font-size:14px; cursor:pointer; font-family:inherit;
-            ">${getMessage('changelogClose')}</button>
-        `;
-
-        overlay.appendChild(box);
-        document.body.appendChild(overlay);
-        document.getElementById("pcm-changelog-close").addEventListener("click", () => overlay.remove());
-        overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
-    }
-
-    // ============================================================
-    // === 子插件清單（動態載入）==================================
+    // === 插件資料管理（SWR 初始化）==============================
     // ============================================================
 
     let subPlugins = [];
     let pluginsLoaded = false;
-    const _pluginsJSONPromise = fetchPluginsJSON();
-    const _pluginsProcessPromise = loadPluginsJSON();
+    let remoteVersion = MOD_VER, remoteUpdateId = null;
+    let remoteChangelogTW = [], remoteChangelogEN = [];
+
+    let _resolvePluginsReady;
+    const pluginsReady = new Promise(r => { _resolvePluginsReady = r; });
+
+    function validateJSON(data) { return data && Array.isArray(data.plugins) && data.plugins.length > 0; }
+
+    function applyPluginSettings(plugins) {
+        return plugins.map(plugin => {
+            const saved = pluginSettings[plugin.id];
+            if (isTriStatePlugin(plugin)) plugin.state = saved !== undefined ? saved : "off";
+            else plugin.enabled = saved !== undefined ? saved : false;
+            if (pluginSettings[`${plugin.id}_customIcon`]) plugin.customIcon = pluginSettings[`${plugin.id}_customIcon`];
+            return plugin;
+        });
+    }
+
+    function processPluginData(data) {
+        remoteVersion    = data.version  || MOD_VER;
+        remoteUpdateId   = data.updateId || null;
+        remoteChangelogTW = data.changelog    || [];
+        remoteChangelogEN = data.en_changelog || data.changelog || [];
+        subPlugins = applyPluginSettings(data.plugins);
+        subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
+        pluginsLoaded = true;
+        console.log(`🐈‍⬛ [PCM] 📦 ${subPlugins.length} plugins loaded`);
+    }
 
     async function fetchJSONFromNetwork() {
         for (const url of PLUGINS_JSON_URLS) {
             try {
                 const res = await fetch(url, { cache: 'no-cache' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const text = await res.text();
-
-                let data;
-                try {
-                    data = JSON.parse(text);
-                } catch(e) {
-                    console.warn(`🐈‍⬛ [PCM] ⚠️ plugins.json 格式錯誤，不寫入快取:`, e.message);
-                    continue;
-                }
-
-                if (!data || !Array.isArray(data.plugins) || data.plugins.length === 0) {
-                    console.warn(`🐈‍⬛ [PCM] ⚠️ plugins.json 結構異常，不寫入快取`);
-                    continue;
-                }
-
+                let data; try { data = JSON.parse(await res.text()); } catch(e) { continue; }
+                if (!validateJSON(data)) continue;
                 setCachedJSON(data);
-                console.log(`🐈‍⬛ [PCM] ✅ plugins.json 從網路載入成功 (${url})`);
+                console.log(`🐈‍⬛ [PCM] ✅ Plugins.json fetched (${url})`);
                 return data;
-            } catch(e) {
-                console.warn(`🐈‍⬛ [PCM] ⚠️ plugins.json 從 ${url} 載入失敗:`, e.message);
-            }
+            } catch(e) { console.warn(`🐈‍⬛ [PCM] ⚠️ ${url}: ${e.message}`); }
         }
-
-        const oldCache = getCachedJSON();
-        if (oldCache) {
-            console.warn(`🐈‍⬛ [PCM] ⚠️ 網路版本有問題，保留舊快取`);
-            showNotification("⚠️", "PCM", _isCN ? "插件清單更新失敗，使用舊版本" : "Plugin list update failed, using cached version");
-            return oldCache;
-        }
-
         return null;
     }
 
-    async function fetchPluginsJSON() {
+    async function initPlugins() {
         const cached = getCachedJSON();
-        if (cached) {
-            console.log("🐈‍⬛ [PCM] ⚡ plugins.json 從快取載入");
-            setTimeout(() => fetchJSONFromNetwork(), 0);
-            return cached;
+        if (cached && validateJSON(cached)) {
+            processPluginData(cached);
+            _resolvePluginsReady(true);
         }
-        return await fetchJSONFromNetwork();
-    }
 
-    function applyPluginSettings(plugins) {
-        return plugins.map(plugin => {
-            const saved = pluginSettings[plugin.id];
-            if (isTriStatePlugin(plugin)) {
-                plugin.state = (saved !== undefined) ? saved : "off";
-            } else {
-                plugin.enabled = (saved !== undefined) ? saved : false;
+        const data = await fetchJSONFromNetwork();
+        if (data) {
+            const wasLoaded = pluginsLoaded;
+            processPluginData(data);
+            if (!wasLoaded) _resolvePluginsReady(true);
+            refreshPluginListUI();
+            if (checkVersionUpdate()) {
+                setTimeout(() => { showChangelogModal(); showNotification("✨", t('newVersionTitle'), `v${remoteVersion} — ${t('newVersionHint')}`); }, 2000);
             }
-            if (pluginSettings[`${plugin.id}_customIcon`]) {
-                plugin.customIcon = pluginSettings[`${plugin.id}_customIcon`];
-            }
-            return plugin;
-        });
-    }
-
-    async function loadPluginsJSON() {
-        const data = await _pluginsJSONPromise;
-        if (!data || !Array.isArray(data.plugins)) {
-            console.error("🐈‍⬛ [PCM] ❌ plugins.json 格式錯誤或無法取得");
-            showNotification("❌", "PCM", getMessage('loadPluginsFailed'));
-            return false;
+        } else if (!pluginsLoaded) {
+            showNotification("❌", "PCM", t('loadPluginsFailed'));
+            _resolvePluginsReady(false);
         }
-        remoteVersion = data.version || MOD_VER;
-        remoteUpdateId = data.updateId || null;
-        remoteChangelogZh = data.changelog || [];
-        remoteChangelogEn = data.en_changelog || data.changelog || [];
-        subPlugins = applyPluginSettings(data.plugins);
-        subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
-        pluginsLoaded = true;
-        console.log(`🐈‍⬛ [PCM] 📦 plugins.json 共 ${subPlugins.length} 個插件`);
-        return true;
     }
 
     // ============================================================
-    // === 載入子插件 =============================================
+    // === 強制刷新 ===============================================
     // ============================================================
 
-    // loadedPlugins：防止 Phase 1 & Phase 2 對同一插件重複 fetch + inject
-    // 插件本身有 window.LikoXxxInstance 防重複執行，但這裡防的是載入器層面的重複請求
-    let loadedPlugins = new Set();
-    let isLoadingPlugins = false;
-    let localLoadStarted = false;
-    let accountLoadStarted = false;
+    let isRefreshing = false;
+    async function refreshPluginList() {
+        if (isRefreshing) return;
+        isRefreshing = true;
+        const btn = document.getElementById('bc-plugin-refresh-btn');
+        btn?.classList.add('spinning');
+        showNotification("↻", t('refreshTitle'), t('refreshing'));
+        const data = await fetchJSONFromNetwork();
+        if (data) { processPluginData(data); refreshPluginListUI(); showNotification("✅", t('refreshTitle'), t('refreshDone')); }
+        else showNotification("⚠️", t('refreshTitle'), t('refreshFailed'));
+        btn?.classList.remove('spinning');
+        isRefreshing = false;
+    }
 
-    function injectScript(pluginId, code) {
-        if (code.trimStart().startsWith('<')) {
-            throw new Error(`Invalid content: received HTML instead of JavaScript`);
-        }
-        const script = document.createElement('script');
-        script.setAttribute('data-plugin', pluginId);
-        script.textContent = `(function(){try{${code}}catch(e){console.error('🐈‍⬛ [PCM] plugin error (${pluginId}):', e.message);}})();`;
-        document.body.appendChild(script);
+    function refreshPluginListUI() {
+        const lc = document.getElementById('bc-plugin-content-local');
+        if (lc) { lc.innerHTML = ''; subPlugins.forEach(p => lc.appendChild(buildPluginItem(p, 'local'))); }
+        const ac = document.getElementById('bc-plugin-content-account');
+        if (ac) buildAccountContent(ac);
+        applyFilter();
+    }
+
+    // ============================================================
+    // === 自訂插件 ===============================================
+    // ============================================================
+
+    const CUSTOM_PLUGINS_KEY = 'pcm_custom_plugins';
+    let customPlugins = [];
+
+    function loadCustomPlugins() { try { return JSON.parse(localStorage.getItem(CUSTOM_PLUGINS_KEY) || '[]'); } catch(e) { return []; } }
+    function saveCustomPlugins() { try { localStorage.setItem(CUSTOM_PLUGINS_KEY, JSON.stringify(customPlugins)); } catch(e) {} }
+
+    // ============================================================
+    // === 版本比對 ================================================
+    // ============================================================
+
+    function checkVersionUpdate() {
+        const saved = pluginSettings['_pcm_updateId'];
+        if (remoteUpdateId && saved !== remoteUpdateId) { pluginSettings['_pcm_updateId'] = remoteUpdateId; saveSettings(pluginSettings); return true; }
+        return false;
+    }
+
+    function parseGameVersion(v) { const m = String(v || '').match(/R?(\d+)/i); return m ? parseInt(m[1], 10) : 0; }
+    function getCurrentGameVersion() { try { return typeof GameVersion !== 'undefined' ? parseGameVersion(GameVersion) : 0; } catch(e) { return 0; } }
+    function isPluginSkippedByVersion(plugin) { if (!plugin.autoDisableAfterVersion) return false; const v = getCurrentGameVersion(); return v > 0 && v > parseGameVersion(plugin.autoDisableAfterVersion); }
+
+    // ============================================================
+    // === 三段開關輔助 ============================================
+    // ============================================================
+
+    function isTriStatePlugin(p) { return !!p.altUrl; }
+    function isPluginEnabled(p) { return isTriStatePlugin(p) ? p.state !== "off" : p.enabled; }
+    function isPluginEnabledInAccount(p) { const v = accountPluginSettings[p.id]; return v !== undefined && v !== 0 && v !== "off"; }
+    function isPluginEnabledForLoading(p) { return isPluginEnabled(p) || isPluginEnabledInAccount(p); }
+    function getActivePluginUrl(p) {
+        if (p.altUrl) { const ls = p.state || "off"; const as = accountPluginSettings[p.id] || "off"; if (ls === "beta" || as === "beta") return p.altUrl; }
+        return p.url;
+    }
+    function getTriLabels(p) { return p.triLabels?.length === 3 ? p.triLabels : ["OFF", "ON", "BETA"]; }
+    function cycleTriState(s) { return s === "off" ? "stable" : s === "stable" ? "beta" : "off"; }
+
+    // ============================================================
+    // === 語言輔助 ================================================
+    // ============================================================
+
+    function getLang() { return window.Liko.i18n?.detectLang() ?? 'EN'; }
+    function isCJK() { const l = getLang(); return l === 'TW' || l === 'CN'; }
+    function getPluginName(p) { return isCJK() ? p.name : (p.en_name || p.name); }
+    function getPluginDescription(p) { return isCJK() ? p.description : (p.en_description || p.description); }
+    function getPluginAdditionalInfo(p) { return isCJK() ? p.additionalInfo : (p.en_additionalInfo || p.additionalInfo); }
+
+    // ============================================================
+    // === 插件加載 ================================================
+    // ============================================================
+
+    let loadedPlugins = new Set(), failedPlugins = new Set();
+    let isLoadingPlugins = false, localLoadStarted = false, accountLoadStarted = false, customLoadStarted = false;
+
+    function injectScript(id, code) {
+        if (code.trimStart().startsWith('<')) throw new Error('Received HTML instead of JS');
+        const s = document.createElement('script');
+        s.setAttribute('data-plugin', id);
+        s.textContent = `(function(){try{${code}}catch(e){console.error('🐈‍⬛ [PCM] plugin error (${id}):', e.message);}})();`;
+        document.body.appendChild(s);
     }
 
     async function tryFetch(urls) {
@@ -762,209 +457,158 @@
             try {
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return await res.text();
-            } catch(e) {
-                console.warn(`🐈‍⬛ [PCM] ⚠️ 從 ${url} 取得失敗: ${e.message}`);
-            }
+                const text = await res.text();
+                if (!text || text.trimStart().startsWith('<')) throw new Error('Invalid content');
+                return text;
+            } catch(e) { console.warn(`🐈‍⬛ [PCM] ⚠️ ${url}: ${e.message}`); }
         }
         return null;
     }
 
-    function buildFetchUrls(plugin) {
-        const rawUrl = getActivePluginUrl(plugin);
-        const cdnUrl = rawUrl.replace(
-            /^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/,
-            "https://cdn.jsdelivr.net/gh/$1/$2@$3/$4"
-        );
-        return cdnUrl !== rawUrl ? [rawUrl, cdnUrl] : [rawUrl];
+    function buildFetchUrls(url) {
+        if (!url) return [];
+        const cdn = url.replace(/^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/, "https://cdn.jsdelivr.net/gh/$1/$2@$3/$4");
+        return cdn !== url ? [url, cdn] : [url];
     }
 
-    async function loadSubPlugin(plugin) {
-        if (!isPluginEnabledForLoading(plugin) || loadedPlugins.has(plugin.id)) return;
-        if (isPluginSkippedByVersion(plugin)) {
-            console.log(`🐈‍⬛ [PCM] ⏭️ ${plugin.name} 版本過舊自動跳過`);
-            loadedPlugins.add(plugin.id);
-            return;
-        }
+    async function loadSubPlugin(plugin, isCustom = false) {
+        if (loadedPlugins.has(plugin.id)) return;
+        if (!isCustom && !isPluginEnabledForLoading(plugin)) return;
+        if (!isCustom && isPluginSkippedByVersion(plugin)) { loadedPlugins.add(plugin.id); return; }
 
-        // inlineCode 支援
         if (!plugin.url && plugin.inlineCode) {
-            try {
-                injectScript(plugin.id, plugin.inlineCode);
-                loadedPlugins.add(plugin.id);
-            } catch(e) { console.error(`🐈‍⬛ [PCM] ❌ inlineCode 載入失敗: ${plugin.name}`, e); }
+            try { injectScript(plugin.id, plugin.inlineCode); loadedPlugins.add(plugin.id); } catch(e) {}
             return;
         }
-
         if (!plugin.url) return;
 
-        const urls = buildFetchUrls(plugin);
+        const rawUrl  = isCustom ? plugin.url : getActivePluginUrl(plugin);
+        const urls    = buildFetchUrls(rawUrl);
+        const primary = urls[0];
 
-        // SWR 快取邏輯（priority ≤ 2）：Cache API 版
-        if (shouldUseCache(plugin)) {
-            const cached = await getCachedPlugin(plugin.id);
+        // JsDelivr cache (SWR)
+        if (isJsDelivrUrl(primary)) {
+            const cached = getCachedPluginCode(plugin.id);
             if (cached) {
                 try {
                     injectScript(plugin.id, cached);
-                    loadedPlugins.add(plugin.id);
-                    console.log(`🐈‍⬛ [PCM] ⚡ ${plugin.name} 從快取秒載`);
-                } catch(e) {
-                    console.error(`🐈‍⬛ [PCM] ❌ ${plugin.name} 快取執行失敗，清除並重新抓取`, e);
-                    await _clearCachedPlugin(plugin.id);
-                }
-
-                if (loadedPlugins.has(plugin.id)) {
-                    // 背景更新快取
-                    tryFetch(urls).then(async newCode => {
-                        if (newCode && newCode !== cached) {
-                            await setCachedPlugin(plugin.id, newCode);
-                            console.log(`🐈‍⬛ [PCM] 🔄 ${plugin.name} 背景快取已更新（下次生效）`);
-                        }
-                    }).catch(() => {});
+                    loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
+                    hidePluginRetryBtn(plugin.id);
+                    console.log(`🐈‍⬛ [PCM] ⚡ ${plugin.name} from cache`);
+                    tryFetch(urls).then(nc => { if (nc && nc !== cached) setCachedPluginCode(plugin.id, nc); }).catch(() => {});
                     return;
-                }
+                } catch(e) { /* fall through to fresh fetch */ }
             }
         }
 
-        // 正常抓取
         const code = await tryFetch(urls);
         if (!code) {
-            showNotification("❌", `${getPluginName(plugin)} 載入失敗`, "請檢查網絡或插件URL");
-            throw new Error("🐈‍⬛ [PCM] ❌ all urls failed");
+            failedPlugins.add(plugin.id);
+            showPluginRetryBtn(plugin.id);
+            showNotification("❌", t('pluginLoadFailed', { name: getPluginName(plugin) }), t('pluginLoadRetry'));
+            throw new Error('All URLs failed');
         }
+
         injectScript(plugin.id, code);
-        loadedPlugins.add(plugin.id);
-        console.log(`🐈‍⬛ [PCM] ✅ -SubPlugin- ${plugin.name} 載入成功`);
-        if (shouldUseCache(plugin)) await setCachedPlugin(plugin.id, code);
+        loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
+        hidePluginRetryBtn(plugin.id);
+        console.log(`🐈‍⬛ [PCM] ✅ ${plugin.name} loaded`);
+        if (isJsDelivrUrl(primary)) setCachedPluginCode(plugin.id, code);
     }
 
-    function isPlayerLoaded() { return typeof Player !== 'undefined'; }
+    function showPluginRetryBtn(pluginId) {
+        const item = document.querySelector(`.bc-plugin-item[data-plugin-id="${CSS.escape(pluginId)}"]`);
+        if (!item || item.querySelector('.bc-plugin-retry-btn')) return;
+        const btn = document.createElement('button');
+        btn.className = 'bc-plugin-retry-btn';
+        btn.textContent = '↺';
+        btn.title = t('pluginLoadRetry');
+        btn.setAttribute('data-retry-id', pluginId);
+        item.appendChild(btn); item.classList.add('failed');
+    }
 
-    async function runPluginBatch(plugins) {
+    function hidePluginRetryBtn(pluginId) {
+        document.querySelector(`[data-retry-id="${CSS.escape(pluginId)}"]`)?.remove();
+        document.querySelector(`.bc-plugin-item[data-plugin-id="${CSS.escape(pluginId)}"]`)?.classList.remove('failed');
+    }
+
+    async function runPluginBatch(plugins, isCustom = false) {
         while (isLoadingPlugins) await new Promise(r => setTimeout(r, 200));
-        if (plugins.length === 0) return;
+        if (!plugins.length) return;
         isLoadingPlugins = true;
         try {
-            const batchSize = 3;
-            let successCount = 0;
+            const batchSize = 3; let ok = 0, fail = 0;
             for (let i = 0; i < plugins.length; i += batchSize) {
                 const batch = plugins.slice(i, i + batchSize);
-                const results = await Promise.allSettled(
-                    batch.map(p => loadSubPlugin(p).catch(e => ({ error: e })))
-                );
-                results.forEach((result, idx) => {
-                    if (result.status === 'fulfilled' && !result.value?.error) successCount++;
-                    else console.error(`🐈‍⬛ [PCM] ❌ ${batch[idx].name} 載入失敗`);
-                });
+                const results = await Promise.allSettled(batch.map(p => loadSubPlugin(p, isCustom)));
+                results.forEach((r, idx) => { if (r.status === 'fulfilled') ok++; else { fail++; console.error(`🐈‍⬛ [PCM] ❌ ${batch[idx].name}`); } });
                 if (i + batchSize < plugins.length) await new Promise(r => setTimeout(r, 800));
             }
-            const failedCount = plugins.length - successCount;
-            if (failedCount > 0) {
-                showNotification("⚠️", getMessage('pluginLoadComplete'),
-                                 `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}，${failedCount} ${getMessage('failed')}`);
-            } else if (plugins.length > 0) {
-                showNotification("✅", getMessage('pluginLoadComplete'),
-                                 `${getMessage('successLoaded')} ${successCount} ${getMessage('plugins')}`);
-            }
-        } catch(e) {
-            console.error("🐈‍⬛ [PCM] ❌ 批次載入錯誤:", e);
+            if (plugins.length > 0) showNotification(fail > 0 ? "⚠️" : "✅", t('pluginLoadComplete'), `${t('successLoaded')} ${ok} ${t('plugins')}${fail > 0 ? `, ${fail} ${t('failed')}` : ''}`);
         } finally { isLoadingPlugins = false; }
     }
 
     async function loadLocalPluginsPhase() {
-        if (localLoadStarted) return;
-        localLoadStarted = true;
-
-        if (!pluginsLoaded) {
-            await _pluginsProcessPromise;
-            if (!pluginsLoaded) { localLoadStarted = false; return; }
-        }
-
-        const maxWait = 15 * 60 * 1000;
-        let waited = 0;
-        while (typeof Player === 'undefined' && waited < maxWait) {
-            if (waited % 5000 === 0) console.log(`🐈‍⬛ [PCM] ⏳ Phase 1 等待 Player... (${waited / 1000}s)`);
-            await new Promise(r => setTimeout(r, 1000));
-            waited += 1000;
-        }
+        if (localLoadStarted) return; localLoadStarted = true;
+        await pluginsReady; if (!pluginsLoaded) { localLoadStarted = false; return; }
+        let w = 0; while (typeof Player === 'undefined' && w < 15 * 60000) { await new Promise(r => setTimeout(r, 1000)); w += 1000; }
         if (typeof Player === 'undefined') { localLoadStarted = false; return; }
-
-        const localEnabled = subPlugins.filter(p => isPluginEnabled(p));
-        console.log(`🐈‍⬛ [PCM] 📱 Phase 1 本地插件：${localEnabled.length} 個`);
-        await runPluginBatch(localEnabled);
+        await runPluginBatch(subPlugins.filter(p => isPluginEnabled(p)));
     }
 
     async function loadAccountPluginsPhase() {
-        if (accountLoadStarted) return;
-        accountLoadStarted = true;
-
-        if (!pluginsLoaded) {
-            await _pluginsProcessPromise;
-            if (!pluginsLoaded) { accountLoadStarted = false; return; }
-        }
-
-        const maxWait = 15 * 60 * 1000;
-        let waited = 0;
-        while ((typeof Player === 'undefined' || !Player?.AccountName) && waited < maxWait) {
-            if (waited % 5000 === 0) console.log(`🐈‍⬛ [PCM] ⏳ Phase 2 等待登入... (${waited / 1000}s)`);
-            await new Promise(r => setTimeout(r, 1000));
-            waited += 1000;
-        }
+        if (accountLoadStarted) return; accountLoadStarted = true;
+        await pluginsReady; if (!pluginsLoaded) { accountLoadStarted = false; return; }
+        let w = 0; while (!Player?.AccountName && w < 15 * 60000) { await new Promise(r => setTimeout(r, 1000)); w += 1000; }
         if (!Player?.AccountName) { accountLoadStarted = false; return; }
-
         accountPluginSettings = loadAccountSettings();
+        await runPluginBatch(subPlugins.filter(p => isPluginEnabledInAccount(p) && !loadedPlugins.has(p.id)));
+    }
 
-        const accountOnly = subPlugins.filter(p =>
-                                              isPluginEnabledInAccount(p) && !loadedPlugins.has(p.id)
-                                             );
-        console.log(`🐈‍⬛ [PCM] ☁️ Phase 2 帳戶插件：${accountOnly.length} 個（新增）`);
-        await runPluginBatch(accountOnly);
+    async function loadCustomPluginsPhase() {
+        if (customLoadStarted) return; customLoadStarted = true;
+        while (isLoadingPlugins) await new Promise(r => setTimeout(r, 500));
+        const enabled = customPlugins.filter(p => p.enabled);
+        if (enabled.length) await runPluginBatch(enabled, true);
     }
 
     // ============================================================
-    // === 強制更新快取 ============================================
+    // === UI 狀態 ================================================
     // ============================================================
 
-    let isRefreshing = false;
-    async function forceRefreshCache() {
-        if (isRefreshing) return;
-        isRefreshing = true;
-        showNotification("↻", getMessage('refreshTitle'), getMessage('refreshing'));
+    let currentUIState = null;
+    let searchQuery    = '';
+    let filterMode     = 'all';    // 'all' | 'enabled' | 'disabled'
+    let isCustomEditMode = false;
+    let activeTab      = 'local';
+    let _docClickHandler = null;
+    let lastDetectedLanguage = null;
 
-        await clearAllPluginCache();
-        await fetchJSONFromNetwork();
+    // ============================================================
+    // === 篩選 ===================================================
+    // ============================================================
 
-        if (subPlugins.length > 0) {
-            const cacheableEnabled = subPlugins.filter(p => shouldUseCache(p) && isPluginEnabled(p));
-            await Promise.allSettled(cacheableEnabled.map(async plugin => {
-                const urls = buildFetchUrls(plugin);
-                const code = await tryFetch(urls);
-                if (code) {
-                    await setCachedPlugin(plugin.id, code);
-                    console.log(`🐈‍⬛ [PCM] 🔄 ${plugin.name} 強制更新快取完成`);
+    function applyFilter() {
+        const q = searchQuery.toLowerCase().trim();
+        ['local', 'account', 'custom'].forEach(src => {
+            const container = document.getElementById(`bc-plugin-content-${src}`);
+            if (!container) return;
+            container.querySelectorAll('.bc-plugin-item[data-plugin-id]').forEach(item => {
+                const id = item.getAttribute('data-plugin-id');
+                const plugin = src === 'custom' ? customPlugins.find(p => p.id === id) : subPlugins.find(p => p.id === id);
+                if (!plugin) return;
+
+                let pass = true;
+                if (filterMode === 'enabled')  pass = src === 'account' ? isPluginEnabledInAccount(plugin) : (src === 'custom' ? plugin.enabled : isPluginEnabled(plugin));
+                if (filterMode === 'disabled') pass = !(src === 'account' ? isPluginEnabledInAccount(plugin) : (src === 'custom' ? plugin.enabled : isPluginEnabled(plugin)));
+
+                if (pass && q) {
+                    pass = [plugin.id, plugin.name, plugin.en_name, plugin.description, plugin.en_description]
+                        .some(s => s && String(s).toLowerCase().includes(q));
                 }
-            }));
-        }
-
-        loadedPlugins.clear();
-
-        // 重新解析 JSON，更新記憶體中的 subPlugins
-        pluginsLoaded = false;
-        await loadPluginsJSON();
-
-        // 重建本地分頁 UI
-        const localContent = document.getElementById("bc-plugin-content-local");
-        if (localContent) {
-            localContent.innerHTML = '';
-            subPlugins.forEach(plugin => localContent.appendChild(buildPluginItem(plugin, 'local')));
-        }
-
-        // 重建帳戶分頁 UI（如果已登入）
-        const accountContent = document.getElementById("bc-plugin-content-account");
-        if (accountContent) buildAccountContent(accountContent);
-
-        isRefreshing = false;
-        showNotification("✅", getMessage('refreshTitle'), getMessage('refreshDone'));
+                item.style.display = pass ? '' : 'none';
+            });
+        });
     }
 
     // ============================================================
@@ -975,52 +619,53 @@
         const now = Date.now();
         if (now - lastCharacterCheck < CHARACTER_CACHE_TIME && cachedViewingCharacter !== null) return cachedViewingCharacter;
         try {
-            let character = null;
-            if (typeof InformationSheetCharacter !== 'undefined' && InformationSheetCharacter) {
-                character = InformationSheetCharacter;
-            } else if (typeof InformationSheetSelection !== 'undefined' && InformationSheetSelection !== null && typeof InformationSheetSelection === 'object') {
-                if (InformationSheetSelection.Name && (InformationSheetSelection.MemberNumber || InformationSheetSelection.ID)) {
-                    character = InformationSheetSelection;
-                } else if (InformationSheetSelection.ID && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
-                    character = ChatRoomCharacter.find(c => c.ID === InformationSheetSelection.ID);
-                } else if (InformationSheetSelection.MemberNumber && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
-                    character = ChatRoomCharacter.find(c => c.MemberNumber === InformationSheetSelection.MemberNumber);
-                }
-            } else if (typeof InformationSheetSelection !== 'undefined' && typeof InformationSheetSelection === 'number') {
-                if (CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
-                    character = ChatRoomCharacter.find(c => c.MemberNumber === InformationSheetSelection);
-                }
+            let c = null;
+            if (typeof InformationSheetCharacter !== 'undefined' && InformationSheetCharacter) c = InformationSheetCharacter;
+            else if (typeof InformationSheetSelection !== 'undefined' && InformationSheetSelection !== null && typeof InformationSheetSelection === 'object') {
+                if (InformationSheetSelection.MemberNumber && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) c = ChatRoomCharacter.find(x => x.MemberNumber === InformationSheetSelection.MemberNumber);
+                else if (InformationSheetSelection.Name) c = InformationSheetSelection;
+            } else if (typeof InformationSheetSelection === 'number' && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
+                c = ChatRoomCharacter.find(x => x.MemberNumber === InformationSheetSelection);
             }
-            if (!character) character = Player;
-            cachedViewingCharacter = character;
-            lastCharacterCheck = now;
-            return character;
+            if (!c) c = Player;
+            cachedViewingCharacter = c; lastCharacterCheck = now; return c;
         } catch(e) { return Player; }
     }
 
     function shouldShowUI() {
-        const isLoginPage = window.location.href.includes('/login') || window.location.href.includes('Login.html');
-        if (isLoginPage) return true;
+        const isLogin = window.location.href.includes('/login') || window.location.href.includes('Login.html');
+        if (isLogin) return true;
         if (typeof Player === 'undefined' || !Player.Name) return true;
         if (typeof CurrentScreen !== 'undefined') {
             if (CurrentScreen === 'InformationSheet') {
-                if (window.bcx?.inBcxSubscreen?.()) return false;
-                if (window.LITTLISH_CLUB?.inModSubscreen?.()) return false;
-                if (window.MPA?.menuLoaded) return false;
-                if (window.LSCG_REMOTE_WINDOW_OPEN) return false;
-                const viewingCharacter = getCurrentViewingCharacter();
-                return viewingCharacter && viewingCharacter.MemberNumber === Player.MemberNumber;
+                if (window.bcx?.inBcxSubscreen?.() || window.LITTLISH_CLUB?.inModSubscreen?.() || window.MPA?.menuLoaded || window.LSCG_REMOTE_WINDOW_OPEN) return false;
+                const vc = getCurrentViewingCharacter();
+                return vc && vc.MemberNumber === Player.MemberNumber;
             }
-            if (CurrentScreen === 'Preference') {
-                if (window.bcx?.inBcxSubscreen?.()) return false;
-                if (window.MPA?.menuLoaded) return false;
-                if (window.LITTLISH_CLUB?.inModSubscreen?.()) return false;
-                return true;
-            }
-            const allowedScreens = ['Login', 'Character', 'MainHall', 'Introduction'];
-            if (allowedScreens.includes(CurrentScreen)) return true;
+            if (CurrentScreen === 'Preference') { return !(window.bcx?.inBcxSubscreen?.() || window.MPA?.menuLoaded || window.LITTLISH_CLUB?.inModSubscreen?.()); }
+            if (['Login', 'Character', 'MainHall', 'Introduction'].includes(CurrentScreen)) return true;
         }
         return false;
+    }
+
+    // ============================================================
+    // === Changelog Modal ========================================
+    // ============================================================
+
+    function showChangelogModal() {
+        const existing = document.getElementById("pcm-changelog-modal");
+        if (existing) { existing.remove(); return; }
+        const overlay = document.createElement("div");
+        overlay.id = "pcm-changelog-modal";
+        overlay.style.cssText = "position:fixed;inset:0;z-index:2147483648;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;";
+        const box = document.createElement("div");
+        box.style.cssText = "background:rgba(26,32,46,0.98);border:1px solid rgba(127,83,205,0.4);border-radius:16px;padding:24px;max-width:340px;width:90%;box-shadow:0 20px 40px rgba(0,0,0,0.4);font-family:'Noto Sans TC',sans-serif;color:#fff;";
+        const log = isCJK() ? (remoteChangelogTW.length ? remoteChangelogTW : remoteChangelogEN) : (remoteChangelogEN.length ? remoteChangelogEN : remoteChangelogTW);
+        const items = (log.length ? log : ["..."]).map(c => `<li style="margin:6px 0;font-size:13px;color:#d4c8f5;">${c}</li>`).join('');
+        box.innerHTML = `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">${t('changelogTitle')}</div><div style="font-size:12px;color:#a0a9c0;margin-bottom:16px;">v${remoteVersion}</div><ul style="padding-left:18px;margin:0 0 20px;list-style:disc;">${items}</ul><button id="pcm-cl-close" style="width:100%;padding:10px;border:none;border-radius:10px;background:linear-gradient(135deg,#7F53CD,#A78BFA);color:#fff;font-size:14px;cursor:pointer;font-family:inherit;">${t('changelogClose')}</button>`;
+        overlay.appendChild(box); document.body.appendChild(overlay);
+        document.getElementById("pcm-cl-close").addEventListener("click", () => overlay.remove());
+        overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
     }
 
     // ============================================================
@@ -1033,1003 +678,860 @@
         style.id = "bc-plugin-styles";
         style.textContent = `
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600&display=swap');
+        .bc-plugin-container *,.bc-plugin-panel *,.bc-plugin-btn-group * { font-family:'Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; user-select:none; -webkit-user-select:none; }
 
-        .bc-plugin-container * {
-            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            user-select: none; -webkit-user-select: none;
-        }
+        .bc-plugin-btn-group { position:fixed; top:60px; right:20px; display:flex; flex-direction:column; align-items:center; gap:8px; z-index:2147483647; touch-action:none; }
 
-        .bc-plugin-btn-group {
-            position: fixed; top: 60px; right: 20px;
-            display: flex; flex-direction: column; align-items: center;
-            gap: 8px; z-index: 2147483647;
-        }
+        .bc-plugin-floating-btn { width:60px; height:60px; background:linear-gradient(135deg,#7F53CD 0%,#A78BFA 50%,#C4B5FD 100%); border:none; border-radius:50%; cursor:grab; box-shadow:0 6px 20px rgba(127,83,205,0.3); transition:box-shadow .3s,background .3s; font-size:24px; display:flex; align-items:center; justify-content:center; animation:pcm-float 3s ease-in-out infinite; }
+        .bc-plugin-floating-btn:active { cursor:grabbing; }
+        .bc-plugin-floating-btn:hover { box-shadow:0 8px 25px rgba(127,83,205,0.4); background:linear-gradient(135deg,#6B46B2 0%,#9577E3 50%,#B7A3F5 100%); }
+        .bc-plugin-floating-btn img { width:48px; height:48px; border-radius:50%; transform:scaleX(-1); pointer-events:none; }
 
-        .bc-plugin-floating-btn {
-            width: 60px; height: 60px;
-            background: linear-gradient(135deg, #7F53CD 0%, #A78BFA 50%, #C4B5FD 100%);
-            border: none; border-radius: 50%; cursor: pointer;
-            box-shadow: 0 6px 20px rgba(127, 83, 205, 0.3);
-            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-            font-size: 24px; display: flex; align-items: center; justify-content: center;
-            animation: float 3s ease-in-out infinite;
-        }
-        .bc-plugin-floating-btn:hover {
-            transform: translateY(-3px) scale(1.05);
-            box-shadow: 0 8px 25px rgba(127, 83, 205, 0.4);
-            background: linear-gradient(135deg, #6B46B2 0%, #9577E3 50%, #B7A3F5 100%);
-        }
-        .bc-plugin-floating-btn img { width: 48px; height: 48px; border-radius: 50%; transform: scaleX(-1); }
+        .bc-plugin-changelog-btn, #bc-plugin-refresh-btn { width:60px; height:60px; background:rgba(26,32,46,0.9); border:1px solid rgba(127,83,205,0.4); border-radius:50%; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.2); transition:all .3s ease; font-size:22px; display:flex; align-items:center; justify-content:center; }
+        .bc-plugin-changelog-btn:hover, #bc-plugin-refresh-btn:hover { background:rgba(127,83,205,0.3); border-color:rgba(127,83,205,0.8); transform:scale(1.05); }
+        #bc-plugin-refresh-btn.spinning { animation:pcm-spin .8s linear infinite; border-color:rgba(127,83,205,0.8); background:rgba(127,83,205,0.2); }
 
-        .bc-plugin-changelog-btn, .bc-plugin-refresh-btn {
-            width: 60px; height: 60px;
-            background: rgba(26, 32, 46, 0.9);
-            border: 1px solid rgba(127, 83, 205, 0.4);
-            border-radius: 50%; cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-            font-size: 22px; display: flex; align-items: center; justify-content: center;
-        }
-        .bc-plugin-changelog-btn:hover, .bc-plugin-refresh-btn:hover {
-            background: rgba(127, 83, 205, 0.3);
-            border-color: rgba(127, 83, 205, 0.8);
-            transform: scale(1.05);
-        }
-        .bc-plugin-refresh-btn.spinning {
-            animation: spin-once 1s linear infinite;
-            border-color: rgba(127, 83, 205, 0.8);
-            background: rgba(127, 83, 205, 0.2);
-        }
+        @keyframes pcm-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+        @keyframes pcm-spin  { to{transform:rotate(360deg)} }
 
-        @keyframes float {
-            0%, 100% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-6px) rotate(5deg); }
-        }
-        @keyframes spin-once { to { transform: rotate(360deg); } }
+        .bc-plugin-panel { position:fixed; top:20px; right:auto; left:auto; width:380px; max-width:calc(100vw - 20px); max-height:calc(100vh - 120px); min-height:300px; background:rgba(26,32,46,0.95); backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.1); border-radius:20px; z-index:2147483646; overflow:hidden; display:flex; flex-direction:column; transform:translateX(420px) scale(0.8); opacity:0; transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .4s cubic-bezier(.34,1.56,.64,1),visibility 0s linear .4s; box-shadow:0 20px 40px rgba(0,0,0,0.3); visibility:hidden; pointer-events:none; }
+        .bc-plugin-panel.show { transform:translateX(0) scale(1); opacity:1; visibility:visible; pointer-events:auto; transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .4s cubic-bezier(.34,1.56,.64,1); }
+        .bc-plugin-panel.hidden, .bc-plugin-btn-group.hidden { display:none !important; }
 
-        .bc-plugin-panel {
-            position: fixed; top: 20px; right: 100px; width: 380px;
-            max-height: calc(100vh - 120px); min-height: 300px;
-            background: rgba(26, 32, 46, 0.95); backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px;
-            z-index: 2147483646; overflow: hidden; display: flex; flex-direction: column;
-            transform: translateX(420px) scale(0.8); opacity: 0;
-            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-            visibility: hidden; pointer-events: none;
-        }
-        .bc-plugin-panel.show { transform: translateX(0) scale(1); opacity: 1; visibility: visible; pointer-events: auto; }
+        .bc-plugin-header { background:linear-gradient(135deg,#7F53CD 0%,#A78BFA 100%); padding:10px; color:#fff; text-align:center; position:relative; overflow:hidden; flex-shrink:0; }
+        .bc-plugin-header::before { content:''; position:absolute; top:0; left:-60%; width:40%; height:100%; background:linear-gradient(to right,transparent,rgba(255,255,255,.22),transparent); animation:pcm-glow 2.2s ease-in-out infinite; }
+        @keyframes pcm-glow { 0%{left:-60%} 100%{left:115%} }
+        .bc-plugin-title { font-size:16px; font-weight:600; margin:0; position:relative; z-index:1; }
 
-        .bc-plugin-header {
-            background: linear-gradient(135deg, #7F53CD 0%, #A78BFA 100%);
-            padding: 10px; color: white; text-align: center;
-            position: relative; overflow: hidden; flex-shrink: 0;
-        }
-        .bc-plugin-header::before {
-            content: '';
-            position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
-            background: linear-gradient(to right, transparent, rgba(255,255,255,0.22), transparent);
-            animation: slideGlow 2.2s ease-in-out infinite;
-        }
-        @keyframes slideGlow { 0% { left: -60%; } 100% { left: 115%; } }
+        .bc-plugin-tabs { display:flex; flex-shrink:0; background:rgba(0,0,0,0.25); border-bottom:1px solid rgba(255,255,255,0.07); }
+        .bc-plugin-tab { flex:1; padding:8px 4px; background:none; border:none; border-bottom:2px solid transparent; color:rgba(255,255,255,.45); cursor:pointer; font-size:12px; font-weight:500; font-family:inherit; transition:all .2s ease; letter-spacing:.3px; }
+        .bc-plugin-tab:hover:not(.active) { color:rgba(255,255,255,.75); background:rgba(255,255,255,.04); }
+        .bc-plugin-tab.active { color:#fff; border-bottom-color:#A78BFA; }
 
-        .bc-plugin-title { font-size: 16px; font-weight: 600; margin: 0; position: relative; z-index: 1; }
+        .bc-plugin-search-row { display:flex; align-items:center; gap:6px; padding:8px 12px; background:rgba(0,0,0,0.15); border-bottom:1px solid rgba(255,255,255,0.05); flex-shrink:0; }
+        .bc-plugin-search { flex:1; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:5px 10px; color:#fff; font-size:12px; font-family:inherit; outline:none; transition:border-color .2s; }
+        .bc-plugin-search:focus { border-color:rgba(167,139,250,0.6); }
+        .bc-plugin-search::placeholder { color:rgba(255,255,255,0.35); }
+        .bc-plugin-filter-btn, .bc-plugin-gear-btn { width:28px; height:28px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:8px; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; transition:all .2s; flex-shrink:0; color:#fff; }
+        .bc-plugin-filter-btn:hover, .bc-plugin-gear-btn:hover { background:rgba(127,83,205,0.3); border-color:rgba(167,139,250,0.5); }
+        .bc-plugin-gear-btn.active { background:rgba(127,83,205,0.4); border-color:#A78BFA; }
 
-        .bc-plugin-content {
-            padding: 20px; flex: 1 1 auto; overflow-y: auto; overflow-x: hidden;
-            max-height: 400px; min-height: 300px;
-            scrollbar-width: thin; scrollbar-color: rgba(127, 83, 205, 0.8) rgba(255, 255, 255, 0.1);
-            -webkit-overflow-scrolling: touch;
-        }
-        .bc-plugin-content::-webkit-scrollbar { width: 8px; }
-        .bc-plugin-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; margin: 4px; }
-        .bc-plugin-content::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #7F53CD, #A78BFA); border-radius: 4px; min-height: 20px; }
-        .bc-plugin-content::-webkit-scrollbar-thumb:hover { background: linear-gradient(135deg, #6B46B2, #9577E3); }
+        .bc-plugin-content { padding:12px; flex:1 1 auto; overflow-y:auto; overflow-x:hidden; max-height:400px; min-height:200px; scrollbar-width:thin; scrollbar-color:rgba(127,83,205,0.8) rgba(255,255,255,0.1); -webkit-overflow-scrolling:touch; }
+        .bc-plugin-content::-webkit-scrollbar { width:6px; }
+        .bc-plugin-content::-webkit-scrollbar-track { background:rgba(255,255,255,0.05); border-radius:3px; }
+        .bc-plugin-content::-webkit-scrollbar-thumb { background:linear-gradient(135deg,#7F53CD,#A78BFA); border-radius:3px; }
 
-        .bc-plugin-footer {
-            background: rgba(255, 255, 255, 0.02); padding: 12px 20px; text-align: center;
-            color: #a0a9c0; font-size: 11px;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-            flex-shrink: 0;
-        }
-        .bc-plugin-footer-link {
-            color: #C4B5FD; text-decoration: none; transition: color 0.2s ease; cursor: pointer;
-        }
-        .bc-plugin-footer-link:hover { color: #fff; text-decoration: underline; }
+        .bc-plugin-footer { background:rgba(255,255,255,0.02); padding:10px 20px; text-align:center; color:#a0a9c0; font-size:11px; border-top:1px solid rgba(255,255,255,0.05); flex-shrink:0; }
+        .bc-plugin-footer-link { color:#C4B5FD; text-decoration:none; transition:color .2s; cursor:pointer; }
+        .bc-plugin-footer-link:hover { color:#fff; text-decoration:underline; }
 
-        .bc-plugin-item {
-            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px; margin-bottom: 12px; padding: 16px;
-            transition: all 0.3s ease; position: relative; overflow: hidden;
-        }
-        .bc-plugin-item.enabled {
-            background: rgba(127, 83, 205, 0.1); border-color: rgba(127, 83, 205, 0.3);
-        }
-        .bc-plugin-item.enabled::before {
-            content: ''; position: absolute; top: 0; left: 0; width: 0; height: 0;
-            border-left: 20px solid #7F53CD; border-bottom: 20px solid transparent; z-index: 1;
-        }
-        .bc-plugin-item.beta-enabled {
-            background: rgba(205, 128, 53, 0.1); border-color: rgba(205, 128, 53, 0.35);
-        }
-        .bc-plugin-item.beta-enabled::before {
-            content: ''; position: absolute; top: 0; left: 0; width: 0; height: 0;
-            border-left: 20px solid #CD8035; border-bottom: 20px solid transparent; z-index: 1;
-        }
-        .bc-plugin-item:hover {
-            background: rgba(255, 255, 255, 0.08); border-color: rgba(127, 83, 205, 0.3);
-            transform: translateY(-2px); box-shadow: 0 8px 20px rgba(127, 83, 205, 0.15);
-        }
-        .bc-plugin-item-header { display: flex; align-items: center; position: relative; }
+        .bc-plugin-item { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:12px; margin-bottom:10px; padding:14px; transition:all .3s ease; position:relative; overflow:hidden; }
+        .bc-plugin-item.enabled { background:rgba(127,83,205,0.1); border-color:rgba(127,83,205,0.3); }
+        .bc-plugin-item.enabled::before { content:''; position:absolute; top:0; left:0; width:0; height:0; border-left:20px solid #7F53CD; border-bottom:20px solid transparent; z-index:1; }
+        .bc-plugin-item.beta-enabled { background:rgba(205,128,53,0.1); border-color:rgba(205,128,53,0.35); }
+        .bc-plugin-item.beta-enabled::before { content:''; position:absolute; top:0; left:0; width:0; height:0; border-left:20px solid #CD8035; border-bottom:20px solid transparent; z-index:1; }
+        .bc-plugin-item.failed { border-color:rgba(255,80,80,0.4); background:rgba(255,50,50,0.06); }
+        .bc-plugin-item:hover { background:rgba(255,255,255,0.08); border-color:rgba(127,83,205,0.3); transform:translateY(-2px); box-shadow:0 8px 20px rgba(127,83,205,0.15); }
+        .bc-plugin-item-header { display:flex; align-items:center; position:relative; }
+        .bc-plugin-icon { font-size:22px; margin-right:10px; display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:10px; background:rgba(255,255,255,0.1); flex-shrink:0; }
+        .bc-plugin-icon img { width:22px; height:22px; border-radius:4px; }
+        .bc-plugin-info { flex:1; color:#fff; min-width:0; }
+        .bc-plugin-name { font-size:13px; font-weight:500; margin:0; color:#fff; }
+        .bc-plugin-desc { font-size:11px; color:#a0a9c0; margin:3px 0 0; line-height:1.4; }
 
-        .bc-plugin-info-btn {
-            position: absolute; bottom: 0; right: 0;
-            width: 30px; height: 30px;
-            cursor: pointer; text-decoration: none; z-index: 2; border-radius: 0 0 12px 0;
-        }
-        .bc-plugin-info-btn::before {
-            content: ''; position: absolute; bottom: 0; right: 0; width: 0; height: 0;
-            border-style: solid; border-width: 0 0 30px 30px;
-            border-color: transparent transparent rgba(255, 255, 255, 0.08) transparent;
-            transition: border-color 0.2s ease;
-        }
-        .bc-plugin-item.enabled .bc-plugin-info-btn::before { border-color: transparent transparent rgba(127, 83, 205, 0.4) transparent; }
-        .bc-plugin-item.beta-enabled .bc-plugin-info-btn::before { border-color: transparent transparent rgba(205, 128, 53, 0.4) transparent; }
-        .bc-plugin-info-btn::after {
-            content: '🔗'; position: absolute; bottom: 3px; right: 3px;
-            font-size: 9px; line-height: 1; opacity: 0.6; transition: opacity 0.2s ease, transform 0.2s ease;
-        }
-        .bc-plugin-info-btn:hover::before { border-color: transparent transparent rgba(255, 255, 255, 0.2) transparent; }
-        .bc-plugin-item.enabled .bc-plugin-info-btn:hover::before { border-color: transparent transparent rgba(127, 83, 205, 0.75) transparent; }
-        .bc-plugin-item.beta-enabled .bc-plugin-info-btn:hover::before { border-color: transparent transparent rgba(205, 128, 53, 0.75) transparent; }
-        .bc-plugin-info-btn:hover::after { opacity: 1; transform: scale(1.15); }
+        .bc-plugin-info-btn { position:absolute; bottom:0; right:0; width:28px; height:28px; cursor:pointer; text-decoration:none; z-index:2; border-radius:0 0 12px 0; }
+        .bc-plugin-info-btn::before { content:''; position:absolute; bottom:0; right:0; width:0; height:0; border-style:solid; border-width:0 0 28px 28px; border-color:transparent transparent rgba(255,255,255,0.08) transparent; transition:border-color .2s; }
+        .bc-plugin-item.enabled .bc-plugin-info-btn::before { border-color:transparent transparent rgba(127,83,205,0.4) transparent; }
+        .bc-plugin-info-btn::after { content:'🔗'; position:absolute; bottom:3px; right:3px; font-size:8px; opacity:.6; transition:opacity .2s; }
+        .bc-plugin-info-btn:hover::after { opacity:1; }
 
-        .bc-plugin-icon {
-            font-size: 24px; margin-right: 12px; display: flex; align-items: center;
-            justify-content: center; width: 40px; height: 40px;
-            border-radius: 10px; background: rgba(255, 255, 255, 0.1); flex-shrink: 0;
-        }
-        .bc-plugin-icon img { width: 24px; height: 24px; border-radius: 4px; }
-        .bc-plugin-info { flex: 1; color: white; min-width: 0; }
-        .bc-plugin-name { font-size: 14px; font-weight: 500; margin: 0; color: #fff; }
-        .bc-plugin-desc { font-size: 12px; color: #a0a9c0; margin: 4px 0 0 0; line-height: 1.4; }
+        .bc-plugin-toggle { position:relative; width:48px; height:24px; background:rgba(255,255,255,0.2); border-radius:12px; cursor:pointer; transition:all .3s ease; border:none; outline:none; flex-shrink:0; margin-left:8px; }
+        .bc-plugin-toggle.active { background:linear-gradient(135deg,#7F53CD,#A78BFA); }
+        .bc-plugin-toggle::after { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; background:#fff; border-radius:50%; transition:all .3s cubic-bezier(.25,.46,.45,.94); box-shadow:0 2px 6px rgba(0,0,0,0.2); }
+        .bc-plugin-toggle.active::after { left:26px; }
 
-        .bc-plugin-toggle {
-            position: relative; width: 50px; height: 26px;
-            background: rgba(255, 255, 255, 0.2); border-radius: 13px;
-            cursor: pointer; transition: all 0.3s ease; border: none; outline: none; flex-shrink: 0;
-        }
-        .bc-plugin-toggle.active { background: linear-gradient(135deg, #7F53CD, #A78BFA); }
-        .bc-plugin-toggle::after {
-            content: ''; position: absolute; top: 2px; left: 2px;
-            width: 22px; height: 22px; background: white; border-radius: 50%;
-            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        }
-        .bc-plugin-toggle.active::after { left: 26px; }
+        .bc-plugin-toggle-tri { position:relative; width:84px; height:24px; background:rgba(255,255,255,0.12); border-radius:12px; cursor:pointer; border:1px solid rgba(255,255,255,0.15); outline:none; display:flex; align-items:center; padding:0; overflow:hidden; flex-shrink:0; transition:border-color .3s; margin-left:8px; }
+        .bc-plugin-toggle-tri:hover { border-color:rgba(196,181,253,0.4); }
+        .bc-plugin-toggle-tri-track { position:absolute; top:2px; width:27px; height:20px; border-radius:10px; transition:left .3s cubic-bezier(.25,.46,.45,.94),background .3s; left:2px; background:rgba(255,255,255,.35); }
+        .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-track { left:29px; background:linear-gradient(135deg,#7F53CD,#A78BFA); }
+        .bc-plugin-toggle-tri[data-state="beta"]   .bc-plugin-toggle-tri-track { left:55px; background:linear-gradient(135deg,#CD8035,#FAB87A); }
+        .bc-plugin-toggle-tri-labels { position:relative; z-index:1; display:flex; width:100%; justify-content:space-around; align-items:center; height:100%; }
+        .bc-plugin-toggle-tri-label { font-size:8px; font-weight:600; color:rgba(255,255,255,.45); width:28px; text-align:center; transition:color .3s; user-select:none; pointer-events:none; }
+        .bc-plugin-toggle-tri[data-state="off"]    .bc-plugin-toggle-tri-label:nth-child(1) { color:rgba(255,255,255,.85); }
+        .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-label:nth-child(2) { color:#fff; }
+        .bc-plugin-toggle-tri[data-state="beta"]   .bc-plugin-toggle-tri-label:nth-child(3) { color:#fff; }
 
-        .bc-plugin-toggle-tri {
-            position: relative; width: 88px; height: 26px;
-            background: rgba(255, 255, 255, 0.12); border-radius: 13px; cursor: pointer;
-            border: 1px solid rgba(255, 255, 255, 0.15); outline: none;
-            display: flex; align-items: center; padding: 0; overflow: hidden; flex-shrink: 0;
-            transition: border-color 0.3s ease;
-        }
-        .bc-plugin-toggle-tri:hover { border-color: rgba(196, 181, 253, 0.4); }
-        .bc-plugin-toggle-tri-track {
-            position: absolute; top: 2px; width: 28px; height: 22px; border-radius: 11px;
-            transition: left 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), background 0.3s ease;
-            left: 2px; background: rgba(255,255,255,0.35);
-        }
-        .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-track { left: 30px; background: linear-gradient(135deg, #7F53CD, #A78BFA); }
-        .bc-plugin-toggle-tri[data-state="beta"] .bc-plugin-toggle-tri-track { left: 57px; background: linear-gradient(135deg, #CD8035, #FAB87A); }
-        .bc-plugin-toggle-tri-labels {
-            position: relative; z-index: 1; display: flex;
-            width: 100%; justify-content: space-around; align-items: center; height: 100%;
-        }
-        .bc-plugin-toggle-tri-label {
-            font-size: 9px; font-weight: 600; color: rgba(255,255,255,0.45);
-            width: 29px; text-align: center; transition: color 0.3s ease;
-            user-select: none; pointer-events: none;
-        }
-        .bc-plugin-toggle-tri[data-state="off"]    .bc-plugin-toggle-tri-label:nth-child(1) { color: rgba(255,255,255,0.85); }
-        .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-label:nth-child(2) { color: #fff; }
-        .bc-plugin-toggle-tri[data-state="beta"]   .bc-plugin-toggle-tri-label:nth-child(3) { color: #fff; }
+        .bc-plugin-retry-btn { position:absolute; top:8px; right:8px; width:26px; height:26px; background:rgba(255,80,80,0.2); border:1px solid rgba(255,80,80,0.4); border-radius:50%; cursor:pointer; font-size:14px; color:#ff8080; display:flex; align-items:center; justify-content:center; transition:all .2s; z-index:3; padding:0; }
+        .bc-plugin-retry-btn:hover { background:rgba(255,80,80,0.4); color:#fff; transform:rotate(180deg); }
 
-        .bc-plugin-loading {
-            text-align: center; padding: 40px 20px; color: #a0a9c0; font-size: 14px;
-        }
-        .bc-plugin-loading::after {
-            content: ''; display: block; width: 32px; height: 32px; margin: 16px auto 0;
-            border: 3px solid rgba(127,83,205,0.3); border-top-color: #A78BFA;
-            border-radius: 50%; animation: spin-once 0.8s linear infinite;
-        }
+        .bc-plugin-delete-btn { position:absolute; inset:0; width:100%; height:100%; background:rgba(20,10,10,0.55); border:none; border-radius:12px; cursor:pointer; font-size:22px; color:#ff8080; display:flex; align-items:center; justify-content:center; transition:background .2s; z-index:4; padding:0; }
+        .bc-plugin-delete-btn:hover { background:rgba(180,30,30,0.65); }
 
-        .bc-plugin-btn-group.hidden { display: none !important; }
-        .bc-plugin-panel.hidden { display: none !important; }
+        .bc-plugin-add-item { display:flex; align-items:center; justify-content:center; min-height:60px; cursor:pointer; background:rgba(127,83,205,0.05); border:1px dashed rgba(127,83,205,0.3); }
+        .bc-plugin-add-item:hover { background:rgba(127,83,205,0.12); border-color:rgba(167,139,250,0.5); }
+        .bc-plugin-add-icon { font-size:28px; opacity:.6; transition:opacity .2s; }
+        .bc-plugin-add-item:hover .bc-plugin-add-icon { opacity:1; }
 
-        .bc-plugin-floating-btn, .bc-plugin-floating-btn *,
-        .bc-plugin-changelog-btn, .bc-plugin-changelog-btn *,
-        .bc-plugin-refresh-btn, .bc-plugin-refresh-btn *,
-        .bc-plugin-panel, .bc-plugin-panel * {
-            user-select: none !important; -webkit-user-select: none !important;
-            -webkit-user-drag: none !important;
-        }
+        .bc-plugin-loading { text-align:center; padding:40px 20px; color:#a0a9c0; font-size:14px; }
+        .bc-plugin-loading::after { content:''; display:block; width:28px; height:28px; margin:14px auto 0; border:3px solid rgba(127,83,205,0.3); border-top-color:#A78BFA; border-radius:50%; animation:pcm-spin .8s linear infinite; }
+        .bc-plugin-empty { text-align:center; padding:32px 20px; color:#a0a9c0; font-size:13px; line-height:1.8; white-space:pre-wrap; }
 
-        .bc-liko-toggle-notification {
-            position: fixed; box-sizing: border-box;
-            background: linear-gradient(135deg, #7F53CD 0%, #A78BFA 100%);
-            color: white; padding: 12px 16px; border-radius: 12px;
-            box-shadow: 0 8px 20px rgba(127, 83, 205, 0.25);
-            z-index: 2147483645;
-            font-family: 'Noto Sans TC', sans-serif; font-size: 13px;
-            transform: translateY(-6px); opacity: 0;
-            transition: transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.3s ease;
-            pointer-events: none; user-select: none;
-        }
-        .bc-liko-toggle-notification.show { transform: translateY(0); opacity: 1; }
-        .bc-liko-toggle-notification.hide { transform: translateY(-6px); opacity: 0; }
+        .bc-plugin-account-locked { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; color:#a0a9c0; font-size:13px; text-align:center; line-height:1.8; white-space:pre-wrap; }
 
-        .bc-liko-system-notification {
-            position: fixed; top: 20px; right: 20px;
-            background: rgba(26, 32, 46, 0.95);
-            border: 1px solid rgba(127, 83, 205, 0.4);
-            color: white; padding: 14px 18px; border-radius: 12px;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-            z-index: 2147483648;
-            font-family: 'Noto Sans TC', sans-serif; font-size: 13px;
-            max-width: 280px;
-            transform: translateX(320px); opacity: 0;
-            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
-            user-select: none;
-        }
-        .bc-liko-system-notification.show { transform: translateX(0); opacity: 1; }
-        .bc-liko-system-notification.hide { transform: translateX(320px); opacity: 0; }
+        .bc-liko-toggle-notification { position:fixed; box-sizing:border-box; background:linear-gradient(135deg,#7F53CD 0%,#A78BFA 100%); color:#fff; padding:10px 14px; border-radius:10px; box-shadow:0 8px 20px rgba(127,83,205,0.25); z-index:2147483645; font-family:'Noto Sans TC',sans-serif; font-size:13px; transform:translateY(-6px); opacity:0; transition:transform .35s cubic-bezier(.34,1.4,.64,1),opacity .3s ease; pointer-events:none; user-select:none; }
+        .bc-liko-toggle-notification.show { transform:translateY(0); opacity:1; }
+        .bc-liko-toggle-notification.hide { transform:translateY(-6px); opacity:0; }
 
-        @media (max-width: 480px) {
-            .bc-plugin-panel { width: calc(100vw - 40px); right: 20px; max-height: calc(100vh - 100px); }
-            .bc-plugin-btn-group { right: 10px; }
-            .bc-plugin-floating-btn { width: 52px; height: 52px; }
-            .bc-plugin-floating-btn img { width: 42px; height: 42px; }
-            .bc-plugin-changelog-btn, .bc-plugin-refresh-btn { width: 52px; height: 52px; font-size: 18px; }
-        }
-        @media (max-height: 600px) {
-            .bc-plugin-panel { max-height: calc(100vh - 80px); top: 10px; }
-        }
+        .bc-liko-system-notification { position:fixed; top:20px; right:20px; background:rgba(26,32,46,0.95); border:1px solid rgba(127,83,205,0.4); color:#fff; padding:12px 16px; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.3); z-index:2147483648; font-family:'Noto Sans TC',sans-serif; font-size:13px; max-width:280px; transform:translateX(320px); opacity:0; transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .3s ease; user-select:none; cursor:pointer; pointer-events:auto; }
+        .bc-liko-system-notification.show { transform:translateX(0); opacity:1; }
+        .bc-liko-system-notification.hide { transform:translateX(320px); opacity:0; }
 
-        .bc-plugin-tabs {
-            display: flex; flex-shrink: 0;
-            background: rgba(0,0,0,0.25);
-            border-bottom: 1px solid rgba(255,255,255,0.07);
-        }
-        .bc-plugin-tab {
-            flex: 1; padding: 8px 4px;
-            background: none; border: none; border-bottom: 2px solid transparent;
-            color: rgba(255,255,255,0.45); cursor: pointer;
-            font-size: 12px; font-weight: 500; font-family: inherit;
-            transition: all 0.2s ease; letter-spacing: 0.3px;
-        }
-        .bc-plugin-tab:hover:not(.active) {
-            color: rgba(255,255,255,0.75);
-            background: rgba(255,255,255,0.04);
-        }
-        .bc-plugin-tab.active {
-            color: #fff; border-bottom-color: #A78BFA;
-        }
-        .bc-plugin-account-locked {
-            display: flex; flex-direction: column; align-items: center;
-            justify-content: center; padding: 40px 20px;
-            color: #a0a9c0; font-size: 13px; text-align: center; line-height: 1.8;
-        }
-        .bc-plugin-account-locked .lock-icon { font-size: 36px; margin-bottom: 12px; }
+        @media (max-width:480px) { .bc-plugin-btn-group{right:10px;top:40px;} }
+        @media (max-height:600px) { .bc-plugin-content{max-height:160px;} }
         `;
         document.head.appendChild(style);
     }
 
     // ============================================================
-    // === UI 建立 ================================================
+    // === Plugin Item ============================================
     // ============================================================
-
-    let currentUIState = null;
-    let _docClickHandler = null;
 
     function buildPluginItem(plugin, source = 'local') {
         const item = document.createElement("div");
         const isTri = isTriStatePlugin(plugin);
-
         let currentState, isEnabled, isBeta;
-        if (source === 'account') {
-            currentState = isTri ? (accountPluginSettings[plugin.id] || "off") : null;
-            isEnabled = isPluginEnabledInAccount(plugin);
-        } else {
-            currentState = isTri ? (plugin.state || "off") : null;
-            isEnabled = isPluginEnabled(plugin);
-        }
+
+        if (source === 'account') { currentState = isTri ? (accountPluginSettings[plugin.id] || "off") : null; isEnabled = isPluginEnabledInAccount(plugin); }
+        else { currentState = isTri ? (plugin.state || "off") : null; isEnabled = source === 'custom' ? plugin.enabled : isPluginEnabled(plugin); }
         isBeta = isTri && currentState === "beta";
 
-        item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}`;
+        item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}${failedPlugins.has(plugin.id) ? ' failed' : ''}`;
+        item.setAttribute('data-plugin-id', plugin.id);
 
-        const iconDisplay = plugin.customIcon
-        ? `<img src="${plugin.customIcon}" alt="${getPluginName(plugin)} icon" />`
-        : plugin.icon;
+        const iconHtml = plugin.customIcon
+            ? `<img src="${plugin.customIcon}" alt="" />`
+            : (plugin.icon?.startsWith('http') ? `<img src="${plugin.icon}" alt="" />` : (plugin.icon || '🔌'));
 
         const infoBtnHtml = plugin.website
-        ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${getMessage('visitWebsite')}" data-plugin-website="${plugin.id}"></a>`
-        : '';
-
-        const buildTriToggle = (p, state, src) => {
-            const labels = getTriLabels(p);
-            return `<button class="bc-plugin-toggle-tri" data-plugin-tri="${p.id}" data-source="${src}" data-state="${state}" aria-label="${getPluginName(p)}">
-                <div class="bc-plugin-toggle-tri-track"></div>
-                <div class="bc-plugin-toggle-tri-labels">
-                    <span class="bc-plugin-toggle-tri-label">${labels[0]}</span>
-                    <span class="bc-plugin-toggle-tri-label">${labels[1]}</span>
-                    <span class="bc-plugin-toggle-tri-label">${labels[2]}</span>
-                </div>
-            </button>`;
-        };
+            ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${t('visitWebsite')}"></a>`
+            : '';
 
         const toggleHtml = isTri
-        ? buildTriToggle(plugin, currentState, source)
-        : `<button class="bc-plugin-toggle ${isEnabled ? 'active' : ''}" data-plugin="${plugin.id}" data-source="${source}" aria-label="${getPluginName(plugin)}"></button>`;
+            ? (() => { const labels = getTriLabels(plugin); return `<button class="bc-plugin-toggle-tri" data-plugin-tri="${plugin.id}" data-source="${source}" data-state="${currentState}"><div class="bc-plugin-toggle-tri-track"></div><div class="bc-plugin-toggle-tri-labels"><span class="bc-plugin-toggle-tri-label">${labels[0]}</span><span class="bc-plugin-toggle-tri-label">${labels[1]}</span><span class="bc-plugin-toggle-tri-label">${labels[2]}</span></div></button>`; })()
+            : `<button class="bc-plugin-toggle${isEnabled ? ' active' : ''}" data-plugin="${plugin.id}" data-source="${source}"></button>`;
 
-        item.innerHTML = `
-            ${infoBtnHtml}
-            <div class="bc-plugin-item-header">
-                <div class="bc-plugin-icon">${iconDisplay}</div>
-                <div class="bc-plugin-info">
-                    <h4 class="bc-plugin-name">${getPluginName(plugin)}</h4>
-                    <p class="bc-plugin-desc">${getPluginDescription(plugin)}</p>
-                </div>
-                ${toggleHtml}
-            </div>
-        `;
+        item.innerHTML = `${infoBtnHtml}<div class="bc-plugin-item-header"><div class="bc-plugin-icon">${iconHtml}</div><div class="bc-plugin-info"><h4 class="bc-plugin-name">${getPluginName(plugin)}</h4><p class="bc-plugin-desc">${getPluginDescription(plugin)}</p></div>${toggleHtml}</div>`;
+
+        if (failedPlugins.has(plugin.id)) showPluginRetryBtn(plugin.id); // re-attach if rebuilding
+
         return item;
-    }
-
-    function applyFloatingBtnVisibility() {
-        const group = document.getElementById("bc-plugin-btn-group");
-        if (!group) return;
-        // 畫面不允許顯示，或使用者手動隱藏，都要隱藏
-        if (!shouldShowUI() || !accountFloatingBtnVisible) {
-            group.style.display = 'none';
-        } else {
-            group.style.display = '';
-        }
     }
 
     function buildAccountContent(container) {
         container.innerHTML = '';
-        const isLoggedIn = typeof Player !== 'undefined' && !!Player?.AccountName;
-        if (!isLoggedIn) {
-            container.innerHTML = `
-                <div class="bc-plugin-account-locked">
-                    <div class="lock-icon">🔒</div>
-                    ${_isCN ? '請先登入遊戲帳號<br>方可使用帳戶設定' : 'Please log in to your account<br>to use account settings'}
-                </div>`;
-            return;
-        }
-        if (!pluginsLoaded) {
-            container.innerHTML = `<div class="bc-plugin-loading">${getMessage('loadingPlugins')}</div>`;
-            return;
-        }
-        subPlugins.forEach(plugin => container.appendChild(buildPluginItem(plugin, 'account')));
+        if (!Player?.AccountName) { container.innerHTML = `<div class="bc-plugin-account-locked">${t('accountNotLoggedIn')}</div>`; return; }
+        if (!pluginsLoaded) { container.innerHTML = `<div class="bc-plugin-loading">${t('loadingPlugins')}</div>`; return; }
+        subPlugins.forEach(p => container.appendChild(buildPluginItem(p, 'account')));
     }
 
-    function handlePluginToggle(e) {
-        if (e.target.closest(".bc-plugin-info-btn")) { e.stopPropagation(); return; }
-
-        const toggle = e.target.closest(".bc-plugin-toggle");
-        if (toggle) {
-            const pluginId = toggle.getAttribute("data-plugin");
-            const source = toggle.getAttribute("data-source") || "local";
-            const plugin = subPlugins.find(p => p.id === pluginId);
-            if (!plugin) return;
-
-            if (source === 'account') {
-                const newEnabled = !isPluginEnabledInAccount(plugin);
-                if (newEnabled) {
-                    accountPluginSettings[pluginId] = 1;
-                } else {
-                    delete accountPluginSettings[pluginId];
-                }
-                saveAccountSettings();
-                toggle.classList.toggle("active", newEnabled);
-                toggle.closest(".bc-plugin-item").classList.toggle("enabled", newEnabled);
-                showToggleNotification(
-                    newEnabled ? "🐈‍⬛" : "🐾",
-                    `${getPluginName(plugin)} ${newEnabled ? getMessage('pluginEnabled') : getMessage('pluginDisabled')}`,
-                    newEnabled ? getMessage('willTakeEffect') : getMessage('willNotStart')
-                );
-                if (newEnabled && !loadedPlugins.has(plugin.id) && isPlayerLoaded()) loadSubPlugin(plugin);
-            } else {
-                plugin.enabled = !plugin.enabled;
-                pluginSettings[pluginId] = plugin.enabled;
-                saveSettings(pluginSettings);
-                toggle.classList.toggle("active", plugin.enabled);
-                toggle.closest(".bc-plugin-item").classList.toggle("enabled", plugin.enabled);
-                showToggleNotification(
-                    plugin.enabled ? "🐈‍⬛" : "🐾",
-                    `${getPluginName(plugin)} ${plugin.enabled ? getMessage('pluginEnabled') : getMessage('pluginDisabled')}`,
-                    plugin.enabled ? getMessage('willTakeEffect') : getMessage('willNotStart')
-                );
-                if (plugin.enabled && !loadedPlugins.has(plugin.id) && isPlayerLoaded()) loadSubPlugin(plugin);
-            }
+    function buildCustomContent(container) {
+        container.innerHTML = '';
+        if (isCustomEditMode) container.appendChild(buildAddItem());
+        if (!customPlugins.length) {
+            const hint = document.createElement('div');
+            hint.className = 'bc-plugin-empty';
+            hint.textContent = t('customEmptyHint');
+            container.appendChild(hint);
             return;
         }
-
-        const triToggle = e.target.closest(".bc-plugin-toggle-tri");
-        if (triToggle) {
-            const pluginId = triToggle.getAttribute("data-plugin-tri");
-            const source = triToggle.getAttribute("data-source") || "local";
-            const plugin = subPlugins.find(p => p.id === pluginId);
-            if (!plugin || !isTriStatePlugin(plugin)) return;
-
-            const currentState = source === 'account'
-            ? (accountPluginSettings[pluginId] || "off")
-            : (plugin.state || "off");
-            const nextState = cycleTriState(currentState);
-
-            if (source === 'account') {
-                if (nextState === "off") {
-                    delete accountPluginSettings[pluginId];
-                } else {
-                    accountPluginSettings[pluginId] = nextState;
-                }
-                saveAccountSettings();
-            } else {
-                plugin.state = nextState;
-                pluginSettings[pluginId] = nextState;
-                saveSettings(pluginSettings);
-            }
-
-            triToggle.setAttribute("data-state", nextState);
-            const item = triToggle.closest(".bc-plugin-item");
-            item.classList.remove("enabled", "beta-enabled");
-            if (nextState === "stable") item.classList.add("enabled");
-            if (nextState === "beta") item.classList.add("beta-enabled");
-            const labels = getTriLabels(plugin);
-            const notifTitle = nextState === "off"
-            ? `${getPluginName(plugin)} ${getMessage('pluginDisabled')}`
-            : `${getPluginName(plugin)} ${labels[nextState === "stable" ? 1 : 2]} ${getMessage('pluginEnabled')}`;
-            showToggleNotification(
-                nextState === "off" ? "🐾" : nextState === "stable" ? "🐈‍⬛" : "🧪",
-                notifTitle,
-                nextState === "off" ? getMessage('willNotStart') : getMessage('willTakeEffect')
-            );
-            if (nextState !== "off" && !loadedPlugins.has(plugin.id) && isPlayerLoaded()) loadSubPlugin(plugin);
-            return;
-        }
+        customPlugins.forEach(p => container.appendChild(buildCustomPluginItem(p)));
     }
 
-    function createManagerUI() {
-        const shouldShow = shouldShowUI();
-        const existingGroup = document.getElementById("bc-plugin-btn-group");
-        const existingPanel = document.getElementById("bc-plugin-panel");
+    function buildAddItem() {
+        const item = document.createElement('div');
+        item.className = 'bc-plugin-item bc-plugin-add-item';
+        item.innerHTML = '<div class="bc-plugin-add-icon">➕</div>';
+        item.addEventListener('click', showAddPluginPanel);
+        return item;
+    }
 
-        if (currentUIState === shouldShow) return;
-        currentUIState = shouldShow;
-
-        if (!shouldShow) {
-            // 清除畫面快取，避免下次判斷用到舊值
-            cachedViewingCharacter = null;
-            lastCharacterCheck = 0;
-            if (existingGroup) existingGroup.style.display = 'none';
-            if (existingPanel) {
-                existingPanel.style.display = 'none';
-                existingPanel.classList.remove('show');
-            }
-            return;
+    function buildCustomPluginItem(plugin) {
+        const item = buildPluginItem(plugin, 'custom');
+        if (isCustomEditMode) {
+            const btn = document.createElement('button');
+            btn.className = 'bc-plugin-delete-btn';
+            btn.innerHTML = '❌';
+            btn.title = t('customDeleteConfirm', { name: getPluginName(plugin) });
+            btn.setAttribute('data-delete-id', plugin.id);
+            item.appendChild(btn);
         }
-        if (existingGroup && existingPanel) {
-            existingGroup.style.display = '';
-            existingPanel.style.display = '';
-            applyFloatingBtnVisibility();
-            return;
-        }
-
-        if (existingGroup) existingGroup.remove();
-        if (existingPanel) existingPanel.remove();
-        injectStyles();
-
-        const btnGroup = document.createElement("div");
-        btnGroup.id = "bc-plugin-btn-group";
-        btnGroup.className = "bc-plugin-btn-group";
-
-        const floatingBtn = document.createElement("button");
-        floatingBtn.className = "bc-plugin-floating-btn";
-        floatingBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
-        floatingBtn.title = "插件管理器";
-
-        const refreshBtn = document.createElement("button");
-        refreshBtn.className = "bc-plugin-refresh-btn";
-        refreshBtn.innerHTML = "↻";
-        refreshBtn.title = getMessage('refreshTitle');
-        refreshBtn.style.display = "none";
-
-        const changelogBtn = document.createElement("button");
-        changelogBtn.className = "bc-plugin-changelog-btn";
-        changelogBtn.innerHTML = "📋";
-        changelogBtn.title = getMessage('changelogTitle');
-        changelogBtn.style.display = "none";
-
-        btnGroup.appendChild(floatingBtn);
-        btnGroup.appendChild(refreshBtn);
-        btnGroup.appendChild(changelogBtn);
-        document.body.appendChild(btnGroup);
-        applyFloatingBtnVisibility();
-
-        const panel = document.createElement("div");
-        panel.id = "bc-plugin-panel";
-        panel.className = "bc-plugin-panel";
-
-        const header = document.createElement("div");
-        header.className = "bc-plugin-header";
-        header.innerHTML = `<h3 class="bc-plugin-title">${getMessage('welcomeTitle')}</h3>`;
-
-        const tabsBar = document.createElement("div");
-        tabsBar.className = "bc-plugin-tabs";
-        const localTab = document.createElement("button");
-        localTab.className = "bc-plugin-tab active";
-        localTab.textContent = _isCN ? "📱 本地" : "📱 Local";
-        const accountTab = document.createElement("button");
-        accountTab.className = "bc-plugin-tab";
-        accountTab.textContent = _isCN ? "☁️ 帳戶" : "☁️ Account";
-        tabsBar.appendChild(localTab);
-        tabsBar.appendChild(accountTab);
-
-        const localContent = document.createElement("div");
-        localContent.id = "bc-plugin-content-local";
-        localContent.className = "bc-plugin-content";
-        if (!pluginsLoaded) {
-            localContent.innerHTML = `<div class="bc-plugin-loading">${getMessage('loadingPlugins')}</div>`;
-        } else {
-            subPlugins.forEach(plugin => localContent.appendChild(buildPluginItem(plugin, 'local')));
-        }
-
-        const accountContent = document.createElement("div");
-        accountContent.id = "bc-plugin-content-account";
-        accountContent.className = "bc-plugin-content";
-        accountContent.style.display = "none";
-        buildAccountContent(accountContent);
-
-        const footer = document.createElement("div");
-        footer.className = "bc-plugin-footer";
-        footer.innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://awdrrawd.github.io/liko-Plugin-Repository/" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${MOD_VER}</a> ❖ by Likolisu`;
-
-        panel.appendChild(header);
-        panel.appendChild(tabsBar);
-        panel.appendChild(localContent);
-        panel.appendChild(accountContent);
-        panel.appendChild(footer);
-        document.body.appendChild(panel);
-
-        let isOpen = false;
-
-        const setSubBtnsVisible = (visible) => {
-            refreshBtn.style.display = visible ? "flex" : "none";
-            changelogBtn.style.display = visible ? "flex" : "none";
-        };
-
-        localTab.addEventListener("click", () => {
-            localTab.classList.add("active");
-            accountTab.classList.remove("active");
-            localContent.style.display = "";
-            accountContent.style.display = "none";
-        });
-        accountTab.addEventListener("click", () => {
-            accountTab.classList.add("active");
-            localTab.classList.remove("active");
-            localContent.style.display = "none";
-            accountContent.style.display = "";
-            buildAccountContent(accountContent);
-        });
-
-        floatingBtn.addEventListener("click", (e) => {
-            e.preventDefault(); e.stopPropagation();
-            isOpen = !isOpen;
-            panel.classList.toggle("show", isOpen);
-            setSubBtnsVisible(isOpen);
-            if (isOpen && pluginsLoaded && localContent.querySelector('.bc-plugin-loading')) {
-                localContent.innerHTML = '';
-                subPlugins.forEach(plugin => localContent.appendChild(buildPluginItem(plugin, 'local')));
-            }
-        });
-
-        refreshBtn.addEventListener("click", (e) => {
-            e.preventDefault(); e.stopPropagation();
-            if (isRefreshing) return;
-            refreshBtn.classList.add("spinning");
-            forceRefreshCache().finally(() => {
-                refreshBtn.classList.remove("spinning");
-            });
-        });
-
-        changelogBtn.addEventListener("click", (e) => {
-            e.preventDefault(); e.stopPropagation();
-            showChangelogModal();
-        });
-
-        localContent.addEventListener("click", handlePluginToggle);
-        accountContent.addEventListener("click", handlePluginToggle);
-
-        if (_docClickHandler) document.removeEventListener("click", _docClickHandler);
-        _docClickHandler = (e) => {
-            if (!panel.contains(e.target) && !btnGroup.contains(e.target) && isOpen) {
-                isOpen = false;
-                panel.classList.remove("show");
-                setSubBtnsVisible(false);
-            }
-        };
-        document.addEventListener("click", _docClickHandler);
+        return item;
     }
 
     // ============================================================
-    // === 通知系統 ===============================================
+    // === Add Plugin Panel =======================================
+    // ============================================================
+
+    function showAddPluginPanel() {
+        if (document.getElementById('pcm-add-panel')) return;
+        const overlay = document.createElement('div');
+        overlay.id = 'pcm-add-panel';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483648;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;';
+
+        const box = document.createElement('div');
+        box.style.cssText = 'background:rgba(26,32,46,0.98);border:1px solid rgba(127,83,205,0.4);border-radius:16px;padding:20px;width:320px;max-width:90vw;box-shadow:0 20px 40px rgba(0,0,0,0.4);font-family:\'Noto Sans TC\',sans-serif;color:#fff;';
+
+        const fieldStyle = 'width:100%;box-sizing:border-box;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px 10px;color:#fff;font-size:12px;font-family:inherit;outline:none;margin-bottom:10px;';
+
+        box.innerHTML = `
+            <div style="font-size:15px;font-weight:600;margin-bottom:14px;">${t('customAddTitle')}</div>
+            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldName')}</label>
+            <input id="pcm-add-name" type="text" style="${fieldStyle}" autocomplete="off" />
+            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldUrl')}</label>
+            <input id="pcm-add-url"  type="text" style="${fieldStyle}" autocomplete="off" placeholder="https://..." />
+            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldIcon')}</label>
+            <input id="pcm-add-icon" type="text" style="${fieldStyle}" autocomplete="off" placeholder="🔌 / https://..." />
+            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldDesc')}</label>
+            <input id="pcm-add-desc" type="text" style="${fieldStyle.replace('margin-bottom:10px','margin-bottom:14px')}" autocomplete="off" />
+            <div style="display:flex;gap:8px;">
+                <button id="pcm-add-cancel" style="flex:1;padding:9px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:#a0a9c0;font-size:13px;cursor:pointer;font-family:inherit;">${t('customBtnCancel')}</button>
+                <button id="pcm-add-confirm" style="flex:1;padding:9px;border:none;border-radius:8px;background:linear-gradient(135deg,#7F53CD,#A78BFA);color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">${t('customBtnAdd')}</button>
+            </div>
+        `;
+
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        const nameInput    = overlay.querySelector('#pcm-add-name');
+        const urlInput     = overlay.querySelector('#pcm-add-url');
+        const iconInput    = overlay.querySelector('#pcm-add-icon');
+        const descInput    = overlay.querySelector('#pcm-add-desc');
+        const cancelBtn    = overlay.querySelector('#pcm-add-cancel');
+        const confirmBtn   = overlay.querySelector('#pcm-add-confirm');
+        nameInput.focus();
+
+        const close = () => overlay.remove();
+        cancelBtn.addEventListener('click', e => { e.stopPropagation(); close(); });
+        // stopPropagation prevents _docClickHandler from closing the main panel
+        overlay.addEventListener('click', e => { e.stopPropagation(); if (e.target === overlay) close(); });
+
+        confirmBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            const name = nameInput.value.trim();
+            const url  = urlInput.value.trim();
+            const icon = iconInput.value.trim();
+            const desc = descInput.value.trim();
+
+            if (!name) { showNotification("⚠️", "PCM", t('customNameRequired')); return; }
+            if (!url.endsWith('.js')) { showNotification("⚠️", "PCM", t('customUrlInvalid')); return; }
+
+            const plugin = { id: 'custom_' + Date.now(), name, en_name: name, url, icon: icon || '🔌', description: desc, en_description: desc, enabled: false };
+            customPlugins.push(plugin);
+            saveCustomPlugins();
+
+            const container = document.getElementById('bc-plugin-content-custom');
+            if (container) buildCustomContent(container);
+            applyFilter();
+            close();
+            showNotification("✅", "PCM", t('customAdded', { name }));
+        });
+    }
+
+    function showDeleteConfirm(pluginId) {
+        const plugin = customPlugins.find(p => p.id === pluginId);
+        if (!plugin) return;
+        if (document.getElementById('pcm-delete-panel')) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'pcm-delete-panel';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483648;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;';
+
+        const box = document.createElement('div');
+        box.style.cssText = 'background:rgba(26,32,46,0.98);border:1px solid rgba(255,80,80,0.3);border-radius:14px;padding:20px;width:280px;max-width:90vw;font-family:\'Noto Sans TC\',sans-serif;color:#fff;text-align:center;';
+        box.innerHTML = `
+            <div style="font-size:14px;margin-bottom:16px;line-height:1.5;">${t('customDeleteConfirm', { name: plugin.name })}</div>
+            <div style="display:flex;gap:8px;">
+                <button id="pcm-del-no"  style="flex:1;padding:9px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:#a0a9c0;font-size:13px;cursor:pointer;font-family:inherit;">${t('customBtnCancel')}</button>
+                <button id="pcm-del-yes" style="flex:1;padding:9px;border:none;border-radius:8px;background:rgba(200,50,50,0.7);color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">${t('customDeleteYes')}</button>
+            </div>
+        `;
+        overlay.appendChild(box); document.body.appendChild(overlay);
+
+        const close = () => overlay.remove();
+        overlay.querySelector('#pcm-del-no').addEventListener('click', e => { e.stopPropagation(); close(); });
+        overlay.addEventListener('click', e => { e.stopPropagation(); if (e.target === overlay) close(); });
+        overlay.querySelector('#pcm-del-yes').addEventListener('click', e => {
+            e.stopPropagation();
+            const name = plugin.name;
+            customPlugins = customPlugins.filter(p => p.id !== pluginId);
+            saveCustomPlugins();
+            loadedPlugins.delete(pluginId);
+            const container = document.getElementById('bc-plugin-content-custom');
+            if (container) buildCustomContent(container);
+            applyFilter();
+            close();
+            showNotification("🗑️", "PCM", t('customDeleted', { name }));
+        });
+    }
+
+    // ============================================================
+    // === Toggle Handler =========================================
+    // ============================================================
+
+    function handlePluginToggle(e) {
+        if (e.target.closest('.bc-plugin-info-btn')) { e.stopPropagation(); return; }
+
+        // Retry button
+        const retryBtn = e.target.closest('.bc-plugin-retry-btn');
+        if (retryBtn) {
+            const id = retryBtn.getAttribute('data-retry-id');
+            const isCustom = !!customPlugins.find(p => p.id === id);
+            const plugin = isCustom ? customPlugins.find(p => p.id === id) : subPlugins.find(p => p.id === id);
+            if (!plugin) return;
+            failedPlugins.delete(id);
+            hidePluginRetryBtn(id);
+            loadSubPlugin(plugin, isCustom).catch(() => {});
+            return;
+        }
+
+        // Delete button
+        const delBtn = e.target.closest('.bc-plugin-delete-btn');
+        if (delBtn) { showDeleteConfirm(delBtn.getAttribute('data-delete-id')); return; }
+
+        // Normal toggle
+        const toggle = e.target.closest('.bc-plugin-toggle');
+        if (toggle) {
+            const id = toggle.getAttribute('data-plugin');
+            const src = toggle.getAttribute('data-source') || 'local';
+            const plugin = src === 'custom' ? customPlugins.find(p => p.id === id) : subPlugins.find(p => p.id === id);
+            if (!plugin) return;
+
+            if (src === 'account') {
+                const newVal = !isPluginEnabledInAccount(plugin);
+                if (newVal) accountPluginSettings[id] = 1; else delete accountPluginSettings[id];
+                saveAccountSettings();
+                toggle.classList.toggle('active', newVal);
+                toggle.closest('.bc-plugin-item').classList.toggle('enabled', newVal);
+                showToggleNotification(newVal ? "🐈‍⬛" : "🐾", `${getPluginName(plugin)} ${newVal ? t('pluginEnabled') : t('pluginDisabled')}`, newVal ? t('willTakeEffect') : t('willNotStart'));
+                if (newVal && !loadedPlugins.has(id) && typeof Player !== 'undefined') loadSubPlugin(plugin);
+            } else if (src === 'custom') {
+                plugin.enabled = !plugin.enabled; saveCustomPlugins();
+                toggle.classList.toggle('active', plugin.enabled);
+                toggle.closest('.bc-plugin-item').classList.toggle('enabled', plugin.enabled);
+                showToggleNotification(plugin.enabled ? "🐈‍⬛" : "🐾", `${plugin.name} ${plugin.enabled ? t('pluginEnabled') : t('pluginDisabled')}`, plugin.enabled ? t('willTakeEffect') : t('willNotStart'));
+                if (plugin.enabled && !loadedPlugins.has(id)) loadSubPlugin(plugin, true).catch(() => {});
+            } else {
+                plugin.enabled = !plugin.enabled;
+                pluginSettings[id] = plugin.enabled; saveSettings(pluginSettings);
+                toggle.classList.toggle('active', plugin.enabled);
+                toggle.closest('.bc-plugin-item').classList.toggle('enabled', plugin.enabled);
+                showToggleNotification(plugin.enabled ? "🐈‍⬛" : "🐾", `${getPluginName(plugin)} ${plugin.enabled ? t('pluginEnabled') : t('pluginDisabled')}`, plugin.enabled ? t('willTakeEffect') : t('willNotStart'));
+                if (plugin.enabled && !loadedPlugins.has(id) && typeof Player !== 'undefined') loadSubPlugin(plugin);
+            }
+            return;
+        }
+
+        // Tri-state toggle
+        const tri = e.target.closest('.bc-plugin-toggle-tri');
+        if (tri) {
+            const id = tri.getAttribute('data-plugin-tri');
+            const src = tri.getAttribute('data-source') || 'local';
+            const plugin = subPlugins.find(p => p.id === id);
+            if (!plugin || !isTriStatePlugin(plugin)) return;
+
+            const cur  = src === 'account' ? (accountPluginSettings[id] || "off") : (plugin.state || "off");
+            const next = cycleTriState(cur);
+
+            if (src === 'account') { if (next === "off") delete accountPluginSettings[id]; else accountPluginSettings[id] = next; saveAccountSettings(); }
+            else { plugin.state = next; pluginSettings[id] = next; saveSettings(pluginSettings); }
+
+            tri.setAttribute('data-state', next);
+            const item = tri.closest('.bc-plugin-item');
+            item.classList.remove('enabled', 'beta-enabled');
+            if (next === 'stable') item.classList.add('enabled');
+            if (next === 'beta')   item.classList.add('beta-enabled');
+
+            const labels = getTriLabels(plugin);
+            showToggleNotification(next === 'off' ? "🐾" : next === 'stable' ? "🐈‍⬛" : "🧪",
+                next === 'off' ? `${getPluginName(plugin)} ${t('pluginDisabled')}` : `${getPluginName(plugin)} ${labels[next === 'stable' ? 1 : 2]} ${t('pluginEnabled')}`,
+                next === 'off' ? t('willNotStart') : t('willTakeEffect'));
+            if (next !== 'off' && !loadedPlugins.has(id) && typeof Player !== 'undefined') loadSubPlugin(plugin);
+        }
+    }
+
+    // ============================================================
+    // === Draggable ==============================================
+    // ============================================================
+
+    function makeDraggable(el) {
+        let startX, startY, startL, startT, dragging = false;
+
+        el.addEventListener('mousedown', e => {
+            if (e.button !== 0 || e.target.closest('button, a')) return;
+            const rect = el.getBoundingClientRect();
+            startX = e.clientX; startY = e.clientY;
+            startL = rect.left;  startT = rect.top;
+            dragging = false;
+            e.preventDefault();
+
+            const onMove = mv => {
+                const dx = mv.clientX - startX, dy = mv.clientY - startY;
+                if (!dragging && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+                dragging = true;
+                el.style.right = 'auto';
+                el.style.animation = 'none';
+                el.style.left = Math.max(0, Math.min(window.innerWidth  - el.offsetWidth,  startL + dx)) + 'px';
+                el.style.top  = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, startT + dy)) + 'px';
+            };
+
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup',   onUp);
+            };
+
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup',   onUp);
+        });
+    }
+
+    // ============================================================
+    // === Create Manager UI =====================================
+    // ============================================================
+
+    function applyFloatingBtnVisibility() {
+        const g = document.getElementById("bc-plugin-btn-group");
+        if (!g) return;
+        g.style.display = (!shouldShowUI() || !accountFloatingBtnVisible) ? 'none' : '';
+    }
+
+    function createManagerUI() {
+        const show = shouldShowUI();
+        const eg   = document.getElementById("bc-plugin-btn-group");
+        const ep   = document.getElementById("bc-plugin-panel");
+        if (currentUIState === show) return;
+        currentUIState = show;
+
+        if (!show) {
+            cachedViewingCharacter = null; lastCharacterCheck = 0;
+            if (eg) eg.style.display = 'none';
+            if (ep) { ep.style.display = 'none'; ep.classList.remove('show'); }
+            return;
+        }
+        if (eg && ep) { eg.style.display = ''; ep.style.display = ''; applyFloatingBtnVisibility(); return; }
+        if (eg) eg.remove(); if (ep) ep.remove();
+
+        injectStyles();
+
+        // ── Button Group ──
+        const btnGroup = document.createElement('div');
+        btnGroup.id = 'bc-plugin-btn-group';
+        btnGroup.className = 'bc-plugin-btn-group';
+
+        const floatBtn = document.createElement('button');
+        floatBtn.className = 'bc-plugin-floating-btn';
+        floatBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
+        floatBtn.title = t('welcomeTitle');
+
+        const refreshBtn = document.createElement('button');
+        refreshBtn.id = 'bc-plugin-refresh-btn';
+        refreshBtn.className = 'bc-plugin-refresh-btn'; // kept for CSS fallback
+        refreshBtn.innerHTML = '↻';
+        refreshBtn.title = t('refreshTitle');
+        refreshBtn.style.display = 'none';
+
+        const changelogBtn = document.createElement('button');
+        changelogBtn.className = 'bc-plugin-changelog-btn';
+        changelogBtn.innerHTML = '📋';
+        changelogBtn.title = t('changelogTitle');
+        changelogBtn.style.display = 'none';
+
+        btnGroup.append(floatBtn, refreshBtn, changelogBtn);
+        document.body.appendChild(btnGroup);
+        makeDraggable(btnGroup);
+        applyFloatingBtnVisibility();
+
+        // ── Panel ──
+        const panel = document.createElement('div');
+        panel.id = 'bc-plugin-panel';
+        panel.className = 'bc-plugin-panel';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'bc-plugin-header';
+        header.innerHTML = `<h3 class="bc-plugin-title">${t('welcomeTitle')}</h3>`;
+
+        // Tabs
+        const tabsBar = document.createElement('div');
+        tabsBar.className = 'bc-plugin-tabs';
+        const tabs = {
+            local:   document.createElement('button'),
+            account: document.createElement('button'),
+            custom:  document.createElement('button'),
+        };
+        tabs.local.className   = 'bc-plugin-tab active';
+        tabs.account.className = 'bc-plugin-tab';
+        tabs.custom.className  = 'bc-plugin-tab';
+        tabs.local.textContent   = t('tabLocal');
+        tabs.account.textContent = t('tabAccount');
+        tabs.custom.textContent  = t('tabCustom');
+        tabsBar.append(tabs.local, tabs.account, tabs.custom);
+
+        // Search row
+        const searchRow = document.createElement('div');
+        searchRow.className = 'bc-plugin-search-row';
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'bc-plugin-search';
+        searchInput.placeholder = t('searchPlaceholder');
+        const filterBtn = document.createElement('button');
+        filterBtn.className = 'bc-plugin-filter-btn';
+        filterBtn.title = t('filterAll');
+        filterBtn.textContent = '☰';
+        const gearBtn = document.createElement('button');
+        gearBtn.className = 'bc-plugin-gear-btn';
+        gearBtn.textContent = '⚙';
+        gearBtn.style.display = 'none';
+        searchRow.append(searchInput, filterBtn, gearBtn);
+
+        // Contents
+        const contentLocal = document.createElement('div');
+        contentLocal.id = 'bc-plugin-content-local';
+        contentLocal.className = 'bc-plugin-content';
+        if (!pluginsLoaded) contentLocal.innerHTML = `<div class="bc-plugin-loading">${t('loadingPlugins')}</div>`;
+        else subPlugins.forEach(p => contentLocal.appendChild(buildPluginItem(p, 'local')));
+
+        const contentAccount = document.createElement('div');
+        contentAccount.id = 'bc-plugin-content-account';
+        contentAccount.className = 'bc-plugin-content';
+        contentAccount.style.display = 'none';
+        buildAccountContent(contentAccount);
+
+        const contentCustom = document.createElement('div');
+        contentCustom.id = 'bc-plugin-content-custom';
+        contentCustom.className = 'bc-plugin-content';
+        contentCustom.style.display = 'none';
+        buildCustomContent(contentCustom);
+
+        // Footer
+        const footer = document.createElement('div');
+        footer.className = 'bc-plugin-footer';
+        footer.innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://awdrrawd.github.io/liko-Plugin-Repository/" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${MOD_VER}</a> ❖`;
+
+        panel.append(header, tabsBar, searchRow, contentLocal, contentAccount, contentCustom, footer);
+        document.body.appendChild(panel);
+
+        let isOpen = false;
+        const contents = { local: contentLocal, account: contentAccount, custom: contentCustom };
+
+        const switchTab = (tab) => {
+            activeTab = tab;
+            Object.keys(tabs).forEach(k => {
+                tabs[k].classList.toggle('active', k === tab);
+                contents[k].style.display = k === tab ? '' : 'none';
+            });
+            gearBtn.style.display = tab === 'custom' ? '' : 'none';
+            if (tab === 'account') buildAccountContent(contentAccount);
+            if (tab === 'custom')  buildCustomContent(contentCustom);
+            applyFilter();
+        };
+
+        tabs.local.addEventListener('click',   () => switchTab('local'));
+        tabs.account.addEventListener('click', () => switchTab('account'));
+        tabs.custom.addEventListener('click',  () => switchTab('custom'));
+
+        const filterModes = ['all', 'enabled', 'disabled'];
+        filterBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            filterMode = filterModes[(filterModes.indexOf(filterMode) + 1) % 3];
+            applyFilter();
+            showToggleNotification('☰', 'PCM', t('filter' + filterMode.charAt(0).toUpperCase() + filterMode.slice(1)));
+        });
+
+        gearBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            isCustomEditMode = !isCustomEditMode;
+            gearBtn.classList.toggle('active', isCustomEditMode);
+            buildCustomContent(contentCustom);
+            applyFilter();
+        });
+
+        searchInput.addEventListener('input', () => { searchQuery = searchInput.value; applyFilter(); });
+
+        const resetPanelState = () => {
+            searchQuery = ''; filterMode = 'all'; isCustomEditMode = false;
+            searchInput.value = ''; gearBtn.classList.remove('active');
+            applyFilter();
+        };
+
+        floatBtn.addEventListener('click', e => {
+            if (e.target !== floatBtn && e.target !== floatBtn.querySelector('img')) return;
+            e.preventDefault(); e.stopPropagation();
+            isOpen = !isOpen;
+            panel.classList.toggle('show', isOpen);
+            refreshBtn.style.display   = isOpen ? 'flex' : 'none';
+            changelogBtn.style.display = isOpen ? 'flex' : 'none';
+
+            if (isOpen) {
+                // Calculate panel position — always clamped within viewport
+                const gr     = btnGroup.getBoundingClientRect();
+                const vw     = window.innerWidth;
+                const vh     = window.innerHeight;
+                const pWidth = Math.min(380, vw - 20);
+                panel.style.width = pWidth + 'px';
+
+                let left = gr.left - pWidth - 12;
+                if (left < 10) left = Math.max(10, (vw - pWidth) / 2);  // center if no room on left
+                left = Math.max(10, Math.min(vw - pWidth - 10, left));
+
+                const top = Math.max(10, Math.min(gr.top, vh - 200));
+                panel.style.left     = left + 'px';
+                panel.style.right    = 'auto';
+                panel.style.top      = top + 'px';
+                panel.style.maxHeight = (vh - top - 20) + 'px';
+
+                if (pluginsLoaded && contentLocal.querySelector('.bc-plugin-loading')) {
+                    contentLocal.innerHTML = ''; subPlugins.forEach(p => contentLocal.appendChild(buildPluginItem(p, 'local')));
+                    applyFilter();
+                }
+            } else {
+                resetPanelState();
+            }
+        });
+
+        refreshBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); refreshPluginList(); });
+        changelogBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showChangelogModal(); });
+
+        [contentLocal, contentAccount, contentCustom].forEach(c => c.addEventListener('click', handlePluginToggle));
+
+        if (_docClickHandler) document.removeEventListener('click', _docClickHandler);
+        _docClickHandler = e => {
+            if (!panel.contains(e.target) && !btnGroup.contains(e.target) && isOpen) {
+                isOpen = false; panel.classList.remove('show');
+                refreshBtn.style.display = changelogBtn.style.display = 'none';
+                resetPanelState();
+            }
+        };
+        document.addEventListener('click', _docClickHandler);
+    }
+
+    // ============================================================
+    // === Notifications ==========================================
     // ============================================================
 
     let toggleNotifTimer = null;
     function showToggleNotification(icon, title, message) {
         let notif = document.getElementById("pcm-toggle-notif");
-        if (notif) {
-            notif.classList.remove('show');
-            clearTimeout(toggleNotifTimer);
-        } else {
-            notif = document.createElement("div");
-            notif.id = "pcm-toggle-notif";
-            notif.className = "bc-liko-toggle-notification";
-            document.body.appendChild(notif);
-        }
-
+        if (notif) { notif.classList.remove('show'); clearTimeout(toggleNotifTimer); }
+        else { notif = document.createElement("div"); notif.id = "pcm-toggle-notif"; notif.className = "bc-liko-toggle-notification"; document.body.appendChild(notif); }
         const panel = document.getElementById("bc-plugin-panel");
-        if (panel) {
-            const rect = panel.getBoundingClientRect();
-            notif.style.top = (rect.bottom + 3) + "px";
-            notif.style.width = panel.clientWidth + "px";
-            notif.style.left = rect.left + "px";
-            notif.style.right = "auto";
-        }
-
-        notif.innerHTML = `
-            <div style="display:flex; align-items:center; margin-bottom:3px;">
-                <span style="font-size:18px; margin-right:8px;">${icon}</span>
-                <strong style="font-size:13px;">${title}</strong>
-            </div>
-            <div style="font-size:11px; opacity:0.88;">${message}</div>
-        `;
-
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => { notif.classList.add('show'); });
-        });
-
-        toggleNotifTimer = setTimeout(() => {
-            notif.classList.remove('show');
-            notif.classList.add('hide');
-            setTimeout(() => { if (notif.parentNode) notif.remove(); }, 350);
-        }, 2500);
+        if (panel) { const r = panel.getBoundingClientRect(); notif.style.top = (r.bottom + 3) + "px"; notif.style.width = panel.clientWidth + "px"; notif.style.left = r.left + "px"; notif.style.right = "auto"; }
+        notif.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:2px;"><span style="font-size:16px;margin-right:7px;">${icon}</span><strong style="font-size:12px;">${title}</strong></div><div style="font-size:11px;opacity:.88;">${message}</div>`;
+        requestAnimationFrame(() => requestAnimationFrame(() => notif.classList.add('show')));
+        toggleNotifTimer = setTimeout(() => { notif.classList.remove('show'); notif.classList.add('hide'); setTimeout(() => notif?.parentNode?.removeChild(notif), 350); }, 2500);
     }
 
     let systemNotifTimer = null;
     function showNotification(icon, title, message) {
         let notif = document.getElementById("pcm-system-notif");
-        if (notif) {
-            notif.classList.remove('show');
-            notif.classList.add('hide');
-            clearTimeout(systemNotifTimer);
-            setTimeout(() => createSystemNotif(icon, title, message), 300);
-            return;
-        }
-        createSystemNotif(icon, title, message);
+        if (notif) { notif.classList.remove('show'); notif.classList.add('hide'); clearTimeout(systemNotifTimer); setTimeout(() => _createSystemNotif(icon, title, message), 300); return; }
+        _createSystemNotif(icon, title, message);
     }
-
-    function createSystemNotif(icon, title, message) {
-        let notif = document.getElementById("pcm-system-notif");
-        if (notif) notif.remove();
-        notif = document.createElement("div");
+    function _createSystemNotif(icon, title, message) {
+        document.getElementById("pcm-system-notif")?.remove();
+        const notif = document.createElement("div");
         notif.id = "pcm-system-notif";
         notif.className = "bc-liko-system-notification";
-        notif.innerHTML = `
-            <div style="display:flex; align-items:center; margin-bottom:3px;">
-                <span style="font-size:18px; margin-right:8px;">${icon}</span>
-                <strong style="font-size:13px;">${title}</strong>
-            </div>
-            <div style="font-size:11px; opacity:0.85;">${message}</div>
-        `;
+        notif.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:2px;"><span style="font-size:16px;margin-right:7px;">${icon}</span><strong style="font-size:12px;">${title}</strong></div><div style="font-size:11px;opacity:.85;">${message}</div>`;
         document.body.appendChild(notif);
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => { notif.classList.add('show'); });
-        });
-        systemNotifTimer = setTimeout(() => {
-            notif.classList.remove('show');
-            notif.classList.add('hide');
-            setTimeout(() => { if (notif.parentNode) notif.remove(); }, 400);
-        }, 3000);
+        notif.addEventListener('click', () => { notif.classList.remove('show'); notif.classList.add('hide'); clearTimeout(systemNotifTimer); setTimeout(() => notif?.parentNode?.removeChild(notif), 400); });
+        requestAnimationFrame(() => requestAnimationFrame(() => notif.classList.add('show')));
+        systemNotifTimer = setTimeout(() => { notif.classList.remove('show'); notif.classList.add('hide'); setTimeout(() => notif?.parentNode?.removeChild(notif), 400); }, 3500);
     }
 
     // ============================================================
-    // === 語言變化偵測 ============================================
+    // === Language Change ========================================
     // ============================================================
-
-    let lastDetectedLanguage = null;
 
     function checkLanguageChange() {
-        const currentLang = detectLanguage();
-        if (lastDetectedLanguage !== null && lastDetectedLanguage !== currentLang) {
-            _isCN = currentLang;
-            const existingGroup = document.getElementById("bc-plugin-btn-group");
-            const existingPanel = document.getElementById("bc-plugin-panel");
-            if (existingGroup) existingGroup.remove();
-            if (existingPanel) existingPanel.remove();
-            currentUIState = null;
-            createManagerUI();
+        const cur = getLang();
+        if (lastDetectedLanguage !== null && lastDetectedLanguage !== cur) {
+            const eg = document.getElementById("bc-plugin-btn-group");
+            const ep = document.getElementById("bc-plugin-panel");
+            if (eg) eg.remove(); if (ep) ep.remove();
+            currentUIState = null; createManagerUI();
         }
-        lastDetectedLanguage = currentLang;
+        lastDetectedLanguage = cur;
     }
-
-    // ============================================================
-    // === 頁面監控（DrawScreen hook 取代 MutationObserver）=======
-    // ============================================================
-    // MutationObserver 和 URL 輪詢已移除，改由 hookCharacterDrawing()
-    // 內的 DrawScreen hook 負責偵測畫面切換，更精準且無多餘開銷。
-    // 語言檢查 setInterval 保留，因為語言切換不一定伴隨畫面切換。
 
     function monitorPageChanges() {
-        const langCheckId = setInterval(() => { checkLanguageChange(); }, 5000);
-        _lifecycle.intervals.push(langCheckId);
+        const id = setInterval(() => checkLanguageChange(), 5000);
+        _lifecycle.intervals.push(id);
         createManagerUI();
     }
+
     // ============================================================
     // === /pcm 指令 ==============================================
     // ============================================================
 
     function handle_PCM_Command(text) {
-        if (typeof text !== "string") text = String(text || "");
-        const args = text.trim().split(/\s+/).filter(x => x !== "");
-        const sub = (args[0] || "").toLowerCase();
-        const isZh = detectLanguage();
-        if (!sub || sub === "help") {
-            try { ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${isZh ? generateChineseHelp() : generateEnglishHelp()}</font>`, Timeout: 60000 }); } catch(e) {}
+        const sub = String(text || "").trim().split(/\s+/)[0]?.toLowerCase() || "help";
+        const zhMode = isCJK();
+        const send = (msg) => { try { ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${msg}</font>`, Timeout: 60000 }); } catch(e) {} };
+        if (sub === "help" || !sub) {
+            send(t('shortLoaded'));
         } else if (sub === "list") {
-            try { ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${isZh ? generateChinesePluginList() : generateEnglishPluginList()}</font>`, Timeout: 60000 }); } catch(e) {}
+            let list = "🔌 " + (zhMode ? "可用插件：" : "Available plugins:") + "\n\n";
+            subPlugins.forEach(p => {
+                const on = isTriStatePlugin(p) ? (p.state !== "off" ? "✅" : "⭕") : (p.enabled ? "✅" : "⭕");
+                list += `${on} ${p.icon || ''} ${getPluginName(p)}\n  ${getPluginDescription(p)}\n\n`;
+            });
+            send(list);
         } else {
-            const errorText = isZh ? "請輸入 /pcm help 查看說明或 /pcm list 查看插件列表" : "Please enter /pcm help for instructions or /pcm list to see plugin list";
-            try { ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${errorText}</font>` }); } catch(e) {}
+            send(zhMode ? "請輸入 /pcm help" : "Type /pcm help");
         }
-    }
-
-    function generateChineseHelp() {
-        return `📋 Liko 插件管理器 說明書\n\n🎮 使用方法：\n• 點擊右上角的浮動按鈕開啟管理面板\n• 切換開關來啟用/停用插件\n• 三段開關：OFF → 第一選項 → 第二選項\n\n📝 可用指令：\n/pcm help - 顯示此說明書\n/pcm list - 查看所有可用插件列表\n\n💡 小提示：\n插件啟用後會自動載入，或在下次刷新頁面時生效。\n❤️ 感謝使用 Liko 插件管理器！`;
-    }
-    function generateEnglishHelp() {
-        return `📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button in the top right to open management panel\n• Toggle switches to enable/disable plugins\n• Three-state toggle: OFF → First option → Second option\n\n📝 Available Commands:\n/pcm help - Show this manual\n/pcm list - View all available plugin list\n\n💡 Tips:\nPlugins will auto-load after enabling, or take effect on next page refresh.\n❤️ Thank you for using Liko Plugin Collection Manager!`;
-    }
-    function generateChinesePluginList() {
-        let listText = "🔌 可用插件列表：\n\n";
-        subPlugins.forEach((plugin) => {
-            const isTri = isTriStatePlugin(plugin);
-            const status = isTri ? (plugin.state === "stable" ? "✅" : plugin.state === "beta" ? "🧪" : "⭕") : (plugin.enabled ? "✅" : "⭕");
-            listText += `${status}${plugin.icon} ${getPluginName(plugin)}\n📄 ${getPluginDescription(plugin)}\n`;
-            const ai = getPluginAdditionalInfo(plugin);
-            if (ai?.trim()) listText += ` ✦ ${ai}\n`;
-            listText += "\n";
-        });
-        listText += "💡 在管理面板中切換開關來啟用/停用插件";
-        return listText;
-    }
-    function generateEnglishPluginList() {
-        let listText = "🔌 Available Plugin List:\n\n";
-        subPlugins.forEach((plugin) => {
-            const isTri = isTriStatePlugin(plugin);
-            const status = isTri ? (plugin.state === "stable" ? "✅" : plugin.state === "beta" ? "🧪" : "⭕") : (plugin.enabled ? "✅" : "⭕");
-            listText += `${status}${plugin.icon} ${getPluginName(plugin)}\n📄 ${getPluginDescription(plugin)}\n`;
-            const ai = getPluginAdditionalInfo(plugin);
-            if (ai?.trim()) listText += ` ✦ ${ai}\n`;
-            listText += "\n";
-        });
-        listText += "💡 Toggle switches in the management panel to enable/disable plugins";
-        return listText;
     }
 
     function tryRegisterCommand() {
-        let attempts = 0;
-        const maxAttempts = 20;
-        const tryRegister = () => {
-            attempts++;
-            try {
-                if (typeof CommandCombine === "function") {
-                    CommandCombine([{ Tag: "pcm", Description: "Liko's Plugin Collection Manager", Action: (text) => handle_PCM_Command(text) }]);
-                    console.log("🐈‍⬛ [PCM] ✅ /pcm 指令已註冊");
-                    return;
-                }
-            } catch(e) {}
-            if (attempts < maxAttempts) setTimeout(tryRegister, 3000);
+        let n = 0;
+        const try_ = () => {
+            n++;
+            try { if (typeof CommandCombine === "function") { CommandCombine([{ Tag: "pcm", Description: "Liko Plugin Collection Manager", Action: handle_PCM_Command }]); return; } } catch(e) {}
+            if (n < 20) setTimeout(try_, 3000);
         };
-        tryRegister();
+        try_();
     }
 
     // ============================================================
-    // === 進房間後發送載入訊息 ====================================
+    // === Loaded Message =========================================
     // ============================================================
 
     function sendLoadedMessage() {
-        const waitForChatRoom = () => new Promise((resolve) => {
-            let resolved = false;
-            const check = () => {
-                if (resolved) return;
-                if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
-                    resolved = true;
-                    resolve(true);
-                } else {
-                    setTimeout(check, 1000);
-                }
-            };
-            check();
-            setTimeout(() => { if (!resolved) { resolved = true; resolve(false); } }, 60000);
+        const wait = () => new Promise(r => {
+            let done = false;
+            const check = () => { if (done) return; if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") { done = true; r(true); } else setTimeout(check, 1000); };
+            check(); setTimeout(() => { if (!done) { done = true; r(false); } }, 60000);
         });
-        waitForChatRoom().then((success) => {
-            if (success) {
-                try {
-                    ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${getMessage('shortLoaded')}</font>`, Timeout: 60000 });
-                    showNotification("🐈‍⬛", "PCM", getMessage('loaded'));
-                } catch(e) {}
-            }
+        wait().then(ok => {
+            if (!ok) return;
+            try { ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${t('shortLoaded')}</font>`, Timeout: 60000 }); showNotification("🐈‍⬛", "PCM", t('loaded', { ver: MOD_VER })); } catch(e) {}
         });
     }
 
     // ============================================================
-    // === BC Preference 頁面註冊 ==================================
+    // === Preference Page ========================================
     // ============================================================
 
     async function registerPreferencePage() {
-        let attempts = 0;
-        while (typeof PreferenceRegisterExtensionSetting !== 'function' && attempts < 60) {
-            await new Promise(r => setTimeout(r, 1000));
-            attempts++;
-        }
+        let n = 0;
+        while (typeof PreferenceRegisterExtensionSetting !== 'function' && n < 60) { await new Promise(r => setTimeout(r, 1000)); n++; }
         if (typeof PreferenceRegisterExtensionSetting !== 'function') return;
 
-        window.PreferenceSubscreenPCMSettingsLoad = function() {};
-
-        window.PreferenceSubscreenPCMSettingsRun = function() {
+        window.PreferenceSubscreenPCMSettingsLoad = () => {};
+        window.PreferenceSubscreenPCMSettingsRun = () => {
             DrawCharacter(Player, 50, 50, 0.9);
             DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png");
             MainCanvas.textAlign = "left";
-            DrawText(_isCN ? "- PCM 插件管理器設定 -" : "- PCM Plugin Manager Settings -", 500, 125, "Black", "Gray");
-
-            const localCount = subPlugins.filter(p => isPluginEnabled(p)).length;
-            const accountCount = subPlugins.filter(p => isPluginEnabledInAccount(p)).length;
-            DrawText(
-                _isCN ? `📱 本地已啟用：${localCount} 個插件` : `📱 Local enabled: ${localCount} plugins`,
-                500, 280, "Black", "Gray"
-            );
-            DrawText(
-                _isCN ? `☁️ 帳戶已啟用：${accountCount} 個插件` : `☁️ Account enabled: ${accountCount} plugins`,
-                500, 355, "Black", "Gray"
-            );
-
+            DrawText(isCJK() ? "- PCM 插件管理器設定 -" : "- PCM Plugin Manager Settings -", 500, 125, "Black", "Gray");
+            DrawText(isCJK() ? `📱 本地已啟用：${subPlugins.filter(p => isPluginEnabled(p)).length} 個` : `📱 Local enabled: ${subPlugins.filter(p => isPluginEnabled(p)).length}`, 500, 280, "Black", "Gray");
+            DrawText(isCJK() ? `☁️ 帳戶已啟用：${subPlugins.filter(p => isPluginEnabledInAccount(p)).length} 個` : `☁️ Account enabled: ${subPlugins.filter(p => isPluginEnabledInAccount(p)).length}`, 500, 355, "Black", "Gray");
             DrawCheckbox(500, 455, 64, 64, "", !accountFloatingBtnVisible);
-            DrawText(
-                _isCN ? "隱藏浮動按鈕" : "Hide floating button",
-                580, 480, "Black", "Gray"
-            );
-
+            DrawText(isCJK() ? "隱藏浮動按鈕" : "Hide floating button", 580, 480, "Black", "Gray");
             MainCanvas.textAlign = "center";
-            DrawText(
-                _isCN ? "詳細插件管理請使用頁面右上角的浮動按鈕" : "Use the floating button for full plugin management",
-                960, 620, "Gray", "White"
-            );
         };
-
-        window.PreferenceSubscreenPCMSettingsClick = function() {
+        window.PreferenceSubscreenPCMSettingsClick = () => {
             if (MouseIn(1815, 75, 90, 90)) { PreferenceSubscreenPCMSettingsExit(); return; }
-            if (MouseIn(500, 455, 64, 64)) {
-                accountFloatingBtnVisible = !accountFloatingBtnVisible;
-                const cfg = loadAccountConfig();
-                cfg.showFloatingBtn = accountFloatingBtnVisible;
-                saveAccountConfig(cfg);
-                applyFloatingBtnVisibility();
-            }
+            if (MouseIn(500, 455, 64, 64)) { accountFloatingBtnVisible = !accountFloatingBtnVisible; const cfg = loadAccountConfig(); cfg.showFloatingBtn = accountFloatingBtnVisible; saveAccountConfig(cfg); applyFloatingBtnVisibility(); }
         };
-
-        window.PreferenceSubscreenPCMSettingsExit = function() {
-            PreferenceSubscreenExtensionsClear();
-        };
+        window.PreferenceSubscreenPCMSettingsExit = () => PreferenceSubscreenExtensionsClear();
 
         PreferenceRegisterExtensionSetting({
             Identifier: "PCMSettings",
-            ButtonText: _isCN ? "PCM 插件管理器" : "PCM Plugin Manager",
+            ButtonText:  isCJK() ? "PCM 插件管理器" : "PCM Plugin Manager",
             Image: "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
             click: window.PreferenceSubscreenPCMSettingsClick,
-            run: window.PreferenceSubscreenPCMSettingsRun,
-            exit: window.PreferenceSubscreenPCMSettingsExit,
-            load: window.PreferenceSubscreenPCMSettingsLoad,
+            run:   window.PreferenceSubscreenPCMSettingsRun,
+            exit:  window.PreferenceSubscreenPCMSettingsExit,
+            load:  window.PreferenceSubscreenPCMSettingsLoad,
         });
-        console.log("🐈‍⬛ [PCM] ✅ Preference 頁面已註冊");
     }
 
     // ============================================================
     // === 初始化 =================================================
     // ============================================================
 
-    try {
-        if (bcModSdk?.registerMod) {
-            modApi = bcModSdk.registerMod({
-                name: "Liko's PCM",
-                fullName: 'Liko - Plugin Collection Manager',
-                version: MOD_VER,
-                repository: 'Liko的插件管理器 | Plugin collection manager',
-            });
-            registerPCMBadge();
-        } else {
-            console.error("🐈‍⬛ [PCM] ❌ bcModSdk 不可用");
-            return;
+    const _PCM_CDN = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/";
+
+    function _loadScriptTag(url) {
+        return new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = url; s.crossOrigin = 'anonymous';
+            s.onload = resolve;
+            s.onerror = () => reject(new Error(`Failed: ${url}`));
+            document.head.appendChild(s);
+        });
+    }
+
+    async function _ensureDeps() {
+        // bcmodsdk must exist before registerMod — must be first
+        if (typeof bcModSdk === 'undefined') {
+            await _loadScriptTag(_PCM_CDN + "expand/bcmodsdk.js")
+                .catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ bcmodsdk:", e.message));
         }
-    } catch(e) { console.error("🐈‍⬛ [PCM] ❌ 初始化失敗:", e.message); return; }
+        // Remaining deps — skip if already provided
+        const rest = [
+            { url: _PCM_CDN + "Translation/Liko-i18n.js", ready: () => !!window.Liko?.i18n?.version },
+            { url: _PCM_CDN + "Translation/PCM-i18n.js",  ready: () => window.Liko?.i18n?.t('PCM', 'tabLocal') !== 'tabLocal' },
+            { url: _PCM_CDN + "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.Toast },
+        ];
+        for (const { url, ready } of rest) {
+            if (ready()) continue;
+            await _loadScriptTag(url).catch(e => console.warn(`🐈‍⬛ [PCM] ⚠️ ${url}:`, e.message));
+        }
+    }
+
+    // _ensureDeps runs async before everything else
+    (async () => {
+        await _ensureDeps();
+
+        try {
+            if (!bcModSdk?.registerMod) { console.error("🐈‍⬛ [PCM] ❌ bcModSdk not available"); return; }
+            modApi = bcModSdk.registerMod({ name: "Liko's PCM", fullName: 'Liko - Plugin Collection Manager', version: MOD_VER, repository: 'https://github.com/awdrrawd/liko-Plugin-Repository' });
+            registerPCMBadge();
+        } catch(e) { console.error("🐈‍⬛ [PCM] ❌ Init failed:", e.message); return; }
+
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => initialize().then(() => sendLoadedMessage()), { once: true });
+        else initialize().then(() => sendLoadedMessage());
+
+        console.log(`🐈‍⬛ [PCM] ✅ v${MOD_VER} loaded`);
+    })();
 
     async function initialize() {
         if (isInitialized) return;
         isInitialized = true;
 
-        await new Promise(resolve => {
-            const check = () => {
-                if (typeof TranslationLanguage !== 'undefined' && TranslationLanguage !== 'EN') {
-                    resolve();
-                } else {
-                    setTimeout(check, 100);
-                }
-            };
-            check();
-            setTimeout(resolve, 3000);
-        });
+        registerI18n();
 
-        lastDetectedLanguage = detectLanguage();
-        _isCN = detectLanguage();
+        // Wait briefly for TranslationLanguage
+        await new Promise(r => { const check = () => { if (typeof TranslationLanguage !== 'undefined') r(); else setTimeout(check, 100); }; check(); setTimeout(r, 3000); });
+
+        lastDetectedLanguage = getLang();
+        customPlugins = loadCustomPlugins();
 
         injectStyles();
         monitorPageChanges();
         tryRegisterCommand();
 
-        _pluginsProcessPromise.then((success) => {
-            if (!success) return;
-            const localContent = document.getElementById("bc-plugin-content-local");
-            if (localContent && localContent.querySelector('.bc-plugin-loading')) {
-                localContent.innerHTML = '';
-                subPlugins.forEach(plugin => localContent.appendChild(buildPluginItem(plugin, 'local')));
-            }
-            const isNewVersion = checkVersionUpdate();
-            if (isNewVersion) {
-                setTimeout(() => {
-                    showChangelogModal();
-                    showNotification("✨", getMessage('newVersionTitle'), `v${remoteVersion} — ${getMessage('newVersionHint')}`);
-                }, 2000);
-            }
-        });
-
+        initPlugins();
         loadLocalPluginsPhase();
         loadAccountPluginsPhase();
+        setTimeout(() => loadCustomPluginsPhase(), 5000);
         registerPreferencePage();
 
-        if (modApi && typeof modApi.onUnload === 'function') {
-            modApi.onUnload(() => {
-                _lifecycle.intervals.forEach(id => clearInterval(id));
-                _lifecycle.intervals.length = 0;
-                if (_lifecycle.observer) { _lifecycle.observer.disconnect(); _lifecycle.observer = null; }
-                if (_lifecycle.mousemoveHandler) {
-                    document.removeEventListener("mousemove", _lifecycle.mousemoveHandler);
-                    _lifecycle.mousemoveHandler = null;
-                }
-                isInitialized = false;
-            });
-        }
+        if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
+            _lifecycle.intervals.forEach(id => clearInterval(id));
+            _lifecycle.intervals.length = 0;
+            if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
+            isInitialized = false;
+        });
     }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
-        }, { once: true });
-    } else {
-        initialize().then(() => sendLoadedMessage()).catch(e => console.error("🐈‍⬛ [PCM] ❌ 初始化錯誤:", e));
-    }
-
-    console.log(`🐈‍⬛ [PCM] ✅ v${MOD_VER} Script loading complete`);
 })();
