@@ -2,7 +2,7 @@
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.3.0-2
+// @version      1.3.1
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,7 +14,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.3.0";
+    const MOD_VER = "1.3.1";
     if (window.Liko.ACV) return;
     window.Liko.ACV = MOD_VER;
     
@@ -37,6 +37,7 @@
         bilibiliBangumi: "Bilibili",
         youtube:         "YouTube",
         youtubeShorts:   "YouTube",
+        youtubeLive:     "YouTube Live",
         facebook:        "Facebook",
         instagram:       "Instagram",
         spotify:         "Spotify",
@@ -56,6 +57,11 @@
             regex: /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
             embedUrl: (id) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0`,
             ratio: "9:16",
+        },
+        youtubeLive: {
+            regex: /youtube\.com\/live\/([a-zA-Z0-9_-]{11})/,
+            embedUrl: (id) => `https://www.youtube-nocookie.com/embed/${id}?autoplay=0&rel=0`,
+            ratio: "16:9",
         },
         youtube: {
             regex: /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
