@@ -22,10 +22,8 @@
     let isInitialized = false;
     const _lifecycle = { intervals: [], mousemoveHandler: null };
 
-    // ============================================================
     // === i18n ===================================================
-    // ============================================================
-
+    
     const t = (key, vars) => window.Liko.i18n?.t('PCM', key, vars) ?? key;
 
     function registerI18n() {
@@ -80,9 +78,7 @@
         });
     }
 
-    // ============================================================
-    // === PCM 徽章系統（不變）====================================
-    // ============================================================
+    // === PCM 徽章系統 ====================================
 
     const PCM_HIDDEN_MSG = "PCM_BADGE_INIT";
     const PCM_BADGE_CONFIG = { offsetX: 240, offsetY: 25, size: 36, showBackground: false, backgroundColor: "#7F53CD", borderColor: "#FFFFFF", borderWidth: 1 };
@@ -246,18 +242,13 @@
         wait();
     }
 
-    // ============================================================
     // === JSON 來源 ===============================================
-    // ============================================================
-
     const PLUGINS_JSON_URLS = [
         "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
         "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
     ];
 
-    // ============================================================
     // === 設定存取 ================================================
-    // ============================================================
 
     let saveTimer;
     function saveSettings(s) { clearTimeout(saveTimer); saveTimer = setTimeout(() => localStorage.setItem("BC_PluginManager_Settings", JSON.stringify(s)), 100); }
@@ -302,9 +293,8 @@
         try { localStorage.setItem(PLUGIN_CACHE_PREFIX + id, JSON.stringify({ time: Date.now(), code })); } catch(e) {}
     }
 
-    // ============================================================
+
     // === JSON 快取（SWR）=======================================
-    // ============================================================
 
     const JSON_CACHE_KEY = 'pcm_json_cache';
     const JSON_CACHE_TTL = 24 * 60 * 60 * 1000;
@@ -314,10 +304,8 @@
     }
     function setCachedJSON(data) { try { localStorage.setItem(JSON_CACHE_KEY, JSON.stringify({ time: Date.now(), data })); } catch(e) {} }
 
-    // ============================================================
     // === 插件資料管理（SWR 初始化）==============================
-    // ============================================================
-
+    
     let subPlugins = [];
     let pluginsLoaded = false;
     let remoteVersion = MOD_VER, remoteUpdateId = null;
@@ -386,9 +374,7 @@
         }
     }
 
-    // ============================================================
     // === 強制刷新 ===============================================
-    // ============================================================
 
     let isRefreshing = false;
     async function refreshPluginList() {
@@ -412,9 +398,7 @@
         applyFilter();
     }
 
-    // ============================================================
     // === 自訂插件 ===============================================
-    // ============================================================
 
     const CUSTOM_PLUGINS_KEY = 'pcm_custom_plugins';
     let customPlugins = [];
@@ -422,9 +406,7 @@
     function loadCustomPlugins() { try { return JSON.parse(localStorage.getItem(CUSTOM_PLUGINS_KEY) || '[]'); } catch(e) { return []; } }
     function saveCustomPlugins() { try { localStorage.setItem(CUSTOM_PLUGINS_KEY, JSON.stringify(customPlugins)); } catch(e) {} }
 
-    // ============================================================
     // === 版本比對 ================================================
-    // ============================================================
 
     function checkVersionUpdate() {
         const saved = pluginSettings['_pcm_updateId'];
@@ -436,9 +418,7 @@
     function getCurrentGameVersion() { try { return typeof GameVersion !== 'undefined' ? parseGameVersion(GameVersion) : 0; } catch(e) { return 0; } }
     function isPluginSkippedByVersion(plugin) { if (!plugin.autoDisableAfterVersion) return false; const v = getCurrentGameVersion(); return v > 0 && v > parseGameVersion(plugin.autoDisableAfterVersion); }
 
-    // ============================================================
     // === 三段開關輔助 ============================================
-    // ============================================================
 
     function isTriStatePlugin(p) { return !!p.altUrl; }
     function isPluginEnabled(p) { return isTriStatePlugin(p) ? p.state !== "off" : p.enabled; }
@@ -451,9 +431,7 @@
     function getTriLabels(p) { return p.triLabels?.length === 3 ? p.triLabels : ["OFF", "ON", "BETA"]; }
     function cycleTriState(s) { return s === "off" ? "stable" : s === "stable" ? "beta" : "off"; }
 
-    // ============================================================
     // === 語言輔助 ================================================
-    // ============================================================
 
     function getLang() { return window.Liko.i18n?.detectLang() ?? 'EN'; }
     function isCJK() { const l = getLang(); return l === 'TW' || l === 'CN'; }
@@ -461,10 +439,8 @@
     function getPluginDescription(p) { return isCJK() ? p.description : (p.en_description || p.description); }
     function getPluginAdditionalInfo(p) { return isCJK() ? p.additionalInfo : (p.en_additionalInfo || p.additionalInfo); }
 
-    // ============================================================
     // === 插件加載 ================================================
-    // ============================================================
-
+    
     let loadedPlugins = new Set(), failedPlugins = new Set();
     let isLoadingPlugins = false, localLoadStarted = false, accountLoadStarted = false, customLoadStarted = false;
 
@@ -596,9 +572,7 @@
         if (enabled.length) await runPluginBatch(enabled, true);
     }
 
-    // ============================================================
     // === UI 狀態 ================================================
-    // ============================================================
 
     let currentUIState = null;
     let searchQuery    = '';
@@ -608,9 +582,7 @@
     let _docClickHandler = null;
     let lastDetectedLanguage = null;
 
-    // ============================================================
     // === 篩選 ===================================================
-    // ============================================================
 
     function applyFilter() {
         const q = searchQuery.toLowerCase().trim();
@@ -635,9 +607,7 @@
         });
     }
 
-    // ============================================================
     // === UI 顯示判斷 ============================================
-    // ============================================================
 
     function getCurrentViewingCharacter() {
         const now = Date.now();
@@ -672,9 +642,7 @@
         return false;
     }
 
-    // ============================================================
     // === Changelog Modal ========================================
-    // ============================================================
 
     function showChangelogModal() {
         const existing = document.getElementById("pcm-changelog-modal");
@@ -692,9 +660,7 @@
         overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
     }
 
-    // ============================================================
     // === Styles =================================================
-    // ============================================================
 
     function injectStyles() {
         if (document.getElementById("bc-plugin-styles")) return;
@@ -816,9 +782,7 @@
         document.head.appendChild(style);
     }
 
-    // ============================================================
     // === Plugin Item ============================================
-    // ============================================================
 
     function buildPluginItem(plugin, source = 'local') {
         const item = document.createElement("div");
@@ -892,9 +856,7 @@
         return item;
     }
 
-    // ============================================================
     // === Add Plugin Panel =======================================
-    // ============================================================
 
     function showAddPluginPanel() {
         if (document.getElementById('pcm-add-panel')) return;
@@ -998,9 +960,7 @@
         });
     }
 
-    // ============================================================
     // === Toggle Handler =========================================
-    // ============================================================
 
     function handlePluginToggle(e) {
         if (e.target.closest('.bc-plugin-info-btn')) { e.stopPropagation(); return; }
@@ -1083,9 +1043,7 @@
         }
     }
 
-    // ============================================================
     // === Draggable ==============================================
-    // ============================================================
 
     function makeDraggable(el) {
         let startX, startY, startL, startT, dragging = false;
@@ -1118,9 +1076,7 @@
         });
     }
 
-    // ============================================================
     // === Create Manager UI =====================================
-    // ============================================================
 
     function applyFloatingBtnVisibility() {
         const g = document.getElementById("bc-plugin-btn-group");
@@ -1338,9 +1294,7 @@
         document.addEventListener('click', _docClickHandler);
     }
 
-    // ============================================================
     // === Notifications ==========================================
-    // ============================================================
 
     let toggleNotifTimer = null;
     function showToggleNotification(icon, title, message) {
@@ -1372,9 +1326,7 @@
         systemNotifTimer = setTimeout(() => { notif.classList.remove('show'); notif.classList.add('hide'); setTimeout(() => notif?.parentNode?.removeChild(notif), 400); }, 3500);
     }
 
-    // ============================================================
     // === Language Change ========================================
-    // ============================================================
 
     function checkLanguageChange() {
         const cur = getLang();
@@ -1393,9 +1345,7 @@
         createManagerUI();
     }
 
-    // ============================================================
     // === /pcm 指令 ==============================================
-    // ============================================================
 
     function handle_PCM_Command(text) {
         const sub = String(text || "").trim().split(/\s+/)[0]?.toLowerCase() || "help";
@@ -1425,9 +1375,7 @@
         try_();
     }
 
-    // ============================================================
     // === Loaded Message =========================================
-    // ============================================================
 
     function sendLoadedMessage() {
         const wait = () => new Promise(r => {
@@ -1441,9 +1389,7 @@
         });
     }
 
-    // ============================================================
     // === Preference Page ========================================
-    // ============================================================
 
     async function registerPreferencePage() {
         let n = 0;
@@ -1479,9 +1425,7 @@
         });
     }
 
-    // ============================================================
     // === 初始化 =================================================
-    // ============================================================
 
     const _PCM_CDN = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/";
 
