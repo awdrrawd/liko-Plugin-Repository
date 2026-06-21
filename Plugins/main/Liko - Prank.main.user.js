@@ -1003,7 +1003,7 @@
                     version: MOD_VER,
                     repository: "Liko's prank"
                 });
-                console.log("🐈‍⬛ [prank] ✅ Mod registered with bcModSdk");
+                console.log(`🐈‍⬛ [prank] ✅ v${MOD_VER} loaded!`);
             } catch (error) {
                 console.error("🐈‍⬛ [prank] ❌ Failed to register mod", error);
             }
