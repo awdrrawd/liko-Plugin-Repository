@@ -2,7 +2,7 @@
 // @name           Liko - Mobile Portrait Layout
 // @name:zh        Liko的手機直版佈局
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.5.2
+// @version        0.5.3
 // @description    Supports vertical layout for ChatSearch and ChatRoom
 // @description:zh 支援房間搜尋與聊天室的直版佈局
 // @author         Likolisu
@@ -23,7 +23,7 @@
     window.Liko.MPL = window.Liko.MPL ?? {};
     if (window.Liko.MPL.version) return;
 
-    const MOD_VER = '0.5.2';
+    const MOD_VER = '0.5.3';
     window.Liko.MPL.version = MOD_VER;
 
     const modApi = bcModSdk.registerMod({
@@ -42,6 +42,31 @@
     const CARD_GAP           = 5;     // 卡片間距（px）
     const BASE_URL           = window.location.href;
 
+    /**
+     * 統一管理會與「主 canvas」共享同一個 stacking context 的 z-index。
+     * 物件不多，數值故意壓低、留間隔，未來要插入新層時方便排序。
+     * 凡是會疊在 ChatRoom/Dialog 直版模式 canvas 上下的元素都應該引用這裡，
+     * 而不是各自寫死數字——否則像這次「canvas 蓋住 .dialog-root」的問題
+     * 很難一次看出全貌。
+     *   CANVAS       主 canvas（forceCanvasStyle 強制定位時）。
+     *                故意設為 0：canvas 本身不需要疊在任何東西之上，
+     *                只要比它低或不設 z-index 的元素都會被蓋住。
+     *   CHAT_DIV     #chat-room-div（聊天訊息／輸入框）
+     *   TOP_MENU     #chat-room-top-menu（ChatRoom 頂部選單列）
+     *   DIALOG_ROOT  .dialog-root（自介、表情選擇等彈出視窗）—— 須高於 CANVAS
+     *   DR_MIRROR    Dialog 直版模式（drXxx）下半螢幕的 mirror canvas
+     *   DR_OVERLAY   Dialog 直版模式（drXxx）下半螢幕的點擊覆蓋層
+     *   FUSAM        FUSAM 等外部彈窗，需蓋過上述所有層
+     */
+    const Z = {
+        CANVAS:      0,
+        DR_MIRROR:   1,
+        CHAT_DIV:    2,
+        DR_OVERLAY:  2,
+        TOP_MENU:    3,
+        DIALOG_ROOT: 4,
+        FUSAM:       1000,
+    };
     // ════════════════════════════════════════════════════════════════════════════
     // i18n：動態翻譯函式
     // 必須是模組層級函式，讓所有 UI 建構函式都能取用。
@@ -203,7 +228,7 @@
         cv.style.setProperty('transform', 'none',          'important');
         cv.style.setProperty('width',     (vw * 2) + 'px', 'important');
         cv.style.setProperty('height',    cvH + 'px',      'important');
-        cv.style.setProperty('z-index',   '5',             'important');
+        cv.style.setProperty('z-index',   String(Z.CANVAS), 'important');
         cv.style.setProperty('margin',    '0',             'important');
     }
 
@@ -549,19 +574,31 @@
         });
     }
 
+    // focusin 可能由 BC 自己（例如送出訊息後）以程式呼叫 .focus() 觸發，
+    // 並非使用者手動點擊。只有在「使用者真的按下/點過」之後一小段時間內
+    // 收到 focusin，才視為使用者主動點擊輸入框，避免假輸入框無故彈出。
+    let crLastUserGesture = 0;
+    const CR_GESTURE_WINDOW_MS = 800;
+
     /** 為 chat-room-div 掛載假輸入框攔截器 */
     function crHookChatInput() {
         const chatDiv = document.getElementById('chat-room-div');
         if (!chatDiv || chatDiv._likoFakeInputHandler) return;
 
+        const gestureHandler = () => { crLastUserGesture = Date.now(); };
+        chatDiv.addEventListener('pointerdown', gestureHandler, true);
+        chatDiv.addEventListener('touchstart',  gestureHandler, true);
+
         const handler = e => {
             if (!crActive || !isPortrait()) return;
             const el = e.target;
             if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+            if (Date.now() - crLastUserGesture > CR_GESTURE_WINDOW_MS) return;
             e.preventDefault();
             crShowFakeInput(el);
         };
-        chatDiv._likoFakeInputHandler = handler;
+        chatDiv._likoFakeInputHandler  = handler;
+        chatDiv._likoGestureHandler    = gestureHandler;
         chatDiv.addEventListener('focusin', handler, true);
     }
 
@@ -570,7 +607,10 @@
         const chatDiv = document.getElementById('chat-room-div');
         if (!chatDiv || !chatDiv._likoFakeInputHandler) return;
         chatDiv.removeEventListener('focusin', chatDiv._likoFakeInputHandler, true);
+        chatDiv.removeEventListener('pointerdown', chatDiv._likoGestureHandler, true);
+        chatDiv.removeEventListener('touchstart',  chatDiv._likoGestureHandler, true);
         delete chatDiv._likoFakeInputHandler;
+        delete chatDiv._likoGestureHandler;
     }
 
     //每幀維護 ChatRoom 直版版面（供 DrawProcess hook 呼叫）。同步更新 canvas、選單與聊天框的位置。
@@ -598,10 +638,15 @@
         crLockedVH = getLockedVH();
         const L = crCalc();
 
+        // 注意：canvas 用 Z.CANVAS（0，等同未設定）而不是給它疊上更高的值，
+        // 是因為 .dialog-root 等彈出視窗的 z-index 實測會被 BC 重建/重新渲染
+        // 沖掉（無論寫 CSS 規則或用 JS 強制 inline style 都留不住）。
+        // 讓 canvas 維持最低的 z-index，靠「誰在 DOM 後面誰畫上面」這條規則，
+        // 後加入的彈出視窗才會穩定蓋在 canvas 之上。
         injectStyle('liko-ml-cr', `
             html, body { overflow-x: hidden !important }
-            #chat-room-top-menu { position:fixed !important; z-index:15 !important }
-            #chat-room-div      { position:fixed !important; z-index:10 !important }
+            #chat-room-top-menu { position:fixed !important; z-index:${Z.TOP_MENU} !important }
+            #chat-room-div      { position:fixed !important; z-index:${Z.CHAT_DIV} !important }
         `);
 
         forceCanvasStyle(L.cvH);
@@ -1830,7 +1875,7 @@
 
             el.style.setProperty('left',    newLeft + 'px', 'important');
             el.style.setProperty('top',     newTop  + 'px', 'important');
-            el.style.setProperty('z-index', '20',           'important');
+            el.style.setProperty('z-index', String(Z.DIALOG_ROOT), 'important');
             if (el.classList.contains('dialog-root'))
                 el.style.setProperty('width', vw + 'px', 'important');
 
@@ -1856,7 +1901,7 @@
             position:fixed !important;
             top:${cvH}px !important; left:0 !important;
             width:${vw}px !important; height:${cvH}px !important;
-            z-index:6 !important;
+            z-index:${Z.DR_MIRROR} !important;
             pointer-events:none !important;
         `;
         document.body.appendChild(mirror);
@@ -1892,7 +1937,7 @@
                 position:fixed;
                 top:${cvH}px; left:0;
                 width:100vw; height:calc(100vh - ${cvH}px);
-                z-index:10 !important;
+                z-index:${Z.DR_OVERLAY} !important;
                 cursor:pointer;
                 -webkit-tap-highlight-color:transparent;
                 background:transparent;
@@ -2431,7 +2476,7 @@
         if (el.id === 'fusam-addon-manager-container') {
             let node = el;
             while (node && node !== document.body) {
-                node.style.setProperty('z-index', '2000', 'important');
+                node.style.setProperty('z-index', String(Z.FUSAM), 'important');
                 node.style.setProperty('position', 'relative', 'important');
                 node = node.parentElement;
             }
@@ -2447,7 +2492,7 @@
             el.style.setProperty('position',      'fixed',   'important');
         } else {
             el.style.setProperty('position',       'fixed', 'important');
-            el.style.setProperty('z-index',        '2000',  'important');
+            el.style.setProperty('z-index',        String(Z.FUSAM), 'important');
             el.style.setProperty('pointer-events', 'auto',  'important');
         }
     }
