@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.5.4
+// @version      1.6.0
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -15,7 +15,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.5.3";
+    const MOD_VER = "1.6.0";
     if (window.Liko.Prank) return;
     window.Liko.Prank = MOD_VER;
 
@@ -44,131 +44,40 @@
         }
     };
 
-    // ===== 多语言支持 =====
+    // ===== 多语言支持 (i18n) =====
+    // 翻译字库已外移到 Plugins/Translation/Prank-i18n.js，透过共用引擎 Liko-i18n 载入
+    const LIKO_I18N_ENGINE_URL   = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/Liko-i18n.js';
+    const LIKO_PRANK_STRINGS_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/Prank-i18n.js';
+    const I18N_NS = 'Prank';
+
+    function loadScript(url) {
+        return fetch(url)
+            .then(res => { if (!res.ok) throw new Error(`[prank] 无法载入 ${url} (${res.status})`); return res.text(); })
+            .then(code => { new Function(code)(); });
+    }
+
+    // 确保共用引擎与本插件字库都已载入（各只载入一次）
+    async function ensureI18n() {
+        if (!window.Liko?.i18n?.version) await loadScript(LIKO_I18N_ENGINE_URL);
+        if (!window.Liko?.i18n?._prankStringsLoaded) {
+            await loadScript(LIKO_PRANK_STRINGS_URL);
+            if (window.Liko?.i18n) window.Liko.i18n._prankStringsLoaded = true;
+        }
+    }
+
+    // 取翻译字串；引擎尚未就绪时回传 key 本身，不丢例外。vars 以 {name}/{v} 占位代入。
+    function getMessage(key, vars) {
+        const fn = window.Liko?.i18n?.t;
+        return fn ? fn(I18N_NS, key, vars) : key;
+    }
+
+    // 语言侦测（保留给指令区使用；Command 不更动）
     function detectLanguage() {
         if (typeof TranslationLanguage !== 'undefined') {
             const l = TranslationLanguage.toLowerCase();
             return l === 'tw' || l === 'cn';
         }
         return (navigator.language || 'en').toLowerCase().startsWith('zh');
-    }
-
-    const messages = {
-        en: {
-            loaded: `Liko's Prank Plugin v${MOD_VER} Loaded!`,
-            notFound: "Target not found",
-            noPermission: "No permission",
-            noUnderwear: "has no underwear",
-            noSocks: "has no socks",
-            stealFailed: "Failed to steal",
-            removeFailed: "Failed to remove",
-            nothingToRemove: "has no removable clothing in this area",
-            stealUnderwear: "discreetly steals",
-            stealUnderwearSuffix: "'s underwear 💕",
-            removedOwnUnderwear: "takes off their own underwear",
-            dissolveClothes: "splashes an obscene concoction on",
-            dissolveClothesTarget: "'s clothes",
-            dissolveOwnClothes: "splashes an obscene concotion on their own clothes",
-            enterPortal: "opens a wormhole towards",
-            exitPortal: "emerges from a wormhole",
-            cutClothes: "cuts off",
-            cutClothesTarget: "'s",
-            cutOwnClothes: "cuts off their own",
-            removeClothes: "removes",
-            removeOwnClothes: "removes their own",
-            stoleUnderwear: "snatches",
-            removedAndHoldUnderwear: "slips off",
-            holdUnderwear: "'s underwear and embraces their warmth",
-            holdOwnUnderwear: "slips down their own underwear and holds them",
-            stoleSocks: "snatches",
-            socksSuffix: "'s socks",
-            removedAndHoldSocks: "pulls off",
-            holdSocks: "'s socks and clutches them",
-            holdOwnSocks: "pulls off their socks and holds them",
-            pluckingOwnHair: "pluckes out their own ahoge",
-            pluckingHair: "pluckes out",
-            pluckingHairSuffix: "'s ahoge",
-            actCutClothes: "Cut Clothes",
-            actRemoveClothes: "Remove Clothes",
-            actDissolveClothes: "Dissolve Clothes",
-            actStealPanties: "Steal Panties",
-            actRemoveHoldPanties: "Take Panties",
-            actStealSocks: "Steal Socks",
-            actRemoveHoldSocks: "Take Socks",
-            actPluckingHair: "Pluck Ahoge",
-            actCutClothesDesc: "SourceCharacter cuts off TargetCharacter's clothes using scissors",
-            actCutClothesSelf: "SourceCharacter cuts off their own clothes using scissors",
-            actRemoveClothesDesc: "SourceCharacter removes TargetCharacter's clothes",
-            actRemoveClothesSelf: "SourceCharacter removes their own clothes",
-            actDissolveClothesDesc: "SourceCharacter splashes an obscene concotion on TargetCharacter",
-            actDissolveClothesSelf: "SourceCharacter splashes an obscene concotion on themselves",
-            actStealPantiesDesc: "SourceCharacter snatches TargetCharacter's panties",
-            actRemoveHoldPantiesDesc: "SourceCharacter slips off TargetCharacter's panties and holds them",
-            actRemoveHoldPantiesSelf: "SourceCharacter slips off their own panties holds them",
-            actStealSocksDesc: "SourceCharacter snatches TargetCharacter's socks",
-            actRemoveHoldSocksDesc: "SourceCharacter pulls off TargetCharacter's socks and holds them",
-            actRemoveHoldSocksSelf: "SourceCharacter pulls off their own socks and holds them"
-        },
-        zh: {
-            loaded: `Liko的恶作剧插件 v${MOD_VER} 载入完成！`,
-            notFound: "找不到目标",
-            noPermission: "无权限",
-            noUnderwear: "没有穿内裤",
-            noSocks: "没有穿袜子",
-            stealFailed: "偷取失败",
-            removeFailed: "脱下失败",
-            nothingToRemove: "在这个部位没有可移除的衣物",
-            stealUnderwear: "悄悄偷走了",
-            stealUnderwearSuffix: "的内裤 💕",
-            removedOwnUnderwear: "脱下了自己的内裤",
-            dissolveClothes: "用淫秽的药水溶解了",
-            dissolveClothesTarget: "的衣服",
-            dissolveOwnClothes: "用淫秽的药水溶解了自己的衣服",
-            enterPortal: "进入通往",
-            exitPortal: "从虫洞出来了",
-            cutClothes: "用剪刀剪掉了",
-            cutClothesTarget: "的",
-            cutOwnClothes: "用剪刀剪掉了自己的",
-            removeClothes: "脱掉了",
-            removeOwnClothes: "脱掉了自己的",
-            stoleUnderwear: "偷了",
-            removedAndHoldUnderwear: "脱下了",
-            holdUnderwear: "的内裤并握在手中",
-            holdOwnUnderwear: "脱下了自己的内裤并握在手中",
-            stoleSocks: "偷了",
-            socksSuffix: "的袜子",
-            removedAndHoldSocks: "脱下了",
-            holdSocks: "的袜子并握在手中",
-            holdOwnSocks: "脱下了自己的袜子并握在手中",
-            pluckingOwnHair: "拔下了自己的呆毛",
-            pluckingHair: "拔下了",
-            pluckingHairSuffix: "的呆毛",
-            actCutClothes: "剪掉衣物",
-            actRemoveClothes: "脱掉衣物",
-            actDissolveClothes: "溶解衣物",
-            actStealPanties: "偷内裤",
-            actRemoveHoldPanties: "脱下并握着内裤",
-            actStealSocks: "偷袜子",
-            actRemoveHoldSocks: "脱下并握着袜子",
-            actPluckingHair: "拔呆毛",
-            actCutClothesDesc: "SourceCharacter 用剪刀剪掉了 TargetCharacter 的衣物",
-            actCutClothesSelf: "SourceCharacter 用剪刀剪掉了自己的衣物",
-            actRemoveClothesDesc: "SourceCharacter 脱掉了 TargetCharacter 的衣物",
-            actRemoveClothesSelf: "SourceCharacter 脱掉了自己的衣物",
-            actDissolveClothesDesc: "SourceCharacter 对 TargetCharacter 使用了淫秽的药水",
-            actDissolveClothesSelf: "SourceCharacter 对自己使用了淫秽的药水",
-            actStealPantiesDesc: "SourceCharacter 偷了 TargetCharacter 的内裤",
-            actRemoveHoldPantiesDesc: "SourceCharacter 脱下了 TargetCharacter 的内裤并握在手中",
-            actRemoveHoldPantiesSelf: "SourceCharacter 脱下了自己的内裤并握在手中",
-            actStealSocksDesc: "SourceCharacter 偷了 TargetCharacter 的袜子",
-            actRemoveHoldSocksDesc: "SourceCharacter 脱下了 TargetCharacter 的袜子并握在手中",
-            actRemoveHoldSocksSelf: "SourceCharacter 脱下了自己的袜子并握在手中"
-        }
-    };
-
-    function getMessage(key) {
-        const isZh = detectLanguage();
-        return messages[isZh ? 'zh' : 'en'][key];
     }
 
     // ===== 等待工具 =====
@@ -316,13 +225,8 @@
 
             InventoryRemove(Player, "ItemHandheld");
 
-            const isZh = detectLanguage();
-            const itemName = isZh ?
-                  `${targetNick}刚脱下的内裤 💕` :
-            `${targetNick}'s freshly removed panties 💕`;
-            const itemDesc = isZh ?
-                  `${targetNick}刚脱下的内裤，带有一点余温与气味💕` :
-            `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕`;
+            const itemName = getMessage('itemPantiesName', { name: targetNick });
+            const itemDesc = getMessage('itemPantiesDesc', { name: targetNick });
 
             try {
                 InventoryWear(Player, "Panties", "ItemHandheld", itemColor, 0, target.MemberNumber, {
@@ -382,7 +286,7 @@
         try {
             let roomName = args.trim();
             if (!roomName) {
-                const promptText = detectLanguage() ? "输入房间名称" : "Enter room name";
+                const promptText = getMessage('enterRoomPrompt');
                 roomName = window.prompt(promptText);
                 if (!roomName) return;
             }
@@ -601,15 +505,9 @@
         InventoryRemove(Player, "ItemHandheld");
 
         const handheldItemName = itemType === "panties" ? "Panties" : "LongSock";
-        const isZh = detectLanguage();
 
-        const itemName = isZh ?
-              (itemType === "panties" ? `${targetNick}刚脱下的内裤 💕` : `${targetNick}刚脱下的袜子 💕`) :
-        (itemType === "panties" ? `${targetNick}'s freshly removed panties 💕` : `${targetNick}'s freshly removed socks 💕`);
-
-        const itemDesc = isZh ?
-              (itemType === "panties" ? `${targetNick}刚脱下的内裤，带有一点余温与气味💕` : `${targetNick}刚脱下的袜子，带有一点余温与气味💕`) :
-        (itemType === "panties" ? `${targetNick}'s freshly removed panties, with a hint of warmth and scent 💕` : `${targetNick}'s freshly removed socks, with a hint of warmth and scent 💕`);
+        const itemName = getMessage(itemType === "panties" ? 'itemPantiesName' : 'itemSocksName', { name: targetNick });
+        const itemDesc = getMessage(itemType === "panties" ? 'itemPantiesDesc' : 'itemSocksDesc', { name: targetNick });
 
         InventoryWear(Player, handheldItemName, "ItemHandheld", itemColor, 0, target.MemberNumber, {
             Name: itemName,
@@ -937,9 +835,63 @@
         });
     }
 
+    // ===== 活动按钮标记 (🪄) =====
+    // 仿 Echo 的 echo-item-tooltip-wrapper：在自订活动按钮角落加一个小标记
+    function injectPrankBadgeStyle() {
+        if (document.getElementById("liko-prank-badge-style")) return;
+        const style = document.createElement("style");
+        style.id = "liko-prank-badge-style";
+        style.textContent = `
+.liko-prank-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 1.4em;
+    height: 1.4em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    line-height: 1;
+    pointer-events: auto;
+    z-index: 5;
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.7));
+}
+.liko-prank-badge::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 110%;
+    right: 0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s;
+}
+.liko-prank-badge:hover::after { opacity: 1; }
+`;
+        document.head.appendChild(style);
+    }
+
+    function createPrankBadge() {
+        const badge = document.createElement("div");
+        badge.className = "liko-prank-badge";
+        // 标记文字在按钮建立当下才取，确保此时 I18N 已就绪
+        badge.setAttribute("data-tooltip", getMessage("badgeTooltip"));
+        badge.setAttribute("aria-hidden", "true");
+        badge.textContent = "🪄";
+        return badge;
+    }
+
     // ===== Hook系统 =====
     function setupHooks() {
         if (!modApi || !modApi.hookFunction) return;
+
+        injectPrankBadgeStyle();
 
         modApi.hookFunction("ActivityCheckPrerequisite", 4, (args, next) => {
             const prereqName = args[0];
@@ -978,14 +930,24 @@
 
         modApi.hookFunction("ElementButton.CreateForActivity", 4, (args, next) => {
             const activity = args[1];
-            if (activity?.Activity?.Name?.startsWith("Liko_")) {
+            const isLiko = !!activity?.Activity?.Name?.startsWith("Liko_");
+            if (isLiko) {
                 args[4] = args[4] || {};
                 const customImage = actData.CustomImages.get(activity.Activity.Name);
                 if (customImage) {
                     args[4].image = customImage;
                 }
             }
-            return next(args);
+
+            const button = next(args);
+
+            // 在自订活动按钮上加一个 🪄 小标记（仿 Echo）
+            if (isLiko && button && typeof button.querySelector === "function"
+                && !button.querySelector(".liko-prank-badge")) {
+                if (!button.style.position) button.style.position = "relative";
+                button.appendChild(createPrankBadge());
+            }
+            return button;
         });
 
         if (typeof GameVersion !== 'undefined' && GameVersion !== "R121") {
@@ -1006,7 +968,11 @@
                 typeof ActivityDictionary !== "undefined",
                 30000  // 已知登入完成，30 秒綽綽有餘
             );
-    
+
+            // 先确保 i18n 就绪，再注册活动（活动标签在注册当下就写入 ActivityDictionary，
+            // 故必须先载入字库；载入失败则以 key 原文 fallback，不阻断注册）
+            await ensureI18n().catch(e => console.warn("🐈‍⬛ [prank] ⚠️ i18n 载入失败，改以 key 显示:", e));
+
             const isZh = detectLanguage();
             CommandCombine([
                 { Tag: "steal",    Description: isZh ? "偷取内裤" : "Steal panties",   Action: (args) => stealPanties(args) },
@@ -1019,7 +985,7 @@
             ]);
     
             registerActivities();
-            chatSendLocal(getMessage('loaded'));
+            chatSendLocal(getMessage('loaded', { v: MOD_VER }));
     
         } catch (error) {
             console.error("🐈‍⬛ [prank] ❌ Phase 2 (registration) failed:", error);
