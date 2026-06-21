@@ -2,7 +2,7 @@
 // @name         Abundantia Florum ─Chromatica─
 // @name:zh      繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6.1-2
+// @version      0.6.2
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -23,7 +23,7 @@
 (function () {
     window.Liko        = window.Liko ?? {};
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.6.1";
+    const MOD_VERSION  = "0.6.2";
     const EL_BEEP_TYPE = "AFC::Beep";
     window.Liko.AFC    = window.Liko.AFC ?? {};
     if (window.Liko.AFC.version) {
@@ -316,9 +316,6 @@
     const loversPrivateRoom = {};
     let   currentPrivateRoomName = "";
     let   profilePanelOpen       = false;
-
-    // Beep 去重 Set（防止 AccountBeep + ChatRoom relay 重複觸發）
-    const _recentBeepKeys = new Set();
 
     let profilePageFresh = false;  // 每次進入 Profile 頁面時強制刷新一次線上狀態
     let onlineFriendsCache = new Set();
@@ -638,6 +635,78 @@
                 Dictionary: [{ Tag: "AFC::Beep", MsgType: msgType, TargetMember: target, ...extra }],
             });
         } catch {}
+    }
+
+    // ── 可靠 Beep：發送 → 等對方回「已收到」才停，否則每 1.5 秒重送 ──────
+    // AFC 的握手走同房間 Hidden 聊天訊息；正常情況對方立刻就收到，不需重送。
+    // 但偶有對方沒收到的情況（房間同步交界處被丟棄），造成「申請要等很久才出現」
+    // 與「同意了卻沒更新、要重來幾次」。
+    // 機制：
+    //   1) 送出時夾帶一個隨機識別碼（nonce），不加密、僅供識別。
+    //   2) 對方收到後回傳同碼的 ACK；發送方一收到就停止重送（正常情況 0 次重送）。
+    //   3) 沒收到 ACK 才每 1.5 秒重送（同一個 nonce），最多數次後放棄。
+    //   4) 對方若重複收到同一個 nonce → 視為同一批，忽略副作用（但仍回 ACK，
+    //      以防是 ACK 本身遺失）。
+    const RELIABLE_RETRY_MS  = 1500;
+    const RELIABLE_MAX_TRIES = 6;        // 1 次首發 + 5 次重送，約涵蓋 ~9 秒
+    const _ackPending  = new Map();      // nonce → { iv, target }
+    const _seenNonces  = new Map();      // nonce → 到期時間戳（接收端去重）
+    const SEEN_NONCE_TTL_MS = 60000;
+
+    function _makeNonce() {
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
+    function sendReliableBeep(target, msgType, extra, ackType) {
+        const nonce = _makeNonce();
+        const payload = { ...extra, _nonce: nonce };
+        sendBeep(target, msgType, payload);
+        let tries = 1;
+        const iv = setInterval(() => {
+            // 已收到 ACK（_ackPending 被刪）或達上限 → 停止
+            if (!_ackPending.has(nonce) || tries++ >= RELIABLE_MAX_TRIES) {
+                clearInterval(iv); _ackPending.delete(nonce); return;
+            }
+            sendBeep(target, msgType, payload);
+        }, RELIABLE_RETRY_MS);
+        _ackPending.set(nonce, { iv, target });
+    }
+
+    // 收到對方回傳的 ACK（夾帶同 nonce）→ 停止該筆重送。回傳 true 代表第一次收到
+    function ackReliableBeep(nonce) {
+        if (nonce == null) return false;
+        const e = _ackPending.get(nonce);
+        if (!e) return false;
+        clearInterval(e.iv);
+        _ackPending.delete(nonce);
+        return true;
+    }
+
+    // 取消所有寄往某對象的重送（例如對方已接受，殘留的申請重送可停）
+    function cancelReliableTo(target) {
+        for (const [nonce, e] of _ackPending) {
+            if (Number(e.target) === Number(target)) { clearInterval(e.iv); _ackPending.delete(nonce); }
+        }
+    }
+
+    function cancelAllReliableBeeps() {
+        for (const { iv } of _ackPending.values()) clearInterval(iv);
+        _ackPending.clear();
+    }
+
+    // 接收端去重：第一次見到回 false；重複（同 nonce）回 true。
+    // 注意：只在「副作用確實完成」後才呼叫 markBeepSeen，避免某次無法處理就被當成已處理。
+    function hasSeenBeep(nonce) {
+        if (nonce == null) return false;
+        const exp = _seenNonces.get(nonce);
+        return exp != null && exp > Date.now();
+    }
+    function markBeepSeen(nonce) {
+        if (nonce == null) return;
+        const now = Date.now();
+        if (_seenNonces.size > 200)
+            for (const [k, e] of _seenNonces) if (e <= now) _seenNonces.delete(k);
+        _seenNonces.set(nonce, now + SEEN_NONCE_TTL_MS);
     }
 
     function chatLocalNotice(text) { ChatRoomSendLocal(`[AFC] ${text}`); }
@@ -1147,7 +1216,7 @@
             chatLocalNotice(t('cooldown', sec)); return;
         }
 
-        sendBeep(target, BEEP.PROPOSE, { SenderName: Player.Name });
+        sendReliableBeep(target, BEEP.PROPOSE, { SenderName: Player.Name }, BEEP.PROPOSE_ACK);
 
         if (priv) {
             _lastProposalSent[target] = Date.now();
@@ -1166,17 +1235,16 @@
     }
 
     // ② 申請流程 — 接收方 UI
-    function handleIncomingProposal(senderNum, senderName) {
+    function handleIncomingProposal(senderNum, senderName, nonce) {
+        // 每次（含對方重送）都回傳同碼 ACK，讓對方確認送達後停止重送
+        sendBeep(senderNum, BEEP.PROPOSE_ACK, { _nonce: nonce });
+
+        // 已是戀人（雙向確認）→ 僅回 ACK，不再顯示申請 UI
+        if (isELLover(senderNum) || isNativeLover(senderNum)) return;
+        // 同一批重送（同 nonce）→ 已處理過，僅回 ACK，不重開 UI
+        if (hasSeenBeep(nonce)) return;
+        // UI 只建立一次
         if (pendingIncoming[senderNum]) return;
-
-        // 若已是戀人（雙向確認）則不需要再提案
-        const senderChar = ChatRoomCharacter?.find(c => c.MemberNumber === senderNum);
-        const senderHasMe = senderChar?.OnlineSharedSettings?.AFC?.lovers
-        ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
-        if (isELLover(senderNum) || isNativeLover(senderNum)) return;  // 已是戀人
-        // （senderHasMe 只是資料丟失時的容錯，仍允許顯示申請 UI）
-
-        sendBeep(senderNum, BEEP.PROPOSE_ACK);
 
         const uiId = `el-proposal-${senderNum}`;
 
@@ -1187,8 +1255,10 @@
             onAccept:  () => acceptProposal(senderNum, senderName),
             onDecline: () => cleanupIncomingUI(senderNum),
         });
-        if (!el) return;
+        if (!el) return;   // 此刻無法顯示（例如不在聊天畫面）→ 不記 nonce，等下次重送再試
 
+        // 確實顯示後才標記已處理，避免漏顯示卻被當成已處理
+        markBeepSeen(nonce);
         const iv = startCountdown(uiId, `${uiId}-sub`, () => cleanupIncomingUI(senderNum),
                                   t('proposeExpired', senderName));
         pendingIncoming[senderNum] = { timer: iv, uiId };
@@ -1208,22 +1278,28 @@
         ELLockAccessOn.add(senderNum);
         updateLastSeen(senderNum);
         broadcastAction(senderNum, senderName, t('evDateTxt'));
-        sendBeep(senderNum, BEEP.ACCEPT, { ReceiverName: Player.Name });
+        // 可靠送出：重送 ACCEPT 直到對方回 ACCEPT_ACK，解決「同意了卻沒更新」
+        sendReliableBeep(senderNum, BEEP.ACCEPT, { ReceiverName: Player.Name }, BEEP.ACCEPT_ACK);
     }
 
-    function handleAccepted(fromNum, receiverName) {
+    function handleAccepted(fromNum, receiverName, nonce) {
+        // 回傳同碼 ACCEPT_ACK，讓對方確認送達後停止重送
+        sendBeep(fromNum, BEEP.ACCEPT_ACK, { _nonce: nonce, AckNumber: Player.MemberNumber });
+        // 對方已接受 → 對方確實收到了我的 PROPOSE，停止我方殘留的申請重送
+        cancelReliableTo(fromNum);
         if (pendingOutgoing[fromNum]) {
             clearTimeout(pendingOutgoing[fromNum].timer);
             delete pendingOutgoing[fromNum];
         }
+        // 同一批重送（同 nonce）→ 已處理過，僅回 ACK
+        if (hasSeenBeep(nonce)) return;
+        markBeepSeen(nonce);
         if (!isELLover(fromNum)) {
             addLover(fromNum, receiverName, STAGE.DATING);
             ELLockAccessOn.add(fromNum);
             updateLastSeen(fromNum);
             chatLocalNotice(t('proposeOK', receiverName));
         }
-        // 回應 ACCEPT_ACK
-        sendBeep(fromNum, BEEP.ACCEPT_ACK, { AckNumber: Player.MemberNumber });
     }
 
     // ============================================================
@@ -1403,16 +1479,20 @@
 
         const from     = data.MemberNumber;
         const fromName = data.MemberName ?? `#${from}`;
+        const nonce    = data._nonce;
 
         switch (data.Message) {
             case BEEP.PROPOSE:
-                handleIncomingProposal(from, data.SenderName ?? fromName); break;
+                handleIncomingProposal(from, data.SenderName ?? fromName, nonce); break;
             case BEEP.PROPOSE_ACK:
-                chatLocalNotice(t('proposeAck', fromName)); break;
-            case BEEP.ACCEPT:
-                handleAccepted(from, data.ReceiverName ?? fromName); break;
-            case BEEP.ACCEPT_ACK:
+                // 對方已收到我的申請 → 停止重送；只在第一次收到時提示
+                if (ackReliableBeep(nonce)) chatLocalNotice(t('proposeAck', fromName));
                 break;
+            case BEEP.ACCEPT:
+                handleAccepted(from, data.ReceiverName ?? fromName, nonce); break;
+            case BEEP.ACCEPT_ACK:
+                // 對方已確認收到我的同意，停止重送
+                ackReliableBeep(nonce); break;
             case BEEP.RESTORE_PROPOSE:
                 handleIncomingRestore(from, data.SenderName ?? fromName,
                                       data.Stage, data.StartDate, data.StageDate); break;
@@ -2239,11 +2319,11 @@
                 Tag: "afc-lastseen",
                 Description: "顯示所有戀人的最後見面時間",
                 Action: () => {
-                    const priv   = getPrivateSettings();
                     const lovers = getSharedSettings()?.lovers ?? [];
                     if (lovers.length === 0) { chatLocalNotice("暫無戀人資料"); return; }
                     for (const l of lovers) {
-                        const ts  = priv?.lastSeen?.[l.memberNumber];
+                        // lastSeen 已遷移至 lover.lastSeen（舊版誤讀 priv.lastSeen 永遠顯示「從未記錄」）
+                        const ts  = l.lastSeen;
                         const str = ts ? `${daysSince(ts)} 天前` : "從未記錄";
                         chatLocalNotice(`${l.name}: 最後見面 ${str}`);
                     }
@@ -2665,6 +2745,7 @@
 
     function cleanup() {
         unregisterAllSocketListeners();
+        cancelAllReliableBeeps();
         for (const k of Object.keys(pendingOutgoing)) clearTimeout(pendingOutgoing[k].timer);
         for (const k of Object.keys(pendingIncoming)) {
             clearInterval(pendingIncoming[k].timer);
