@@ -1734,7 +1734,7 @@
             // 返回按鈕（setting.txt: x=1815 y=75 w=90 h=90）
             DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", "返回");
             // 復原按鈕（與 Exit 按鈕相同樣式，無底色）
-            DrawButton(1710, 75, 90, 90, "", "", "https://www.bondageprojects.elementfx.com/R128/BondageClub/Icons/Reset.png", t('restoreTitle'));
+            DrawButton(1710, 75, 90, 90, "", "", "Icons/Reset.png", t('restoreTitle'));
 
             // 標題（centerX=1000, y=90-150）
             DrawText("Abundantia Florum ─Chromatica─", 1000, 120, "Black", "Gray");
