@@ -2,7 +2,7 @@
 // @name         BC Heart Lock Extension
 // @name:zh      BC 心形鎖拓展
 // @namespace    https://github.com/awdrrawd/
-// @version      2.5.2
+// @version      2.5.3
 // @description  Heart Padlock for Bondage Club with AFC lover integration
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -13,7 +13,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = '2.5.2';
+    const MOD_VER = '2.5.3';
     if (window.Liko.AFC_HeartLock) return;
     window.Liko.AFC_HeartLock = MOD_VER;
 
@@ -410,8 +410,9 @@
         },
     };
 
-    const grabStateChar   = { count: 0, firstTriggerTime: Date.now(), state: false };
-    const grabStateSingle = { count: 0, firstTriggerTime: Date.now(), state: false };
+    const grabStateChar      = { count: 0, firstTriggerTime: Date.now(), state: false };
+    const grabStateSingle    = { count: 0, firstTriggerTime: Date.now(), state: false };
+    const grabStateIntegrity = { count: 0, firstTriggerTime: Date.now(), state: false };
     const GRAB_WINDOW_MS   = 14000;
     const GRAB_COOLDOWN_MS = 120000;
 
@@ -1060,7 +1061,10 @@
     function checkLockIntegrity() {
         if (!ensureStorage()) return;
         if (state._unlocking) return;
+        // 與 ChatRoomSync 防護一致：退避期間不再修復，避免與其他來源衝突時每 3 秒洗版
+        if (grabStateChar.state || grabStateSingle.state || grabStateIntegrity.state) return;
         const padlocks = Player.HeartLock?.padlocks ?? {};
+        let anyRestored = false;
         for (const gn of Object.keys(padlocks)) {
             const cfg = padlocks[gn];
             if (!cfg) continue;
@@ -1070,7 +1074,23 @@
             const badLockedBy = item.Property?.LockedBy !== HSLOCK_NAME;
             const badName     = item.Property?.Name     !== HEARTLOCK_NAME;
             const badLockId   = cfg.lockId && item.Property?.HeartLockId !== cfg.lockId;
-            if (badLockedBy || badName || badLockId) { log('Lock integrity violation on', gn, { badLockedBy, badName, badLockId }); restoreLockFromConfig(gn, cfg); }
+            if (badLockedBy || badName || badLockId) {
+                log('Lock integrity violation on', gn, { badLockedBy, badName, badLockId });
+                restoreLockFromConfig(gn, cfg);
+                anyRestored = true;
+            }
+        }
+        // 退避：短時間內反覆修復代表與其他來源持續衝突，暫停一段時間避免無限重套洗版
+        if (anyRestored) {
+            grabStateIntegrity.count++;
+            if (grabStateIntegrity.count === 1) grabStateIntegrity.firstTriggerTime = Date.now();
+            if (grabStateIntegrity.count > 4 && Date.now() - grabStateIntegrity.firstTriggerTime < GRAB_WINDOW_MS) {
+                grabStateIntegrity.state = true; grabStateIntegrity.count = 0;
+                try { const nick = Player.Nickname || Player.Name; ServerSend('ChatRoomChat', { Type: 'Action', Content: 'CUSTOM_SYSTEM_ACTION', Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: T('protectDisabled', nick, HEARTLOCK_NAME) }] }); } catch {}
+                setTimeout(() => { grabStateIntegrity.state = false; grabStateIntegrity.count = 0; }, GRAB_COOLDOWN_MS);
+            }
+        } else {
+            grabStateIntegrity.count = 0;
         }
     }
 
