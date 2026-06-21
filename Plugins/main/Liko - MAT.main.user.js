@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.3.0-1
+// @version      1.4.0
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,7 +13,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.3.0";
+    const MOD_VER = "1.4.0";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -23,7 +23,7 @@
     let config = {
         enabled: true,
         sendLang: 'en',
-        recvLang: 'zh-CN',
+        recvLang: null, // 預設依瀏覽器語言決定，見 initializeConfig / detectDefaultRecvLang
         translateReceived: true,
         translateSent: false,
         translateSelection: true,
@@ -54,275 +54,36 @@
     // ============================================================
     // i18n 系統
     // ============================================================
-    const UI = {
-        zh: {
-            // SDK / 載入
-            sdkTimeout:         "bcModSdk 等待超時，插件無法載入",
-            loaded:             v => `🌐 [MAT] v${v} 載入成功，可用 /mat 或到拓展設定內設置`,
+    const LIKO_I18N_ENGINE_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/Liko-i18n.js';
+    const LIKO_MAT_STRINGS_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/MAT-i18n.js';
+    const I18N_NS = 'MAT';
 
-            // 快捷鍵
-            hotkeyEnabled:      hk => `✅ MAT 已開啟 (${hk})`,
-            hotkeyDisabled:     hk => `❌ MAT 已關閉 (${hk})`,
-            hotkeyNone:         "（未設定）",
-            hotkeyList:         toggle => `⌨️ MAT 快捷鍵設定：\n開關翻譯 (toggle): ${toggle}\n\n用法: /mat hotkey toggle [ctrl+][alt+][shift+]KEY\n例如: /mat hotkey toggle ctrl+m`,
-            hotkeyUnknown:      a  => `❓ 未知快捷鍵動作: ${a}，目前支援: toggle`,
-            hotkeyCleared:      a  => `✅ 已清除 ${a} 快捷鍵`,
-            hotkeySet:          s  => `✅ toggle 快捷鍵已設為: ${s}`,
-            hotkeyBadKey:       k  => `❓ 不支援的按鍵: ${k}，請使用 A-Z 或 0-9`,
+    function loadScript(url) {
+        return fetch(url)
+            .then(res => { if (!res.ok) throw new Error(`[MAT] 無法載入 ${url} (${res.status})`); return res.text(); })
+            .then(code => { new Function(code)(); });
+    }
 
-            // API 失敗
-            apiFail: err => {
-                const hints = {
-                    rate_limit: '請求過於頻繁，稍等 2-3 秒即可恢復',
-                    blocked:    '該節點可能被封鎖，建議嘗試切換網路節點',
-                    network:    '網路連線異常，請確認網路狀態',
-                };
-                const hint = hints[err] || `發生錯誤（${err || '未知'}）`;
-                return `⚠️ [MAT] Google 翻譯請求失敗\n・${hint}\n・翻譯暫時停用，30 秒後重試`;
-            },
-            translateFail: err => {
-                const hints = {
-                    rate_limit: '請求過於頻繁，稍等片刻後重試',
-                    blocked:    '建議嘗試切換網路節點後重試',
-                    network:    '網路連線異常，請確認網路狀態',
-                };
-                const hint = hints[err] || `發生錯誤（${err || '未知'}）`;
-                return `⚠️ [MAT] 翻譯失敗\n・${hint}`;
-            },
-            selectionFail:      "⚠️ 翻譯失敗，請檢查網路",
-            translating:        "翻譯中...",
-
-            // 指令回應
-            cmdOn:              "✅ 聊天室翻譯已開啟",
-            cmdOff:             "❌ 聊天室翻譯已關閉",
-            cmdRecv:            v => `整句自動翻譯: ${v ? '✅' : '❌'}`,
-            cmdSend:            v => `發送翻譯: ${v ? '✅' : '❌'}`,
-            cmdChat:            v => `點選翻譯按鈕: ${v ? '✅' : '❌'}`,
-            cmdSelection:       v => `選取翻譯: ${v ? '✅' : '❌'}`,
-            cmdAutoScroll:      v => `翻譯後自動捲動: ${v ? '✅' : '❌'}`,
-            cmdSendLang:        n  => `✅ 發送語言: ${n}`,
-            cmdRecvLang:        n  => `✅ 接收語言: ${n}`,
-            cmdCurLang:         (s, r) => `當前 - 發送: ${s} | 接收: ${r}`,
-            cmdUnknown:         "❓ 未知指令，使用 /mat help",
-            cmdNotLoggedIn:     "⚠️ 未登入，無法保存翻譯設定",
-
-            // 設定頁
-            pageTitle:          v  => `機器翻譯設定  v${v}`,
-            secLive:            "── 即時翻譯 ──",
-            secLang:            "── 語言設定 ──",
-            secHotkey:          "── 快捷鍵 ──",
-            optEnabled:         "啟用",
-            optRecv:            "接收翻譯",
-            optSend:            "發送翻譯",
-            optChat:            "點選翻譯按鈕",
-            optSelection:       "選取翻譯",
-            optAutoScroll:      "翻譯後自動捲動",
-            lblRecvLang:        "接收語言：",
-            lblSendLang:        "發送語言：",
-            tipRecvLang:        "接收語言",
-            tipSendLang:        "發送語言",
-            lblHotkeyToggle:    "開關翻譯：",
-            tipHotkeySet:       "點擊設定",
-            btnHotkeyClear:     "清除",
-            hotkeyRecording:    "按下新快捷鍵... (Esc取消)",
-            btnBack:            "返回",
-            desc1:              "該插件為聊天室即時翻譯插件，支援 Bio 翻譯，使用 Google 翻譯 API",
-            desc2:              "插件停用時不影響 Bio 與選取翻譯（需開啟）的功能",
-            desc3:              "請依照需求設定語言與功能，另外也支援聊天室指令 /mat 即時設定",
-
-            // Bio / 工具列
-            bioTranslate:       "翻譯Bio",
-            bioCancelTranslate: "點擊取消翻譯",
-            bioClose:           "關閉翻譯",
-            otherLang:          "臨時選擇語言",
-            translateTo:        "選擇語言翻譯",
-            removeTranslation:  "移除翻譯",
-            dblClickRemove:     "雙擊移除翻譯",
-
-            // /mat help
-            help: v => `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
-<h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v${v}</h3>
-<div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
-<b style='color:#FFD700;'>開關指令</b><br>
-<b style='color:#87CEEB;'>/mat on/off</b> — 聊天室翻譯總開關<br>
-<b style='color:#87CEEB;'>/mat recv</b> — 切換整句自動翻譯<br>
-<b style='color:#87CEEB;'>/mat send</b> — 切換發送翻譯<br>
-<b style='color:#87CEEB;'>/mat chat</b> — 切換點選翻譯按鈕<br>
-<b style='color:#87CEEB;'>/mat selection</b> — 切換選取翻譯（獨立）<br>
-<b style='color:#87CEEB;'>/mat autoscroll</b> — 切換翻譯後自動捲動<br>
-<b style='color:#87CEEB;'>/mat recvlang/sendlang [代碼]</b> — 設定語言<br>
-<b style='color:#87CEEB;'>/mat hotkey [action] [key]</b> — 快捷鍵設定<br>
-<b style='color:#87CEEB;'>/mat status</b> — 查看狀態
-</div>
-<div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
-<b style='color:#FFD700;'>功能</b><br>
-<span style='color:#aaa'>・ 點選訊息 → 上方出現 🌐 / ▾ 工具列（需點選翻譯按鈕開啟）</span><br>
-<span style='color:#aaa'>・ 選取文字 → 氣泡翻譯（獨立開關）</span><br>
-<span style='color:#aaa'>・ Bio 翻譯：逐行顯示，翻譯中可點擊黃色按鈕取消</span><br>
-<span style='color:#aaa'>・ 裝飾字體自動轉換（𝕙𝕖𝕝𝕝𝕠→hello）</span><br>
-<span style='color:#aaa'>・ 純連結自動跳過翻譯</span><br>
-<span style='color:#aaa'>・ 快捷鍵：預設 Ctrl+M 開關</span>
-</div>
-<div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
-<b style='color:#FFD700;'>設定</b><br>
-<span style='color:#aaa'>・ 遊戲內 偏好設定 → 拓展設定 → 機器翻譯設定 可視覺化設定所有選項</span><br>
-<span style='color:#aaa'>・ 或直接使用上方 /mat 指令快速切換</span>
-</div>
-<div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
-<b style='color:#FFD700;'>語言代碼</b><br>
-zh-TW zh-CN en ja ko de fr es ru it pt ar th vi id pl nl tr sv
-</div>
-</div>`,
-
-            // /mat status
-            status: (v, cfg, hk, getLangName) => `<div style='background:#1a1a2e;color:#eee;padding:8px;border-radius:5px;'>
-<h4 style='color:#4CAF50;'>📊 MAT v${v} 狀態</h4>
-聊天室總開關: ${cfg.enabled ? '🟢' : '🔴'}<br>
-整句自動翻譯: ${cfg.translateReceived ? '✅' : '❌'} → ${getLangName(cfg.recvLang)}<br>
-發送翻譯: ${cfg.translateSent ? '✅' : '❌'} → ${getLangName(cfg.sendLang)}<br>
-點選翻譯按鈕: ${cfg.translateChat ? '✅' : '❌'}<br>
-選取翻譯（獨立）: ${cfg.translateSelection ? '✅' : '❌'}<br>
-翻譯後自動捲動: ${cfg.autoScroll ? '✅' : '❌'}<br>
-純連結跳過翻譯: ✅ 永遠啟用<br>
-Bio翻譯: 🟢 永遠可用<br>
-快捷鍵（開關）: ⌨️ ${hk}<br>
-設定儲存位置: ExtensionSettings ✅
-</div>`,
-        },
-
-        en: {
-            sdkTimeout:         "bcModSdk timed out, plugin failed to load",
-            loaded:             v => `🌐 [MAT] v${v} loaded! Use /mat or check Extension Settings`,
-
-            hotkeyEnabled:      hk => `✅ MAT enabled (${hk})`,
-            hotkeyDisabled:     hk => `❌ MAT disabled (${hk})`,
-            hotkeyNone:         "(none)",
-            hotkeyList:         toggle => `⌨️ MAT Hotkeys:\nToggle (toggle): ${toggle}\n\nUsage: /mat hotkey toggle [ctrl+][alt+][shift+]KEY\nExample: /mat hotkey toggle ctrl+m`,
-            hotkeyUnknown:      a  => `❓ Unknown action: ${a}, supported: toggle`,
-            hotkeyCleared:      a  => `✅ Cleared hotkey: ${a}`,
-            hotkeySet:          s  => `✅ toggle hotkey set to: ${s}`,
-            hotkeyBadKey:       k  => `❓ Unsupported key: ${k}, use A-Z or 0-9`,
-
-            apiFail: err => {
-                const hints = {
-                    rate_limit: 'Too many requests, will recover in 2-3 seconds',
-                    blocked:    'This node may be blocked, try switching your network node',
-                    network:    'Network error, please check your connection',
-                };
-                const hint = hints[err] || `Error: ${err || 'unknown'}`;
-                return `⚠️ [MAT] Google Translate request failed\n・${hint}\n・Translation paused, retrying in 30s`;
-            },
-            translateFail: err => {
-                const hints = {
-                    rate_limit: 'Too many requests, please wait a moment',
-                    blocked:    'Try switching your network node',
-                    network:    'Network error, please check your connection',
-                };
-                const hint = hints[err] || `Error: ${err || 'unknown'}`;
-                return `⚠️ [MAT] Translation failed\n・${hint}`;
-            },
-            selectionFail:      "⚠️ Translation failed, check your network",
-            translating:        "Translating...",
-
-            cmdOn:              "✅ Chat translation enabled",
-            cmdOff:             "❌ Chat translation disabled",
-            cmdRecv:            v => `Auto translate received: ${v ? '✅' : '❌'}`,
-            cmdSend:            v => `Translate sent: ${v ? '✅' : '❌'}`,
-            cmdChat:            v => `Click-to-translate button: ${v ? '✅' : '❌'}`,
-            cmdSelection:       v => `Selection translate: ${v ? '✅' : '❌'}`,
-            cmdAutoScroll:      v => `Auto-scroll after translate: ${v ? '✅' : '❌'}`,
-            cmdSendLang:        n  => `✅ Send language: ${n}`,
-            cmdRecvLang:        n  => `✅ Receive language: ${n}`,
-            cmdCurLang:         (s, r) => `Current — Send: ${s} | Recv: ${r}`,
-            cmdUnknown:         "❓ Unknown command, use /mat help",
-            cmdNotLoggedIn:     "⚠️ Not logged in, cannot save settings",
-
-            pageTitle:          v  => `Machine Translation Settings  v${v}`,
-            secLive:            "── Live Translation ──",
-            secLang:            "── Language Settings ──",
-            secHotkey:          "── Hotkeys ──",
-            optEnabled:         "Enable",
-            optRecv:            "Translate Received",
-            optSend:            "Translate Sent",
-            optChat:            "Click-to-Translate Button",
-            optSelection:       "Selection Translate",
-            optAutoScroll:      "Auto-Scroll After Translate",
-            lblRecvLang:        "Recv Lang: ",
-            lblSendLang:        "Send Lang: ",
-            tipRecvLang:        "Recv Lang",
-            tipSendLang:        "Send Lang",
-            lblHotkeyToggle:    "Toggle MAT: ",
-            tipHotkeySet:       "Click to set",
-            btnHotkeyClear:     "Clear",
-            hotkeyRecording:    "Press a key... (Esc=cancel)",
-            btnBack:            "Back",
-            desc1:              "Chat room live translation with Bio support, powered by Google Translate API",
-            desc2:              "Disabling does not affect Bio or Selection translate (if enabled)",
-            desc3:              "Configure as needed. Chat commands /mat also available for live settings",
-
-            bioTranslate:       "Translate Bio",
-            bioCancelTranslate: "Click to cancel",
-            bioClose:           "Close Translation",
-            otherLang:          "Other language",
-            translateTo:        "Translate to...",
-            removeTranslation:  "Remove",
-            dblClickRemove:     "Double-click to remove",
-
-            help: v => `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
-<h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v${v}</h3>
-<div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
-<b style='color:#FFD700;'>Commands</b><br>
-<b style='color:#87CEEB;'>/mat on/off</b> — Toggle chat translation<br>
-<b style='color:#87CEEB;'>/mat recv</b> — Toggle auto-translate received<br>
-<b style='color:#87CEEB;'>/mat send</b> — Toggle translate sent<br>
-<b style='color:#87CEEB;'>/mat chat</b> — Toggle click-to-translate button<br>
-<b style='color:#87CEEB;'>/mat selection</b> — Toggle selection translate (independent)<br>
-<b style='color:#87CEEB;'>/mat autoscroll</b> — Toggle auto-scroll after translate<br>
-<b style='color:#87CEEB;'>/mat recvlang/sendlang [code]</b> — Set language<br>
-<b style='color:#87CEEB;'>/mat hotkey [action] [key]</b> — Set hotkey<br>
-<b style='color:#87CEEB;'>/mat status</b> — Show status
-</div>
-<div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
-<b style='color:#FFD700;'>Features</b><br>
-<span style='color:#aaa'>・ Click message → 🌐 / ▾ toolbar (requires click-to-translate on)</span><br>
-<span style='color:#aaa'>・ Select text → bubble translate (independent toggle)</span><br>
-<span style='color:#aaa'>・ Bio translate: line-by-line, cancel mid-way via yellow button</span><br>
-<span style='color:#aaa'>・ Decorative fonts auto-normalized (𝕙𝕖𝕝𝕝𝕠→hello)</span><br>
-<span style='color:#aaa'>・ Pure URLs are skipped automatically</span><br>
-<span style='color:#aaa'>・ Default hotkey: Ctrl+M to toggle</span>
-</div>
-<div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
-<b style='color:#FFD700;'>Settings</b><br>
-<span style='color:#aaa'>・ In-game: Preferences → Extension Settings → MAT Settings for visual configuration</span><br>
-<span style='color:#aaa'>・ Or use /mat commands above for quick live changes</span>
-</div>
-<div style='background:#2d2d44;padding:6px 8px;border-radius:3px;margin:5px 0;'>
-<b style='color:#FFD700;'>Language codes</b><br>
-zh-TW zh-CN en ja ko de fr es ru it pt ar th vi id pl nl tr sv
-</div>
-</div>`,
-
-            status: (v, cfg, hk, getLangName) => `<div style='background:#1a1a2e;color:#eee;padding:8px;border-radius:5px;'>
-<h4 style='color:#4CAF50;'>📊 MAT v${v} Status</h4>
-Chat translation: ${cfg.enabled ? '🟢' : '🔴'}<br>
-Auto translate received: ${cfg.translateReceived ? '✅' : '❌'} → ${getLangName(cfg.recvLang)}<br>
-Translate sent: ${cfg.translateSent ? '✅' : '❌'} → ${getLangName(cfg.sendLang)}<br>
-Click-to-translate: ${cfg.translateChat ? '✅' : '❌'}<br>
-Selection translate: ${cfg.translateSelection ? '✅' : '❌'}<br>
-Auto-scroll: ${cfg.autoScroll ? '✅' : '❌'}<br>
-Skip pure URLs: ✅ Always on<br>
-Bio translate: 🟢 Always available<br>
-Toggle hotkey: ⌨️ ${hk}<br>
-Settings storage: ExtensionSettings ✅
-</div>`,
+    async function ensureI18n() {
+        if (!window.Liko?.i18n?.version) await loadScript(LIKO_I18N_ENGINE_URL);
+        if (!window.Liko?.i18n?._matStringsLoaded) {
+            await loadScript(LIKO_MAT_STRINGS_URL);
+            if (window.Liko?.i18n) window.Liko.i18n._matStringsLoaded = true;
         }
-    };
+    }
 
-    function ui(key, ...args) {
-        const table = isZH() ? UI.zh : UI.en;
-        const val = table[key];
-        if (typeof val === 'function') return val(...args);
-        return val !== undefined ? val : key;
+    // 取翻譯字串；引擎尚未就緒時回傳 key 本身，不丟例外。vars 以 {name} 佔位代入。
+    function ui(key, vars) {
+        const fn = window.Liko?.i18n?.t;
+        return fn ? fn(I18N_NS, key, vars) : key;
+    }
+
+    const mk = b => b ? '✅' : '❌';
+
+    // 將錯誤代碼轉成對應的提示字串
+    function apiHint(err) {
+        const map = { rate_limit: 'hint_rate_limit', blocked: 'hint_blocked', network: 'hint_network' };
+        return ui(map[err] || 'hint_unknown', { err: err || 'unknown' });
     }
 
     // ============================================================
@@ -355,7 +116,6 @@ Settings storage: ExtensionSettings ✅
                 version: MOD_VER,
                 repository: "Auto translate chat messages(Supports bio translation)",
             });
-            console.log("🐈‍⬛ [MAT] ✅ SDK loaded");
         } catch (e) {
             console.error("🐈‍⬛ [MAT] ❌ failed to load:", e);
             return;
@@ -370,7 +130,7 @@ Settings storage: ExtensionSettings ✅
         const defaults = {
             enabled: true,
             sendLang: 'en',
-            recvLang: 'zh-CN',
+            recvLang: detectDefaultRecvLang(),
             translateReceived: true,
             translateSent: false,
             translateSelection: true,
@@ -380,26 +140,30 @@ Settings storage: ExtensionSettings ✅
         };
         if (!config || typeof config !== 'object') config = { ...defaults };
         for (const [key, val] of Object.entries(defaults)) {
-            if (config[key] === undefined) config[key] = val;
+            if (config[key] === undefined || config[key] === null) config[key] = val;
         }
         if (!config.hotkeys || typeof config.hotkeys !== 'object') config.hotkeys = defaults.hotkeys;
         if (!config.hotkeys.toggle) config.hotkeys.toggle = defaults.hotkeys.toggle;
     }
+
+    const SETTINGS_KEY = "Liko_MAT";
+    const LEGACY_SETTINGS_KEY = "BCMachineTranslation";
 
     function saveSettings() {
         if (!Player?.ExtensionSettings) {
             ChatRoomSendLocal(ui('cmdNotLoggedIn'));
             return;
         }
-        Player.ExtensionSettings.BCMachineTranslation = { ...config };
+        Player.ExtensionSettings[SETTINGS_KEY] = { ...config };
         if (typeof ServerPlayerExtensionSettingsSync === 'function') {
-            ServerPlayerExtensionSettingsSync("BCMachineTranslation");
+            ServerPlayerExtensionSettingsSync(SETTINGS_KEY);
         }
     }
 
     function loadSettings() {
-        if (!Player?.ExtensionSettings?.BCMachineTranslation) return;
-        config = { ...config, ...Player.ExtensionSettings.BCMachineTranslation };
+        const saved = Player?.ExtensionSettings?.[SETTINGS_KEY];
+        if (!saved) return;
+        config = { ...config, ...saved };
         if (!config.hotkeys || typeof config.hotkeys !== 'object') {
             config.hotkeys = { toggle: { key: 'KeyM', modifiers: ['Ctrl'] } };
         }
@@ -408,25 +172,15 @@ Settings storage: ExtensionSettings ✅
         }
     }
 
-    const MIGRATE_KEYS = ['BCMachineTranslation'];
-
-    function migrateOnlineToExtensionSettings() {
-        if (!Player?.OnlineSettings || !Player?.ExtensionSettings) return;
-        let migrated = false;
-        for (const key of MIGRATE_KEYS) {
-            if (Player.OnlineSettings[key] !== undefined) {
-                if (Player.ExtensionSettings[key] === undefined) {
-                    Player.ExtensionSettings[key] = Player.OnlineSettings[key];
-                }
-                delete Player.OnlineSettings[key];
-                migrated = true;
-            }
-        }
-        if (migrated) {
-            if (typeof ServerAccountUpdate?.QueueData === "function") {
-                ServerAccountUpdate.QueueData({ OnlineSettings: Player.OnlineSettings });
-            }
-            console.log("🐈‍⬛ [MAT] ✅ 舊版設定遷移完成");
+    // 舊版設定以 BCMachineTranslation 為鍵，現改名為 Liko_MAT。
+    function migrateSettingsKey() {
+        const ext = Player?.ExtensionSettings;
+        if (!ext) return;
+        const legacy = ext[LEGACY_SETTINGS_KEY];
+        if (legacy === undefined || ext[SETTINGS_KEY] !== undefined) return;
+        ext[SETTINGS_KEY] = { ...legacy };
+        if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+            ServerPlayerExtensionSettingsSync(SETTINGS_KEY);
         }
     }
 
@@ -434,7 +188,15 @@ Settings storage: ExtensionSettings ✅
     // 翻譯請求隊列
     // ============================================================
     const translateQueue = {
-        queue: [], processing: false, minInterval: 300, lastRequestTime: 0,
+        queue: [], processing: false, lastRequestTime: 0,
+        baseInterval: 300, minInterval: 300, maxInterval: 3000,
+        // 連續失敗時拉長間隔，成功後逐步恢復，避免錯誤雪崩式連發
+        backoff() { this.minInterval = Math.min(this.maxInterval, this.minInterval * 2); },
+        recover() {
+            if (this.minInterval > this.baseInterval) {
+                this.minInterval = Math.max(this.baseInterval, Math.floor(this.minInterval / 1.5));
+            }
+        },
         async add(text, targetLang) {
             return new Promise(resolve => {
                 this.queue.push({ text, targetLang, resolve });
@@ -448,11 +210,74 @@ Settings storage: ExtensionSettings ✅
             if (elapsed < this.minInterval) await new Promise(r => setTimeout(r, this.minInterval - elapsed));
             const item = this.queue.shift();
             this.lastRequestTime = Date.now();
-            try { item.resolve(await translateGoogle(item.text, item.targetLang)); }
-            catch (e) { item.resolve({ translated: null, detectedLang: null, error: e.message }); }
+            try {
+                const res = await translateGoogle(item.text, item.targetLang);
+                if (res.error) this.backoff(); else this.recover();
+                item.resolve(res);
+            } catch (e) {
+                this.backoff();
+                item.resolve({ translated: null, detectedLang: null, error: e.message });
+            }
             this.process();
         }
     };
+
+    // 單筆翻譯字數上限：超過就在標點／分段處切成多段送出，避免過長 URL 觸發 http_500
+    const MAX_TRANSLATE_LEN = 500;
+
+    // 將過長文字依「換行 > 句末標點 > 子句標點 > 空白」優先序切段，
+    // 盡量切在語意邊界，避免在句子中間硬切導致翻譯錯誤；都找不到才硬切。
+    function splitTextForTranslation(text, maxLen = MAX_TRANSLATE_LEN) {
+        if (!text || text.length <= maxLen) return [text];
+        const boundaries = [
+            /\n/g,                                  // 換行
+            /[.!?。！？…〜~]['"」』”’\)\]\s]*/g,      // 句末標點（含其後的引號／括號／空白）
+            /[,;:、，；：·\)\]》」』]['"”’\s]*/g,      // 子句標點
+            /\s+/g,                                 // 任意空白
+        ];
+        const chunks = [];
+        let rest = text;
+        while (rest.length > maxLen) {
+            const window = rest.slice(0, maxLen);
+            const floor = Math.floor(maxLen * 0.5);   // 太靠前的邊界不採用，避免切出過小段落
+            let cut = -1;
+            for (const re of boundaries) {
+                re.lastIndex = 0;
+                let m, last = -1;
+                while ((m = re.exec(window)) !== null) {
+                    const end = m.index + m[0].length;
+                    if (end >= floor) last = end;
+                    if (re.lastIndex === m.index) re.lastIndex++;
+                }
+                if (last > 0) { cut = last; break; }
+            }
+            if (cut <= 0) {
+                cut = maxLen;
+                const code = rest.charCodeAt(cut - 1);   // 別把代理對（emoji）切成兩半
+                if (code >= 0xD800 && code <= 0xDBFF) cut--;
+            }
+            chunks.push(rest.slice(0, cut));
+            rest = rest.slice(cut);
+        }
+        if (rest) chunks.push(rest);
+        return chunks;
+    }
+
+    // 長文字分段翻譯後再接回；任一段失敗即視為整體失敗。各段仍走佇列以維持節流。
+    async function translateChunked(text, target) {
+        const chunks = splitTextForTranslation(text, MAX_TRANSLATE_LEN);
+        if (chunks.length <= 1) return translateQueue.add(text, target);
+        let combined = '', detectedLang = null;
+        for (const chunk of chunks) {
+            const res = await translateQueue.add(chunk, target);
+            if (res.error || res.translated === null) {
+                return { translated: null, detectedLang: null, error: res.error || 'unknown' };
+            }
+            combined += res.translated;
+            if (!detectedLang && res.detectedLang) detectedLang = res.detectedLang;
+        }
+        return { translated: combined, detectedLang };
+    }
 
     // API 失敗通知器：30 秒 cooldown，避免洗頻
     const apiErrorNotifier = {
@@ -462,11 +287,12 @@ Settings storage: ExtensionSettings ✅
             const now = Date.now();
             if (now - this.lastNotified < this.cooldown) return;
             this.lastNotified = now;
-            ChatRoomSendLocal(ui('apiFail', reason));
+            ChatRoomSendLocal(ui('apiFail', { hint: apiHint(reason) }));
         }
     };
 
-    async function translateGoogle(text, target) {
+    async function translateGoogle(text, target, attempt = 0) {
+        const MAX_RETRY = 2;
         try {
             const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
             const resp = await fetch(url);
@@ -479,10 +305,16 @@ Settings storage: ExtensionSettings ✅
             const translated = data[0]?.map(seg => seg?.[0] || '').join('') || text;
             return { translated, detectedLang: data[2] || null };
         } catch (e) {
-            // fetch 本身失敗（網路斷線、timeout）
-            const reason = e.message || 'unknown';
+            // fetch 本身失敗（網路斷線、timeout）會是 TypeError
             const isNetwork = e instanceof TypeError;
-            return { translated: null, detectedLang: null, error: isNetwork ? 'network' : reason };
+            const reason = isNetwork ? 'network' : (e.message || 'unknown');
+            // 5xx 伺服器錯誤與網路中斷屬暫時性，退避後重試（600ms、1200ms）
+            const transient = isNetwork || /^http_5\d\d$/.test(reason);
+            if (transient && attempt < MAX_RETRY) {
+                await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+                return translateGoogle(text, target, attempt + 1);
+            }
+            return { translated: null, detectedLang: null, error: reason };
         }
     }
 
@@ -506,7 +338,7 @@ Settings storage: ExtensionSettings ✅
         ) return null;
         if (isPureUrl(text)) return null;
         try {
-            const { translated, error } = await translateQueue.add(text, targetLang);
+            const { translated, error } = await translateChunked(text, targetLang);
             if (error || translated === null) {
                 apiErrorNotifier.notify(error || '');
                 return null;
@@ -543,7 +375,7 @@ Settings storage: ExtensionSettings ✅
             if (abortToken.cancelled) break;
             if (isBioSkipLine(lines[i])) continue;
             try {
-                const { translated, error } = await translateQueue.add(lines[i], targetLang);
+                const { translated, error } = await translateChunked(lines[i], targetLang);
                 if (abortToken.cancelled) break;
                 if (error || translated === null) {
                     apiErrorNotifier.notify(error || '');
@@ -702,11 +534,11 @@ Settings storage: ExtensionSettings ✅
 
         updateClickToolbarStatus(ui('translating'));
 
-        const { translated, error } = await translateQueue.add(message, lang);
+        const { translated, error } = await translateChunked(message, lang);
 
         if (error || translated === null) {
             updateClickToolbarStatus(null);
-            ChatRoomSendLocal(ui('translateFail', error));
+            ChatRoomSendLocal(ui('translateFail', { hint: apiHint(error) }));
             return;
         }
 
@@ -832,7 +664,7 @@ Settings storage: ExtensionSettings ✅
         result.style.display = 'block';
         result.style.color = '#888';
         result.textContent = ui('translating');
-        const { translated, error } = await translateQueue.add(selected, lang);
+        const { translated, error } = await translateChunked(selected, lang);
         if (error || translated === null) {
             result.style.color = '#ff8a80';
             result.textContent = ui('selectionFail');
@@ -1085,10 +917,15 @@ Settings storage: ExtensionSettings ✅
     let uiSendIdx = 0;
     let uiRecvIdx = 0;
 
-    function getLangName(code) {
-        const idx = langCodes.indexOf(code);
-        if (idx === -1) return code;
-        return isZH() ? langNameZH[idx] : langNameEN[idx];
+    // 依瀏覽器語言決定預設接收語言；不在 MAT 翻譯列表(langCodes)內則退回英文。
+    // 僅作為「未曾修改設定」時的預設值——若使用者已存過設定，loadSettings 會覆蓋此值。
+    function detectDefaultRecvLang() {
+        const low = (navigator.language || 'en').toLowerCase();
+        // 中文需區分繁簡，不能只取前兩碼
+        if (/^zh(-|_)?(tw|hant|hk|mo)/.test(low)) return 'zh-TW';
+        if (/^zh/.test(low)) return 'zh-CN';
+        const base = low.split(/[-_]/)[0];
+        return langCodes.includes(base) ? base : 'en';
     }
 
     // ============================================================
@@ -1141,8 +978,8 @@ Settings storage: ExtensionSettings ✅
                 e.preventDefault();
                 config.enabled = !config.enabled;
                 ChatRoomSendLocal(config.enabled
-                                  ? ui('hotkeyEnabled', hotkeyToString(hk))
-                                  : ui('hotkeyDisabled', hotkeyToString(hk)));
+                                  ? ui('hotkeyEnabled', { hk: hotkeyToString(hk) })
+                                  : ui('hotkeyDisabled', { hk: hotkeyToString(hk) }));
                 if (config.enabled) startObserver(); else stopObserver();
                 saveSettings();
             }
@@ -1210,7 +1047,7 @@ Settings storage: ExtensionSettings ✅
             };
 
             DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", ui('btnBack'));
-            DrawText(ui('pageTitle', MOD_VER), 1000, 105, "Black", "Gray");
+            DrawText(ui('pageTitle', { v: MOD_VER }), 1000, 105, "Black", "Gray");
             DrawText(ui('secLive'), 630,  secY, "#2e7d32", "Gray");
             DrawText(ui('secLang'), 1300, secY, "#2e7d32", "Gray");
 
@@ -1517,28 +1354,33 @@ Settings storage: ExtensionSettings ✅
         if (gameReady) {
             initializeConfig();
             waitForSettings(() => {
-                migrateOnlineToExtensionSettings();
+                migrateSettingsKey();
                 loadSettings();
 
-                PreferenceRegisterExtensionSetting({
-                    Identifier: "MachineTranslation",
-                    ButtonText: isZH() ? "機器翻譯設定" : "MAT Settings",
-                    Image: "Icons/Chat.png",
-                    load:   () => matSettingsScreen.load(),
-                    run:    () => matSettingsScreen.run(),
-                    click:  () => matSettingsScreen.click(),
-                    unload: () => matSettingsScreen.unload(),
-                    exit:   () => matSettingsScreen.exit()
-                });
+                // 先確保 i18n 就緒，再註冊 UI 與指令（載入失敗則以 key 原文 fallback）
+                ensureI18n()
+                    .catch(e => console.warn("🐈‍⬛ [MAT] i18n 載入失敗，改以 key 顯示:", e))
+                    .finally(() => {
+                        PreferenceRegisterExtensionSetting({
+                            Identifier: "Liko_MAT_Settings",
+                            ButtonText: ui('prefButton'),
+                            Image: "Icons/Chat.png",
+                            load:   () => matSettingsScreen.load(),
+                            run:    () => matSettingsScreen.run(),
+                            click:  () => matSettingsScreen.click(),
+                            unload: () => matSettingsScreen.unload(),
+                            exit:   () => matSettingsScreen.exit()
+                        });
 
-                registerCommands();
-                hookSendFunctions();
-                hookRoomEvents();
-                hookOnlineProfile();
-                setupSelectionListener();
-                setupClickTranslateListener();
-                setupHotkeyListener();
-                if (config.enabled) startObserver();
+                        registerCommands();
+                        hookSendFunctions();
+                        hookRoomEvents();
+                        hookOnlineProfile();
+                        setupSelectionListener();
+                        setupClickTranslateListener();
+                        setupHotkeyListener();
+                        if (config.enabled) startObserver();
+                    });
             });
         } else {
             setTimeout(waitForGame, 500);
@@ -1556,60 +1398,25 @@ Settings storage: ExtensionSettings ✅
                 const args = text.split(" ");
                 const cmd = args[0]?.toLowerCase();
                 switch(cmd) {
-                    case "": case "help":   ChatRoomSendLocal(ui('help', MOD_VER)); break;
+                    case "": case "help":   ChatRoomSendLocal(ui('help', { v: MOD_VER })); break;
                     case "on":              config.enabled = true;  startObserver(); saveSettings(); ChatRoomSendLocal(ui('cmdOn'));  break;
                     case "off":             config.enabled = false; stopObserver();  saveSettings(); ChatRoomSendLocal(ui('cmdOff')); break;
-                    case "recv":            config.translateReceived  = !config.translateReceived;  saveSettings(); ChatRoomSendLocal(ui('cmdRecv',      config.translateReceived));  break;
-                    case "send":            config.translateSent      = !config.translateSent;      saveSettings(); ChatRoomSendLocal(ui('cmdSend',      config.translateSent));      break;
-                    case "chat":            config.translateChat      = !config.translateChat;      if (!config.translateChat) hideClickToolbar(); saveSettings(); ChatRoomSendLocal(ui('cmdChat', config.translateChat)); break;
-                    case "selection":       config.translateSelection = !config.translateSelection; if (!config.translateSelection) hideSelectionPopup(); saveSettings(); ChatRoomSendLocal(ui('cmdSelection', config.translateSelection)); break;
-                    case "autoscroll":      config.autoScroll         = !config.autoScroll;         saveSettings(); ChatRoomSendLocal(ui('cmdAutoScroll', config.autoScroll)); break;
-                    case "sendlang":        handleLangCommand(args[1], 'send'); break;
-                    case "recvlang":        handleLangCommand(args[1], 'recv'); break;
-                    case "status":          ChatRoomSendLocal(ui('status', MOD_VER, config, hotkeyToString(config.hotkeys.toggle), getLangName)); break;
-                    case "hotkey":          handleHotkeyCommand(args.slice(1)); break;
+                    case "send":            config.translateSent = !config.translateSent; saveSettings(); ChatRoomSendLocal(ui('cmdSend', { v: mk(config.translateSent) })); break;
+                    case "chat":            config.translateChat = !config.translateChat; if (!config.translateChat) hideClickToolbar(); saveSettings(); ChatRoomSendLocal(ui('cmdChat', { v: mk(config.translateChat) })); break;
+                    case "setting": case "settings": openSettingsScreen(); break;
                     default:                ChatRoomSendLocal(ui('cmdUnknown'));
                 }
             }
         }]);
 
-        ChatRoomSendLocal(ui('loaded', MOD_VER));
+        ChatRoomSendLocal(ui('loaded', { v: MOD_VER }));
     }
 
-    function handleHotkeyCommand(args) {
-        const action = args[0]?.toLowerCase();
-        const keyStr = args[1]?.toLowerCase();
-
-        if (!action) { ChatRoomSendLocal(ui('hotkeyList', hotkeyToString(config.hotkeys.toggle))); return; }
-        if (!['toggle'].includes(action)) { ChatRoomSendLocal(ui('hotkeyUnknown', action)); return; }
-        if (!keyStr || keyStr === 'clear') { clearHotkey(action); ChatRoomSendLocal(ui('hotkeyCleared', action)); return; }
-
-        const parts = keyStr.split('+');
-        const mods = [];
-        let keyName = null;
-        for (const part of parts) {
-            if (part === 'ctrl')  { mods.push('Ctrl'); continue; }
-            if (part === 'alt')   { mods.push('Alt');  continue; }
-            if (part === 'shift') { mods.push('Shift'); continue; }
-            keyName = part.toUpperCase();
-        }
-        const code = Object.entries(KEY_DISPLAY).find(([, v]) => v === keyName)?.[0];
-        if (!code) { ChatRoomSendLocal(ui('hotkeyBadKey', keyName)); return; }
-
-        config.hotkeys[action] = { key: code, modifiers: mods };
-        saveSettings();
-        ChatRoomSendLocal(ui('hotkeySet', hotkeyToString(config.hotkeys[action])));
-    }
-
-    function handleLangCommand(langCode, type) {
-        const aliasMap = { 'zh':'zh-TW', 'tw':'zh-TW', 'cn':'zh-CN', 'zh-cn':'zh-CN', 'zh-tw':'zh-TW' };
-        const resolved = aliasMap[langCode?.toLowerCase()] || langCode;
-        if (resolved && langCodes.includes(resolved)) {
-            if (type === 'send') { config.sendLang = resolved; saveSettings(); ChatRoomSendLocal(ui('cmdSendLang', getLangName(resolved))); }
-            else                 { config.recvLang = resolved; saveSettings(); ChatRoomSendLocal(ui('cmdRecvLang', getLangName(resolved))); }
-        } else {
-            ChatRoomSendLocal(ui('cmdCurLang', getLangName(config.sendLang), getLangName(config.recvLang)));
-        }
+    // /mat settings：直接開啟拓展設定內的 MAT 子頁
+    function openSettingsScreen() {
+        if (typeof PreferenceSubscreenExtensionsOpen !== 'function') return;
+        const screen = typeof CommonGetScreen === 'function' ? CommonGetScreen() : undefined;
+        PreferenceSubscreenExtensionsOpen("Liko_MAT_Settings", screen);
     }
 
 })();
