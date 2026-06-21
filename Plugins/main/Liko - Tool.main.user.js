@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      1.5.2-2
+// @version      1.5.3
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.5.2";
+    const MOD_VER = "1.5.3";
     if (window.Liko.LT) return;
     window.Liko.LT = MOD_VER;
     
@@ -268,12 +268,13 @@
     function getES() {
         if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
         if (!Player.ExtensionSettings.LikoTOOL) {
-            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0, rpBtnVisible: 0 };
+            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, RPmode: 0 };
         }
         const s = Player.ExtensionSettings.LikoTOOL;
         if (typeof s.heightFix     === 'undefined') s.heightFix     = 0;
         if (typeof s.heightLock    === 'undefined') s.heightLock    = 0;
         if (typeof s.rpBtnVisible  === 'undefined') s.rpBtnVisible  = 0;
+        if (typeof s.RPmode        === 'undefined') s.RPmode        = 0;
         return s;
     }
 
@@ -290,36 +291,95 @@
         if (!Player.LikoTool) {
             Player.LikoTool = { bypassActivities: false };
         }
-        // OnlineSharedSettings：用於 RPmode（其他人可讀取）
-        if (!Player.OnlineSharedSettings) Player.OnlineSharedSettings = {};
-        if (!Player.OnlineSharedSettings.LikoTOOL) {
-            Player.OnlineSharedSettings.LikoTOOL = { RPmode: 0 };
-        }
-        if (typeof Player.OnlineSharedSettings.LikoTOOL.RPmode === 'undefined') {
-            Player.OnlineSharedSettings.LikoTOOL.RPmode = 0;
-        }
-        // 初始化 ExtensionSettings
-        getES();
+        // 初始化 ExtensionSettings（RPmode 改存於此：私有、不廣播給他人）
+        const s = getES();
+
+        // 一次性遷移 + 清除：RPmode 過去誤存在 OnlineSharedSettings（會廣播給所有人，且沒載入插件也殘留 → 幽靈徽章）。
+        // 現在徽章改由即時握手判定，OnlineSharedSettings.LikoTOOL 已無用途，搬走開啟狀態後清掉以釋放容量。
+        try {
+            const legacy = Player.OnlineSharedSettings?.LikoTOOL;
+            if (legacy) {
+                if (legacy.RPmode === 1 && s.RPmode !== 1) { s.RPmode = 1; saveES(); } // 沿用使用者原本的開啟狀態
+                delete Player.OnlineSharedSettings.LikoTOOL;
+                if (typeof ServerAccountUpdate?.QueueData === 'function') {
+                    ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+                }
+                console.log("🐈‍⬛ [LT] 🧹 已清除舊的 OnlineSharedSettings.LikoTOOL");
+            }
+        } catch (e) {}
     }
 
     // ──────────────────────────────────────────
-    // RP 模式（透過 OnlineSharedSettings，其他人可見）
+    // RP 模式（自身狀態存於 ExtensionSettings，私有不廣播；他人徽章改由即時握手判定）
     // ──────────────────────────────────────────
     function getRpMode(character) {
-        if (!character) return false;
-        if (character.IsPlayer && character.IsPlayer()) {
-            return Player.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
-        }
-        return character.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
+        // 僅用於自身（他人徽章改由 isRpBadgeVisible + 即時握手旗標判定）。
+        // 純讀取、不初始化結構，可安全在 hook 回呼內呼叫。
+        return Player.ExtensionSettings?.LikoTOOL?.RPmode === 1;
     }
 
     function setRpMode(enabled) {
-        if (!Player.OnlineSharedSettings) Player.OnlineSharedSettings = {};
-        if (!Player.OnlineSharedSettings.LikoTOOL) Player.OnlineSharedSettings.LikoTOOL = {};
-        Player.OnlineSharedSettings.LikoTOOL.RPmode = enabled ? 1 : 0;
-        if (typeof ServerAccountUpdate?.QueueData === 'function') {
-            ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+        // 直接寫入並同步 ExtensionSettings（不呼叫 getES，故指令路徑與點擊 hook 路徑皆可安全使用）
+        if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
+        if (!Player.ExtensionSettings.LikoTOOL) Player.ExtensionSettings.LikoTOOL = {};
+        Player.ExtensionSettings.LikoTOOL.RPmode = enabled ? 1 : 0;
+        if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+            ServerPlayerExtensionSettingsSync("LikoTOOL");
         }
+        sendRpSync(false); // 切換後即時廣播新狀態給全房，更新他人端徽章
+    }
+
+    // ──────────────────────────────────────────
+    // RP 狀態即時握手（Hidden 訊息）
+    // 徽章以「對方此刻 LT 有載入且 RP 開啟」為準，而非持久化的 OnlineSharedSettings
+    // （OnlineSharedSettings 沒載入插件也會殘留 → 幽靈徽章）
+    // ──────────────────────────────────────────
+    const LT_HIDDEN_MSG = "LT_RP_SYNC";
+
+    function sendRpSync(requestReply = false, target = null) {
+        try {
+            // 用伺服器房間狀態判斷，而非 CurrentScreen，避免進房轉場瞬間送出被吞掉
+            if (typeof ServerPlayerIsInChatRoom !== 'function' || !ServerPlayerIsInChatRoom()) return;
+            const msg = {
+                Type: "Hidden",
+                Content: LT_HIDDEN_MSG,
+                Sender: Player.MemberNumber,
+                Dictionary: [{ lt: { rp: getRpMode(Player) ? 1 : 0, replyRequested: requestReply } }]
+            };
+            if (target) msg.Target = target; // 定向（只送給特定成員）
+            ServerSend("ChatRoomChat", msg);
+        } catch (e) {}
+    }
+
+    function parseRpSync(data, deferred = false) {
+        try {
+            if (!data || data.Type !== "Hidden" || data.Content !== LT_HIDDEN_MSG) return;
+            // 搜尋整個 Dictionary，而非寫死 [0]（其它 mod 可能在前面插入條目）
+            const ltData = Array.isArray(data.Dictionary) ? data.Dictionary.find(d => d?.lt)?.lt : data.Dictionary?.lt;
+            if (!ltData) return;
+            const sender = ChatRoomCharacter?.find(c => c.MemberNumber === data.Sender);
+            // 隱藏訊息可能比角色物件建立更早到達 —— 延後到下一個微任務重試一次
+            if (!sender) { if (deferred !== true) queueMicrotask(() => parseRpSync(data, true)); return; }
+            if (sender.IsPlayer && sender.IsPlayer()) return;
+            sender.LTRPmode = ltData.rp === 1; // 即時旗標，徽章繪製只看這個
+            if (ltData.replyRequested) sendRpSync(false, data.Sender); // 定向回覆，回覆不再要求回覆以免迴圈
+        } catch (e) {}
+    }
+
+    // 把 ChatRoomMessage 監聽重綁到目前的 ServerSocket（重連/重複登入會重建 socket）
+    function bindRpSocketListener() {
+        try {
+            if (typeof ServerSocket === 'undefined' || !ServerSocket) return;
+            ServerSocket.off("ChatRoomMessage", parseRpSync);
+            ServerSocket.on("ChatRoomMessage", parseRpSync);
+        } catch (e) {}
+    }
+
+    // 徽章可見性：自己看自身開關（LT 必然已載入）；他人只信任即時握手旗標
+    function isRpBadgeVisible(C) {
+        if (!C) return false;
+        if (C.IsPlayer && C.IsPlayer()) return getRpMode(Player);
+        return C.LTRPmode === true;
     }
 
     // ──────────────────────────────────────────
@@ -424,7 +484,7 @@
     // Canvas：繪製 RP 圖標
     // ──────────────────────────────────────────
     function drawRpIcon(C, CharX, CharY, Zoom) {
-        if (!getRpMode(C)) return;
+        if (!isRpBadgeVisible(C)) return;
         const offsetY = (C.IsKneeling && C.IsKneeling()) ? 300 : 40;
         DrawImageResize(rpIconUrl, CharX + 340 * Zoom, CharY + offsetY * Zoom, 45 * Zoom, 50 * Zoom);
     }
@@ -854,6 +914,17 @@
             return result;
         });
 
+        // RP 即時握手：自己進房 / 全房重同步時，廣播自身狀態並要求在場者回覆
+        safeHookFunction("ChatRoomSync", 5, (args, next) => { const r = next(args); sendRpSync(true); return r; });
+        // 別人晚於自己進房時，BC 對既有成員觸發的是 ChatRoomSyncMemberJoin —— 對新人定向握手
+        safeHookFunction("ChatRoomSyncMemberJoin", 5, (args, next) => {
+            const r = next(args);
+            try { const d = args[0]; if (d && d.SourceMemberNumber != null && d.SourceMemberNumber !== Player.MemberNumber) sendRpSync(true, d.SourceMemberNumber); } catch (e) {}
+            return r;
+        });
+        // 重連 / 重複登入會重跑 ServerInit 並換掉 ServerSocket，必須重綁監聽，否則從此收不到任何人的狀態
+        safeHookFunction("ServerInit", 1, (args, next) => { const r = next(args); bindRpSocketListener(); return r; });
+
         // 繪製 RP 按鈕（rpBtnVisible 存於 ExtensionSettings.LikoTOOL）
         safeHookFunction("DrawProcess", 4, (args, next) => {
             const result = next(args);
@@ -1197,6 +1268,7 @@
 
         initializeStorage();
         setupHooks();
+        bindRpSocketListener();
 
         const registerCommand = () => {
             CommandCombine([{ Tag: "lt", Description: "Execute Liko Tool command", Action: handleLtCommand }]);
@@ -1214,6 +1286,8 @@
 
         waitFor(() => CurrentScreen === "ChatRoom").then(() => {
             ChatRoomSendLocal(t('loaded', { v: MOD_VER }), 30000);
+            // LT 在已於房內時才載入完成（不會再有 ChatRoomSync 觸發），廣播一發並要求在場者回覆
+            sendRpSync(true);
         });
 
         console.log(`🐈‍⬛ [LT] ✅ 插件已載入 v${MOD_VER}`);
@@ -1226,6 +1300,7 @@
         if (modApi && typeof modApi.onUnload === 'function') {
             modApi.onUnload(() => {
                 if (heightTargetChar) { removeHeightHijack(heightTargetChar); heightTargetChar = null; }
+                try { if (typeof ServerSocket !== 'undefined' && ServerSocket) ServerSocket.off("ChatRoomMessage", parseRpSync); } catch (e) {}
                 delete window.__LikoToolLoaded__;
                 console.log("🐈‍⬛ [LT] 🗑️ 插件卸載");
             });
