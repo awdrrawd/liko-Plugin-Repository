@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.0.0
+// @version      2.0.1
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,7 +14,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.0.0";
+    const MOD_VER = "2.0.1";
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
 
@@ -109,22 +109,37 @@
         }
     }
 
-    function sendPCMInitialization(requestReply = false) {
+    function sendPCMInitialization(requestReply = false, target = null) {
         try {
-            if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom') return;
-            ServerSend("ChatRoomChat", { Type: "Hidden", Content: PCM_HIDDEN_MSG, Sender: Player.MemberNumber, Dictionary: [{ pcm: { version: MOD_VER, replyRequested: requestReply } }] });
+            // 用伺服器房間狀態判斷，而非 CurrentScreen —— 避免進房轉場瞬間送出被吞掉
+            if (typeof ServerPlayerIsInChatRoom !== 'function' || !ServerPlayerIsInChatRoom()) return;
+            const msg = { Type: "Hidden", Content: PCM_HIDDEN_MSG, Sender: Player.MemberNumber, Dictionary: [{ pcm: { version: MOD_VER, replyRequested: requestReply } }] };
+            if (target) msg.Target = target; // 定向（只送給特定成員），減少全房廣播量
+            ServerSend("ChatRoomChat", msg);
         } catch(e) {}
     }
 
-    function parsePCMMessage(data) {
+    function parsePCMMessage(data, deferred = false) {
         try {
             if (data.Type !== "Hidden" || data.Content !== PCM_HIDDEN_MSG) return;
-            const sender = Character?.find(c => c.MemberNumber === data.Sender);
-            if (!sender || sender.ID === 0) return;
-            const pcmData = data.Dictionary?.[0]?.pcm;
+            // 搜尋整個 Dictionary，而非寫死 [0]（其它 mod 可能在前面插入條目）
+            const pcmData = Array.isArray(data.Dictionary) ? data.Dictionary.find(d => d?.pcm)?.pcm : data.Dictionary?.pcm;
             if (!pcmData) return;
+            const sender = Character?.find(c => c.MemberNumber === data.Sender);
+            // 隱藏訊息可能比遊戲建立 sender 角色更早到達 —— 延後到下一個微任務重試一次
+            if (!sender) { if (deferred !== true) queueMicrotask(() => parsePCMMessage(data, true)); return; }
+            if (sender.ID === 0) return;
             sender.PCM = { version: pcmData.version };
-            if (pcmData.replyRequested) sendPCMInitialization(false);
+            if (pcmData.replyRequested) sendPCMInitialization(false, data.Sender); // 定向回覆給發問者
+        } catch(e) {}
+    }
+
+    // 把 ChatRoomMessage 監聽重新綁到目前的 ServerSocket（off 再 on，避免同一 socket 重複綁）
+    function bindPCMSocketListener() {
+        try {
+            if (typeof ServerSocket === 'undefined' || !ServerSocket) return;
+            ServerSocket.off("ChatRoomMessage", parsePCMMessage);
+            ServerSocket.on("ChatRoomMessage", parsePCMMessage);
         } catch(e) {}
     }
 
@@ -191,6 +206,14 @@
         });
         sh('ChatRoomClearAllElements', 5, (args, next) => { characterDrawPositions.clear(); hoveredCharacters.clear(); return next(args); });
         sh('ChatRoomSync', 5, (args, next) => { const r = next(args); syncDrawPositionsWithRoom(); sendPCMInitialization(true); return r; });
+        // 有人晚於自己進房時，BC 對既有成員觸發的是 ChatRoomSyncMemberJoin（不是 ChatRoomSync）——對新人定向握手並要求回覆
+        sh('ChatRoomSyncMemberJoin', 5, (args, next) => {
+            const r = next(args);
+            try { const d = args[0]; if (d && d.SourceMemberNumber != null && d.SourceMemberNumber !== Player.MemberNumber) sendPCMInitialization(true, d.SourceMemberNumber); } catch(e) {}
+            return r;
+        });
+        // 遊戲重連 / 重複登入會重跑 ServerInit 並換掉 ServerSocket，必須把監聽重新綁到新 socket，否則從此收不到任何人的訊息
+        sh('ServerInit', 1, (args, next) => { const r = next(args); bindPCMSocketListener(); return r; });
         sh('CommonSetScreen', 1, (args, next) => {
             const r = next(args);
             try { lastScreenCheck = null; lastScreenCheckTime = 0; cachedViewingCharacter = null; lastCharacterCheck = 0; currentUIState = null; checkLanguageChange(); createManagerUI(); if (!localLoadStarted) loadLocalPluginsPhase(); if (!accountLoadStarted) loadAccountPluginsPhase(); } catch(e) {}
@@ -211,8 +234,9 @@
         const wait = () => {
             if (!modApi?.hookFunction || typeof ServerSocket === 'undefined' || !ServerSocket) { setTimeout(wait, 500); return; }
             initializePCMBadgeImage(); setupHoverTracking(); cleanupLegacyOnlineSettings(); hookCharacterDrawing();
-            ServerSocket.on("ChatRoomMessage", parsePCMMessage);
-            if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') sendPCMInitialization(true);
+            bindPCMSocketListener();
+            // 載入時若已在房內（不會再有 ChatRoomSync/MemberJoin 觸發），廣播一發並要求回覆讓在場所有人回應自己
+            sendPCMInitialization(true);
             if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
                 try { ServerSocket.off("ChatRoomMessage", parsePCMMessage); } catch(e) {}
                 if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
