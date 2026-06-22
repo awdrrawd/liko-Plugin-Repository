@@ -73,7 +73,6 @@
                 version: MOD_VERSION,
                 repository: 'Hidden Arousal in Appearance, InformationSheet, ChatRoom+CurrentCharacter'
             });
-            console.log('🐈‍⬛ [HHA] ✅ SDK 註冊成功');
         } catch (e) {
             console.error('🐈‍⬛ [HHA] ❌ SDK 註冊失敗:', e);
             return;
@@ -83,7 +82,6 @@
             if (shouldHide()) return false;
             return next(args);
         });
-
         console.log('🐈‍⬛ [HHA] ✅ PreferenceArousalAtLeast hooked via SDK');
     });
 
