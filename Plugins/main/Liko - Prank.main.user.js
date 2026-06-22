@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.6.0
+// @version      1.6.1
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -15,7 +15,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.0";
+    const MOD_VER = "1.6.1";
     if (window.Liko.Prank) return;
     window.Liko.Prank = MOD_VER;
 
@@ -164,19 +164,32 @@
         return colors[Math.floor(Math.random() * colors.length)];
     }
 
-    const appearanceGroupNames = [
-        "Panties", "Socks", "ClothLower", "Gloves", "HairAccessory1", "Cloth", "Bra", "Hat", "Shoes",
-        "ClothAccessory", "Necklace", "Suit", "SuitLower", "Corset", "SocksRight", "SocksLeft",
-        "RightAnklet", "LeftAnklet", "Garters", "HairAccessory3", "Bracelet", "Glasses", "Jewelry",
-        "Mask", "HairFront", "Mask_笨笨蛋Luzi", "Gloves_笨笨蛋Luzi", "Luzi_HairAccessory3_2",
-        "Luzi_HairAccessory3_1", "HairAccessory3_笨笨蛋Luzi", "Hat_笨笨蛋Luzi", "Shoes_笨笨蛋Luzi",
-        "Necklace_笨笨蛋Luzi", "ClothAccessory_笨笨笨蛋Luzi2", "SuitLower_笨笨蛋Luzi",
-        "Suit_笨笨蛋Luzi", "Panties_笨笨蛋Luzi", "ClothLower_笨笨笨蛋Luzi2", "ClothLower_笨笨蛋Luzi",
-        "Cloth_笨笨笨蛋Luzi2", "BodyMarkings2_Luzi", "长袖子_Luzi", "身体痕迹_Luzi", "Liquid2_Luzi",
-        "FaceMarkings", "BodyMarkings", "HandAccessoryRight", "HandAccessoryLeft", "AnkletLeft",
-        "AnkletRight", "EyeShadow", "ClothOuter", "Cloth_笨笨蛋Luzi", "ClothAccessory_笨笨蛋Luzi",
-        "Bra_笨笨蛋Luzi", "Decals"
+    // 溶解時要「保留」的部位/物件群組（不在清單內者一律溶解）。
+    const dissolveKeepGroups = [
+        "ArmsLeft", "ArmsRight", "HandsLeft", "HandsRight", "Mouth", "Pronouns", "Head", "Blush",
+        "Fluids", "Emoticon", "Eyes", "Eyes2", "右眼_Luzi", "Eyebrows", "BodyStyle", "HairFront",
+        "Nipples", "Pussy", "BodyLower", "BodyUpper", "Height", "HairBack", "左眼_Luzi",
+        "新后发_Luzi_stack", "外观工具", "新前发_Luzi", "Wings", "TailStraps", "HairAccessory2",
+        "额外头发_Luzi", "新后发_Luzi", "新前发_Luzi_stack", "额外身高_Luzi", "动物身体_Luzi",
+        "Wings_笨笨蛋Luzi", "Luzi_TailStraps_0"
     ];
+
+    // 弱溶解：在上述保留群組之外，額外保留內衣褲。
+    const dissolveKeepGroupsWeak = [
+        ...dissolveKeepGroups,
+        "Bra", "Panties", "Bra_笨笨蛋Luzi", "Panties_笨笨蛋Luzi"
+    ];
+
+    // 依保留清單溶解目標衣物：保留清單內的群組留下，其餘移除。
+    function dissolveAppearance(target, keepGroups) {
+        const keepFilter = (item) => keepGroups.includes(item.Group);
+        const appearance = ServerAppearanceBundle(target.Appearance).filter(keepFilter);
+        ServerSend("ChatRoomCharacterUpdate", {
+            ID: target.ID === 0 ? target.OnlineID : target.AccountName.replace("Online-", ""),
+            ActivePose: target.ActivePose,
+            Appearance: appearance
+        });
+    }
 
     // ===== 命令功能 =====
     function stealPanties(args) {
@@ -267,14 +280,7 @@
                 return chatSendLocal(getMessage('noPermission'));
             }
 
-            const noClothesFilter = (item) => !appearanceGroupNames.includes(item.Group);
-            const appearance = ServerAppearanceBundle(target.Appearance).filter(noClothesFilter);
-
-            ServerSend("ChatRoomCharacterUpdate", {
-                ID: target.ID === 0 ? target.OnlineID : target.AccountName.replace("Online-", ""),
-                ActivePose: target.ActivePose,
-                Appearance: appearance
-            });
+            dissolveAppearance(target, dissolveKeepGroups);
 
             chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothes') + " " + getNickname(target) + getMessage('dissolveClothesTarget'));
         } catch (error) {
@@ -659,13 +665,31 @@
             ],
             CustomAction: {
                 Func: (target, args, next) => {
-                    const noClothesFilter = (item) => !appearanceGroupNames.includes(item.Group);
-                    const appearance = ServerAppearanceBundle(target.Appearance).filter(noClothesFilter);
-                    ServerSend("ChatRoomCharacterUpdate", {
-                        ID: target.ID === 0 ? target.OnlineID : target.AccountName.replace("Online-", ""),
-                        ActivePose: target.ActivePose,
-                        Appearance: appearance
-                    });
+                    dissolveAppearance(target, dissolveKeepGroups);
+                    const isSelf = target.MemberNumber === Player.MemberNumber;
+                    if (isSelf) {
+                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
+                    } else {
+                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothes') + " " + getNickname(target) + getMessage('dissolveClothesTarget'));
+                    }
+                }
+            },
+            CustomImage: ImagePathHelper.getAssetURL("Female3DCG/ItemHandheld/Preview/PotionBottle.png")
+        });
+
+        AddActivity({
+            Activity: { Name: "DissolveClothesWeak", MaxProgress: 60, MaxProgressSelf: 60, Prerequisite: [] },
+            Targets: [{
+                TargetLabel: getMessage('actDissolveClothesWeak'), Name: "ItemHead", SelfAllowed: true,
+                TargetAction: getMessage('actDissolveClothesDesc'), TargetSelfAction: getMessage('actDissolveClothesSelf')
+            }],
+            CustomPrereqs: [
+                { Name: "LikoCanInteract", Func: actData.CustomPrerequisiteFuncs.get("LikoCanInteract") },
+                { Name: "LikoHasBCItemPermission", Func: actData.CustomPrerequisiteFuncs.get("LikoHasBCItemPermission") }
+            ],
+            CustomAction: {
+                Func: (target, args, next) => {
+                    dissolveAppearance(target, dissolveKeepGroupsWeak);
                     const isSelf = target.MemberNumber === Player.MemberNumber;
                     if (isSelf) {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
@@ -836,44 +860,43 @@
     }
 
     // ===== 活动按钮标记 (🪄) =====
-    // 仿 Echo 的 echo-item-tooltip-wrapper：在自订活动按钮角落加一个小标记
+    // .liko-prank-badge的z-index:0即可，甚至不設定
     function injectPrankBadgeStyle() {
         if (document.getElementById("liko-prank-badge-style")) return;
         const style = document.createElement("style");
         style.id = "liko-prank-badge-style";
         style.textContent = `
-.liko-prank-badge {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 1.4em;
-    height: 1.4em;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    line-height: 1;
-    pointer-events: auto;
-    z-index: 5;
-    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.7));
-}
-.liko-prank-badge::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: 110%;
-    right: 0;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: rgba(0, 0, 0, 0.85);
-    color: #fff;
-    font-size: 12px;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.1s;
-}
-.liko-prank-badge:hover::after { opacity: 1; }
-`;
+            .liko-prank-badge {
+                position: absolute;
+                top: 2px;
+                right: 2px;
+                width: 1.4em;
+                height: 1.4em;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 16px;
+                line-height: 1;
+                pointer-events: auto;
+                filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.7));
+            }
+            .liko-prank-badge::after {
+                content: attr(data-tooltip);
+                position: absolute;
+                bottom: 110%;
+                right: 0;
+                padding: 2px 6px;
+                border-radius: 4px;
+                background: rgba(0, 0, 0, 0.85);
+                color: #fff;
+                font-size: 12px;
+                white-space: nowrap;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.1s;
+            }
+            .liko-prank-badge:hover::after { opacity: 1; }
+        `;
         document.head.appendChild(style);
     }
 
@@ -963,11 +986,11 @@
     async function phase2() {
         try {
             await waitFor(() =>
-                typeof CommandCombine === "function" &&
-                typeof ActivityFemale3DCG !== "undefined" &&
-                typeof ActivityDictionary !== "undefined",
-                30000  // 已知登入完成，30 秒綽綽有餘
-            );
+                          typeof CommandCombine === "function" &&
+                          typeof ActivityFemale3DCG !== "undefined" &&
+                          typeof ActivityDictionary !== "undefined",
+                          30000  // 已知登入完成，30 秒綽綽有餘
+                         );
 
             // 先确保 i18n 就绪，再注册活动（活动标签在注册当下就写入 ActivityDictionary，
             // 故必须先载入字库；载入失败则以 key 原文 fallback，不阻断注册）
@@ -980,18 +1003,18 @@
                 { Tag: "dissolve", Description: isZh ? "溶解衣服" : "Dissolve clothes", Action: (args) => spillObscenePotion(args) },
                 { Tag: "溶解",     Description: "溶解衣服",                             Action: (args) => spillObscenePotion(args) },
                 { Tag: "teleport", Description: isZh ? "传送" : "Teleport",            Action: (args) => openPortal(args) },
-                { Tag: "傳送",     Description: "传送",                                 Action: (args) => openPortal(args) },
+                { Tag: "傳送",     Description: "傳送",                                 Action: (args) => openPortal(args) },
                 { Tag: "传送",     Description: "传送",                                 Action: (args) => openPortal(args) }
             ]);
-    
+
             registerActivities();
             chatSendLocal(getMessage('loaded', { v: MOD_VER }));
-    
+
         } catch (error) {
             console.error("🐈‍⬛ [prank] ❌ Phase 2 (registration) failed:", error);
         }
     }
-    
+
     (async () => {
         // ── Phase 1：SDK 就緒後立即執行，不依賴登入狀態 ──
         const sdkOk = await waitForBcModSdk();
@@ -1003,16 +1026,13 @@
                     version: MOD_VER,
                     repository: "Liko's prank"
                 });
-                console.log(`🐈‍⬛ [prank] ✅ v${MOD_VER} loaded!`);
+            console.log(`🐈‍⬛ [Prank] ✅ v${MOD_VER} ready`);
             } catch (error) {
                 console.error("🐈‍⬛ [prank] ❌ Failed to register mod", error);
             }
-        } else {
-            console.warn("🐈‍⬛ [prank] ⚠️ bcModSdk not available, continuing without modApi");
         }
-    
         setupHooks();  // hooks 掛在遊戲函式上，不需要玩家登入
-    
+
         // ── Phase 2 觸發：hook LoginResponse，登入完成時才註冊活動與指令 ──
         if (modApi?.hookFunction) {
             let phase2Done = false;
@@ -1024,13 +1044,6 @@
                 }
                 return result;
             });
-        }
-    
-        // ── 補救：腳本載入時玩家已登入（例如 F5 重載），直接執行 Phase 2 ──
-        if (typeof Player !== "undefined" &&
-            typeof Player.MemberNumber === "number" &&
-            Player.MemberNumber > 0) {
-            phase2();
         }
     })();
 })();
