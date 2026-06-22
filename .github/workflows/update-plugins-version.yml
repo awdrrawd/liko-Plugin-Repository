@@ -1,0 +1,35 @@
+name: Update Plugins.json versions
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Plugins/**'          # 只在 Plugins 資料夾有變動時觸發
+  workflow_dispatch:          # 也可手動跑
+
+permissions:
+  contents: write             # 允許 bot 推回
+
+concurrency:
+  group: update-plugins-version
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node .github/scripts/update-versions.mjs
+      - name: Commit
+        run: |
+          if [[ -n "$(git status --porcelain Plugins.json)" ]]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add Plugins.json
+            git commit -m "chore: auto-update plugin versions"
+            git push
+          else
+            echo "No changes"
+          fi
