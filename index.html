@@ -260,6 +260,7 @@ pre {
 .tag-warn { background: rgba(232,121,184,0.12); border: 1px solid rgba(232,121,184,0.3); color: var(--pink); }
 .tag-cheat{ background: rgba(251,191,36,0.12);  border: 1px solid rgba(251,191,36,0.3);  color: var(--gold); }
 .tag-rec  { background: rgba(251,191,36,0.15);  border: 1px solid rgba(251,191,36,0.4);  color: var(--gold); }
+.tag-ver  { background: rgba(103,232,249,0.12); border: 1px solid rgba(103,232,249,0.35); color: var(--cyan); font-variant-numeric: tabular-nums; }
 
 .card-desc { font-size: 13.5px; color: var(--textMid); line-height: 1.65; flex: 1; }
 .card-desc .note {
@@ -1220,6 +1221,36 @@ document.addEventListener('DOMContentLoaded', () => {
   }, { threshold: 0.08 });
   document.querySelectorAll('.plugin-card').forEach(c => { c.style.opacity = '0'; observer.observe(c); });
 });
+
+// === 從 Plugins.json 動態貼上版本號（混合方案）===
+(async () => {
+  const SRC = [
+    'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json',
+    'https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json'
+  ];
+  let data;
+  for (const u of SRC) {
+    try { const r = await fetch(u, { cache: 'no-cache' }); if (r.ok) { data = await r.json(); break; } } catch (e) {}
+  }
+  if (!data || !Array.isArray(data.plugins)) return;
+
+  const verById = Object.fromEntries(
+    data.plugins.filter(p => p.version).map(p => [p.id, p.version])
+  );
+
+  document.querySelectorAll('.plugin-card').forEach(card => {
+    const id = card.querySelector('.tag-id')?.textContent.trim();  // 用既有的 Liko-XXX 標籤對應
+    const v = id && verById[id];
+    if (!v) return;
+    const tags = card.querySelector('.card-tags');
+    if (tags && !tags.querySelector('.tag-ver')) {
+      const span = document.createElement('span');
+      span.className = 'tag tag-ver';
+      span.textContent = 'v' + v;
+      tags.appendChild(span);
+    }
+  });
+})();
 </script>
 </body>
 </html>

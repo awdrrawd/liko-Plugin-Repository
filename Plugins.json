@@ -44,7 +44,8 @@
       "en_additionalInfo": "For detailed usage instructions, please enter /LT or /LT help.",
       "icon": "🧰",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Tool.main.user.js",
-      "priority": 3
+      "priority": 3,
+      "version": "1.5.3"
     },
     {
       "id": "Liko-CPB",
@@ -56,7 +57,8 @@
       "en_additionalInfo": "",
       "icon": "🪪",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CPB.main.user.js",
-      "priority": 9
+      "priority": 9,
+      "version": "1.2.2"
     },
     {
       "id": "Liko-Image_Uploader",
@@ -68,7 +70,8 @@
       "en_additionalInfo": "If the image fails to upload, you can use /IMG or /IMG HELP to view the instructions.",
       "icon": "🖼️",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
-      "priority": 3
+      "priority": 3,
+      "version": "1.6.1"
     },
     {
       "id": "Liko-CHE",
@@ -80,7 +83,8 @@
       "en_additionalInfo": "Includes complete chat logs, timestamps and character info, compatible with sites like Neocities for sharing",
       "icon": "📖",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CHE.main.user.js",
-      "priority": 3
+      "priority": 3,
+      "version": "2.4.4"
     },
     {
       "id": "Liko-CDB",
@@ -92,7 +96,8 @@
       "en_additionalInfo": "Now there is a function to change posture",
       "icon": "👗",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js",
-      "priority": 3
+      "priority": 3,
+      "version": "1.5.2"
     },
     {
       "id": "Liko-Prank",
@@ -104,7 +109,8 @@
       "en_additionalInfo": "Warning: This is a prank plugin, use with caution! Command /Steal, /dissolve, /Teleport",
       "icon": "🪄",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Prank.main.user.js",
-      "priority": 5
+      "priority": 5,
+      "version": "1.6.0"
     },
     {
       "id": "Liko-NOI",
@@ -116,7 +122,8 @@
       "en_additionalInfo": "For detailed usage instructions, please enter /NOI or /NOI help.",
       "icon": "📧",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20NOI.main.user.js",
-      "priority": 5
+      "priority": 5,
+      "version": "1.1"
     },
     {
       "id": "Liko-Release_Maid",
@@ -128,7 +135,8 @@
       "en_additionalInfo": "Please consider your own needs to avoid diminishing the enjoyment of the game.",
       "icon": "🧹",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Release%20Maid.main.user.js",
-      "priority": 10
+      "priority": 10,
+      "version": "1.2"
     },
     {
       "id": "Liko-Chat_TtoB",
@@ -140,7 +148,8 @@
       "en_additionalInfo": "Commands starting with /, !! for speech, 和 #RoomName# will become clickable buttons. The #RoomName# button provides a teleport function.",
       "icon": "💬",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
-      "priority": 5
+      "priority": 5,
+      "version": "1.1.1"
     },
     {
       "id": "Liko-CDT",
@@ -152,7 +161,8 @@
       "en_additionalInfo": "",
       "icon": "🖌️",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDT.main.user.js",
-      "priority": 10
+      "priority": 10,
+      "version": "1.3"
     },
     {
       "id": "ECHO-Cloth",
@@ -218,7 +228,8 @@
       "en_additionalInfo": "",
       "icon": "🎬",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20ACV.main.user.js",
-      "priority": 5
+      "priority": 5,
+      "version": "1.3.1"
     },
     {
       "id": "Liko-WPS",
@@ -230,7 +241,8 @@
       "en_additionalInfo": "",
       "icon": "🆔",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20WPS.main.user.js",
-      "priority": 5
+      "priority": 5,
+      "version": "1.1.2"
     },
     {
       "id": "Liko-MAT",
@@ -242,7 +254,8 @@
       "en_additionalInfo": "",
       "icon": "🌐",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20MAT.main.user.js",
-      "priority": 3
+      "priority": 3,
+      "version": "1.4.0"
     },
     {
       "id": "ULTRAbc",
@@ -255,7 +268,11 @@
       "icon": "🐇",
       "url": "https://tetris245.github.io/ultrabc.github.io/ULTRAbcloader.user.js",
       "altUrl": "https://tetris245.github.io/ultrabc.github.io/ULTRAbcloader-ch.user.js",
-      "triLabels": ["OFF", "EN", "ZH"],
+      "triLabels": [
+        "OFF",
+        "EN",
+        "ZH"
+      ],
       "website": "https://github.com/tetris245/ULTRAbc",
       "priority": 2
     },
@@ -269,7 +286,8 @@
       "en_additionalInfo": "",
       "icon": "⚧️",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
-      "priority": 8
+      "priority": 8,
+      "version": "1.2"
     },
     {
       "id": "Liko-CFT",
@@ -281,7 +299,8 @@
       "en_additionalInfo": "",
       "icon": "📋",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CFT.main.user.js",
-      "priority": 8
+      "priority": 8,
+      "version": "1.1.3"
     },
     {
       "id": "Liko-TRC",
@@ -293,7 +312,8 @@
       "en_additionalInfo": "",
       "icon": "🎮",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20TRC.main.user.js",
-      "priority": 7
+      "priority": 7,
+      "version": "1.1.0"
     },
     {
       "id": "Liko-ACF",
@@ -305,7 +325,8 @@
       "en_additionalInfo": "",
       "icon": "🌸",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js",
-      "priority": 3
+      "priority": 3,
+      "version": "0.6.1"
     },
     {
       "id": "GGC",
@@ -330,7 +351,8 @@
       "en_additionalInfo": "Provides features for saving and searching personal profiles, and managing room lists.",
       "icon": "👥",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20FCM.main.user.js",
-      "priority": 3
+      "priority": 3,
+      "version": "1.4.2"
     },
     {
       "id": "Liko-CMC",
@@ -342,7 +364,8 @@
       "en_additionalInfo": "",
       "icon": "🎵",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CMC.main.user.js",
-      "priority": 6
+      "priority": 6,
+      "version": "1.3.0"
     },
     {
       "id": "Liko-IVH",
@@ -354,7 +377,8 @@
       "en_additionalInfo": "",
       "icon": "🌀",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20IVH.main.user.js",
-      "priority": 5
+      "priority": 5,
+      "version": "1.0"
     },
     {
       "id": "Liko-MPL",
@@ -366,7 +390,8 @@
       "en_additionalInfo": "",
       "icon": "📱",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20MPL.main.user.js",
-      "priority": 5
+      "priority": 5,
+      "version": "0.5.3"
     },
     {
       "id": "Fix-HHA",
@@ -378,7 +403,8 @@
       "en_additionalInfo": "",
       "icon": "💉",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Hotfix/HHA.user.js",
-      "priority": 10
+      "priority": 10,
+      "version": "0.2"
     },
     {
       "id": "Fix-HLF",
@@ -390,7 +416,8 @@
       "en_additionalInfo": "",
       "icon": "💉",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Hotfix/HLF.user.js",
-      "priority": 10
+      "priority": 10,
+      "version": "0.2"
     }
   ]
 }
