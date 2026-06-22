@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.4.0
+// @version      1.4.1
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,12 +13,17 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.4.0";
+    const MOD_VER = "1.4.1";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
     let modApi;
     let observer = null;
+
+    // 預設熱鍵；用工廠回傳新物件，避免多處共用同一參考被意外改到
+    function makeDefaultHotkeys() {
+        return { toggle: { key: 'KeyM', modifiers: ['Ctrl'] } };
+    }
 
     let config = {
         enabled: true,
@@ -29,16 +34,8 @@
         translateSelection: true,
         translateChat: true,
         autoScroll: true,
-        hotkeys: {
-            toggle: { key: 'KeyM', modifiers: ['Ctrl'] }
-        }
+        hotkeys: makeDefaultHotkeys()
     };
-
-    (function injectStyles() {
-        const style = document.createElement('style');
-        style.textContent = `/* MAT v${MOD_VER} */`;
-        document.head.appendChild(style);
-    })();
 
     // ============================================================
     // 語系偵測（遊戲就緒後才準確）
@@ -136,14 +133,14 @@
             translateSelection: true,
             translateChat: true,
             autoScroll: true,
-            hotkeys: { toggle: { key: 'KeyM', modifiers: ['Ctrl'] } }
+            hotkeys: makeDefaultHotkeys()
         };
         if (!config || typeof config !== 'object') config = { ...defaults };
         for (const [key, val] of Object.entries(defaults)) {
             if (config[key] === undefined || config[key] === null) config[key] = val;
         }
-        if (!config.hotkeys || typeof config.hotkeys !== 'object') config.hotkeys = defaults.hotkeys;
-        if (!config.hotkeys.toggle) config.hotkeys.toggle = defaults.hotkeys.toggle;
+        if (!config.hotkeys || typeof config.hotkeys !== 'object') config.hotkeys = makeDefaultHotkeys();
+        if (!config.hotkeys.toggle) config.hotkeys.toggle = makeDefaultHotkeys().toggle;
     }
 
     const SETTINGS_KEY = "Liko_MAT";
@@ -165,10 +162,10 @@
         if (!saved) return;
         config = { ...config, ...saved };
         if (!config.hotkeys || typeof config.hotkeys !== 'object') {
-            config.hotkeys = { toggle: { key: 'KeyM', modifiers: ['Ctrl'] } };
+            config.hotkeys = makeDefaultHotkeys();
         }
         if (!config.hotkeys.toggle) {
-            config.hotkeys.toggle = { key: 'KeyM', modifiers: ['Ctrl'] };
+            config.hotkeys.toggle = makeDefaultHotkeys().toggle;
         }
     }
 
@@ -356,39 +353,6 @@
         if (!log) return;
         const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 150;
         if (nearBottom) setTimeout(() => { log.scrollTop = log.scrollHeight; }, 60);
-    }
-
-    // ============================================================
-    // Bio 翻譯
-    // ============================================================
-    function isBioSkipLine(line) {
-        if (!line.trim()) return true;
-        if (/^https?:\/\//.test(line.trim())) return true;
-        if (/^[=\-_*#]{3,}$/.test(line.trim())) return true;
-        return false;
-    }
-
-    async function translateBioSmart(normalized, targetLang, abortToken) {
-        const lines = normalized.split('\n');
-        const resultLines = [...lines];
-        for (let i = 0; i < lines.length; i++) {
-            if (abortToken.cancelled) break;
-            if (isBioSkipLine(lines[i])) continue;
-            try {
-                const { translated, error } = await translateChunked(lines[i], targetLang);
-                if (abortToken.cancelled) break;
-                if (error || translated === null) {
-                    apiErrorNotifier.notify(error || '');
-                    resultLines[i] = lines[i];
-                } else {
-                    resultLines[i] = translated;
-                }
-            } catch (e) {
-                resultLines[i] = lines[i];
-            }
-            if (!abortToken.cancelled) updateBioTranslationDisplay(resultLines.join('\n'));
-        }
-        return resultLines.join('\n');
     }
 
     // ============================================================
@@ -1024,6 +988,17 @@
     // ============================================================
     // 設定畫面
     // ============================================================
+    // 版面座標：run() 繪製與 click() 命中判定共用同一份，避免兩邊各寫一份不同步
+    const MAT_LAYOUT = {
+        L_CB: 400, L_TXT: 484, L_TXTW: 500,
+        R_LBL: 1050, R_LBLW: 220, R_BTN: 1290, BTN_W: 280, CB_SZ: 64,
+        secY: 185, enabledY: 225, recvY: 305, sendY: 385,
+        chatY: 465, selectionY: 545, autoScrollY: 625,
+        RLANG_RECV_Y: 225, RLANG_SEND_Y: 305,
+        HK_SEC_Y: 410, HK_ROW1_Y: 450,
+        HK_BTN_X: 1290, HK_BTN_W: 200, HK_CLR_X: 1500, HK_CLR_W: 70,
+    };
+
     const matSettingsScreen = {
         load() {
             uiSendIdx = Math.max(0, langCodes.indexOf(config.sendLang));
@@ -1032,13 +1007,12 @@
         run() {
             const names = langNameNative;
 
-            const L_CB = 400, L_TXT = 484, L_TXTW = 500;
-            const R_LBL = 1050, R_LBLW = 220, R_BTN = 1290, BTN_W = 280, CB_SZ = 64;
-            const secY = 185, enabledY = 225, recvY = 305, sendY = 385;
-            const chatY = 465, selectionY = 545, autoScrollY = 625;
-            const RLANG_RECV_Y = 225, RLANG_SEND_Y = 305;
-            const HK_SEC_Y = 410, HK_ROW1_Y = 450;
-            const HK_BTN_X = 1290, HK_BTN_W = 200, HK_CLR_X = 1500, HK_CLR_W = 70;
+            const {
+                L_CB, L_TXT, L_TXTW, R_LBL, R_LBLW, R_BTN, BTN_W, CB_SZ,
+                secY, enabledY, recvY, sendY, chatY, selectionY, autoScrollY,
+                RLANG_RECV_Y, RLANG_SEND_Y, HK_SEC_Y, HK_ROW1_Y,
+                HK_BTN_X, HK_BTN_W, HK_CLR_X, HK_CLR_W,
+            } = MAT_LAYOUT;
 
             const withLeft = (fn) => {
                 const prev = MainCanvas.textAlign;
@@ -1095,10 +1069,12 @@
         click() {
             if (MouseIn(1815, 75, 90, 90)) { if (typeof PreferenceExit === "function") PreferenceExit(); return; }
 
-            const L_CB = 400, CB_SZ = 64, R_BTN = 1290, BTN_W = 280;
-            const enabledY = 225, recvY = 305, sendY = 385, chatY = 465, selectionY = 545, autoScrollY = 625;
-            const RLANG_RECV_Y = 225, RLANG_SEND_Y = 305;
-            const HK_ROW1_Y = 450, HK_BTN_X = 1290, HK_BTN_W = 200, HK_CLR_X = 1500, HK_CLR_W = 70;
+            const {
+                L_CB, CB_SZ, R_BTN, BTN_W,
+                enabledY, recvY, sendY, chatY, selectionY, autoScrollY,
+                RLANG_RECV_Y, RLANG_SEND_Y,
+                HK_ROW1_Y, HK_BTN_X, HK_BTN_W, HK_CLR_X, HK_CLR_W,
+            } = MAT_LAYOUT;
 
             const makeFakeAnchor = (btnX, btnY) => ({ getBoundingClientRect: () => {
                 const canvas = document.querySelector('canvas');
@@ -1167,6 +1143,36 @@
     // ============================================================
     // Bio 翻譯
     // ============================================================
+    function isBioSkipLine(line) {
+        if (!line.trim()) return true;
+        if (/^https?:\/\//.test(line.trim())) return true;
+        if (/^[=\-_*#]{3,}$/.test(line.trim())) return true;
+        return false;
+    }
+
+    async function translateBioSmart(normalized, targetLang, abortToken) {
+        const lines = normalized.split('\n');
+        const resultLines = [...lines];
+        for (let i = 0; i < lines.length; i++) {
+            if (abortToken.cancelled) break;
+            if (isBioSkipLine(lines[i])) continue;
+            try {
+                const { translated, error } = await translateChunked(lines[i], targetLang);
+                if (abortToken.cancelled) break;
+                if (error || translated === null) {
+                    apiErrorNotifier.notify(error || '');
+                    resultLines[i] = lines[i];
+                } else {
+                    resultLines[i] = translated;
+                }
+            } catch (e) {
+                resultLines[i] = lines[i];
+            }
+            if (!abortToken.cancelled) updateBioTranslationDisplay(resultLines.join('\n'));
+        }
+        return resultLines.join('\n');
+    }
+
     const BIO_TRANS_ID = 'mat-bio-translated';
     let bioTranslating = false;
     let bioCurrentMemberNumber = null;
@@ -1335,59 +1341,6 @@
     }
 
     // ============================================================
-    // 統一遊戲等待入口
-    // 條件：Player 已登入 + CommandCombine + TranslationLanguage + PreferenceRegisterExtensionSetting
-    // ============================================================
-    function waitForSettings(callback, retries = 30) {
-        if (Player?.ExtensionSettings !== undefined) callback();
-        else if (retries > 0) setTimeout(() => waitForSettings(callback, retries - 1), 500);
-        else { console.warn("🐈‍⬛ [MAT] ❌ ExtensionSettings timeout, forcing init"); callback(); }
-    }
-
-    function waitForGame() {
-        const gameReady =
-              typeof Player?.MemberNumber === "number" &&
-              typeof CommandCombine === "function" &&
-              typeof TranslationLanguage !== "undefined" &&
-              typeof PreferenceRegisterExtensionSetting === "function";
-
-        if (gameReady) {
-            initializeConfig();
-            waitForSettings(() => {
-                migrateSettingsKey();
-                loadSettings();
-
-                // 先確保 i18n 就緒，再註冊 UI 與指令（載入失敗則以 key 原文 fallback）
-                ensureI18n()
-                    .catch(e => console.warn("🐈‍⬛ [MAT] i18n 載入失敗，改以 key 顯示:", e))
-                    .finally(() => {
-                        PreferenceRegisterExtensionSetting({
-                            Identifier: "Liko_MAT_Settings",
-                            ButtonText: ui('prefButton'),
-                            Image: "Icons/Chat.png",
-                            load:   () => matSettingsScreen.load(),
-                            run:    () => matSettingsScreen.run(),
-                            click:  () => matSettingsScreen.click(),
-                            unload: () => matSettingsScreen.unload(),
-                            exit:   () => matSettingsScreen.exit()
-                        });
-
-                        registerCommands();
-                        hookSendFunctions();
-                        hookRoomEvents();
-                        hookOnlineProfile();
-                        setupSelectionListener();
-                        setupClickTranslateListener();
-                        setupHotkeyListener();
-                        if (config.enabled) startObserver();
-                    });
-            });
-        } else {
-            setTimeout(waitForGame, 500);
-        }
-    }
-
-    // ============================================================
     // 指令
     // ============================================================
     function registerCommands() {
@@ -1415,8 +1368,60 @@
     // /mat settings：直接開啟拓展設定內的 MAT 子頁
     function openSettingsScreen() {
         if (typeof PreferenceSubscreenExtensionsOpen !== 'function') return;
-        const screen = typeof CommonGetScreen === 'function' ? CommonGetScreen() : undefined;
-        PreferenceSubscreenExtensionsOpen("Liko_MAT_Settings", screen);
+        PreferenceSubscreenExtensionsOpen("Liko_MAT_Settings");
     }
 
+    // ============================================================
+    // 統一遊戲等待入口
+    // 條件：Player 已登入 + CommandCombine + TranslationLanguage + PreferenceRegisterExtensionSetting
+    // ============================================================
+    function waitForSettings(callback, retries = 30) {
+        if (Player?.ExtensionSettings !== undefined) callback();
+        else if (retries > 0) setTimeout(() => waitForSettings(callback, retries - 1), 500);
+        else { console.warn("🐈‍⬛ [MAT] ❌ ExtensionSettings timeout, forcing init"); callback(); }
+    }
+
+    function waitForGame() {
+        const gameReady =
+              typeof Player?.MemberNumber === "number" &&
+              typeof CommandCombine === "function" &&
+              typeof TranslationLanguage !== "undefined" &&
+              typeof PreferenceRegisterExtensionSetting === "function";
+
+        if (gameReady) {
+            initializeConfig();
+            waitForSettings(() => {
+                migrateSettingsKey();
+                loadSettings();
+
+                // 先確保 i18n 就緒，再註冊 UI 與指令（載入失敗則以 key 原文 fallback）
+                ensureI18n()
+                    .catch(e => console.warn("🐈‍⬛ [MAT] ❌ i18n loading failed; displaying instead by key.", e))
+                    .finally(() => {
+                    PreferenceRegisterExtensionSetting({
+                        Identifier: "Liko_MAT_Settings",
+                        ButtonText: ui('prefButton'),
+                        Image: "Icons/Chat.png",
+                        load:   () => matSettingsScreen.load(),
+                        run:    () => matSettingsScreen.run(),
+                        click:  () => matSettingsScreen.click(),
+                        unload: () => matSettingsScreen.unload(),
+                        exit:   () => matSettingsScreen.exit()
+                    });
+
+                    registerCommands();
+                    hookSendFunctions();
+                    hookRoomEvents();
+                    hookOnlineProfile();
+                    setupSelectionListener();
+                    setupClickTranslateListener();
+                    setupHotkeyListener();
+                    if (config.enabled) startObserver();
+                });
+            });
+        } else {
+            setTimeout(waitForGame, 500);
+        }
+    }
+    console.log(`🐈‍⬛ [MAT] ✅ v${MOD_VER} Ready`)
 })();
