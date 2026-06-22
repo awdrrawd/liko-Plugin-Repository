@@ -2,7 +2,7 @@
 (function() {
     window.Liko = window.Liko ?? {};
     if (window.Liko.Toast) return;
-    const MOD_VER = "1.2";
+    const MOD_VER = "1.3";
 
     let activeMessages = [];
 
@@ -43,6 +43,9 @@
                 left:         cfg.x !== null ? cfg.x + 'px' : '50%',
                 bottom:       cfg.y !== null ? cfg.y + 'px' : `${BASE_HEIGHT + activeMessages.length * MSG_SPACING}px`,
                 transform:    `translateX(${translateX}) translateY(0px)`,
+                pointerEvents: 'none',
+                userSelect:   'none',
+                webkitUserSelect: 'none',
             });
 
             document.body.appendChild(msgEl);
