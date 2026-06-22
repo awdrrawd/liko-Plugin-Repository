@@ -58,7 +58,7 @@
       "icon": "🪪",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CPB.main.user.js",
       "priority": 9,
-      "version": "1.2.2"
+      "version": "1.2.2-1"
     },
     {
       "id": "Liko-Image_Uploader",
@@ -84,7 +84,7 @@
       "icon": "📖",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CHE.main.user.js",
       "priority": 3,
-      "version": "2.4.4"
+      "version": "2.4.4-1"
     },
     {
       "id": "Liko-CDB",
@@ -110,7 +110,7 @@
       "icon": "🪄",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Prank.main.user.js",
       "priority": 5,
-      "version": "1.6.0"
+      "version": "1.6.1"
     },
     {
       "id": "Liko-NOI",
@@ -136,7 +136,7 @@
       "icon": "🧹",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Release%20Maid.main.user.js",
       "priority": 10,
-      "version": "1.2"
+      "version": "1.2-1"
     },
     {
       "id": "Liko-Chat_TtoB",
@@ -149,7 +149,7 @@
       "icon": "💬",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
       "priority": 5,
-      "version": "1.1.1"
+      "version": "1.1.1-1"
     },
     {
       "id": "Liko-CDT",
@@ -162,7 +162,7 @@
       "icon": "🖌️",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDT.main.user.js",
       "priority": 10,
-      "version": "1.3"
+      "version": "1.3-1"
     },
     {
       "id": "ECHO-Cloth",
@@ -255,7 +255,7 @@
       "icon": "🌐",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20MAT.main.user.js",
       "priority": 3,
-      "version": "1.4.0"
+      "version": "1.4.1"
     },
     {
       "id": "ULTRAbc",
@@ -287,7 +287,7 @@
       "icon": "⚧️",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
       "priority": 8,
-      "version": "1.2"
+      "version": "1.2-3"
     },
     {
       "id": "Liko-CFT",
@@ -326,7 +326,7 @@
       "icon": "🌸",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js",
       "priority": 3,
-      "version": "0.6.1"
+      "version": "0.6.2"
     },
     {
       "id": "GGC",
@@ -352,7 +352,7 @@
       "icon": "👥",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20FCM.main.user.js",
       "priority": 3,
-      "version": "1.4.2"
+      "version": "1.4.2-4"
     },
     {
       "id": "Liko-CMC",
