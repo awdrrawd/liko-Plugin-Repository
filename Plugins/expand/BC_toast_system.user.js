@@ -3,6 +3,7 @@
     window.Liko = window.Liko ?? {};
     if (window.Liko.Toast) return;
     const MOD_VER = "1.3";
+    window.Liko.Toast = MOD_VER;
 
     let activeMessages = [];
 
