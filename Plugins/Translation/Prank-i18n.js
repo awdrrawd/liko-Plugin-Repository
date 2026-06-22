@@ -275,6 +275,11 @@
             DE: "Kleidung auflösen", FR: "Dissoudre les vêtements",
             RU: "Растворить одежду", UA: "Розчинити одяг"
         },
+        'actDissolveClothesWeak': {
+            TW: "溶解衣物(弱)", CN: "溶解衣物(弱)", EN: "Dissolve Clothes (Light)",
+            DE: "Kleidung auflösen (leicht)", FR: "Dissoudre les vêtements (léger)",
+            RU: "Растворить одежду (слабо)", UA: "Розчинити одяг (слабо)"
+        },
         'actStealPanties': {
             TW: "偷內褲", CN: "偷内裤", EN: "Steal Panties",
             DE: "Höschen stehlen", FR: "Voler la culotte",
