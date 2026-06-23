@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.4.1
+// @version      1.4.2
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,7 +13,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.4.1";
+    const MOD_VER = "1.4.2";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -34,6 +34,7 @@
         translateSelection: true,
         translateChat: true,
         autoScroll: true,
+        skipStutter: true,
         hotkeys: makeDefaultHotkeys()
     };
 
@@ -133,6 +134,7 @@
             translateSelection: true,
             translateChat: true,
             autoScroll: true,
+            skipStutter: true,
             hotkeys: makeDefaultHotkeys()
         };
         if (!config || typeof config !== 'object') config = { ...defaults };
@@ -323,6 +325,17 @@
         return /^https?:\/\//i.test(trimmed);
     }
 
+    // BC 結巴語法：結巴時會在詞首插入「同字 + 連字號」，例如 "n-no problem"、"I-I-I love"、"我-我好累"。
+    // 翻譯前先移除這類前綴，避免被翻成「N-沒問題」這種破碎結果。
+    // 判斷依據：連字號前是位於詞首的單一字元，且與其後緊接的詞首字相同（英文不分大小寫）才視為結巴；
+    //          因此 "co-op"、"e-mail"、"x-ray" 等正常連字號詞不會被誤刪。
+    const STUTTER_CLASS = 'A-Za-z\\u00C0-\\u024F\\u0370-\\u03FF\\u0400-\\u04FF\\u3040-\\u30FF\\u4E00-\\u9FFF\\uAC00-\\uD7A3';
+    const STUTTER_RE = new RegExp(`(?<![${STUTTER_CLASS}])([${STUTTER_CLASS}])(?:-\\1)*-(?=\\1)`, 'gi');
+    function stripStutter(text) {
+        if (!config.skipStutter || !text) return text;
+        return text.replace(STUTTER_RE, '');
+    }
+
     async function smartTranslate(text, targetLang) {
         if (!config.enabled || !text) return null;
         if (
@@ -334,6 +347,7 @@
             text.includes('📞')
         ) return null;
         if (isPureUrl(text)) return null;
+        text = stripStutter(text);
         try {
             const { translated, error } = await translateChunked(text, targetLang);
             if (error || translated === null) {
@@ -493,7 +507,7 @@
             sibling = next;
         }
 
-        const message = extractCleanMessage(node);
+        const message = stripStutter(extractCleanMessage(node));
         if (!message) return;
 
         updateClickToolbarStatus(ui('translating'));
@@ -993,7 +1007,7 @@
         L_CB: 400, L_TXT: 484, L_TXTW: 500,
         R_LBL: 1050, R_LBLW: 220, R_BTN: 1290, BTN_W: 280, CB_SZ: 64,
         secY: 185, enabledY: 225, recvY: 305, sendY: 385,
-        chatY: 465, selectionY: 545, autoScrollY: 625,
+        chatY: 465, selectionY: 545, autoScrollY: 625, skipStutterY: 705,
         RLANG_RECV_Y: 225, RLANG_SEND_Y: 305,
         HK_SEC_Y: 410, HK_ROW1_Y: 450,
         HK_BTN_X: 1290, HK_BTN_W: 200, HK_CLR_X: 1500, HK_CLR_W: 70,
@@ -1009,7 +1023,7 @@
 
             const {
                 L_CB, L_TXT, L_TXTW, R_LBL, R_LBLW, R_BTN, BTN_W, CB_SZ,
-                secY, enabledY, recvY, sendY, chatY, selectionY, autoScrollY,
+                secY, enabledY, recvY, sendY, chatY, selectionY, autoScrollY, skipStutterY,
                 RLANG_RECV_Y, RLANG_SEND_Y, HK_SEC_Y, HK_ROW1_Y,
                 HK_BTN_X, HK_BTN_W, HK_CLR_X, HK_CLR_W,
             } = MAT_LAYOUT;
@@ -1031,6 +1045,7 @@
             DrawCheckbox(L_CB, chatY,       CB_SZ, CB_SZ, "", config.translateChat,      !config.enabled);
             DrawCheckbox(L_CB, selectionY,  CB_SZ, CB_SZ, "", config.translateSelection);
             DrawCheckbox(L_CB, autoScrollY, CB_SZ, CB_SZ, "", config.autoScroll);
+            DrawCheckbox(L_CB, skipStutterY, CB_SZ, CB_SZ, "", config.skipStutter);
 
             withLeft(() => {
                 const rowMid = (y) => y + CB_SZ / 2 + 9;
@@ -1040,6 +1055,7 @@
                 DrawTextFit(ui('optChat'),       L_TXT, rowMid(chatY),       L_TXTW, config.enabled ? "Black" : "Gray");
                 DrawTextFit(ui('optSelection'),  L_TXT, rowMid(selectionY),  L_TXTW, "Black");
                 DrawTextFit(ui('optAutoScroll'), L_TXT, rowMid(autoScrollY), L_TXTW, "Black");
+                DrawTextFit(ui('optSkipStutter'), L_TXT, rowMid(skipStutterY), L_TXTW, "Black");
             });
 
             withLeft(() => {
@@ -1061,17 +1077,17 @@
                        isRecording ? "#FFD700" : "White", "", ui('tipHotkeySet'));
             DrawButton(HK_CLR_X, HK_ROW1_Y, HK_CLR_W, CB_SZ, ui('btnHotkeyClear'), "White", "", ui('btnHotkeyClear'));
 
-            DrawRect(395, 715, 1180, 2, "rgba(0,0,0,0.15)");
-            DrawText(ui('desc1'), 1000, 745, "Gray", "Silver");
-            DrawText(ui('desc2'), 1000, 800, "Gray", "Silver");
-            DrawText(ui('desc3'), 1000, 855, "Gray", "Silver");
+            DrawRect(395, 795, 1180, 2, "rgba(0,0,0,0.15)");
+            DrawText(ui('desc1'), 1000, 825, "Gray", "Silver");
+            DrawText(ui('desc2'), 1000, 880, "Gray", "Silver");
+            DrawText(ui('desc3'), 1000, 935, "Gray", "Silver");
         },
         click() {
             if (MouseIn(1815, 75, 90, 90)) { if (typeof PreferenceExit === "function") PreferenceExit(); return; }
 
             const {
                 L_CB, CB_SZ, R_BTN, BTN_W,
-                enabledY, recvY, sendY, chatY, selectionY, autoScrollY,
+                enabledY, recvY, sendY, chatY, selectionY, autoScrollY, skipStutterY,
                 RLANG_RECV_Y, RLANG_SEND_Y,
                 HK_ROW1_Y, HK_BTN_X, HK_BTN_W, HK_CLR_X, HK_CLR_W,
             } = MAT_LAYOUT;
@@ -1096,6 +1112,7 @@
             if (config.enabled && MouseIn(L_CB, chatY, CB_SZ, CB_SZ))       { config.translateChat      = !config.translateChat;      if (!config.translateChat) hideClickToolbar(); saveSettings(); return; }
             if (MouseIn(L_CB, selectionY,  CB_SZ, CB_SZ))                   { config.translateSelection = !config.translateSelection; if (!config.translateSelection) hideSelectionPopup(); saveSettings(); return; }
             if (MouseIn(L_CB, autoScrollY, CB_SZ, CB_SZ))                   { config.autoScroll         = !config.autoScroll;         saveSettings(); return; }
+            if (MouseIn(L_CB, skipStutterY, CB_SZ, CB_SZ))                  { config.skipStutter        = !config.skipStutter;        saveSettings(); return; }
 
             if (MouseIn(R_BTN, RLANG_RECV_Y, BTN_W, CB_SZ)) {
                 openMATLangSelect(makeFakeAnchor(R_BTN, RLANG_RECV_Y), (code) => {
