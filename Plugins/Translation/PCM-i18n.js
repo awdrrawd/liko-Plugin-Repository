@@ -65,5 +65,4 @@
         'customNameRequired':{ TW: '請輸入插件名稱', CN: '请输入插件名称', DE: 'Bitte einen Namen eingeben', FR: 'Veuillez saisir un nom', RU: 'Введите название', UA: 'Введіть назву' },
         'customEmptyHint':   { TW: '尚無自訂插件。\n點擊上方 ⚙ 來新增。', CN: '尚无自定义插件。\n点击上方 ⚙ 来新增。', DE: 'Noch keine eigenen Plugins.\nKlicke ⚙ oben.', FR: 'Aucun plugin personnalisé.\nCliquez sur ⚙ ci-dessus.', RU: 'Своих плагинов пока нет.\nНажмите ⚙ выше.', UA: 'Власних плагінів немає.\nНатисніть ⚙ вище.' },
     });
-    console.log('🐈‍⬛ [PCM-i18n] ✅ translations registered');
 })();
