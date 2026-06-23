@@ -522,6 +522,4 @@
 </div>`,
         },
     });
-
-    console.log('[Liko MAT strings] ✅ 已注入 i18n 字庫');
 })();
