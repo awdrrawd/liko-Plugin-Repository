@@ -278,6 +278,15 @@
             RU: "Автопрокрутка после перевода",
             UA: "Автопрокручування після перекладу"
         },
+        'optSkipStutter': {
+            TW: "略過結巴前綴",
+            CN: "略过结巴前缀",
+            EN: "Skip Stutter Prefix",
+            DE: "Stotter-Präfix überspringen",
+            FR: "Ignorer le préfixe de bégaiement",
+            RU: "Пропускать заикание",
+            UA: "Пропускати заїкання"
+        },
         'lblRecvLang': {
             TW: "接收語言：",
             CN: "接收语言：",
@@ -450,7 +459,7 @@
 
         // ── /mat help（精簡版，只保留 4 條指令）──────────────────────────────
         'help': {
-            TW: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
+            TW: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;'>
 <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v{v}</h3>
 <div style='color:#aaa;margin:0 0 6px 0;'>聊天室與 Bio 即時翻譯（Google 翻譯）。選取文字即可翻譯；開啟個人檔案可翻譯 Bio。</div>
 <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;'>
@@ -460,7 +469,7 @@
 <b style='color:#87CEEB;'>/mat settings</b> — 開啟設定頁面
 </div>
 </div>`,
-            CN: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
+            CN: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;'>
 <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v{v}</h3>
 <div style='color:#aaa;margin:0 0 6px 0;'>聊天室与 Bio 即时翻译（Google 翻译）。选取文字即可翻译；打开个人资料可翻译 Bio。</div>
 <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;'>
@@ -470,7 +479,7 @@
 <b style='color:#87CEEB;'>/mat settings</b> — 打开设置页面
 </div>
 </div>`,
-            EN: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
+            EN: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;'>
 <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v{v}</h3>
 <div style='color:#aaa;margin:0 0 6px 0;'>Live chat &amp; Bio translation (Google Translate). Select text to translate it; open a profile to translate the Bio.</div>
 <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;'>
@@ -480,7 +489,7 @@
 <b style='color:#87CEEB;'>/mat settings</b> — Open the settings page
 </div>
 </div>`,
-            DE: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
+            DE: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;'>
 <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v{v}</h3>
 <div style='color:#aaa;margin:0 0 6px 0;'>Live-Übersetzung von Chat &amp; Bio (Google Translate). Text markieren zum Übersetzen; ein Profil öffnen, um die Bio zu übersetzen.</div>
 <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;'>
@@ -490,7 +499,7 @@
 <b style='color:#87CEEB;'>/mat settings</b> — Einstellungsseite öffnen
 </div>
 </div>`,
-            FR: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
+            FR: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;'>
 <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v{v}</h3>
 <div style='color:#aaa;margin:0 0 6px 0;'>Traduction en direct du chat et de la Bio (Google Traduction). Sélectionnez du texte pour le traduire ; ouvrez un profil pour traduire la Bio.</div>
 <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;'>
@@ -500,7 +509,7 @@
 <b style='color:#87CEEB;'>/mat settings</b> — Ouvrir la page des paramètres
 </div>
 </div>`,
-            RU: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
+            RU: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;'>
 <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v{v}</h3>
 <div style='color:#aaa;margin:0 0 6px 0;'>Перевод чата и Bio в реальном времени (Google Переводчик). Выделите текст для перевода; откройте профиль, чтобы перевести Bio.</div>
 <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;'>
@@ -510,7 +519,7 @@
 <b style='color:#87CEEB;'>/mat settings</b> — Открыть страницу настроек
 </div>
 </div>`,
-            UA: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;font-size:13px;'>
+            UA: `<div style='background:#1a1a2e;color:#eee;padding:10px;border-radius:5px;'>
 <h3 style='color:#4CAF50;margin:0 0 8px 0;'>🌐 BC MAT v{v}</h3>
 <div style='color:#aaa;margin:0 0 6px 0;'>Переклад чату та Bio в реальному часі (Google Перекладач). Виділіть текст для перекладу; відкрийте профіль, щоб перекласти Bio.</div>
 <div style='background:#2d2d44;padding:6px 8px;border-radius:3px;'>
@@ -522,4 +531,6 @@
 </div>`,
         },
     });
+
+    console.log('[Liko MAT strings] ✅ 已注入 i18n 字庫');
 })();
