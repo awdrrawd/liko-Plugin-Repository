@@ -3,7 +3,7 @@
 // @name:zh      聊天室輔助工具
 // @namespace    https://likolisu.dev/
 // @version      1.0
-// @description  聊天室工具箱：替他人改姿勢(圖示按鈕)、輸入歷史、BIO時區頭頂時間、@動作自帶名字、指令/房間轉按鈕 | ChatRoom Toolkit
+// @description  替他人改姿勢、輸入歷史、BIO時區頭頂時間、@動作自帶名字、指令/房間轉按鈕 | Chat room assistant
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant        none
