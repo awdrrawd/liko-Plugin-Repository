@@ -2,7 +2,7 @@
 // @name         BC Heart Lock Extension
 // @name:zh      BC 心形鎖拓展
 // @namespace    https://github.com/awdrrawd/
-// @version      2.5.3
+// @version      2.5.4
 // @description  Heart Padlock for Bondage Club with AFC lover integration
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -13,14 +13,15 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = '2.5.3';
     if (window.Liko.AFC_HeartLock) return;
+    const MOD_VER = '2.5.4';
     window.Liko.AFC_HeartLock = MOD_VER;
 
     const HEARTLOCK_NAME   = 'Heart Padlock';
     const HSLOCK_NAME      = 'HighSecurityPadlock';
     const MOD_NAME         = 'HeartLockBC';
-    const EXT_KEY          = 'HeartLock';
+    const EXT_KEY          = 'AFC_HeartLock';
+    const EXT_KEY_OLD      = 'HeartLock';   // 舊 key，搬遷後刪除（短期輔助，未來移除）
     const HEARTKEY_IMAGE   = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/main/Images/Heart_key.png';
     const HEARTLOCK_IMAGE  = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/main/Images/Heart_Lock.png';
     const VIBE_INTERVAL_MS = 5000;
@@ -410,9 +411,8 @@
         },
     };
 
-    const grabStateChar      = { count: 0, firstTriggerTime: Date.now(), state: false };
-    const grabStateSingle    = { count: 0, firstTriggerTime: Date.now(), state: false };
-    const grabStateIntegrity = { count: 0, firstTriggerTime: Date.now(), state: false };
+    const grabStateChar   = { count: 0, firstTriggerTime: Date.now(), state: false };
+    const grabStateSingle = { count: 0, firstTriggerTime: Date.now(), state: false };
     const GRAB_WINDOW_MS   = 14000;
     const GRAB_COOLDOWN_MS = 120000;
 
@@ -434,42 +434,26 @@
         const meNum     = Number(Player.MemberNumber);
         const lockPerms = ch.OnlineSharedSettings?.AFC?.lockPerms;
 
-        log(`isAllowedToLock ch=${ch.MemberNumber} lockPerms=${JSON.stringify(lockPerms)}`);
-
         // 主人（enableOwnerLock）
         if (lockPerms?.enableOwnerLock) {
             const ownerNum = ch.Ownership?.MemberNumber;
-            if (ownerNum != null && Number(ownerNum) === meNum) {
-                log(`isAllowedToLock: ✅ 主人`);
-                return true;
-            }
+            if (ownerNum != null && Number(ownerNum) === meNum) return true;
         }
 
-        if (!lockPerms?.enableELLock) {
-            log(`isAllowedToLock: ❌ enableELLock=false`);
+        if (!lockPerms?.enableAFCLock) {
+            log(`isAllowedToLock: ❌ enableAFCLock=false (ch=${ch.MemberNumber})`);
             return false;
         }
 
         // 優先使用 AFC API（若已載入）
-        if (typeof window.AFC?.api?.canUseHeartLock === 'function') {
-            const result = window.AFC.api.canUseHeartLock(ch);
-            log(`isAllowedToLock: AFC.api.canUseHeartLock=${result}`);
-            return result;
-        }
+        if (typeof window.AFC?.api?.canUseHeartLock === 'function')
+            return window.AFC.api.canUseHeartLock(ch);
 
         // Fallback：直接讀 OnlineSharedSettings
         const afcLovers = ch.OnlineSharedSettings?.AFC?.lovers ?? [];
-        log(`isAllowedToLock: afcLovers=${afcLovers.length} check=${meNum}`);
-        if (afcLovers.some(l => Number(l.memberNumber) === meNum)) {
-            log(`isAllowedToLock: ✅ AFC lover`);
-            return true;
-        }
-        if (ch.Lovership?.some(l => Number(l.MemberNumber) === meNum)) {
-            log(`isAllowedToLock: ✅ BC lover`);
-            return true;
-        }
+        if (afcLovers.some(l => Number(l.memberNumber) === meNum)) return true;
+        if (ch.Lovership?.some(l => Number(l.MemberNumber) === meNum)) return true;
 
-        log(`isAllowedToLock: ❌ 無符合關係`);
         return false;
     }
 
@@ -691,6 +675,13 @@
         if (!window.Player) return false;
         if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
         const es = Player.ExtensionSettings;
+        // 一次性搬遷：舊 key 'HeartLock' → 'AFC_HeartLock'（保留作用中的鎖設定）
+        if (es[EXT_KEY_OLD] !== undefined) {
+            if ((!es[EXT_KEY] || typeof es[EXT_KEY] !== 'object') && typeof es[EXT_KEY_OLD] === 'object')
+                es[EXT_KEY] = es[EXT_KEY_OLD];
+            delete es[EXT_KEY_OLD];
+            try { ServerAccountUpdate?.QueueData?.({ ExtensionSettings: Player.ExtensionSettings }, true); } catch {}
+        }
         if (!es[EXT_KEY] || typeof es[EXT_KEY] !== 'object') es[EXT_KEY] = clone(DEFAULT_STORAGE);
         if (!es[EXT_KEY].padlocks) es[EXT_KEY].padlocks = {};
         Player.HeartLock = es[EXT_KEY];
@@ -728,6 +719,60 @@
         if (!ensureStorage()) return;
         try { if (typeof ServerPlayerExtensionSettingsSync === 'function') ServerPlayerExtensionSettingsSync(EXT_KEY); } catch {}
         broadcastStorage();
+    }
+
+    // ── 解鎖輔助（直接操作 Property，繞過 InventoryUnlock hook 干擾）──
+    /** 解除自己身上指定部位的心鎖。回傳是否確實解了一個心鎖。 */
+    function _unlockSelfItem(gn, removeRestraint = false) {
+        const item = InventoryGet?.(Player, gn);
+        let unlocked = false;
+        if (item?.Property) {
+            const isHL = item.Property.Name === HEARTLOCK_NAME
+                || (item.Property.LockedBy === HSLOCK_NAME && item.Property.HeartLockId);
+            if (isHL) {
+                if (typeof ValidationDeleteLock === 'function') ValidationDeleteLock(item.Property, false);
+                delete item.Property.Name;
+                delete item.Property.HeartLockId;
+                const keys = Object.keys(item.Property);
+                if (keys.length === 0 || (keys.length === 1 && keys[0] === 'Effect' && !item.Property.Effect?.length))
+                    item.Property = undefined;
+                unlocked = true;
+            }
+        }
+        if (item && removeRestraint) {
+            try { state._timerUnlocking = true; InventoryRemove?.(Player, gn, false); }
+            finally { state._timerUnlocking = false; }
+        }
+        return unlocked;
+    }
+
+    /** 移除自己身上指定部位的心鎖並刪除其設定。 */
+    function removeLock(groupName, { removeRestraint = false } = {}) {
+        if (!groupName || !ensureStorage()) return false;
+        state._unlocking = true;   // 抑制 integrity 還原
+        try {
+            _unlockSelfItem(groupName, removeRestraint);
+            delete Player.HeartLock.padlocks[groupName];
+            saveAndSync();
+            try { CharacterRefresh?.(Player, false); ChatRoomCharacterUpdate?.(Player); } catch {}
+        } finally { state._unlocking = false; }
+        return true;
+    }
+
+    /** 清除自己身上所有心鎖與其設定（防作弊 integrity 不會還原）。回傳清除數量。 */
+    function clearAllLocks({ removeRestraints = false } = {}) {
+        if (!ensureStorage()) return 0;
+        state._unlocking = true;
+        let count = 0;
+        try {
+            for (const gn of Object.keys(Player.HeartLock.padlocks ?? {}))
+                if (_unlockSelfItem(gn, removeRestraints)) count++;
+            Player.HeartLock.padlocks = {};
+            saveAndSync();
+            try { CharacterRefresh?.(Player, false); ChatRoomCharacterUpdate?.(Player); } catch {}
+        } finally { state._unlocking = false; }
+        log(`clearAllLocks: cleared ${count} lock(s)`);
+        return count;
     }
 
     function sendSettingsChange(character, groupName) {
@@ -893,7 +938,7 @@
 
     /**
      * 判斷 Player 是否有資格解開 C 身上的 HeartLock。
-     * owner 始終可解鎖；戀人需穿戴者開啟 enableELLock；主人需開啟 enableOwnerLock。
+     * owner 始終可解鎖；戀人需穿戴者開啟 enableAFCLock；主人需開啟 enableOwnerLock。
      */
     function isAllowedToUnlock(C, cfg) {
         if (!C || !cfg) return false;
@@ -905,8 +950,8 @@
         if (lockPerms?.enableOwnerLock &&
             C.Ownership?.MemberNumber != null &&
             Number(C.Ownership.MemberNumber) === meNum) return true;
-        // 戀人需 enableELLock
-        if (!lockPerms?.enableELLock) return false;
+        // 戀人需 enableAFCLock
+        if (!lockPerms?.enableAFCLock) return false;
         // AFC 戀人
         const afcLovers = C.OnlineSharedSettings?.AFC?.lovers ?? [];
         if (afcLovers.some(l => Number(l.memberNumber) === meNum)) return true;
@@ -936,7 +981,7 @@
             if (Player?.Inventory && !Player.Inventory.some(i => i.Asset?.Name === HEARTLOCK_NAME))
                 InventoryAdd(Player, HEARTLOCK_NAME, 'ItemMisc');
             state.assetCreated = true;
-            log('Asset created.');            return true;
+            return true;
         } catch (e) { console.error('🐈‍⬛ [HeartLock] Asset creation failed', e); return false; }
     }
 
@@ -1055,16 +1100,12 @@
         item.Property.ExclusiveUnlock = true;
         if (cfg.lockId) item.Property.HeartLockId = cfg.lockId;
         try { ValidationSanitizeProperties?.(Player, item); ValidationSanitizeLock?.(Player, item); } catch {}
-        log('restore: Heart Padlock restored on', gn);
     }
 
     function checkLockIntegrity() {
         if (!ensureStorage()) return;
         if (state._unlocking) return;
-        // 與 ChatRoomSync 防護一致：退避期間不再修復，避免與其他來源衝突時每 3 秒洗版
-        if (grabStateChar.state || grabStateSingle.state || grabStateIntegrity.state) return;
         const padlocks = Player.HeartLock?.padlocks ?? {};
-        let anyRestored = false;
         for (const gn of Object.keys(padlocks)) {
             const cfg = padlocks[gn];
             if (!cfg) continue;
@@ -1074,23 +1115,7 @@
             const badLockedBy = item.Property?.LockedBy !== HSLOCK_NAME;
             const badName     = item.Property?.Name     !== HEARTLOCK_NAME;
             const badLockId   = cfg.lockId && item.Property?.HeartLockId !== cfg.lockId;
-            if (badLockedBy || badName || badLockId) {
-                log('Lock integrity violation on', gn, { badLockedBy, badName, badLockId });
-                restoreLockFromConfig(gn, cfg);
-                anyRestored = true;
-            }
-        }
-        // 退避：短時間內反覆修復代表與其他來源持續衝突，暫停一段時間避免無限重套洗版
-        if (anyRestored) {
-            grabStateIntegrity.count++;
-            if (grabStateIntegrity.count === 1) grabStateIntegrity.firstTriggerTime = Date.now();
-            if (grabStateIntegrity.count > 4 && Date.now() - grabStateIntegrity.firstTriggerTime < GRAB_WINDOW_MS) {
-                grabStateIntegrity.state = true; grabStateIntegrity.count = 0;
-                try { const nick = Player.Nickname || Player.Name; ServerSend('ChatRoomChat', { Type: 'Action', Content: 'CUSTOM_SYSTEM_ACTION', Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: T('protectDisabled', nick, HEARTLOCK_NAME) }] }); } catch {}
-                setTimeout(() => { grabStateIntegrity.state = false; grabStateIntegrity.count = 0; }, GRAB_COOLDOWN_MS);
-            }
-        } else {
-            grabStateIntegrity.count = 0;
+            if (badLockedBy || badName || badLockId) { log('Lock integrity violation on', gn, { badLockedBy, badName, badLockId }); restoreLockFromConfig(gn, cfg); }
         }
     }
 
@@ -1841,10 +1866,7 @@
         });
         modApi.hookFunction('DialogLeaveFocusItem', 10, (args, next) => {
             const isHL = window.DialogFocusSourceItem?.Property?.Name === HEARTLOCK_NAME;
-            if (isHL && state._inServerSync) {
-                log('DialogLeaveFocusItem: 攔截同步期間退出');
-                return;
-            }
+            if (isHL && state._inServerSync) return;
             if (isHL) removeHLPanel();
             return next(args);
         });
@@ -2140,6 +2162,25 @@
         startTimerCheck();
         setInterval(checkLockIntegrity, 3000);
         state.initialized = true;
+
+        // 對外 API（供 AFC 清鎖 / DEBUG / 資料復原輔助）
+        window.Liko.HeartLock = Object.assign(window.Liko.HeartLock ?? {}, {
+            version:        MOD_VER,
+            getStorage:     () => { ensureStorage(); return clone(Player.HeartLock); },
+            getPadlocks:    () => { ensureStorage(); return clone(Player.HeartLock.padlocks ?? {}); },
+            removeLock:     (gn, opts)  => removeLock(gn, opts),
+            clearAllLocks:  (opts)      => clearAllLocks(opts),
+            restoreStorage: (data) => {
+                if (!ensureStorage() || !data || typeof data !== 'object') return false;
+                Player.ExtensionSettings[EXT_KEY] = clone(data);
+                if (!Player.ExtensionSettings[EXT_KEY].padlocks) Player.ExtensionSettings[EXT_KEY].padlocks = {};
+                Player.HeartLock = Player.ExtensionSettings[EXT_KEY];
+                saveAndSync();
+                try { reapplyFromAppearance(); } catch {}
+                return true;
+            },
+        });
+
         log(`🐈‍⬛ [HeartLock] v${MOD_VER} initialized.`);
     }
 
