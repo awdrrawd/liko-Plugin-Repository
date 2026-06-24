@@ -12,43 +12,35 @@
 // @run-at       document-end
 // ==/UserScript==
 
-/*
- * lockEnabled 說明：
- *   SharedSettings 中每個戀人記錄的 lockEnabled 欄位是一個「持久化偏好旗標」，
- *   設計用途是記錄「此戀人是否預設擁有解鎖許可」。
- *   目前實際的解鎖許可由執行期 Set ELLockAccessOn 控制（登入後透過 SYNC 握手重建）。
- *   未來可利用此欄位實現「免握手自動授權」，即登入後若 lockEnabled=true 直接入 Set。
- */
-
 (function () {
     window.Liko        = window.Liko ?? {};
-    const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.6.2";
-    const EL_BEEP_TYPE = "AFC::Beep";
     window.Liko.AFC    = window.Liko.AFC ?? {};
     if (window.Liko.AFC.version) {
         console.warn('🐈‍⬛ [AFC] ⚠️ 已偵測到重複加載，跳過初始化');
         return;
     }
+    const MOD_NAME     = "AbundantiaFlorumChromatica";
+    const MOD_VERSION  = "0.6.2";
+    const AFC_BEEP_TYPE = "AFC::Beep";
     window.Liko.AFC.version = MOD_VERSION;
     window.Liko.AFC.api     = window.Liko.AFC.api ?? {};
 
     const BEEP = {
-        PROPOSE:          "ELPropose",
-        PROPOSE_ACK:      "ELProposeAck",
-        ACCEPT:           "ELAccept",
-        ACCEPT_ACK:       "ELAcceptAck",
-        RESTORE_PROPOSE:  "ELRestorePropose",   // 資料恢復申請
-        RESTORE_ACCEPT:   "ELRestoreAccept",    // 資料恢復確認
-        PROPOSE_ENGAGE:   "ELProposeEngage",
-        ACCEPT_ENGAGE:    "ELAcceptEngage",
-        PROPOSE_MARRY:    "ELProposeMarry",
-        ACCEPT_MARRY:     "ELAcceptMarry",
-        SYNC_REQUEST:     "ELSyncRequest",
-        SYNC_GRANT:       "ELSyncGrant",
-        LOCK_ACCESS_OFF:  "ELLockAccessOff",
-        BREAKUP:          "ELBreakup",
-        ROOM_NAME:        "ELRoomName",
+        PROPOSE:          "AFCPropose",
+        PROPOSE_ACK:      "AFCProposeAck",
+        ACCEPT:           "AFCAccept",
+        ACCEPT_ACK:       "AFCAcceptAck",
+        RESTORE_PROPOSE:  "AFCRestorePropose",   // 資料恢復申請
+        RESTORE_ACCEPT:   "AFCRestoreAccept",    // 資料恢復確認
+        PROPOSE_ENGAGE:   "AFCProposeEngage",
+        ACCEPT_ENGAGE:    "AFCAcceptEngage",
+        PROPOSE_MARRY:    "AFCProposeMarry",
+        ACCEPT_MARRY:     "AFCAcceptMarry",
+        SYNC_REQUEST:     "AFCSyncRequest",
+        SYNC_GRANT:       "AFCSyncGrant",
+        LOCK_ACCESS_OFF:  "AFCLockAccessOff",
+        BREAKUP:          "AFCBreakup",
+        ROOM_NAME:        "AFCRoomName",
     };
 
     const STAGE = { DATING: 0, ENGAGED: 1, MARRIED: 2 };
@@ -90,7 +82,7 @@
             // ── Notifications ─────────────────────────────────────
             notFriend:      (n) => `Please add ${n} as a friend first, then re-submit.`,
             notInstalled:   (n) => `${n} doesn't have the plugin installed.`,
-            alreadyEL:      (n) => `${n} is already your extended lover.`,
+            alreadyAFC:      (n) => `${n} is already your extended lover.`,
             alreadyBC:      (n) => `${n} is already your native BC lover.`,
             cooldown:       (s) => `Please wait ${s}s before proposing again.`,
             proposeSent:    (n) => `Proposal sent to ${n}, valid for 3 min...`,
@@ -128,11 +120,11 @@
             dispTitle:  () => `──Display──`,
             mgmtTitle:  () => `──Lovers──`,
             sysTitle:   () => `──System──`,
-            enableEL:   () => `Extended Lover System`,
-            enableELSub:() => `Extended Lovers`,
+            enableAFC:   () => `Extended Lover System`,
+            enableAFCSub:() => `Extended Lovers`,
             elLock:     () => `Extended Lover Lock`,
             elLockSub:  () => `(Under development)`,
-            ownerLock:  () => `Owner can use EL Lock`,
+            ownerLock:  () => `Owner can use AFC Lock`,
             ownerLockSub: () => `When enabled, your owner may also apply the Extended Lover Lock`,
             onlineOn:   () => `Online indicator  ON`,
             onlineOff:  () => `Online indicator  OFF`,
@@ -171,6 +163,13 @@
             // ── Toast ─────────────────────────────────────────────
             toastLoaded:  () => `🐈‍⬛ Abundantia Florum ─Chromatica─ v${MOD_VERSION} loaded!`,
             toastFail:    () => `🐈‍⬛ [AFC] Load failed. Please refresh the page.`,
+            legacyDetected:   () => `🐈‍⬛ [AFC] Old/incompatible AFC data was detected and has been reset to defaults (lover locks were left untouched).`,
+            factoryTitle:     () => `Factory Reset`,
+            factoryModalTitle:() => `Reset AFC to factory defaults?`,
+            factoryModalSub1: () => `This dissolves ALL lover relationships and destroys ALL lover locks.`,
+            factoryModalSub2: () => `This is IRREVERSIBLE.`,
+            factoryConfirm:   () => `Confirm Reset`,
+            factoryDone:      () => `🐈‍⬛ [AFC] AFC has been reset to factory defaults.`,
             restoreTitle:     () => `Lover Data Restore`,
             restoreOnline:    () => `Online Data`,
             restoreBackup:    () => `Backup Data`,
@@ -185,8 +184,8 @@
         TW: {
             notFriend:      (n) => `請先添加 ${n} 為好友後重新提交申請。`,
             notInstalled:   (n) => `${n} 尚未安裝插件，無法申請。`,
-            alreadyEL:      (n) => `${n} 已是你的拓展戀人。`,
-            alreadyBC:      (n) => `${n} 已是你的原生戀人，不需要 EL 申請。`,
+            alreadyAFC:      (n) => `${n} 已是你的拓展戀人。`,
+            alreadyBC:      (n) => `${n} 已是你的原生戀人，不需要 AFC 申請。`,
             cooldown:       (s) => `請等待 ${s} 秒後再申請。`,
             proposeSent:    (n) => `已向 ${n} 發送拓展戀人申請，3 分鐘內有效...`,
             proposeExpired: (n) => `向 ${n} 的申請已過期。`,
@@ -221,8 +220,8 @@
             sysTitle:   () => `──系統設定──`,
             dispTitle:  () => `──顯示設定──`,
             mgmtTitle:  () => `──戀人管理──`,
-            enableEL:   () => `拓展戀人系統`,
-            enableELSub:() => `拓展戀人`,
+            enableAFC:   () => `拓展戀人系統`,
+            enableAFCSub:() => `拓展戀人`,
             elLock:     () => `拓展戀人鎖`,
             elLockSub:  () => `（開發中，尚未完成）`,
             ownerLock:  () => `主人使用拓展鎖`,
@@ -262,6 +261,13 @@
             // ── Toast ─────────────────────────────────────────────
             toastLoaded:  () => `🐈‍⬛ Abundantia Florum ─Chromatica─ v${MOD_VERSION} 載入完成！`,
             toastFail:    () => `🐈‍⬛ [AFC] 載入失敗，請重新整理頁面。`,
+            legacyDetected:   () => `🐈‍⬛ [AFC] 偵測到不相容的舊版 AFC 資料，已重置為預設（戀人鎖未受影響）。`,
+            factoryTitle:     () => `初廠設定`,
+            factoryModalTitle:() => `將 AFC 回復初廠設定？`,
+            factoryModalSub1: () => `這會解除所有戀人關係、並破壞所有戀人鎖。`,
+            factoryModalSub2: () => `此操作不可逆。`,
+            factoryConfirm:   () => `確認重置`,
+            factoryDone:      () => `🐈‍⬛ [AFC] AFC 已回復初廠設定。`,
             restoreTitle:     () => `戀人資料復原`,
             restoreOnline:    () => `線上資料`,
             restoreBackup:    () => `備份資料`,
@@ -286,12 +292,8 @@
         return typeof fn === 'function' ? fn(...args) : fn;
     }
 
-    /** 取得戀人階段的本地化標籤（接受數字 0/1/2 或舊版字串） */
+    /** 取得戀人階段的本地化標籤（數字 0/1/2） */
     function stageLabel(stage) {
-        // 舊版字串 → 數字
-        if (typeof stage === 'string') {
-            stage = stage === 'married' ? 2 : stage === 'engaged' ? 1 : 0;
-        }
         const map = { 0: 'stageDating', 1: 'stageEngaged', 2: 'stageMarried' };
         return t(map[stage] ?? 'stageDating');
     }
@@ -308,14 +310,17 @@
     let modApi        = null;
     let isInitialized = false;
 
-    const ELLockAccessOn   = new Set();
-    const pendingOutgoing  = {};   // EL 戀人申請（發起方）
-    const pendingIncoming  = {};   // EL 戀人申請（接收方 UI）
+    const AFCLockAccessOn   = new Set();
+    const pendingOutgoing  = {};   // AFC 戀人申請（發起方）
+    const pendingIncoming  = {};   // AFC 戀人申請（接收方 UI）
     const pendingStageProp = {};   // 升格申請（發起方）
     const pendingStageInc  = {};   // 升格申請（接收方 UI）
     const loversPrivateRoom = {};
     let   currentPrivateRoomName = "";
     let   profilePanelOpen       = false;
+
+    // Beep 去重 Set（防止 AccountBeep + ChatRoom relay 重複觸發）
+    const _recentBeepKeys = new Set();
 
     let profilePageFresh = false;  // 每次進入 Profile 頁面時強制刷新一次線上狀態
     let onlineFriendsCache = new Set();
@@ -346,38 +351,15 @@
         if (!Player?.OnlineSharedSettings) return null;
         if (!Player.OnlineSharedSettings.AFC)
             Player.OnlineSharedSettings.AFC = {
-                version: MOD_VERSION,
                 lovers: [],
-                lockPerms:    { enableELLock: false, enableOwnerLock: false },
+                lockPerms:    { enableAFCLock: true, enableOwnerLock: false },
                 vibeMsgMode:  'broadcast',
                 enableVibeSound: true,
             };
         if (!Player.OnlineSharedSettings.AFC.lockPerms)
-            Player.OnlineSharedSettings.AFC.lockPerms = { enableELLock: false, enableOwnerLock: false };
-        if (Player.OnlineSharedSettings.AFC.vibeMsgMode === undefined) {
-            const old = Player.OnlineSharedSettings.AFC.enableVibeMsg;
-            Player.OnlineSharedSettings.AFC.vibeMsgMode = (old === false) ? 'off' : 'broadcast';
-            delete Player.OnlineSharedSettings.AFC.enableVibeMsg;
-        }
+            Player.OnlineSharedSettings.AFC.lockPerms = { enableAFCLock: true, enableOwnerLock: false };
         if (Player.OnlineSharedSettings.AFC.enableVibeSound === undefined)
             Player.OnlineSharedSettings.AFC.enableVibeSound = true;
-
-        // 清除 OnlineSharedSettings 的舊版 EL 殘留
-        if (Player.OnlineSharedSettings.EL !== undefined) {
-            delete Player.OnlineSharedSettings.EL;
-        }
-
-        // 資料遷移：字串 stage → 數字，補 lastSeen 欄位
-        const lovers = Player.OnlineSharedSettings.AFC.lovers ?? [];
-        let migrated = false;
-        for (const l of lovers) {
-            if (typeof l.stage === 'string') {
-                l.stage = l.stage === 'married' ? 2 : l.stage === 'engaged' ? 1 : 0;
-                migrated = true;
-            }
-            if (l.lastSeen === undefined) { l.lastSeen = null; migrated = true; }
-        }
-        if (migrated) setTimeout(() => saveSharedSettings(), 500);
 
         return Player.OnlineSharedSettings.AFC;
     }
@@ -386,22 +368,13 @@
     // 頁面重整後冷卻自然重置，這是正確行為
     const _lastProposalSent = {};
 
-    // ── 舊版 AFC_loversBackup 遺留清除（一次性）──────────────────────
-    function _cleanLegacyBackup() {
-        try {
-            if (Player?.ExtensionSettings?.AFC_loversBackup !== undefined) {
-                delete Player.ExtensionSettings.AFC_loversBackup;
-            }
-        } catch {}
-    }
-
     /*
      * AFC 私人設定緊湊格式（v2）
      * cfg 陣列位置：
      *   [0] displayMode     0=duration, 1=date
      *   [1] showOnlineStatus
-     *   [2] enableEL
-     *   [3] enableELLock
+     *   [2] enableAFC
+     *   [3] enableAFCLock
      *   [4] enableOwnerLock
      *   [5] allowTimerExtension
      *   [6] allowSelfUnlock
@@ -411,17 +384,17 @@
      *        每筆：[memberNumber, name, stage(0/1/2), startDate, stageDate, lastSeen]
      */
     function defaultPrivate() {
-        return { v: MOD_VERSION, cfg: [0, 1, 1, 0, 0, 1, 0], l: [] };
+        return { v: MOD_VERSION, cfg: [0, 1, 1, 1, 0, 1, 0], l: [] };
     }
 
     function _unpackPrivate(p) {
-        const c = p.cfg ?? [0, 1, 1, 0, 0, 1, 0];
+        const c = p.cfg ?? [0, 1, 1, 1, 0, 1, 0];
         return {
             version:         p.v   ?? MOD_VERSION,
             displayMode:     c[0]  ? 'date' : 'duration',
             showOnlineStatus:!!c[1],
-            enableEL:        c[2]  !== 0 && c[2] !== false,
-            enableELLock:    !!c[3],
+            enableAFC:        c[2]  !== 0 && c[2] !== false,
+            enableAFCLock:    !!c[3],
             enableOwnerLock: !!c[4],
             lockSettings:    { allowTimerExtension: c[5] !== 0 && c[5] !== false, allowSelfUnlock: !!c[6] },
             lastSeen:        {},   // 已移至 lover.lastSeen
@@ -435,8 +408,8 @@
             cfg: [
                 s.displayMode === 'date' ? 1 : 0,
                 s.showOnlineStatus ? 1 : 0,
-                s.enableEL        ? 1 : 0,
-                s.enableELLock    ? 1 : 0,
+                s.enableAFC        ? 1 : 0,
+                s.enableAFCLock    ? 1 : 0,
                 s.enableOwnerLock ? 1 : 0,
                 s.lockSettings?.allowTimerExtension ? 1 : 0,
                 s.lockSettings?.allowSelfUnlock     ? 1 : 0,
@@ -444,7 +417,7 @@
             // lp removed - runtime only
             l:  (lovers ?? []).map(l => [
                 l.memberNumber, l.name,
-                typeof l.stage === 'string' ? (l.stage === 'married' ? 2 : l.stage === 'engaged' ? 1 : 0) : (l.stage ?? 0),
+                l.stage ?? 0,
                 l.startDate ?? Date.now(), l.stageDate ?? l.startDate ?? Date.now(),
                 l.lastSeen ?? null,
             ]),
@@ -456,12 +429,99 @@
         try {
             const raw = Player?.ExtensionSettings?.AFC;
             if (!raw) return [];
-            const p = JSON.parse(raw.startsWith('{') || raw.startsWith('[') ? raw : LZString.decompressFromBase64(raw));
+            const p = JSON.parse(raw);
             return (p.l ?? []).map(e => Array.isArray(e) ? {
                 memberNumber: e[0], name: e[1], stage: e[2] ?? 0,
-                startDate: e[3], stageDate: e[4], lastSeen: e[5] ?? null, lockEnabled: false,
+                startDate: e[3], stageDate: e[4], lastSeen: e[5] ?? null,
             } : e);
         } catch { return []; }
+    }
+
+    // ── 舊版資料一次性處理（短期輔助，未來版本將移除）────────────────
+    // 依 ExtensionSettings.AFC 記錄的版本判斷：
+    //   >= 0.6.1 → 視為現行格式（資料正確），只靜默清掉用不到的舊維護殘留，戀人鎖不動；
+    //   <  0.6.1 或無法解析 → 視為舊資料，不做向下兼容 → 重置 AFC 設定並提醒玩家。
+    // 必須在重新標記版本「之前」讀 raw 版本，否則資料一律變新就無法判別。
+    const LEGACY_OK_VER = '0.6.1';
+
+    function _cmpVer(a, b) {
+        const pa = String(a).split('.'), pb = String(b).split('.');
+        for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            const d = (parseInt(pa[i], 10) || 0) - (parseInt(pb[i], 10) || 0);
+            if (d !== 0) return d < 0 ? -1 : 1;
+        }
+        return 0;
+    }
+
+    // 清掉用不到的舊維護殘留 key（真正刪除：ServerPlayerExtensionSettingsSync 對 undefined 會 throw，
+    // 無法刪 key；改送整個 ExtensionSettings 物件，伺服器整欄取代 → 缺的 key 就真的消失）
+    function _cleanupLegacyKeys() {
+        if (Player.OnlineSharedSettings) delete Player.OnlineSharedSettings.EL;  // 隨整個 OnlineSharedSettings 送出即移除
+        let extChanged = false;
+        if (Player.ExtensionSettings.EL !== undefined) { delete Player.ExtensionSettings.EL; extChanged = true; }
+        if (Player.ExtensionSettings.AFC_loversBackup !== undefined) { delete Player.ExtensionSettings.AFC_loversBackup; extChanged = true; }
+        if (extChanged) {
+            try { ServerAccountUpdate?.QueueData?.({ ExtensionSettings: Player.ExtensionSettings }, true); } catch {}
+        }
+    }
+
+    function notifyLegacyData() {
+        console.warn(`🐈‍⬛ [AFC] ⚠️ 偵測到舊版（< ${LEGACY_OK_VER}）資料，不做向下兼容，已重置為預設`);
+        try { toast(t('legacyDetected'), 12000, "#e53935"); } catch {}
+        try { chatLocalNotice(t('legacyDetected')); } catch {}
+    }
+
+    // 在 getSharedSettings / getPrivateSettings 之前呼叫（讀 raw 版本，避免被重新標記覆蓋）
+    function legacyCleanupOnce() {
+        try {
+            const ext = Player.ExtensionSettings;
+            if (!ext) return;
+            const raw = ext.AFC;
+            const hasData = raw != null && raw !== '';
+            let ver = null;
+            if (typeof raw === 'string' && raw.startsWith('{')) {
+                try { ver = JSON.parse(raw).v ?? null; } catch {}
+            }
+            const isCurrent = ver != null && _cmpVer(ver, LEGACY_OK_VER) >= 0;
+
+            if (hasData && !isCurrent) {
+                // 舊資料 → 不向下兼容：重置 AFC 私人 / 共享設定為預設並提醒（戀人鎖不動）
+                if (Player.OnlineSharedSettings) delete Player.OnlineSharedSettings.AFC;
+                ext.AFC = JSON.stringify(defaultPrivate());
+                try { ServerPlayerExtensionSettingsSync?.("AFC"); } catch {}
+                try { ServerAccountUpdate?.QueueData?.({ OnlineSharedSettings: Player.OnlineSharedSettings }); } catch {}
+                notifyLegacyData();
+            }
+            // 不論新舊：清掉用不到的舊維護殘留 key（清完即不再觸發）
+            _cleanupLegacyKeys();
+        } catch (e) { console.error("🐈‍⬛ [AFC] ❌ 舊資料一次性處理失敗:", e?.message); }
+    }
+
+    // 初廠設定：解除所有戀人關係、破壞所有戀人鎖、重置設定。不可逆，僅由 UI 確認後呼叫。
+    function factoryReset() {
+        try {
+            const lovers = (getSharedSettings()?.lovers ?? []).slice();
+            // 1) 通知所有戀人解除關係（BREAKUP 讓對方也移除；LOCK_ACCESS_OFF 收回解鎖授權）
+            for (const l of lovers) {
+                try { sendBeep(l.memberNumber, BEEP.LOCK_ACCESS_OFF); sendBeep(l.memberNumber, BEEP.BREAKUP); } catch {}
+            }
+            // 2) 破壞所有戀人鎖（HeartLock）
+            try { window.Liko?.HeartLock?.clearAllLocks?.(); } catch (e) { console.error("🐈‍⬛ [AFC] ❌ 破壞戀人鎖失敗:", e?.message); }
+            // 3) 重置 AFC 私人 / 共享設定為預設
+            delete Player.OnlineSharedSettings.AFC;
+            Player.ExtensionSettings.AFC = JSON.stringify(defaultPrivate());
+            // 4) 真正刪掉舊版殘留 key（_cleanupLegacyKeys 會送整個 ExtensionSettings）
+            _cleanupLegacyKeys();
+            // 5) 重建預設並同步
+            AFCLockAccessOn.clear();
+            _lastKnownLoverCount = 0;   // 解除 saveSharedSettings 的「戀人歸零」保護
+            getSharedSettings();
+            // 送整個 ExtensionSettings（含重置後的 AFC）+ OnlineSharedSettings
+            try { ServerAccountUpdate?.QueueData?.({ ExtensionSettings: Player.ExtensionSettings, OnlineSharedSettings: Player.OnlineSharedSettings }, true); } catch {}
+            console.warn("🐈‍⬛ [AFC] ⚠️ 已執行初廠設定（戀人關係解除、所有戀人鎖破壞、設定重置）");
+            try { toast(t('factoryDone'), 8000, "#e53935"); } catch {}
+            try { chatLocalNotice(t('factoryDone')); } catch {}
+        } catch (e) { console.error("🐈‍⬛ [AFC] ❌ 初廠設定失敗:", e?.message); }
     }
 
     function getPrivateSettings() {
@@ -475,63 +535,7 @@
             return _unpackPrivate(def);
         }
         try {
-            const isLegacy = !raw.startsWith('{') && !raw.startsWith('[');
-            const parsed = isLegacy
-            ? JSON.parse(LZString.decompressFromBase64(raw))
-            : JSON.parse(raw);
-
-            // 舊版 JSON 格式（有 "version" 長 key）→ 自動升級
-            if (isLegacy || parsed.version !== undefined) {
-                const upgraded = {
-                    v:   MOD_VERSION,
-                    cfg: [
-                        parsed.displayMode === 'date' ? 1 : 0,
-                        (parsed.showOnlineStatus ?? true)  ? 1 : 0,
-                        (parsed.enableEL         ?? true)  ? 1 : 0,
-                        (parsed.enableELLock      ?? false) ? 1 : 0,
-                        (parsed.enableOwnerLock   ?? false) ? 1 : 0,
-                        (parsed.lockSettings?.allowTimerExtension ?? true)  ? 1 : 0,
-                        (parsed.lockSettings?.allowSelfUnlock     ?? false) ? 1 : 0,
-                    ],
-                    // lp removed
-                };
-                // 遷移：把舊版 ls 的時間戳移進 lover.lastSeen
-                const oldLs = parsed.lastSeen ?? {};
-                if (Object.keys(oldLs).length) {
-                    const s = getSharedSettings();
-                    if (s) {
-                        for (const l of s.lovers) {
-                            const ts = oldLs[l.memberNumber] ?? oldLs[String(l.memberNumber)];
-                            if (ts && !l.lastSeen) l.lastSeen = ts;
-                        }
-                        setTimeout(() => saveSharedSettings(), 600);
-                    }
-                }
-                Player.ExtensionSettings.AFC = JSON.stringify(upgraded);
-                if (typeof ServerPlayerExtensionSettingsSync === 'function')
-                    ServerPlayerExtensionSettingsSync("AFC");
-                console.log("🐈‍⬛ [AFC] ✅ 私人設定已升級（ls → lover.lastSeen）");
-                return _unpackPrivate(upgraded);
-            }
-
-            // 新版格式但仍有舊 ls → 清除並遷移
-            if (parsed.ls && Object.keys(parsed.ls).length) {
-                const s = getSharedSettings();
-                if (s) {
-                    for (const l of s.lovers) {
-                        const ts = parsed.ls[l.memberNumber] ?? parsed.ls[String(l.memberNumber)];
-                        if (ts && !l.lastSeen) l.lastSeen = ts;
-                    }
-                    setTimeout(() => saveSharedSettings(), 600);
-                }
-                delete parsed.ls;
-                Player.ExtensionSettings.AFC = JSON.stringify(parsed);
-                if (typeof ServerPlayerExtensionSettingsSync === 'function')
-                    ServerPlayerExtensionSettingsSync("AFC");
-                console.log("🐈‍⬛ [AFC] ✅ 已清除 ls 殘留並遷移至 lover.lastSeen");
-            }
-
-            return _unpackPrivate(parsed);
+            return _unpackPrivate(JSON.parse(raw));
         } catch (e) {
             console.error("🐈‍⬛ [AFC] ❌ 解析私人設定失敗:", e.message);
             return _unpackPrivate(defaultPrivate());
@@ -586,7 +590,7 @@
                 Content: 'AFC::Sync',
                 Dictionary: [{ Tag: 'AFCData', Data: {
                     lovers:   s.lovers   ?? [],
-                    lockPerms: s.lockPerms ?? { enableELLock: false, enableOwnerLock: false },
+                    lockPerms: s.lockPerms ?? { enableAFCLock: true, enableOwnerLock: false },
                 }}],
             });
         } catch {}
@@ -611,14 +615,14 @@
     }
 
     // 將鎖的權限從私人設定同步到共享設定（讓對方插件讀取）
-    // 當 enableEL = false 時，共享的鎖權限一律為 false
+    // 當 enableAFC = false 時，共享的鎖權限一律為 false
     function syncLockPermsToShared(priv) {
         const s = getSharedSettings();
         if (!s) return;
-        const elActive = priv.enableEL ?? true;
+        const afcActive = priv.enableAFC ?? true;
         s.lockPerms = {
-            enableELLock:    elActive && (priv.enableELLock    ?? false),
-            enableOwnerLock: elActive && (priv.enableOwnerLock ?? false),
+            enableAFCLock:    afcActive && (priv.enableAFCLock    ?? true),
+            enableOwnerLock: afcActive && (priv.enableOwnerLock ?? false),
         };
         saveSharedSettings();
     }
@@ -635,78 +639,6 @@
                 Dictionary: [{ Tag: "AFC::Beep", MsgType: msgType, TargetMember: target, ...extra }],
             });
         } catch {}
-    }
-
-    // ── 可靠 Beep：發送 → 等對方回「已收到」才停，否則每 1.5 秒重送 ──────
-    // AFC 的握手走同房間 Hidden 聊天訊息；正常情況對方立刻就收到，不需重送。
-    // 但偶有對方沒收到的情況（房間同步交界處被丟棄），造成「申請要等很久才出現」
-    // 與「同意了卻沒更新、要重來幾次」。
-    // 機制：
-    //   1) 送出時夾帶一個隨機識別碼（nonce），不加密、僅供識別。
-    //   2) 對方收到後回傳同碼的 ACK；發送方一收到就停止重送（正常情況 0 次重送）。
-    //   3) 沒收到 ACK 才每 1.5 秒重送（同一個 nonce），最多數次後放棄。
-    //   4) 對方若重複收到同一個 nonce → 視為同一批，忽略副作用（但仍回 ACK，
-    //      以防是 ACK 本身遺失）。
-    const RELIABLE_RETRY_MS  = 1500;
-    const RELIABLE_MAX_TRIES = 6;        // 1 次首發 + 5 次重送，約涵蓋 ~9 秒
-    const _ackPending  = new Map();      // nonce → { iv, target }
-    const _seenNonces  = new Map();      // nonce → 到期時間戳（接收端去重）
-    const SEEN_NONCE_TTL_MS = 60000;
-
-    function _makeNonce() {
-        return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    }
-
-    function sendReliableBeep(target, msgType, extra, ackType) {
-        const nonce = _makeNonce();
-        const payload = { ...extra, _nonce: nonce };
-        sendBeep(target, msgType, payload);
-        let tries = 1;
-        const iv = setInterval(() => {
-            // 已收到 ACK（_ackPending 被刪）或達上限 → 停止
-            if (!_ackPending.has(nonce) || tries++ >= RELIABLE_MAX_TRIES) {
-                clearInterval(iv); _ackPending.delete(nonce); return;
-            }
-            sendBeep(target, msgType, payload);
-        }, RELIABLE_RETRY_MS);
-        _ackPending.set(nonce, { iv, target });
-    }
-
-    // 收到對方回傳的 ACK（夾帶同 nonce）→ 停止該筆重送。回傳 true 代表第一次收到
-    function ackReliableBeep(nonce) {
-        if (nonce == null) return false;
-        const e = _ackPending.get(nonce);
-        if (!e) return false;
-        clearInterval(e.iv);
-        _ackPending.delete(nonce);
-        return true;
-    }
-
-    // 取消所有寄往某對象的重送（例如對方已接受，殘留的申請重送可停）
-    function cancelReliableTo(target) {
-        for (const [nonce, e] of _ackPending) {
-            if (Number(e.target) === Number(target)) { clearInterval(e.iv); _ackPending.delete(nonce); }
-        }
-    }
-
-    function cancelAllReliableBeeps() {
-        for (const { iv } of _ackPending.values()) clearInterval(iv);
-        _ackPending.clear();
-    }
-
-    // 接收端去重：第一次見到回 false；重複（同 nonce）回 true。
-    // 注意：只在「副作用確實完成」後才呼叫 markBeepSeen，避免某次無法處理就被當成已處理。
-    function hasSeenBeep(nonce) {
-        if (nonce == null) return false;
-        const exp = _seenNonces.get(nonce);
-        return exp != null && exp > Date.now();
-    }
-    function markBeepSeen(nonce) {
-        if (nonce == null) return;
-        const now = Date.now();
-        if (_seenNonces.size > 200)
-            for (const [k, e] of _seenNonces) if (e <= now) _seenNonces.delete(k);
-        _seenNonces.set(nonce, now + SEEN_NONCE_TTL_MS);
     }
 
     function chatLocalNotice(text) { ChatRoomSendLocal(`[AFC] ${text}`); }
@@ -744,7 +676,7 @@
             script.onerror = () => {
                 console.warn("🐈‍⬛ [AFC] ⚠️ Toast 系統載入失敗，將使用 console 替代");
                 // 備用：讓 chatLocalNotice 擔任 toast
-                window.ChatRoomSendLocalStyled = (msg) => console.log("[EL toast]", msg);
+                window.ChatRoomSendLocalStyled = (msg) => console.log("[AFC toast]", msg);
                 resolve();
             };
             document.head.appendChild(script);
@@ -755,7 +687,7 @@
         if (typeof window.ChatRoomSendLocalStyled === 'function') {
             window.ChatRoomSendLocalStyled(msg, ms, color);
         } else {
-            console.log("[EL toast]", msg);
+            console.log("[AFC toast]", msg);
         }
     }
 
@@ -793,7 +725,6 @@
             memberNumber, name, stage,
             startDate:   Date.now(),
             stageDate:   Date.now(),
-            lockEnabled: false,
         });
         saveSharedSettings();
         _syncLoversBackup();
@@ -805,7 +736,7 @@
         const s = getSharedSettings();
         if (!s) return;
         s.lovers = s.lovers.filter(l => l.memberNumber !== memberNumber);
-        ELLockAccessOn.delete(memberNumber);
+        AFCLockAccessOn.delete(memberNumber);
         delete loversPrivateRoom[memberNumber];
         _lastKnownLoverCount = s.lovers.length;
         saveSharedSettings();
@@ -828,11 +759,11 @@
         return getSharedSettings()?.lovers.find(l => l.memberNumber === memberNumber);
     }
 
-    function isELLover(memberNumber) {
+    function isAFCLover(memberNumber) {
         return getSharedSettings()?.lovers.some(l => l.memberNumber === memberNumber) ?? false;
     }
 
-    function targetHasEL(C) { return !!(C?.OnlineSharedSettings?.AFC); }
+    function targetHasAFC(C) { return !!(C?.OnlineSharedSettings?.AFC); }
 
     function isNativeLover(memberNumber) {
         return Player.Lovership?.some(l => l.MemberNumber === memberNumber) ?? false;
@@ -863,7 +794,7 @@
 
     // 判斷某個 MemberNumber 是否在線
     // 僅用兩個可靠來源：同房間角色 + OnlineFriends 查詢快取
-    // ELLockAccessOn 是鎖定授權，不代表對方目前在線，不納入判斷
+    // AFCLockAccessOn 是鎖定授權，不代表對方目前在線，不納入判斷
     function isOnline(memberNumber) {
         if (ChatRoomCharacter?.some(c => c.MemberNumber === memberNumber)) return true;
         return onlineFriendsCache.has(memberNumber);
@@ -905,21 +836,21 @@
     // Window Prerequisite 函式
     // ============================================================
 
-    window.ChatRoomELCanPropose = function () {
+    window.ChatRoomAFCCanPropose = function () {
         const C = CurrentCharacter;
         if (!C?.MemberNumber || C.MemberNumber === Player.MemberNumber) return false;
-        if (isELLover(C.MemberNumber)) return false;
+        if (isAFCLover(C.MemberNumber)) return false;
         if (isNativeLover(C.MemberNumber)) return false;
-        if (!targetHasEL(C)) return false;
+        if (!targetHasAFC(C)) return false;
         return true;
     };
 
-    window.ChatRoomELCanBreakup = function () {
-        return !!(CurrentCharacter?.MemberNumber && isELLover(CurrentCharacter.MemberNumber));
+    window.ChatRoomAFCCanBreakup = function () {
+        return !!(CurrentCharacter?.MemberNumber && isAFCLover(CurrentCharacter.MemberNumber));
     };
 
     // 訂婚條件：交往滿 STAGE_PROMOTE_DAYS 天
-    window.ChatRoomELCanProposeEngage = function () {
+    window.ChatRoomAFCCanProposeEngage = function () {
         if (!CurrentCharacter) return false;
         const l = getLoverEntry(CurrentCharacter.MemberNumber);
         if (!l || l.stage !== STAGE.DATING) return false;
@@ -927,7 +858,7 @@
     };
 
     // 結婚條件：訂婚滿 STAGE_PROMOTE_DAYS 天
-    window.ChatRoomELCanProposeMarry = function () {
+    window.ChatRoomAFCCanProposeMarry = function () {
         if (!CurrentCharacter) return false;
         const l = getLoverEntry(CurrentCharacter.MemberNumber);
         if (!l || l.stage !== STAGE.ENGAGED) return false;
@@ -936,19 +867,19 @@
 
     // 恢復條件：對方有我（寬鬆條件，點擊時才做完整驗證）
     // 只要我還不是對方的拓展戀人就顯示（讓點擊時決定）
-    window.ChatRoomELCanRestore = function () {
+    window.ChatRoomAFCCanRestore = function () {
         const C = CurrentCharacter;
         if (!C?.MemberNumber || C.MemberNumber === Player.MemberNumber) return false;
         if (isNativeLover(C.MemberNumber)) return false;
-        if (!targetHasEL(C)) return false;
-        const iHaveC = isELLover(C.MemberNumber);
+        if (!targetHasAFC(C)) return false;
+        const iHaveC = isAFCLover(C.MemberNumber);
         const cHasMe = C.OnlineSharedSettings?.AFC?.lovers
         ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
         // 情況A：對方有我但我沒有對方 | 情況B：我有對方但對方沒有我
         return (iHaveC && !cHasMe) || (!iHaveC && cHasMe);
     };
 
-    window.ChatRoomELRestore = function () {
+    window.ChatRoomAFCRestore = function () {
         if (!CurrentCharacter) return;
         proposeRestore(CurrentCharacter);
     };
@@ -958,7 +889,7 @@
 
     function proposeRestore(C) {
         const target = C.MemberNumber;
-        const iHaveC = isELLover(target);
+        const iHaveC = isAFCLover(target);
         const cHasMe = C.OnlineSharedSettings?.AFC?.lovers
         ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
 
@@ -1016,7 +947,7 @@
         if (!alreadyHave) {
             // Case B：我（丟失方）收到保有方的申請，直接 addLover
             s.lovers.push({ memberNumber: senderNum, name: senderName,
-                           stage, startDate, stageDate, lockEnabled: false });
+                           stage, startDate, stageDate });
             saveSharedSettings();
             broadcastAFCData();
         }
@@ -1024,7 +955,7 @@
         // Case A：我（保有方）已有對方，找出我記錄的對方資料，回傳讓對方 addLover
         // Case B：我剛 addLover 完畢，回傳確認
         const myEntryForSender = s.lovers.find(l => Number(l.memberNumber) === Number(senderNum));
-        ELLockAccessOn.add(senderNum);
+        AFCLockAccessOn.add(senderNum);
         updateLastSeen(senderNum);
         sendBeep(senderNum, BEEP.RESTORE_ACCEPT, {
             ReceiverName:      Player.Name,
@@ -1041,19 +972,18 @@
             delete pendingRestoreOut[fromNum];
         }
         // Case A：我是丟失方，對方回傳資料，現在 addLover
-        if (!isELLover(fromNum)) {
+        if (!isAFCLover(fromNum)) {
             const s = getSharedSettings();
             if (s && !s.lovers.some(l => Number(l.memberNumber) === Number(fromNum))) {
                 s.lovers.push({ memberNumber: fromNum, name: receiverName,
                                stage: stage ?? STAGE.DATING,
                                startDate: startDate ?? Date.now(),
-                               stageDate: stageDate ?? Date.now(),
-                               lockEnabled: false });
+                               stageDate: stageDate ?? Date.now() });
                 saveSharedSettings();
                 broadcastAFCData();
             }
         }
-        ELLockAccessOn.add(fromNum);
+        AFCLockAccessOn.add(fromNum);
         updateLastSeen(fromNum);
         chatLocalNotice(t('restoreOK', receiverName));
     }
@@ -1065,16 +995,16 @@
         delete pendingRestoreInc[num];
     }
 
-    window.ChatRoomELPropose       = function () { if (CurrentCharacter) proposeToCharacter(CurrentCharacter); };
-    window.ChatRoomELBreakup       = function () { if (CurrentCharacter) initiateBreakup(CurrentCharacter.MemberNumber, CurrentCharacter.Name); };
-    window.ChatRoomELProposeEngage = function () { if (CurrentCharacter) proposeStageUpgrade(CurrentCharacter, STAGE.ENGAGED); };
-    window.ChatRoomELProposeMarry  = function () { if (CurrentCharacter) proposeStageUpgrade(CurrentCharacter, STAGE.MARRIED); };
+    window.ChatRoomAFCPropose       = function () { if (CurrentCharacter) proposeToCharacter(CurrentCharacter); };
+    window.ChatRoomAFCBreakup       = function () { if (CurrentCharacter) initiateBreakup(CurrentCharacter.MemberNumber, CurrentCharacter.Name); };
+    window.ChatRoomAFCProposeEngage = function () { if (CurrentCharacter) proposeStageUpgrade(CurrentCharacter, STAGE.ENGAGED); };
+    window.ChatRoomAFCProposeMarry  = function () { if (CurrentCharacter) proposeStageUpgrade(CurrentCharacter, STAGE.MARRIED); };
 
     // ============================================================
     // Dialog 注入
     // ============================================================
 
-    const EL_MARKER = "__EL__";
+    const AFC_MARKER = "__AFC__";
 
     function makeDialog(option, result, fn, marker) {
         return {
@@ -1083,17 +1013,17 @@
             Function:    fn,
             Option:      option,
             Result:      result,
-            [EL_MARKER]: marker,
+            [AFC_MARKER]: marker,
         };
     }
 
-    function injectELDialogs(C) {
+    function injectAFCDialogs(C) {
         if (!C) return;
         const dialog = C.Dialog;
         if (!Array.isArray(dialog) || dialog.length === 0) return;
 
         for (let i = dialog.length - 1; i >= 0; i--)
-            if (dialog[i]?.[EL_MARKER]) dialog.splice(i, 1);
+            if (dialog[i]?.[AFC_MARKER]) dialog.splice(i, 1);
 
         const backIndex = dialog.findIndex(d =>
                                            d?.Stage === "RelationshipSubmenu" && d?.NextStage === "10"
@@ -1101,16 +1031,16 @@
         if (backIndex === -1) return;
 
         const toInsert = [];
-        if (window.ChatRoomELCanPropose?.())
-            toInsert.push(makeDialog(t('dPropose'), t('dProposeR'), "ChatRoomELPropose()", "propose"));
-        if (window.ChatRoomELCanRestore?.())
-            toInsert.push(makeDialog(t('dRestore'), t('dRestoreR'), "ChatRoomELRestore()", "restore"));
-        if (window.ChatRoomELCanProposeEngage?.())
-            toInsert.push(makeDialog(t('dEngage'), t('dEngageR'), "ChatRoomELProposeEngage()", "engage"));
-        if (window.ChatRoomELCanProposeMarry?.())
-            toInsert.push(makeDialog(t('dMarry'), t('dMarryR'), "ChatRoomELProposeMarry()", "marry"));
-        if (window.ChatRoomELCanBreakup?.())
-            toInsert.push(makeDialog(t('dBreakup'), t('dBreakupR'), "ChatRoomELBreakup()", "breakup"));
+        if (window.ChatRoomAFCCanPropose?.())
+            toInsert.push(makeDialog(t('dPropose'), t('dProposeR'), "ChatRoomAFCPropose()", "propose"));
+        if (window.ChatRoomAFCCanRestore?.())
+            toInsert.push(makeDialog(t('dRestore'), t('dRestoreR'), "ChatRoomAFCRestore()", "restore"));
+        if (window.ChatRoomAFCCanProposeEngage?.())
+            toInsert.push(makeDialog(t('dEngage'), t('dEngageR'), "ChatRoomAFCProposeEngage()", "engage"));
+        if (window.ChatRoomAFCCanProposeMarry?.())
+            toInsert.push(makeDialog(t('dMarry'), t('dMarryR'), "ChatRoomAFCProposeMarry()", "marry"));
+        if (window.ChatRoomAFCCanBreakup?.())
+            toInsert.push(makeDialog(t('dBreakup'), t('dBreakupR'), "ChatRoomAFCBreakup()", "breakup"));
 
         if (toInsert.length === 0) return;
         dialog.splice(backIndex, 0, ...toInsert);
@@ -1205,8 +1135,8 @@
         if (!Player.FriendList?.includes(target)) {
             chatLocalNotice(t('notFriend', C.Name)); return;
         }
-        if (!targetHasEL(C))      { chatLocalNotice(t('notInstalled', C.Name)); return; }
-        if (isELLover(target))    { chatLocalNotice(t('alreadyEL', C.Name)); return; }
+        if (!targetHasAFC(C))      { chatLocalNotice(t('notInstalled', C.Name)); return; }
+        if (isAFCLover(target))    { chatLocalNotice(t('alreadyAFC', C.Name)); return; }
         if (isNativeLover(target)){ chatLocalNotice(t('alreadyBC', C.Name)); return; }
 
         const priv = getPrivateSettings();
@@ -1216,7 +1146,7 @@
             chatLocalNotice(t('cooldown', sec)); return;
         }
 
-        sendReliableBeep(target, BEEP.PROPOSE, { SenderName: Player.Name }, BEEP.PROPOSE_ACK);
+        sendBeep(target, BEEP.PROPOSE, { SenderName: Player.Name });
 
         if (priv) {
             _lastProposalSent[target] = Date.now();
@@ -1228,23 +1158,24 @@
             timer: setTimeout(() => {
                 delete pendingOutgoing[target];
                 // 若對方已接受（已成為戀人），不顯示逾時訊息
-                if (!isELLover(target)) chatLocalNotice(t('proposeExpired', C.Name));
+                if (!isAFCLover(target)) chatLocalNotice(t('proposeExpired', C.Name));
             }, PROPOSE_EXPIRE_MS),
         };
         chatLocalNotice(t('proposeSent', C.Name));
     }
 
     // ② 申請流程 — 接收方 UI
-    function handleIncomingProposal(senderNum, senderName, nonce) {
-        // 每次（含對方重送）都回傳同碼 ACK，讓對方確認送達後停止重送
-        sendBeep(senderNum, BEEP.PROPOSE_ACK, { _nonce: nonce });
-
-        // 已是戀人（雙向確認）→ 僅回 ACK，不再顯示申請 UI
-        if (isELLover(senderNum) || isNativeLover(senderNum)) return;
-        // 同一批重送（同 nonce）→ 已處理過，僅回 ACK，不重開 UI
-        if (hasSeenBeep(nonce)) return;
-        // UI 只建立一次
+    function handleIncomingProposal(senderNum, senderName) {
         if (pendingIncoming[senderNum]) return;
+
+        // 若已是戀人（雙向確認）則不需要再提案
+        const senderChar = ChatRoomCharacter?.find(c => c.MemberNumber === senderNum);
+        const senderHasMe = senderChar?.OnlineSharedSettings?.AFC?.lovers
+        ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
+        if (isAFCLover(senderNum) || isNativeLover(senderNum)) return;  // 已是戀人
+        // （senderHasMe 只是資料丟失時的容錯，仍允許顯示申請 UI）
+
+        sendBeep(senderNum, BEEP.PROPOSE_ACK);
 
         const uiId = `el-proposal-${senderNum}`;
 
@@ -1255,10 +1186,8 @@
             onAccept:  () => acceptProposal(senderNum, senderName),
             onDecline: () => cleanupIncomingUI(senderNum),
         });
-        if (!el) return;   // 此刻無法顯示（例如不在聊天畫面）→ 不記 nonce，等下次重送再試
+        if (!el) return;
 
-        // 確實顯示後才標記已處理，避免漏顯示卻被當成已處理
-        markBeepSeen(nonce);
         const iv = startCountdown(uiId, `${uiId}-sub`, () => cleanupIncomingUI(senderNum),
                                   t('proposeExpired', senderName));
         pendingIncoming[senderNum] = { timer: iv, uiId };
@@ -1275,31 +1204,25 @@
     function acceptProposal(senderNum, senderName) {
         cleanupIncomingUI(senderNum);
         addLover(senderNum, senderName, STAGE.DATING);
-        ELLockAccessOn.add(senderNum);
+        AFCLockAccessOn.add(senderNum);
         updateLastSeen(senderNum);
         broadcastAction(senderNum, senderName, t('evDateTxt'));
-        // 可靠送出：重送 ACCEPT 直到對方回 ACCEPT_ACK，解決「同意了卻沒更新」
-        sendReliableBeep(senderNum, BEEP.ACCEPT, { ReceiverName: Player.Name }, BEEP.ACCEPT_ACK);
+        sendBeep(senderNum, BEEP.ACCEPT, { ReceiverName: Player.Name });
     }
 
-    function handleAccepted(fromNum, receiverName, nonce) {
-        // 回傳同碼 ACCEPT_ACK，讓對方確認送達後停止重送
-        sendBeep(fromNum, BEEP.ACCEPT_ACK, { _nonce: nonce, AckNumber: Player.MemberNumber });
-        // 對方已接受 → 對方確實收到了我的 PROPOSE，停止我方殘留的申請重送
-        cancelReliableTo(fromNum);
+    function handleAccepted(fromNum, receiverName) {
         if (pendingOutgoing[fromNum]) {
             clearTimeout(pendingOutgoing[fromNum].timer);
             delete pendingOutgoing[fromNum];
         }
-        // 同一批重送（同 nonce）→ 已處理過，僅回 ACK
-        if (hasSeenBeep(nonce)) return;
-        markBeepSeen(nonce);
-        if (!isELLover(fromNum)) {
+        if (!isAFCLover(fromNum)) {
             addLover(fromNum, receiverName, STAGE.DATING);
-            ELLockAccessOn.add(fromNum);
+            AFCLockAccessOn.add(fromNum);
             updateLastSeen(fromNum);
             chatLocalNotice(t('proposeOK', receiverName));
         }
+        // 回應 ACCEPT_ACK
+        sendBeep(fromNum, BEEP.ACCEPT_ACK, { AckNumber: Player.MemberNumber });
     }
 
     // ============================================================
@@ -1340,7 +1263,7 @@
         const senderChar = ChatRoomCharacter?.find(c => c.MemberNumber === senderNum);
         const senderHasMe = senderChar?.OnlineSharedSettings?.AFC?.lovers
         ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
-        if (!isELLover(senderNum) && !senderHasMe) return;
+        if (!isAFCLover(senderNum) && !senderHasMe) return;
 
         const key   = `${senderNum}_${newStage}`;
         const uiId  = `el-stage-${senderNum}-${newStage}`;
@@ -1435,17 +1358,17 @@
         const text = `${Player.Name} (#${Player.MemberNumber}) 與 ${otherName} (#${otherNum}) ${eventText}。`;
         ServerSend("ChatRoomChat", {
             Type:    "Action",
-            Content: "ELEvent",
-            Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": ELEvent', Text: text }],
+            Content: "AFCEvent",
+            Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": AFCEvent', Text: text }],
         });
     }
 
     function initiateBreakup(num, name) {
-        if (!isELLover(num)) return;
+        if (!isAFCLover(num)) return;
         sendBeep(num, BEEP.LOCK_ACCESS_OFF);
         sendBeep(num, BEEP.BREAKUP);
         removeLover(num);
-        ELLockAccessOn.delete(num);
+        AFCLockAccessOn.delete(num);
         chatLocalNotice(t('breakupSelf', name ?? `#${num}`));
     }
 
@@ -1459,7 +1382,7 @@
     }
 
     function broadcastRoomNameToLovers() {
-        for (const num of ELLockAccessOn) sendRoomNameTo(num);
+        for (const num of AFCLockAccessOn) sendRoomNameTo(num);
     }
 
     // ============================================================
@@ -1475,24 +1398,20 @@
             return;
         }
 
-        if (data.BeepType !== EL_BEEP_TYPE) return;
+        if (data.BeepType !== AFC_BEEP_TYPE) return;
 
         const from     = data.MemberNumber;
         const fromName = data.MemberName ?? `#${from}`;
-        const nonce    = data._nonce;
 
         switch (data.Message) {
             case BEEP.PROPOSE:
-                handleIncomingProposal(from, data.SenderName ?? fromName, nonce); break;
+                handleIncomingProposal(from, data.SenderName ?? fromName); break;
             case BEEP.PROPOSE_ACK:
-                // 對方已收到我的申請 → 停止重送；只在第一次收到時提示
-                if (ackReliableBeep(nonce)) chatLocalNotice(t('proposeAck', fromName));
-                break;
+                chatLocalNotice(t('proposeAck', fromName)); break;
             case BEEP.ACCEPT:
-                handleAccepted(from, data.ReceiverName ?? fromName, nonce); break;
+                handleAccepted(from, data.ReceiverName ?? fromName); break;
             case BEEP.ACCEPT_ACK:
-                // 對方已確認收到我的同意，停止重送
-                ackReliableBeep(nonce); break;
+                break;
             case BEEP.RESTORE_PROPOSE:
                 handleIncomingRestore(from, data.SenderName ?? fromName,
                                       data.Stage, data.StartDate, data.StageDate); break;
@@ -1510,24 +1429,24 @@
                 handleAcceptedStage(from, data.ReceiverName ?? fromName, STAGE.MARRIED); break;
 
             case BEEP.SYNC_REQUEST:
-                if (isELLover(from)) {
-                    ELLockAccessOn.add(from);
+                if (isAFCLover(from)) {
+                    AFCLockAccessOn.add(from);
                     updateLastSeen(from);
                     sendBeep(from, BEEP.SYNC_GRANT, { GranterName: Player.Name });
                     sendRoomNameTo(from);
                 }
                 break;
             case BEEP.SYNC_GRANT:
-                if (isELLover(from)) {
-                    ELLockAccessOn.add(from);
+                if (isAFCLover(from)) {
+                    AFCLockAccessOn.add(from);
                     updateLastSeen(from);
                     sendRoomNameTo(from);
                 }
                 break;
             case BEEP.LOCK_ACCESS_OFF:
-                ELLockAccessOn.delete(from); break;
+                AFCLockAccessOn.delete(from); break;
             case BEEP.BREAKUP:
-                if (isELLover(from)) {
+                if (isAFCLover(from)) {
                     removeLover(from);
                     chatLocalNotice(t('breakupOther', fromName));
                 }
@@ -1560,13 +1479,13 @@
         return Player;
     }
 
-    function getViewingCharacterELLovers() {
+    function getViewingCharacterAFCLovers() {
         return getCurrentViewingCharacter()?.OnlineSharedSettings?.AFC?.lovers ?? [];
     }
 
     function drawProfileButton() {
         if (CurrentScreen !== "InformationSheet") return;
-        const lovers = getViewingCharacterELLovers();
+        const lovers = getViewingCharacterAFCLovers();
         const label  = profilePanelOpen ? t('btnClose') : t('btnOpen', lovers.length);
         DrawButton(PROFILE_BTN_X, PROFILE_BTN_Y, PROFILE_BTN_W, PROFILE_BTN_H,
                    label, "White", "", "Extended Lover List");
@@ -1610,7 +1529,7 @@
 
     function drawProfilePanel() {
         if (!profilePanelOpen || CurrentScreen !== "InformationSheet") return;
-        const lovers    = getViewingCharacterELLovers();
+        const lovers    = getViewingCharacterAFCLovers();
         const priv      = getPrivateSettings();
         const isOwnProfile = getCurrentViewingCharacter()?.MemberNumber === Player.MemberNumber;
 
@@ -1696,10 +1615,10 @@
     }
 
     // ============================================================
-    // EL 擴展設定頁面（仿 EchoCache 風格）
+    // AFC 擴展設定頁面（仿 EchoCache 風格）
     // ============================================================
 
-    const ELSettingsUI = (() => {
+    const AFCSettingsUI = (() => {
         // ── 座標（依 setting.txt 設計稿）──────────────────────────
         // BC canvas: 2000 × 1000
 
@@ -1720,10 +1639,11 @@
         const LBL_X = 350;
 
         let _breakupModal  = null;
+        let _factoryModal  = false;
         let _scrollOffset  = 0;
         let _showRestoreUI = false;
 
-        function load() { _breakupModal = null; _scrollOffset = 0; _showRestoreUI = false; }
+        function load() { _breakupModal = null; _factoryModal = false; _scrollOffset = 0; _showRestoreUI = false; }
 
         // ── run()：每幀繪製 ────────────────────────────────────────
         function run() {
@@ -1735,6 +1655,8 @@
             DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", "返回");
             // 復原按鈕（與 Exit 按鈕相同樣式，無底色）
             DrawButton(1710, 75, 90, 90, "", "", "Icons/Reset.png", t('restoreTitle'));
+            // 初廠設定按鈕（復原左側）
+            DrawButton(1605, 75, 90, 90, "", "", "Icons/Magic.png", t('factoryTitle'));
 
             // 標題（centerX=1000, y=90-150）
             DrawText("Abundantia Florum ─Chromatica─", 1000, 120, "Black", "Gray");
@@ -1744,17 +1666,17 @@
 
             DrawText(t('sysTitle'), 560, 200, "Black", "Gray");
 
-            // enableEL（y=240）
-            DrawCheckbox(CB_X, 240, CB_SZ, CB_SZ, "", priv.enableEL ?? true);
-            _lbl(t('enableEL'), LBL_X, 270, 400, "Black", 30);
+            // enableAFC（y=240）
+            DrawCheckbox(CB_X, 240, CB_SZ, CB_SZ, "", priv.enableAFC ?? true);
+            _lbl(t('enableAFC'), LBL_X, 270, 400, "Black", 30);
 
-            // enableELLock（y=315）
-            const elLockOn = priv.enableELLock ?? false;
-            DrawCheckbox(CB_X, 315, CB_SZ, CB_SZ, "", elLockOn);
+            // enableAFCLock（y=315）
+            const afcLockOn = priv.enableAFCLock ?? true;
+            DrawCheckbox(CB_X, 315, CB_SZ, CB_SZ, "", afcLockOn);
             _lbl(t('elLock'), LBL_X, 345, 400, "Black", 30);
 
-            // enableOwnerLock（y=390）— 只有 enableELLock 開啟時才能操作
-            const ownerLockEnabled = elLockOn;
+            // enableOwnerLock（y=390）— 只有 enableAFCLock 開啟時才能操作
+            const ownerLockEnabled = afcLockOn;
             DrawCheckbox(CB_X, 390, CB_SZ, CB_SZ, "", priv.enableOwnerLock ?? false);
             _lbl(t('ownerLock'), LBL_X, 420, 400, ownerLockEnabled ? "Black" : "#999", 30);
             if (!ownerLockEnabled) {
@@ -1868,6 +1790,7 @@
 
             // ── 解除確認彈窗 ──────────────────────────────────────
             if (_breakupModal) _drawBreakupModal(_breakupModal);
+            if (_factoryModal) _drawFactoryModal();
             if (_showRestoreUI) _drawRestoreUI();
         }
 
@@ -1898,6 +1821,34 @@
 
             DrawButton(bx + 120, by + bh - 80, 260, 55, t('confirmBtn'), "#9a1a1a", "");
             DrawButton(bx + bw - 380, by + bh - 80, 260, 55, t('cancelBtn'), "White", "");
+        }
+
+        // ── 初廠設定確認彈窗 ──────────────────────────────────────
+        const FRM = { bw: 900, bh: 320 };
+        function _frmRect() {
+            return { bx: (2000 - FRM.bw) / 2, by: (1000 - FRM.bh) / 2, bw: FRM.bw, bh: FRM.bh };
+        }
+        function _drawFactoryModal() {
+            const { bx, by, bw, bh } = _frmRect();
+            MainCanvas.save();
+            MainCanvas.fillStyle = "rgba(0,0,0,0.72)";
+            MainCanvas.fillRect(0, 0, 2000, 1000);
+            MainCanvas.fillStyle   = "rgba(30,8,20,0.98)";
+            MainCanvas.strokeStyle = "#E8618C";
+            MainCanvas.lineWidth   = 3;
+            MainCanvas.beginPath();
+            if (MainCanvas.roundRect) MainCanvas.roundRect(bx, by, bw, bh, 14);
+            else MainCanvas.rect(bx, by, bw, bh);
+            MainCanvas.fill();
+            MainCanvas.stroke();
+            MainCanvas.restore();
+
+            DrawText(t('factoryModalTitle'), 1000, by + 80,  "White",   "Black");
+            DrawText(t('factoryModalSub1'),  1000, by + 145, "#ddd",    "Black");
+            DrawText(t('factoryModalSub2'),  1000, by + 200, "#FF6666", "Black");
+
+            DrawButton(bx + 120,      by + bh - 80, 280, 55, t('factoryConfirm'), "#9a1a1a", "");
+            DrawButton(bx + bw - 400, by + bh - 80, 280, 55, t('cancelBtn'),      "White",   "");
         }
 
         let _restoreScrollL = 0;
@@ -2096,11 +2047,27 @@
                 return;  // 彈窗開著時攔截所有其他點擊
             }
 
+            // 初廠設定確認彈窗
+            if (_factoryModal) {
+                const { bx, by, bw, bh } = _frmRect();
+                if (MouseIn(bx + 120, by + bh - 80, 280, 55)) {
+                    _factoryModal = false;
+                    factoryReset();
+                    return;
+                }
+                if (MouseIn(bx + bw - 400, by + bh - 80, 280, 55)) {
+                    _factoryModal = false;
+                    return;
+                }
+                return;  // 彈窗開著時攔截所有其他點擊
+            }
+
             if (MouseIn(1815, 75, 90, 90)) {
                 if (typeof PreferenceExit === "function") PreferenceExit();
                 return;
             }
             if (MouseIn(1710, 75, 90, 90)) { _showRestoreUI = true; return; }
+            if (MouseIn(1605, 75, 90, 90)) { _factoryModal = true; return; }
 
             const priv   = getPrivateSettings();
             const lovers = getSharedSettings()?.lovers ?? [];
@@ -2108,22 +2075,22 @@
 
             // 左欄 checkbox
             if (MouseIn(CB_X, 240, CB_SZ, CB_SZ)) {
-                priv.enableEL = !(priv.enableEL ?? true);
+                priv.enableAFC = !(priv.enableAFC ?? true);
                 savePrivateSettings(priv);
                 syncLockPermsToShared(priv);
                 return;
             }
-            // enableELLock — 現在可以勾選
+            // enableAFCLock — 現在可以勾選
             if (MouseIn(CB_X, 315, CB_SZ, CB_SZ)) {
-                priv.enableELLock = !(priv.enableELLock ?? false);
-                // 關閉 ELLock 時一併關閉 ownerLock
-                if (!priv.enableELLock) priv.enableOwnerLock = false;
+                priv.enableAFCLock = !(priv.enableAFCLock ?? true);
+                // 關閉 AFCLock 時一併關閉 ownerLock
+                if (!priv.enableAFCLock) priv.enableOwnerLock = false;
                 savePrivateSettings(priv);
                 syncLockPermsToShared(priv);
                 return;
             }
-            // enableOwnerLock — 只有 enableELLock 開啟時才響應
-            if (MouseIn(CB_X, 390, CB_SZ, CB_SZ) && (priv.enableELLock ?? false)) {
+            // enableOwnerLock — 只有 enableAFCLock 開啟時才響應
+            if (MouseIn(CB_X, 390, CB_SZ, CB_SZ) && (priv.enableAFCLock ?? true)) {
                 priv.enableOwnerLock = !(priv.enableOwnerLock ?? false);
                 savePrivateSettings(priv);
                 syncLockPermsToShared(priv);
@@ -2210,9 +2177,9 @@
             MainCanvas.textAlign = p;
         }
 
-        function unload() { _breakupModal = null; }
+        function unload() { _breakupModal = null; _factoryModal = false; }
 
-        return { load, run, click, unload, exit: () => { _breakupModal = null; _scrollOffset = 0; } };
+        return { load, run, click, unload, exit: () => { _breakupModal = null; _factoryModal = false; _scrollOffset = 0; } };
     })();
 
     function registerSettingsUI() {
@@ -2223,11 +2190,11 @@
             Identifier: "AFC",
             ButtonText:  btnText,
             Image:       "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/Abundantia_Florum_Chromatica.png",
-            load:   () => ELSettingsUI.load(),
-            run:    () => ELSettingsUI.run(),
-            click:  () => ELSettingsUI.click(),
-            unload: () => ELSettingsUI.unload(),
-            exit:   () => ELSettingsUI.exit(),
+            load:   () => AFCSettingsUI.load(),
+            run:    () => AFCSettingsUI.run(),
+            click:  () => AFCSettingsUI.click(),
+            unload: () => AFCSettingsUI.unload(),
+            exit:   () => AFCSettingsUI.exit(),
         });
         console.log(`🐈‍⬛ [AFC] ✅ 擴展設定頁面已注冊 (${btnText})`);
     }
@@ -2300,7 +2267,7 @@
                 Description: "顯示目前 AFC 插件狀態與戀人列表",
                 Action: () => {
                     const lovers = getSharedSettings()?.lovers ?? [];
-                    chatLocalNotice(`已初始化=${isInitialized} | 戀人=${lovers.length} | 線上=${ELLockAccessOn.size}`);
+                    chatLocalNotice(`已初始化=${isInitialized} | 戀人=${lovers.length} | 線上=${AFCLockAccessOn.size}`);
                     for (const l of lovers)
                         chatLocalNotice(`  ♥ ${l.name} (#${l.memberNumber}) | ${l.stage} | ${formatDuration(Date.now() - l.startDate)}`);
                 }
@@ -2310,7 +2277,7 @@
                 Description: "[MemberNumber] 解除指定拓展戀人關係",
                 Action: (text) => {
                     const num = parseInt(text.trim().split(/\s+/)[0]);
-                    if (isNaN(num) || !isELLover(num)) { chatLocalNotice("對方不是你的拓展戀人"); return; }
+                    if (isNaN(num) || !isAFCLover(num)) { chatLocalNotice("對方不是你的拓展戀人"); return; }
                     const entry = getSharedSettings()?.lovers.find(l => l.memberNumber === num);
                     initiateBreakup(num, entry?.name);
                 }
@@ -2319,11 +2286,11 @@
                 Tag: "afc-lastseen",
                 Description: "顯示所有戀人的最後見面時間",
                 Action: () => {
+                    const priv   = getPrivateSettings();
                     const lovers = getSharedSettings()?.lovers ?? [];
                     if (lovers.length === 0) { chatLocalNotice("暫無戀人資料"); return; }
                     for (const l of lovers) {
-                        // lastSeen 已遷移至 lover.lastSeen（舊版誤讀 priv.lastSeen 永遠顯示「從未記錄」）
-                        const ts  = l.lastSeen;
+                        const ts  = priv?.lastSeen?.[l.memberNumber];
                         const str = ts ? `${daysSince(ts)} 天前` : "從未記錄";
                         chatLocalNotice(`${l.name}: 最後見面 ${str}`);
                     }
@@ -2445,7 +2412,7 @@
             }
         });
         const injectNow = () => {
-            try { if (CurrentCharacter) injectELDialogs(CurrentCharacter); } catch (e) {}
+            try { if (CurrentCharacter) injectAFCDialogs(CurrentCharacter); } catch (e) {}
         };
         modApi.hookFunction("ChatRoomCharacterViewDraw", 1, (args, next) => { const r = next(args); injectNow(); return r; });
         modApi.hookFunction("ChatRoomMenuDraw", 1, (args, next) => { const r = next(args); injectNow(); return r; });
@@ -2525,8 +2492,8 @@
                 const C = args[0], item = args[1];
                 if (!C || !item?.Property) return next(args);
                 const lb = item.Property.LockedBy;
-                if (lb === "ELLoveLock" || lb === "ELTimerLock")
-                    return C.ID !== 0 && ELLockAccessOn.has(C.MemberNumber);
+                if (lb === "AFCLoveLock" || lb === "AFCTimerLock")
+                    return C.ID !== 0 && AFCLockAccessOn.has(C.MemberNumber);
             } catch (e) { console.error("🐈‍⬛ [AFC] ❌ DialogCanUnlock:", e.message); }
             return next(args);
         });
@@ -2555,7 +2522,7 @@
                         parseBeep({
                             MemberNumber: data.Sender,
                             MemberName:   data.SenderName ?? `#${data.Sender}`,
-                            BeepType:     EL_BEEP_TYPE,
+                            BeepType:     AFC_BEEP_TYPE,
                             Message:      e.MsgType,
                             ...e,
                         });
@@ -2587,7 +2554,7 @@
 
         // ── 離線撤銷授權 ────────────────────────────────────────────
         modApi.hookFunction("ServerDisconnect", 5, (args, next) => {
-            try { for (const num of ELLockAccessOn) sendBeep(num, BEEP.LOCK_ACCESS_OFF); } catch (e) {}
+            try { for (const num of AFCLockAccessOn) sendBeep(num, BEEP.LOCK_ACCESS_OFF); } catch (e) {}
             return next(args);
         });
 
@@ -2595,7 +2562,7 @@
     }
 
     // ============================================================
-    // 動態載入 HeartLock（與 EL 共用 ModSDK，視為一體插件）
+    // 動態載入 HeartLock（與 AFC 共用 ModSDK，視為一體插件）
     // ============================================================
 
     const HEARTLOCK_URL = "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_Custom_Heart_Lock.user.js";
@@ -2603,7 +2570,7 @@
     function _loadHeartLock() {
         // 若已載入（使用者自行安裝了獨立版，守衛旗標已設），跳過
         if (window._AFC_HeartLockLoaded) {
-            console.log("🐈‍⬛ [EL] HeartLock 已存在，跳過動態載入");
+            console.log("🐈‍⬛ [AFC] HeartLock 已存在，跳過動態載入");
             return;
         }
         if (document.querySelector(`script[data-el-heartlock]`)) return;
@@ -2642,10 +2609,10 @@
 
         // 階段一結束後立即掛載 modApi，供 HeartLock 等外部插件共用
         // HeartLock 不需要自行呼叫 registerMod，直接使用此 modApi 即可
-        window.ELAbundantiaAPI = window.ELAbundantiaAPI ?? {};
-        window.ELAbundantiaAPI.modApi = modApi;
+        window.AFCAbundantiaAPI = window.AFCAbundantiaAPI ?? {};
+        window.AFCAbundantiaAPI.modApi = modApi;
 
-        // 動態載入 Heart Lock（與 EL 共用 ModSDK，作為一體插件）
+        // 動態載入 Heart Lock（與 AFC 共用 ModSDK，作為一體插件）
         _loadHeartLock();
 
         // 3. 等待 ServerSocket 就緒（無超時）
@@ -2669,16 +2636,12 @@
             if (!Player?.ExtensionSettings) return;
 
             try {
+                // 舊版資料一次性處理（短期輔助）：依版本判別，現行格式靜默清殘留、舊資料重置+提醒
+                legacyCleanupOnce();
+
                 getSharedSettings();  // 初始化 AFC（含備份恢復）
                 const priv = getPrivateSettings();
 
-                // 清除舊版遺留的 EL key
-                if (Player.ExtensionSettings?.EL) {
-                    delete Player.ExtensionSettings.EL;
-                    console.log("🐈‍⬛ [AFC] 🗑️ 已清除舊版 EL 遺留資料");
-                }
-                // 清除舊版 AFC_loversBackup（不再需要）
-                _cleanLegacyBackup();
                 // 確保鎖的權限已同步到 OnlineSharedSettings
                 if (priv) syncLockPermsToShared(priv);
                 // 初始化後設定已知戀人數量基準，並強制存備份
@@ -2699,21 +2662,21 @@
                 console.log(`🐈‍⬛ [AFC] ✅ 初始化完成 v${MOD_VERSION} (${detectLang()})`);
 
                 // 對外 API（使用 Object.assign 保留 phase 1 掛載的 modApi，不覆蓋整個物件）
-                window.ELAbundantiaAPI = Object.assign(window.ELAbundantiaAPI ?? {}, {
-                    isELLover:    (num) => isELLover(num),
+                window.AFCAbundantiaAPI = Object.assign(window.AFCAbundantiaAPI ?? {}, {
+                    isAFCLover:    (num) => isAFCLover(num),
                     canOwnerLock: ()    => getPrivateSettings()?.enableOwnerLock ?? false,
                 });
 
                 window.Liko.AFC.api = {
                     /** 對方是否為 AFC 拓展戀人 */
-                    isLover:          (num) => isELLover(num),
+                    isLover:          (num) => isAFCLover(num),
                     /** 對方的戀人階段（0/1/2，若非戀人則 null）*/
                     getLoverStage:    (num) => getLoverEntry(num)?.stage ?? null,
                     /** 穿戴者是否允許我使用心鎖 */
                     canUseHeartLock:  (ch)  => {
                         const lovers = ch?.OnlineSharedSettings?.AFC?.lovers ?? [];
                         const perms  = ch?.OnlineSharedSettings?.AFC?.lockPerms;
-                        if (!perms?.enableELLock) return false;
+                        if (!perms?.enableAFCLock) return false;
                         return lovers.some(l => Number(l.memberNumber) === Number(Player.MemberNumber))
                         || (Player.Lovership?.some(l => Number(l.MemberNumber) === Number(ch?.MemberNumber)) ?? false);
                     },
@@ -2745,13 +2708,12 @@
 
     function cleanup() {
         unregisterAllSocketListeners();
-        cancelAllReliableBeeps();
         for (const k of Object.keys(pendingOutgoing)) clearTimeout(pendingOutgoing[k].timer);
         for (const k of Object.keys(pendingIncoming)) {
             clearInterval(pendingIncoming[k].timer);
             document.getElementById(pendingIncoming[k].uiId)?.remove();
         }
-        ELLockAccessOn.clear();
+        AFCLockAccessOn.clear();
         profilePanelOpen = false;
         isInitialized    = false;
         console.log("🐈‍⬛ [AFC] 🗑️ 已清理資源");
