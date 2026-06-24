@@ -2218,7 +2218,7 @@
     function registerSettingsUI() {
         if (typeof PreferenceRegisterExtensionSetting !== "function") return;
         // ButtonText 在登入後呼叫，此時 TranslationLanguage 已設定，t() 能正確翻譯
-        const btnText = detectLang() === 'EN' ? "EL Settings" : "拓展戀人設定";
+        const btnText = detectLang() === 'EN' ? "AFC Settings" : "拓展戀人設定";
         PreferenceRegisterExtensionSetting({
             Identifier: "AFC",
             ButtonText:  btnText,
