@@ -9,7 +9,6 @@
         console.error('[Liko Prank strings] i18n 引擎尚未載入');
         return;
     }
-
     window.Liko.i18n.register('Prank', {
 
         // ── 載入 / 系統訊息 ───────────────────────────────────────────────
@@ -278,7 +277,7 @@
             TW: "從{name}屁股拔下的「尾巴」💕",
             CN: "从{name}屁股拔下的「尾巴」💕",
             EN: "The 'tail' pulled from {name}'s bottom 💕",
-            DE: "Der aus {name}s Hintern gezogene „Schwanz" 💕",
+            DE: "Der aus {name}s Hintern gezogene „Schwanz“ 💕",
             FR: "La « queue » retirée du postérieur de {name} 💕",
             RU: "«Хвост», вытащенный из попки {name} 💕",
             UA: "«Хвіст», витягнутий з попки {name} 💕"
@@ -287,7 +286,7 @@
             TW: "從{name}屁股拔下的「尾巴」，上面還帶著濃郁氣味與黏液 💕",
             CN: "从{name}屁股拔下的「尾巴」，上面还带着浓郁气味与黏液 💕",
             EN: "The 'tail' pulled from {name}'s bottom, still carrying a rich scent and slickness 💕",
-            DE: "Der aus {name}s Hintern gezogene „Schwanz", noch mit intensivem Duft und Feuchtigkeit 💕",
+            DE: "Der aus {name}s Hintern gezogene „Schwanz“, noch mit intensivem Duft und Feuchtigkeit 💕",
             FR: "La « queue » retirée du postérieur de {name}, encore imprégnée d'un parfum intense et d'un liquide 💕",
             RU: "«Хвост», вытащенный из попки {name}, всё ещё пропитанный насыщенным ароматом и влагой 💕",
             UA: "«Хвіст», витягнутий з попки {name}, ще просочений насиченим ароматом і вологою 💕"
