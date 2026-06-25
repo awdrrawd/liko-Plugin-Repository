@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.6.2
+// @version      1.6.3
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -15,7 +15,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.2";
+    const MOD_VER = "1.6.3";
     if (window.Liko.Prank) return;
     window.Liko.Prank = MOD_VER;
 
@@ -181,8 +181,28 @@
     ];
 
     // 依保留清單溶解目標衣物：保留清單內的群組留下，其餘移除。
-    function dissolveAppearance(target, keepGroups) {
-        const keepFilter = (item) => keepGroups.includes(item.Group);
+    function dissolveAppearance(target, mode) {
+        const keepFilter = (item) => {
+            // bundle 後 Group 是字串，Asset 是 undefined
+            const group = item.Group ?? item.Asset?.Group?.Name;
+
+            // bundle 後唯一可靠的判斷：Group 名稱以 "Item" 開頭 → 道具/拘束群組 → 保留
+            const isItemGroup = typeof group === "string" && group.startsWith("Item");
+
+            if (mode === "weak") {
+                if (dissolveKeepGroupsWeak.includes(group)) return true;
+                if (isItemGroup) return true;   // ← 保留拘束
+                return false;
+            } else if (mode === "normal") {
+                if (dissolveKeepGroups.includes(group)) return true;
+                if (isItemGroup) return true;   // ← 保留拘束
+                return false;
+            } else { // strong：只溶衣服，拘束依然保留
+                if (dissolveKeepGroups.includes(group)) return true;
+                return false;
+            }
+        };
+
         const appearance = ServerAppearanceBundle(target.Appearance).filter(keepFilter);
         ServerSend("ChatRoomCharacterUpdate", {
             ID: target.ID === 0 ? target.OnlineID : target.AccountName.replace("Online-", ""),
@@ -213,6 +233,22 @@
         }
         return getRandomColor();
     }
+    const AHOGE_GROUPS = [
+        "额外头发_Luzi",
+        "HairAccessory3",
+        "HairAccessory1",
+        "HairAccessory3_笨笨蛋Luzi",
+        "Luzi_HairAccessory3_1",
+        "Luzi_HairAccessory3_2"
+    ];
+
+    function getAhogeItems(target) {
+        return target.Appearance.filter(item => {
+            const groupName = item.Asset?.Group?.Name;
+            return AHOGE_GROUPS.includes(groupName);
+        });
+    }
+
     // ===== 命令功能 =====
     function stealPanties(args) {
         try {
@@ -291,7 +327,7 @@
                 return chatSendLocal(getMessage('noPermission'));
             }
 
-            dissolveAppearance(target, dissolveKeepGroups);
+            dissolveAppearance(target, "normal");
 
             chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothes') + " " + getNickname(target) + getMessage('dissolveClothesTarget'));
         } catch (error) {
@@ -538,17 +574,24 @@
 
     function pluckingHair(target) {
         if (!hasBCItemPermission(target)) {
-            return chatSendLocal(getMessage('noPermission'));
+            chatSendLocal(getMessage('noPermission'));
+            return false;
         }
+
+        const ahoges = getAhogeItems(target);
+        if (ahoges.length === 0) return false;
+
+        // 只拔第一根，讓玩家重複點來一根一根拔
+        const groupName = ahoges[0].Asset.Group.Name;
 
         try {
-            InventoryRemove(target, "额外头发_Luzi");
+            InventoryRemove(target, groupName);
             ChatRoomCharacterUpdate(target);
+            return true;
         } catch (e) {
-            console.log("🐈‍⬛ [prank] ❌ Error removing 额外头发_Luzi:", e);
+            console.log("🐈‍⬛ [prank] ❌ Error removing ahoge:", groupName, e);
+            return false;
         }
-
-        return true;
     }
 
     function stealTail(target) {
@@ -608,6 +651,50 @@
         return true;
     }
 
+    function insertAhoge(target) {
+        if (!hasBCItemPermission(target)) {
+            chatSendLocal(getMessage('noPermission'));
+            return false;
+        }
+
+        // 找出目前已有呆毛的群組
+        const occupiedGroups = new Set(
+            getAhogeItems(target).map(item => item.Asset?.Group?.Name)
+        );
+
+        // 依優先順序找第一個空格
+        const targetGroup = AHOGE_GROUPS.find(g => !occupiedGroups.has(g));
+        if (!targetGroup) return false; // 6格全滿
+
+        // 找呆毛 asset（從 AssetFemale3DCG 找，避免寫死路徑）
+        const ahogeAsset = AssetGet("Female3DCG", targetGroup, "呆毛");
+        if (!ahogeAsset) {
+            console.warn("🐈‍⬛ [prank] 找不到呆毛 asset in group:", targetGroup);
+            return false;
+        }
+
+        // 隨機 typed 0~10
+        const randomTyped = Math.floor(Math.random() * 11);
+
+        try {
+            InventoryWear(target, "呆毛", targetGroup, "Default", 0, null, null);
+
+            // 設定 TypeRecord（InventoryWear 後再找到剛放上去的物件來改 Property）
+            const worn = InventoryGet(target, targetGroup);
+            if (worn) {
+                if (!worn.Property) worn.Property = {};
+                worn.Property.TypeRecord = { typed: randomTyped };
+                worn.Property.Type = String(randomTyped === 1 ? "1a" :
+                                            randomTyped === 0 ? "1" : String(randomTyped)); // 對應 Option Name
+            }
+
+            ChatRoomCharacterUpdate(target);
+            return true;
+        } catch (e) {
+            console.error("🐈‍⬛ [prank] ❌ insertAhoge error:", e);
+            return false;
+        }
+    }
     // ===== 注册活动 =====
     function registerActivities() {
         ImagePathHelper.clearCache();
@@ -635,7 +722,10 @@
             return !!(InventoryGet(target2, "Socks") || InventoryGet(target2, "SocksRight") || InventoryGet(target2, "SocksLeft"));
         });
         actData.CustomPrerequisiteFuncs.set("LikoHasAhoge", function(target1, target2, group) {
-            return !!(InventoryGet(target2, "额外头发_Luzi"));
+            return getAhogeItems(target2).length > 0;
+        });
+        actData.CustomPrerequisiteFuncs.set("LikoHasEmptyAhogeSlot", function(target1, target2, group) {
+            const occupied = new Set(getAhogeItems(target2).map(item => item.Asset?.Group?.Name)); return AHOGE_GROUPS.some(g => !occupied.has(g));
         });
         actData.CustomPrerequisiteFuncs.set("LikoHasTail", function(target1, target2, group) {
             return !!(InventoryGet(target2, "Luzi_TailStraps_0") || InventoryGet(target2, "TailStraps"));
@@ -725,7 +815,7 @@
             ],
             CustomAction: {
                 Func: (target, args, next) => {
-                    dissolveAppearance(target, dissolveKeepGroups);
+                    dissolveAppearance(target, "normal");
                     const isSelf = target.MemberNumber === Player.MemberNumber;
                     if (isSelf) {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
@@ -749,7 +839,31 @@
             ],
             CustomAction: {
                 Func: (target, args, next) => {
-                    dissolveAppearance(target, dissolveKeepGroupsWeak);
+                    dissolveAppearance(target, "weak");
+                    const isSelf = target.MemberNumber === Player.MemberNumber;
+                    if (isSelf) {
+                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
+                    } else {
+                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothes') + " " + getNickname(target) + getMessage('dissolveClothesTarget'));
+                    }
+                }
+            },
+            CustomImage: ImagePathHelper.getAssetURL("Female3DCG/ItemHandheld/Preview/PotionBottle.png")
+        });
+
+        AddActivity({
+            Activity: { Name: "DissolveClothesStrong", MaxProgress: 80, MaxProgressSelf: 80, Prerequisite: [] },
+            Targets: [{
+                TargetLabel: getMessage('actDissolveClothesStrong'), Name: "ItemHead", SelfAllowed: true,
+                TargetAction: getMessage('actDissolveClothesDesc'), TargetSelfAction: getMessage('actDissolveClothesSelf')
+            }],
+            CustomPrereqs: [
+                { Name: "LikoCanInteract", Func: actData.CustomPrerequisiteFuncs.get("LikoCanInteract") },
+                { Name: "LikoHasBCItemPermission", Func: actData.CustomPrerequisiteFuncs.get("LikoHasBCItemPermission") }
+            ],
+            CustomAction: {
+                Func: (target, args, next) => {
+                    dissolveAppearance(target, "strong");
                     const isSelf = target.MemberNumber === Player.MemberNumber;
                     if (isSelf) {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
@@ -898,8 +1012,8 @@
             ],
             CustomAction: {
                 Func: (target, args, next) => {
-                    const hasAhoge = !!(InventoryGet(target, "额外头发_Luzi"));
-                    if (!hasAhoge) {
+                    const ahoges = getAhogeItems(target);
+                    if (ahoges.length === 0) {
                         chatSendCustomAction(getNickname(target) + " " + getMessage('hasAhoge'));
                         return;
                     }
@@ -917,6 +1031,51 @@
             },
             CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Activity/MasturbateFist.png")
         });
+
+        AddActivity({
+            Activity: { Name: "InsertAhoge", MaxProgress: 40, MaxProgressSelf: 40, Prerequisite: [] },
+            Targets: [
+                {
+                    TargetLabel: getMessage('actInsertAhoge'),
+                    Name: "ItemHead",
+                    SelfAllowed: true,
+                    TargetAction: getMessage('actInsertAhogeDesc'),
+                    TargetSelfAction: getMessage('actInsertAhogeSelf')
+                }
+            ],
+            CustomPrereqs: [
+                { Name: "LikoCanInteract",         Func: actData.CustomPrerequisiteFuncs.get("LikoCanInteract") },
+                { Name: "LikoHasBCItemPermission", Func: actData.CustomPrerequisiteFuncs.get("LikoHasBCItemPermission") },
+                { Name: "LikoHasEmptyAhogeSlot",   Func: actData.CustomPrerequisiteFuncs.get("LikoHasEmptyAhogeSlot") }
+            ],
+            CustomAction: {
+                Func: (target, args, next) => {
+                    const occupied = new Set(
+                        getAhogeItems(target).map(item => item.Asset?.Group?.Name)
+                    );
+                    const hasSlot = AHOGE_GROUPS.some(g => !occupied.has(g));
+                    if (!hasSlot) {
+                        chatSendCustomAction(getNickname(target) + " " + getMessage('ahogeSlotFull'));
+                        return;
+                    }
+                    if (insertAhoge(target)) {
+                        const isSelf = target.MemberNumber === Player.MemberNumber;
+                        if (isSelf) {
+                            chatSendCustomAction(getNickname(Player) + " " + getMessage('insertOwnAhoge'));
+                        } else {
+                            chatSendCustomAction(
+                                getNickname(Player) + " " + getMessage('insertAhoge') +
+                                " " + getNickname(target) + getMessage('insertAhogeSuffix')
+                            );
+                        }
+                    } else {
+                        chatSendLocal(getMessage('insertFailed'), 5000);
+                    }
+                }
+            },
+            CustomImage: "https://cdn.jsdelivr.net/gh/SugarChain-Studio/echo-clothing-ext@feae46427eb16ab1dc1e29ec1d323a167309e75f/resources/Assets/Female3DCG/%E9%A2%9D%E5%A4%96%E5%A4%B4%E5%8F%91_Luzi/Preview/%E5%91%86%E6%AF%9B.png"
+        });
+
         AddActivity({
             Activity: { Name: "PluckingTail", MaxProgress: 50, MaxProgressSelf: 50, Prerequisite: [] },
             Targets: [
@@ -1122,7 +1281,7 @@
             }
         }
         setupHooks();  // hooks 掛在遊戲函式上，不需要玩家登入
-
+        window.Liko._debug = { getAhogeItems };
         // ── Phase 2 觸發：hook LoginResponse，登入完成時才註冊活動與指令 ──
         if (modApi?.hookFunction) {
             let phase2Done = false;
