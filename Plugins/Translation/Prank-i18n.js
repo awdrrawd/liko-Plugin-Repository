@@ -66,6 +66,11 @@
             DE: "hat keine Ahoge", FR: "n'a pas d'ahoge",
             RU: "без ахоге", UA: "без ахеге"
         },
+        'noTail': {
+            TW: "沒有尾巴", CN: "没有尾巴", EN: "has no tail",
+            DE: "hat keinen Schwanz", FR: "n'a pas de queue",
+            RU: "нет хвоста", UA: "немає хвоста"
+        },
         'enterRoomPrompt': {
             TW: "輸入房間名稱", CN: "输入房间名称", EN: "Enter room name",
             DE: "Raumnamen eingeben", FR: "Saisir le nom du salon",
@@ -220,7 +225,18 @@
             DE: "s Ahoge", FR: " l'ahoge",
             RU: " ахоге", UA: " ахеге"
         },
-
+        'pluckingTail': {
+            TW: "開玩笑地抓住了", CN: "开玩笑地抓住了", EN: "jokingly grabs",
+            DE: "greift scherzend nach", FR: "attrape en plaisantant",
+            RU: "шутливо хватает", UA: "жартівливо хапає"
+        },
+        'pluckingTailSuffix': {
+            TW: "的尾巴，一不小心扯掉了！", CN: "的尾巴，一不小心扯掉了！",
+            EN: "'s tail, and accidentally yanks it out!",
+            DE: "s Schwanz und zieht ihn versehentlich heraus!",
+            FR: " la queue et l'arrache accidentellement !",
+            RU: " хвост и случайно вырывает его!", UA: " хвіст і випадково вириває його!"
+        },
         // ── 手持物品名稱 / 描述（{name} 為目標暱稱） ───────────────────────
         'itemPantiesName': {
             TW: "{name}剛脫下的內褲 💕",
@@ -258,7 +274,24 @@
             RU: "Только что снятые носки {name}, ещё хранящие тепло и аромат 💕",
             UA: "Щойно зняті шкарпетки {name}, що зберігають тепло й аромат 💕"
         },
-
+        'itemTailName': {
+            TW: "從{name}屁股拔下的「尾巴」💕",
+            CN: "从{name}屁股拔下的「尾巴」💕",
+            EN: "The 'tail' pulled from {name}'s bottom 💕",
+            DE: "Der aus {name}s Hintern gezogene „Schwanz" 💕",
+            FR: "La « queue » retirée du postérieur de {name} 💕",
+            RU: "«Хвост», вытащенный из попки {name} 💕",
+            UA: "«Хвіст», витягнутий з попки {name} 💕"
+        },
+        'itemTailDesc': {
+            TW: "從{name}屁股拔下的「尾巴」，上面還帶著濃郁氣味與黏液 💕",
+            CN: "从{name}屁股拔下的「尾巴」，上面还带着浓郁气味与黏液 💕",
+            EN: "The 'tail' pulled from {name}'s bottom, still carrying a rich scent and slickness 💕",
+            DE: "Der aus {name}s Hintern gezogene „Schwanz", noch mit intensivem Duft und Feuchtigkeit 💕",
+            FR: "La « queue » retirée du postérieur de {name}, encore imprégnée d'un parfum intense et d'un liquide 💕",
+            RU: "«Хвост», вытащенный из попки {name}, всё ещё пропитанный насыщенным ароматом и влагой 💕",
+            UA: "«Хвіст», витягнутий з попки {name}, ще просочений насиченим ароматом і вологою 💕"
+        },
         // ── 活動按鈕標籤 ───────────────────────────────────────────────────
         'actCutClothes': {
             TW: "剪掉衣物", CN: "剪掉衣物", EN: "Cut Clothes",
@@ -304,6 +337,11 @@
             TW: "拔呆毛", CN: "拔呆毛", EN: "Pluck Ahoge",
             DE: "Ahoge zupfen", FR: "Arracher l'ahoge",
             RU: "Выдернуть ахоге", UA: "Висмикнути ахеге"
+        },
+        'actPluckingTail': {
+            TW: "拔尾巴", CN: "拔尾巴", EN: "Pull Tail",
+            DE: "Schwanz ziehen", FR: "Tirer la queue",
+            RU: "Вытащить хвост", UA: "Витягнути хвіст"
         },
 
         // ── 活動描述（含 SourceCharacter / TargetCharacter 代換 token） ────
@@ -415,7 +453,15 @@
             RU: "SourceCharacter снимает собственные носки и держит их в руках",
             UA: "SourceCharacter знімає власні шкарпетки і тримає їх у руках"
         },
-
+        'actPluckingTailDesc': {
+            TW: "SourceCharacter 開玩笑地抓住 TargetCharacter 的尾巴，一不小心扯掉了！",
+            CN: "SourceCharacter 开玩笑地抓住 TargetCharacter 的尾巴，一不小心扯掉了！",
+            EN: "SourceCharacter jokingly grabs TargetCharacter's tail, and accidentally yanks it out!",
+            DE: "SourceCharacter greift scherzend nach TargetCharacters Schwanz und zieht ihn versehentlich heraus!",
+            FR: "SourceCharacter attrape en plaisantant la queue de TargetCharacter et l'arrache accidentellement !",
+            RU: "SourceCharacter шутливо хватает хвост TargetCharacter и случайно вырывает его!",
+            UA: "SourceCharacter жартівливо хапає хвіст TargetCharacter і випадково вириває його!"
+        },
         // ── 活動按鈕角標 (🪄) ───────────────────────────────────────────────
         'badgeTooltip': {
             TW: "惡作劇動作", CN: "恶作剧动作", EN: "Prank Activity",
