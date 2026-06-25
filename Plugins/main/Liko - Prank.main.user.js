@@ -234,12 +234,12 @@
         return getRandomColor();
     }
     const AHOGE_GROUPS = [
-        "额外头发_Luzi",
         "HairAccessory3",
         "HairAccessory1",
         "HairAccessory3_笨笨蛋Luzi",
         "Luzi_HairAccessory3_1",
-        "Luzi_HairAccessory3_2"
+        "Luzi_HairAccessory3_2",
+        "额外头发_Luzi"
     ];
 
     function getAhogeItems(target) {
