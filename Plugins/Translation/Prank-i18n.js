@@ -339,14 +339,14 @@
             RU: "Растворить одежду", UA: "Розчинити одяг"
         },
         'actDissolveClothesWeak': {
-            TW: "溶解衣物(弱)", CN: "溶解衣物(弱)", EN: "Dissolve Clothes (Light)",
-            DE: "Kleidung auflösen (leicht)", FR: "Dissoudre les vêtements (léger)",
-            RU: "Растворить одежду (слабо)", UA: "Розчинити одяг (слабо)"
+            TW: "溶解衣物(淡)", CN: "溶解衣物(淡)", EN: "Dissolve Clothes (Dilute)",
+            DE: "Kleidung auflösen (verdünnt)", FR: "Dissoudre les vêtements (dilué)",
+            RU: "Растворить одежду (разбавленный)", UA: "Розчинити одяг (розбавлений)"
         },
         'actDissolveClothesStrong': {
-            TW: "溶解衣物(強)", CN: "溶解衣物(强)", EN: "Dissolve Clothes (Full)",
-            DE: "Kleidung auflösen (stark)", FR: "Dissoudre les vêtements (fort)",
-            RU: "Растворить одежду (полностью)", UA: "Розчинити одяг (повністю)"
+            TW: "溶解衣物(濃)", CN: "溶解衣物(浓)", EN: "Dissolve Clothes (Concentrated)",
+            DE: "Kleidung auflösen (konzentriert)", FR: "Dissoudre les vêtements (concentré)",
+            RU: "Растворить одежду (концентрированный)", UA: "Розчинити одяг (концентрований)"
         },
         'actStealPanties': {
             TW: "偷內褲", CN: "偷内裤", EN: "Steal Panties",
