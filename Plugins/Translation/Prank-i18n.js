@@ -70,6 +70,17 @@
             DE: "hat keinen Schwanz", FR: "n'a pas de queue",
             RU: "нет хвоста", UA: "немає хвоста"
         },
+        'insertFailed': {
+            TW: "插入失敗", CN: "插入失败", EN: "Failed to insert",
+            DE: "Einfügen fehlgeschlagen", FR: "Échec de l'insertion",
+            RU: "Не удалось вставить", UA: "Не вдалося вставити"
+        },
+        'ahogeSlotFull': {
+            TW: "的頭頂已經插滿呆毛了！", CN: "的头顶已经插满呆毛了！",
+            EN: "has no more room for ahoge!",
+            DE: "hat keinen Platz mehr für Ahoge!", FR: "n'a plus de place pour d'ahoge !",
+            RU: "больше нет места для ахоге!", UA: "більше немає місця для ахеге!"
+        },
         'enterRoomPrompt': {
             TW: "輸入房間名稱", CN: "输入房间名称", EN: "Enter room name",
             DE: "Raumnamen eingeben", FR: "Saisir le nom du salon",
@@ -236,6 +247,26 @@
             FR: " la queue et l'arrache accidentellement !",
             RU: " хвост и случайно вырывает его!", UA: " хвіст і випадково вириває його!"
         },
+        'insertAhoge': {
+            TW: "悄悄地在", CN: "悄悄地在",
+            EN: "sneakily inserts an ahoge on",
+            DE: "steckt heimlich eine Ahoge auf", FR: "insère discrètement un ahoge sur",
+            RU: "незаметно вставляет ахоге на голову", UA: "непомітно вставляє ахеге на голову"
+        },
+        'insertAhogeSuffix': {
+            TW: "的頭頂插了一根毛", CN: "的头顶插了一根毛",
+            EN: "'s head",
+            DE: "s Kopf", FR: " la tête",
+            RU: " голову", UA: " голову"
+        },
+        'insertOwnAhoge': {
+            TW: "悄悄地在自己頭頂插了一根毛", CN: "悄悄地在自己头顶插了一根毛",
+            EN: "sneakily inserts an ahoge on their own head",
+            DE: "steckt sich heimlich eine Ahoge auf den eigenen Kopf",
+            FR: "insère discrètement un ahoge sur sa propre tête",
+            RU: "незаметно вставляет ахоге себе на голову",
+            UA: "непомітно вставляє ахеге собі на голову"
+        },
         // ── 手持物品名稱 / 描述（{name} 為目標暱稱） ───────────────────────
         'itemPantiesName': {
             TW: "{name}剛脫下的內褲 💕",
@@ -346,6 +377,11 @@
             TW: "拔尾巴", CN: "拔尾巴", EN: "Pull Tail",
             DE: "Schwanz ziehen", FR: "Tirer la queue",
             RU: "Вытащить хвост", UA: "Витягнути хвіст"
+        },
+        'actInsertAhoge': {
+            TW: "插呆毛", CN: "插呆毛", EN: "Insert Ahoge",
+            DE: "Ahoge einsetzen", FR: "Insérer un ahoge",
+            RU: "Вставить ахоге", UA: "Вставити ахеге"
         },
 
         // ── 活動描述（含 SourceCharacter / TargetCharacter 代換 token） ────
@@ -466,6 +502,25 @@
             RU: "SourceCharacter шутливо хватает хвост TargetCharacter и случайно вырывает его!",
             UA: "SourceCharacter жартівливо хапає хвіст TargetCharacter і випадково вириває його!"
         },
+        'actInsertAhogeDesc': {
+            TW: "SourceCharacter 悄悄地在 TargetCharacter 頭頂插了一根呆毛",
+            CN: "SourceCharacter 悄悄地在 TargetCharacter 头顶插了一根呆毛",
+            EN: "SourceCharacter sneakily inserts an ahoge on TargetCharacter's head",
+            DE: "SourceCharacter steckt TargetCharacter heimlich eine Ahoge auf den Kopf",
+            FR: "SourceCharacter insère discrètement un ahoge sur la tête de TargetCharacter",
+            RU: "SourceCharacter незаметно вставляет ахоге на голову TargetCharacter",
+            UA: "SourceCharacter непомітно вставляє ахеге на голову TargetCharacter"
+        },
+        'actInsertAhogeSelf': {
+            TW: "SourceCharacter 悄悄地在自己頭頂插了一根呆毛",
+            CN: "SourceCharacter 悄悄地在自己头顶插了一根呆毛",
+            EN: "SourceCharacter sneakily inserts an ahoge on their own head",
+            DE: "SourceCharacter steckt sich heimlich eine Ahoge auf den eigenen Kopf",
+            FR: "SourceCharacter insère discrètement un ahoge sur sa propre tête",
+            RU: "SourceCharacter незаметно вставляет ахоге себе на голову",
+            UA: "SourceCharacter непомітно вставляє ахеге собі на голову"
+        },
+
         // ── 活動按鈕角標 (🪄) ───────────────────────────────────────────────
         'badgeTooltip': {
             TW: "惡作劇動作", CN: "恶作剧动作", EN: "Prank Activity",
