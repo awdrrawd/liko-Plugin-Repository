@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.6.1
+// @version      1.6.2
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -15,7 +15,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.1";
+    const MOD_VER = "1.6.2";
     if (window.Liko.Prank) return;
     window.Liko.Prank = MOD_VER;
 
@@ -551,6 +551,71 @@
         return true;
     }
 
+    function stealTail(target) {
+        if (!hasBCItemPermission(target)) {
+            return chatSendLocal(getMessage('noPermission'));
+        }
+
+        const targetNick = getNickname(target);
+
+        const tailGroup = InventoryGet(target, "Luzi_TailStraps_0") ? "Luzi_TailStraps_0"
+        : InventoryGet(target, "TailStraps")        ? "TailStraps"
+        : null;
+        if (!tailGroup) return false;
+
+        const tailItem = InventoryGet(target, tailGroup);
+
+        let itemColor = "Default";
+        if (tailItem && tailItem.Color && tailItem.Color !== "Default") {
+            itemColor = tailItem.Color;
+        } else {
+            const hairFront = InventoryGet(target, "HairFront");
+            const hairBack  = InventoryGet(target, "HairBack");
+            if      (hairFront?.Color) itemColor = hairFront.Color;
+            else if (hairBack?.Color)  itemColor = hairBack.Color;
+            else                       itemColor = getRandomColor();
+        }
+
+        try {
+            InventoryRemove(target, tailGroup);
+            ChatRoomCharacterUpdate(target);
+        } catch (e) {
+            console.error("🐈‍⬛ [prank] ❌ Error removing tail:", e);
+            return false;
+        }
+
+        InventoryRemove(Player, "ItemHandheld");
+
+        const itemName = getMessage('itemTailName', { name: targetNick });
+        const itemDesc = getMessage('itemTailDesc', { name: targetNick });
+
+        try {
+            InventoryWear(Player, "大号拉珠", "ItemHandheld", itemColor, 0, target.MemberNumber, {
+                Name: itemName,
+                Description: itemDesc,
+                Color: itemColor,
+                Private: true,
+                ItemProperty: {},
+                MemberNumber: target.MemberNumber,
+                MemberName: targetNick
+            });
+        } catch (e) {
+            console.error("🐈‍⬛ [prank] ❌ InventoryWear error:", e);
+            chatSendLocal(getMessage('stealFailed'));
+            return false;
+        }
+
+        ChatRoomCharacterUpdate(Player);
+
+        const finalHandItem = InventoryGet(Player, "ItemHandheld");
+        if (!finalHandItem) {
+            console.error("🐈‍⬛ [prank] ❌ Item failed to persist in hand!");
+            return false;
+        }
+
+        return true;
+    }
+
     // ===== 注册活动 =====
     function registerActivities() {
         ImagePathHelper.clearCache();
@@ -579,6 +644,9 @@
         });
         actData.CustomPrerequisiteFuncs.set("LikoHasAhoge", function(target1, target2, group) {
             return !!(InventoryGet(target2, "额外头发_Luzi"));
+            actData.CustomPrerequisiteFuncs.set("LikoHasTail", function(target1, target2, group) {
+                return !!(InventoryGet(target2, "Luzi_TailStraps_0") || InventoryGet(target2, "TailStraps"));
+            });
         });
 
         const clothingTargets = [
@@ -855,7 +923,37 @@
                     }
                 }
             },
-            CustomImage: ImagePathHelper.getAssetURL("Female3DCG/ItemHood/Preview/Pantyhose.png")
+            CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Activity/MasturbateFist.png")
+        });
+        AddActivity({
+            Activity: { Name: "PluckingTail", MaxProgress: 50, MaxProgressSelf: 50, Prerequisite: [] },
+            Targets: [
+                { TargetLabel: getMessage('actPluckingTail'), Name: "ItemButt", SelfAllowed: false,
+                 TargetAction: getMessage('actPluckingTailDesc') }
+            ],
+            CustomPrereqs: [
+                { Name: "LikoCanInteract",        Func: actData.CustomPrerequisiteFuncs.get("LikoCanInteract") },
+                { Name: "LikoHasBCItemPermission",Func: actData.CustomPrerequisiteFuncs.get("LikoHasBCItemPermission") },
+                { Name: "LikoHasTail",            Func: actData.CustomPrerequisiteFuncs.get("LikoHasTail") }
+            ],
+            CustomAction: {
+                Func: (target, args, next) => {
+                    const hasTail = !!(InventoryGet(target, "Luzi_TailStraps_0") || InventoryGet(target, "TailStraps"));
+                    if (!hasTail) {
+                        chatSendCustomAction(getNickname(target) + " " + getMessage('noTail'));
+                        return;
+                    }
+                    if (stealTail(target)) {
+                        chatSendCustomAction(
+                            getNickname(Player) + " " + getMessage('pluckingTail') +
+                            " " + getNickname(target) + getMessage('pluckingTailSuffix')
+                        );
+                    } else {
+                        chatSendLocal(getMessage('stealFailed'), 5000);
+                    }
+                }
+            },
+            CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Activity/MasturbateFist.png")
         });
     }
 
@@ -1026,7 +1124,7 @@
                     version: MOD_VER,
                     repository: "Liko's prank"
                 });
-            console.log(`🐈‍⬛ [Prank] ✅ v${MOD_VER} ready`);
+                console.log(`🐈‍⬛ [Prank] ✅ v${MOD_VER} ready`);
             } catch (error) {
                 console.error("🐈‍⬛ [prank] ❌ Failed to register mod", error);
             }
