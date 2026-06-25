@@ -595,7 +595,9 @@
                 Description: itemDesc,
                 Color: itemColor,
                 Private: true,
-                ItemProperty: {},
+                Item: "大号拉珠",
+                Lock: "",
+                Effects: [],
                 MemberNumber: target.MemberNumber,
                 MemberName: targetNick
             });
@@ -644,9 +646,9 @@
         });
         actData.CustomPrerequisiteFuncs.set("LikoHasAhoge", function(target1, target2, group) {
             return !!(InventoryGet(target2, "额外头发_Luzi"));
-            actData.CustomPrerequisiteFuncs.set("LikoHasTail", function(target1, target2, group) {
-                return !!(InventoryGet(target2, "Luzi_TailStraps_0") || InventoryGet(target2, "TailStraps"));
-            });
+        });
+        actData.CustomPrerequisiteFuncs.set("LikoHasTail", function(target1, target2, group) {
+            return !!(InventoryGet(target2, "Luzi_TailStraps_0") || InventoryGet(target2, "TailStraps"));
         });
 
         const clothingTargets = [
