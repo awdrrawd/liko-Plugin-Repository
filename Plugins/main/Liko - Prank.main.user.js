@@ -191,6 +191,28 @@
         });
     }
 
+    function getItemColor(target, primaryColor) {
+        if (primaryColor) {
+            if (Array.isArray(primaryColor)) {
+                const joined = primaryColor.filter(c => c && c !== "Default").join(",");
+                if (joined) return joined;
+            } else if (primaryColor !== "Default") {
+                return primaryColor;
+            }
+        }
+        for (const group of ["HairFront", "HairBack"]) {
+            const color = InventoryGet(target, group)?.Color;
+            if (color) {
+                if (Array.isArray(color)) {
+                    const joined = color.filter(c => c && c !== "Default").join(",");
+                    if (joined) return joined;
+                } else if (color !== "Default") {
+                    return color;
+                }
+            }
+        }
+        return getRandomColor();
+    }
     // ===== 命令功能 =====
     function stealPanties(args) {
         try {
@@ -221,20 +243,7 @@
                 console.log("🐈‍⬛ [prank] ❌ Error removing panties:", e);
             }
 
-            let itemColor = "Default";
-            if (panties && panties.Color !== "Default") {
-                itemColor = panties.Color;
-            } else {
-                const hairFront = InventoryGet(target, "HairFront");
-                const hairBack = InventoryGet(target, "HairBack");
-                if (hairFront && hairFront.Color) {
-                    itemColor = hairFront.Color;
-                } else if (hairBack && hairBack.Color) {
-                    itemColor = hairBack.Color;
-                } else {
-                    itemColor = getRandomColor();
-                }
-            }
+            let itemColor = getItemColor(target, panties?.Color);
 
             InventoryRemove(Player, "ItemHandheld");
 
@@ -247,6 +256,8 @@
                     Description: itemDesc,
                     Color: itemColor,
                     Private: true,
+                    Item: "Panties",
+                    Lock: "",
                     ItemProperty: {},
                     MemberNumber: target.MemberNumber,
                     MemberName: targetNick
@@ -485,20 +496,7 @@
             }
         }
 
-        let itemColor = "Default";
-        if (item.Color !== "Default") {
-            itemColor = item.Color;
-        } else {
-            const hairFront = InventoryGet(target, "HairFront");
-            const hairBack = InventoryGet(target, "HairBack");
-            if (hairFront && hairFront.Color) {
-                itemColor = hairFront.Color;
-            } else if (hairBack && hairBack.Color) {
-                itemColor = hairBack.Color;
-            } else {
-                itemColor = getRandomColor();
-            }
-        }
+        let itemColor = getItemColor(target, item.Color);
 
         if (itemType === "panties") {
             InventoryRemove(target, "Panties");
@@ -520,6 +518,8 @@
             Description: itemDesc,
             Color: itemColor,
             Private: true,
+            Item: handheldItemName,
+            Lock: "",
             ItemProperty: {},
             MemberNumber: target.MemberNumber,
             MemberName: targetNick
@@ -565,16 +565,7 @@
 
         const tailItem = InventoryGet(target, tailGroup);
 
-        let itemColor = "Default";
-        if (tailItem && tailItem.Color && tailItem.Color !== "Default") {
-            itemColor = tailItem.Color;
-        } else {
-            const hairFront = InventoryGet(target, "HairFront");
-            const hairBack  = InventoryGet(target, "HairBack");
-            if      (hairFront?.Color) itemColor = hairFront.Color;
-            else if (hairBack?.Color)  itemColor = hairBack.Color;
-            else                       itemColor = getRandomColor();
-        }
+        let itemColor = getItemColor(target, tailItem.Color);
 
         try {
             InventoryRemove(target, tailGroup);
@@ -590,14 +581,13 @@
         const itemDesc = getMessage('itemTailDesc', { name: targetNick });
 
         try {
-            InventoryWear(Player, "大号拉珠", "ItemHandheld", itemColor, 0, target.MemberNumber, {
+            InventoryWear(Player, "大号拉珠", "ItemHandheld", "Default" , 0, target.MemberNumber, {
                 Name: itemName,
                 Description: itemDesc,
                 Color: itemColor,
                 Private: true,
                 Item: "大号拉珠",
                 Lock: "",
-                Effects: [],
                 MemberNumber: target.MemberNumber,
                 MemberName: targetNick
             });
