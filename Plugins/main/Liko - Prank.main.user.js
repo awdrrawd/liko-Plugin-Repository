@@ -1095,7 +1095,7 @@
                         } else {
                             chatSendCustomAction(
                                 getNickname(Player) + " " + getMessage('insertAhoge') +
-                                " " + getNickname(target) + getMessage('insertAhogeSuffix')
+                                " " + getNickname(target) + getMessage('insertAhogeSuffix', { name: getNickname(target) })
                             );
                         }
                     } else {
