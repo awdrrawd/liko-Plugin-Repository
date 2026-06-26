@@ -2,7 +2,7 @@
 // @name         Liko - CRA
 // @name:zh      聊天室輔助工具
 // @namespace    https://likolisu.dev/
-// @version      1.0
+// @version      1.0.1
 // @description  替他人改姿勢、輸入歷史、BIO時區頭頂時間、@動作自帶名字、指令/房間轉按鈕 | Chat room assistant
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,8 +18,8 @@
     "use strict";
 
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.0";
     if (window.Liko.CRA) return;
+    const MOD_VER = "1.0.1";
     window.Liko.CRA = MOD_VER;
 
     const LOG = "🐈‍⬛ [CRA]";
@@ -305,7 +305,7 @@
                 let ok = false;
                 try { ok = check(); } catch (e) {}
                 if (ok) return resolve(true);
-                if (Date.now() - start > timeout) { err("等待逾時"); return resolve(false); }
+                if (timeout && Date.now() - start > timeout) { err("等待逾時"); return resolve(false); }
                 setTimeout(loop, 100);
             })();
         });
@@ -657,15 +657,15 @@
         const sdkOk = await waitFor(() => typeof bcModSdk !== 'undefined' && bcModSdk && bcModSdk.registerMod, 30000);
         if (!sdkOk) { err("bcModSdk 載入失敗，停止"); return; }
 
-        await waitFor(() => typeof CurrentScreen !== 'undefined' && typeof DrawButton === 'function' && typeof Player !== 'undefined', 30000);
-        await waitFor(() => typeof Player !== 'undefined' && Player.MemberNumber, 30000);
-
         modApi = bcModSdk.registerMod({
             name: "Liko-CRA",
             fullName: "Liko - ChatRoom Assistant",
             version: MOD_VER,
             repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
         });
+
+        await waitFor(() => typeof DrawButton === 'function' && typeof Player !== 'undefined');
+        await waitFor(() => typeof Player !== 'undefined' && Player.MemberNumber);
 
         Lang.reset();
         injectHistoryStyle();
@@ -720,6 +720,28 @@
 
         // ── 聊天掃描：/指令 與 #房間# 轉按鈕 ──
         scanTimer = setInterval(scanChat, CONFIG.SCAN_INTERVAL);
+
+        // ── 指令註冊 ──
+        const registerCommands = () => {
+            CommandCombine([{
+                Tag: 'cumm',
+                Description: "：引起高潮。",
+                Action: () => {
+                    ActivityOrgasmRuined = false;
+                    ActivityOrgasmStart(Player);
+                }
+            }]);
+            log("/cumm 指令註冊成功");
+        };
+        if (typeof CommandCombine === 'function') {
+            try { registerCommands(); }
+            catch (e) { err("指令註冊失敗", e); }
+        } else {
+            waitFor(() => typeof CommandCombine === 'function').then(() => {
+                try { registerCommands(); }
+                catch (e) { err("指令延遲註冊失敗", e); }
+            });
+        }
 
         // 歡迎訊息（每連線一次）
         if (!window.LikoCRAWelcomed && typeof ChatRoomSendLocal === 'function') {
