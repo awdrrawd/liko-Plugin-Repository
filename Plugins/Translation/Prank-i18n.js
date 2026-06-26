@@ -469,7 +469,7 @@
         'actRemoveHoldPantiesSelf': {
             TW: "SourceCharacter 脫下了自己的內褲並握在手中",
             CN: "SourceCharacter 脱下了自己的内裤并握在手中",
-            EN: "SourceCharacter slips off their own panties holds them",
+            EN: "SourceCharacter slips off their own panties and holds them",
             DE: "SourceCharacter streift das eigene Höschen ab und hält es fest",
             FR: "SourceCharacter retire sa propre culotte et la garde en main",
             RU: "SourceCharacter снимает собственные трусики и держит их в руках",
@@ -502,24 +502,24 @@
             RU: "SourceCharacter снимает собственные носки и держит их в руках",
             UA: "SourceCharacter знімає власні шкарпетки і тримає їх у руках"
         },
-	'actPluckingTailDesc': {
-	    TW: "SourceCharacter 開玩笑地抓住 TargetCharacter 的尾巴，伴隨著「啵！啵！啵！」聲，一不小心扯掉了！",
-	    CN: "SourceCharacter 开玩笑地抓住 TargetCharacter 的尾巴，伴随着「啵！啵！啵！」声，一不小心扯掉了！",
-	    EN: "With a 'Pop! Pop! Pop!', SourceCharacter jokingly grabs TargetCharacter's tail and accidentally yanks it out!",
-	    DE: "Mit einem 'Plopp! Plopp! Plopp!' greift SourceCharacter scherzend nach TargetCharacters Schwanz und zieht ihn versehentlich heraus!",
-	    FR: "Avec un « Pop ! Pop ! Pop ! », SourceCharacter attrape en plaisantant la queue de TargetCharacter et l'arrache accidentellement !",
-	    RU: "С звуками «Хлоп! Хлоп! Хлоп!» SourceCharacter шутливо хватает хвост TargetCharacter и случайно вырывает его!",
-	    UA: "Зі звуками «Бульк! Бульк! Бульк!» SourceCharacter жартівливо хапає хвіст TargetCharacter і випадково вириває його!"
-	},
-	'actInsertAhogeDesc': {
-	    TW: "SourceCharacter 悄悄地在 TargetCharacter 頭頂插了一根呆毛，但 TargetCharacter 並沒有因此看起來更高...",
-	    CN: "SourceCharacter 悄悄地在 TargetCharacter 头顶插了一根呆毛，但 TargetCharacter 并没有因此看起来更高...",
-	    EN: "SourceCharacter sneakily inserts an ahoge on TargetCharacter's head, but it doesn't make TargetCharacter look any taller...",
-	    DE: "SourceCharacter steckt TargetCharacter heimlich eine Ahoge auf den Kopf, aber TargetCharacter wirkt dadurch kein Stück größer...",
-	    FR: "SourceCharacter insère discrètement un ahoge sur la tête de TargetCharacter, mais cela ne rend pas TargetCharacter plus grand pour autant...",
-	    RU: "SourceCharacter незаметно вставляет ахоге на голову TargetCharacter, но от этого TargetCharacter не выглядит выше...",
-	    UA: "SourceCharacter непомітно вставляє ахеге на голову TargetCharacter, але від цього TargetCharacter не виглядає вищим..."
-	},
+        'actPluckingTailDesc': {
+            TW: "SourceCharacter 開玩笑地抓住 TargetCharacter 的尾巴，伴隨著「啵！啵！啵！」聲，一不小心扯掉了！",
+            CN: "SourceCharacter 开玩笑地抓住 TargetCharacter 的尾巴，伴随着「啵！啵！啵！」声，一不小心扯掉了！",
+            EN: "With a 'Pop! Pop! Pop!', SourceCharacter jokingly grabs TargetCharacter's tail and accidentally yanks it out!",
+            DE: "Mit einem 'Plopp! Plopp! Plopp!' greift SourceCharacter scherzend nach TargetCharacters Schwanz und zieht ihn versehentlich heraus!",
+            FR: "Avec un « Pop ! Pop ! Pop ! », SourceCharacter attrape en plaisantant la queue de TargetCharacter et l'arrache accidentellement !",
+            RU: "С звуками «Хлоп! Хлоп! Хлоп!» SourceCharacter шутливо хватает хвост TargetCharacter и случайно вырывает его!",
+            UA: "Зі звуками «Бульк! Бульк! Бульк!» SourceCharacter жартівливо хапає хвіст TargetCharacter і випадково вириває його!"
+        },
+        'actInsertAhogeDesc': {
+            TW: "SourceCharacter 悄悄地在 TargetCharacter 頭頂插了一根呆毛，但 TargetCharacter 並沒有因此看起來更高...",
+            CN: "SourceCharacter 悄悄地在 TargetCharacter 头顶插了一根呆毛，但 TargetCharacter 并没有因此看起来更高...",
+            EN: "SourceCharacter sneakily inserts an ahoge on TargetCharacter's head, but it doesn't make TargetCharacter look any taller...",
+            DE: "SourceCharacter steckt TargetCharacter heimlich eine Ahoge auf den Kopf, aber TargetCharacter wirkt dadurch kein Stück größer...",
+            FR: "SourceCharacter insère discrètement un ahoge sur la tête de TargetCharacter, mais cela ne rend pas TargetCharacter plus grand pour autant...",
+            RU: "SourceCharacter незаметно вставляет ахоге на голову TargetCharacter, но от этого TargetCharacter не выглядит выше...",
+            UA: "SourceCharacter непомітно вставляє ахеге на голову TargetCharacter, але від цього TargetCharacter не виглядає вищим..."
+        },
         'actInsertAhogeSelf': {
             TW: "SourceCharacter 悄悄地在自己頭頂插了一根呆毛",
             CN: "SourceCharacter 悄悄地在自己头顶插了一根呆毛",
