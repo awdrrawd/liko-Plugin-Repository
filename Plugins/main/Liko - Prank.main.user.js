@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.6.3
+// @version      1.6.5
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -15,7 +15,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.3";
+    const MOD_VER = "1.6.5";
     if (window.Liko.Prank) return;
     window.Liko.Prank = MOD_VER;
 
@@ -245,7 +245,8 @@
     function getAhogeItems(target) {
         return target.Appearance.filter(item => {
             const groupName = item.Asset?.Group?.Name;
-            return AHOGE_GROUPS.includes(groupName);
+            const assetName = item.Asset?.Name;
+            return AHOGE_GROUPS.includes(groupName) && assetName === "呆毛";
         });
     }
 
@@ -329,7 +330,7 @@
 
             dissolveAppearance(target, "normal");
 
-            chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothes') + " " + getNickname(target) + getMessage('dissolveClothesTarget'));
+            chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesNormalMsg', { name: getNickname(target) }));
         } catch (error) {
             console.error("Error in spillObscenePotion:", error);
         }
@@ -581,9 +582,25 @@
         const ahoges = getAhogeItems(target);
         if (ahoges.length === 0) return false;
 
-        // 只拔第一根，讓玩家重複點來一根一根拔
-        const groupName = ahoges[0].Asset.Group.Name;
+        const allowFullWardrobe = target.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
 
+        // 找第一根可拔的呆毛；AllowFullWardrobeAccess=false 時跳過 额外头发_Luzi
+        const pluckable = ahoges.find(item => {
+            if (!allowFullWardrobe && item.Asset?.Group?.Name === "额外头发_Luzi") return false;
+            return true;
+        });
+
+        if (!pluckable) {
+            // 所有呆毛都在受保護的群組（额外头发_Luzi），嘗試操作但伺服器會拒絕
+            const groupName = ahoges[0].Asset.Group.Name;
+            try {
+                InventoryRemove(target, groupName);
+                ChatRoomCharacterUpdate(target);
+            } catch (e) {}
+            return "rebirth";
+        }
+
+        const groupName = pluckable.Asset.Group.Name;
         try {
             InventoryRemove(target, groupName);
             ChatRoomCharacterUpdate(target);
@@ -662,9 +679,13 @@
             getAhogeItems(target).map(item => item.Asset?.Group?.Name)
         );
 
+        // AllowFullWardrobeAccess=false 時，额外头发_Luzi 受保護，不視為可用格
+        const allowFullWardrobe = target.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
+        const availableGroups = allowFullWardrobe ? AHOGE_GROUPS : AHOGE_GROUPS.filter(g => g !== "额外头发_Luzi");
+
         // 依優先順序找第一個空格
-        const targetGroup = AHOGE_GROUPS.find(g => !occupiedGroups.has(g));
-        if (!targetGroup) return false; // 6格全滿
+        const targetGroup = availableGroups.find(g => !occupiedGroups.has(g));
+        if (!targetGroup) return false; // 所有可用格已滿
 
         // 找呆毛 asset（從 AssetFemale3DCG 找，避免寫死路徑）
         const ahogeAsset = AssetGet("Female3DCG", targetGroup, "呆毛");
@@ -725,7 +746,13 @@
             return getAhogeItems(target2).length > 0;
         });
         actData.CustomPrerequisiteFuncs.set("LikoHasEmptyAhogeSlot", function(target1, target2, group) {
-            const occupied = new Set(getAhogeItems(target2).map(item => item.Asset?.Group?.Name)); return AHOGE_GROUPS.some(g => !occupied.has(g));
+            const occupied = new Set(getAhogeItems(target2).map(item => item.Asset?.Group?.Name));
+            const allowFullWardrobe = target2.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
+            const available = allowFullWardrobe ? AHOGE_GROUPS : AHOGE_GROUPS.filter(g => g !== "额外头发_Luzi");
+            return available.some(g => !occupied.has(g));
+        });
+        actData.CustomPrerequisiteFuncs.set("LikoPlayerMouthFree", function(target1, target2, group) {
+            return !InventoryGroupIsBlocked(target1, "ItemMouth") && SpeechGetGagLevel(target1, "ItemMouth") === 0;
         });
         actData.CustomPrerequisiteFuncs.set("LikoHasTail", function(target1, target2, group) {
             return !!(InventoryGet(target2, "Luzi_TailStraps_0") || InventoryGet(target2, "TailStraps"));
@@ -820,7 +847,7 @@
                     if (isSelf) {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
                     } else {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothes') + " " + getNickname(target) + getMessage('dissolveClothesTarget'));
+                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesNormalMsg', { name: getNickname(target) }));
                     }
                 }
             },
@@ -844,7 +871,7 @@
                     if (isSelf) {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
                     } else {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothes') + " " + getNickname(target) + getMessage('dissolveClothesTarget'));
+                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesWeakMsg', { name: getNickname(target) }));
                     }
                 }
             },
@@ -868,7 +895,7 @@
                     if (isSelf) {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
                     } else {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothes') + " " + getNickname(target) + getMessage('dissolveClothesTarget'));
+                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesStrongMsg', { name: getNickname(target) }));
                     }
                 }
             },
@@ -1017,7 +1044,10 @@
                         chatSendCustomAction(getNickname(target) + " " + getMessage('hasAhoge'));
                         return;
                     }
-                    if (pluckingHair(target)) {
+                    const result = pluckingHair(target);
+                    if (result === "rebirth") {
+                        chatSendCustomAction(getNickname(Player) + " " + getMessage('ahogeRebirth', { name: getNickname(target) }));
+                    } else if (result) {
                         const isSelf = target.MemberNumber === Player.MemberNumber;
                         if (isSelf) {
                             chatSendCustomAction(getNickname(Player) + " " + getMessage('pluckingOwnHair'));
@@ -1074,6 +1104,48 @@
                 }
             },
             CustomImage: "https://cdn.jsdelivr.net/gh/SugarChain-Studio/echo-clothing-ext@feae46427eb16ab1dc1e29ec1d323a167309e75f/resources/Assets/Female3DCG/%E9%A2%9D%E5%A4%96%E5%A4%B4%E5%8F%91_Luzi/Preview/%E5%91%86%E6%AF%9B.png"
+        });
+
+        AddActivity({
+            Activity: { Name: "BiteEar", MaxProgress: 30, MaxProgressSelf: 30, Prerequisite: [] },
+            Targets: [
+                {
+                    TargetLabel: getMessage('actBiteEar'),
+                    Name: "ItemEars",
+                    SelfAllowed: false,
+                    TargetAction: getMessage('actBiteEarDesc')
+                }
+            ],
+            CustomPrereqs: [
+                { Name: "LikoCanInteract",         Func: actData.CustomPrerequisiteFuncs.get("LikoCanInteract") },
+                { Name: "LikoHasBCItemPermission", Func: actData.CustomPrerequisiteFuncs.get("LikoHasBCItemPermission") },
+                { Name: "LikoPlayerMouthFree",     Func: actData.CustomPrerequisiteFuncs.get("LikoPlayerMouthFree") }
+            ],
+            CustomAction: {
+                Func: (target, args, next) => {
+                    const targetNick = getNickname(target);
+                    const playerNick = getNickname(Player);
+                    const itemName = getMessage('itemCookieName', { name: targetNick });
+                    const itemDesc = getMessage('itemCookieDesc', { name: targetNick });
+
+                    InventoryRemove(Player, "ItemMouth");
+                    try {
+                        InventoryWear(Player, "曲奇", "ItemMouth", "Default", 0, target.MemberNumber, {
+                            Name: itemName,
+                            Description: itemDesc,
+                            Private: true,
+                            MemberNumber: target.MemberNumber,
+                            MemberName: targetNick
+                        });
+                    } catch (e) {
+                        console.error("🐈‍⬛ [prank] ❌ BiteEar InventoryWear error:", e);
+                    }
+                    ChatRoomCharacterUpdate(Player);
+
+                    chatSendCustomAction(playerNick + " " + getMessage('biteEar') + " " + targetNick + getMessage('biteEarSuffix'));
+                }
+            },
+            CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Activity/Kiss.png")
         });
 
         AddActivity({

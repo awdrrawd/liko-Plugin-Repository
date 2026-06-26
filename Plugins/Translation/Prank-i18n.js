@@ -70,6 +70,15 @@
             DE: "hat keinen Schwanz", FR: "n'a pas de queue",
             RU: "нет хвоста", UA: "немає хвоста"
         },
+        'ahogeRebirth': {
+            TW: "拔掉了{name}的呆毛，但又冒出來了！",
+            CN: "拔掉了{name}的呆毛，但又冒出来了！",
+            EN: "plucked out {name}'s ahoge, but it grew right back!",
+            DE: "hat {name}s Ahoge herausgezupft, aber sie wuchs sofort nach!",
+            FR: "a arraché l'ahoge de {name}, mais il a immédiatement repoussé !",
+            RU: "выдернул ахоге у {name}, но оно тут же выросло обратно!",
+            UA: "висмикнув ахеге {name}, але воно одразу виросло знову!"
+        },
         'insertFailed': {
             TW: "插入失敗", CN: "插入失败", EN: "Failed to insert",
             DE: "Einfügen fehlgeschlagen", FR: "Échec de l'insertion",
@@ -493,15 +502,15 @@
             RU: "SourceCharacter снимает собственные носки и держит их в руках",
             UA: "SourceCharacter знімає власні шкарпетки і тримає їх у руках"
         },
-        'actPluckingTailDesc': {
-            TW: "SourceCharacter 開玩笑地抓住 TargetCharacter 的尾巴，一不小心扯掉了！",
-            CN: "SourceCharacter 开玩笑地抓住 TargetCharacter 的尾巴，一不小心扯掉了！",
-            EN: "SourceCharacter jokingly grabs TargetCharacter's tail, and accidentally yanks it out!",
-            DE: "SourceCharacter greift scherzend nach TargetCharacters Schwanz und zieht ihn versehentlich heraus!",
-            FR: "SourceCharacter attrape en plaisantant la queue de TargetCharacter et l'arrache accidentellement !",
-            RU: "SourceCharacter шутливо хватает хвост TargetCharacter и случайно вырывает его!",
-            UA: "SourceCharacter жартівливо хапає хвіст TargetCharacter і випадково вириває його!"
-        },
+	'actPluckingTailDesc': {
+	    TW: "SourceCharacter 開玩笑地抓住 TargetCharacter 的尾巴，伴隨著「啵！啵！啵！」聲，一不小心扯掉了！",
+	    CN: "SourceCharacter 开玩笑地抓住 TargetCharacter 的尾巴，伴随着「啵！啵！啵！」声，一不小心扯掉了！",
+	    EN: "With a 'Pop! Pop! Pop!', SourceCharacter jokingly grabs TargetCharacter's tail and accidentally yanks it out!",
+	    DE: "Mit einem 'Plopp! Plopp! Plopp!' greift SourceCharacter scherzend nach TargetCharacters Schwanz und zieht ihn versehentlich heraus!",
+	    FR: "Avec un « Pop ! Pop ! Pop ! », SourceCharacter attrape en plaisantant la queue de TargetCharacter et l'arrache accidentellement !",
+	    RU: "С звуками «Хлоп! Хлоп! Хлоп!» SourceCharacter шутливо хватает хвост TargetCharacter и случайно вырывает его!",
+	    UA: "Зі звуками «Бульк! Бульк! Бульк!» SourceCharacter жартівливо хапає хвіст TargetCharacter і випадково вириває його!"
+	},
         'actInsertAhogeDesc': {
             TW: "SourceCharacter 悄悄地在 TargetCharacter 頭頂插了一根呆毛",
             CN: "SourceCharacter 悄悄地在 TargetCharacter 头顶插了一根呆毛",
@@ -511,14 +520,91 @@
             RU: "SourceCharacter незаметно вставляет ахоге на голову TargetCharacter",
             UA: "SourceCharacter непомітно вставляє ахеге на голову TargetCharacter"
         },
-        'actInsertAhogeSelf': {
-            TW: "SourceCharacter 悄悄地在自己頭頂插了一根呆毛",
-            CN: "SourceCharacter 悄悄地在自己头顶插了一根呆毛",
-            EN: "SourceCharacter sneakily inserts an ahoge on their own head",
-            DE: "SourceCharacter steckt sich heimlich eine Ahoge auf den eigenen Kopf",
-            FR: "SourceCharacter insère discrètement un ahoge sur sa propre tête",
-            RU: "SourceCharacter незаметно вставляет ахоге себе на голову",
-            UA: "SourceCharacter непомітно вставляє ахеге собі на голову"
+	'actInsertAhogeDesc': {
+	    TW: "SourceCharacter 悄悄地在 TargetCharacter 頭頂插了一根呆毛，但 TargetCharacter 並沒有因此看起來更高...",
+	    CN: "SourceCharacter 悄悄地在 TargetCharacter 头顶插了一根呆毛，但 TargetCharacter 并没有因此看起来更高...",
+	    EN: "SourceCharacter sneakily inserts an ahoge on TargetCharacter's head, but it doesn't make TargetCharacter look any taller...",
+	    DE: "SourceCharacter steckt TargetCharacter heimlich eine Ahoge auf den Kopf, aber TargetCharacter wirkt dadurch kein Stück größer...",
+	    FR: "SourceCharacter insère discrètement un ahoge sur la tête de TargetCharacter, mais cela ne rend pas TargetCharacter plus grand pour autant...",
+	    RU: "SourceCharacter незаметно вставляет ахоге на голову TargetCharacter, но от этого TargetCharacter не выглядит выше...",
+	    UA: "SourceCharacter непомітно вставляє ахеге на голову TargetCharacter, але від цього TargetCharacter не виглядає вищим..."
+	},
+
+        // ── 咬耳朵 ────────────────────────────────────────────────────────────
+        'actBiteEar': {
+            TW: "咬耳朵", CN: "咬耳朵", EN: "Bite Ear",
+            DE: "Ohr beißen", FR: "Mordre l'oreille",
+            RU: "Укусить ухо", UA: "Вкусити вухо"
+        },
+        'actBiteEarDesc': {
+            TW: "SourceCharacter 咬了咬 TargetCharacter 的耳朵，不小心咬下一小塊！",
+            CN: "SourceCharacter 咬了咬 TargetCharacter 的耳朵，不小心咬下一小块！",
+            EN: "SourceCharacter nibbles on TargetCharacter's ear and accidentally bites off a piece!",
+            DE: "SourceCharacter knabbert an TargetCharacters Ohr und beißt versehentlich ein Stück ab!",
+            FR: "SourceCharacter grignote l'oreille de TargetCharacter et en arrache accidentellement un morceau !",
+            RU: "SourceCharacter кусает ухо TargetCharacter и случайно откусывает кусочек!",
+            UA: "SourceCharacter гризе вухо TargetCharacter і випадково відкушує шматочок!"
+        },
+        'biteEar': {
+            TW: "咬了咬", CN: "咬了咬", EN: "nibbles on",
+            DE: "knabbert an", FR: "grignote",
+            RU: "кусает", UA: "гризе"
+        },
+        'biteEarSuffix': {
+            TW: "的耳朵，不小心咬下一小塊！",
+            CN: "的耳朵，不小心咬下一小块！",
+            EN: "'s ear and accidentally bites off a piece!",
+            DE: "s Ohr und beißt versehentlich ein Stück ab!",
+            FR: " l'oreille et en arrache accidentellement un morceau !",
+            RU: " ухо и случайно откусывает кусочек!",
+            UA: " вухо і випадково відкушує шматочок!"
+        },
+        'itemCookieName': {
+            TW: "帶有{name}香氣的餅乾",
+            CN: "带有{name}香气的曲奇",
+            EN: "Cookie with {name}'s Scent",
+            DE: "Keks mit {name}s Duft",
+            FR: "Biscuit au parfum de {name}",
+            RU: "Печенье с ароматом {name}",
+            UA: "Печиво з ароматом {name}"
+        },
+        'itemCookieDesc': {
+            TW: "不小心從{name}的耳朵上咬下來的餅乾...? 帶有{name}的香氣且清脆爽口💕",
+            CN: "不小心从{name}的耳朵上咬下来的曲奇...? 带有{name}的香气且清脆爽口💕",
+            EN: "A cookie accidentally bitten from {name}'s ear...? It carries {name}'s scent and is delightfully crunchy 💕",
+            DE: "Ein Keks, der versehentlich von {name}s Ohr abgebissen wurde...? Er trägt {name}s Duft und ist herrlich knusprig 💕",
+            FR: "Un biscuit accidentellement mordu sur l'oreille de {name}...? Il porte le parfum de {name} et est délicieusement croquant 💕",
+            RU: "Печенье, случайно откушенное от уха {name}...? Оно пахнет {name} и восхитительно хрустит 💕",
+            UA: "Печиво, випадково відкушене від вуха {name}...? Воно пахне {name} і чудово хрустить 💕"
+        },
+
+        // ── 溶解藥水各模式訊息 ────────────────────────────────────────────────
+        'dissolveClothesWeakMsg': {
+            TW: "對{name}使用了淫穢的藥水，效果不佳，只是輕微的溶解了外衣",
+            CN: "对{name}使用了淫秽的药水，效果不佳，只是轻微的溶解了外衣",
+            EN: "splashes a weak obscene concoction on {name} — the diluted effect barely dissolves their outer clothes",
+            DE: "übergießt {name} mit einer schwachen obszönen Brühe — die verdünnte Wirkung löst kaum die äußere Kleidung auf",
+            FR: "asperge {name} d'une potion obscène diluée — l'effet affaibli ne dissout que légèrement les vêtements de dessus",
+            RU: "обливает {name} слабым непристойным зельем — разбавленный эффект едва растворяет верхнюю одежду",
+            UA: "обливає {name} слабким непристойним зіллям — розбавлений ефект ледве розчиняє верхній одяг"
+        },
+        'dissolveClothesNormalMsg': {
+            TW: "對{name}使用了淫穢的藥水，因藥水的效果{name}已經一絲不掛了",
+            CN: "对{name}使用了淫秽的药水，因药水的效果{name}已经一丝不挂了",
+            EN: "splashes an obscene concoction on {name} — its full effect leaves {name} completely bare",
+            DE: "übergießt {name} mit einem obszönen Gebräu — die volle Wirkung lässt {name} vollständig nackt zurück",
+            FR: "asperge {name} d'une potion obscène — son plein effet laisse {name} entièrement dénudé(e)",
+            RU: "обливает {name} непристойным зельем — полный эффект оставляет {name} полностью обнажённым(-ой)",
+            UA: "обливає {name} непристойним зіллям — повний ефект залишає {name} повністю оголеним(-ою)"
+        },
+        'dissolveClothesStrongMsg': {
+            TW: "對{name}使用了淫穢的藥水，所幸藥水對生物無效，{name}只是服裝跟道具被溶解乾淨",
+            CN: "对{name}使用了淫秽的药水，所幸药水对生物无效，{name}只是服装跟道具被溶解干净",
+            EN: "splashes a concentrated obscene concoction on {name} — fortunately it's harmless to living beings, but {name}'s clothes and items are completely dissolved",
+            DE: "übergießt {name} mit einem konzentrierten obszönen Gebräu — zum Glück ist es für Lebewesen harmlos, aber {name}s Kleidung und Gegenstände werden vollständig aufgelöst",
+            FR: "asperge {name} d'une potion obscène concentrée — heureusement inoffensive pour les êtres vivants, mais les vêtements et objets de {name} sont entièrement dissous",
+            RU: "обливает {name} концентрированным непристойным зельем — к счастью, оно безвредно для живых существ, но одежда и предметы {name} полностью растворяются",
+            UA: "обливає {name} концентрованим непристойним зіллям — на щастя, воно нешкідливе для живих істот, але одяг і речі {name} повністю розчиняються"
         },
 
         // ── 活動按鈕角標 (🪄) ───────────────────────────────────────────────
