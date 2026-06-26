@@ -469,7 +469,7 @@
         'actRemoveHoldPantiesSelf': {
             TW: "SourceCharacter 脫下了自己的內褲並握在手中",
             CN: "SourceCharacter 脱下了自己的内裤并握在手中",
-            EN: "SourceCharacter slips off their own panties holds them",
+            EN: "SourceCharacter slips off their own panties and holds them",
             DE: "SourceCharacter streift das eigene Höschen ab und hält es fest",
             FR: "SourceCharacter retire sa propre culotte et la garde en main",
             RU: "SourceCharacter снимает собственные трусики и держит их в руках",
