@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.6.5
+// @version      1.6.6
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -15,7 +15,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.5";
+    const MOD_VER = "1.6.6";
     if (window.Liko.Prank) return;
     window.Liko.Prank = MOD_VER;
 
@@ -331,6 +331,10 @@
             dissolveAppearance(target, "normal");
 
             chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesNormalMsg', { name: getNickname(target) }));
+            if (Math.random() < 0.1) {
+                dissolveAppearance(Player, "weak");
+                chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveSprayedSelf', { name: getNickname(Player) }));
+            }
         } catch (error) {
             console.error("Error in spillObscenePotion:", error);
         }
@@ -582,9 +586,11 @@
         const ahoges = getAhogeItems(target);
         if (ahoges.length === 0) return false;
 
-        const allowFullWardrobe = target.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
+        // 對自己操作時不受 AllowFullWardrobeAccess 限制
+        const isSelf = target.MemberNumber === Player.MemberNumber;
+        const allowFullWardrobe = isSelf || target.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
 
-        // 找第一根可拔的呆毛；AllowFullWardrobeAccess=false 時跳過 额外头发_Luzi
+        // 找第一根可拔的呆毛；他人且 AllowFullWardrobeAccess=false 時跳過 额外头发_Luzi
         const pluckable = ahoges.find(item => {
             if (!allowFullWardrobe && item.Asset?.Group?.Name === "额外头发_Luzi") return false;
             return true;
@@ -604,6 +610,8 @@
         try {
             InventoryRemove(target, groupName);
             ChatRoomCharacterUpdate(target);
+            // 30% 機率：拔掉後又長出一根
+            if (Math.random() < 0.3) return "regrow";
             return true;
         } catch (e) {
             console.log("🐈‍⬛ [prank] ❌ Error removing ahoge:", groupName, e);
@@ -679,8 +687,9 @@
             getAhogeItems(target).map(item => item.Asset?.Group?.Name)
         );
 
-        // AllowFullWardrobeAccess=false 時，额外头发_Luzi 受保護，不視為可用格
-        const allowFullWardrobe = target.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
+        // 對自己操作不受限；他人且 AllowFullWardrobeAccess=false 時，额外头发_Luzi 受保護不視為可用格
+        const isSelfInsert = target.MemberNumber === Player.MemberNumber;
+        const allowFullWardrobe = isSelfInsert || target.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
         const availableGroups = allowFullWardrobe ? AHOGE_GROUPS : AHOGE_GROUPS.filter(g => g !== "额外头发_Luzi");
 
         // 依優先順序找第一個空格
@@ -747,7 +756,8 @@
         });
         actData.CustomPrerequisiteFuncs.set("LikoHasEmptyAhogeSlot", function(target1, target2, group) {
             const occupied = new Set(getAhogeItems(target2).map(item => item.Asset?.Group?.Name));
-            const allowFullWardrobe = target2.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
+            const isSelfSlot = target2.MemberNumber === Player.MemberNumber;
+            const allowFullWardrobe = isSelfSlot || target2.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
             const available = allowFullWardrobe ? AHOGE_GROUPS : AHOGE_GROUPS.filter(g => g !== "额外头发_Luzi");
             return available.some(g => !occupied.has(g));
         });
@@ -848,6 +858,10 @@
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
                     } else {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesNormalMsg', { name: getNickname(target) }));
+                        if (Math.random() < 0.1) {
+                            dissolveAppearance(Player, "weak");
+                            chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveSprayedSelf', { name: getNickname(Player) }));
+                        }
                     }
                 }
             },
@@ -872,6 +886,10 @@
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
                     } else {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesWeakMsg', { name: getNickname(target) }));
+                        if (Math.random() < 0.1) {
+                            dissolveAppearance(Player, "weak");
+                            chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveSprayedSelf', { name: getNickname(Player) }));
+                        }
                     }
                 }
             },
@@ -896,6 +914,10 @@
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
                     } else {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesStrongMsg', { name: getNickname(target) }));
+                        if (Math.random() < 0.1) {
+                            dissolveAppearance(Player, "weak");
+                            chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveSprayedSelf', { name: getNickname(Player) }));
+                        }
                     }
                 }
             },
@@ -1045,10 +1067,20 @@
                         return;
                     }
                     const result = pluckingHair(target);
+                    const isSelf = target.MemberNumber === Player.MemberNumber;
                     if (result === "rebirth") {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('ahogeRebirth', { name: getNickname(target) }));
+                    } else if (result === "regrow") {
+                        // 先送拔毛訊息
+                        if (isSelf) {
+                            chatSendCustomAction(getNickname(Player) + " " + getMessage('pluckingOwnHair'));
+                        } else {
+                            chatSendCustomAction(getNickname(Player) + " " + getMessage('pluckingHair') + " " + getNickname(target) + getMessage('pluckingHairSuffix'));
+                        }
+                        // 插回一根，再送冒出訊息
+                        insertAhoge(target);
+                        chatSendCustomAction(getMessage('ahogeRegrow', { name: getNickname(target) }));
                     } else if (result) {
-                        const isSelf = target.MemberNumber === Player.MemberNumber;
                         if (isSelf) {
                             chatSendCustomAction(getNickname(Player) + " " + getMessage('pluckingOwnHair'));
                         } else {

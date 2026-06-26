@@ -79,6 +79,15 @@
             RU: "выдернул ахоге у {name}, но оно тут же выросло обратно!",
             UA: "висмикнув ахеге {name}, але воно одразу виросло знову!"
         },
+        'ahogeRegrow': {
+            TW: "但{name}的頭上又冒出一根新的呆毛！",
+            CN: "但{name}的头上又冒出一根新的呆毛！",
+            EN: "but a new ahoge sprouts right back from {name}'s head!",
+            DE: "aber eine neue Ahoge sprießt sofort aus {name}s Kopf hervor!",
+            FR: "mais un nouvel ahoge pousse immédiatement sur la tête de {name} !",
+            RU: "но новое ахоге тут же вырастает из головы {name}!",
+            UA: "але нова ахеге одразу виростає з голови {name}!"
+        },
         'insertFailed': {
             TW: "插入失敗", CN: "插入失败", EN: "Failed to insert",
             DE: "Einfügen fehlgeschlagen", FR: "Échec de l'insertion",
@@ -582,6 +591,17 @@
             FR: "Un biscuit accidentellement mordu sur l'oreille de {name}...? Il porte le parfum de {name} et est délicieusement croquant 💕",
             RU: "Печенье, случайно откушенное от уха {name}...? Оно пахнет {name} и восхитительно хрустит 💕",
             UA: "Печиво, випадково відкушене від вуха {name}...? Воно пахне {name} і чудово хрустить 💕"
+        },
+
+        // ── 溶解藥水濺射自己 ──────────────────────────────────────────────────
+        'dissolveSprayedSelf': {
+            TW: "不小心被藥水濺到了，因此{name}的衣服也稍微溶解了一些...",
+            CN: "不小心被药水溅到了，因此{name}的衣服也稍微溶解了一些...",
+            EN: "accidentally gets splashed by the potion — {name}'s own clothes start dissolving slightly...",
+            DE: "wird versehentlich von der Flüssigkeit bespritzt — {name}s eigene Kleidung beginnt sich leicht aufzulösen...",
+            FR: "est accidentellement éclaboussé(e) par la potion — les propres vêtements de {name} commencent à se dissoudre légèrement...",
+            RU: "случайно попадает под брызги зелья — собственная одежда {name} начинает немного растворяться...",
+            UA: "випадково потрапляє під бризки зілля — власний одяг {name} починає трохи розчинятися..."
         },
 
         // ── 溶解藥水各模式訊息 ────────────────────────────────────────────────
