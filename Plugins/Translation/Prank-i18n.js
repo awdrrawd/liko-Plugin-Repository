@@ -250,11 +250,13 @@
             RU: "шутливо хватает", UA: "жартівливо хапає"
         },
         'pluckingTailSuffix': {
-            TW: "的尾巴，一不小心扯掉了！", CN: "的尾巴，一不小心扯掉了！",
-            EN: "'s tail, and accidentally yanks it out!",
-            DE: "s Schwanz und zieht ihn versehentlich heraus!",
-            FR: " la queue et l'arrache accidentellement !",
-            RU: " хвост и случайно вырывает его!", UA: " хвіст і випадково вириває його!"
+            TW: "的尾巴，伴隨著「啵！啵！啵！」聲，一不小心扯掉了！",
+            CN: "的尾巴，伴随着「啵！啵！啵！」声，一不小心扯掉了！",
+            EN: "'s tail — with a 'Pop! Pop! Pop!', it accidentally comes right out!",
+            DE: "s Schwanz — mit einem 'Plopp! Plopp! Plopp!' kommt er versehentlich heraus!",
+            FR: " la queue — avec un « Pop ! Pop ! Pop ! », elle s'arrache accidentellement !",
+            RU: " хвост — со звуком «Хлоп! Хлоп! Хлоп!» он случайно вылетает!",
+            UA: " хвіст — зі звуком «Бульк! Бульк! Бульк!» він випадково вилітає!"
         },
         'insertAhoge': {
             TW: "悄悄地在", CN: "悄悄地在",
@@ -263,18 +265,22 @@
             RU: "незаметно вставляет ахоге на голову", UA: "непомітно вставляє ахеге на голову"
         },
         'insertAhogeSuffix': {
-            TW: "的頭頂插了一根毛", CN: "的头顶插了一根毛",
-            EN: "'s head",
-            DE: "s Kopf", FR: " la tête",
-            RU: " голову", UA: " голову"
+            TW: "的頭頂插了一根呆毛，但{name}並沒有因此看起來更高...",
+            CN: "的头顶插了一根呆毛，但{name}并没有因此看起来更高...",
+            EN: "'s head — but it doesn't make {name} look any taller...",
+            DE: "s Kopf — aber {name} wirkt dadurch kein Stück größer...",
+            FR: " la tête de {name} — mais cela ne le/la rend pas plus grand(e) pour autant...",
+            RU: " голову {name} — но от этого {name} не выглядит выше...",
+            UA: " голову {name} — але від цього {name} не виглядає вищим..."
         },
         'insertOwnAhoge': {
-            TW: "悄悄地在自己頭頂插了一根毛", CN: "悄悄地在自己头顶插了一根毛",
-            EN: "sneakily inserts an ahoge on their own head",
-            DE: "steckt sich heimlich eine Ahoge auf den eigenen Kopf",
-            FR: "insère discrètement un ahoge sur sa propre tête",
-            RU: "незаметно вставляет ахоге себе на голову",
-            UA: "непомітно вставляє ахеге собі на голову"
+            TW: "悄悄地在自己頭頂插了一根呆毛，但自己並沒有因此看起來更高...",
+            CN: "悄悄地在自己头顶插了一根呆毛，但自己并没有因此看起来更高...",
+            EN: "sneakily inserts an ahoge on their own head — but it doesn't make them look any taller...",
+            DE: "steckt sich heimlich eine Ahoge auf den eigenen Kopf — aber wirkt dadurch kein Stück größer...",
+            FR: "insère discrètement un ahoge sur sa propre tête — mais cela ne la rend pas plus grande pour autant...",
+            RU: "незаметно вставляет ахоге себе на голову — но от этого не выглядит выше...",
+            UA: "непомітно вставляє ахеге собі на голову — але від цього не виглядає вищим..."
         },
         // ── 手持物品名稱 / 描述（{name} 為目標暱稱） ───────────────────────
         'itemPantiesName': {
