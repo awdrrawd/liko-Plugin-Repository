@@ -1145,7 +1145,7 @@
                     chatSendCustomAction(playerNick + " " + getMessage('biteEar') + " " + targetNick + getMessage('biteEarSuffix'));
                 }
             },
-            CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Activity/Kiss.png")
+            CustomImage: "https://cdn.jsdelivr.net/gh/SugarChain-Studio/echo-clothing-ext@b827fd6921595dca58098ec34b52db47b4ab4f26/resources/Assets/Female3DCG/ItemMouth/Preview/%E6%9B%B2%E5%A5%87.png"
         });
 
         AddActivity({
