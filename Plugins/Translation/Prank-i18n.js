@@ -511,15 +511,6 @@
 	    RU: "С звуками «Хлоп! Хлоп! Хлоп!» SourceCharacter шутливо хватает хвост TargetCharacter и случайно вырывает его!",
 	    UA: "Зі звуками «Бульк! Бульк! Бульк!» SourceCharacter жартівливо хапає хвіст TargetCharacter і випадково вириває його!"
 	},
-        'actInsertAhogeDesc': {
-            TW: "SourceCharacter 悄悄地在 TargetCharacter 頭頂插了一根呆毛",
-            CN: "SourceCharacter 悄悄地在 TargetCharacter 头顶插了一根呆毛",
-            EN: "SourceCharacter sneakily inserts an ahoge on TargetCharacter's head",
-            DE: "SourceCharacter steckt TargetCharacter heimlich eine Ahoge auf den Kopf",
-            FR: "SourceCharacter insère discrètement un ahoge sur la tête de TargetCharacter",
-            RU: "SourceCharacter незаметно вставляет ахоге на голову TargetCharacter",
-            UA: "SourceCharacter непомітно вставляє ахеге на голову TargetCharacter"
-        },
 	'actInsertAhogeDesc': {
 	    TW: "SourceCharacter 悄悄地在 TargetCharacter 頭頂插了一根呆毛，但 TargetCharacter 並沒有因此看起來更高...",
 	    CN: "SourceCharacter 悄悄地在 TargetCharacter 头顶插了一根呆毛，但 TargetCharacter 并没有因此看起来更高...",
@@ -529,6 +520,15 @@
 	    RU: "SourceCharacter незаметно вставляет ахоге на голову TargetCharacter, но от этого TargetCharacter не выглядит выше...",
 	    UA: "SourceCharacter непомітно вставляє ахеге на голову TargetCharacter, але від цього TargetCharacter не виглядає вищим..."
 	},
+        'actInsertAhogeSelf': {
+            TW: "SourceCharacter 悄悄地在自己頭頂插了一根呆毛",
+            CN: "SourceCharacter 悄悄地在自己头顶插了一根呆毛",
+            EN: "SourceCharacter sneakily inserts an ahoge on their own head",
+            DE: "SourceCharacter steckt sich heimlich eine Ahoge auf den eigenen Kopf",
+            FR: "SourceCharacter insère discrètement un ahoge sur sa propre tête",
+            RU: "SourceCharacter незаметно вставляет ахоге себе на голову",
+            UA: "SourceCharacter непомітно вставляє ахеге собі на голову"
+        },
 
         // ── 咬耳朵 ────────────────────────────────────────────────────────────
         'actBiteEar': {
