@@ -81,7 +81,7 @@
         about_author: '作者：莉柯莉絲(Likolisu)', about_dev: '本插件為個人興趣開發，可能存在些許錯誤，歡迎到 GitHub 回報。',
         about_report: '🐛 GitHub 回報', about_assets: '── 使用素材皆為免費素材 ──',
         defaultTexts: '放鬆…放鬆…\n你的意識正在沉睡\n聽我的聲音\n什麼都不用想\n越來越深沉\n順從是舒服的\n沉淪下去吧\n好乖…好乖…',
-        defaultEmotes: '的思緒變得混亂了\n的兩眼變得空洞…\n的意識正在下沉\n微微晃了一下，失神了\n的表情變得恍惚',
+        defaultEmotes: '$me 的思緒變得混亂了\n$me 的兩眼變得空洞…\n$me 的意識正在下沉\n$me 微微晃了一下，失神了\n$me 的表情變得恍惚',
     };
 
     // ════════════════════════════════════════
@@ -3024,7 +3024,7 @@ function addArousal() {
             this._inputsUsed = new Set();
 
             // 標題 + 離開鈕
-            DrawText('Immersive Voice Hypnosis  v' + MOD_VER, 950, 110, 'White', 'Gray');
+            DrawText('Immersive Voice Hypnosis  v' + MOD_VER, 950, 110, 'Black', '');
             DrawButton(1815, 75, 90, 90, '', 'White', 'Icons/Exit.png', ui('exit'));
 
             // 左上「IVH 啟用」主開關
@@ -3044,7 +3044,7 @@ function addArousal() {
             DrawEmptyRect(1350, 200, 550, 700, 'White');
             const rightPanel = this['_right_' + this.activeTab];
             const hasRight = typeof rightPanel === 'function';
-            if (!hasRight) DrawText(ui('info'), 1625, 235, 'White', 'Gray');
+            if (!hasRight) DrawText(ui('info'), 1625, 235, 'Black', '');
 
             // 中間內容框 + 卷軸裁切
             DrawEmptyRect(FRAME_X, FRAME_Y, FRAME_W, FRAME_H, '#888');
@@ -3076,7 +3076,7 @@ function addArousal() {
                 this._renderDemo('');   // 隱藏動畫
             } else {
                 if (this.hoverDesc)
-                    DrawTextWrap(this.hoverDesc, 1370, 260, 510, 260, 'White', undefined, 6);
+                    DrawTextWrap(this.hoverDesc, 1370, 260, 510, 260, 'Black', undefined, 6);
                 this._renderDemo(this._demoKind);
             }
 
@@ -3237,7 +3237,7 @@ function addArousal() {
         title(cy, text, desc) {
             const y = this._y(cy);
             const prev = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
-            DrawTextFit(text, CONTENT_X, y, 260, 'White', 'Gray');
+            DrawTextFit(text, CONTENT_X, y, 260, 'Black', '');
             MainCanvas.textAlign = prev;
             this._track(cy + 20);
             if (desc && MouseIn(CONTENT_X, y - 20, 260, 40) && MouseY >= FRAME_Y && MouseY <= FRAME_BOT)
@@ -3245,7 +3245,7 @@ function addArousal() {
         },
         // 分隔標題（置中）
         sep(cy, text) {
-            DrawText(text, 900, this._y(cy), 'White', 'Gray');
+            DrawText(text, 900, this._y(cy), 'Black', '');
             this._track(cy + 15);
         },
         // 一般按鈕（demoKind：hover 時在說明區下方顯示對應動畫）
@@ -3332,7 +3332,7 @@ function addArousal() {
             this.slider(700, 215, 380, CONFIG.intensity, 0.1, 3.0, 0.1,
                 '拖曳調整整體強度（0.1~3.0）。',
                 v => { CONFIG.intensity = v; }, () => saveSettings());
-            DrawText(CONFIG.intensity.toFixed(1), 1130, this._y(232), 'White', 'Gray');
+            DrawText(CONFIG.intensity.toFixed(1), 1130, this._y(232), 'Black', '');
 
             // 催眠深度（取代背景循環開關；無=關閉）
             this.title(312, ui('depthMax'), '背景催眠的最深程度（與 VOICE 觸發分開）。設「無」即完全關閉背景循環；輕/中/重決定氛圍強弱。');
@@ -3351,7 +3351,7 @@ function addArousal() {
                 }});
             {
                 const _p = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
-                DrawTextFit(ui('minutes'), 830, this._y(382), 150, 'White', 'Gray');
+                DrawTextFit(ui('minutes'), 830, this._y(382), 150, 'Black', '');
                 MainCanvas.textAlign = _p;
             }
 
@@ -3360,7 +3360,7 @@ function addArousal() {
             this._depthRows().forEach((row, ri) => {
                 const cy = 475 + ri * 55;
                 const prev2 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
-                DrawTextFit(row.tag, CONTENT_X + 5, this._y(cy + 20), 40, 'White', 'Gray');
+                DrawTextFit(row.tag, CONTENT_X + 5, this._y(cy + 20), 40, 'Black', '');
                 MainCanvas.textAlign = prev2;
                 this._track(cy + 40);
                 const demoMap = { smoke:'pinkFlash', pant:'steamParticles', chatDanmaku:'danmaku',
@@ -3516,7 +3516,7 @@ function addArousal() {
                 }));
             // 說明文字（放最底；表情數 ≥8 時隱藏，避免太擠；過長自動換行）
             if (sets.length < 8) {
-                DrawTextWrap(ui('expr_hint'), CONTENT_X, this._y(cyB + 60), 820, 60, 'White', undefined, 4);
+                DrawTextWrap(ui('expr_hint'), CONTENT_X, this._y(cyB + 60), 820, 60, 'Black', undefined, 4);
                 this._track(cyB + 110);
             } else {
                 this._track(cyB + 60);
@@ -3526,14 +3526,14 @@ function addArousal() {
         // 右側：工作中表情編輯（四部位 ◀值▶、即時臉部預覽）
         _right_expr() {
             const work = this._exprWork || (this._exprWork = this._exprWorkFrom(null));
-            DrawText(ui('expr_edit'), 1625, 235, 'White', 'Gray');
+            DrawText(ui('expr_edit'), 1625, 235, 'Black', '');
 
             // 四部位 ◀ 值 ▶
             const GROUPS = [['Eyebrows', ui('eyebrows')], ['Eyes', ui('eyes')], ['Mouth', ui('mouth')], ['Blush', ui('blush')]];
             GROUPS.forEach(([g, lb], i) => {
                 const y = 290 + i * 62;
                 const p2 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
-                DrawTextFit(lb, 1370, y + 28, 110, 'White', 'Gray');
+                DrawTextFit(lb, 1370, y + 28, 110, 'Black', '');
                 MainCanvas.textAlign = p2;
                 this.rbtn(1490, y, 52, 52, '◀', 'White', null, () => cycleExpression(work, g, -1));
                 const v = work[g] == null ? ui('exprNone') : String(work[g]);
@@ -3549,7 +3549,7 @@ function addArousal() {
             if (this._exprFaceImg) {
                 try { MainCanvas.drawImage(this._exprFaceImg, bx, by, bs, bs); } catch (e) {}
             } else {
-                DrawText(ui('previewLoading'), bx + bs / 2, by + bs / 2, '#aaa', 'Gray');
+                DrawText(ui('previewLoading'), bx + bs / 2, by + bs / 2, '#555', '');
             }
         },
 
@@ -3574,12 +3574,12 @@ function addArousal() {
                     const isIdb = entry.startsWith('idb:');
                     const rowY  = cy;
                     const p2 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
-                    DrawTextFit(lb + (i + 1), CONTENT_X, this._y(rowY + 24), 70, 'White', 'Gray');
+                    DrawTextFit(lb + (i + 1), CONTENT_X, this._y(rowY + 24), 70, 'Black', '');
                     MainCanvas.textAlign = p2;
                     if (isIdb) {
                         const name = _sndNameCache[entry.slice(4)] || '本機音效';
                         const p3 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
-                        DrawTextFit('🎵 ' + name, LX + 5, this._y(rowY + 24), 410, '#9f9', 'Gray');
+                        DrawTextFit('🎵 ' + name, LX + 5, this._y(rowY + 24), 410, '#1a7a2a', '');
                         MainCanvas.textAlign = p3;
                     } else {
                         const ph = def ? '（預設）' + def.split('/').pop() : '未設定 — 網址／上傳／其他';
@@ -3603,7 +3603,7 @@ function addArousal() {
 
         // 右側：音效庫（預設＋本機）；可指派給「其他」選中的格子，或直接試聽。可卷動。
         _right_sounds() {
-            DrawText(ui('snd_lib'), 1625, 230, 'White', 'Gray');
+            DrawText(ui('snd_lib'), 1625, 230, 'Black', '');
             const pick = this._sndPick;
 
             // 載入本機上傳清單（一次）
@@ -3632,7 +3632,7 @@ function addArousal() {
             let y = LY0 - this._rscroll;
             groups.forEach(([key, label, items]) => {
                 const isLocal = key === 'local';
-                DrawText('── ' + label + ' ──', 1610, y + 16, '#cc99dd', 'Gray'); y += HEAD;
+                DrawText('── ' + label + ' ──', 1610, y + 16, '#7a3a8a', ''); y += HEAD;
                 items.forEach(it => {
                     if (y >= LY0 - ROW && y <= LBOT) {
                         const nameW = isLocal ? LW - 46 : LW;   // 本機保留右側刪除鈕空間
@@ -3663,12 +3663,12 @@ function addArousal() {
             // 說明（往上 10px；hover 到按鈕顯示該說明，否則預設；超框自動換行）
             const descText = this.hoverDesc
                 || (pick ? ui('snd_assignTo', { label: pick.label }) : ui('snd_pickHint'));
-            DrawTextWrap(descText, 1365, 840, 515, 48, 'White', undefined, 4);
+            DrawTextWrap(descText, 1365, 840, 515, 48, 'Black', undefined, 4);
         },
         _run_about() {
             this.sep(236, 'IVH — Immersive Voice Hypnosis  v' + MOD_VER);
             this.sep(280, ui('about_author'));
-            DrawTextWrap(ui('about_dev'), 520, 315, 760, 60, 'White', undefined, 2);
+            DrawTextWrap(ui('about_dev'), 520, 315, 760, 60, 'Black', undefined, 2);
             this.btn(740, 410, 320, 50, ui('about_report'), '#3a4a6a', '',
                 () => { try { window.open('https://github.com/awdrrawd/liko-Plugin-Repository/issues', '_blank'); } catch (e) {} });
             this.sep(510, ui('about_assets'));
