@@ -49,7 +49,7 @@
     "Use /cmc show after entering (this plugin still has some issues; feedback is welcome, but fixes may not be timely)",
     "⭐MAT - Messages Auto Translator v1.4.2 Update",
     "Modified translation request mechanism to reduce translation failures",
-    "Added skipping of stuttered translations with '-' (e.g., 'you-hello' is treated as 'hello', not 'you-hello')"
+    "Added skipping of stuttered translations with '-' (e.g., 'h-hello' is treated as 'hello', not 'h-hello')"
   ],
   "plugins": [
     {
