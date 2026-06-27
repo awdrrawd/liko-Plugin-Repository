@@ -147,13 +147,13 @@
         },
         // ── 預設狀態訊息（換行＝多句，動作格式會自動帶名字） ──────────────
         'defaultEmotes': {
-            TW: '的思緒變得混亂了\n的兩眼變得空洞…\n的意識正在下沉\n微微晃了一下，失神了\n的表情變得恍惚',
-            CN: '的思绪变得混乱了\n的两眼变得空洞…\n的意识正在下沉\n微微晃了一下，失神了\n的表情变得恍惚',
-            EN: '\'s mind grows hazy\n\'s eyes go blank…\n\'s awareness sinks down\nsways slightly, dazed\n\'s expression turns vacant',
-            DE: ' wird benommen\n Augen werden leer…\n Bewusstsein sinkt\n schwankt leicht, benommen\n Miene wird abwesend',
-            FR: ' a l\'esprit embrumé\n a le regard vide…\n sombre dans la conscience\n vacille légèrement, hébété·e\n a l\'air absent',
-            RU: ' разум туманится\n взгляд пустеет…\n сознание погружается\n слегка покачивается, в трансе\n выражение становится отрешённым',
-            UA: ' розум туманіє\n погляд порожніє…\n свідомість занурюється\n трохи похитується, у трансі\n вираз стає відстороненим',
+            TW: '$me 的思緒變得混亂了\n$me 的兩眼變得空洞…\n$me 的意識正在下沉\n$me 微微晃了一下，失神了\n$me 的表情變得恍惚',
+            CN: '$me 的思绪变得混乱了\n$me 的两眼变得空洞…\n$me 的意识正在下沉\n$me 微微晃了一下，失神了\n$me 的表情变得恍惚',
+            EN: '$me\'s mind grows hazy\n$me\'s eyes go blank…\n$me\'s awareness sinks down\n$me sways slightly, dazed\n$me\'s expression turns vacant',
+            DE: '$me wird benommen\n$me Augen werden leer…\n$me Bewusstsein sinkt\n$me schwankt leicht, benommen\n$me Miene wird abwesend',
+            FR: '$me a l\'esprit embrumé\n$me a le regard vide…\n$me sombre dans la conscience\n$me vacille légèrement, hébété·e\n$me a l\'air absent',
+            RU: '$me разум туманится\n$me взгляд пустеет…\n$me сознание погружается\n$me слегка покачивается, в трансе\n$me выражение становится отрешённым',
+            UA: '$me розум туманіє\n$me погляд порожніє…\n$me свідомість занурюється\n$me трохи похитується, у трансі\n$me вираз стає відстороненим',
         },
     });
 
