@@ -1095,10 +1095,10 @@
     //  音源來自 https://www.pincree.jp/
     // ════════════════════════════════════════
     const SOUND_URLS = [
-        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/pincree_kitakami_tsubasa_groan1.mp3',
-        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/pincree_kitakami_tsubasa_groan2.mp3',
-        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/pincree_kitakami_tsubasa_groan3.mp3',
-        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/pincree_kitakami_tsubasa_groan4.mp3',
+        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/groan-KitakamiTsubasa01_pincree_.mp3',
+        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/groan-KitakamiTsubasa02_pincree_.mp3',
+        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/groan-KitakamiTsubasa03_pincree_.mp3',
+        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/groan-KitakamiTsubasa04_pincree_.mp3',
     ];
 
     const _soundBufferCache = new Map(); // url → AudioBuffer
