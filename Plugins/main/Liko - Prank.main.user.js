@@ -610,8 +610,8 @@
         try {
             InventoryRemove(target, groupName);
             ChatRoomCharacterUpdate(target);
-            // 30% 機率：拔掉後又長出一根
-            if (Math.random() < 0.3) return "regrow";
+            // 50% 機率：拔掉後又長出一根
+            if (Math.random() < 0.5) return "regrow";
             return true;
         } catch (e) {
             console.log("🐈‍⬛ [prank] ❌ Error removing ahoge:", groupName, e);
@@ -858,7 +858,7 @@
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
                     } else {
                         chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesNormalMsg', { name: getNickname(target) }));
-                        if (Math.random() < 0.1) {
+                        if (Math.random() < 0.3) {
                             dissolveAppearance(Player, "weak");
                             chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveSprayedSelf', { name: getNickname(Player) }));
                         }

@@ -196,7 +196,7 @@
       "icon": "🪄",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Prank.main.user.js",
       "priority": 5,
-      "version": "1.6.3"
+      "version": "1.6.6"
     },
     {
       "id": "Liko-NOI",
@@ -404,7 +404,7 @@
       "icon": "🔧",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CRA.main.user.js",
       "priority": 5,
-      "version": "1.0"
+      "version": "1.0.1"
     },
     {
       "id": "Fix-HHA",
