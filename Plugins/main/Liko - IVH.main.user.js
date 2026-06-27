@@ -1242,7 +1242,7 @@
             top:         '60px',
             right:       '20px',
             width:       '260px',
-            background:  'rgba(20,5,30,0.95)',
+            background:  '#301B3D',
             border:      '1px solid rgba(255,100,200,0.4)',
             borderRadius:'10px',
             padding:     '12px',
@@ -2259,11 +2259,11 @@ function addArousal() {
             const el = document.createElement('div');
             el.className = 'ChatMessage ChatMessageLocalMessage';
             Object.assign(el.style, {
-                background:   'rgba(180,80,160,0.18)',
-                borderLeft:   '3px solid #ff80cc',
+                background:   'rgba(53,0,155,0.18)',
+                borderLeft:   '3px solid rgb(162,71,255)',
                 padding:      '4px 8px',
                 margin:       '2px 0',
-                color:        '#ffcce8',
+                color:        'rgb(162,71,255)',
                 fontSize:     '0.92em',
                 fontFamily:   'inherit',
                 whiteSpace:   'pre-wrap',
@@ -2486,7 +2486,7 @@ function addArousal() {
         title.style.color = '#ffddee';
 
         // ⚙ 齒輪 → 開啟偏好設定頁
-        const gearBtn = _mkBtn('⚙', '#3a2a55', '#cbb3ff', () => {
+        const gearBtn = _mkBtn('⚙', '#8E44A1', '#cbb3ff', () => {
             try {
                 if (typeof PreferenceSubscreenExtensionsOpen === 'function')
                     PreferenceSubscreenExtensionsOpen(PREF_ID);
@@ -2495,11 +2495,11 @@ function addArousal() {
         gearBtn.title = T('開啟設定頁','Open settings');
 
         // 全開/全關 + X 關閉按鈕
-        const allOnBtn  = _mkBtn(T('全開','All On'),  '#2d6b2d', '#88ff88', () => {
+        const allOnBtn  = _mkBtn(T('全開','All On'),  '#872626', '#88ff88', () => {
             getPanelToggles().forEach(t => { CONFIG[t.key] = true; });
             _refreshToggles(); saveSettings();
         });
-        const allOffBtn = _mkBtn(T('全關','All Off'), '#6b2d2d', '#ff9999', () => {
+        const allOffBtn = _mkBtn(T('全關','All Off'), '#872626', '#ff9999', () => {
             getPanelToggles().forEach(t => { CONFIG[t.key] = false; });
             _refreshToggles(); saveSettings();
         });
@@ -3030,14 +3030,14 @@ function addArousal() {
             // 左上「IVH 啟用」主開關
             DrawButton(150, 230, 300, 50,
                        CONFIG.enabled ? ui('enabledOn') : ui('enabledOff'),
-                       CONFIG.enabled ? '#7a3a8a' : 'White', '', '', false);
+                       CONFIG.enabled ? '#8E44A1' : 'White', '', '', false);
             if (MouseIn(150, 230, 300, 50)) this.hoverDesc = ui('enabledDesc');
 
             // 左側分頁鈕
             IVH_TABS.forEach((tab, i) => {
                 const y = 330 + i * 95;
                 DrawButton(150, y, 300, 50, tab.label(),
-                           this.activeTab === tab.key ? '#7a3a8a' : 'White', '', '', false);
+                           this.activeTab === tab.key ? '#8E44A1' : 'White', '', '', false);
             });
 
             // 右側區（說明框；某些分頁改用它放編輯面板）
@@ -3261,7 +3261,7 @@ function addArousal() {
         },
         // 開關按鈕（on=反紫）
         toggle(cx, cy, w, h, label, on, desc, onClick, demoKind) {
-            this.btn(cx, cy, w, h, label, on ? '#7a3a8a' : 'White', desc, onClick, demoKind);
+            this.btn(cx, cy, w, h, label, on ? '#8E44A1' : 'White', desc, onClick, demoKind);
         },
         // 滑桿（可拖曳；key 用於儲存）
         slider(cx, cy, w, val, min, max, step, desc, setFn, saveFn) {
@@ -3285,7 +3285,7 @@ function addArousal() {
                 if (!opts.multiline) el.type = opts.type || 'text';
                 Object.assign(el.style, {
                     position: 'fixed', zIndex: '10000', boxSizing: 'border-box',
-                    background: 'rgba(20,5,30,0.95)', color: '#ffeeff',
+                    background: '#301B3D', color: '#ffeeff',
                     border: '1px solid #b060c0', borderRadius: '4px',
                     padding: '2px 6px', fontFamily: 'monospace', outline: 'none',
                     resize: 'none',
@@ -3488,13 +3488,13 @@ function addArousal() {
                 const nm = ui('expr_item', { n: i + 1 });
                 this.btn(CONTENT_X, cy, 340, 46, nm, 'White', null,
                     () => { this._exprWork = this._exprWorkFrom(set); this._exprPrevKey = ''; });
-                this.btn(850, cy, 130, 46, ui('save'), '#2d6b2d', null,
+                this.btn(850, cy, 130, 46, ui('save'), '#872626', null,
                     () => ivhConfirm(ui('confirmReplace', { name: nm }), () => {
                         const w = this._exprWork;
                         sets[i] = { Eyebrows: w.Eyebrows, Eyes: w.Eyes, Mouth: w.Mouth, Blush: w.Blush };
                         saveSettings(); EXPRESSION_SETS = CONFIG.expressionSets;
                     }));
-                this.btn(988, cy, 130, 46, ui('delete'), '#6b2d2d', null,
+                this.btn(988, cy, 130, 46, ui('delete'), '#872626', null,
                     () => ivhConfirm(ui('confirmDelete', { name: nm }), () => {
                         this._restoreExpr(); sets.splice(i, 1);
                         saveSettings(); EXPRESSION_SETS = CONFIG.expressionSets;
@@ -3503,13 +3503,13 @@ function addArousal() {
 
             const cyB = 300 + sets.length * 52 + 12;
             if (sets.length < 10) {
-                this.btn(CONTENT_X, cyB, 300, 46, ui('expr_add'), '#3a2a55', null, () => {
+                this.btn(CONTENT_X, cyB, 300, 46, ui('expr_add'), '#8E44A1', null, () => {
                         const w = this._exprWork;
                         sets.push({ Eyebrows: w.Eyebrows, Eyes: w.Eyes, Mouth: w.Mouth, Blush: w.Blush });
                         saveSettings(); EXPRESSION_SETS = CONFIG.expressionSets;
                     });
             }
-            this.btn(CONTENT_X + 320, cyB, 180, 46, ui('restoreDefault'), '#553a2a', null,
+            this.btn(CONTENT_X + 320, cyB, 180, 46, ui('restoreDefault'), '#8C6046', null,
                 () => ivhConfirm(ui('confirmReset'), () => {
                     CONFIG.expressionSets = DEFAULT_EXPRESSIONS.map(e => ({ ...e }));
                     EXPRESSION_SETS = CONFIG.expressionSets; saveSettings();
@@ -3545,7 +3545,7 @@ function addArousal() {
             this._ensureExprPreview(work);
             const bx = 1450, by = 568, bs = 315;
             DrawRect(bx, by, bs, bs, 'rgba(20,5,30,0.6)');
-            DrawEmptyRect(bx, by, bs, bs, '#7a3a8a');
+            DrawEmptyRect(bx, by, bs, bs, '#8E44A1');
             if (this._exprFaceImg) {
                 try { MainCanvas.drawImage(this._exprFaceImg, bx, by, bs, bs); } catch (e) {}
             } else {
@@ -3586,14 +3586,14 @@ function addArousal() {
                         this.input('ivh-snd-' + cat + i, LX, rowY + 2, 410, 40, entry,
                             { placeholder: ph, onChange: v => { CONFIG.sounds[cat][i] = v.trim(); saveSettings(); } });
                     }
-                    this.btn(1000, rowY, 58, 44, ui('upload'), '#3a2a55', null,
+                    this.btn(1000, rowY, 58, 44, ui('upload'), '#8E44A1', null,
                         () => uploadSoundFile(cat, i));
                     this.btn(1062, rowY, 40, 44, '▶', '#2d5a5a', null,
                         () => { const e = entry || def; if (e) playSoundEntry(e, 0.9, true); });
-                    this.btn(1106, rowY, 40, 44, '✕', '#6b2d2d', null,
+                    this.btn(1106, rowY, 40, 44, '✕', '#872626', null,
                         () => { CONFIG.sounds[cat][i] = ''; saveSettings(); });
                     const picked = this._sndPick && this._sndPick.cat === cat && this._sndPick.i === i;
-                    this.btn(1150, rowY, 70, 44, ui('other'), picked ? '#7a3a8a' : '#3a4a6a', null,
+                    this.btn(1150, rowY, 70, 44, ui('other'), picked ? '#8E44A1' : '#465980', null,
                         () => { this._sndPick = picked ? null : { cat, i, label: lb + (i + 1) }; });
                     cy += 50;
                 }
@@ -3632,7 +3632,7 @@ function addArousal() {
             let y = LY0 - this._rscroll;
             groups.forEach(([key, label, items]) => {
                 const isLocal = key === 'local';
-                DrawText('── ' + label + ' ──', 1610, y + 16, '#7a3a8a', ''); y += HEAD;
+                DrawText('── ' + label + ' ──', 1610, y + 16, '#8E44A1', ''); y += HEAD;
                 items.forEach(it => {
                     if (y >= LY0 - ROW && y <= LBOT) {
                         const nameW = isLocal ? LW - 46 : LW;   // 本機保留右側刪除鈕空間
@@ -3641,7 +3641,7 @@ function addArousal() {
                             else playSoundEntry(it.entry, 0.9, true);
                         });
                         if (isLocal) {
-                            this.rbtn(LX + LW - 40, y, 40, ROW - 6, '✕', '#6b2d2d', null,
+                            this.rbtn(LX + LW - 40, y, 40, ROW - 6, '✕', '#872626', null,
                                 () => deleteLocalSound(it.entry.slice(4)));
                         }
                     }
@@ -3669,7 +3669,7 @@ function addArousal() {
             this.sep(236, 'IVH — Immersive Voice Hypnosis  v' + MOD_VER);
             this.sep(280, ui('about_author'));
             DrawTextWrap(ui('about_dev'), 520, 315, 760, 60, 'Black', undefined, 2);
-            this.btn(740, 410, 320, 50, ui('about_report'), '#3a4a6a', '',
+            this.btn(740, 410, 320, 50, ui('about_report'), '#465980', '',
                 () => { try { window.open('https://github.com/awdrrawd/liko-Plugin-Repository/issues', '_blank'); } catch (e) {} });
             this.sep(510, ui('about_assets'));
             this.sep(550, '音源：びたちー素材館');
@@ -3782,7 +3782,7 @@ function addArousal() {
         const bigBtn = 'font-size:16px;padding:10px 22px;border-radius:8px;font-weight:600';
         const cancel = _mkBtn('取消', '#4a2030', '#ffaabb', () => { panel.remove(); _remoteEditor = null; });
         cancel.style.cssText += ';' + bigBtn;
-        const save   = _mkBtn('💾 儲存並送出', '#2d6b2d', '#aaffaa', () => {
+        const save   = _mkBtn('💾 儲存並送出', '#872626', '#aaffaa', () => {
             const newTexts = ta.value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 200);
             try {
                 ServerSend('ChatRoomChat', {
@@ -3821,7 +3821,7 @@ function addArousal() {
         const big = 'font-size:16px;padding:10px 28px;border-radius:8px;font-weight:600';
         const no  = _mkBtn(ui('cancel'), '#4a2030', '#ffaabb', () => { panel.remove(); _confirmBox = null; });
         no.style.cssText += ';' + big;
-        const yes = _mkBtn(ui('confirm'), '#2d6b2d', '#aaffaa', () => {
+        const yes = _mkBtn(ui('confirm'), '#872626', '#aaffaa', () => {
             panel.remove(); _confirmBox = null; try { onYes && onYes(); } catch (e) {}
         });
         yes.style.cssText += ';' + big;
