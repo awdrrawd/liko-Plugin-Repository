@@ -2,7 +2,7 @@
 // @name         IVH - Immersive Voice Hypnosis
 // @name:zh      沉浸式聲音催眠效果
 // @namespace    https://likulisu.dev/
-// @version      1.0
+// @version      2.0
 // @description  收到 [Voice] 訊息時觸發深度催眠視覺效果，支援 /ivh 指令
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,42 +14,640 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.0";
+    const MOD_VER = "2.0";
     if (window.Liko.IVH) return;
     window.Liko.IVH = MOD_VER;
 
     let modApi = null;
 
     // ════════════════════════════════════════
-    //  設定（可由指令切換）
+    //  i18n（多語）：動態載入共用引擎 + IVH 字庫，ui(key,vars) 取字串
+    //  引擎未就緒時，ui() 回傳 fallbacks[key]（中文原文），不丟例外
     // ════════════════════════════════════════
-    const CONFIG = {
-        // 功能開關
-        pinkFlash:      true,  // 粉紅暈染
-        hypnoSpiral:    true,  // 催眠螺旋
-        hypnoWaves:     true,  // 同心圓電波
-        screenDistort:  true,  // 畫面扭曲
-        vignette:       true,  // 邊緣暗角
-        danmaku:        true,  // 彈幕文字
-        steamParticles: true,  // 氣喘粒子
-        expression:     true,  // 表情切換
-        arousal:        true,  // 興奮度+
-        climax:         true,  // 高潮特效
-        climaxMode:    "orgasm", // orgasm=高潮才觸發 | always=每次催眠都觸發
-        sound:          false, // 喘息聲音（預設關閉）
-        // 強度（0.5 輕柔 / 1.0 正常 / 1.5 強烈）
-        intensity:      1.0,
+    const I18N_NS = 'IVH';
+    const LIKO_I18N_ENGINE_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/Liko-i18n.js';
+    const LIKO_IVH_STRINGS_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/IVH-i18n.js';
+
+    function _i18nLoadScript(url) {
+        return fetch(url)
+            .then(res => { if (!res.ok) throw new Error(`[IVH] 無法載入 ${url} (${res.status})`); return res.text(); })
+            .then(code => { new Function(code)(); });
+    }
+    async function ensureI18n() {
+        try {
+            if (!window.Liko?.i18n?.version) await _i18nLoadScript(LIKO_I18N_ENGINE_URL);
+            if (!window.Liko?.i18n?._ivhStringsLoaded) {
+                await _i18nLoadScript(LIKO_IVH_STRINGS_URL);
+                if (window.Liko?.i18n) window.Liko.i18n._ivhStringsLoaded = true;
+            }
+        } catch (e) { console.warn('🐈‍⬛ [IVH] i18n 載入失敗，改用中文原文:', e.message); }
+    }
+    // 取翻譯；引擎未就緒或缺 key → 回傳中文 fallback（見 IVH_FALLBACK）
+    function ui(key, vars) {
+        const fn = window.Liko?.i18n;
+        if (fn?.t && fn.has?.(I18N_NS, key)) return fn.t(I18N_NS, key, vars);
+        let s = IVH_FALLBACK[key] ?? key;
+        if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
+        return s;
+    }
+
+    // 引擎未載入時的中文 fallback（與 IVH-i18n.js 的 TW 一致）
+    const IVH_FALLBACK = {
+        loaded: 'IVH v{v} 已載入 ✅\n/ivh help 說明 | /ivh setting 設定頁',
+        help: '🌀 IVH v{v} 指令列表：\n  /ivh setting       — 開啟偏好設定頁\n  /ivh show          — 顯示控制面板\n  /ivh test [文字]   — 立即觸發效果\n  /ivh climax        — 測試高潮特效\n  /ivh depth [1~3]   — 測試催眠深度效果\n  /ivh calibrate     — 頭部座標校正面板\n  /ivh help          — 顯示此說明',
+        cmdUnknown: '⚠️ [IVH] 未知指令「{sub}」，輸入 /ivh help 查看說明',
+        cantOpenSettings: '⚠️ 無法開啟設定頁（偏好系統未就緒）',
+        exportDone: '📤 IVH 設定已匯出 (IVH-settings.json)',
+        importDone: '📥 IVH 設定已匯入',
+        editedYourText: '📝 {who} 編輯了你的 IVH 催眠文本',
+        tab_basic: '基本設定', tab_effects: '效果設定', tab_texts: '文本設定', tab_expr: '表情設定', tab_sounds: '音效設定', tab_about: '關於插件',
+        exit: '離開', info: '── 說明 ──', cancel: '取消', confirm: '確定', save: '💾 保存', delete: '🗑 刪除',
+        upload: '上傳', clear: '清除', other: '其他', restoreDefault: '還原預設', export: '匯出全部設定', import: '匯入全部設定',
+        enabledOn: 'IVH 啟用中', enabledOff: 'IVH 停用中',
+        enabledDesc: '開啟後此插件會有更高沉浸性，並包含部分可能令人不適的效果（強閃光、畫面破碎、震動等），請依個人狀況使用。',
+        intensity: '催眠強度', depthMax: '催眠深度', depthNone: '無', depthLight: '輕', depthMed: '中', depthHeavy: '重',
+        interval: '循環時間', minutes: '分（1~99）', depthEffects: '── 深度效果 ──',
+        triggerTarget: '觸發對象', anyone: '任何人', whitelistOnly: '僅白名單', whitelist: '白名單',
+        allowOthersOn: '允許他人增減我的文本：開', allowOthersOff: '允許他人增減我的文本：關',
+        climaxMode: '高潮模式', climaxOnOrgasm: '僅高潮時', climaxAlways: '每次觸發',
+        sec_hypnoText: '催眠文本', sec_statusMsg: '狀態訊息', sec_triggerWords: '觸發詞',
+        expr_edit: '🎭 編輯表情', expr_item: '表情{n}', expr_add: '＋ 用右側內容新增',
+        expr_hint: '在右側設定好表情後，點某列「保存」或「＋新增」來儲存',
+        eyebrows: '眉毛', eyes: '眼睛', mouth: '嘴巴', blush: '臉紅', exprNone: '— 無 —', previewLoading: '預覽載入中…',
+        confirmReplace: '會用右側的內容替換「{name}」的資料，確定嗎？', confirmDelete: '確定刪除「{name}」嗎？',
+        confirmReset: '會清除所有自訂表情，恢復 4 組內建，確定嗎？',
+        snd_lib: '🔊 音效庫', snd_preset: '預設', snd_local: '本機',
+        snd_assignTo: '指派給「{label}」：點上面任一音效', snd_pickHint: '點格子的「其他」後可在此指派；直接點則試聽。',
+        about_author: '作者：莉柯莉絲(Likolisu)', about_dev: '本插件為個人興趣開發，可能存在些許錯誤，歡迎到 GitHub 回報。',
+        about_report: '🐛 GitHub 回報', about_assets: '── 使用素材皆為免費素材 ──',
+        defaultTexts: '放鬆…放鬆…\n你的意識正在沉睡\n聽我的聲音\n什麼都不用想\n越來越深沉\n順從是舒服的\n沉淪下去吧\n好乖…好乖…',
+        defaultEmotes: '的思緒變得混亂了\n的兩眼變得空洞…\n的意識正在下沉\n微微晃了一下，失神了\n的表情變得恍惚',
     };
 
     // ════════════════════════════════════════
-    //  表情清單
+    //  預設表情清單（4 組內建，玩家可自訂最多 10 組）
     // ════════════════════════════════════════
-    const EXPRESSION_SETS = [
+    const DEFAULT_EXPRESSIONS = [
         { Eyebrows: "Soft",    Eyes: "VeryLewd",      Mouth: "Frown",  Blush: "High"     },
         { Eyebrows: "Lowered", Eyes: "HeartPink",      Mouth: "Moan",   Blush: "High"     },
         { Eyebrows: "Raised",  Eyes: "LewdHeartPink",  Mouth: "Ahegao", Blush: "VeryHigh" },
         { Eyebrows: "Lowered", Eyes: "Heart",          Mouth: "Open",   Blush: "Medium"   },
     ];
+
+    // 內建催眠文本／狀態 emote 改由 i18n 提供（ui('defaultTexts') / ui('defaultEmotes')）
+
+    // ════════════════════════════════════════
+    //  設定模型（持久化於 Player.ExtensionSettings.IVH）
+    //  CONFIG 為執行期物件，由 loadSettings() 從 ES 還原
+    // ════════════════════════════════════════
+    function makeDefaultConfig() {
+        return {
+            // ── 主開關 ──
+            enabled:        true,  // IVH 總開關
+
+            // ── VOICE 八大效果開關 ──
+            pinkFlash:      true,  // 粉紅暈染
+            hypnoSpiral:    true,  // 催眠螺旋
+            hypnoWaves:     true,  // 同心圓電波
+            screenDistort:  true,  // 畫面扭曲
+            vignette:       true,  // 邊緣暗角
+            danmaku:        true,  // 彈幕文字
+            steamParticles: true,  // 氣喘粒子
+            expression:     true,  // 表情切換
+            arousal:        true,  // 興奮度+
+            climax:         true,  // 高潮特效
+            climaxMode:    "orgasm", // orgasm=高潮才觸發 | always=每次催眠都觸發
+            sound:          false, // 喘息聲音（預設關閉）
+
+            // ── 強度 ──
+            intensity:      1.0,   // 0.1~3.0
+
+            // ── VOICE 進階 ──
+            centerHeadshot: false, // 中央頭像模式（每次 VOICE 裁 300×300 置中，忽略分頁）
+            emoteEnabled:   true,  // 觸發時發送狀態 emote
+            dualSound:      true,  // VOICE 同時播兩個音效
+
+            // ── 觸發 ──
+            whitelistMode: "any",  // any | whitelist
+            whitelist:      [],    // MemberNumber 陣列
+            triggerWords:   [],    // 自訂觸發詞（除了 [Voice]）
+
+            // ── 催眠深度（獨立背景循環；0=無=關閉）──
+            depthMax:       0,     // 0=無 1=輕 2=中 3=重（無則不循環）
+            depthIntervalMin: 5,   // 循環間隔（分鐘 1~99）
+            // 各深度層效果開關
+            depthLight: { smoke: true, pant: true, chatDanmaku: true, ghost: true },
+            depthMed:   { figureBlur: true, pant: true, sfx: true },
+            depthHeavy: { chatlogBlur: true, pant: true },
+
+            // ── 文本 ──
+            allowOthersEdit: false,    // 允許他人增減我的文本
+            textSource:     "ES",      // ES | DB
+            customTexts:    ui('defaultTexts').split('\n').map(s => s.trim()).filter(Boolean),
+            emoteList:      ui('defaultEmotes').split('\n').map(s => s.trim()).filter(Boolean),
+
+            // ── 表情（最多 10 組）──
+            expressionSets: DEFAULT_EXPRESSIONS.map(e => ({ ...e })),
+
+            // ── 音效（URL 清單；本機上傳另存 IndexedDB，此處放 id 參照）──
+            soundSource:    "ES",      // ES | DB
+            sounds: {
+                hypno:  [],  // 催眠音效 最多 5
+                climax: [],  // 高潮音效 最多 5
+                depth:  [],  // 深度音效 最多 3
+                voice:  [],  // VOICE 音效 最多 3
+            },
+        };
+    }
+
+    // 執行期設定物件（由 loadSettings 填充）
+    let CONFIG = makeDefaultConfig();
+    // 相容舊程式碼：EXPRESSION_SETS 指向目前設定的表情組
+    let EXPRESSION_SETS = CONFIG.expressionSets;
+
+    // ════════════════════════════════════════
+    //  儲存層
+    //  - Player.ExtensionSettings.IVH  ← 設定本體（LZString 壓縮，跟帳號同步）
+    //  - Player.OnlineSharedSettings.IVH ← 對外公告（版本 + 是否允許他人編輯）
+    //  - IndexedDB "liko-ivh"          ← 本機上傳音效 bytes / 大量文本（無上限）
+    // ════════════════════════════════════════
+    const ES_KEY = "IVH";                       // ExtensionSettings / OnlineSharedSettings 儲存鍵
+    const PREF_ID = "Liko_IVH_Settings";        // 偏好設定頁註冊 Identifier
+    const ES_BUDGET = 5120; // 5KB 警戒線
+
+    // 偏好設定頁 icon（內嵌 SVG，轉成 data URI 供 BC 載入）
+    const IVH_ICON = 'data:image/svg+xml,' + encodeURIComponent(
+        '<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 90" width="90" height="90">' +
+        '<style>.s0{opacity:.96;fill:#010101}</style>' +
+        '<path id="Path 0" fill-rule="evenodd" class="s0" d="m10 35l15-14 16-6h8l18 7 16 15-30-14-20 1zm0 20l23 11 20 1 30-14-16 15-18 7h-8l-16-6zm28-30h14l13 4 24 17-16 11-20 8h-15l-15-5-18-11-3-5 19-13zm-9 14v10l7 9 16 1 7-6 3-8-4-9 1 11-5 8-16 1-7-10 5-12 10-1 7 8-3 9-9 1-3-8 8-2v5l-4-1v3l4 1 3-8-3-3h-7l-4 9 4 6 9 1 7-7-1-11-8-6h-7zm-20-4h1v1h-1zm-1 1h1v1h-1zm0 17h1v1h-1zm1 1h1v1h-1z"/>' +
+        '</svg>'
+    );
+
+    // 深合併：以 defaults 為底，用 saved 覆蓋（陣列直接取代）
+    function mergeDefaults(defaults, saved) {
+        if (Array.isArray(defaults)) return Array.isArray(saved) ? saved : defaults;
+        if (defaults && typeof defaults === 'object') {
+            const out = {};
+            for (const k of Object.keys(defaults)) {
+                out[k] = (saved && k in saved) ? mergeDefaults(defaults[k], saved[k]) : defaults[k];
+            }
+            return out;
+        }
+        return saved === undefined ? defaults : saved;
+    }
+
+    // 估算設定序列化後的位元組數（壓縮後）
+    function estimateESBytes() {
+        try {
+            const raw = JSON.stringify(serializeConfig());
+            const comp = LZString.compressToBase64(raw);
+            return comp.length;
+        } catch { return 0; }
+    }
+
+    // 只把需要持久化的欄位序列化（音效本機 bytes 不進 ES）
+    function serializeConfig() {
+        const c = CONFIG;
+        return {
+            v: 2,
+            enabled: c.enabled,
+            pinkFlash: c.pinkFlash, hypnoSpiral: c.hypnoSpiral, hypnoWaves: c.hypnoWaves,
+            screenDistort: c.screenDistort, vignette: c.vignette, danmaku: c.danmaku,
+            steamParticles: c.steamParticles, expression: c.expression, arousal: c.arousal,
+            climax: c.climax, climaxMode: c.climaxMode, sound: c.sound,
+            intensity: c.intensity,
+            centerHeadshot: c.centerHeadshot, emoteEnabled: c.emoteEnabled, dualSound: c.dualSound,
+            whitelistMode: c.whitelistMode, whitelist: c.whitelist, triggerWords: c.triggerWords,
+            depthMax: c.depthMax, depthIntervalMin: c.depthIntervalMin,
+            depthLight: c.depthLight, depthMed: c.depthMed, depthHeavy: c.depthHeavy,
+            allowOthersEdit: c.allowOthersEdit, textSource: c.textSource,
+            customTexts: c.textSource === 'ES' ? c.customTexts : [],
+            emoteList: c.emoteList,
+            expressionSets: c.expressionSets,
+            soundSource: c.soundSource,
+            // 注意：sounds 不存進 ExtensionSettings（帳號隔離），改存 localStorage 跨帳號共用
+        };
+    }
+
+    // 音效設定改存 localStorage（同瀏覽器跨帳號共用），不跟著帳號走
+    const SND_LS_KEY = 'IVH_sounds';
+    function loadSounds() {
+        try {
+            const raw = localStorage.getItem(SND_LS_KEY);
+            if (raw) {
+                const s = JSON.parse(raw);
+                CONFIG.sounds = mergeDefaults(makeDefaultConfig().sounds, s);
+            }
+        } catch (e) {}
+    }
+    function saveSounds() {
+        try { localStorage.setItem(SND_LS_KEY, JSON.stringify(CONFIG.sounds)); } catch (e) {}
+    }
+
+    // 等待 ExtensionSettings 由伺服器載入（最多 ~15 秒）
+    function waitForExtensionSettings(timeout = 15000) {
+        const start = Date.now();
+        return new Promise(resolve => {
+            const check = () => {
+                if (Player && Player.ExtensionSettings !== undefined) resolve(true);
+                else if (Date.now() - start > timeout) resolve(false);
+                else setTimeout(check, 200);
+            };
+            check();
+        });
+    }
+
+    function loadSettings() {
+        try {
+            const raw = Player?.ExtensionSettings?.[ES_KEY];
+            if (raw) {
+                const json = LZString.decompressFromBase64(raw);
+                const saved = json ? JSON.parse(json) : null;
+                if (saved) CONFIG = mergeDefaults(makeDefaultConfig(), saved);
+            }
+        } catch (e) {
+            console.warn('🐈‍⬛ [IVH] 設定讀取失敗，使用預設:', e.message);
+            CONFIG = makeDefaultConfig();
+        }
+        loadSounds();   // 音效改從 localStorage（跨帳號共用）
+        EXPRESSION_SETS = CONFIG.expressionSets;
+    }
+
+    let _saveTimer = null;
+    function saveSettings(immediate = false) {
+        const doSave = () => {
+            try {
+                if (!Player) return;
+                if (!Player.ExtensionSettings) Player.ExtensionSettings = {}; // 從未有設定的帳號需自建
+                const raw = JSON.stringify(serializeConfig());
+                Player.ExtensionSettings[ES_KEY] = LZString.compressToBase64(raw);
+                if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+                    ServerPlayerExtensionSettingsSync(ES_KEY);
+                }
+                saveSounds();   // 音效另存 localStorage（跨帳號共用）
+                EXPRESSION_SETS = CONFIG.expressionSets;
+            } catch (e) {
+                console.warn('🐈‍⬛ [IVH] 設定儲存失敗:', e.message);
+            }
+        };
+        if (immediate) { if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; } doSave(); return; }
+        if (_saveTimer) clearTimeout(_saveTimer);
+        _saveTimer = setTimeout(() => { _saveTimer = null; doSave(); }, 600);
+    }
+
+    // 對外公告：他人查看 profile 時用來判斷是否裝了 IVH / 是否允許編輯
+    function publishSharedSettings() {
+        try {
+            if (!Player || !Player.OnlineSharedSettings) return;
+            Player.OnlineSharedSettings[ES_KEY] = {
+                v: MOD_VER,
+                edit: !!CONFIG.allowOthersEdit,
+                // 允許編輯時公告文本，讓他人在 profile 看到並編輯
+                texts: CONFIG.allowOthersEdit ? (CONFIG.customTexts || []) : [],
+            };
+            if (typeof ServerAccountUpdate?.QueueData === 'function') {
+                ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+            }
+        } catch (e) {
+            console.warn('🐈‍⬛ [IVH] OnlineSharedSettings 公告失敗:', e.message);
+        }
+    }
+
+    // ── IndexedDB（本機上傳音效 / 大量文本）──
+    const IVHDB = {
+        db: null,
+        open() {
+            return new Promise(resolve => {
+                try {
+                    const req = indexedDB.open('liko-ivh', 1);
+                    req.onupgradeneeded = e => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('sounds')) db.createObjectStore('sounds', { keyPath: 'id' });
+                        if (!db.objectStoreNames.contains('texts'))  db.createObjectStore('texts',  { keyPath: 'key' });
+                    };
+                    req.onsuccess = () => { this.db = req.result; resolve(true); };
+                    req.onerror   = () => resolve(false);
+                } catch { resolve(false); }
+            });
+        },
+        put(store, rec) {
+            return new Promise(resolve => {
+                try { const tx = this.db.transaction(store, 'readwrite'); tx.objectStore(store).put(rec);
+                      tx.oncomplete = () => resolve(true); tx.onerror = () => resolve(false); }
+                catch { resolve(false); }
+            });
+        },
+        get(store, key) {
+            return new Promise(resolve => {
+                try { const req = this.db.transaction(store, 'readonly').objectStore(store).get(key);
+                      req.onsuccess = () => resolve(req.result || null); req.onerror = () => resolve(null); }
+                catch { resolve(null); }
+            });
+        },
+        getAll(store) {
+            return new Promise(resolve => {
+                try { const req = this.db.transaction(store, 'readonly').objectStore(store).getAll();
+                      req.onsuccess = () => resolve(req.result || []); req.onerror = () => resolve([]); }
+                catch { resolve([]); }
+            });
+        },
+        delete(store, key) {
+            return new Promise(resolve => {
+                try { const tx = this.db.transaction(store, 'readwrite'); tx.objectStore(store).delete(key);
+                      tx.oncomplete = () => resolve(true); tx.onerror = () => resolve(false); }
+                catch { resolve(false); }
+            });
+        },
+    };
+
+    // ════════════════════════════════════════
+    //  匯出 / 匯入（全部設定；DB 文本/音效於後續階段一併納入）
+    // ════════════════════════════════════════
+    function exportSettings() {
+        try {
+            const data = { plugin: 'Liko-IVH', v: MOD_VER, ivh: serializeConfig() };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href = url; a.download = 'IVH-settings.json';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            printChat(ui('exportDone'), 6000);
+        } catch (e) {
+            console.warn('🐈‍⬛ [IVH] 匯出失敗:', e.message);
+        }
+    }
+
+    function importSettings() {
+        const inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = 'application/json,.json';
+        inp.onchange = () => {
+            const f = inp.files && inp.files[0];
+            if (!f) return;
+            const r = new FileReader();
+            r.onload = () => {
+                try {
+                    const data  = JSON.parse(String(r.result));
+                    const saved = data.ivh || data;
+                    CONFIG = mergeDefaults(makeDefaultConfig(), saved);
+                    EXPRESSION_SETS = CONFIG.expressionSets;
+                    saveSettings(true);
+                    publishSharedSettings();
+                    applyDepthLoop();
+                    printChat(ui('importDone'), 6000);
+                } catch (e) {
+                    console.warn('🐈‍⬛ [IVH] 匯入失敗:', e.message);
+                    printChat('⚠️ IVH 設定匯入失敗：' + e.message, 8000);
+                }
+            };
+            r.readAsText(f);
+        };
+        inp.click();
+    }
+
+    // ════════════════════════════════════════
+    //  背景催眠深度循環（與 VOICE 觸發分離）
+    //  深度等級 = 由強度推算，受「深度上限」限制
+    // ════════════════════════════════════════
+    function currentDepthLevel() {
+        if (!CONFIG.enabled || CONFIG.depthMax <= 0) return 0;
+        let lvl = Math.round(CONFIG.intensity);
+        lvl = Math.max(1, Math.min(3, lvl));
+        return Math.min(lvl, CONFIG.depthMax);
+    }
+
+    let _depthTimer = null;
+    function applyDepthLoop() {
+        if (_depthTimer) { clearInterval(_depthTimer); _depthTimer = null; }
+        if (!CONFIG.enabled || CONFIG.depthMax <= 0) return;
+        const ms = Math.max(1, Math.min(99, CONFIG.depthIntervalMin)) * 60000;
+        _depthTimer = setInterval(() => {
+            if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom') return;
+            const lvl = currentDepthLevel();
+            if (lvl > 0) runDepthEffect(lvl);
+        }, ms);
+    }
+
+    // 背景深度效果（最小可用版；幽靈低語人影／人物模糊／聊天模糊於專屬階段補完）
+    function runDepthEffect(level) {
+        try {
+            refreshCanvasCache();
+            // 表情變化（共用堆疊，避免與 VOICE 同時觸發時互相覆蓋還原值；6 秒後還原）
+            if (CONFIG.expression && EXPRESSION_SETS && EXPRESSION_SETS.length) {
+                pushExprEffect(EXPRESSION_SETS[Math.floor(Math.random() * EXPRESSION_SETS.length)]);
+                setTimeout(popExprEffect, 6000);
+            }
+            const L = CONFIG.depthLight, M = CONFIG.depthMed, H = CONFIG.depthHeavy;
+            let pant = false;
+            // 輕：淡粉煙霧 / 聊天彈幕 / 背後低語人影 / 輕喘
+            if (L.smoke)       triggerPinkFlash();
+            if (L.chatDanmaku) depthChatDanmaku();
+            if (L.ghost)       depthGhostWhisperer();
+            if (L.pant)        pant = true;
+            // 中：左側人物模糊 / 音效 / 中喘
+            if (level >= 2) {
+                // 延後一點點再擷取，確保表情替換後的 Canvas 已重建
+                if (M.figureBlur) setTimeout(depthFigureBlur, 350);
+                if (M.sfx && !playSoundCategory('depth', 0.7)) triggerBreathSound(1);
+                if (M.pant) pant = true;
+            }
+            // 重：右側聊天模糊 / 強喘
+            if (level >= 3) {
+                if (H.chatlogBlur) depthChatlogBlur();
+                if (H.pant) pant = true;
+            }
+            if (pant) triggerSteamParticles(true);  // 深度喘氣不受 VOICE 開關限制
+        } catch (e) {
+            console.warn('🐈‍⬛ [IVH] 深度效果錯誤:', e.message);
+        }
+    }
+
+    // ── 深度：聊天訊息隨機句變催眠彈幕 ──
+    function _showFloatingLine(text, delay) {
+        const overlay = getOverlay();
+        const pos = bcToScreen(randInt(40, 460), randInt(120, 820));
+        const el = document.createElement('div');
+        Object.assign(el.style, {
+            position:   'fixed', left: `${pos.x}px`, top: `${pos.y}px`,
+            fontSize:   '22px', fontWeight: '600',
+            fontFamily: '"Noto Sans TC", "Microsoft JhengHei", sans-serif',
+            color:      'rgba(255,210,235,0.85)',
+            textShadow: '0 0 10px rgba(255,105,180,0.7)',
+            whiteSpace: 'pre-line', opacity: '0', pointerEvents: 'none',
+            transform:  'translateY(8px)', transition: 'opacity .5s ease, transform .5s ease',
+            zIndex:     '5',   // 在模糊遮罩(1)、煙霧(3) 之上，避免被蓋住
+        });
+        el.textContent = wrapDanmakuText(text, 12);
+        overlay.appendChild(el);
+        setTimeout(() => { el.style.opacity = '0.85'; el.style.transform = 'translateY(0)'; }, delay);
+        setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-12px)'; }, delay + 3500);
+        setTimeout(() => el.remove(), delay + 4200);
+    }
+    function depthChatDanmaku() {
+        // 催眠文本（BCX＋自訂）＋ 聊天歷史 一起當來源
+        const pool = getCatalystTexts().concat(getChatHistoryLines()).filter(Boolean);
+        if (!pool.length) return;
+        pickRandom(pool, 1 + Math.floor(Math.random() * 2)).forEach((t, i) => _showFloatingLine(resolveMe(t), i * 350));
+    }
+
+    // ── 深度（輕）：背後低語人影 ──
+    //  畫進 canvas（DrawCharacter hook，在玩家繪製前 → 真正在人物後方）。
+    //  用 source-atop 壓暗（不透明，只是變暗），頭頂文字用 DOM。
+    let _ghost = null;   // { canvas, offX, alpha } 由 DrawCharacter hook 讀取繪製
+    function depthGhostWhisperer() {
+        if (!playerDrawPos.valid || !_cachedRect) return;
+        const src = Player && Player.Canvas;
+        if (!src || !src.width) return;
+        const all = getCatalystTexts().concat(getChatHistoryLines()).filter(Boolean);
+        if (!all.length) return;
+        const line = resolveMe(all[Math.floor(Math.random() * all.length)]);
+
+        // 建立壓暗人影圖（source-atop 只染角色，不透明）
+        const fc = document.createElement('canvas'); fc.width = src.width; fc.height = src.height;
+        const x = fc.getContext('2d');
+        try { x.drawImage(src, 0, 0); } catch (e) { return; }
+        x.globalCompositeOperation = 'source-atop';
+        x.fillStyle = 'rgba(8,2,14,0.84)';     // 壓很暗（保留輪廓）
+        x.fillRect(0, 0, fc.width, fc.height);
+        x.fillStyle = 'rgba(0,0,0,0.6)';        // 臉部更黑
+        x.beginPath();
+        x.ellipse(fc.width * 0.50, fc.height * 0.43, fc.width * 0.20, fc.height * 0.11, 0, 0, Math.PI * 2);
+        x.fill();
+        x.globalCompositeOperation = 'source-over';
+
+        // 建立「人影角色」克隆（共用玩家外觀，但用壓暗後的畫布）
+        //  → 用 BC 自己的 DrawCharacter 繪製，位置才會跟玩家完全一致
+        const ghostChar = Object.assign(Object.create(Object.getPrototypeOf(Player)), Player);
+        ghostChar.Canvas = fc;
+        ghostChar.CanvasBlink = fc;
+        ghostChar.MemberNumber = -99999;   // 非玩家 → hook 不會對它再畫人影
+        ghostChar.MustDraw = false;
+
+        // 相對玩家的螢幕像素偏移
+        const offXpx = 35, offYpx = -10;
+        _ghost = { char: ghostChar, canvas: fc, offXpx, offYpx, alpha: 0 };
+
+        // 淡入 / 維持 / 淡出（DrawCharacter hook 每幀讀 alpha）
+        const start = Date.now();
+        const fade = () => {
+            if (!_ghost) return;
+            const t = Date.now() - start;
+            if      (t < 1000) _ghost.alpha = (t / 1000) * 0.92;
+            else if (t < 3500) _ghost.alpha = 0.92;
+            else if (t < 4800) _ghost.alpha = 0.92 * (1 - (t - 3500) / 1300);
+            else { _ghost = null; return; }
+            requestAnimationFrame(fade);
+        };
+        requestAnimationFrame(fade);
+
+        // 文字位置：就在人影（陰影）頭部旁，像在耳邊低語
+        const headS = getPlayerHeadScreenPos();
+        const txt = document.createElement('div');
+        Object.assign(txt.style, {
+            position: 'fixed', left: `${headS.x + offXpx}px`, top: `${headS.y + offYpx - 18}px`,
+            transform: 'translateX(-50%)', fontSize: '20px', fontWeight: '600',
+            fontFamily: '"Noto Sans TC", "Microsoft JhengHei", sans-serif', textAlign: 'center',
+            color: 'rgba(255,220,240,0.92)', textShadow: '0 0 10px rgba(180,80,200,0.85)',
+            whiteSpace: 'pre-line', opacity: '0', transition: 'opacity 0.8s ease', pointerEvents: 'none', zIndex: '5',
+        });
+        txt.textContent = wrapDanmakuText(line, 12);
+        getOverlay().appendChild(txt);
+        requestAnimationFrame(() => { txt.style.opacity = '1'; });
+        setTimeout(() => { txt.style.opacity = '0'; }, 3500);
+        setTimeout(() => txt.remove(), 4800);
+    }
+
+    // 在玩家繪製前把人影畫到 canvas（→ 在人物後方），用 BC 自己的 DrawCharacter 對齊位置
+    let _playerDraw = null;     // 玩家真實繪製座標 { x, y, zoom }（給模糊重畫用）
+    let _ghostTemp = null;      // 人影暫存畫布（為了正確套用 alpha 淡入淡出）
+    function hookGhostDraw() {
+        if (!modApi) return;
+        try {
+            modApi.hookFunction('DrawCharacter', 2, (args, next) => {
+                const C = args[0], X = args[1], Y = args[2], Zoom = args[3];
+                const isMe = C && Player && C.MemberNumber === Player.MemberNumber;
+                if (isMe && typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+                    _playerDraw = { x: X, y: Y, zoom: Zoom };
+                    if (_ghost && _ghost.alpha > 0 && _ghost.char) {
+                        try {
+                            const ctx = args[5] || MainCanvas;
+                            // 偏移：螢幕像素 → BC 畫布座標（錨定在玩家真實座標上）
+                            const offXbc = (_ghost.offXpx || 0) / (_cachedScaleX || 0.25);
+                            const offYbc = (_ghost.offYpx || 0) / (_cachedScaleY || 0.25);
+                            // DrawCharacter 不吃 globalAlpha → 先畫到暫存畫布，再以 alpha 疊上（才有淡入淡出）
+                            //  注意：MainCanvas 是 2D context（不是元素），尺寸要用 .canvas
+                            const cvEl = (MainCanvas && MainCanvas.canvas) || document.getElementById('MainCanvas');
+                            if (!_ghostTemp) _ghostTemp = document.createElement('canvas');
+                            _ghostTemp.width  = (cvEl && cvEl.width)  || 2000;   // 設尺寸同時清空
+                            _ghostTemp.height = (cvEl && cvEl.height) || 1000;
+                            const tctx = _ghostTemp.getContext('2d');
+                            DrawCharacter(_ghost.char, X + offXbc, Y + offYbc, Zoom, undefined, tctx);
+                            const prevA = ctx.globalAlpha;
+                            ctx.globalAlpha = _ghost.alpha;
+                            ctx.drawImage(_ghostTemp, 0, 0);
+                            ctx.globalAlpha = prevA;
+                        } catch (e) {}
+                    }
+                }
+                return next(args);
+            });
+        } catch (e) {
+            console.warn('🐈‍⬛ [IVH] DrawCharacter hook 失敗:', e.message);
+        }
+    }
+
+    // ── 深度（中）：畫面模糊，但人物與背後人影清晰疊在最上層 ──
+    //  只做左側 1000×1000 模糊遮罩（不蓋到右側聊天室），再把清晰的人影＋人物畫上去
+    function depthFigureBlur() {
+        const canvas = document.getElementById('MainCanvas') || document.querySelector('canvas');
+        if (!canvas) return;
+        const REG = 1000;   // 左側人物區（BC 像素 0~1000）
+        let url;
+        try {
+            const comp = document.createElement('canvas'); comp.width = REG; comp.height = REG;
+            const cx = comp.getContext('2d');
+            // 1. 模糊左側區
+            cx.filter = 'blur(7px)'; cx.drawImage(canvas, 0, 0, REG, REG, 0, 0, REG, REG); cx.filter = 'none';
+            // 2. 用 BC 自己的 DrawCharacter 把清晰的玩家（與人影）畫進來 → 位置完全正確
+            const pd = _playerDraw;
+            if (pd) {
+                // 人影 alpha 暫時拉滿，讓它在這張靜態合成圖上清楚可見
+                let savedA;
+                if (_ghost) { savedA = _ghost.alpha; _ghost.alpha = Math.max(_ghost.alpha || 0, 0.85); }
+                DrawCharacter(Player, pd.x, pd.y, pd.zoom, undefined, cx);  // hook 會先畫人影、再畫玩家
+                if (_ghost) _ghost.alpha = savedA;
+            }
+            url = comp.toDataURL();
+        } catch (e) { return; }
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = rect.width / 2000, scaleY = rect.height / 1000;
+        const img = document.createElement('img');
+        img.src = url;
+        Object.assign(img.style, {
+            position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`,
+            width: `${REG * scaleX}px`, height: `${REG * scaleY}px`,   // 只佔左側 1000 區
+            opacity: '0', transition: 'opacity 1s ease', pointerEvents: 'none', zIndex: '1',
+        });
+        getOverlay().appendChild(img);
+        requestAnimationFrame(() => { img.style.opacity = '1'; });
+        setTimeout(() => { img.style.opacity = '0'; }, 3200);
+        setTimeout(() => img.remove(), 4300);
+    }
+
+    // ── 深度（重）：右側聊天訊息突然模糊化 ──
+    function depthChatlogBlur() {
+        const log = document.getElementById('TextAreaChatLog');
+        if (!log) return;
+        const prevFilter = log.style.filter, prevTrans = log.style.transition;
+        // 與人物模糊一致：淡入 1s / 維持 ~3.2s / 淡出 1s
+        log.style.transition = 'filter 1s ease';
+        log.style.filter = 'blur(4px)';
+        setTimeout(() => {
+            log.style.filter = prevFilter || '';
+            setTimeout(() => { log.style.transition = prevTrans || ''; }, 1100);
+        }, 3200);
+    }
 
     // ════════════════════════════════════════
     //  時間設定
@@ -102,39 +700,34 @@
     }
 
     // ════════════════════════════════════════
-    //  頭部位置設定（可由 /ivh debug 即時校正）
-    //  Y 微調（BC 座標，正=往下）
+    //  頭部 / 嘴部位置（直接用 BC 繪製公式，任何身高姿勢都正確）
+    //  asset 空間：寬 500、高 1000；頭部約 (250, headAY)、嘴約 (250, mouthAY)
+    //  螢幕BC座標 = cellXY + Zoom * (Offset + assetCoord * HeightRatio)
+    //    XOffset = 500*(1-HeightRatio)/2
+    //    YOffset = 1000*(1-HeightRatio)*HeightRatioProportion - HeightModifier*HeightRatio
+    //  HeightModifier/HeightRatioProportion 已涵蓋跪/趴等姿勢（pose OverrideHeight）
     // ════════════════════════════════════════
     const HEAD_OFFSET = {
-        base:  165,   // HeightRatio=1（身高 165）時的頭頂 Y（BC 座標）
-        perUnit: 8.75, // HeightRatio 每差 0.01 對應的 Y 變化量
-        poseStand: 0,   // 站立姿勢偏移
-        poseKneel: 250, // 跪姿偏移（正=往下，因為 HeightModifier 讓格子下移）
-        poseProne: 560, // 趴姿偏移
-        x:     0,     // 水平微調
-        yExtra: 0,    // 額外微調
+        headAY:  160,  // 頭部中心 asset Y（螺旋對準處）
+        mouthAY: 250,  // 嘴部 asset Y（喘氣氣團處）
+        x:       0,    // 水平微調（asset 單位）
+        yExtra:  0,    // 螢幕 Y 微調（像素）
     };
 
-    // 根據 HeightRatio 和姿勢計算頭部 BC Y 座標
-    function calcHeadBcY() {
-        const hr = (typeof Player?.HeightRatio === 'number') ? Player.HeightRatio : 1.0;
-        // 身高偏差：HeightRatio < 1 代表比基準矮，頭部 Y 要增加
-        const heightDiff = Math.floor((1 - hr) / 0.01 * HEAD_OFFSET.perUnit);
-        const baseY = HEAD_OFFSET.base + heightDiff;
-
-        let poseOffset;
-        if      (playerDrawPos.isProne)    poseOffset = HEAD_OFFSET.poseProne;
-        else if (playerDrawPos.isKneeling) poseOffset = HEAD_OFFSET.poseKneel;
-        else                               poseOffset = HEAD_OFFSET.poseStand;
-
-        return baseY + poseOffset;
+    // 把角色 asset 座標 (ax, ay) 轉成 BC 畫布座標
+    function bodyAssetToBc(ax, ay) {
+        const C     = Player;
+        const ratio = (typeof C?.HeightRatio === 'number') ? C.HeightRatio : 1;
+        const prop  = (typeof C?.HeightRatioProportion === 'number') ? C.HeightRatioProportion : 1;
+        const hMod  = (typeof C?.HeightModifier === 'number') ? C.HeightModifier : 0;
+        const xOff  = 500 * (1 - ratio) / 2;
+        const yOff  = 1000 * (1 - ratio) * prop - hMod * ratio;
+        const z     = playerDrawPos.zoom;
+        return {
+            x: playerDrawPos.x + z * (xOff + ax * ratio),
+            y: playerDrawPos.y + z * (yOff + ay * ratio),
+        };
     }
-
-    // 根據 BC 的 DrawCharacter 參數計算頭部螢幕座標
-    // 參考 BC 源碼：
-    //   XOffset = 500 * (1 - HeightRatio) / 2  （矮角色往右補）
-    //   YOffset = 1000 * (1 - HeightRatio) * proportion - HeightModifier * HeightRatio
-    let _lastDrawFrame = 0;
 
     // 判斷玩家是否在目前顯示的頁面（用 ChatRoomCharacterViewOffset 直接判斷）
     // BC 每列顯示 5 人（上排 5、下排 5，共 10 人），offset 指向第一個顯示的角色 index
@@ -152,37 +745,32 @@
     }
 
     function getPlayerHeadScreenPos() {
-        // 若玩家不在目前顯示頁，螺旋回到畫面正中間 BC (500, 500)
-        if (!isPlayerOnCurrentPage()) {
-            return bcToScreen(500, 500);
-        }
+        // 中央頭像模式：螺旋等效果以畫面左半中心 BC(500,500) 為基準
+        if (CONFIG.centerHeadshot) return bcToScreen(500, 360);
+        // 玩家不在目前顯示頁 → 回到畫面正中間
+        if (!isPlayerOnCurrentPage()) return bcToScreen(500, 500);
         if (!playerDrawPos.valid || !_cachedRect) {
             if (!_cachedRect) return { x: window.innerWidth * 0.25, y: window.innerHeight * 0.15 };
             return { x: _cachedRect.left + _cachedRect.width * 0.25, y: _cachedRect.top + _cachedRect.height * 0.12 };
         }
-
-        // ChatRoomCharacterViewDrawOverlay 給的 CharX/CharY 已是最終 BC 座標
-        // 角色水平中心 = CharX + 250 * zoom（BC canvas 寬 500，中心在 250）
-        const zoom    = playerDrawPos.zoom;
-        const headBcX = 250 + HEAD_OFFSET.x;
-        const headBcY = calcHeadBcY();
-
-        const screenX = _cachedRect.left + (playerDrawPos.x + headBcX * zoom) * _cachedScaleX;
-        const screenY = _cachedRect.top  + (playerDrawPos.y + headBcY  * zoom) * _cachedScaleY
-        + HEAD_OFFSET.yExtra;
-
-        return { x: screenX, y: screenY };
+        const bc = bodyAssetToBc(250 + HEAD_OFFSET.x, HEAD_OFFSET.headAY);
+        const s  = bcToScreen(bc.x, bc.y);
+        s.y += HEAD_OFFSET.yExtra;
+        return s;
     }
 
-    function getPlayerBodyScreenPos() {
+    // 嘴部螢幕座標（喘氣氣團用）
+    function getPlayerMouthScreenPos() {
+        if (CONFIG.centerHeadshot) return bcToScreen(500, 430);
+        if (!isPlayerOnCurrentPage()) return bcToScreen(500, 560);
         if (!playerDrawPos.valid || !_cachedRect) {
-            if (!_cachedRect) return { x: window.innerWidth * 0.25, y: window.innerHeight * 0.55 };
-            return { x: _cachedRect.left + _cachedRect.width * 0.25, y: _cachedRect.top + _cachedRect.height * 0.55 };
+            const h = getPlayerHeadScreenPos();
+            return { x: h.x, y: h.y + 40 };
         }
-        return bcToScreen(
-            playerDrawPos.x + 240 * playerDrawPos.zoom,
-            playerDrawPos.y + 500 * playerDrawPos.zoom
-        );
+        const bc = bodyAssetToBc(250 + HEAD_OFFSET.x, HEAD_OFFSET.mouthAY);
+        const s  = bcToScreen(bc.x, bc.y);
+        s.y += HEAD_OFFSET.yExtra;
+        return s;
     }
 
     // ════════════════════════════════════════
@@ -228,6 +816,48 @@
 
     function clearBCXCache() { _bcxReminderCache = null; }
 
+    // 取訊息節點的純文字內容（去掉名稱、彈出選單、metadata）
+    function extractChatText(node) {
+        try {
+            const clone = node.cloneNode(true);
+            clone.querySelectorAll('.ChatMessageName, .chat-room-message-popup, .chat-room-metadata, .ChatMessageTimestamp')
+                 .forEach(el => el.remove());
+            return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+        } catch { return ''; }
+    }
+
+    // 從聊天室 DOM 取最近的「聊天」訊息文字（給彈幕當情境旁白；不含名稱、不含悄悄話/動作）
+    function getChatHistoryLines(limit = 50) {
+        try {
+            const log = document.getElementById('TextAreaChatLog');
+            if (!log) return [];
+            const nodes = log.querySelectorAll('.ChatMessageChat');
+            const out = [];
+            for (let i = nodes.length - 1; i >= 0 && out.length < limit; i--) {
+                const txt = extractChatText(nodes[i]);
+                if (txt && txt.length >= 2 && txt.length <= 60) out.push(txt);
+            }
+            return out;
+        } catch { return []; }
+    }
+
+    // 催眠文本來源：BCX 提醒清單 + 內建自訂文本（永遠併用）
+    function getCatalystTexts() {
+        return [...getBCXReminderList(), ...(CONFIG.customTexts || [])].filter(Boolean);
+    }
+    // 把文本中的 $me 換成玩家暱稱（不同人共用同一份文本）
+    function resolveMe(text) {
+        const me = (typeof CharacterNickname === 'function' ? CharacterNickname(Player) : '')
+                   || Player?.Nickname || Player?.Name || '';
+        return String(text).split('$me').join(me);
+    }
+
+    // 隨機取 n 個元素（不重複）
+    function pickRandom(arr, n) {
+        if (!Array.isArray(arr) || arr.length === 0) return [];
+        return [...arr].sort(() => Math.random() - 0.5).slice(0, n);
+    }
+
     // ════════════════════════════════════════
     //  效果佇列
     // ════════════════════════════════════════
@@ -248,7 +878,12 @@
         }
     }
 
+    let _lastTriggerTime = 0;
     function triggerVoiceEffect(voiceText, isTest = false) {
+        // 合併近乎同時的觸發（例如聊天觸發詞 + [Voice] 訊息），避免重複觸發/雙重 emote
+        const now = Date.now();
+        if (!isTest && now - _lastTriggerTime < 1500) return;
+        _lastTriggerTime = now;
         if (effectQueue.length < 3) {
             effectQueue.push({ text: voiceText, isTest });
         }
@@ -282,11 +917,12 @@
         screenDistort:  () => ['🔮', T('畫面扭曲','Distortion')],
         vignette:       () => ['🌑', T('邊緣暗角','Vignette')],
         danmaku:        () => ['💬', T('彈幕文字','Danmaku')],
-        steamParticles: () => ['💨', T('氣喘粒子','Steam FX')],
+        steamParticles: () => ['💨', T('喘氣白霧','Steam FX')],
         expression:     () => ['😳', T('表情切換','Expression')],
-        arousal:        () => ['💗', T('興奮度+', 'Arousal+')],
         climax:         () => ['💥', T('高潮特效','Climax FX')],
         sound:          () => ['🔊', T('喘息聲音','Sound')],
+        dualSound:      () => ['🔊', T('雙重音效','Dual Sound')],
+        centerHeadshot: () => ['🖼', T('中央頭像','Headshot')],
     };
 
     function getOverlay() {
@@ -370,6 +1006,7 @@
             pointerEvents: 'none',
             opacity:       '0',
             transition:    'opacity 0.4s ease',
+            zIndex:        '2',   // 螺旋在頭像(1)之上、煙霧(3)之下
         });
 
         // SVG 螺旋（阿基米德螺旋線，用多圈弧段組成）
@@ -378,7 +1015,7 @@
         svg.setAttribute('viewBox', '-100 -100 200 200');
         svg.setAttribute('width',  `${size}`);
         svg.setAttribute('height', `${size}`);
-        svg.style.animation = `ivhSpiralSpin ${1800 / scale}ms linear infinite`;
+        svg.style.animation = `ivhSpiralSpin 1800ms linear infinite`;  // 轉速固定，不隨強度變快
 
         const defs  = document.createElementNS(ns, 'defs');
         const grad  = document.createElementNS(ns, 'radialGradient');
@@ -621,13 +1258,12 @@
         title.style.cssText = 'font-weight:bold;margin-bottom:10px;color:#ff99dd;font-size:13px';
         panel.appendChild(title);
 
-        // 共四個滑條：stand / kneel / prone / x / yExtra
+        // 頭部 asset Y / 嘴部 asset Y / 水平 / 螢幕 Y 微調
         const sliders = [
-            { key: 'base',      label: '基準 Y（HR=1）', min: 50,   max: 400,  step: 5  },
-            { key: 'poseKneel', label: '跪姿偏移',       min: 0,    max: 600,  step: 5  },
-            { key: 'poseProne', label: '趴姿偏移',       min: 0,    max: 900,  step: 5  },
-            { key: 'x',        label: '水平 X',          min: -200, max: 200,  step: 5  },
-            { key: 'yExtra',   label: 'Y 微調',          min: -200, max: 200,  step: 2  },
+            { key: 'headAY',  label: '頭部 asset Y', min: 0,    max: 500,  step: 2  },
+            { key: 'mouthAY', label: '嘴部 asset Y', min: 0,    max: 600,  step: 2  },
+            { key: 'x',       label: '水平 X',        min: -200, max: 200,  step: 5  },
+            { key: 'yExtra',  label: 'Y 微調(px)',    min: -200, max: 200,  step: 2  },
         ];
 
         const dots = [];
@@ -697,7 +1333,7 @@
         copyBtn.textContent = '📋 複製設定值';
         copyBtn.style.cssText = 'flex:1;background:#3a0a50;border:1px solid #ff80cc;border-radius:5px;color:#ffccee;padding:5px;cursor:pointer;font-size:11px';
         copyBtn.onclick = () => {
-            const txt = `stand:${HEAD_OFFSET.stand} kneel:${HEAD_OFFSET.kneel} prone:${HEAD_OFFSET.prone} x:${HEAD_OFFSET.x} yExtra:${HEAD_OFFSET.yExtra}`;
+            const txt = `headAY:${HEAD_OFFSET.headAY} mouthAY:${HEAD_OFFSET.mouthAY} x:${HEAD_OFFSET.x} yExtra:${HEAD_OFFSET.yExtra}`;
             navigator.clipboard.writeText(txt).catch(() => {});
             printChat('🔧 校正值已複製: ' + txt);
         };
@@ -756,22 +1392,29 @@
         if (!CONFIG.danmaku) return;
         const scale   = effectScale();
         const overlay = getOverlay();
-        const bcxList = getBCXReminderList();
 
         // ── 主台詞：角色頭上，波浪動畫 ──
         const head = getPlayerHeadScreenPos();
         _showMainDanmaku(overlay, triggerText, head, scale);
 
-        // ── 旁白句：從 BCX 清單取 4~9 句，散落左側 ──
-        if (bcxList.length === 0) return;
-        const shuffled = [...bcxList].sort(() => Math.random() - 0.5);
-        const sideCount = Math.min(Math.max(4, Math.floor(shuffled.length * 0.8)), 9);
-        const sideTexts = shuffled.slice(0, sideCount);
+        // ── 旁白句：聊天室 3 條 + (BCX＋催眠文本) 3 條（保證含自訂文本）──
+        const custom   = (CONFIG.customTexts || []).filter(Boolean);
+        const bcx      = getBCXReminderList().filter(Boolean);
+        const catalyst = [...bcx, ...custom];
+        const fromChat = pickRandom(getChatHistoryLines(), 3);
+        let fromText   = pickRandom(catalyst, 3);
+        if (custom.length && !fromText.some(t => custom.includes(t)))
+            fromText[0] = custom[Math.floor(Math.random() * custom.length)];   // 至少 1 句自訂
+        fromText = fromText.map(resolveMe);
+        const sideTexts = [...fromChat, ...fromText];
+        const sideCount = sideTexts.length;
+        if (sideCount === 0) return;
 
-        // 3 等份切割，計算每份的字體大小
-        const third   = Math.ceil(sideCount / 3);
-        // 預先決定每句的字體（小→中→大，在每份內再隨機 ±1pt）
-        const basePts = [14, 20, 26]; // 三份的基礎 pt（14→20→26，每句+2）
+        // 依強度決定 3 組字體等級：0.1~1.0→[1,1,1]、1.1~2.0→[2,2,1]、2.1~3.0→[3,3,1]
+        const it     = CONFIG.intensity || 1;
+        const levels = it <= 1.0 ? [1, 1, 1] : it <= 2.0 ? [2, 2, 1] : [3, 3, 1];
+        const ptMap  = [0, 15, 21, 27];   // 等級→pt
+        const groupSize = Math.ceil(sideCount / 3);
 
         // 排除頭部附近的座標（BC 座標）
         const headBcX = playerDrawPos.valid ? playerDrawPos.x + 240 * playerDrawPos.zoom : 240;
@@ -781,11 +1424,10 @@
         const usedSlots = [];
 
         sideTexts.forEach((text, idx) => {
-            const tier     = Math.floor(idx / third);           // 0, 1, 2
-            const basePt   = basePts[Math.min(tier, 2)];
-            // 在同一份內每句 +2pt，製造疊加感
-            const inTierIdx = idx % third;
-            const fontSize  = Math.round((basePt + inTierIdx * 2) * Math.min(scale, 1.2));
+            const group    = Math.min(2, Math.floor(idx / groupSize));   // 0,1,2
+            const level    = levels[group];                              // 1~3
+            const tier     = level - 1;                                  // 樣式用
+            const fontSize = Math.round(ptMap[level] * Math.min(scale, 1.2));
 
             let bcX, bcY, attempts = 0;
             do {
@@ -862,8 +1504,8 @@
             transform:     'translateX(-50%)',  // 水平置中對齊頭部
         });
 
-        // 主台詞也換行（12 全形 / 24 半形）
-        const wrappedText = wrapDanmakuText(text, 12);
+        // 主觸發詞超過 10 字元自動換行（10 全形 / 20 半形）
+        const wrappedText = wrapDanmakuText(text, 10);
         // 逐字建立，每個字有波浪 delay
         const chars = [...wrappedText];
         chars.forEach((ch, i) => {
@@ -896,41 +1538,78 @@
     }
 
     // ════════════════════════════════════════
-    //  7. 氣喘粒子
+    //  7. 喘氣呼吸（每次呼吸噴一口氣，約 1 秒一次、持續約 10 秒）
+    //  位置：角色真實嘴部 +（中央頭像存在時）頭像嘴部
     // ════════════════════════════════════════
-    function triggerSteamParticles() {
-        if (!CONFIG.steamParticles) return;
-        const scale   = effectScale();
-        const body    = getPlayerBodyScreenPos();
-        const overlay = getOverlay();
-        const count   = Math.round(STEAM_COUNT * Math.min(scale, 1.5));
-        const nodes   = [];
-        let maxExpiry = 0;
+    function _breathSizeScale() {
+        return Math.max(0.4, Math.min(2.2, (playerDrawPos.zoom || 1) * (_cachedScaleX || 0.3) * 2.4));
+    }
 
-        for (let i = 0; i < count; i++) {
-            const p       = document.createElement('div');
-            const size    = (4 + Math.random() * 9) * Math.min(scale, 1.3);
-            const offsetX = (Math.random() - 0.5) * 140;
-            const delay   = Math.random() * 1200;
-            const dur     = 1400 + Math.random() * 1600;
+    // 取得本次呼吸要噴氣的嘴部位置陣列（含各自的大小係數）
+    function getBreathMouths() {
+        const out = [];
+        if (playerDrawPos.valid && _cachedRect && isPlayerOnCurrentPage()) {
+            const bc = bodyAssetToBc(250 + HEAD_OFFSET.x, HEAD_OFFSET.mouthAY);
+            const s  = bcToScreen(bc.x, bc.y); s.y += HEAD_OFFSET.yExtra;
+            out.push({ x: s.x, y: s.y, ss: _breathSizeScale() });
+        }
+        // 中央頭像存在時，頭像的嘴也喘氣（頭像較大 → 氣團較大）
+        if (CONFIG.centerHeadshot && _centerHeadEl) {
+            const c = bcToScreen(500, 430);
+            out.push({ x: c.x, y: c.y, ss: 1.8 });
+        }
+        if (out.length === 0) {
+            const m = getPlayerMouthScreenPos();
+            out.push({ x: m.x, y: m.y, ss: _breathSizeScale() });
+        }
+        return out;
+    }
 
+    // 噴一口氣（1~2 個小霧團）
+    function _emitBreathPuff(overlay, mouth) {
+        const n = 1 + (Math.random() < 0.45 ? 1 : 0);
+        for (let i = 0; i < n; i++) {
+            const ss      = mouth.ss;
+            const size    = (10 + Math.random() * 12) * ss;
+            const offsetX = (Math.random() - 0.5) * 16 * ss;
+            const offsetY = (Math.random() - 0.2) * 6 * ss;
+            const dur     = 1400 + Math.random() * 1200;
+            const dir     = Math.floor(Math.random() * 3);
+            const alpha   = 0.26 + Math.random() * 0.22;   // 比原本濃約 20%
+            const p = document.createElement('div');
             Object.assign(p.style, {
                 position:     'fixed',
-                left:         `${body.x + offsetX}px`,
-                top:          `${body.y}px`,
+                left:         `${mouth.x + offsetX}px`,
+                top:          `${mouth.y + offsetY}px`,
                 width:        `${size}px`,
                 height:       `${size}px`,
                 borderRadius: '50%',
-                background:   `rgba(255,255,255,${0.5 + Math.random() * 0.35})`,
-                filter:       'blur(2.5px)',
-                animation:    `ivhSteamRise${i % 3} ${dur}ms ease-out ${delay}ms forwards`,
+                background:   `radial-gradient(circle at 50% 50%, rgba(255,255,255,${alpha}) 0%, rgba(255,255,255,${alpha * 0.5}) 45%, rgba(255,255,255,0) 72%)`,
+                filter:       `blur(${(3 + Math.random() * 2).toFixed(1)}px)`,
+                animation:    `ivhBreath${dir} ${dur}ms ease-out forwards`,
                 willChange:   'transform, opacity',
+                zIndex:       '3',   // 煙霧在最上層
             });
             overlay.appendChild(p);
-            nodes.push(p);
-            maxExpiry = Math.max(maxExpiry, dur + delay);
+            setTimeout(() => p.remove(), dur + 200);
         }
-        setTimeout(() => nodes.forEach(n => n.remove()), maxExpiry + 300);
+    }
+
+    let _breathLoopUntil = 0;
+    function triggerSteamParticles(force = false) {
+        if (!force && !CONFIG.steamParticles) return;
+        const overlay = getOverlay();
+        // 延長本次呼吸的結束時間（重複觸發時不疊加多個迴圈，只延長）
+        const FRESH = _breathLoopUntil < Date.now();
+        _breathLoopUntil = Date.now() + 10000;   // 約 10 秒
+        if (!FRESH) return;                      // 已有迴圈在跑 → 只延長時間
+
+        const breathe = () => {
+            if (Date.now() > _breathLoopUntil) return;
+            getBreathMouths().forEach(m => _emitBreathPuff(overlay, m));
+            setTimeout(breathe, 850 + Math.random() * 350);  // 每次呼吸約 1 秒
+        };
+        breathe();
     }
 
     // ════════════════════════════════════════
@@ -939,6 +1618,7 @@
     // ════════════════════════════════════════
     function triggerClimaxEffect(scale = 1) {
         if (!CONFIG.climax) return;
+        if (CONFIG.sound) playSoundCategory('climax', Math.min(0.5 + scale * 0.2, 1));  // 高潮聲
         const canvas = document.getElementById('MainCanvas') || document.querySelector('canvas');
         if (!canvas) return;
 
@@ -1094,12 +1774,34 @@
     //  載入失敗 → 本地聊天訊息提示（10秒後自動消失）
     //  音源來自 https://www.pincree.jp/
     // ════════════════════════════════════════
-    const SOUND_URLS = [
-        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/pincree_kitakami_tsubasa_groan1.mp3',
-        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/pincree_kitakami_tsubasa_groan2.mp3',
-        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/pincree_kitakami_tsubasa_groan3.mp3',
-        'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/pincree_kitakami_tsubasa_groan4.mp3',
+    const SND_BASE = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Sound/IVH/';
+
+    // 內建音效庫（唯一一份；「其他」可從這裡挑選，依類別分組）
+    const SOUND_PRESETS = [
+        { url: SND_BASE + 'groan-KitakamiTsubasa01_pincree_.mp3',        cat: '催眠', name: '呻吟1' },
+        { url: SND_BASE + 'groan-KitakamiTsubasa02_pincree_.mp3',        cat: '催眠', name: '呻吟2' },
+        { url: SND_BASE + 'groan-KitakamiTsubasa03_pincree_.mp3',        cat: '催眠', name: '呻吟3' },
+        { url: SND_BASE + 'groan-KitakamiTsubasa04_pincree_.mp3',        cat: '催眠', name: '呻吟4' },
+        { url: SND_BASE + 'cum-KitakamiTsubasa_pincree_.mp3',            cat: '高潮', name: '高潮' },
+        { url: SND_BASE + 'short-Heartbeat_vita-chi_.mp3',               cat: '短音', name: '心跳' },
+        { url: SND_BASE + 'short-Whip-universfield_pixabay_.mp3',        cat: '短音', name: '鞭打' },
+        { url: SND_BASE + 'short-Whip2-universfield_pixabay_.mp3',       cat: '短音', name: '鞭打2' },
+        { url: SND_BASE + 'long-Whips-dragon-studio_pixabay_.mp3',       cat: '長音', name: '連續鞭打' },
+        { url: SND_BASE + 'short-WindChime-wingsoarstudio_pixabay_.mp3', cat: '短音', name: '風鈴' },
+        { url: SND_BASE + 'short-Bell-soundreality_pixabay_.mp3',        cat: '短音', name: '鍾聲' },
+        { url: SND_BASE + 'short-BeepTone_vita-chi.mp3',                 cat: '短音', name: 'Beep音' },
+        { url: SND_BASE + 'short-Pointer_vita-chi_.mp3',                 cat: '短音', name: '指針' },
+        { url: SND_BASE + 'long-Pointers_vita-chi_.mp3',                 cat: '長音', name: '連續指針' },
     ];
+
+    // 各分類的內建預設音效（空格時生效；effect 播放也以此後備）
+    const SOUND_DEFAULTS = {
+        hypno:  SOUND_PRESETS.filter(p => p.cat === '催眠').map(p => p.url),  // 呻吟 ×4
+        voice:  [SND_BASE + 'short-Heartbeat_vita-chi_.mp3'],                 // 催眠2＝心跳
+        climax: [SND_BASE + 'cum-KitakamiTsubasa_pincree_.mp3'],              // 高潮
+        depth:  [SND_BASE + 'long-Pointers_vita-chi_.mp3'],                   // 深度
+    };
+    function soundDefault(cat, i = 0) { return (SOUND_DEFAULTS[cat] || [])[i] || ''; }
 
     const _soundBufferCache = new Map(); // url → AudioBuffer
     let _audioCtx = null;
@@ -1115,9 +1817,10 @@
     // 預載所有音源（進房間後呼叫一次）
     // 失敗時用 printChat 留訊息（10 秒後自動消失）
     function preloadSounds() {
-        if (!SOUND_URLS.length) return;
+        const list = SOUND_DEFAULTS.hypno;   // 預載催眠呻吟（喘息後備）
+        if (!list.length) return;
         let _failNotified = false;
-        SOUND_URLS.forEach(url => {
+        list.forEach(url => {
             if (_soundBufferCache.has(url)) return;
             const ctx = _getAudioCtx();
             fetch(url)
@@ -1145,31 +1848,95 @@
         });
     }
 
-    // 播放已快取的音源（隨機挑一個）
+    // ── 通用音效解析 / 播放（支援 URL 與本機 idb:<id>）──
+    function resolveSoundBuffer(entry) {
+        return new Promise(resolve => {
+            if (!entry) return resolve(null);
+            if (_soundBufferCache.has(entry)) return resolve(_soundBufferCache.get(entry));
+            const ctx = _getAudioCtx();
+            const onAB = ab => ctx.decodeAudioData(ab.slice(0))
+                .then(buf => { _soundBufferCache.set(entry, buf); resolve(buf); })
+                .catch(() => resolve(null));
+            if (entry.startsWith('idb:')) {
+                IVHDB.get('sounds', entry.slice(4)).then(rec => {
+                    if (rec && rec.bytes) onAB(rec.bytes); else resolve(null);
+                });
+            } else {
+                fetch(entry).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+                    .then(onAB).catch(() => resolve(null));
+            }
+        });
+    }
+    let _previewSrc = null;   // 目前的試聽音源（換一個會停掉前一個）
+    function playSoundEntry(entry, vol = 0.8, stopPrev = false) {
+        resolveSoundBuffer(entry).then(buf => {
+            if (!buf) return;
+            try {
+                if (stopPrev && _previewSrc) { try { _previewSrc.stop(); } catch (e) {} _previewSrc = null; }
+                const ctx = _getAudioCtx();
+                const src = ctx.createBufferSource(); src.buffer = buf;
+                const g = ctx.createGain(); g.gain.value = Math.min(Math.max(vol, 0), 1);
+                src.connect(g); g.connect(ctx.destination); src.start();
+                if (stopPrev) { _previewSrc = src; src.onended = () => { if (_previewSrc === src) _previewSrc = null; }; }
+            } catch (e) {}
+        });
+    }
+    // 播放某分類的隨機一個（hypno/climax/depth/voice）；無設定回傳 false
+    function playSoundCategory(cat, vol = 0.8, useDefault = true) {
+        let list = ((CONFIG.sounds && CONFIG.sounds[cat]) || []).filter(Boolean);
+        if (list.length === 0 && useDefault) list = SOUND_DEFAULTS[cat] || [];
+        if (list.length === 0) return false;
+        playSoundEntry(list[Math.floor(Math.random() * list.length)], vol);
+        return true;
+    }
+    // 本機檔案上傳 → 存 IndexedDB，設定為 idb:<id>
+    function uploadSoundFile(cat, idx) {
+        const inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = 'audio/*';
+        inp.onchange = () => {
+            const f = inp.files && inp.files[0];
+            if (!f) return;
+            const r = new FileReader();
+            r.onload = async () => {
+                const id = 'snd_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+                const name = f.name.replace(/\.[^.]+$/, '');   // 去副檔名當名稱
+                await IVHDB.put('sounds', { id, name, bytes: r.result });
+                _sndNameCache[id] = name;
+                CONFIG.sounds[cat][idx] = 'idb:' + id;
+                saveSettings();
+                EXT._localLoaded = false;   // 讓音效庫重新載入顯示
+            };
+            r.readAsArrayBuffer(f);
+        };
+        inp.click();
+    }
+    const _sndNameCache = {}; // id -> filename（顯示用）
+
+    // 刪除一個本機音效（從 DB 移除、清掉所有引用的格子、刷新音效庫）
+    function deleteLocalSound(id) {
+        const ref = 'idb:' + id;
+        try { IVHDB.delete('sounds', id); } catch (e) {}
+        for (const cat in CONFIG.sounds) {
+            CONFIG.sounds[cat] = (CONFIG.sounds[cat] || []).map(e => (e === ref ? '' : e));
+        }
+        delete _sndNameCache[id];
+        saveSettings();
+        EXT._localLoaded = false;
+    }
+
+    // 播放催眠喘息聲（催眠分類，含預設後備）
     function triggerBreathSound(scale = 1) {
         if (!CONFIG.sound) return;
-        const cached = [..._soundBufferCache.values()];
-        if (cached.length === 0) return; // 無快取靜默
-        try {
-            const ctx  = _getAudioCtx();
-            const buf  = cached[Math.floor(Math.random() * cached.length)];
-            const src  = ctx.createBufferSource();
-            src.buffer = buf;
-            const gain = ctx.createGain();
-            gain.gain.value = Math.min(0.5 + scale * 0.15, 0.9);
-            src.connect(gain);
-            gain.connect(ctx.destination);
-            src.start();
-        } catch(e) {
-            // 播放失敗靜默
-        }
+        const vol = Math.min(0.5 + scale * 0.15, 0.9);
+        playSoundCategory('hypno', vol);
     }
 
     // ════════════════════════════════════════
     //  8. 表情
     // ════════════════════════════════════════
+    //  BC 有兩個眼睛組：Eyes(右眼) / Eyes2(左眼)；WCE 再對應 右眼_Luzi / 左眼_Luzi
     function saveExpression() {
-        const groups = ["Eyebrows", "Eyes", "Mouth", "Blush"];
+        const groups = ["Eyebrows", "Eyes", "Eyes2", "Mouth", "Blush"];
         const saved  = {};
         for (const g of groups) {
             const item = Player.Appearance.find(a => a.Asset.Group.Name === g);
@@ -1178,23 +1945,107 @@
         return saved;
     }
 
+    // 把一組表情展開成各群組要套用的值（雙眼預設一致；含 Luzi）
+    function _expandExpr(exprObj) {
+        const eyes  = exprObj.Eyes ?? null;
+        const eyes2 = (exprObj.Eyes2 !== undefined) ? exprObj.Eyes2 : eyes;  // 沒指定左眼 → 跟右眼一致
+        return {
+            Eyebrows:   exprObj.Eyebrows ?? null,
+            Eyes:       eyes,
+            Eyes2:      eyes2,
+            Mouth:      exprObj.Mouth ?? null,
+            Blush:      exprObj.Blush ?? null,
+            '右眼_Luzi': eyes,
+            '左眼_Luzi': eyes2,
+        };
+    }
+
     function applyExpression(exprObj) {
-        // 1. 用 BC 原生函式同步到伺服器（其他人看得到）
-        for (const [g, val] of Object.entries(exprObj)) {
-            try { CharacterSetFacialExpression(Player, g, val); } catch(e) {}
+        const map = _expandExpr(exprObj);
+        // 1. 同步到伺服器（其他人看得到；Luzi 群組可能不被原生函式接受，try 即可）
+        for (const [g, val] of Object.entries(map)) {
+            try { CharacterSetFacialExpression(Player, g, val); } catch (e) {}
         }
-        // 2. 直接操作 Appearance Property，確保本地 canvas 也立即更新
-        for (const [g, val] of Object.entries(exprObj)) {
+        // 2. 直接設 Property，確保本地 canvas 立即更新（含左眼 Eyes2 / Luzi）
+        for (const [g, val] of Object.entries(map)) {
             try {
-                const item = Player.Appearance.find(a => a.Asset.Group.Name === g);
-                if (item) {
-                    if (!item.Property) item.Property = {};
-                    item.Property.Expression = val;
-                }
-            } catch(e) {}
+                const it = Player.Appearance.find(a => a.Asset.Group.Name === g);
+                if (it) { if (!it.Property) it.Property = {}; it.Property.Expression = val; }
+            } catch (e) {}
         }
-        // 3. 強制本地重繪
-        try { CharacterRefresh(Player, false, false); } catch(e) {}
+        try { CharacterRefresh(Player, false, false); } catch (e) {}
+    }
+
+    // 表情效果共用堆疊：避免 VOICE 與深度同時觸發時，互相把對方套的表情當成「原始值」存起來
+    //  → 第一個進入時才記錄真實表情；全部結束才還原真實表情
+    let _exprRealSnapshot = null;
+    let _exprEffectCount  = 0;
+    function pushExprEffect(exprObj) {
+        try {
+            if (_exprEffectCount === 0) _exprRealSnapshot = saveExpression();
+            _exprEffectCount++;
+            applyExpression(exprObj);
+        } catch (e) {}
+    }
+    function popExprEffect() {
+        try {
+            _exprEffectCount--;
+            if (_exprEffectCount <= 0) {
+                _exprEffectCount = 0;
+                if (_exprRealSnapshot) { applyExpression(_exprRealSnapshot); _exprRealSnapshot = null; }
+            }
+        } catch (e) {}
+    }
+
+    // 取某表情組的有效值清單（含 null=無表情），用於設定頁循環選擇
+    const _exprOptCache = {};
+    function getExpressionOptions(group) {
+        if (_exprOptCache[group]) return _exprOptCache[group];
+        let arr = [];
+        try {
+            const item = Player?.Appearance?.find(a => a.Asset.Group.Name === group);
+            const g = item?.Asset?.Group
+                   || (typeof AssetGroupGet === 'function' ? AssetGroupGet(Player?.AssetFamily || 'Female3DCG', group) : null);
+            if (g && Array.isArray(g.AllowExpression)) arr = [...g.AllowExpression];
+        } catch (e) {}
+        if (!arr.includes(null)) arr = [null, ...arr];
+        _exprOptCache[group] = arr;
+        return arr;
+    }
+    // 循環切換某表情組的值
+    function cycleExpression(setObj, group, dir = 1) {
+        const opts = getExpressionOptions(group);
+        const cur  = setObj[group] ?? null;
+        let idx = opts.indexOf(cur); if (idx < 0) idx = 0;
+        idx = (idx + dir + opts.length) % opts.length;
+        setObj[group] = opts[idx];
+    }
+    // 只在本地套用表情（不同步伺服器），給設定頁即時預覽用
+    function applyExpressionLocal(obj) {
+        const map = _expandExpr(obj);
+        for (const [g, val] of Object.entries(map)) {
+            const it = Player.Appearance.find(a => a.Asset.Group.Name === g);
+            if (it) { if (!it.Property) it.Property = {}; it.Property.Expression = val; }
+        }
+        try { CharacterRefresh(Player, false, false); } catch (e) {}
+    }
+
+    // 截目前 Player 臉部成 Image（給設定頁臉部預覽）
+    function captureFaceImage(cb, srcCanvas) {
+        try {
+            const src = srcCanvas || (Player && Player.Canvas);
+            if (!src || !src.width) return;
+            const SZ = 320;
+            const cv = document.createElement('canvas'); cv.width = cv.height = SZ;
+            const c  = cv.getContext('2d');
+            const side  = src.width * 0.20;             // 較緊 → 臉更大
+            const cropX = src.width  * 0.50 - side / 2;
+            const cropY = src.height * 0.43 - side * 0.22;  // 頭往上（臉位於框上方 30%）
+            c.drawImage(src, cropX, cropY, side, side, 0, 0, SZ, SZ);
+            const img = new Image();
+            img.onload = () => cb(img);
+            img.src = cv.toDataURL();
+        } catch (e) {}
     }
 
     // ════════════════════════════════════════
@@ -1206,15 +2057,15 @@ function addArousal() {
         if (!Player.ArousalSettings || Player.ArousalSettings.Active === "Inactive") return 1;
 
         const current = Player.ArousalSettings.Progress ?? 0;
-        
+
         let add = randInt(1, 5);
-        
+
         // 越接近滿值增加越慢（更自然）
         if (current > 80) add = randInt(1, 3);
         if (current > 92) add = randInt(1, 2);
 
         const newVal = Math.min(current + add, 100);
-        
+
         ActivitySetArousal(Player, newVal);
 
         return add;
@@ -1225,24 +2076,111 @@ function addArousal() {
 }
 
     // ════════════════════════════════════════
+    //  觸發時發送狀態 emote（讓他人知道你的狀態）
+    //  ChatRoomSendEmote 會自動帶上玩家名字，傳後綴即可
+    // ════════════════════════════════════════
+    function sendStatusEmote() {
+        if (!CONFIG.emoteEnabled) return;
+        const list = CONFIG.emoteList || [];
+        if (list.length === 0) return;
+        let msg = list[Math.floor(Math.random() * list.length)];
+        // $me 換成玩家暱稱；以 "*" 前綴送出（動作格式）
+        const me = (typeof CharacterNickname === 'function' ? CharacterNickname(Player) : '')
+                   || Player?.Nickname || Player?.Name || '';
+        msg = msg.split('$me').join(me);
+        try {
+            if (typeof ServerSend === 'function') ServerSend('ChatRoomChat', { Type: 'Emote', Content: "*"+msg });
+        } catch (e) { /* 靜默 */ }
+    }
+
+    // ════════════════════════════════════════
+    //  中央頭像：裁玩家臉部成 300×300，置於畫面左半中心
+    //  （螺旋／喘氣等效果會以此為基準，忽略分頁問題）
+    // ════════════════════════════════════════
+    let _centerHeadEl = null;
+    function showCenterHeadshot(durationMs) {
+        try {
+            if (_centerHeadEl) { _centerHeadEl.remove(); _centerHeadEl = null; }
+
+            const SZ  = 300;
+            const cv  = document.createElement('canvas'); cv.width = cv.height = SZ;
+            const ctx = cv.getContext('2d');
+            const pos     = bcToScreen(500, 360);
+            const dispSZ  = Math.max(340, SZ * (_cachedScaleX || 0.35) * 1.7);
+
+            const el = document.createElement('img');
+            Object.assign(el.style, {
+                position:      'fixed',
+                left:          `${pos.x - dispSZ / 2}px`,
+                top:           `${pos.y - dispSZ / 2}px`,
+                width:         `${dispSZ}px`,
+                height:        `${dispSZ}px`,
+                borderRadius:  '50%',
+                objectFit:     'cover',
+                pointerEvents: 'none',
+                zIndex:        '1',       // 頭像層：煙霧(3) > 螺旋(2) > 頭像(1) > 其它特效(auto)
+                boxShadow:     '0 0 40px rgba(255,80,160,0.5)',
+                opacity:       '0',
+                transition:    'opacity 1.5s ease',
+            });
+            getOverlay().appendChild(el);  // 放 overlay
+            _centerHeadEl = el;
+
+            // 從玩家自己的角色 Canvas 裁臉（FCM 同款來源，不會截到別人）
+            // 正方裁切並以臉部為中心；側臉 0.43h 含瀏海，避免人物偏低
+            const capture = () => {
+                const src = Player && Player.Canvas;
+                if (!src || !src.width) return false;
+                const side  = src.width * 0.42;             // 正方邊長（含頭髮）
+                const cropX = src.width  * 0.50 - side / 2; // 水平置中於臉
+                const cropY = src.height * 0.43 - side / 2; // 垂直置中於臉（略偏上含瀏海）
+                ctx.clearRect(0, 0, SZ, SZ);
+                ctx.drawImage(src, cropX, cropY, side, side, 0, 0, SZ, SZ);
+                try { el.src = cv.toDataURL(); } catch (e) { return false; }
+                return true;
+            };
+            capture();
+            requestAnimationFrame(() => { el.style.opacity = '1'; });
+
+            // 每幀重新擷取（前 ~0.6 秒）：表情替換 / Canvas 重建是非同步，
+            //   逐幀更新讓正確的臉盡快出現，不會等待
+            let frames = 0;
+            const recap = () => {
+                if (el !== _centerHeadEl) return;
+                capture();
+                if (++frames < 36) requestAnimationFrame(recap);
+            };
+            requestAnimationFrame(recap);
+
+            // 淡入 1.5s / 淡出 1.5s；整體時間不變（消失仍提早約 1 秒）
+            const dur = Math.max(3800, durationMs || 4000);
+            setTimeout(() => { if (el) el.style.opacity = '0'; }, dur - 2300);
+            setTimeout(() => {
+                if (el === _centerHeadEl) _centerHeadEl = null;
+                el.remove();
+            }, dur - 800);
+        } catch (e) { /* 跨域或無 Canvas 時靜默 */ }
+    }
+
+    // ════════════════════════════════════════
     //  主效果流程
     // ════════════════════════════════════════
     async function runEffect(voiceText, isTest = false) {
+        if (!CONFIG.enabled) return;
         // 只在 ChatRoom 畫面內作用（避免在其他畫面觸發）
         if (typeof CurrentScreen !== 'undefined' && CurrentScreen !== 'ChatRoom') {
             return;
         }
         refreshCanvasCache();
 
-        // ① 先存原始表情，立即套用新表情
-        //    如果本次會觸發高潮（BC 自帶表情），跳過 IVH 的表情替換
+        // ① 先換表情（高潮時用 BC 自帶表情，跳過 IVH 替換）
         const orgasmStageNow = Player?.ArousalSettings?.OrgasmStage ?? 0;
         const willOrgasm = orgasmStageNow === 2;
-        let savedExpr = null;
-        if (CONFIG.expression && !willOrgasm) {
-            try { savedExpr = saveExpression(); } catch(e) {}
-            const randomExpr = EXPRESSION_SETS[Math.floor(Math.random() * EXPRESSION_SETS.length)];
-            try { applyExpression(randomExpr); } catch(e) {}
+        const doExpr = CONFIG.expression && !willOrgasm && EXPRESSION_SETS && EXPRESSION_SETS.length;
+        if (doExpr) {
+            pushExprEffect(EXPRESSION_SETS[Math.floor(Math.random() * EXPRESSION_SETS.length)]);
+            // 等表情的 Canvas 重建好，再放其餘特效（截圖才有新表情）
+            await wait(280);
         }
 
         const arousalAdd   = addArousal();
@@ -1251,7 +2189,11 @@ function addArousal() {
         const totalDur     = BASE_EFFECT_DURATION * Math.min(scale, 1.4);
         const wordCount    = voiceText.trim().split(/\s+/).length;
 
+        // ② 狀態 emote（僅真實觸發，避免測試時洗版）
+        if (!isTest) sendStatusEmote();
+
         // ③ 視覺效果同時觸發
+        if (CONFIG.centerHeadshot) showCenterHeadshot(totalDur + 1500);
         triggerVignette();
         triggerScreenDistort();
         triggerPinkFlash();
@@ -1259,7 +2201,11 @@ function addArousal() {
         triggerHypnoWaves(wordCount);
         triggerDanmakuMulti(voiceText, danmakuCount);
         triggerSteamParticles();
-        if (CONFIG.sound) triggerBreathSound(scale);
+        if (CONFIG.sound) {
+            triggerBreathSound(scale);                                   // 催眠喘息聲（催眠分類）
+            // 雙重音效：同時再播一個觸發音（催眠2 分類，預設心跳）
+            if (CONFIG.dualSound) playSoundCategory('voice', Math.min(0.5 + scale * 0.15, 0.9));
+        }
 
         // ④ 高潮特效
         //   climaxMode='orgasm' → BC OrgasmStage=2（真正高潮）時觸發
@@ -1281,10 +2227,10 @@ function addArousal() {
         // ⑤ 等效果播完
         await wait(totalDur);
 
-        // ⑥ 恢復表情（特效結束後 1~2 秒，高潮時不恢復）
-        if (CONFIG.expression && savedExpr && !willOrgasm) {
+        // ⑥ 恢復表情（特效結束後 1~2 秒）
+        if (doExpr) {
             await wait(1200 + Math.random() * 800);
-            try { applyExpression(savedExpr); } catch(e) {}
+            popExprEffect();
         }
     }
 
@@ -1305,52 +2251,6 @@ function addArousal() {
     // ════════════════════════════════════════
     //  /ivh 指令系統
     // ════════════════════════════════════════
-    const HELP_TEXT = isZh() ? `
-🌀 IVH v${MOD_VER} 指令列表：
-  /ivh show          — 顯示控制面板
-  /ivh test [文字]   — 立即觸發效果
-  /ivh climax        — 測試高潮特效
-  /ivh calibrate     — 頭部座標校正面板
-  /ivh on/off        — 全部效果開/關
-  /ivh intensity <值>— 強度 0.1~3.0
-  /ivh toggle <效果> — 切換單一效果
-    pink|spiral|waves|distort|vignette
-    danmaku|steam|expr|arousal|climax|sound
-  /ivh help          — 顯示此說明
-`.trim() : `
-🌀 IVH v${MOD_VER} Commands:
-  /ivh show          — Show control panel
-  /ivh test [text]   — Trigger effect now
-  /ivh climax        — Test climax effect
-  /ivh calibrate     — Head position calibration
-  /ivh on/off        — Enable/disable all effects
-  /ivh intensity <v> — Intensity 0.1~3.0
-  /ivh toggle <key>  — Toggle single effect
-    pink|spiral|waves|distort|vignette
-    danmaku|steam|expr|arousal|climax|sound
-  /ivh help          — Show this help
-`.trim();
-
-    const TOGGLE_MAP = {
-        pink:    'pinkFlash',
-        spiral:  'hypnoSpiral',
-        waves:   'hypnoWaves',
-        distort: 'screenDistort',
-        vignette:'vignette',
-        danmaku: 'danmaku',
-        steam:   'steamParticles',
-        expr:    'expression',
-        arousal: 'arousal',
-        climax:  'climax',
-        sound:   'sound',
-    };
-
-    // climaxMode 單獨切換（不是 boolean，用 toggle 特殊處理）
-    function toggleClimaxMode() {
-        CONFIG.climaxMode = CONFIG.climaxMode === 'always' ? 'orgasm' : 'always';
-        printChat(`💥 [IVH] 高潮特效模式 → ${CONFIG.climaxMode === 'always' ? '每次觸發' : '僅高潮時'}`);
-    }
-
     // timeoutMs: 若 > 0，訊息在 N 毫秒後自動淡出移除
     function printChat(text, timeoutMs = 0) {
         try {
@@ -1399,7 +2299,7 @@ function addArousal() {
         const sub = (parts[1] ?? '').toLowerCase();
 
         if (!sub || sub === 'help') {
-            printChat(HELP_TEXT);
+            printChat(ui('help', { v: MOD_VER }));
             return true;
         }
 
@@ -1410,37 +2310,15 @@ function addArousal() {
             return true;
         }
 
-        if (sub === 'on') {
-            Object.keys(CONFIG).forEach(k => { if (k !== 'intensity') CONFIG[k] = true; });
-            printChat('🌀 [IVH] 全部效果已開啟');
-            return true;
-        }
-
-        if (sub === 'off') {
-            Object.keys(CONFIG).forEach(k => { if (k !== 'intensity') CONFIG[k] = false; });
-            printChat('🌀 [IVH] 全部效果已關閉');
-            return true;
-        }
-
-        if (sub === 'intensity') {
-            const val = parseFloat(parts[2]);
-            if (isNaN(val) || val < 0.1 || val > 3.0) {
-                printChat('⚠️ [IVH] intensity 請輸入 0.1~3.0 之間的數值');
-            } else {
-                CONFIG.intensity = val;
-                printChat(`🌀 [IVH] 強度設為 ${val}`);
-            }
-            return true;
-        }
-
-        if (sub === 'toggle') {
-            const key = (parts[2] ?? '').toLowerCase();
-            const cfgKey = TOGGLE_MAP[key];
-            if (!cfgKey) {
-                printChat(`⚠️ [IVH] 未知效果「${key}」，可用: ${Object.keys(TOGGLE_MAP).join(', ')}`);
-            } else {
-                CONFIG[cfgKey] = !CONFIG[cfgKey];
-                printChat(`🌀 [IVH] ${key} → ${CONFIG[cfgKey] ? '開啟' : '關閉'}`);
+        if (sub === 'setting' || sub === 'settings') {
+            try {
+                if (typeof PreferenceSubscreenExtensionsOpen === 'function') {
+                    PreferenceSubscreenExtensionsOpen(PREF_ID);
+                } else {
+                    printChat(ui('cantOpenSettings'));
+                }
+            } catch (e) {
+                printChat('⚠️ ' + T('開啟設定頁失敗','Failed to open settings') + ': ' + e.message);
             }
             return true;
         }
@@ -1448,6 +2326,14 @@ function addArousal() {
         if (sub === 'climax') {
             triggerClimaxEffect(CONFIG.intensity);
             printChat('💥 [IVH] 高潮特效測試觸發');
+            return true;
+        }
+
+        if (sub === 'depth') {
+            const lv = Math.max(1, Math.min(3, parseInt(parts[2], 10) || currentDepthLevel() || 1));
+            refreshCanvasCache();
+            runDepthEffect(lv);
+            printChat(`🌀 [IVH] 深度效果測試（等級 ${lv}）— 目前為最小版，完整幽靈低語等效果尚未實作`);
             return true;
         }
 
@@ -1462,14 +2348,15 @@ function addArousal() {
             const chatContainer = document.getElementById('TextAreaChatLog') ||
                   document.querySelector('.ChatLog');
             if (!chatContainer) { printChat('⚠️ ' + T('找不到聊天框','Chat box not found')); return true; }
-            if (_panel) { printChat(T('面板已顯示中','Panel already open')); return true; }
+            // 已開啟則關閉並重建（避免殘留舊面板而無法操作）
+            if (_panel) removePanel();
             buildPanel(chatContainer);
             return true;
         }
 
 
 
-        printChat(`⚠️ [IVH] 未知指令「${sub}」，輸入 /ivh help 查看說明`);
+        printChat(ui('cmdUnknown', { sub }));
         return true;
     }
 
@@ -1598,14 +2485,23 @@ function addArousal() {
         title.innerHTML = '🌀 <b style="color:#ff99dd">IVH</b> <span style="color:#cc88bb;font-size:10px">v' + MOD_VER + '</span>';
         title.style.color = '#ffddee';
 
+        // ⚙ 齒輪 → 開啟偏好設定頁
+        const gearBtn = _mkBtn('⚙', '#3a2a55', '#cbb3ff', () => {
+            try {
+                if (typeof PreferenceSubscreenExtensionsOpen === 'function')
+                    PreferenceSubscreenExtensionsOpen(PREF_ID);
+            } catch (e) {}
+        });
+        gearBtn.title = T('開啟設定頁','Open settings');
+
         // 全開/全關 + X 關閉按鈕
         const allOnBtn  = _mkBtn(T('全開','All On'),  '#2d6b2d', '#88ff88', () => {
             getPanelToggles().forEach(t => { CONFIG[t.key] = true; });
-            _refreshToggles();
+            _refreshToggles(); saveSettings();
         });
         const allOffBtn = _mkBtn(T('全關','All Off'), '#6b2d2d', '#ff9999', () => {
             getPanelToggles().forEach(t => { CONFIG[t.key] = false; });
-            _refreshToggles();
+            _refreshToggles(); saveSettings();
         });
         const closeXBtn = document.createElement('button');
         closeXBtn.textContent = '✕';
@@ -1624,7 +2520,7 @@ function addArousal() {
 
         const btnGroup = document.createElement('div');
         btnGroup.style.cssText = 'display:flex;gap:4px;align-items:center';
-        btnGroup.append(allOnBtn, allOffBtn, closeXBtn);
+        btnGroup.append(gearBtn, allOnBtn, allOffBtn, closeXBtn);
         header.append(title, btnGroup);
 
         // ── 強度控制列 ──
@@ -1659,6 +2555,7 @@ function addArousal() {
         intensitySlider.addEventListener('input', () => {
             CONFIG.intensity = parseFloat(intensitySlider.value);
             intensityVal.textContent = CONFIG.intensity.toFixed(1);
+            saveSettings();
         });
         intensityRow.append(intensityLabel, intensitySlider, intensityVal);
 
@@ -1679,6 +2576,7 @@ function addArousal() {
             btn.addEventListener('click', () => {
                 CONFIG[key] = !CONFIG[key];
                 _styleToggleBtn(btn, key, icon, label);
+                saveSettings();
             });
             grid.appendChild(btn);
         });
@@ -1715,7 +2613,13 @@ function addArousal() {
             triggerVoiceEffect(txt, true);
         });
 
-        actionRow.append(testInput, testBtn);
+        // 深度測試（依目前深度上限，至少 1 級）
+        const depthBtn = _mkBtn(T('🌀 深度','🌀 Depth'), '#3a2a6e', '#bb99ff', () => {
+            refreshCanvasCache();
+            runDepthEffect(Math.max(1, CONFIG.depthMax || 1));
+        });
+
+        actionRow.append(testInput, testBtn, depthBtn);
 
         // ── 內容區 ──
         const collapsible = document.createElement('div');
@@ -1776,6 +2680,51 @@ function addArousal() {
     }
     let _domObserver = null;
 
+    // 白名單判斷：any 模式永遠通過；whitelist 模式需 sender 在名單內
+    function isTriggerAllowed(senderNum) {
+        if (CONFIG.whitelistMode !== 'whitelist') return true;
+        if (senderNum == null) return false; // 無法辨識來源 → 白名單模式下不觸發
+        return (CONFIG.whitelist || []).includes(Number(senderNum));
+    }
+
+    // 取訊息節點的發送者 MemberNumber
+    function getNodeSender(node) {
+        try {
+            const el = node.matches?.('.ChatMessage') ? node : node.querySelector?.('.ChatMessage');
+            const s  = el?.getAttribute('data-sender');
+            return s != null ? Number(s) : null;
+        } catch { return null; }
+    }
+
+    // 處理新進聊天節點：① [Voice] 本地催眠訊息 ② 白名單成員說出觸發詞
+    function handleChatNode(node) {
+        // 解析出真正的訊息元素（subtree 觀察會同時回報容器與內層 → 去重）
+        const msgEl = node.classList?.contains('ChatMessage')
+                      ? node
+                      : node.querySelector?.('.ChatMessage') || node;
+        if (msgEl._ivhHandled) return;        // 同一訊息只處理一次
+        msgEl._ivhHandled = true;
+
+        const text = msgEl.textContent || '';
+
+        // ① [Voice] 本地訊息（既有催眠系統整合，無發送者，視為自身效果）
+        if (msgEl.classList?.contains('ChatMessageLocalMessage') ||
+            msgEl.querySelector?.('.ChatMessageLocalMessage')) {
+            const m = text.match(/\[Voice\]\s*(.*)/s);
+            if (m) { triggerVoiceEffect(parseVoiceText(m[1])); return; }
+        }
+
+        // ② 自訂觸發詞：一般聊天訊息含觸發詞，且發送者通過白名單
+        const words = (CONFIG.triggerWords || []).filter(w => w && w.trim());
+        if (words.length === 0) return;
+        if (!msgEl.classList?.contains('ChatMessageChat')) return;  // 只認一般聊天
+        if (!words.some(w => text.includes(w))) return;
+        if (!isTriggerAllowed(getNodeSender(msgEl))) return;
+
+        const spoken = extractChatText(msgEl);
+        triggerVoiceEffect(spoken || words[0]);
+    }
+
     function setupDOMObserver() {
         const chatContainer =
               document.getElementById('TextAreaChatLog') ||
@@ -1791,17 +2740,11 @@ function addArousal() {
         if (_domObserver) { _domObserver.disconnect(); _domObserver = null; }
 
         _domObserver = new MutationObserver((mutations) => {
+            if (!CONFIG.enabled) return;
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (!(node instanceof HTMLElement)) continue;
-                    const isLocal =
-                          node.classList.contains('ChatMessageLocalMessage') ||
-                          !!node.querySelector?.('.ChatMessageLocalMessage');
-                    if (!isLocal) continue;
-                    const text       = node.textContent || '';
-                    const voiceMatch = text.match(/\[Voice\]\s*(.*)/s);
-                    if (!voiceMatch) continue;
-                    triggerVoiceEffect(parseVoiceText(voiceMatch[1]));
+                    handleChatNode(node);
                 }
             }
         });
@@ -1837,7 +2780,6 @@ function addArousal() {
                     playerDrawPos.y     = charY;
                     playerDrawPos.zoom  = zoom;
                     playerDrawPos.valid = true;
-                    _lastDrawFrame      = Date.now();
                     // 姿勢也每幀更新（不放在座標變化判斷內，避免姿勢變化被漏掉）
                     playerDrawPos.isKneeling = typeof character.IsKneeling === 'function' && character.IsKneeling();
                     playerDrawPos.isProne    = !!(
@@ -1926,6 +2868,988 @@ function addArousal() {
     }
 
     // ════════════════════════════════════════
+    //  設定頁（PreferenceRegisterExtensionSetting）
+    //  佈局：左側分頁鈕 / 中間內容區 / 右側 1350 說明框
+    // ════════════════════════════════════════
+    function waitForPreference() {
+        return new Promise(resolve => {
+            const check = () => {
+                if (typeof PreferenceRegisterExtensionSetting === 'function' &&
+                    typeof TranslationLanguage !== 'undefined') resolve();
+                else setTimeout(check, 500);
+            };
+            check();
+        });
+    }
+
+    // 分頁定義（key 對應繪製函式）
+    const IVH_TABS = [
+        { key: 'basic',   label: () => ui('tab_basic')   },
+        { key: 'effects', label: () => ui('tab_effects') },
+        { key: 'texts',   label: () => ui('tab_texts')   },
+        { key: 'expr',    label: () => ui('tab_expr')    },
+        { key: 'sounds',  label: () => ui('tab_sounds')  },
+        { key: 'about',   label: () => ui('tab_about')   },
+    ];
+
+    // 內容框（中間區）與卷軸視窗
+    const FRAME_X = 475, FRAME_Y = 178, FRAME_W = 850, FRAME_H = 732;
+    const CONTENT_X = 500;                 // 內容左緣
+    const CONTENT_TOP = 200;               // 內容第一列基準 y
+    const FRAME_BOT = FRAME_Y + FRAME_H;   // 視窗底
+
+    const EXT = {
+        activeTab: 'basic',
+        hoverDesc: '',
+        scroll: 0,
+        _maxScroll: 0,
+        _contentBottom: 0,
+        _mid: [],          // 中間區互動控制 [{x,y,w,h,onClick}]
+        _drag: null,       // 滑桿拖曳中 {x,w,min,max,step,key,save}
+        _inputs: {},       // DOM 輸入框 id -> element
+        _inputsUsed: null, // 本幀用到的 input id
+
+        // ── 生命週期 ──
+        load() {
+            this.scroll = 0;
+            this._bindCanvasEvents();
+        },
+        unload() { this._cleanup(); },
+        exit() { this.hoverDesc = ''; this._cleanup(); },
+        _cleanup() {
+            this._restoreExpr();
+            this._unbindCanvasEvents();
+            for (const id in this._inputs) { try { this._inputs[id].remove(); } catch {} }
+            this._inputs = {};
+            this._drag = null;
+            if (this._demoEl) { try { this._demoEl.remove(); } catch {} this._demoEl = null; this._demoCur = ''; }
+        },
+
+        // ── canvas 事件（拖曳滑桿 / 滾輪卷軸）──
+        _bindCanvasEvents() {
+            if (this._bound) return;
+            const cv = document.getElementById('MainCanvas') || document.querySelector('canvas');
+            if (!cv) return;
+            this._cv = cv;
+            this._onDown  = e => this._handleDown(e);
+            this._onMove  = e => this._handleMove(e);
+            this._onUp    = e => this._handleUp(e);
+            this._onWheel = e => this._handleWheel(e);
+            cv.addEventListener('mousedown', this._onDown);
+            window.addEventListener('mousemove', this._onMove);
+            window.addEventListener('mouseup', this._onUp);
+            cv.addEventListener('wheel', this._onWheel, { passive: false });
+            this._bound = true;
+        },
+        _unbindCanvasEvents() {
+            if (!this._bound || !this._cv) return;
+            this._cv.removeEventListener('mousedown', this._onDown);
+            window.removeEventListener('mousemove', this._onMove);
+            window.removeEventListener('mouseup', this._onUp);
+            this._cv.removeEventListener('wheel', this._onWheel);
+            this._bound = false;
+        },
+        _evCoords(e) {
+            const r = this._cv.getBoundingClientRect();
+            return {
+                x: (e.clientX - r.left) / r.width  * 2000,
+                y: (e.clientY - r.top)  / r.height * 1000,
+            };
+        },
+        _handleDown(e) {
+            const p = this._evCoords(e);
+            // 命中卷軸 → 開始拖曳卷軸
+            const sb = this._sb;
+            if (sb && p.x >= sb.x - 6 && p.x <= sb.x + sb.w + 6 && p.y >= sb.trackTop && p.y <= sb.trackTop + sb.trackH) {
+                const onThumb = p.y >= sb.thumbY && p.y <= sb.thumbY + sb.thumbH;
+                this._sbDrag = { grab: onThumb ? (p.y - sb.thumbY) : sb.thumbH / 2 };
+                this._applyScrollDrag(p.y);
+                return;
+            }
+            // 命中滑桿 → 開始拖曳並立即跳到該位置
+            for (const c of this._mid) {
+                if (c.slider && p.x >= c.x && p.x <= c.x + c.w && p.y >= c.y && p.y <= c.y + c.h) {
+                    this._drag = c.slider;
+                    this._applyDrag(p.x);
+                    return;
+                }
+            }
+        },
+        _handleMove(e) {
+            if (this._sbDrag) { this._applyScrollDrag(this._evCoords(e).y); return; }
+            if (!this._drag) return;
+            this._applyDrag(this._evCoords(e).x);
+        },
+        _handleUp() {
+            if (this._sbDrag) { this._sbDrag = null; return; }
+            if (!this._drag) return;
+            const s = this._drag; this._drag = null;
+            if (s.save) s.save();
+        },
+        _applyScrollDrag(py) {
+            const sb = this._sb; if (!sb || this._maxScroll <= 0) return;
+            const thumbY = py - this._sbDrag.grab;
+            const denom = sb.trackH - sb.thumbH;
+            const ratio = denom > 0 ? (thumbY - sb.trackTop) / denom : 0;
+            this.scroll = Math.max(0, Math.min(this._maxScroll, ratio * this._maxScroll));
+        },
+        _applyDrag(px) {
+            const s = this._drag; if (!s) return;
+            let t = (px - s.x) / s.w; t = Math.max(0, Math.min(1, t));
+            let v = s.min + t * (s.max - s.min);
+            v = Math.round(v / s.step) * s.step;
+            v = Math.max(s.min, Math.min(s.max, parseFloat(v.toFixed(2))));
+            s.set(v);
+        },
+        _handleWheel(e) {
+            const p = this._evCoords(e);
+            // 右側面板卷動（如音效庫）
+            if (p.x >= 1350 && p.x <= 1900 && p.y >= 200 && p.y <= 900 && this._rmaxScroll > 0) {
+                e.preventDefault();
+                this._rscroll = Math.max(0, Math.min(this._rmaxScroll, (this._rscroll || 0) + (e.deltaY > 0 ? 50 : -50)));
+                return;
+            }
+            if (p.x < FRAME_X || p.x > FRAME_X + FRAME_W || p.y < FRAME_Y || p.y > FRAME_BOT) return;
+            if (this._maxScroll <= 0) return;
+            e.preventDefault();
+            this.scroll = Math.max(0, Math.min(this._maxScroll, this.scroll + (e.deltaY > 0 ? 60 : -60)));
+        },
+
+        // ── 主繪製 ──
+        run() {
+            this.hoverDesc = '';
+            this._demoKind = '';
+            this._rmaxScroll = 0;
+            this._mid = [];
+            this._inputsUsed = new Set();
+
+            // 標題 + 離開鈕
+            DrawText('Immersive Voice Hypnosis  v' + MOD_VER, 950, 110, 'White', 'Gray');
+            DrawButton(1815, 75, 90, 90, '', 'White', 'Icons/Exit.png', ui('exit'));
+
+            // 左上「IVH 啟用」主開關
+            DrawButton(150, 230, 300, 50,
+                       CONFIG.enabled ? ui('enabledOn') : ui('enabledOff'),
+                       CONFIG.enabled ? '#7a3a8a' : 'White', '', '', false);
+            if (MouseIn(150, 230, 300, 50)) this.hoverDesc = ui('enabledDesc');
+
+            // 左側分頁鈕
+            IVH_TABS.forEach((tab, i) => {
+                const y = 330 + i * 95;
+                DrawButton(150, y, 300, 50, tab.label(),
+                           this.activeTab === tab.key ? '#7a3a8a' : 'White', '', '', false);
+            });
+
+            // 右側區（說明框；某些分頁改用它放編輯面板）
+            DrawEmptyRect(1350, 200, 550, 700, 'White');
+            const rightPanel = this['_right_' + this.activeTab];
+            const hasRight = typeof rightPanel === 'function';
+            if (!hasRight) DrawText(ui('info'), 1625, 235, 'White', 'Gray');
+
+            // 中間內容框 + 卷軸裁切
+            DrawEmptyRect(FRAME_X, FRAME_Y, FRAME_W, FRAME_H, '#888');
+            MainCanvas.save();
+            MainCanvas.beginPath();
+            MainCanvas.rect(FRAME_X, FRAME_Y, FRAME_W, FRAME_H);
+            MainCanvas.clip();
+            this._contentBottom = CONTENT_TOP;
+            const drawer = this['_run_' + this.activeTab];
+            if (typeof drawer === 'function') drawer.call(this);
+            MainCanvas.restore();
+
+            // 卷軸計算 + 軌道（可拖曳）
+            this._maxScroll = Math.max(0, this._contentBottom - FRAME_BOT + 20);
+            if (this._maxScroll > 0) {
+                const trackTop = FRAME_Y + 4;
+                const trackH = FRAME_H - 8;
+                const thumbH = Math.max(40, trackH * (FRAME_H / (this._contentBottom - CONTENT_TOP + 40)));
+                const thumbY = trackTop + (trackH - thumbH) * (this.scroll / this._maxScroll);
+                const sbX = FRAME_X + FRAME_W - 17;
+                DrawRect(sbX, trackTop, 14, trackH, '#333');
+                DrawRect(sbX, thumbY, 14, thumbH, this._sbDrag ? '#ff80cc' : '#c060c0');
+                this._sb = { x: sbX, w: 14, trackTop, trackH, thumbY, thumbH };
+            } else { this._sb = null; if (this.scroll !== 0) this.scroll = 0; }
+
+            // 右側：分頁編輯面板 或 說明文字＋動畫
+            if (hasRight) {
+                rightPanel.call(this);
+                this._renderDemo('');   // 隱藏動畫
+            } else {
+                if (this.hoverDesc)
+                    DrawTextWrap(this.hoverDesc, 1370, 260, 510, 260, 'White', undefined, 6);
+                this._renderDemo(this._demoKind);
+            }
+
+            // 隱藏本幀未使用 / 卷出視窗的 DOM 輸入框
+            for (const id in this._inputs) {
+                if (!this._inputsUsed.has(id)) this._inputs[id].style.display = 'none';
+            }
+        },
+
+        // ── 說明區動畫示範 ──
+        _ensureDemoEl() {
+            if (!this._demoEl) {
+                const el = document.createElement('div');
+                Object.assign(el.style, {
+                    position: 'fixed', zIndex: '9999', pointerEvents: 'none',
+                    overflow: 'hidden', borderRadius: '8px',
+                    background: 'rgba(10,0,18,0.6)',
+                    display: 'none',
+                });
+                document.body.appendChild(el);
+                this._demoEl = el;
+                this._demoCur = '';
+            }
+            return this._demoEl;
+        },
+        _renderDemo(kind) {
+            const el = this._ensureDemoEl();
+            if (!kind) { el.style.display = 'none'; this._demoCur = ''; return; }
+            // 定位於說明框下半部（canvas 座標 1370,560 510×320）
+            const cv = this._cv || document.getElementById('MainCanvas') || document.querySelector('canvas');
+            if (!cv) { el.style.display = 'none'; return; }
+            const r = cv.getBoundingClientRect();
+            const sx = r.width / 2000, sy = r.height / 1000;
+            el.style.display = '';
+            el.style.left   = (r.left + 1370 * sx) + 'px';
+            el.style.top    = (r.top  + 560  * sy) + 'px';
+            el.style.width  = (510 * sx) + 'px';
+            el.style.height = (320 * sy) + 'px';
+            if (this._demoCur !== kind) { this._demoCur = kind; el.innerHTML = this._demoHTML(kind); }
+        },
+        _demoHTML(kind) {
+            const W = (inner) => `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;position:relative">${inner}</div>`;
+            switch (kind) {
+                case 'hypnoSpiral': {
+                    // 真正的阿基米德螺旋線（與實際效果一致）
+                    const turns = 3, pts = 120; let d = '';
+                    for (let i = 0; i <= turns * pts; i++) {
+                        const a = (i / pts) * Math.PI * 2;
+                        const r = (i / (turns * pts)) * 88;
+                        const x = (r * Math.cos(a)).toFixed(1);
+                        const y = (r * Math.sin(a)).toFixed(1);
+                        d += (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
+                    }
+                    return W(`<svg viewBox="-100 -100 200 200" width="150" height="150" style="animation:ivhSpiralSpin 2.6s linear infinite;filter:drop-shadow(0 0 6px #ff66bb)">
+                        <path d="${d}" fill="none" stroke="#ff88cc" stroke-width="3.5" stroke-linecap="round"/>
+                        <circle cx="0" cy="0" r="5" fill="#ffe6f5"/>
+                    </svg>`);
+                }
+                case 'hypnoWaves':
+                    return W(['0s','0.6s','1.2s'].map(d=>`<div style="position:absolute;width:24px;height:24px;border:3px solid #ff88cc;border-radius:50%;animation:ivhDemoRing 1.8s ease-out ${d} infinite"></div>`).join(''));
+                case 'pinkFlash':
+                    return W(`<div style="width:200px;height:130px;border-radius:50%;background:radial-gradient(ellipse at center,rgba(255,105,180,0.55) 30%,rgba(255,60,150,0.1) 100%);animation:ivhPinkPulse 2s ease-in-out infinite"></div>`);
+                case 'vignette':
+                    return W(`<div style="width:230px;height:150px;background:radial-gradient(ellipse at center,transparent 30%,rgba(0,0,0,0.85) 100%);animation:ivhVignette 2.6s ease-in-out infinite"></div>`);
+                case 'screenDistort':
+                    return W(`<div style="font-size:54px;animation:ivhDemoDistort 1.8s ease-in-out infinite">🔮</div>`);
+                case 'danmaku':
+                    return W('催眠中…'.split('').map((c,i)=>`<span style="display:inline-block;font-size:30px;color:#ffd6eb;text-shadow:0 0 10px #ff50a0;animation:ivhWaveChar 1.6s ease-in-out ${i*90}ms infinite">${c}</span>`).join(''));
+                case 'steamParticles':
+                    return W(['0s','0.4s','0.8s','0.6s'].map((d,i)=>`<div style="position:absolute;left:50%;top:58%;width:40px;height:40px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,0.55),transparent 70%);filter:blur(4px);animation:ivhBreath${i%3} 1.9s ease-out ${d} infinite"></div>`).join(''));
+                case 'climax':
+                    return W(`<div style="width:210px;height:140px;border-radius:8px;background:white;animation:ivhClimaxFlash 1.3s ease-out infinite"></div>`);
+                case 'centerHeadshot':
+                    return W(`<div style="width:120px;height:120px;border-radius:50%;border:3px solid #ff80cc;background:radial-gradient(circle,#3a1040,#1a0028);box-shadow:0 0 30px #ff66bb88;display:flex;align-items:center;justify-content:center;font-size:48px">🙂</div>`);
+                case 'ghost':
+                    return W(`<div style="position:relative;width:180px;height:180px">
+                        <div style="position:absolute;left:18px;top:30px;width:90px;height:140px;border-radius:40px 40px 0 0;background:rgba(8,2,14,0.85);animation:ivhPinkPulse 2.4s ease-in-out infinite"></div>
+                        <div style="position:absolute;left:70px;top:0;font-size:16px;color:#ffd6eb;text-shadow:0 0 8px #b050c8;animation:ivhWaveChar 1.8s ease-in-out infinite">好乖…</div>
+                    </div>`);
+                case 'figureBlur':
+                    return W(`<div style="position:relative;width:200px;height:150px;border-radius:8px;background:repeating-linear-gradient(45deg,#5a3a6a,#5a3a6a 10px,#42284f 10px,#42284f 20px);filter:blur(5px);animation:ivhPinkPulse 2.4s ease-in-out infinite"></div>
+                        <div style="position:absolute;width:70px;height:110px;border-radius:30px 30px 0 0;background:#caa6e6"></div>`);
+                case 'chatlogBlur':
+                    return W(`<div style="width:200px;animation:ivhPinkPulse 2.4s ease-in-out infinite">
+                        ${[0,1,2,3].map(()=>`<div style="height:12px;margin:8px 0;border-radius:6px;background:#caa6e6;filter:blur(2.5px)"></div>`).join('')}
+                    </div>`);
+                default: {
+                    const map = { expression:'😳', arousal:'💗', sound:'🔊', dualSound:'🔊', emoteEnabled:'📢' };
+                    return W(`<div style="font-size:74px;opacity:0.9;animation:ivhPinkPulse 2.2s ease-in-out infinite">${map[kind]||'✨'}</div>`);
+                }
+            }
+        },
+
+        click() {
+            if (MouseIn(1815, 75, 90, 90)) { if (typeof PreferenceExit === 'function') PreferenceExit(); return; }
+            if (MouseIn(150, 230, 300, 50)) { CONFIG.enabled = !CONFIG.enabled; saveSettings(); return; }
+            for (let i = 0; i < IVH_TABS.length; i++) {
+                if (MouseIn(150, 330 + i * 95, 300, 50)) {
+                    if (this.activeTab !== IVH_TABS[i].key) {
+                        if (this.activeTab === 'expr') this._restoreExpr();  // 離開表情分頁還原
+                        this.activeTab = IVH_TABS[i].key; this.scroll = 0; this._rscroll = 0;
+                    }
+                    return;
+                }
+            }
+            // 右側面板控制（不受內容框限制）
+            for (const c of this._mid) {
+                if (c.right && c.onClick && MouseIn(c.x, c.y, c.w, c.h)) { c.onClick(); return; }
+            }
+            // 中間區控制（須在內容框內，且非拖曳）
+            if (MouseY < FRAME_Y || MouseY > FRAME_BOT) return;
+            for (const c of this._mid) {
+                if (!c.right && c.onClick && MouseIn(c.x, c.y, c.w, c.h)) { c.onClick(); return; }
+            }
+        },
+
+        // 右側面板按鈕（絕對座標，不卷動）
+        rbtn(x, y, w, h, label, color, desc, onClick) {
+            DrawButton(x, y, w, h, label, color || 'White', '', '', false);
+            if (desc && MouseIn(x, y, w, h)) this._rdesc = desc;
+            this._mid.push({ x, y, w, h, onClick, right: true });
+        },
+
+        // 表情編輯預覽：在「克隆角色」上套表情並截臉
+        //  → 完全不碰真實 Player，不會觸發 WCE 重新同步（避免連線速率問題）
+        //  只在表情改變時重建（非每幀），CharacterLoadCanvas 非同步 → 多截幾次
+        _ensureExprPreview(work) {
+            if (!work) return;
+            const key = JSON.stringify(work);
+            if (key === this._exprPrevKey) return;
+            this._exprPrevKey = key;
+            try {
+                const map = _expandExpr(work);
+                const clone = Object.assign(Object.create(Object.getPrototypeOf(Player)), Player);
+                clone.MemberNumber = -77777;
+                clone.Appearance = Player.Appearance.map(a => {
+                    const gn = a.Asset.Group.Name;
+                    if (map[gn] === undefined) return a;
+                    const na = Object.assign({}, a);
+                    na.Property = Object.assign({}, a.Property);
+                    na.Property.Expression = map[gn];
+                    return na;
+                });
+                clone.Canvas = null; clone.CanvasBlink = null; clone.MustDraw = true;
+                CharacterLoadCanvas(clone);
+                const cap = () => captureFaceImage(img => { this._exprFaceImg = img; }, clone.Canvas);
+                cap(); setTimeout(cap, 160); setTimeout(cap, 420);
+            } catch (e) {}
+        },
+        // 不再改動真實 Player → 無需還原（保留空殼相容舊呼叫）
+        _restoreExpr() { this._exprPrevKey = ''; this._exprFaceImg = null; },
+
+        // ── 中間區繪製工具（cy 為內容座標，繪製時自動扣卷軸）──
+        _y(cy) { return cy - this.scroll; },
+        _track(cyBottom) { if (cyBottom > this._contentBottom) this._contentBottom = cyBottom; },
+
+        // 純標題（不可按，hover 顯示說明）
+        title(cy, text, desc) {
+            const y = this._y(cy);
+            const prev = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
+            DrawTextFit(text, CONTENT_X, y, 260, 'White', 'Gray');
+            MainCanvas.textAlign = prev;
+            this._track(cy + 20);
+            if (desc && MouseIn(CONTENT_X, y - 20, 260, 40) && MouseY >= FRAME_Y && MouseY <= FRAME_BOT)
+                this.hoverDesc = desc;
+        },
+        // 分隔標題（置中）
+        sep(cy, text) {
+            DrawText(text, 900, this._y(cy), 'White', 'Gray');
+            this._track(cy + 15);
+        },
+        // 一般按鈕（demoKind：hover 時在說明區下方顯示對應動畫）
+        btn(cx, cy, w, h, label, color, desc, onClick, demoKind) {
+            const y = this._y(cy);
+            DrawButton(cx, y, w, h, label, color || 'White', '', '', false);
+            this._track(cy + h);
+            if (MouseIn(cx, y, w, h) && MouseY >= FRAME_Y && MouseY <= FRAME_BOT) {
+                if (desc) this.hoverDesc = desc;
+                if (demoKind) this._demoKind = demoKind;
+            }
+            this._mid.push({ x: cx, y, w, h, onClick });
+        },
+        // 開關按鈕（on=反紫）
+        toggle(cx, cy, w, h, label, on, desc, onClick, demoKind) {
+            this.btn(cx, cy, w, h, label, on ? '#7a3a8a' : 'White', desc, onClick, demoKind);
+        },
+        // 滑桿（可拖曳；key 用於儲存）
+        slider(cx, cy, w, val, min, max, step, desc, setFn, saveFn) {
+            const y = this._y(cy);
+            const t = (val - min) / (max - min);
+            DrawRect(cx, y + 16, w, 6, '#666');
+            DrawRect(cx, y + 16, Math.round(w * t), 6, '#c060c0');
+            DrawRect(Math.round(cx + w * t) - 6, y + 6, 12, 26, 'White');
+            this._track(cy + 40);
+            if (desc && MouseIn(cx, y, w, 40) && MouseY >= FRAME_Y && MouseY <= FRAME_BOT) this.hoverDesc = desc;
+            this._mid.push({ x: cx, y, w, h: 40,
+                slider: { x: cx, w, min, max, step, set: setFn, save: saveFn } });
+        },
+        // DOM 輸入框（cy 內容座標；卷出視窗自動隱藏）
+        input(id, cx, cy, w, h, value, opts) {
+            opts = opts || {};
+            this._inputsUsed.add(id);
+            let el = this._inputs[id];
+            if (!el) {
+                el = document.createElement(opts.multiline ? 'textarea' : 'input');
+                if (!opts.multiline) el.type = opts.type || 'text';
+                Object.assign(el.style, {
+                    position: 'fixed', zIndex: '10000', boxSizing: 'border-box',
+                    background: 'rgba(20,5,30,0.95)', color: '#ffeeff',
+                    border: '1px solid #b060c0', borderRadius: '4px',
+                    padding: '2px 6px', fontFamily: 'monospace', outline: 'none',
+                    resize: 'none',
+                });
+                if (opts.placeholder) el.placeholder = opts.placeholder;
+                el.addEventListener('keydown', ev => ev.stopPropagation());
+                el.addEventListener('input',  () => { if (opts.onChange) opts.onChange(el.value); });
+                el.addEventListener('change', () => { if (opts.onChange) opts.onChange(el.value); });
+                el.addEventListener('blur',   () => { if (opts.onChange) opts.onChange(el.value); });
+                document.body.appendChild(el);
+                this._inputs[id] = el;
+            }
+            if (document.activeElement !== el) el.value = value;
+            const y = this._y(cy);
+            this._track(cy + h);
+            // 卷出視窗 → 隱藏
+            if (y < FRAME_Y || y + h > FRAME_BOT) { el.style.display = 'none'; return; }
+            const r = this._cv ? this._cv.getBoundingClientRect()
+                               : (document.getElementById('MainCanvas') || document.querySelector('canvas')).getBoundingClientRect();
+            const sx = r.width / 2000, sy = r.height / 1000;
+            el.style.display = '';
+            el.style.left   = (r.left + cx * sx) + 'px';
+            el.style.top    = (r.top  + y  * sy) + 'px';
+            el.style.width  = (w * sx) + 'px';
+            el.style.height = (h * sy) + 'px';
+            el.style.fontSize = Math.round(20 * sy) + 'px';
+        },
+
+        // 深度效果層定義
+        _depthRows() {
+            return [
+                { tag: '輕', cfg: 'depthLight', items: [['smoke','煙霧'],['pant','喘氣'],['chatDanmaku','彈幕'],['ghost','人影']] },
+                { tag: '中', cfg: 'depthMed',   items: [['figureBlur','人物模糊'],['pant','喘氣'],['sfx','音效']] },
+                { tag: '重', cfg: 'depthHeavy', items: [['chatlogBlur','聊天模糊'],['pant','喘氣']] },
+            ];
+        },
+
+        // ════════ 基本設定 ════════
+        _run_basic() {
+            const prev = MainCanvas.textAlign;
+
+            // 催眠強度
+            this.title(232, ui('intensity'), '整體效果強度（0.1~3.0）。同時決定背景催眠深度：≈1=輕、2=中、3=重，但不超過下方「催眠深度」上限。可直接拖曳滑桿。');
+            this.slider(700, 215, 380, CONFIG.intensity, 0.1, 3.0, 0.1,
+                '拖曳調整整體強度（0.1~3.0）。',
+                v => { CONFIG.intensity = v; }, () => saveSettings());
+            DrawText(CONFIG.intensity.toFixed(1), 1130, this._y(232), 'White', 'Gray');
+
+            // 催眠深度（取代背景循環開關；無=關閉）
+            this.title(312, ui('depthMax'), '背景催眠的最深程度（與 VOICE 觸發分開）。設「無」即完全關閉背景循環；輕/中/重決定氛圍強弱。');
+            [[0, ui('depthNone')], [1, ui('depthLight')], [2, ui('depthMed')], [3, ui('depthHeavy')]].forEach(([v, lb], i) => {
+                this.toggle(700 + i * 95, 290, 90, 45, lb, CONFIG.depthMax === i, null,
+                    () => { CONFIG.depthMax = i; saveSettings(); applyDepthLoop(); });
+            });
+
+            // 循環時間（直接輸入）
+            this.title(382, ui('interval'), '每隔幾分鐘自動播放一次背景催眠（1~99 分）。深度為「無」時不會循環。');
+            this.input('ivh-interval', 700, 365, 110, 42, String(CONFIG.depthIntervalMin),
+                { type: 'number', onChange: val => {
+                    let n = parseInt(val, 10); if (isNaN(n)) n = CONFIG.depthIntervalMin;
+                    CONFIG.depthIntervalMin = Math.max(1, Math.min(99, n));
+                    saveSettings(); applyDepthLoop();
+                }});
+            {
+                const _p = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
+                DrawTextFit(ui('minutes'), 830, this._y(382), 150, 'White', 'Gray');
+                MainCanvas.textAlign = _p;
+            }
+
+            // 深度效果
+            this.sep(450, ui('depthEffects'));
+            this._depthRows().forEach((row, ri) => {
+                const cy = 475 + ri * 55;
+                const prev2 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
+                DrawTextFit(row.tag, CONTENT_X + 5, this._y(cy + 20), 40, 'White', 'Gray');
+                MainCanvas.textAlign = prev2;
+                this._track(cy + 40);
+                const demoMap = { smoke:'pinkFlash', pant:'steamParticles', chatDanmaku:'danmaku',
+                                  ghost:'ghost', figureBlur:'figureBlur', chatlogBlur:'chatlogBlur', sfx:'sound' };
+                const descMap = { smoke:'不定時淡粉煙霧', pant:'規律喘氣白霧', chatDanmaku:'聊天訊息變催眠彈幕',
+                                  ghost:'背後低語人影＋耳邊文字', figureBlur:'畫面模糊但人物/人影保持清晰',
+                                  chatlogBlur:'右側聊天訊息模糊', sfx:'播放深度音效' };
+                row.items.forEach(([k, lb], ci) => {
+                    this.toggle(560 + ci * 132, cy, 124, 40, lb, !!CONFIG[row.cfg][k], descMap[k],
+                        () => { CONFIG[row.cfg][k] = !CONFIG[row.cfg][k]; saveSettings(); }, demoMap[k]);
+                });
+            });
+
+            // 觸發對象
+            this.title(662, ui('triggerTarget'), '誰說出觸發詞時會讓你進入催眠。「僅白名單」時只有下方名單內的成員有效。');
+            this.toggle(700, 640, 140, 45, ui('anyone'),       CONFIG.whitelistMode === 'any', null,
+                () => { CONFIG.whitelistMode = 'any'; saveSettings(); });
+            this.toggle(850, 640, 140, 45, ui('whitelistOnly'), CONFIG.whitelistMode === 'whitelist', null,
+                () => { CONFIG.whitelistMode = 'whitelist'; saveSettings(); });
+
+            // 白名單輸入
+            this.title(712, ui('whitelist'), '輸入會員編號，以逗號或空白分隔。僅「僅白名單」模式下生效。');
+            this.input('ivh-whitelist', 700, 698, 480, 42, (CONFIG.whitelist || []).join(', '),
+                { placeholder: '例：12345, 67890', onChange: val => {
+                    CONFIG.whitelist = (val.match(/\d+/g) || []).map(Number);
+                    saveSettings();
+                }});
+
+            // 允許他人編輯
+            this.toggle(500, 760, 480, 45,
+                CONFIG.allowOthersEdit ? ui('allowOthersOn') : ui('allowOthersOff'),
+                CONFIG.allowOthersEdit,
+                '開啟後，裝有 IVH 的人查看你的角色資料時可增減你的催眠文本（透過 OnlineSharedSettings 公告）。',
+                () => { CONFIG.allowOthersEdit = !CONFIG.allowOthersEdit; saveSettings(); publishSharedSettings(); });
+
+            // 匯出 / 匯入
+            this.btn(500, 820, 230, 45, ui('export'), 'White',
+                '把所有設定下載為 JSON 檔。', () => exportSettings());
+            this.btn(750, 820, 230, 45, ui('import'), 'White',
+                '從 JSON 檔還原所有設定。', () => importSettings());
+            this._track(875);
+
+            MainCanvas.textAlign = prev;
+        },
+
+        // ════════ 效果設定 ════════
+        _effectToggles() {
+            return [
+                ['pinkFlash',      '🌸 粉紅暈染', '畫面泛起粉紅光暈，營造迷濛氛圍。'],
+                ['hypnoSpiral',    '🌀 催眠螺旋', '在頭部上方出現旋轉螺旋。'],
+                ['hypnoWaves',     '〰️ 同心電波', '畫面左側出現向外擴張的同心圓波。'],
+                ['screenDistort',  '🔮 畫面扭曲', '畫面輕微旋轉模糊，像意識被攪動。'],
+                ['vignette',       '🌑 邊緣暗角', '畫面四周變暗，聚焦中央。'],
+                ['danmaku',        '💬 彈幕文字', '主台詞在頭上、旁白句散落左側（含聊天歷史）。'],
+                ['steamParticles', '💨 喘氣白霧', '嘴邊呼出柔和白霧，向左右下方飄散。'],
+                ['expression',     '😳 表情切換', '催眠時隨機套用表情，結束後還原。'],
+                ['climax',         '💥 高潮特效', '畫面碎裂＋紅白閃光＋震動。'],
+                ['sound',          '🔊 喘息聲音', '播放喘息音效（需音效設定）。'],
+                ['centerHeadshot', '🖼 中央頭像', '每次觸發在畫面中央裁出頭像，螺旋／喘氣以它為基準（忽略分頁）。'],
+                ['dualSound',      '🔊 雙重音效', '播放說話聲的同時，疊放一個觸發音（鐘擺等，使用「催眠」分類音效）。'],
+                ['emoteEnabled',   '📢 狀態訊息', '觸發時發送一條動作訊息，讓他人知道你的狀態。'],
+            ];
+        },
+        _run_effects() {
+            this.title(232, '效果設定', '逐項開關 VOICE 觸發時的各種效果，滑鼠移到項目上可看說明。');
+            const list = this._effectToggles();
+            list.forEach(([key, label, desc], i) => {
+                const col = i % 2, row = (i - col) / 2;
+                const cx  = 500 + col * 410;
+                const cy  = 285 + row * 54;
+                this.toggle(cx, cy, 390, 44, label, !!CONFIG[key], desc,
+                    () => { CONFIG[key] = !CONFIG[key]; saveSettings(); }, key);
+            });
+            // 高潮觸發模式（特殊：orgasm / always）
+            const cyM = 285 + Math.ceil(list.length / 2) * 54 + 12;
+            this.title(cyM + 22, '高潮模式',
+                '「僅高潮時」＝BC 真正高潮才放破碎特效；「每次觸發」＝每次催眠都放。');
+            this.toggle(700, cyM, 200, 44,
+                CONFIG.climaxMode === 'always' ? '每次觸發' : '僅高潮時',
+                CONFIG.climaxMode === 'always', null,
+                () => { CONFIG.climaxMode = CONFIG.climaxMode === 'always' ? 'orgasm' : 'always'; saveSettings(); });
+        },
+
+        // ════════ 文本設定 ════════
+        _run_texts() {
+            this.title(228, '文本設定', '提供文本設定每行一句，使用 $me 代表被催眠者名稱。');
+
+            this.title(286, '催眠文本', '彈幕／人影旁白來源，會和 BCX 的聽我聲音一起使用，僅被催眠者能看見。');
+            this.input('ivh-texts', 500, 314, 800, 150, (CONFIG.customTexts || []).join('\n'),
+                { multiline: true, placeholder: '例：$me 好乖…放鬆…', onChange: val => {
+                    CONFIG.customTexts = val.split('\n').map(s => s.trim()).filter(Boolean);
+                    saveSettings();
+                }});
+
+            this.title(496, '狀態訊息', '觸發催眠時隨機發送的動作訊息。');
+            this.input('ivh-emotes', 500, 524, 800, 120, (CONFIG.emoteList || []).join('\n'),
+                { multiline: true, placeholder: '例：$me 的思緒變得混亂了', onChange: val => {
+                    CONFIG.emoteList = val.split('\n').map(s => s.trim()).filter(Boolean);
+                    saveSettings();
+                }});
+
+            this.title(676, '觸發詞', '白名單成員在聊天說出含這些詞的訊息時會觸發你的催眠（[Voice] 永遠有效）。每行一個。');
+            this.input('ivh-triggers', 500, 704, 800, 110, (CONFIG.triggerWords || []).join('\n'),
+                { multiline: true, placeholder: '例：催眠　沉睡', onChange: val => {
+                    CONFIG.triggerWords = val.split('\n').map(s => s.trim()).filter(Boolean);
+                    saveSettings();
+                }});
+            this._track(825);
+        },
+        // ════════ 表情設定（最多 10 組）════════
+        //  右側為一個「工作中表情」編輯區；點名稱→載入右側；點某列「保存」→把右側內容存到那一組
+        _exprWorkFrom(s) {
+            return s
+                ? { Eyebrows: s.Eyebrows ?? null, Eyes: s.Eyes ?? null, Mouth: s.Mouth ?? null, Blush: s.Blush ?? null }
+                : (() => { const c = saveExpression(); return { Eyebrows: c.Eyebrows, Eyes: c.Eyes, Mouth: c.Mouth, Blush: c.Blush }; })();
+        },
+        _run_expr() {
+            const sets = CONFIG.expressionSets || [];
+            if (!this._exprWork) this._exprWork = this._exprWorkFrom(sets[0]);
+
+            this.title(228, ui('tab_expr'), '');
+
+            sets.forEach((set, i) => {
+                const cy = 300 + i * 52;
+                const nm = ui('expr_item', { n: i + 1 });
+                this.btn(CONTENT_X, cy, 340, 46, nm, 'White', null,
+                    () => { this._exprWork = this._exprWorkFrom(set); this._exprPrevKey = ''; });
+                this.btn(850, cy, 130, 46, ui('save'), '#2d6b2d', null,
+                    () => ivhConfirm(ui('confirmReplace', { name: nm }), () => {
+                        const w = this._exprWork;
+                        sets[i] = { Eyebrows: w.Eyebrows, Eyes: w.Eyes, Mouth: w.Mouth, Blush: w.Blush };
+                        saveSettings(); EXPRESSION_SETS = CONFIG.expressionSets;
+                    }));
+                this.btn(988, cy, 130, 46, ui('delete'), '#6b2d2d', null,
+                    () => ivhConfirm(ui('confirmDelete', { name: nm }), () => {
+                        this._restoreExpr(); sets.splice(i, 1);
+                        saveSettings(); EXPRESSION_SETS = CONFIG.expressionSets;
+                    }));
+            });
+
+            const cyB = 300 + sets.length * 52 + 12;
+            if (sets.length < 10) {
+                this.btn(CONTENT_X, cyB, 300, 46, ui('expr_add'), '#3a2a55', null, () => {
+                        const w = this._exprWork;
+                        sets.push({ Eyebrows: w.Eyebrows, Eyes: w.Eyes, Mouth: w.Mouth, Blush: w.Blush });
+                        saveSettings(); EXPRESSION_SETS = CONFIG.expressionSets;
+                    });
+            }
+            this.btn(CONTENT_X + 320, cyB, 180, 46, ui('restoreDefault'), '#553a2a', null,
+                () => ivhConfirm(ui('confirmReset'), () => {
+                    CONFIG.expressionSets = DEFAULT_EXPRESSIONS.map(e => ({ ...e }));
+                    EXPRESSION_SETS = CONFIG.expressionSets; saveSettings();
+                }));
+            // 說明文字（放最底；表情數 ≥8 時隱藏，避免太擠；過長自動換行）
+            if (sets.length < 8) {
+                DrawTextWrap(ui('expr_hint'), CONTENT_X, this._y(cyB + 60), 820, 60, 'White', undefined, 4);
+                this._track(cyB + 110);
+            } else {
+                this._track(cyB + 60);
+            }
+        },
+
+        // 右側：工作中表情編輯（四部位 ◀值▶、即時臉部預覽）
+        _right_expr() {
+            const work = this._exprWork || (this._exprWork = this._exprWorkFrom(null));
+            DrawText(ui('expr_edit'), 1625, 235, 'White', 'Gray');
+
+            // 四部位 ◀ 值 ▶
+            const GROUPS = [['Eyebrows', ui('eyebrows')], ['Eyes', ui('eyes')], ['Mouth', ui('mouth')], ['Blush', ui('blush')]];
+            GROUPS.forEach(([g, lb], i) => {
+                const y = 290 + i * 62;
+                const p2 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
+                DrawTextFit(lb, 1370, y + 28, 110, 'White', 'Gray');
+                MainCanvas.textAlign = p2;
+                this.rbtn(1490, y, 52, 52, '◀', 'White', null, () => cycleExpression(work, g, -1));
+                const v = work[g] == null ? ui('exprNone') : String(work[g]);
+                DrawButton(1546, y, 244, 52, v, '#2a1030', '', '', true);
+                this.rbtn(1794, y, 52, 52, '▶', 'White', null, () => cycleExpression(work, g, 1));
+            });
+
+            // 即時臉部預覽（本地套用後截 Player 臉）
+            this._ensureExprPreview(work);
+            const bx = 1450, by = 568, bs = 315;
+            DrawRect(bx, by, bs, bs, 'rgba(20,5,30,0.6)');
+            DrawEmptyRect(bx, by, bs, bs, '#7a3a8a');
+            if (this._exprFaceImg) {
+                try { MainCanvas.drawImage(this._exprFaceImg, bx, by, bs, bs); } catch (e) {}
+            } else {
+                DrawText(ui('previewLoading'), bx + bs / 2, by + bs / 2, '#aaa', 'Gray');
+            }
+        },
+
+        // 音效分類（順序：催眠 / 催眠2 / 高潮 / 深度）
+        _soundCats() {
+            return [['hypno', '催眠', 5], ['voice', '催眠2', 3], ['climax', '高潮', 5], ['depth', '深度', 3]];
+        },
+        // ════════ 音效設定 ════════
+        _run_sounds() {
+            this.title(226, '音效設定', '每格可貼網址或「上傳」本機檔。「▶」試聽、「✕」清除、「其他」從右側音效庫選用。空白＝預設。');
+            const DEFAULTS = SOUND_DEFAULTS;   // 各分類預設音效
+            const LX = 580;        // 欄位往右 20px
+            let cy = 286;
+            this._soundCats().forEach(([cat, lb, max], ci) => {
+                if (ci > 0) cy += 10;   // 各大類標題上多 10px 間距
+                this.sep(cy, `── ${lb}音效（最多 ${max}）──`);
+                cy += 26;
+                if (!CONFIG.sounds[cat]) CONFIG.sounds[cat] = [];
+                for (let i = 0; i < max; i++) {
+                    const entry = CONFIG.sounds[cat][i] || '';
+                    const def   = (DEFAULTS[cat] || [])[i] || '';
+                    const isIdb = entry.startsWith('idb:');
+                    const rowY  = cy;
+                    const p2 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
+                    DrawTextFit(lb + (i + 1), CONTENT_X, this._y(rowY + 24), 70, 'White', 'Gray');
+                    MainCanvas.textAlign = p2;
+                    if (isIdb) {
+                        const name = _sndNameCache[entry.slice(4)] || '本機音效';
+                        const p3 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
+                        DrawTextFit('🎵 ' + name, LX + 5, this._y(rowY + 24), 410, '#9f9', 'Gray');
+                        MainCanvas.textAlign = p3;
+                    } else {
+                        const ph = def ? '（預設）' + def.split('/').pop() : '未設定 — 網址／上傳／其他';
+                        this.input('ivh-snd-' + cat + i, LX, rowY + 2, 410, 40, entry,
+                            { placeholder: ph, onChange: v => { CONFIG.sounds[cat][i] = v.trim(); saveSettings(); } });
+                    }
+                    this.btn(1000, rowY, 58, 44, ui('upload'), '#3a2a55', null,
+                        () => uploadSoundFile(cat, i));
+                    this.btn(1062, rowY, 40, 44, '▶', '#2d5a5a', null,
+                        () => { const e = entry || def; if (e) playSoundEntry(e, 0.9, true); });
+                    this.btn(1106, rowY, 40, 44, '✕', '#6b2d2d', null,
+                        () => { CONFIG.sounds[cat][i] = ''; saveSettings(); });
+                    const picked = this._sndPick && this._sndPick.cat === cat && this._sndPick.i === i;
+                    this.btn(1150, rowY, 70, 44, ui('other'), picked ? '#7a3a8a' : '#3a4a6a', null,
+                        () => { this._sndPick = picked ? null : { cat, i, label: lb + (i + 1) }; });
+                    cy += 50;
+                }
+            });
+            this._track(cy + 10);
+        },
+
+        // 右側：音效庫（預設＋本機）；可指派給「其他」選中的格子，或直接試聽。可卷動。
+        _right_sounds() {
+            DrawText(ui('snd_lib'), 1625, 230, 'White', 'Gray');
+            const pick = this._sndPick;
+
+            // 載入本機上傳清單（一次）
+            if (!this._localLoaded) {
+                this._localLoaded = true; this._localSnd = [];
+                IVHDB.getAll('sounds').then(list => {
+                    this._localSnd = list || [];
+                    (list || []).forEach(r => { _sndNameCache[r.id] = r.name; });
+                });
+            }
+
+            // 兩大類：預設 / 本機（key 穩定、label 顯示用）
+            const groups = [['preset', ui('snd_preset'), SOUND_PRESETS.map(p => ({ entry: p.url, name: p.name }))]];
+            if (this._localSnd && this._localSnd.length)
+                groups.push(['local', ui('snd_local'), this._localSnd.map(r => ({ entry: 'idb:' + r.id, name: r.name }))]);
+
+            // 清單視窗（可卷動；比原本短 20px）
+            const LX = 1368, LW = 484, LY0 = 256, LBOT = 818, ROW = 38, HEAD = 30;
+            let contentH = 0;
+            groups.forEach(([, , items]) => { contentH += HEAD + items.length * ROW + 6; });
+            this._rmaxScroll = Math.max(0, contentH - (LBOT - LY0));
+            this._rscroll = Math.max(0, Math.min(this._rmaxScroll, this._rscroll || 0));
+
+            MainCanvas.save();
+            MainCanvas.beginPath(); MainCanvas.rect(1358, LY0 - 2, 540, LBOT - LY0 + 4); MainCanvas.clip();
+            let y = LY0 - this._rscroll;
+            groups.forEach(([key, label, items]) => {
+                const isLocal = key === 'local';
+                DrawText('── ' + label + ' ──', 1610, y + 16, '#cc99dd', 'Gray'); y += HEAD;
+                items.forEach(it => {
+                    if (y >= LY0 - ROW && y <= LBOT) {
+                        const nameW = isLocal ? LW - 46 : LW;   // 本機保留右側刪除鈕空間
+                        this.rbtn(LX, y, nameW, ROW - 6, it.name, '#2a1a40', null, () => {
+                            if (pick) { CONFIG.sounds[pick.cat][pick.i] = it.entry; saveSettings(); this._sndPick = null; }
+                            else playSoundEntry(it.entry, 0.9, true);
+                        });
+                        if (isLocal) {
+                            this.rbtn(LX + LW - 40, y, 40, ROW - 6, '✕', '#6b2d2d', null,
+                                () => deleteLocalSound(it.entry.slice(4)));
+                        }
+                    }
+                    y += ROW;
+                });
+                y += 6;
+            });
+            MainCanvas.restore();
+
+            // 卷軸
+            if (this._rmaxScroll > 0) {
+                const trackH = LBOT - LY0;
+                const thumbH = Math.max(40, trackH * (trackH / contentH));
+                const thumbY = LY0 + (trackH - thumbH) * (this._rscroll / this._rmaxScroll);
+                DrawRect(1882, LY0, 12, trackH, '#333');
+                DrawRect(1882, thumbY, 12, thumbH, '#c060c0');
+            }
+
+            // 說明（往上 10px；hover 到按鈕顯示該說明，否則預設；超框自動換行）
+            const descText = this.hoverDesc
+                || (pick ? ui('snd_assignTo', { label: pick.label }) : ui('snd_pickHint'));
+            DrawTextWrap(descText, 1365, 840, 515, 48, 'White', undefined, 4);
+        },
+        _run_about() {
+            this.sep(236, 'IVH — Immersive Voice Hypnosis  v' + MOD_VER);
+            this.sep(280, ui('about_author'));
+            DrawTextWrap(ui('about_dev'), 520, 315, 760, 60, 'White', undefined, 2);
+            this.btn(740, 410, 320, 50, ui('about_report'), '#3a4a6a', '',
+                () => { try { window.open('https://github.com/awdrrawd/liko-Plugin-Repository/issues', '_blank'); } catch (e) {} });
+            this.sep(510, ui('about_assets'));
+            this.sep(550, '音源：びたちー素材館');
+            this.sep(585, 'Pincree');
+            this.sep(620, 'pixabay');
+            this._track(670);
+        },
+    };
+
+    // ════════════════════════════════════════
+    //  Profile 按鈕：對方未裝 IVH → 不顯示；裝了但不允許編輯 → 灰色；允許 → 可點開編輯其文本，編輯透過隱藏訊息送到對方，對方驗證 allowOthersEdit 後套用
+    // ════════════════════════════════════════
+    function _sheetChar() {
+        try { return (typeof InformationSheetSelection !== 'undefined') ? InformationSheetSelection : null; }
+        catch { return null; }
+    }
+    function _isOther(C) {
+        return C && C.MemberNumber != null && Player && C.MemberNumber !== Player.MemberNumber;
+    }
+
+    function hookProfileButton() {
+        if (!modApi) return;
+        try {
+            modApi.hookFunction('InformationSheetRun', 1, (args, next) => {
+                const r = next(args);
+                const C = _sheetChar();
+                const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
+                if (info) {
+                    const editable = !!info.edit;
+                    DrawButton(1700, 75, 90, 90, '', editable ? 'White' : '#ccc', IVH_ICON,
+                        editable ? '編輯對方的 IVH 催眠文本' : '對方未開放編輯文本', !editable);
+                }
+                return r;
+            });
+            modApi.hookFunction('InformationSheetClick', 1, (args, next) => {
+                const C = _sheetChar();
+                const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
+                if (info && info.edit && MouseIn(1700, 75, 90, 90)) {
+                    openRemoteTextEditor(C);
+                    return;
+                }
+                return next(args);
+            });
+        } catch (e) {
+            console.warn('🐈‍⬛ [IVH] profile 按鈕 hook 失敗:', e.message);
+        }
+    }
+
+    // 接收他人對「我」的文本編輯（隱藏訊息）
+    function hookRemoteEdit() {
+        if (!modApi) return;
+        try {
+            modApi.hookFunction('ChatRoomMessage', 1, (args, next) => {
+                const data = args[0];
+                if (data && data.Type === 'Hidden' && data.Content === 'IVH_SetTexts') {
+                    try {
+                        const dict = (data.Dictionary || []).find(d => d && d.Tag === 'IVH_SetTexts');
+                        if (dict && dict.Target === Player.MemberNumber && CONFIG.allowOthersEdit && Array.isArray(dict.Texts)) {
+                            CONFIG.customTexts = dict.Texts.map(s => String(s).trim()).filter(Boolean).slice(0, 200);
+                            saveSettings(true);
+                            publishSharedSettings();
+                            const who = (typeof CharacterNickname === 'function' && data.Sender)
+                                ? (ChatRoomCharacter?.find(c => c.MemberNumber === data.Sender)?.Nickname || data.Sender)
+                                : data.Sender;
+                            printChat(ui('editedYourText', { who }), 8000);
+                        }
+                    } catch (e) {}
+                    return;  // 不顯示此隱藏訊息
+                }
+                return next(args);
+            });
+        } catch (e) {
+            console.warn('🐈‍⬛ [IVH] 遠端編輯 hook 失敗:', e.message);
+        }
+    }
+
+    // 遠端文本編輯面板（DOM）
+    let _remoteEditor = null;
+    function openRemoteTextEditor(C) {
+        if (_remoteEditor) { _remoteEditor.remove(); _remoteEditor = null; }
+        const info  = (C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY]) || {};
+        const texts = Array.isArray(info.texts) ? info.texts : [];
+        const name  = (typeof CharacterNickname === 'function' ? CharacterNickname(C) : '') || C.Name || C.MemberNumber;
+
+        const panel = document.createElement('div');
+        _remoteEditor = panel;
+        Object.assign(panel.style, {
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+            width: '460px', background: 'linear-gradient(135deg,rgba(30,10,40,0.98),rgba(50,15,60,0.98))',
+            border: '1px solid rgba(255,120,200,0.45)', borderRadius: '12px', padding: '16px',
+            zIndex: '100000', fontFamily: '"Noto Sans TC","Microsoft JhengHei",sans-serif', color: '#ffddee',
+            boxShadow: '0 8px 40px rgba(180,60,160,0.4)',
+        });
+        const title = document.createElement('div');
+        title.innerHTML = `🌀 編輯 <b style="color:#ff99dd">${name}</b> 的催眠文本`;
+        title.style.cssText = 'font-size:15px;margin-bottom:6px';
+        const hint = document.createElement('div');
+        hint.textContent = '每行一句。儲存後會送給對方（對方需仍允許編輯才會生效）。';
+        hint.style.cssText = 'font-size:11px;color:#cc99bb;margin-bottom:8px';
+        const ta = document.createElement('textarea');
+        ta.value = texts.join('\n');
+        ta.addEventListener('keydown', e => e.stopPropagation());
+        Object.assign(ta.style, {
+            width: '100%', height: '220px', boxSizing: 'border-box', resize: 'vertical',
+            background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,120,200,0.3)',
+            borderRadius: '6px', color: '#ffeeff', padding: '8px', fontFamily: 'monospace', fontSize: '13px', outline: 'none',
+        });
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:12px;margin-top:14px;justify-content:flex-end';
+        const bigBtn = 'font-size:16px;padding:10px 22px;border-radius:8px;font-weight:600';
+        const cancel = _mkBtn('取消', '#4a2030', '#ffaabb', () => { panel.remove(); _remoteEditor = null; });
+        cancel.style.cssText += ';' + bigBtn;
+        const save   = _mkBtn('💾 儲存並送出', '#2d6b2d', '#aaffaa', () => {
+            const newTexts = ta.value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 200);
+            try {
+                ServerSend('ChatRoomChat', {
+                    Type: 'Hidden', Content: 'IVH_SetTexts',
+                    Dictionary: [{ Tag: 'IVH_SetTexts', Target: C.MemberNumber, Texts: newTexts }],
+                });
+                printChat(`📤 已送出對 ${name} 的文本編輯`, 6000);
+            } catch (e) {}
+            panel.remove(); _remoteEditor = null;
+        });
+        save.style.cssText += ';' + bigBtn;
+        row.append(cancel, save);
+        panel.append(title, hint, ta, row);
+        document.body.appendChild(panel);
+        ta.focus();
+    }
+
+    // 自繪二次確認框（不用瀏覽器 confirm，避免部分平台彈不出來）
+    let _confirmBox = null;
+    function ivhConfirm(message, onYes) {
+        if (_confirmBox) { _confirmBox.remove(); _confirmBox = null; }
+        const panel = document.createElement('div');
+        _confirmBox = panel;
+        Object.assign(panel.style, {
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+            width: '400px', background: 'linear-gradient(135deg,rgba(30,10,40,0.98),rgba(50,15,60,0.98))',
+            border: '1px solid rgba(255,120,200,0.45)', borderRadius: '12px', padding: '22px',
+            zIndex: '100001', fontFamily: '"Noto Sans TC","Microsoft JhengHei",sans-serif', color: '#ffddee',
+            boxShadow: '0 8px 40px rgba(180,60,160,0.4)', textAlign: 'center',
+        });
+        const msg = document.createElement('div');
+        msg.textContent = message;
+        msg.style.cssText = 'font-size:15px;margin-bottom:20px;line-height:1.6;white-space:pre-line';
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:14px;justify-content:center';
+        const big = 'font-size:16px;padding:10px 28px;border-radius:8px;font-weight:600';
+        const no  = _mkBtn(ui('cancel'), '#4a2030', '#ffaabb', () => { panel.remove(); _confirmBox = null; });
+        no.style.cssText += ';' + big;
+        const yes = _mkBtn(ui('confirm'), '#2d6b2d', '#aaffaa', () => {
+            panel.remove(); _confirmBox = null; try { onYes && onYes(); } catch (e) {}
+        });
+        yes.style.cssText += ';' + big;
+        row.append(no, yes);
+        panel.append(msg, row);
+        document.body.appendChild(panel);
+    }
+
+    function registerPreferenceScreen() {
+        waitForPreference().then(() => {
+            try {
+                PreferenceRegisterExtensionSetting({
+                    Identifier: PREF_ID,
+                    ButtonText: isZh() ? 'IVH 催眠設定' : 'IVH Settings',
+                    Image: IVH_ICON,
+                    load:   () => EXT.load(),
+                    run:    () => EXT.run(),
+                    click:  () => EXT.click(),
+                    unload: () => EXT.unload(),
+                    exit:   () => EXT.exit(),
+                });
+            } catch (e) {
+                console.warn('🐈‍⬛ [IVH] 設定頁註冊失敗:', e.message);
+            }
+        });
+    }
+
+    // ════════════════════════════════════════
     //  CSS
     // ════════════════════════════════════════
     function injectStyles() {
@@ -1984,6 +3908,30 @@ function addArousal() {
                 60%  { transform: translate(4px, -2px) rotate(0.4deg); }
                 75%  { transform: translate(-2px, 2px) rotate(-0.2deg); }
                 100% { transform: translate(0,0) rotate(0deg); }
+            }
+            @keyframes ivhBreath0 {
+                0%   { transform: translate(0,0) scale(0.5); opacity: 0; }
+                20%  { opacity: 0.9; }
+                100% { transform: translate(-34px, 30px) scale(2.1); opacity: 0; }
+            }
+            @keyframes ivhBreath1 {
+                0%   { transform: translate(0,0) scale(0.5); opacity: 0; }
+                20%  { opacity: 0.9; }
+                100% { transform: translate(34px, 30px) scale(2.1); opacity: 0; }
+            }
+            @keyframes ivhBreath2 {
+                0%   { transform: translate(0,0) scale(0.55); opacity: 0; }
+                25%  { opacity: 0.85; }
+                100% { transform: translate(4px, 44px) scale(1.9); opacity: 0; }
+            }
+            @keyframes ivhDemoRing {
+                0%   { width: 24px; height: 24px; opacity: 0.95; }
+                100% { width: 200px; height: 200px; opacity: 0; }
+            }
+            @keyframes ivhDemoDistort {
+                0%   { transform: rotate(0deg) scale(1);     filter: blur(0px); }
+                50%  { transform: rotate(8deg) scale(0.92);  filter: blur(2px); }
+                100% { transform: rotate(0deg) scale(1);     filter: blur(0px); }
             }
             @keyframes ivhWaveChar {
                 0%   { transform: translateY(0px); }
@@ -2079,6 +4027,16 @@ function addArousal() {
             return;
         }
 
+        // 先載入 i18n（讓預設文本等依語言產生），再等 ExtensionSettings
+        await ensureI18n();
+        await waitForExtensionSettings();
+        // 還原設定 + 開啟本地 DB + 對外公告
+        loadSettings();
+        await IVHDB.open();
+        publishSharedSettings();
+        registerPreferenceScreen();
+        applyDepthLoop();
+
         if (sdkReady) {
             try {
                 modApi = bcModSdk.registerMod({
@@ -2096,6 +4054,7 @@ function addArousal() {
                     modApi.onUnload(() => {
                         if (_domObserver)      { _domObserver.disconnect(); _domObserver = null; }
                         if (_fallbackInterval) { clearInterval(_fallbackInterval); _fallbackInterval = null; }
+                        if (_depthTimer)       { clearInterval(_depthTimer); _depthTimer = null; }
                         removePanel();
                         const overlay = document.getElementById('ivh-overlay');
                         if (overlay) overlay.remove();
@@ -2111,7 +4070,10 @@ function addArousal() {
         }
 
         hookDrawCharacter();
+        hookGhostDraw();
         hookOrgasmStage();
+        hookProfileButton();
+        hookRemoteEdit();
         hookChatInput();       // 只掛 keydown 保底，CommandCombine 在進房間後才註冊
         waitForChatRoom();
         console.log(`🐈‍⬛ [IVH] ✅ 初始化完成 v${MOD_VER}`);
@@ -2124,7 +4086,7 @@ function addArousal() {
             if (_loadedNotified) return;
             _loadedNotified = true;
             setTimeout(() => {
-                printChat(T(`IVH v${MOD_VER} 已載入 ✅\n/ivh help 說明 | /ivh show 設定面板`, `IVH v${MOD_VER} loaded ✅\n/ivh help | /ivh show for settings`));
+                printChat(ui('loaded', { v: MOD_VER }));
             }, 1000);
         }, 500);
     }
