@@ -43,8 +43,8 @@
         } catch (e) { console.warn('🐈‍⬛ [IVH] i18n 載入失敗，改用中文原文:', e.message); }
     }
     // 可選語言（auto = 依遊戲語系）
-    const IVH_LANGS = ['auto', 'TW', 'CN', 'EN', 'DE', 'FR', 'RU', 'UA'];
-    const IVH_LANG_NAMES = { auto: 'Auto', TW: '繁中', CN: '简中', EN: 'EN', DE: 'DE', FR: 'FR', RU: 'RU', UA: 'UA' };
+    const IVH_LANGS = ['auto', 'TW', 'CN', 'EN', 'JP', 'KR', 'DE', 'FR', 'RU', 'UA'];
+    const IVH_LANG_NAMES = { auto: 'Auto', TW: '繁中', CN: '简中', EN: 'EN', JP: '日本語', KR: '한국어', DE: 'DE', FR: 'FR', RU: 'RU', UA: 'UA' };
 
     // 目前語言：玩家手動選 > 遊戲語系
     function ivhLang() {
@@ -98,7 +98,7 @@
         intervalD: '每隔幾分鐘自動播放一次背景催眠（1~99）。深度「無」時不循環。',
         depthRowLight: '深度輕', depthRowMed: '深度中', depthRowHeavy: '深度重',
         fx_smoke: '煙霧', fx_smokeD: '不定時淡粉煙霧', fx_pant: '喘氣', fx_pantD: '規律喘氣白霧',
-        fx_danmaku: '彈幕', fx_danmakuD: '聊天訊息變催眠彈幕', fx_ghost: '人影', fx_ghostD: '背後低語人影＋耳邊文字',
+        fx_danmaku: '彈幕', fx_danmakuD: '聊天訊息變催眠彈幕', fx_Shadow: '人影', fx_ShadowD: '背後低語人影＋耳邊文字',
         fx_figblur: '人物模糊', fx_figblurD: '畫面模糊但人物/人影保持清晰', fx_sfx: '音效', fx_sfxD: '播放深度音效',
         fx_chatblur: '聊天模糊', fx_chatblurD: '右側聊天訊息模糊',
         triggerTargetD: '誰說出觸發詞會讓你進入催眠。「僅白名單」時只有名單內成員有效。',
@@ -202,7 +202,7 @@
             depthMax:       0,     // 0=無 1=輕 2=中 3=重（無則不循環）
             depthIntervalMin: 5,   // 循環間隔（分鐘 1~99）
             // 各深度層效果開關
-            depthLight: { smoke: true, pant: true, chatDanmaku: true, ghost: true },
+            depthLight: { smoke: true, pant: true, chatDanmaku: true, Shadow: true },
             depthMed:   { figureBlur: true, pant: true, sfx: true },
             depthHeavy: { chatlogBlur: true, pant: true },
 
@@ -523,7 +523,7 @@
             // 輕：淡粉煙霧 / 聊天彈幕 / 背後低語人影 / 輕喘
             if (L.smoke)       triggerPinkFlash();
             if (L.chatDanmaku) depthChatDanmaku();
-            if (L.ghost)       depthGhostWhisperer();
+            if (L.Shadow)       depthShadowWhisperer();
             if (L.pant)        pant = true;
             // 中：左側人物模糊 / 音效 / 中喘
             if (level >= 2) {
@@ -574,8 +574,8 @@
     // ── 深度（輕）：背後低語人影 ──
     //  畫進 canvas（DrawCharacter hook，在玩家繪製前 → 真正在人物後方）。
     //  用 source-atop 壓暗（不透明，只是變暗），頭頂文字用 DOM。
-    let _ghost = null;   // { canvas, offX, alpha } 由 DrawCharacter hook 讀取繪製
-    function depthGhostWhisperer() {
+    let _Shadow = null;   // { canvas, offX, alpha } 由 DrawCharacter hook 讀取繪製
+    function depthShadowWhisperer() {
         if (!playerDrawPos.valid || !_cachedRect) return;
         const src = Player && Player.Canvas;
         if (!src || !src.width) return;
@@ -598,25 +598,25 @@
 
         // 建立「人影角色」克隆（共用玩家外觀，但用壓暗後的畫布）
         //  → 用 BC 自己的 DrawCharacter 繪製，位置才會跟玩家完全一致
-        const ghostChar = Object.assign(Object.create(Object.getPrototypeOf(Player)), Player);
-        ghostChar.Canvas = fc;
-        ghostChar.CanvasBlink = fc;
-        ghostChar.MemberNumber = -99999;   // 非玩家 → hook 不會對它再畫人影
-        ghostChar.MustDraw = false;
+        const ShadowChar = Object.assign(Object.create(Object.getPrototypeOf(Player)), Player);
+        ShadowChar.Canvas = fc;
+        ShadowChar.CanvasBlink = fc;
+        ShadowChar.MemberNumber = -99999;   // 非玩家 → hook 不會對它再畫人影
+        ShadowChar.MustDraw = false;
 
         // 相對玩家的螢幕像素偏移
         const offXpx = 35, offYpx = -10;
-        _ghost = { char: ghostChar, canvas: fc, offXpx, offYpx, alpha: 0 };
+        _Shadow = { char: ShadowChar, canvas: fc, offXpx, offYpx, alpha: 0 };
 
         // 淡入 / 維持 / 淡出（DrawCharacter hook 每幀讀 alpha）
         const start = Date.now();
         const fade = () => {
-            if (!_ghost) return;
+            if (!_Shadow) return;
             const t = Date.now() - start;
-            if      (t < 1000) _ghost.alpha = (t / 1000) * 0.92;
-            else if (t < 3500) _ghost.alpha = 0.92;
-            else if (t < 4800) _ghost.alpha = 0.92 * (1 - (t - 3500) / 1300);
-            else { _ghost = null; return; }
+            if      (t < 1000) _Shadow.alpha = (t / 1000) * 0.92;
+            else if (t < 3500) _Shadow.alpha = 0.92;
+            else if (t < 4800) _Shadow.alpha = 0.92 * (1 - (t - 3500) / 1300);
+            else { _Shadow = null; return; }
             requestAnimationFrame(fade);
         };
         requestAnimationFrame(fade);
@@ -640,8 +640,8 @@
 
     // 在玩家繪製前把人影畫到 canvas（→ 在人物後方），用 BC 自己的 DrawCharacter 對齊位置
     let _playerDraw = null;     // 玩家真實繪製座標 { x, y, zoom }（給模糊重畫用）
-    let _ghostTemp = null;      // 人影暫存畫布（為了正確套用 alpha 淡入淡出）
-    function hookGhostDraw() {
+    let _ShadowTemp = null;      // 人影暫存畫布（為了正確套用 alpha 淡入淡出）
+    function hookShadowDraw() {
         if (!modApi) return;
         try {
             modApi.hookFunction('DrawCharacter', 2, (args, next) => {
@@ -649,23 +649,23 @@
                 const isMe = C && Player && C.MemberNumber === Player.MemberNumber;
                 if (isMe && typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
                     _playerDraw = { x: X, y: Y, zoom: Zoom };
-                    if (_ghost && _ghost.alpha > 0 && _ghost.char) {
+                    if (_Shadow && _Shadow.alpha > 0 && _Shadow.char) {
                         try {
                             const ctx = args[5] || MainCanvas;
                             // 偏移：螢幕像素 → BC 畫布座標（錨定在玩家真實座標上）
-                            const offXbc = (_ghost.offXpx || 0) / (_cachedScaleX || 0.25);
-                            const offYbc = (_ghost.offYpx || 0) / (_cachedScaleY || 0.25);
+                            const offXbc = (_Shadow.offXpx || 0) / (_cachedScaleX || 0.25);
+                            const offYbc = (_Shadow.offYpx || 0) / (_cachedScaleY || 0.25);
                             // DrawCharacter 不吃 globalAlpha → 先畫到暫存畫布，再以 alpha 疊上（才有淡入淡出）
                             //  注意：MainCanvas 是 2D context（不是元素），尺寸要用 .canvas
                             const cvEl = (MainCanvas && MainCanvas.canvas) || document.getElementById('MainCanvas');
-                            if (!_ghostTemp) _ghostTemp = document.createElement('canvas');
-                            _ghostTemp.width  = (cvEl && cvEl.width)  || 2000;   // 設尺寸同時清空
-                            _ghostTemp.height = (cvEl && cvEl.height) || 1000;
-                            const tctx = _ghostTemp.getContext('2d');
-                            DrawCharacter(_ghost.char, X + offXbc, Y + offYbc, Zoom, undefined, tctx);
+                            if (!_ShadowTemp) _ShadowTemp = document.createElement('canvas');
+                            _ShadowTemp.width  = (cvEl && cvEl.width)  || 2000;   // 設尺寸同時清空
+                            _ShadowTemp.height = (cvEl && cvEl.height) || 1000;
+                            const tctx = _ShadowTemp.getContext('2d');
+                            DrawCharacter(_Shadow.char, X + offXbc, Y + offYbc, Zoom, undefined, tctx);
                             const prevA = ctx.globalAlpha;
-                            ctx.globalAlpha = _ghost.alpha;
-                            ctx.drawImage(_ghostTemp, 0, 0);
+                            ctx.globalAlpha = _Shadow.alpha;
+                            ctx.drawImage(_ShadowTemp, 0, 0);
                             ctx.globalAlpha = prevA;
                         } catch (e) {}
                     }
@@ -694,9 +694,9 @@
             if (pd) {
                 // 人影 alpha 暫時拉滿，讓它在這張靜態合成圖上清楚可見
                 let savedA;
-                if (_ghost) { savedA = _ghost.alpha; _ghost.alpha = Math.max(_ghost.alpha || 0, 0.85); }
+                if (_Shadow) { savedA = _Shadow.alpha; _Shadow.alpha = Math.max(_Shadow.alpha || 0, 0.85); }
                 DrawCharacter(Player, pd.x, pd.y, pd.zoom, undefined, cx);  // hook 會先畫人影、再畫玩家
-                if (_ghost) _ghost.alpha = savedA;
+                if (_Shadow) _Shadow.alpha = savedA;
             }
             url = comp.toDataURL();
         } catch (e) { return; }
@@ -3232,7 +3232,7 @@ function addArousal() {
                     return W(`<div style="width:210px;height:140px;border-radius:8px;background:white;animation:ivhClimaxFlash 1.3s ease-out infinite"></div>`);
                 case 'centerHeadshot':
                     return W(`<div style="width:120px;height:120px;border-radius:50%;border:3px solid #ff80cc;background:radial-gradient(circle,#3a1040,#1a0028);box-shadow:0 0 30px #ff66bb88;display:flex;align-items:center;justify-content:center;font-size:48px">🙂</div>`);
-                case 'ghost':
+                case 'Shadow':
                     return W(`<div style="position:relative;width:180px;height:180px">
                         <div style="position:absolute;left:18px;top:30px;width:90px;height:140px;border-radius:40px 40px 0 0;background:rgba(8,2,14,0.85);animation:ivhPinkPulse 2.4s ease-in-out infinite"></div>
                         <div style="position:absolute;left:70px;top:0;font-size:16px;color:#ffd6eb;text-shadow:0 0 8px #b050c8;animation:ivhWaveChar 1.8s ease-in-out infinite">好乖…</div>
@@ -3440,7 +3440,7 @@ function addArousal() {
         // 深度效果層定義
         _depthRows() {
             return [
-                { tag: '輕', cfg: 'depthLight', items: [['smoke','煙霧'],['pant','喘氣'],['chatDanmaku','彈幕'],['ghost','人影']] },
+                { tag: '輕', cfg: 'depthLight', items: [['smoke','煙霧'],['pant','喘氣'],['chatDanmaku','彈幕'],['Shadow','人影']] },
                 { tag: '中', cfg: 'depthMed',   items: [['figureBlur','人物模糊'],['pant','喘氣'],['sfx','音效']] },
                 { tag: '重', cfg: 'depthHeavy', items: [['chatlogBlur','聊天模糊'],['pant','喘氣']] },
             ];
@@ -3479,10 +3479,10 @@ function addArousal() {
 
             // 深度效果（無分隔線；標籤改 深度輕/中/重）
             const rowTags = ['depthRowLight', 'depthRowMed', 'depthRowHeavy'];
-            const fxName = { smoke:'fx_smoke', pant:'fx_pant', chatDanmaku:'fx_danmaku', ghost:'fx_ghost',
+            const fxName = { smoke:'fx_smoke', pant:'fx_pant', chatDanmaku:'fx_danmaku', Shadow:'fx_Shadow',
                              figureBlur:'fx_figblur', sfx:'fx_sfx', chatlogBlur:'fx_chatblur' };
             const demoMap = { smoke:'pinkFlash', pant:'steamParticles', chatDanmaku:'danmaku',
-                              ghost:'ghost', figureBlur:'figureBlur', chatlogBlur:'chatlogBlur', sfx:'sound' };
+                              Shadow:'Shadow', figureBlur:'figureBlur', chatlogBlur:'chatlogBlur', sfx:'sound' };
             this._depthRows().forEach((row, ri) => {
                 const cy = 450 + ri * 52;
                 const prev2 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
@@ -4216,7 +4216,7 @@ function addArousal() {
         }
 
         hookDrawCharacter();
-        hookGhostDraw();
+        hookShadowDraw();
         hookOrgasmStage();
         hookProfileButton();
         hookRemoteEdit();
