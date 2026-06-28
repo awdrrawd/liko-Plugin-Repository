@@ -375,7 +375,9 @@
     // 對外公告：他人查看 profile 時用來判斷是否裝了 IVH / 是否允許編輯
     function publishSharedSettings() {
         try {
-            if (!Player || !Player.OnlineSharedSettings) return;
+            if (!Player) return;
+            // OnlineSharedSettings 偶爾在初始化時尚未建立；自建空物件，避免「公告被永久略過 → 別人永遠看不到我」
+            if (!Player.OnlineSharedSettings) Player.OnlineSharedSettings = {};
             const editable = (CONFIG.allowEditMode || 'off') !== 'off';
             Player.OnlineSharedSettings[ES_KEY] = {
                 v: MOD_VER,
@@ -3844,6 +3846,21 @@ function addArousal() {
         }
     }
 
+    // 每次進房／重新同步時重新公告 OnlineSharedSettings：
+    //  ① 修正「插件初始化比進房慢」的競態 —— 進房廣播時伺服器上還沒有 IVH 鍵，房內成員就看不到我；
+    //  ② 斷線重連會重新 ChatRoomSync，此時補一次公告，伺服器會以 ChatRoomSyncCharacter 把我的資料轉發給在場成員。
+    //  BC 是單一伺服器、OnlineSharedSettings 透過房間同步分享，並無「同伺服器」限制；問題只在公告時機。
+    function hookRepublishOnRoomSync() {
+        if (!modApi) return;
+        let _t = 0;
+        const bump = () => { clearTimeout(_t); _t = setTimeout(() => publishSharedSettings(), 600); };
+        try {
+            modApi.hookFunction('ChatRoomSync', 0, (args, next) => { const r = next(args); bump(); return r; });
+        } catch (e) {
+            console.warn('🐈‍⬛ [IVH] ChatRoomSync 補公告 hook 失敗:', e.message);
+        }
+    }
+
     // 接收他人對「我」的文本編輯（隱藏訊息）
     function hookRemoteEdit() {
         if (!modApi) return;
@@ -4203,6 +4220,7 @@ function addArousal() {
         hookOrgasmStage();
         hookProfileButton();
         hookRemoteEdit();
+        hookRepublishOnRoomSync();
         hookChatInput();       // 只掛 keydown 保底，CommandCombine 在進房間後才註冊
         waitForChatRoom();
         console.log(`🐈‍⬛ [IVH] ✅ 初始化完成 v${MOD_VER}`);
