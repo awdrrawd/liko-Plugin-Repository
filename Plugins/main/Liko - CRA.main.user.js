@@ -318,20 +318,13 @@
 
     function getChatInput() { return document.getElementById('InputChat'); }
 
-    // 以「Beep/msg 字典代換」技巧送出任意文字的動作訊息（跨語系通用做法）
     function sendActionText(text) {
         if (!text || typeof ServerSend !== 'function') return;
         ServerSend("ChatRoomChat", {
-            Content: "Beep",
+            Content: "CUSTOM_SYSTEM_ACTION",
             Type: "Action",
             Dictionary: [
-                { Tag: "Beep", Text: "msg" },
-                { Tag: "发送私聊", Text: "msg" },
-                { Tag: "Biep", Text: "msg" },
-                { Tag: "Sonner", Text: "msg" },
-                { Tag: "Звуковой сигнал", Text: "msg" },
-                { Tag: "Гудок", Text: "msg" },
-                { Tag: "msg", Text: text }
+                { Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: text }
             ]
         });
     }
