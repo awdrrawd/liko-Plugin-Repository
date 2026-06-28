@@ -64,8 +64,8 @@
         'clear':   { TW: '清除',   CN: '清除',   EN: 'Clear',   DE: 'Leeren',    FR: 'Effacer', RU: 'Очистить', UA: 'Очистити' },
         'other':   { TW: '其他',   CN: '其他',   EN: 'Other',   DE: 'Andere',    FR: 'Autre',   RU: 'Другое',   UA: 'Інше' },
         'restoreDefault': { TW: '還原預設', CN: '还原预设', EN: 'Reset', DE: 'Zurücksetzen', FR: 'Réinitialiser', RU: 'Сброс', UA: 'Скинути' },
-        'export':  { TW: '匯出全部設定', CN: '导出全部设置', EN: 'Export all', DE: 'Alles exportieren', FR: 'Tout exporter', RU: 'Экспорт всего', UA: 'Експорт усього' },
-        'import':  { TW: '匯入全部設定', CN: '导入全部设置', EN: 'Import all', DE: 'Alles importieren', FR: 'Tout importer', RU: 'Импорт всего', UA: 'Імпорт усього' },
+        'export':  { TW: '匯出設定', CN: '导出设置', EN: 'Export', DE: 'exportieren', FR: 'exporter', RU: 'Экспорт', UA: 'Експорт' },
+        'import':  { TW: '匯入設定', CN: '导入设置', EN: 'Import', DE: 'importieren', FR: 'importer', RU: 'Импорт', UA: 'Імпорт' },
 
         // ── IVH 啟用 ─────────────────────────────────────────────────
         'enabledOn':  { TW: 'IVH 啟用中', CN: 'IVH 启用中', EN: 'IVH Enabled',  DE: 'IVH aktiv',     FR: 'IVH activé',   RU: 'IVH включён',  UA: 'IVH увімкнено' },
@@ -110,7 +110,7 @@
         // ── 表情設定 ─────────────────────────────────────────────────
         'expr_edit':   { TW: '🎭 編輯表情', CN: '🎭 编辑表情', EN: '🎭 Edit expression', DE: '🎭 Mimik bearbeiten', FR: '🎭 Modifier l\'expression', RU: '🎭 Изменить мимику', UA: '🎭 Змінити міміку' },
         'expr_item':   { TW: '表情{n}', CN: '表情{n}', EN: 'Face {n}', DE: 'Mimik {n}', FR: 'Visage {n}', RU: 'Лицо {n}', UA: 'Обличчя {n}' },
-        'expr_add':    { TW: '＋ 用右側內容新增', CN: '＋ 用右侧内容新增', EN: '＋ Add from editor', DE: '＋ Aus Editor hinzufügen', FR: '＋ Ajouter depuis l\'éditeur', RU: '＋ Добавить из редактора', UA: '＋ Додати з редактора' },
+        'expr_add':    { TW: '＋ 新增表情', CN: '＋ 新增表情', EN: '＋ Add from editor', DE: '＋ Aus Editor hinzufügen', FR: '＋ Ajouter depuis l\'éditeur', RU: '＋ Добавить из редактора', UA: '＋ Додати з редактора' },
         'expr_hint':   { TW: '在右側設定好表情後，點某列「保存」或「＋新增」來儲存', CN: '在右侧设置好表情后，点某行「保存」或「＋新增」来保存', EN: 'Set up the expression on the right, then click a row\'s Save or Add to store it', DE: 'Mimik rechts einstellen, dann „Speichern" einer Zeile oder „Hinzufügen" klicken', FR: 'Réglez l\'expression à droite, puis cliquez sur Enregistrer d\'une ligne ou Ajouter', RU: 'Настройте мимику справа, затем нажмите «Сохранить» в строке или «Добавить»', UA: 'Налаштуйте міміку праворуч, потім натисніть «Зберегти» у рядку або «Додати»' },
         'eyebrows':    { TW: '眉毛', CN: '眉毛', EN: 'Brows', DE: 'Brauen', FR: 'Sourcils', RU: 'Брови', UA: 'Брови' },
         'eyes':        { TW: '眼睛', CN: '眼睛', EN: 'Eyes', DE: 'Augen', FR: 'Yeux', RU: 'Глаза', UA: 'Очі' },
@@ -157,7 +157,7 @@
         'fx_chatblur':{ TW: '聊天模糊', CN: '聊天模糊', EN: 'Blur chat', DE: 'Chat unscharf', FR: 'Flou chat', RU: 'Размытие чата', UA: 'Розмиття чату' },
         'fx_chatblurD':{ TW: '右側聊天訊息模糊', CN: '右侧聊天信息模糊', EN: 'Blur the chat log on the right', DE: 'Chat-Log rechts unscharf', FR: 'Floute le journal de chat à droite', RU: 'Размыть журнал чата справа', UA: 'Розмити журнал чату праворуч' },
         'triggerTargetD': { TW: '誰說出觸發詞會讓你進入催眠。「僅白名單」時只有名單內成員有效。', CN: '谁说出触发词会让你进入催眠。「仅白名单」时只有名单内成员有效。', EN: 'Who can trigger your hypnosis by saying a trigger word. "Whitelist" = only listed members.', DE: 'Wer dich per Auslösewort hypnotisieren kann. „Whitelist" = nur gelistete Mitglieder.', FR: 'Qui peut vous hypnotiser via un mot déclencheur. « Liste blanche » = membres listés seulement.', RU: 'Кто может запустить ваш гипноз словом-триггером. «Белый список» = только из списка.', UA: 'Хто може запустити ваш гіпноз словом-тригером. «Білий список» = лише зі списку.' },
-        'allowEdit':  { TW: '文本設置', CN: '文本设置', EN: 'Text editing', DE: 'Text-Bearbeitung', FR: 'Édition du texte', RU: 'Редактирование текста', UA: 'Редагування тексту' },
+        'allowEdit':  { TW: '允許文本修改', CN: '允许文本修改', EN: 'Allow text editing', DE: 'Text-Bearbeitung erlauben', FR: 'Autoriser l\'édition', RU: 'Разрешить правку текста', UA: 'Дозволити правку тексту' },
         'allowEditD': { TW: '誰可在你的角色資料頁增減你的催眠文本。「僅自己」只有你能編輯；「僅白名單」時名單內成員（含你自己）可編輯。', CN: '谁可在你的角色资料页增减你的催眠文本。「仅自己」只有你能编辑；「仅白名单」时名单内成员（含你自己）可编辑。', EN: 'Who can add/remove your hypnosis text from your profile. "Only me" = just you; "Whitelist" = listed members (incl. yourself).', DE: 'Wer deinen Hypnosetext im Profil ändern darf. „Nur ich" = nur du; „Whitelist" = gelistete (inkl. dir).', FR: 'Qui peut modifier votre texte d\'hypnose. « Moi seul » = vous ; « Liste blanche » = membres listés (vous compris).', RU: 'Кто может менять ваш текст гипноза. «Только я» = вы; «Белый список» = из списка (включая вас).', UA: 'Хто може змінювати ваш текст гіпнозу. «Лише я» = ви; «Білий список» = зі списку (разом із вами).' },
         'editOff':       { TW: '僅自己', CN: '仅自己', EN: 'Only me', DE: 'Nur ich', FR: 'Moi seul', RU: 'Только я', UA: 'Лише я' },
         'editAny':       { TW: '所有人', CN: '所有人', EN: 'Anyone', DE: 'Jeder', FR: 'Tous', RU: 'Все', UA: 'Усі' },
