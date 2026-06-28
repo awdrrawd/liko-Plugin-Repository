@@ -10,7 +10,7 @@
         return;
     }
 
-    window.Liko.i18n.register('IVH', {
+    const IVH_STRINGS = {
 
         // ── 載入 / 指令 ───────────────────────────────────────────────
         'loaded': {
@@ -135,6 +135,40 @@
         'about_report': { TW: '🐛 GitHub 回報', CN: '🐛 GitHub 回报', EN: '🐛 Report on GitHub', DE: '🐛 Auf GitHub melden', FR: '🐛 Signaler sur GitHub', RU: '🐛 Сообщить на GitHub', UA: '🐛 Повідомити на GitHub' },
         'about_assets': { TW: '── 使用素材皆為免費素材 ──', CN: '── 使用素材皆为免费素材 ──', EN: '── All assets are free assets ──', DE: '── Alle Materialien sind kostenlos ──', FR: '── Tous les éléments sont gratuits ──', RU: '── Все материалы — бесплатные ──', UA: '── Усі матеріали — безкоштовні ──' },
 
+        // ── 基本設定 說明／深度效果／編輯模式／語言 ───────────────────
+        'intensityD': { TW: '整體效果強度（0.1~3.0），同時決定背景深度等級（≈1輕/2中/3重，不超過深度上限）。可拖曳滑桿。', CN: '整体效果强度（0.1~3.0），同时决定背景深度等级（≈1轻/2中/3重，不超过深度上限）。可拖曳滑杆。', EN: 'Overall effect strength (0.1~3.0); also sets background depth level (≈1 light/2 med/3 heavy, capped by Depth). Drag the slider.', DE: 'Gesamtstärke (0.1~3.0); bestimmt auch die Tiefenstufe (≈1 leicht/2 mittel/3 stark, max. = Tiefe). Schieberegler ziehen.', FR: 'Force globale (0.1~3.0) ; définit aussi le niveau de profondeur (≈1 léger/2 moyen/3 fort, limité par Profondeur). Glissez le curseur.', RU: 'Общая сила (0.1~3.0); задаёт уровень глубины (≈1 слабо/2 средне/3 сильно, не выше Глубины). Тяните ползунок.', UA: 'Загальна сила (0.1~3.0); задає рівень глибини (≈1 слабко/2 середньо/3 сильно, не вище Глибини). Тягніть повзунок.' },
+        'depthMaxD': { TW: '背景催眠的最深程度（與 VOICE 觸發分開）。「無」＝關閉背景循環。', CN: '背景催眠的最深程度（与 VOICE 触发分开）。「无」＝关闭背景循环。', EN: 'Max background hypnosis level (separate from VOICE). "Off" disables the loop.', DE: 'Max. Hintergrund-Hypnosestufe (getrennt von VOICE). „Aus" deaktiviert die Schleife.', FR: 'Niveau max d\'hypnose de fond (séparé de VOICE). « Aucun » désactive la boucle.', RU: 'Макс. уровень фонового гипноза (отдельно от VOICE). «Нет» отключает цикл.', UA: 'Макс. рівень фонового гіпнозу (окремо від VOICE). «Немає» вимикає цикл.' },
+        'intervalD': { TW: '每隔幾分鐘自動播放一次背景催眠（1~99）。深度「無」時不循環。', CN: '每隔几分钟自动播放一次背景催眠（1~99）。深度「无」时不循环。', EN: 'How often the background hypnosis plays (1~99 min). No loop when Depth is Off.', DE: 'Wie oft die Hintergrundhypnose abspielt (1~99 Min.). Keine Schleife bei Tiefe „Aus".', FR: 'Fréquence de l\'hypnose de fond (1~99 min). Pas de boucle si Profondeur = Aucun.', RU: 'Как часто играет фоновый гипноз (1~99 мин). Без цикла при Глубине «Нет».', UA: 'Як часто грає фоновий гіпноз (1~99 хв). Без циклу при Глибині «Немає».' },
+        'depthRowLight': { TW: '深度輕', CN: '深度轻', EN: 'Light', DE: 'Leicht', FR: 'Léger', RU: 'Слабо', UA: 'Слабко' },
+        'depthRowMed':   { TW: '深度中', CN: '深度中', EN: 'Med', DE: 'Mittel', FR: 'Moyen', RU: 'Средне', UA: 'Середньо' },
+        'depthRowHeavy': { TW: '深度重', CN: '深度重', EN: 'Heavy', DE: 'Stark', FR: 'Fort', RU: 'Сильно', UA: 'Сильно' },
+        'fx_smoke':   { TW: '煙霧', CN: '烟雾', EN: 'Smoke', DE: 'Rauch', FR: 'Fumée', RU: 'Дымка', UA: 'Дим' },
+        'fx_smokeD':  { TW: '不定時淡粉煙霧', CN: '不定时淡粉烟雾', EN: 'Occasional pink haze', DE: 'Gelegentlicher rosa Nebel', FR: 'Brume rose occasionnelle', RU: 'Редкая розовая дымка', UA: 'Зрідка рожевий серпанок' },
+        'fx_pant':    { TW: '喘氣', CN: '喘气', EN: 'Pant', DE: 'Hecheln', FR: 'Halètement', RU: 'Дыхание', UA: 'Дихання' },
+        'fx_pantD':   { TW: '規律喘氣白霧', CN: '规律喘气白雾', EN: 'Rhythmic breath fog', DE: 'Rhythmischer Atemnebel', FR: 'Buée de souffle rythmée', RU: 'Ритмичный парок дыхания', UA: 'Ритмічний парок дихання' },
+        'fx_danmaku': { TW: '彈幕', CN: '弹幕', EN: 'Danmaku', DE: 'Danmaku', FR: 'Danmaku', RU: 'Данмаку', UA: 'Данмаку' },
+        'fx_danmakuD':{ TW: '聊天訊息變催眠彈幕', CN: '聊天信息变催眠弹幕', EN: 'Chat lines become hypno danmaku', DE: 'Chat-Zeilen werden Hypno-Danmaku', FR: 'Le chat devient du danmaku hypnotique', RU: 'Чат становится гипно-данмаку', UA: 'Чат стає гіпно-данмаку' },
+        'fx_ghost':   { TW: '人影', CN: '人影', EN: 'Ghost', DE: 'Schemen', FR: 'Ombre', RU: 'Тень', UA: 'Тінь' },
+        'fx_ghostD':  { TW: '背後低語人影＋耳邊文字', CN: '背后低语人影＋耳边文字', EN: 'Whispering figure behind + text at your ear', DE: 'Flüsternde Gestalt dahinter + Text am Ohr', FR: 'Silhouette qui murmure derrière + texte à l\'oreille', RU: 'Шепчущая фигура сзади + текст у уха', UA: 'Шепітна постать позаду + текст біля вуха' },
+        'fx_figblur': { TW: '人物模糊', CN: '人物模糊', EN: 'Blur figure', DE: 'Figur unscharf', FR: 'Flou perso', RU: 'Размытие фигуры', UA: 'Розмиття фігури' },
+        'fx_figblurD':{ TW: '畫面模糊但人物/人影保持清晰', CN: '画面模糊但人物/人影保持清晰', EN: 'Screen blurs while figure/ghost stay sharp', DE: 'Bild unscharf, Figur/Schemen bleiben scharf', FR: 'Écran flou, perso/ombre nets', RU: 'Экран размыт, фигура/тень чёткие', UA: 'Екран розмитий, фігура/тінь чіткі' },
+        'fx_sfx':     { TW: '音效', CN: '音效', EN: 'SFX', DE: 'Ton', FR: 'Son', RU: 'Звук', UA: 'Звук' },
+        'fx_sfxD':    { TW: '播放深度音效', CN: '播放深度音效', EN: 'Play the depth sound', DE: 'Tiefen-Ton abspielen', FR: 'Joue le son de profondeur', RU: 'Воспроизвести звук глубины', UA: 'Відтворити звук глибини' },
+        'fx_chatblur':{ TW: '聊天模糊', CN: '聊天模糊', EN: 'Blur chat', DE: 'Chat unscharf', FR: 'Flou chat', RU: 'Размытие чата', UA: 'Розмиття чату' },
+        'fx_chatblurD':{ TW: '右側聊天訊息模糊', CN: '右侧聊天信息模糊', EN: 'Blur the chat log on the right', DE: 'Chat-Log rechts unscharf', FR: 'Floute le journal de chat à droite', RU: 'Размыть журнал чата справа', UA: 'Розмити журнал чату праворуч' },
+        'triggerTargetD': { TW: '誰說出觸發詞會讓你進入催眠。「僅白名單」時只有名單內成員有效。', CN: '谁说出触发词会让你进入催眠。「仅白名单」时只有名单内成员有效。', EN: 'Who can trigger your hypnosis by saying a trigger word. "Whitelist" = only listed members.', DE: 'Wer dich per Auslösewort hypnotisieren kann. „Whitelist" = nur gelistete Mitglieder.', FR: 'Qui peut vous hypnotiser via un mot déclencheur. « Liste blanche » = membres listés seulement.', RU: 'Кто может запустить ваш гипноз словом-триггером. «Белый список» = только из списка.', UA: 'Хто може запустити ваш гіпноз словом-тригером. «Білий список» = лише зі списку.' },
+        'allowEdit':  { TW: '允許他人增減我的文本', CN: '允许他人增减我的文本', EN: 'Let others edit my text', DE: 'Andere dürfen meinen Text ändern', FR: 'Autoriser autrui à modifier mon texte', RU: 'Разрешить менять мой текст', UA: 'Дозволити змінювати мій текст' },
+        'allowEditD': { TW: '誰可在你的角色資料頁增減你的催眠文本。「僅白名單」時只有名單內成員可編輯。', CN: '谁可在你的角色资料页增减你的催眠文本。「仅白名单」时只有名单内成员可编辑。', EN: 'Who can add/remove your hypnosis text from your profile. "Whitelist" = listed members only.', DE: 'Wer deinen Hypnosetext im Profil ändern darf. „Whitelist" = nur gelistete.', FR: 'Qui peut modifier votre texte d\'hypnose depuis votre profil. « Liste blanche » = listés seulement.', RU: 'Кто может менять ваш текст гипноза в профиле. «Белый список» = только из списка.', UA: 'Хто може змінювати ваш текст гіпнозу в профілі. «Білий список» = лише зі списку.' },
+        'editOff':       { TW: '關', CN: '关', EN: 'Off', DE: 'Aus', FR: 'Non', RU: 'Нет', UA: 'Ні' },
+        'editAny':       { TW: '所有人', CN: '所有人', EN: 'Anyone', DE: 'Jeder', FR: 'Tous', RU: 'Все', UA: 'Усі' },
+        'editWhitelist': { TW: '僅白名單', CN: '仅白名单', EN: 'Whitelist', DE: 'Whitelist', FR: 'Liste blanche', RU: 'Белый список', UA: 'Білий список' },
+        'whitelistD': { TW: '會員編號，逗號或空白分隔。觸發對象與文本編輯共用此名單。', CN: '会员编号，逗号或空白分隔。触发对象与文本编辑共用此名单。', EN: 'Member numbers, comma/space separated. Shared by trigger target and text editing.', DE: 'Mitgliedsnummern, durch Komma/Leerzeichen getrennt. Geteilt mit Auslöser und Bearbeitung.', FR: 'Numéros de membre, séparés par virgule/espace. Partagé par déclencheur et édition.', RU: 'Номера участников через запятую/пробел. Общий для триггера и редактирования.', UA: 'Номери учасників через кому/пробіл. Спільний для тригера й редагування.' },
+        'whitelistPh': { TW: '例：12345, 67890', CN: '例：12345, 67890', EN: 'e.g. 12345, 67890', DE: 'z. B. 12345, 67890', FR: 'ex. 12345, 67890', RU: 'напр. 12345, 67890', UA: 'напр. 12345, 67890' },
+        'language':  { TW: '語言', CN: '语言', EN: 'Language', DE: 'Sprache', FR: 'Langue', RU: 'Язык', UA: 'Мова' },
+        'languageD': { TW: '介面語言。Auto＝依遊戲登入語系；也可手動選擇。', CN: '界面语言。Auto＝依游戏登录语系；也可手动选择。', EN: 'UI language. Auto = follow game language; or pick manually.', DE: 'UI-Sprache. Auto = Spielsprache; oder manuell wählen.', FR: 'Langue de l\'interface. Auto = langue du jeu ; ou choisir manuellement.', RU: 'Язык интерфейса. Auto = язык игры; или выбрать вручную.', UA: 'Мова інтерфейсу. Auto = мова гри; або обрати вручну.' },
+        'exportD': { TW: '把所有設定下載為 JSON 檔。', CN: '把所有设置下载为 JSON 档。', EN: 'Download all settings as a JSON file.', DE: 'Alle Einstellungen als JSON-Datei herunterladen.', FR: 'Télécharger tous les réglages en JSON.', RU: 'Скачать все настройки как JSON.', UA: 'Завантажити всі налаштування як JSON.' },
+        'importD': { TW: '從 JSON 檔還原所有設定。', CN: '从 JSON 档还原所有设置。', EN: 'Restore all settings from a JSON file.', DE: 'Alle Einstellungen aus JSON-Datei wiederherstellen.', FR: 'Restaurer tous les réglages depuis un JSON.', RU: 'Восстановить все настройки из JSON.', UA: 'Відновити всі налаштування з JSON.' },
+
         // ── 預設催眠文本（換行＝多句） ─────────────────────────────────
         'defaultTexts': {
             TW: '放鬆…放鬆…\n你的意識正在沉睡\n聽我的聲音\n什麼都不用想\n越來越深沉\n順從是舒服的\n沉淪下去吧\n好乖…好乖…',
@@ -155,7 +189,9 @@
             RU: '$me разум туманится\n$me взгляд пустеет…\n$me сознание погружается\n$me слегка покачивается, в трансе\n$me выражение становится отрешённым',
             UA: '$me розум туманіє\n$me погляд порожніє…\n$me свідомість занурюється\n$me трохи похитується, у трансі\n$me вираз стає відстороненим',
         },
-    });
+    };
 
+    window.Liko.i18n.register('IVH', IVH_STRINGS);
+    window.Liko._IVH_strings = IVH_STRINGS;   // 供 IVH 自行依使用者選的語言查表
     if (window.Liko?.i18n) window.Liko.i18n._ivhStringsLoaded = true;
 })();
