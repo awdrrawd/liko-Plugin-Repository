@@ -2,7 +2,7 @@
 // @name         IVH - Immersive Voice Hypnosis
 // @name:zh      沉浸式聲音催眠效果
 // @namespace    https://likulisu.dev/
-// @version      2.0
+// @version      2.0.1
 // @description  收到 [Voice] 訊息時觸發深度催眠視覺效果，支援 /ivh 指令
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,7 +14,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.0";
+    const MOD_VER = "2.0.1";
     if (window.Liko.IVH) return;
     window.Liko.IVH = MOD_VER;
 
@@ -42,11 +42,37 @@
             }
         } catch (e) { console.warn('🐈‍⬛ [IVH] i18n 載入失敗，改用中文原文:', e.message); }
     }
-    // 取翻譯；引擎未就緒或缺 key → 回傳中文 fallback（見 IVH_FALLBACK）
+    // 可選語言（auto = 依遊戲語系）
+    const IVH_LANGS = ['auto', 'TW', 'CN', 'EN', 'DE', 'FR', 'RU', 'UA'];
+    const IVH_LANG_NAMES = { auto: 'Auto', TW: '繁中', CN: '简中', EN: 'EN', DE: 'DE', FR: 'FR', RU: 'RU', UA: 'UA' };
+
+    // 目前語言：玩家手動選 > 遊戲語系
+    function ivhLang() {
+        try {
+            const sel = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.lang) || 'auto';
+            if (sel && sel !== 'auto') return sel;
+            const raw = (typeof TranslationLanguage !== 'undefined' ? TranslationLanguage : '') || 'EN';
+            const c = String(raw).toUpperCase().trim();
+            return c === 'ZH' ? 'TW' : (c || 'EN');
+        } catch { return 'EN'; }
+    }
+
+    // 取翻譯：優先用 _IVH_strings（支援手動語言覆蓋）；
+    //   其次用引擎 t()（舊版線上字庫只 register、未 expose _IVH_strings 時仍可譯，但只跟遊戲語系）；
+    //   最後才退中文 IVH_FALLBACK。
     function ui(key, vars) {
-        const fn = window.Liko?.i18n;
-        if (fn?.t && fn.has?.(I18N_NS, key)) return fn.t(I18N_NS, key, vars);
-        let s = IVH_FALLBACK[key] ?? key;
+        const lang = ivhLang();
+        let s;
+        const store = window.Liko?._IVH_strings;
+        const e = store && store[key];
+        if (e) {
+            s = e[lang] ?? e[lang === 'CN' ? 'TW' : 'XX'] ?? e['EN'];
+        }
+        if (s == null) {
+            const fn = window.Liko?.i18n;
+            if (fn?.t && fn.has?.(I18N_NS, key)) return fn.t(I18N_NS, key, vars);
+        }
+        if (s == null) s = IVH_FALLBACK[key] ?? key;
         if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
         return s;
     }
@@ -67,10 +93,50 @@
         enabledDesc: '開啟後此插件會有更高沉浸性，並包含部分可能令人不適的效果（強閃光、畫面破碎、震動等），請依個人狀況使用。',
         intensity: '催眠強度', depthMax: '催眠深度', depthNone: '無', depthLight: '輕', depthMed: '中', depthHeavy: '重',
         interval: '循環時間', minutes: '分（1~99）', depthEffects: '── 深度效果 ──',
+        intensityD: '整體效果強度（0.1~3.0），同時決定背景深度等級（≈1輕/2中/3重，不超過深度上限）。可拖曳滑桿。',
+        depthMaxD: '背景催眠的最深程度（與 VOICE 觸發分開）。「無」＝關閉背景循環。',
+        intervalD: '每隔幾分鐘自動播放一次背景催眠（1~99）。深度「無」時不循環。',
+        depthRowLight: '深度輕', depthRowMed: '深度中', depthRowHeavy: '深度重',
+        fx_smoke: '煙霧', fx_smokeD: '不定時淡粉煙霧', fx_pant: '喘氣', fx_pantD: '規律喘氣白霧',
+        fx_danmaku: '彈幕', fx_danmakuD: '聊天訊息變催眠彈幕', fx_ghost: '人影', fx_ghostD: '背後低語人影＋耳邊文字',
+        fx_figblur: '人物模糊', fx_figblurD: '畫面模糊但人物/人影保持清晰', fx_sfx: '音效', fx_sfxD: '播放深度音效',
+        fx_chatblur: '聊天模糊', fx_chatblurD: '右側聊天訊息模糊',
+        triggerTargetD: '誰說出觸發詞會讓你進入催眠。「僅白名單」時只有名單內成員有效。',
+        allowEdit: '允許文本修改', allowEditD: '誰可在你的角色資料頁增減你的催眠文本。「僅自己」只有你能編輯；「僅白名單」時名單內成員（含你自己）可編輯。',
+        editOff: '僅自己', editAny: '所有人', editWhitelist: '僅白名單',
+        whitelistD: '會員編號，逗號或空白分隔。觸發對象與文本編輯共用此名單。', whitelistPh: '例：12345, 67890',
+        language: '語言', languageD: '介面語言。Auto＝依遊戲登入語系；也可手動選擇。',
+        exportD: '把所有設定下載為 JSON 檔。', importD: '從 JSON 檔還原所有設定。',
         triggerTarget: '觸發對象', anyone: '任何人', whitelistOnly: '僅白名單', whitelist: '白名單',
         allowOthersOn: '允許他人增減我的文本：開', allowOthersOff: '允許他人增減我的文本：關',
         climaxMode: '高潮模式', climaxOnOrgasm: '僅高潮時', climaxAlways: '每次觸發',
+        climaxModeD: '「僅高潮時」＝BC 真正高潮才放破碎特效；「每次觸發」＝每次催眠都放。',
+        climaxEvery: '每次觸發', climaxOrgasm: '僅高潮時',
+        effectsHint: '逐項開關 VOICE 觸發時的各種效果，滑鼠移到項目上可看說明。',
+        ev_pinkFlash: '粉紅暈染', ev_pinkFlashD: '畫面泛起粉紅光暈，營造迷濛氛圍。',
+        ev_hypnoSpiral: '催眠螺旋', ev_hypnoSpiralD: '在頭部上方出現旋轉螺旋。',
+        ev_hypnoWaves: '同心電波', ev_hypnoWavesD: '畫面左側出現向外擴張的同心圓波。',
+        ev_screenDistort: '畫面扭曲', ev_screenDistortD: '畫面輕微旋轉模糊，像意識被攪動。',
+        ev_vignette: '邊緣暗角', ev_vignetteD: '畫面四周變暗，聚焦中央。',
+        ev_danmaku: '彈幕文字', ev_danmakuD: '主台詞在頭上、旁白句散落左側（含聊天歷史）。',
+        ev_steam: '喘氣白霧', ev_steamD: '嘴邊呼出柔和白霧，向左右下方飄散。',
+        ev_expression: '表情切換', ev_expressionD: '催眠時隨機套用表情，結束後還原。',
+        ev_climax: '高潮特效', ev_climaxD: '畫面碎裂＋紅白閃光＋震動。',
+        ev_sound: '喘息聲音', ev_soundD: '播放喘息音效（需音效設定）。',
+        ev_headshot: '中央頭像', ev_headshotD: '每次觸發在畫面中央裁出頭像，螺旋／喘氣以它為基準（忽略分頁）。',
+        ev_dualSound: '雙重音效', ev_dualSoundD: '播放說話聲的同時，疊放一個觸發音（鐘擺等，使用「催眠」分類音效）。',
+        ev_emote: '狀態訊息', ev_emoteD: '觸發時發送一條動作訊息，讓他人知道你的狀態。',
         sec_hypnoText: '催眠文本', sec_statusMsg: '狀態訊息', sec_triggerWords: '觸發詞',
+        textsHint: '每行一句，使用 $me 代表被催眠者名稱。',
+        hypnoTextD: '彈幕／人影旁白來源，會和 BCX 的聽我聲音一起使用，僅被催眠者能看見。',
+        hypnoTextPh: '例：$me 好乖…放鬆…',
+        statusMsgD: '觸發催眠時隨機發送的動作訊息。', statusMsgPh: '例：$me 的思緒變得混亂了',
+        triggerWordsD: '白名單成員在聊天說出含這些詞的訊息時會觸發你的催眠（[Voice] 永遠有效）。每行一個。',
+        triggerWordsPh: '例：催眠　沉睡',
+        soundsHint: '每格可貼網址或「上傳」本機檔。「▶」試聽、「✕」清除、「其他」從右側音效庫選用。空白＝預設。',
+        sndCat_hypno: '催眠', sndCat_voice: '催眠2', sndCat_climax: '高潮', sndCat_depth: '深度',
+        sndSlotHead: '{name}音效（最多 {max}）', sndDefaultPh: '（預設）{file}',
+        sndUnsetPh: '未設定 — 網址／上傳／其他', sndLocalName: '本機音效',
         expr_edit: '🎭 編輯表情', expr_item: '表情{n}', expr_add: '＋ 用右側內容新增',
         expr_hint: '在右側設定好表情後，點某列「保存」或「＋新增」來儲存',
         eyebrows: '眉毛', eyes: '眼睛', mouth: '嘴巴', blush: '臉紅', exprNone: '— 無 —', previewLoading: '預覽載入中…',
@@ -141,13 +207,18 @@
             depthHeavy: { chatlogBlur: true, pant: true },
 
             // ── 文本 ──
-            allowOthersEdit: false,    // 允許他人增減我的文本
             textSource:     "ES",      // ES | DB
             customTexts:    ui('defaultTexts').split('\n').map(s => s.trim()).filter(Boolean),
             emoteList:      ui('defaultEmotes').split('\n').map(s => s.trim()).filter(Boolean),
 
             // ── 表情（最多 10 組）──
             expressionSets: DEFAULT_EXPRESSIONS.map(e => ({ ...e })),
+
+            // ── 語言（auto = 依遊戲語系；或手動 TW/CN/EN/DE/FR/RU/UA）──
+            lang: 'auto',
+
+            // ── 允許他人編輯文本模式：off / any / whitelist（與觸發對象共用白名單）──
+            allowEditMode: 'off',
 
             // ── 音效（URL 清單；本機上傳另存 IndexedDB，此處放 id 參照）──
             soundSource:    "ES",      // ES | DB
@@ -220,7 +291,8 @@
             whitelistMode: c.whitelistMode, whitelist: c.whitelist, triggerWords: c.triggerWords,
             depthMax: c.depthMax, depthIntervalMin: c.depthIntervalMin,
             depthLight: c.depthLight, depthMed: c.depthMed, depthHeavy: c.depthHeavy,
-            allowOthersEdit: c.allowOthersEdit, textSource: c.textSource,
+            allowEditMode: c.allowEditMode, textSource: c.textSource,
+            lang: c.lang,
             customTexts: c.textSource === 'ES' ? c.customTexts : [],
             emoteList: c.emoteList,
             expressionSets: c.expressionSets,
@@ -263,7 +335,12 @@
             if (raw) {
                 const json = LZString.decompressFromBase64(raw);
                 const saved = json ? JSON.parse(json) : null;
-                if (saved) CONFIG = mergeDefaults(makeDefaultConfig(), saved);
+                if (saved) {
+                    CONFIG = mergeDefaults(makeDefaultConfig(), saved);
+                    // 舊版 allowOthersEdit(bool) → allowEditMode(3 態) 遷移
+                    if (saved.allowEditMode === undefined && saved.allowOthersEdit)
+                        CONFIG.allowEditMode = 'any';
+                }
             }
         } catch (e) {
             console.warn('🐈‍⬛ [IVH] 設定讀取失敗，使用預設:', e.message);
@@ -299,11 +376,13 @@
     function publishSharedSettings() {
         try {
             if (!Player || !Player.OnlineSharedSettings) return;
+            const editable = (CONFIG.allowEditMode || 'off') !== 'off';
             Player.OnlineSharedSettings[ES_KEY] = {
                 v: MOD_VER,
-                edit: !!CONFIG.allowOthersEdit,
-                // 允許編輯時公告文本，讓他人在 profile 看到並編輯
-                texts: CONFIG.allowOthersEdit ? (CONFIG.customTexts || []) : [],
+                edit: editable,
+                editMode: CONFIG.allowEditMode || 'off',
+                // 允許編輯時公告文本，讓他人在 profile 看到並編輯（白名單模式仍由本端驗證）
+                texts: editable ? (CONFIG.customTexts || []) : [],
             };
             if (typeof ServerAccountUpdate?.QueueData === 'function') {
                 ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
@@ -3314,6 +3393,48 @@ function addArousal() {
             el.style.fontSize = Math.round(20 * sy) + 'px';
         },
 
+        // 原生下拉選單（點開即有卷軸）；options = [[value,label],...]
+        select(id, cx, cy, w, h, value, options, onChange) {
+            this._inputsUsed.add(id);
+            let el = this._inputs[id];
+            if (!el) {
+                el = document.createElement('select');
+                Object.assign(el.style, {
+                    position: 'fixed', zIndex: '10000', boxSizing: 'border-box',
+                    background: '#8E44A1', color: '#ffffff',
+                    border: '1px solid #b060c0', borderRadius: '4px',
+                    padding: '2px 6px', fontFamily: 'sans-serif', outline: 'none', cursor: 'pointer',
+                });
+                el.addEventListener('keydown', ev => ev.stopPropagation());
+                el.addEventListener('change', () => { if (onChange) onChange(el.value); });
+                document.body.appendChild(el);
+                this._inputs[id] = el;
+            }
+            const sig = options.map(o => o[0] + ':' + o[1]).join('|');
+            if (el._sig !== sig) {
+                el._sig = sig; el.innerHTML = '';
+                for (const [val, label] of options) {
+                    const o = document.createElement('option');
+                    o.value = val; o.textContent = label;
+                    o.style.background = '#301B3D'; o.style.color = '#ffffff';
+                    el.appendChild(o);
+                }
+            }
+            if (document.activeElement !== el) el.value = value;
+            const y = this._y(cy);
+            this._track(cy + h);
+            if (y < FRAME_Y || y + h > FRAME_BOT) { el.style.display = 'none'; return; }
+            const r = this._cv ? this._cv.getBoundingClientRect()
+                               : (document.getElementById('MainCanvas') || document.querySelector('canvas')).getBoundingClientRect();
+            const sx = r.width / 2000, sy = r.height / 1000;
+            el.style.display = '';
+            el.style.left   = (r.left + cx * sx) + 'px';
+            el.style.top    = (r.top  + y  * sy) + 'px';
+            el.style.width  = (w * sx) + 'px';
+            el.style.height = (h * sy) + 'px';
+            el.style.fontSize = Math.round(20 * sy) + 'px';
+        },
+
         // 深度效果層定義
         _depthRows() {
             return [
@@ -3328,21 +3449,20 @@ function addArousal() {
             const prev = MainCanvas.textAlign;
 
             // 催眠強度
-            this.title(232, ui('intensity'), '整體效果強度（0.1~3.0）。同時決定背景催眠深度：≈1=輕、2=中、3=重，但不超過下方「催眠深度」上限。可直接拖曳滑桿。');
-            this.slider(700, 215, 380, CONFIG.intensity, 0.1, 3.0, 0.1,
-                '拖曳調整整體強度（0.1~3.0）。',
+            this.title(232, ui('intensity'), ui('intensityD'));
+            this.slider(700, 215, 380, CONFIG.intensity, 0.1, 3.0, 0.1, ui('intensityD'),
                 v => { CONFIG.intensity = v; }, () => saveSettings());
             DrawText(CONFIG.intensity.toFixed(1), 1130, this._y(232), 'Black', '');
 
             // 催眠深度（取代背景循環開關；無=關閉）
-            this.title(312, ui('depthMax'), '背景催眠的最深程度（與 VOICE 觸發分開）。設「無」即完全關閉背景循環；輕/中/重決定氛圍強弱。');
+            this.title(312, ui('depthMax'), ui('depthMaxD'));
             [[0, ui('depthNone')], [1, ui('depthLight')], [2, ui('depthMed')], [3, ui('depthHeavy')]].forEach(([v, lb], i) => {
                 this.toggle(700 + i * 95, 290, 90, 45, lb, CONFIG.depthMax === i, null,
                     () => { CONFIG.depthMax = i; saveSettings(); applyDepthLoop(); });
             });
 
             // 循環時間（直接輸入）
-            this.title(382, ui('interval'), '每隔幾分鐘自動播放一次背景催眠（1~99 分）。深度為「無」時不會循環。');
+            this.title(382, ui('interval'), ui('intervalD'));
             this.input('ivh-interval', 700, 365, 110, 42, String(CONFIG.depthIntervalMin),
                 { type: 'number', onChange: val => {
                     let n = parseInt(val, 10); if (isNaN(n)) n = CONFIG.depthIntervalMin;
@@ -3355,116 +3475,120 @@ function addArousal() {
                 MainCanvas.textAlign = _p;
             }
 
-            // 深度效果
-            this.sep(450, ui('depthEffects'));
+            // 深度效果（無分隔線；標籤改 深度輕/中/重）
+            const rowTags = ['depthRowLight', 'depthRowMed', 'depthRowHeavy'];
+            const fxName = { smoke:'fx_smoke', pant:'fx_pant', chatDanmaku:'fx_danmaku', ghost:'fx_ghost',
+                             figureBlur:'fx_figblur', sfx:'fx_sfx', chatlogBlur:'fx_chatblur' };
+            const demoMap = { smoke:'pinkFlash', pant:'steamParticles', chatDanmaku:'danmaku',
+                              ghost:'ghost', figureBlur:'figureBlur', chatlogBlur:'chatlogBlur', sfx:'sound' };
             this._depthRows().forEach((row, ri) => {
-                const cy = 475 + ri * 55;
+                const cy = 450 + ri * 52;
                 const prev2 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
-                DrawTextFit(row.tag, CONTENT_X + 5, this._y(cy + 20), 40, 'Black', '');
+                DrawTextFit(ui(rowTags[ri]), CONTENT_X, this._y(cy + 20), 100, 'Black', '');
                 MainCanvas.textAlign = prev2;
                 this._track(cy + 40);
-                const demoMap = { smoke:'pinkFlash', pant:'steamParticles', chatDanmaku:'danmaku',
-                                  ghost:'ghost', figureBlur:'figureBlur', chatlogBlur:'chatlogBlur', sfx:'sound' };
-                const descMap = { smoke:'不定時淡粉煙霧', pant:'規律喘氣白霧', chatDanmaku:'聊天訊息變催眠彈幕',
-                                  ghost:'背後低語人影＋耳邊文字', figureBlur:'畫面模糊但人物/人影保持清晰',
-                                  chatlogBlur:'右側聊天訊息模糊', sfx:'播放深度音效' };
-                row.items.forEach(([k, lb], ci) => {
-                    this.toggle(560 + ci * 132, cy, 124, 40, lb, !!CONFIG[row.cfg][k], descMap[k],
+                row.items.forEach(([k], ci) => {
+                    this.toggle(615 + ci * 122, cy, 116, 40, ui(fxName[k]), !!CONFIG[row.cfg][k], ui(fxName[k] + 'D'),
                         () => { CONFIG[row.cfg][k] = !CONFIG[row.cfg][k]; saveSettings(); }, demoMap[k]);
                 });
             });
 
-            // 觸發對象
-            this.title(662, ui('triggerTarget'), '誰說出觸發詞時會讓你進入催眠。「僅白名單」時只有下方名單內的成員有效。');
-            this.toggle(700, 640, 140, 45, ui('anyone'),       CONFIG.whitelistMode === 'any', null,
+            // 觸發對象（任何人對齊上方「喘氣」欄 X=737）
+            this.title(627, ui('triggerTarget'), ui('triggerTargetD'));
+            this.toggle(737, 607, 130, 44, ui('anyone'),        CONFIG.whitelistMode === 'any', null,
                 () => { CONFIG.whitelistMode = 'any'; saveSettings(); });
-            this.toggle(850, 640, 140, 45, ui('whitelistOnly'), CONFIG.whitelistMode === 'whitelist', null,
+            this.toggle(875, 607, 130, 44, ui('whitelistOnly'),  CONFIG.whitelistMode === 'whitelist', null,
                 () => { CONFIG.whitelistMode = 'whitelist'; saveSettings(); });
 
-            // 白名單輸入
-            this.title(712, ui('whitelist'), '輸入會員編號，以逗號或空白分隔。僅「僅白名單」模式下生效。');
-            this.input('ivh-whitelist', 700, 698, 480, 42, (CONFIG.whitelist || []).join(', '),
-                { placeholder: '例：12345, 67890', onChange: val => {
+            // 文本修改（誰可編輯我的文本；3 態，移到白名單上方，與觸發對象共用白名單）
+            this.title(681, ui('allowEdit'), ui('allowEditD'));
+            const em = CONFIG.allowEditMode || 'off';
+            const setEdit = m => { CONFIG.allowEditMode = m; saveSettings(); publishSharedSettings(); };
+            this.toggle(737, 661, 130, 44, ui('editOff'),       em === 'off',       null, () => setEdit('off'));
+            this.toggle(875, 661, 130, 44, ui('editAny'),       em === 'any',       null, () => setEdit('any'));
+            this.toggle(1013, 661, 150, 44, ui('editWhitelist'), em === 'whitelist', null, () => setEdit('whitelist'));
+
+            // 白名單（觸發對象與編輯共用一份）
+            this.title(735, ui('whitelist'), ui('whitelistD'));
+            this.input('ivh-whitelist', 700, 721, 480, 42, (CONFIG.whitelist || []).join(', '),
+                { placeholder: ui('whitelistPh'), onChange: val => {
                     CONFIG.whitelist = (val.match(/\d+/g) || []).map(Number);
                     saveSettings();
                 }});
 
-            // 允許他人編輯
-            this.toggle(500, 760, 480, 45,
-                CONFIG.allowOthersEdit ? ui('allowOthersOn') : ui('allowOthersOff'),
-                CONFIG.allowOthersEdit,
-                '開啟後，裝有 IVH 的人查看你的角色資料時可增減你的催眠文本（透過 OnlineSharedSettings 公告）。',
-                () => { CONFIG.allowOthersEdit = !CONFIG.allowOthersEdit; saveSettings(); publishSharedSettings(); });
+            // 語言（原生下拉，點開即有卷軸，避免循環點擊）
+            this.title(789, ui('language'), ui('languageD'));
+            this.select('ivh-lang', 700, 775, 200, 44, CONFIG.lang || 'auto',
+                IVH_LANGS.map(l => [l, IVH_LANG_NAMES[l] || l]),
+                v => { CONFIG.lang = v; saveSettings(); });
 
             // 匯出 / 匯入
-            this.btn(500, 820, 230, 45, ui('export'), 'White',
-                '把所有設定下載為 JSON 檔。', () => exportSettings());
-            this.btn(750, 820, 230, 45, ui('import'), 'White',
-                '從 JSON 檔還原所有設定。', () => importSettings());
-            this._track(875);
+            this.btn(500, 841, 230, 45, ui('export'), 'White', ui('exportD'), () => exportSettings());
+            this.btn(750, 841, 230, 45, ui('import'), 'White', ui('importD'), () => importSettings());
+            this._track(895);
 
             MainCanvas.textAlign = prev;
         },
 
         // ════════ 效果設定 ════════
         _effectToggles() {
+            // [cfg key, emoji, 名稱 i18n key]
             return [
-                ['pinkFlash',      '🌸 粉紅暈染', '畫面泛起粉紅光暈，營造迷濛氛圍。'],
-                ['hypnoSpiral',    '🌀 催眠螺旋', '在頭部上方出現旋轉螺旋。'],
-                ['hypnoWaves',     '〰️ 同心電波', '畫面左側出現向外擴張的同心圓波。'],
-                ['screenDistort',  '🔮 畫面扭曲', '畫面輕微旋轉模糊，像意識被攪動。'],
-                ['vignette',       '🌑 邊緣暗角', '畫面四周變暗，聚焦中央。'],
-                ['danmaku',        '💬 彈幕文字', '主台詞在頭上、旁白句散落左側（含聊天歷史）。'],
-                ['steamParticles', '💨 喘氣白霧', '嘴邊呼出柔和白霧，向左右下方飄散。'],
-                ['expression',     '😳 表情切換', '催眠時隨機套用表情，結束後還原。'],
-                ['climax',         '💥 高潮特效', '畫面碎裂＋紅白閃光＋震動。'],
-                ['sound',          '🔊 喘息聲音', '播放喘息音效（需音效設定）。'],
-                ['centerHeadshot', '🖼 中央頭像', '每次觸發在畫面中央裁出頭像，螺旋／喘氣以它為基準（忽略分頁）。'],
-                ['dualSound',      '🔊 雙重音效', '播放說話聲的同時，疊放一個觸發音（鐘擺等，使用「催眠」分類音效）。'],
-                ['emoteEnabled',   '📢 狀態訊息', '觸發時發送一條動作訊息，讓他人知道你的狀態。'],
+                ['pinkFlash',      '🌸', 'ev_pinkFlash'],
+                ['hypnoSpiral',    '🌀', 'ev_hypnoSpiral'],
+                ['hypnoWaves',     '〰️', 'ev_hypnoWaves'],
+                ['screenDistort',  '🔮', 'ev_screenDistort'],
+                ['vignette',       '🌑', 'ev_vignette'],
+                ['danmaku',        '💬', 'ev_danmaku'],
+                ['steamParticles', '💨', 'ev_steam'],
+                ['expression',     '😳', 'ev_expression'],
+                ['climax',         '💥', 'ev_climax'],
+                ['sound',          '🔊', 'ev_sound'],
+                ['centerHeadshot', '🖼', 'ev_headshot'],
+                ['dualSound',      '🔊', 'ev_dualSound'],
+                ['emoteEnabled',   '📢', 'ev_emote'],
             ];
         },
         _run_effects() {
-            this.title(232, '效果設定', '逐項開關 VOICE 觸發時的各種效果，滑鼠移到項目上可看說明。');
+            this.title(232, ui('tab_effects'), ui('effectsHint'));
             const list = this._effectToggles();
-            list.forEach(([key, label, desc], i) => {
+            list.forEach(([key, emoji, nameKey], i) => {
                 const col = i % 2, row = (i - col) / 2;
                 const cx  = 500 + col * 410;
                 const cy  = 285 + row * 54;
-                this.toggle(cx, cy, 390, 44, label, !!CONFIG[key], desc,
+                this.toggle(cx, cy, 390, 44, emoji + ' ' + ui(nameKey), !!CONFIG[key], ui(nameKey + 'D'),
                     () => { CONFIG[key] = !CONFIG[key]; saveSettings(); }, key);
             });
             // 高潮觸發模式（特殊：orgasm / always）
             const cyM = 285 + Math.ceil(list.length / 2) * 54 + 12;
-            this.title(cyM + 22, '高潮模式',
-                '「僅高潮時」＝BC 真正高潮才放破碎特效；「每次觸發」＝每次催眠都放。');
+            this.title(cyM + 22, ui('climaxMode'), ui('climaxModeD'));
             this.toggle(700, cyM, 200, 44,
-                CONFIG.climaxMode === 'always' ? '每次觸發' : '僅高潮時',
+                CONFIG.climaxMode === 'always' ? ui('climaxEvery') : ui('climaxOrgasm'),
                 CONFIG.climaxMode === 'always', null,
                 () => { CONFIG.climaxMode = CONFIG.climaxMode === 'always' ? 'orgasm' : 'always'; saveSettings(); });
         },
 
         // ════════ 文本設定 ════════
         _run_texts() {
-            this.title(228, '文本設定', '提供文本設定每行一句，使用 $me 代表被催眠者名稱。');
+            this.title(228, ui('tab_texts'), ui('textsHint'));
 
-            this.title(286, '催眠文本', '彈幕／人影旁白來源，會和 BCX 的聽我聲音一起使用，僅被催眠者能看見。');
+            this.title(286, ui('sec_hypnoText'), ui('hypnoTextD'));
             this.input('ivh-texts', 500, 314, 800, 150, (CONFIG.customTexts || []).join('\n'),
-                { multiline: true, placeholder: '例：$me 好乖…放鬆…', onChange: val => {
+                { multiline: true, placeholder: ui('hypnoTextPh'), onChange: val => {
                     CONFIG.customTexts = val.split('\n').map(s => s.trim()).filter(Boolean);
                     saveSettings();
                 }});
 
-            this.title(496, '狀態訊息', '觸發催眠時隨機發送的動作訊息。');
+            this.title(496, ui('sec_statusMsg'), ui('statusMsgD'));
             this.input('ivh-emotes', 500, 524, 800, 120, (CONFIG.emoteList || []).join('\n'),
-                { multiline: true, placeholder: '例：$me 的思緒變得混亂了', onChange: val => {
+                { multiline: true, placeholder: ui('statusMsgPh'), onChange: val => {
                     CONFIG.emoteList = val.split('\n').map(s => s.trim()).filter(Boolean);
                     saveSettings();
                 }});
 
-            this.title(676, '觸發詞', '白名單成員在聊天說出含這些詞的訊息時會觸發你的催眠（[Voice] 永遠有效）。每行一個。');
+            this.title(676, ui('sec_triggerWords'), ui('triggerWordsD'));
             this.input('ivh-triggers', 500, 704, 800, 110, (CONFIG.triggerWords || []).join('\n'),
-                { multiline: true, placeholder: '例：催眠　沉睡', onChange: val => {
+                { multiline: true, placeholder: ui('triggerWordsPh'), onChange: val => {
                     CONFIG.triggerWords = val.split('\n').map(s => s.trim()).filter(Boolean);
                     saveSettings();
                 }});
@@ -3488,7 +3612,7 @@ function addArousal() {
                 const nm = ui('expr_item', { n: i + 1 });
                 this.btn(CONTENT_X, cy, 340, 46, nm, 'White', null,
                     () => { this._exprWork = this._exprWorkFrom(set); this._exprPrevKey = ''; });
-                this.btn(850, cy, 130, 46, ui('save'), '#872626', null,
+                this.btn(850, cy, 130, 46, ui('save'), '#21872F', null,
                     () => ivhConfirm(ui('confirmReplace', { name: nm }), () => {
                         const w = this._exprWork;
                         sets[i] = { Eyebrows: w.Eyebrows, Eyes: w.Eyes, Mouth: w.Mouth, Blush: w.Blush };
@@ -3555,17 +3679,19 @@ function addArousal() {
 
         // 音效分類（順序：催眠 / 催眠2 / 高潮 / 深度）
         _soundCats() {
-            return [['hypno', '催眠', 5], ['voice', '催眠2', 3], ['climax', '高潮', 5], ['depth', '深度', 3]];
+            // [cat, 標籤 i18n key, 最大數]
+            return [['hypno', 'sndCat_hypno', 5], ['voice', 'sndCat_voice', 3], ['climax', 'sndCat_climax', 5], ['depth', 'sndCat_depth', 3]];
         },
         // ════════ 音效設定 ════════
         _run_sounds() {
-            this.title(226, '音效設定', '每格可貼網址或「上傳」本機檔。「▶」試聽、「✕」清除、「其他」從右側音效庫選用。空白＝預設。');
+            this.title(226, ui('tab_sounds'), ui('soundsHint'));
             const DEFAULTS = SOUND_DEFAULTS;   // 各分類預設音效
             const LX = 580;        // 欄位往右 20px
             let cy = 286;
-            this._soundCats().forEach(([cat, lb, max], ci) => {
+            this._soundCats().forEach(([cat, lbKey, max], ci) => {
+                const lb = ui(lbKey);
                 if (ci > 0) cy += 10;   // 各大類標題上多 10px 間距
-                this.sep(cy, `── ${lb}音效（最多 ${max}）──`);
+                this.sep(cy, `── ${ui('sndSlotHead', { name: lb, max })} ──`);
                 cy += 26;
                 if (!CONFIG.sounds[cat]) CONFIG.sounds[cat] = [];
                 for (let i = 0; i < max; i++) {
@@ -3577,12 +3703,12 @@ function addArousal() {
                     DrawTextFit(lb + (i + 1), CONTENT_X, this._y(rowY + 24), 70, 'Black', '');
                     MainCanvas.textAlign = p2;
                     if (isIdb) {
-                        const name = _sndNameCache[entry.slice(4)] || '本機音效';
+                        const name = _sndNameCache[entry.slice(4)] || ui('sndLocalName');
                         const p3 = MainCanvas.textAlign; MainCanvas.textAlign = 'left';
                         DrawTextFit('🎵 ' + name, LX + 5, this._y(rowY + 24), 410, '#1a7a2a', '');
                         MainCanvas.textAlign = p3;
                     } else {
-                        const ph = def ? '（預設）' + def.split('/').pop() : '未設定 — 網址／上傳／其他';
+                        const ph = def ? ui('sndDefaultPh', { file: def.split('/').pop() }) : ui('sndUnsetPh');
                         this.input('ivh-snd-' + cat + i, LX, rowY + 2, 410, 40, entry,
                             { placeholder: ph, onChange: v => { CONFIG.sounds[cat][i] = v.trim(); saveSettings(); } });
                     }
@@ -3727,7 +3853,10 @@ function addArousal() {
                 if (data && data.Type === 'Hidden' && data.Content === 'IVH_SetTexts') {
                     try {
                         const dict = (data.Dictionary || []).find(d => d && d.Tag === 'IVH_SetTexts');
-                        if (dict && dict.Target === Player.MemberNumber && CONFIG.allowOthersEdit && Array.isArray(dict.Texts)) {
+                        const mode = CONFIG.allowEditMode || 'off';
+                        const senderOk = mode === 'any' ||
+                                         (mode === 'whitelist' && (CONFIG.whitelist || []).includes(Number(data.Sender)));
+                        if (dict && dict.Target === Player.MemberNumber && senderOk && Array.isArray(dict.Texts)) {
                             CONFIG.customTexts = dict.Texts.map(s => String(s).trim()).filter(Boolean).slice(0, 200);
                             saveSettings(true);
                             publishSharedSettings();
