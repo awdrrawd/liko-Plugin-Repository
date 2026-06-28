@@ -2,7 +2,7 @@
 // @name         Liko - CRA
 // @name:zh      聊天室輔助工具
 // @namespace    https://likolisu.dev/
-// @version      1.0.1
+// @version      1.0.2
 // @description  替他人改姿勢、輸入歷史、BIO時區頭頂時間、@動作自帶名字、指令/房間轉按鈕 | Chat room assistant
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -19,7 +19,7 @@
 
     window.Liko = window.Liko ?? {};
     if (window.Liko.CRA) return;
-    const MOD_VER = "1.0.1";
+    const MOD_VER = "1.0.2";
     window.Liko.CRA = MOD_VER;
 
     const LOG = "🐈‍⬛ [CRA]";
@@ -364,9 +364,9 @@
             poseCooldown = now + CONFIG.POSE_COOLDOWN;
 
             const msg = Lang.t('poseAction')
-                .replace('{src}', nick(Player))
-                .replace('{tgt}', nick(target))
-                .replace('{pose}', poseDef.display);
+            .replace('{src}', nick(Player))
+            .replace('{tgt}', nick(target))
+            .replace('{pose}', poseDef.display);
             sendActionText(msg);
             return true;
         } catch (e) { err("改姿勢失敗", e); return false; }
@@ -391,7 +391,7 @@
 
         const hover = poseExpanded ? Lang.t('poseToggleOn') : Lang.t('poseToggleOff');
         DrawButton(CONFIG.ANCHOR_X, CONFIG.ANCHOR_Y, CONFIG.TOGGLE_W, CONFIG.TOGGLE_H,
-            Lang.t('poseLabel'), poseExpanded ? "#5323a1" : "White", "", hover);
+                   Lang.t('poseLabel'), poseExpanded ? "#5323a1" : "White", "", hover);
 
         if (!poseExpanded) return;
         const poses = CONFIG.POSES;
@@ -724,23 +724,29 @@
         // ── 指令註冊 ──
         const registerCommands = () => {
             CommandCombine([{
-                Tag: 'cumm',
+                Tag: 'cum',
                 Description: "：引起高潮。",
                 Action: () => {
                     ActivityOrgasmRuined = false;
                     ActivityOrgasmStart(Player);
                 }
             }]);
-            log("/cumm 指令註冊成功");
+            log("/cum 指令註冊成功");
         };
-        if (typeof CommandCombine === 'function') {
+
+        const tryRegister = () => {
+            if (GetCommands().some(c => c.Tag.toLowerCase() === 'cum')) {
+                log("/cum 指令已存在，跳過註冊");
+                return;
+            }
             try { registerCommands(); }
             catch (e) { err("指令註冊失敗", e); }
+        };
+
+        if (typeof CommandCombine === 'function' && typeof GetCommands === 'function') {
+            tryRegister();
         } else {
-            waitFor(() => typeof CommandCombine === 'function').then(() => {
-                try { registerCommands(); }
-                catch (e) { err("指令延遲註冊失敗", e); }
-            });
+            waitFor(() => typeof CommandCombine === 'function' && typeof GetCommands === 'function').then(tryRegister);
         }
 
         // 歡迎訊息（每連線一次）
@@ -750,7 +756,7 @@
                 setTimeout(() => {
                     if (!window.LikoCRTWelcomed) {
                         ChatRoomSendLocal("<div style='background:#4C2772;color:#EEE;padding:6px;border-radius:6px;'>" +
-                            Lang.t('welcome') + "</div>", 30000);
+                                          Lang.t('welcome') + "</div>", 30000);
                         window.LikoCRTWelcomed = true;
                     }
                 }, 1000);
