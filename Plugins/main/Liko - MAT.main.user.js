@@ -2,7 +2,7 @@
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://likolisu.dev/
-// @version      1.4.2
+// @version      1.5.0
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,7 +13,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.4.2";
+    const MOD_VER = "1.5.0";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -319,10 +319,60 @@
 
     const TRANSLATE_MARKER = '[MAT]';
 
+    // ============================================================
+    // MAT 意圖旗標：夾在送出訊息的 Dictionary，告訴對方「我會把這句翻成 X 並廣播 [🌐]」。
+    // 用 BC 不認得的欄位名（long）載語言碼：伺服器會保留、BC 不會渲染或當文字替換。
+    // 接收端據此跳過重複翻譯。詳見記憶 bc-chat-dictionary-survival。
+    // ============================================================
+    const LIKO_MAT_TAG = 'LikoMAT';
+    const LIKO_MAT_FIELD = 'long';
+    const MAT_FLAG_TYPES = ['Chat', 'Emote', 'Whisper', 'Action'];
+
+    // 把旗標推到 Dictionary 末端（不動既有 entry，例如 Action 仍靠 dict[0].Text）
+    function addMATFlag(data) {
+        if (!Array.isArray(data.Dictionary)) data.Dictionary = data.Dictionary == null ? [] : [data.Dictionary];
+        if (data.Dictionary.some(e => e && e.Tag === LIKO_MAT_TAG)) return;
+        data.Dictionary.push({ Tag: LIKO_MAT_TAG, [LIKO_MAT_FIELD]: config.sendLang });
+    }
+
+    // 從收到的訊息讀旗標語言碼；沒有則回 null
+    function readMATFlag(data) {
+        if (!data || !Array.isArray(data.Dictionary)) return null;
+        const e = data.Dictionary.find(x => x && x.Tag === LIKO_MAT_TAG);
+        return e ? (e[LIKO_MAT_FIELD] ?? null) : null;
+    }
+
     function isPureUrl(text) {
         if (!text) return false;
         const trimmed = text.trim().replace(/^[\s\(\[\*]+|[\s\)\]\*]+$/g, '').trim();
         return /^https?:\/\//i.test(trimmed);
+    }
+
+    // 編碼/壓縮資料（LZString / base64 / hex / hash）——翻了沒意義又浪費 API。
+    // 只看「最長的單一無空格 token」：正常句子有空格、CJK 不在字元集，幾乎不會誤殺。
+    function looksEncoded(text) {
+        const longest = text.trim().split(/\s+/).reduce((a, b) => b.length > a.length ? b : a, '');
+        if (longest.length < 24) return false;
+        // LZString 壓縮 JSON 常見開頭（高信心，短的也攔；只留特異性高的，避免誤殺正常單字）
+        if (/^(N4Ig|NobwRA)/.test(longest)) return true;
+        // 通用：夠長 + 純編碼字元集 + 大小寫數字混合
+        if (longest.length >= 40
+            && /^[A-Za-z0-9+\-$/=_]+$/.test(longest)
+            && /[A-Z]/.test(longest) && /[a-z]/.test(longest) && /\d/.test(longest)) return true;
+        return false;
+    }
+
+    // 自動翻譯的統一跳過判斷：送出端據此決定要不要夾旗標、接收端據此跳過——兩邊必須一致，
+    // 否則「不該翻的句子」被夾了旗標，接收端會空等 1 秒造成爆量塞車。
+    function isUntranslatable(text) {
+        if (!text) return true;
+        if (text.includes('BCX_') || /^[\d\s:]+$/.test(text) ||
+            text.includes(TRANSLATE_MARKER) || text.includes('[🌐]') ||
+            text.includes('🔊') || text.includes('📞')) return true;
+        if (isPureUrl(text)) return true;
+        if (!/\p{L}/u.test(text)) return true;   // 純顏文字/符號/emoji
+        if (looksEncoded(text)) return true;     // LZString/base64/hex/hash
+        return false;
     }
 
     // BC 結巴語法：結巴時會在詞首插入「同字 + 連字號」，例如 "n-no problem"、"I-I-I love"、"我-我好累"。
@@ -337,16 +387,7 @@
     }
 
     async function smartTranslate(text, targetLang) {
-        if (!config.enabled || !text) return null;
-        if (
-            text.includes('BCX_') ||
-            text.match(/^[\d\s:]+$/) ||
-            text.includes(TRANSLATE_MARKER) ||
-            text.includes('[🌐]') ||
-            text.includes('🔊') ||
-            text.includes('📞')
-        ) return null;
-        if (isPureUrl(text)) return null;
+        if (!config.enabled || isUntranslatable(text)) return null;
         text = stripStutter(text);
         try {
             const { translated, error } = await translateChunked(text, targetLang);
@@ -392,6 +433,48 @@
         observer = null;
     }
 
+    // 依旗標定位剛 render 的訊息節點：先用 MsgId 精準，後備用最後一則 + 發送者相符
+    function findFlaggedNode(data) {
+        const log = document.querySelector('#TextAreaChatLog');
+        if (!log) return null;
+        let msgId = null;
+        if (Array.isArray(data.Dictionary)) {
+            const e = data.Dictionary.find(x => x && typeof x.MsgId === 'string');
+            msgId = e?.MsgId || null;
+        }
+        if (msgId) {
+            const node = log.querySelector(`[msgid="${msgId}"]`)?.closest('.ChatMessage');
+            if (node) return node;
+        }
+        const last = log.lastElementChild;
+        if (last?.classList?.contains('ChatMessage') && String(data.Sender) === last.dataset?.sender) return last;
+        return null;
+    }
+
+    // 節點之後是否已出現同一發送者的 [🌐] 翻譯（對方廣播已到）
+    function hasRemoteTranslation(node) {
+        let sib = node.nextElementSibling, hops = 0;
+        while (sib && hops < 8) {
+            if (sib.classList?.contains('ChatMessage') &&
+                !sib.classList.contains('mat-translated') &&
+                !sib.classList.contains('mat-manual-translated') &&
+                sib.dataset?.sender === node.dataset?.sender &&
+                sib.textContent.includes('[🌐]')) return true;
+            sib = sib.nextElementSibling; hops++;
+        }
+        return false;
+    }
+
+    // 跳過自翻後，最多等 timeout 毫秒讓對方的 [🌐] 廣播到達；到了回 true（不需自翻）
+    async function waitForRemoteTranslation(node, timeout = 1000, step = 150) {
+        const start = Date.now();
+        while (Date.now() - start < timeout) {
+            if (hasRemoteTranslation(node)) return true;
+            await new Promise(r => setTimeout(r, step));
+        }
+        return hasRemoteTranslation(node);
+    }
+
     async function handleReceivedMessage(node) {
         if (!config.enabled || !config.translateReceived) return;
         if (!(node instanceof HTMLElement)) return;
@@ -422,6 +505,8 @@
         node.classList.add("mat-processed");
         const message = extractCleanMessage(node);
         if (!message) return;
+        // 對方已標記要翻成我的語言（mat-skip）：先等其 [🌐] 廣播，最多 1 秒；沒到（對方翻譯失敗）才自翻
+        if (node.classList.contains('mat-skip') && await waitForRemoteTranslation(node)) return;
         const translated = await smartTranslate(message, config.recvLang);
         if (translated !== null && translated !== message) createTranslatedDiv(node, translated);
     }
@@ -460,7 +545,12 @@
         const cls = [...originalNode.classList].find(c => c.startsWith('ChatMessage') && c !== 'ChatMessage');
         div.classList.add('ChatMessage', 'mat-translated');
         if (cls) div.classList.add(cls);
-        div.textContent = `[🌐] ${translatedText}`;
+        let body = translatedText;
+        if (originalNode.classList.contains('ChatMessageChat')) {
+            const name = originalNode.querySelector('.ChatMessageName')?.textContent?.trim();
+            if (name) body = `${name}: ${translatedText}`;
+        }
+        div.textContent = `[🌐] ${body}`;
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
         originalNode.parentNode.insertBefore(div, originalNode.nextSibling);
         scrollChatToBottom();
@@ -825,6 +915,12 @@
             if (!config.enabled || !config.translateSent) return next(args);
             const safeStr = (v) => typeof v === 'string' ? v : null;
 
+            // 夾意圖旗標到原句：只夾「會被翻譯廣播」的句子；顏文字/編碼/[🌐] 不夾，免接收端空等 1 秒
+            if (command === "ChatRoomChat" && MAT_FLAG_TYPES.includes(data.Type)) {
+                const ot = data.Type === "Action" ? safeStr(data.Dictionary?.[0]?.Text) : safeStr(data.Content);
+                if (ot && !isUntranslatable(ot)) addMATFlag(data);
+            }
+
             if (command === "ChatRoomChat" && data.Type === "Chat") {
                 const t = safeStr(data.Content);
                 if (t && !t.includes('[🌐]')) {
@@ -882,6 +978,27 @@
                 return;
             }
             return next(args);
+        });
+    }
+
+    // 接收端：讀對方夾的意圖旗標，若其目標語言 == 我的接收語言，標記節點 mat-skip 讓 observer 跳過自翻
+    function hookReceiveFlag() {
+        if (!modApi) return;
+        modApi.hookFunction("ChatRoomMessage", 10, (args, next) => {
+            const result = next(args);
+            try {
+                if (!config.enabled || !config.translateReceived) return result;
+                const data = args[0];
+                if (!data || typeof data !== 'object') return result;
+                if (data.Sender === Player?.MemberNumber) return result;
+                const lang = readMATFlag(data);
+                if (lang && lang === config.recvLang) {
+                    findFlaggedNode(data)?.classList.add('mat-skip');
+                }
+            } catch (e) {
+                console.warn('🐈‍⬛ [MAT] ❌ recv flag hook:', e);
+            }
+            return result;
         });
     }
 
@@ -1428,6 +1545,7 @@
 
                     registerCommands();
                     hookSendFunctions();
+                    hookReceiveFlag();
                     hookRoomEvents();
                     hookOnlineProfile();
                     setupSelectionListener();
