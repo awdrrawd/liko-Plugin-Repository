@@ -109,9 +109,8 @@
         exportD: '把所有設定下載為 JSON 檔。', importD: '從 JSON 檔還原所有設定。',
         triggerTarget: '觸發對象', anyone: '任何人', whitelistOnly: '僅白名單', whitelist: '白名單',
         allowOthersOn: '允許他人增減我的文本：開', allowOthersOff: '允許他人增減我的文本：關',
-        climaxMode: '高潮模式', climaxOnOrgasm: '僅高潮時', climaxAlways: '每次觸發',
+        climaxMode: '高潮模式', climaxEvery: '每次觸發', climaxOrgasm: '僅高潮時',
         climaxModeD: '「僅高潮時」＝BC 真正高潮才放破碎特效；「每次觸發」＝每次催眠都放。',
-        climaxEvery: '每次觸發', climaxOrgasm: '僅高潮時',
         effectsHint: '逐項開關 VOICE 觸發時的各種效果，滑鼠移到項目上可看說明。',
         ev_pinkFlash: '粉紅暈染', ev_pinkFlashD: '畫面泛起粉紅光暈，營造迷濛氛圍。',
         ev_hypnoSpiral: '催眠螺旋', ev_hypnoSpiralD: '在頭部上方出現旋轉螺旋。',
@@ -134,7 +133,7 @@
         triggerWordsD: '白名單成員在聊天說出含這些詞的訊息時會觸發你的催眠（[Voice] 永遠有效）。每行一個。',
         triggerWordsPh: '例：催眠　沉睡',
         soundsHint: '每格可貼網址或「上傳」本機檔。「▶」試聽、「✕」清除、「其他」從右側音效庫選用。空白＝預設。',
-        sndCat_hypno: '催眠', sndCat_voice: '催眠2', sndCat_climax: '高潮', sndCat_depth: '深度',
+        sndCat_hypno: '催眠', sndCat_trigger: '觸發音', sndCat_climax: '高潮', sndCat_depth: '深度',
         sndSlotHead: '{name}音效（最多 {max}）', sndDefaultPh: '（預設）{file}',
         sndUnsetPh: '未設定 — 網址／上傳／其他', sndLocalName: '本機音效',
         expr_edit: '🎭 編輯表情', expr_item: '表情{n}', expr_add: '＋ 用右側內容新增',
@@ -3682,7 +3681,7 @@ function addArousal() {
         // 音效分類（順序：催眠 / 催眠2 / 高潮 / 深度）
         _soundCats() {
             // [cat, 標籤 i18n key, 最大數]
-            return [['hypno', 'sndCat_hypno', 5], ['voice', 'sndCat_voice', 3], ['climax', 'sndCat_climax', 5], ['depth', 'sndCat_depth', 3]];
+            return [['hypno', 'sndCat_hypno', 5], ['voice', 'sndCat_trigger', 3], ['climax', 'sndCat_climax', 5], ['depth', 'sndCat_depth', 3]];
         },
         // ════════ 音效設定 ════════
         _run_sounds() {
