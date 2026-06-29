@@ -109,8 +109,10 @@
         on: '開', off: '關',
         seeOthersPant: '看到他人喘氣', seeOthersPantD: '開啟後，當房內其他人被催眠（送出催眠廣播）時，你會在對方角色身上看到喘氣白霧。預設關閉。',
         remoteEditTitle: '編輯 {name} 的 IVH 文本', remoteEditHint: '每行一句。可用 $me 代表被催眠者、$n 換行；狀態訊息以 $a 開頭會發 Action。儲存後送給對方（對方需仍允許編輯才生效）。',
-        remoteEditSave: '💾 儲存並送出', remoteEditSent: '📤 已送出對 {name} 的文本編輯',
+        remoteEditSave: '💾 儲存並送出', remoteEditSent: '📤 已送出給 {name}，等待對方套用…',
+        remoteEditOk: '✅ {name} 已套用你的編輯', remoteEditDenied: '⚠️ {name} 未套用你的編輯（你不在對方白名單）',
         profileEditBtn: '編輯對方的 IVH 文本', profileEditOff: '對方未開放編輯文本',
+        profileEditNoPerm: '你不在對方白名單，無法編輯', remoteEditNoPerm: '你沒有此項編輯權限',
         whitelistD: '會員編號或代號（$owner＝主人、$lover＝愛人含 AFC、$friend＝好友、$white＝BC白名單），逗號或空白分隔。各類「白名單」編輯權限共用此名單。', whitelistPh: '例：$owner, $lover, $friend, $white, 12345',
         textsResetD: '把催眠文本／狀態訊息／觸發詞重設為「目前語言」的預設值（切換語言後可用來更新翻譯）。',
         confirmTextsReset: '會用目前語言的預設覆蓋你的催眠文本、狀態訊息與觸發詞，確定嗎？',
@@ -397,10 +399,13 @@
             const em = CONFIG.editModes || { catalyst: 'off', status: 'off', trigger: 'off' };
             const on = m => m === 'any' || m === 'whitelist';
             const anyEditable = on(em.catalyst) || on(em.status) || on(em.trigger);
+            // 有任何「白名單」類別時，公告展開後的白名單成員編號，讓對方能自行判斷是否可編輯（→ 不可編輯時禁用）
+            const needWl = em.catalyst === 'whitelist' || em.status === 'whitelist' || em.trigger === 'whitelist';
             Player.OnlineSharedSettings[ES_KEY] = {
                 v: MOD_VER,
                 edit: anyEditable,                       // profile 按鈕是否亮起
                 editModes: { catalyst: em.catalyst || 'off', status: em.status || 'off', trigger: em.trigger || 'off' },
+                wl: needWl ? Array.from(resolveWhitelistNumbers()) : [],
                 // 各類允許編輯時才公告內容，讓他人在 profile 看到並編輯（白名單模式仍由本端驗證）
                 texts:    on(em.catalyst) ? (CONFIG.customTexts || [])  : [],
                 emotes:   on(em.status)   ? (CONFIG.emoteList || [])    : [],
@@ -4095,6 +4100,22 @@ function addArousal() {
     function _isOther(C) {
         return C && C.MemberNumber != null && Player && C.MemberNumber !== Player.MemberNumber;
     }
+    // 由對方公告的資訊判斷「我」是否能編輯某類別（any→可；whitelist→需我在其公告的白名單）
+    function _viewerCanEdit(info, mode) {
+        if (mode === 'any') return true;
+        if (mode === 'whitelist') {
+            const wl = Array.isArray(info.wl) ? info.wl.map(Number) : [];
+            return wl.includes(Number(Player?.MemberNumber));
+        }
+        return false;
+    }
+    function _viewerEditModes(info) {
+        return info.editModes || (info.edit ? { catalyst: info.editMode || 'any' } : {});
+    }
+    function _viewerCanEditAny(info) {
+        const modes = _viewerEditModes(info);
+        return ['catalyst', 'status', 'trigger'].some(k => _viewerCanEdit(info, modes[k]));
+    }
 
     function hookProfileButton() {
         if (!modApi) return;
@@ -4104,16 +4125,18 @@ function addArousal() {
                 const C = _sheetChar();
                 const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
                 if (info) {
-                    const editable = !!info.edit;
-                    DrawButton(1700, 75, 90, 90, '', editable ? 'White' : '#ccc', IVH_ICON,
-                        editable ? ui('profileEditBtn') : ui('profileEditOff'), !editable);
+                    const canEdit = _viewerCanEditAny(info);
+                    // 灰色原因：對方完全沒開放(off) → 未開放；有開放但我不在白名單 → 無權限
+                    const tip = canEdit ? ui('profileEditBtn')
+                        : (info.edit ? ui('profileEditNoPerm') : ui('profileEditOff'));
+                    DrawButton(1700, 75, 90, 90, '', canEdit ? 'White' : '#ccc', IVH_ICON, tip, !canEdit);
                 }
                 return r;
             });
             modApi.hookFunction('InformationSheetClick', 1, (args, next) => {
                 const C = _sheetChar();
                 const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
-                if (info && info.edit && MouseIn(1700, 75, 90, 90)) {
+                if (info && _viewerCanEditAny(info) && MouseIn(1700, 75, 90, 90)) {
                     openRemoteTextEditor(C);
                     return;
                 }
@@ -4145,11 +4168,13 @@ function addArousal() {
                     try {
                         const dict = (data.Dictionary || []).find(d => d && d.Tag === 'IVH_SetTexts');
                         const em = CONFIG.editModes || {};
-                        const wl = resolveWhitelistNumbers();   // 含 $owner/$lover 展開
+                        const wl = resolveWhitelistNumbers();   // 含 $owner/$lover/$friend/$white 展開
                         const okFor = m => m === 'any' ||
                             (m === 'whitelist' && wl.has(Number(data.Sender)));
                         const clean = arr => arr.map(s => String(s).trim()).filter(Boolean).slice(0, 200);
                         if (dict && dict.Target === Player.MemberNumber) {
+                            // 是否「有提交但因權限被拒」（用來回報「不在白名單」）
+                            const tried = Array.isArray(dict.Texts) || Array.isArray(dict.Emotes) || Array.isArray(dict.Triggers);
                             let changed = false;
                             if (Array.isArray(dict.Texts)    && okFor(em.catalyst)) { CONFIG.customTexts  = clean(dict.Texts);    changed = true; }
                             if (Array.isArray(dict.Emotes)   && okFor(em.status))   { CONFIG.emoteList    = clean(dict.Emotes);   changed = true; }
@@ -4162,6 +4187,27 @@ function addArousal() {
                                     : data.Sender;
                                 printChat(ui('editedYourText', { who }), 8000);
                             }
+                            // 回報結果給編輯者（成功 / 被拒），讓對方知道是否真的儲存
+                            try {
+                                if (typeof ServerSend === 'function')
+                                    ServerSend('ChatRoomChat', {
+                                        Type: 'Hidden', Content: 'IVH_SetTextsAck',
+                                        Dictionary: [{ Tag: 'IVH_SetTextsAck', Target: Number(data.Sender), Ok: changed, Tried: tried }],
+                                    });
+                            } catch {}
+                        }
+                    } catch (e) {}
+                    return;  // 不顯示此隱藏訊息
+                }
+                // 收到對方對「我的編輯提交」的回報 → 顯示是否套用
+                if (data && data.Type === 'Hidden' && data.Content === 'IVH_SetTextsAck') {
+                    try {
+                        const d = (data.Dictionary || []).find(x => x && x.Tag === 'IVH_SetTextsAck');
+                        if (d && Number(d.Target) === Player?.MemberNumber) {
+                            const who = (typeof CharacterNickname === 'function' && data.Sender)
+                                ? (ChatRoomCharacter?.find(c => c.MemberNumber === data.Sender)?.Nickname || data.Sender)
+                                : data.Sender;
+                            printChat(d.Ok ? ui('remoteEditOk', { name: who }) : ui('remoteEditDenied', { name: who }), 8000);
                         }
                     } catch (e) {}
                     return;  // 不顯示此隱藏訊息
@@ -4179,15 +4225,16 @@ function addArousal() {
         if (_remoteEditor) { _remoteEditor.remove(); _remoteEditor = null; }
         const info  = (C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY]) || {};
         // 相容舊版（只公告單一 editMode + texts）：視為催眠文本可編輯
-        const modes = info.editModes || (info.edit ? { catalyst: info.editMode || 'any' } : {});
+        const modes = _viewerEditModes(info);
         const name  = (typeof CharacterNickname === 'function' ? CharacterNickname(C) : '') || C.Name || C.MemberNumber;
 
-        // 對方各類允許編輯的分類（off 的不顯示）
+        // 對方各類允許編輯的分類（off 的不顯示）；editable=我是否真的可編輯（白名單外→唯讀加遮罩）
         const cats = [
             { key: 'catalyst', dictKey: 'Texts',    label: ui('sec_hypnoText'),   data: Array.isArray(info.texts)    ? info.texts    : [] },
             { key: 'status',   dictKey: 'Emotes',   label: ui('sec_statusMsg'),   data: Array.isArray(info.emotes)   ? info.emotes   : [] },
             { key: 'trigger',  dictKey: 'Triggers', label: ui('sec_triggerWords'),data: Array.isArray(info.triggers) ? info.triggers : [] },
-        ].filter(c => (modes[c.key] || 'off') !== 'off');
+        ].filter(c => (modes[c.key] || 'off') !== 'off')
+         .map(c => ({ ...c, editable: _viewerCanEdit(info, modes[c.key]) }));
 
         const panel = document.createElement('div');
         _remoteEditor = panel;
@@ -4207,12 +4254,14 @@ function addArousal() {
         hint.style.cssText = 'font-size:11px;color:#cc99bb;margin-bottom:10px';
         panel.append(title, hint);
 
-        // 每類一個區塊 + textarea
+        // 每類一個區塊 + textarea（無權限 → 唯讀並蓋上遮罩）
         const tas = {};
         cats.forEach(c => {
             const lbl = document.createElement('div');
-            lbl.textContent = c.label;
+            lbl.textContent = c.label + (c.editable ? '' : ' 🔒');
             lbl.style.cssText = 'font-size:13px;font-weight:600;color:#ffbbe0;margin:8px 0 4px';
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'position:relative';
             const ta = document.createElement('textarea');
             ta.value = (c.data || []).join('\n');
             ta.addEventListener('keydown', e => e.stopPropagation());
@@ -4221,8 +4270,18 @@ function addArousal() {
                 background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,120,200,0.3)',
                 borderRadius: '6px', color: '#ffeeff', padding: '8px', fontFamily: 'monospace', fontSize: '13px', outline: 'none',
             });
-            tas[c.key] = { ta, dictKey: c.dictKey };
-            panel.append(lbl, ta);
+            wrap.append(ta);
+            if (!c.editable) {
+                ta.readOnly = true;
+                ta.style.opacity = '0.45';
+                ta.style.cursor = 'not-allowed';
+                const mask = document.createElement('div');
+                mask.textContent = '🔒 ' + ui('remoteEditNoPerm');
+                mask.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(20,5,30,0.55);color:#ffaabb;font-size:13px;border-radius:6px;pointer-events:none;text-align:center;padding:0 8px';
+                wrap.append(mask);
+            }
+            tas[c.key] = { ta, dictKey: c.dictKey, editable: c.editable };
+            panel.append(lbl, wrap);
         });
 
         const row = document.createElement('div');
@@ -4233,6 +4292,7 @@ function addArousal() {
         const save   = _mkBtn(ui('remoteEditSave'), '#872626', '#aaffaa', () => {
             const dict = { Tag: 'IVH_SetTexts', Target: C.MemberNumber };
             for (const k in tas) {
+                if (!tas[k].editable) continue;   // 無權限的類別不送出
                 dict[tas[k].dictKey] = tas[k].ta.value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 200);
             }
             try {
@@ -4245,8 +4305,8 @@ function addArousal() {
         row.append(cancel, save);
         panel.append(row);
         document.body.appendChild(panel);
-        const first = cats[0] && tas[cats[0].key];
-        if (first) first.ta.focus();
+        const firstEditable = cats.find(c => c.editable);
+        if (firstEditable && tas[firstEditable.key]) tas[firstEditable.key].ta.focus();
     }
 
     // 自繪二次確認框（不用瀏覽器 confirm，避免部分平台彈不出來）
