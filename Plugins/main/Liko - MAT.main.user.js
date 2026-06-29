@@ -342,18 +342,6 @@
         return e ? (e[LIKO_MAT_FIELD] ?? null) : null;
     }
 
-    // 取 Action 訊息真正要翻的文字：最後一個有 Text 的 entry。
-    // form1（CUSTOM_SYSTEM_ACTION，文字在 dict[0]）與 form2（Beep 鏈代換，文字在最後一個）通吃，
-    // 並自動略過無 Text 的 LikoMAT 旗標 entry。
-    function lastDictText(data) {
-        if (!Array.isArray(data.Dictionary)) return null;
-        for (let i = data.Dictionary.length - 1; i >= 0; i--) {
-            const e = data.Dictionary[i];
-            if (e && typeof e.Text === 'string') return e.Text;
-        }
-        return null;
-    }
-
     function isPureUrl(text) {
         if (!text) return false;
         const trimmed = text.trim().replace(/^[\s\(\[\*]+|[\s\)\]\*]+$/g, '').trim();
@@ -929,7 +917,7 @@
 
             // 夾意圖旗標到原句：只夾「會被翻譯廣播」的句子；顏文字/編碼/[🌐] 不夾，免接收端空等 1 秒
             if (command === "ChatRoomChat" && MAT_FLAG_TYPES.includes(data.Type)) {
-                const ot = data.Type === "Action" ? lastDictText(data) : safeStr(data.Content);
+                const ot = data.Type === "Action" ? safeStr(data.Dictionary?.[0]?.Text) : safeStr(data.Content);
                 if (ot && !isUntranslatable(ot)) addMATFlag(data);
             }
 
@@ -944,7 +932,7 @@
                 }
             }
             if (command === "ChatRoomChat" && data.Type === "Action") {
-                const t = lastDictText(data);
+                const t = safeStr(data.Dictionary?.[0]?.Text);
                 if (t && !t.includes('[🌐]')) {
                     next(args);
                     smartTranslate(t, config.sendLang).then(r => {
