@@ -2,7 +2,7 @@
 // @name         IVH - Immersive Voice Hypnosis
 // @name:zh      沉浸式聲音催眠效果
 // @namespace    https://likulisu.dev/
-// @version      2.0.2
+// @version      2.1.0
 // @description  收到 [Voice] 訊息時觸發深度催眠視覺效果，支援 /ivh 指令
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,7 +14,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.0.2";
+    const MOD_VER = "2.1.0";
     if (window.Liko.IVH) return;
     window.Liko.IVH = MOD_VER;
 
@@ -101,14 +101,19 @@
         fx_danmaku: '彈幕', fx_danmakuD: '聊天訊息變催眠彈幕', fx_ghost: '人影', fx_ghostD: '背後低語人影＋耳邊文字',
         fx_figblur: '人物模糊', fx_figblurD: '畫面模糊但人物/人影保持清晰', fx_sfx: '音效', fx_sfxD: '播放深度音效',
         fx_chatblur: '聊天模糊', fx_chatblurD: '右側聊天訊息模糊',
+        fx_fade: '訊息浮現', fx_fadeD: '新進聊天訊息字體慢慢浮現',
         triggerTargetD: '誰說出觸發詞會讓你進入催眠。「僅白名單」時只有名單內成員有效。',
         allowEdit: '允許文本修改', allowEditD: '誰可在你的角色資料頁增減你的催眠文本。「僅自己」只有你能編輯；「僅白名單」時名單內成員（含你自己）可編輯。',
         editOff: '僅自己', editAny: '所有人', editWhitelist: '僅白名單',
         editPermTitle: '允許編輯對象', editPermTitleD: '誰可在你的角色資料頁增減各類內容。「僅自己」只有你能編輯；「白名單」名單內成員可編輯；「所有人」任何人都可編輯。三類共用下方白名單。',
+        on: '開', off: '關',
+        seeOthersPant: '看到他人喘氣', seeOthersPantD: '開啟後，當房內其他人被催眠（送出催眠廣播）時，你會在對方角色身上看到喘氣白霧。預設關閉。',
         remoteEditTitle: '編輯 {name} 的 IVH 文本', remoteEditHint: '每行一句。可用 $me 代表被催眠者、$n 換行；狀態訊息以 $a 開頭會發 Action。儲存後送給對方（對方需仍允許編輯才生效）。',
         remoteEditSave: '💾 儲存並送出', remoteEditSent: '📤 已送出對 {name} 的文本編輯',
         profileEditBtn: '編輯對方的 IVH 文本', profileEditOff: '對方未開放編輯文本',
-        whitelistD: '會員編號，逗號或空白分隔。各類「白名單」編輯權限共用此名單。', whitelistPh: '例：12345, 67890',
+        whitelistD: '會員編號或代號（$owner＝主人、$lover＝愛人含 AFC、$friend＝好友、$white＝BC白名單），逗號或空白分隔。各類「白名單」編輯權限共用此名單。', whitelistPh: '例：$owner, $lover, $friend, $white, 12345',
+        textsResetD: '把催眠文本／狀態訊息／觸發詞重設為「目前語言」的預設值（切換語言後可用來更新翻譯）。',
+        confirmTextsReset: '會用目前語言的預設覆蓋你的催眠文本、狀態訊息與觸發詞，確定嗎？',
         language: '語言', languageD: '介面語言。Auto＝依遊戲登入語系；也可手動選擇。',
         exportD: '把所有設定下載為 JSON 檔。', importD: '從 JSON 檔還原所有設定。',
         triggerTarget: '觸發對象', anyone: '任何人', whitelistOnly: '僅白名單', whitelist: '白名單',
@@ -125,6 +130,7 @@
         ev_danmaku: '彈幕文字', ev_danmakuD: '主台詞在頭上、旁白句散落左側（含聊天歷史）。',
         ev_steam: '喘氣白霧', ev_steamD: '嘴邊呼出柔和白霧，向左右下方飄散。',
         ev_expression: '表情切換', ev_expressionD: '催眠時隨機套用表情，結束後還原。',
+        ev_chatFade: '訊息浮現', ev_chatFadeD: '觸發後 10 秒內，新進聊天訊息字體會慢慢浮現（LSCG 幽靈風）。',
         ev_climax: '高潮特效', ev_climaxD: '畫面碎裂＋紅白閃光＋震動。',
         ev_sound: '喘息聲音', ev_soundD: '播放喘息音效（需音效設定）。',
         ev_headshot: '中央頭像', ev_headshotD: '每次觸發在畫面中央裁出頭像，螺旋／喘氣以它為基準（忽略分頁）。',
@@ -134,7 +140,7 @@
         textsHint: '每行一句。$me＝被催眠者名稱、$n＝換行（彈幕／人影）；狀態訊息以 $a 開頭會以 Action 發送。',
         hypnoTextD: '彈幕／人影旁白來源，會和 BCX 的聽我聲音一起使用，僅被催眠者能看見。可用 $n 換行。',
         hypnoTextPh: '例：$me 好乖…$n放鬆…',
-        statusMsgD: '觸發催眠時隨機發送的訊息。以 $a 開頭＝Action（系統動作訊息），否則為 Emote。', statusMsgPh: '例：$a $me 的思緒變得混亂了',
+        statusMsgD: '觸發催眠時隨機發送的訊息。開頭 $a＝Action（系統動作）、$c＝Chat（一般說話，可用於呻吟），否則為 Emote。', statusMsgPh: '例：$a $me 的思緒變得混亂了 / $c 啊…嗯…',
         triggerWordsD: '白名單成員在聊天說出含這些詞的訊息時會觸發你的催眠（[Voice] 永遠有效）。每行一個。',
         triggerWordsPh: '例：催眠　沉睡',
         soundsHint: '每格可貼網址或「上傳」本機檔。「▶」試聽、「✕」清除、「其他」從右側音效庫選用。空白＝預設。',
@@ -185,6 +191,7 @@
             steamParticles: true,  // 氣喘粒子
             expression:     true,  // 表情切換
             arousal:        true,  // 興奮度+
+            chatFade:       true,  // 訊息浮現（10 秒內新訊息字體慢慢浮現）
             climax:         true,  // 高潮特效
             climaxMode:    "orgasm", // orgasm=高潮才觸發 | always=每次催眠都觸發
             sound:          false, // 喘息聲音（預設關閉）
@@ -195,18 +202,20 @@
             // ── VOICE 進階 ──
             centerHeadshot: false, // 中央頭像模式（每次 VOICE 裁 300×300 置中，忽略分頁）
             emoteEnabled:   true,  // 觸發時發送狀態 emote
-            dualSound:      true,  // VOICE 同時播兩個音效
+            dualSound:      false, // VOICE 同時播兩個音效（預設關閉，避免公開場合誤撥）
 
             // ── 觸發 ──（觸發對象已取消：任何人說出觸發詞/[Voice] 都會觸發）
-            whitelist:      [],    // MemberNumber 陣列（供「白名單」編輯權限共用）
+            //   whitelist 可含 MemberNumber 或代號 $owner（主人）/$lover（愛人），驗證時即時展開
+            whitelist:      ['$owner'],
             triggerWords:   [],    // 自訂觸發詞（除了 [Voice]）
+            seeOthersPant:  false, // 收到他人催眠廣播時，是否在其角色上顯示喘氣（預設關閉）
 
             // ── 催眠深度（獨立背景循環；0=無=關閉）──
             depthMax:       0,     // 0=無 1=輕 2=中 3=重（無則不循環）
             depthIntervalMin: 5,   // 循環間隔（分鐘 1~99）
             // 各深度層效果開關
             depthLight: { smoke: true, pant: true, chatDanmaku: true, ghost: true },
-            depthMed:   { figureBlur: true, pant: true, sfx: true },
+            depthMed:   { figureBlur: true, pant: true, sfx: true, fade: true },
             depthHeavy: { chatlogBlur: true, pant: true },
 
             // ── 文本 ──
@@ -221,8 +230,8 @@
             lang: 'auto',
 
             // ── 允許他人編輯各類內容：每類 off（僅自己）/ whitelist（白名單）/ any（所有人）──
-            //    共用同一份 whitelist。透過角色資料頁的 IVH 按鈕遠端編輯。
-            editModes: { catalyst: 'off', status: 'off', trigger: 'off' },
+            //    共用同一份 whitelist。透過角色資料頁的 IVH 按鈕遠端編輯。預設白名單（含 $owner）。
+            editModes: { catalyst: 'whitelist', status: 'whitelist', trigger: 'whitelist' },
 
             // ── 音效（URL 清單；本機上傳另存 IndexedDB，此處放 id 參照）──
             soundSource:    "ES",      // ES | DB
@@ -289,10 +298,11 @@
             pinkFlash: c.pinkFlash, hypnoSpiral: c.hypnoSpiral, hypnoWaves: c.hypnoWaves,
             screenDistort: c.screenDistort, vignette: c.vignette, danmaku: c.danmaku,
             steamParticles: c.steamParticles, expression: c.expression, arousal: c.arousal,
+            chatFade: c.chatFade,
             climax: c.climax, climaxMode: c.climaxMode, sound: c.sound,
             intensity: c.intensity,
             centerHeadshot: c.centerHeadshot, emoteEnabled: c.emoteEnabled, dualSound: c.dualSound,
-            whitelist: c.whitelist, triggerWords: c.triggerWords,
+            whitelist: c.whitelist, triggerWords: c.triggerWords, seeOthersPant: c.seeOthersPant,
             depthMax: c.depthMax, depthIntervalMin: c.depthIntervalMin,
             depthLight: c.depthLight, depthMed: c.depthMed, depthHeavy: c.depthHeavy,
             editModes: c.editModes, textSource: c.textSource,
@@ -535,11 +545,12 @@
             if (L.chatDanmaku) depthChatDanmaku();
             if (L.ghost)       depthGhostWhisperer();
             if (L.pant)        pant = true;
-            // 中：左側人物模糊 / 音效 / 中喘
+            // 中：左側人物模糊 / 音效 / 訊息浮現 / 中喘
             if (level >= 2) {
                 // 延後一點點再擷取，確保表情替換後的 Canvas 已重建
                 if (M.figureBlur) setTimeout(depthFigureBlur, 350);
                 if (M.sfx && !playSoundCategory('depth', 0.7)) triggerBreathSound(1);
+                if (M.fade) startChatFade(10000);
                 if (M.pant) pant = true;
             }
             // 重：右側聊天模糊 / 強喘
@@ -547,7 +558,7 @@
                 if (H.chatlogBlur) depthChatlogBlur();
                 if (H.pant) pant = true;
             }
-            if (pant) triggerSteamParticles(true);  // 深度喘氣不受 VOICE 開關限制
+            if (pant) triggerSteamParticles(true, true);  // 深度喘氣：不受 VOICE 開關限制、且一律在人物身上（忽略中央頭像）
         } catch (e) {
             console.warn('🐈‍⬛ [IVH] 深度效果錯誤:', e.message);
         }
@@ -774,6 +785,8 @@
     //  玩家座標
     // ════════════════════════════════════════
     const playerDrawPos = { x: 0, y: 0, zoom: 1, valid: false, isKneeling: false, isProne: false };
+    // 各角色（含玩家）最近一次的繪製座標：{ [MemberNumber]: { x, y, zoom, t } }，由 DrawOverlay hook 每幀更新
+    const _charDrawPos = {};
 
     // ════════════════════════════════════════
     //  畫布快取
@@ -812,20 +825,30 @@
         x:       0,    // 水平微調（asset 單位）
         yExtra:  0,    // 螢幕 Y 微調（像素）
     };
+    // 人物身上喘氣的 Y 微調（像素，往上 30）。自身與「看到他人喘氣」共用，確保兩端位置一致。
+    const BODY_PANT_DY = -30;
+    const DEPTH_PANT_EXTRA = 30;   // 深度喘氣再往下 30
 
-    // 把角色 asset 座標 (ax, ay) 轉成 BC 畫布座標
-    function bodyAssetToBc(ax, ay) {
-        const C     = Player;
+    // 把角色 asset 座標 (ax, ay) 轉成 BC 畫布座標（預設玩家；可傳入其他角色與其繪製座標）
+    function bodyAssetToBc(ax, ay, C = Player, dp = playerDrawPos) {
         const ratio = (typeof C?.HeightRatio === 'number') ? C.HeightRatio : 1;
         const prop  = (typeof C?.HeightRatioProportion === 'number') ? C.HeightRatioProportion : 1;
         const hMod  = (typeof C?.HeightModifier === 'number') ? C.HeightModifier : 0;
         const xOff  = 500 * (1 - ratio) / 2;
         const yOff  = 1000 * (1 - ratio) * prop - hMod * ratio;
-        const z     = playerDrawPos.zoom;
+        const z     = dp.zoom;
         return {
-            x: playerDrawPos.x + z * (xOff + ax * ratio),
-            y: playerDrawPos.y + z * (yOff + ay * ratio),
+            x: dp.x + z * (xOff + ax * ratio),
+            y: dp.y + z * (yOff + ay * ratio),
         };
+    }
+
+    // 其他角色嘴部螢幕座標（給「看到他人喘氣」用）
+    function otherCharMouthScreenPos(C, dp) {
+        const bc = bodyAssetToBc(250 + HEAD_OFFSET.x, HEAD_OFFSET.mouthAY, C, dp);
+        const s  = bcToScreen(bc.x, bc.y);
+        s.y += HEAD_OFFSET.yExtra;
+        return s;
     }
 
     // 判斷玩家是否在目前顯示的頁面（用 ChatRoomCharacterViewOffset 直接判斷）
@@ -843,9 +866,10 @@
         } catch { return true; }
     }
 
-    function getPlayerHeadScreenPos() {
+    // ignoreHeadshot=true → 強制用「人物身上」座標（給深度喘氣用，不受中央頭像影響）
+    function getPlayerHeadScreenPos(ignoreHeadshot) {
         // 中央頭像模式：螺旋等效果以畫面左半中心 BC(500,500) 為基準
-        if (CONFIG.centerHeadshot) return bcToScreen(500, 360);
+        if (!ignoreHeadshot && CONFIG.centerHeadshot) return bcToScreen(500, 360);
         // 玩家不在目前顯示頁 → 回到畫面正中間
         if (!isPlayerOnCurrentPage()) return bcToScreen(500, 500);
         if (!playerDrawPos.valid || !_cachedRect) {
@@ -859,11 +883,11 @@
     }
 
     // 嘴部螢幕座標（喘氣氣團用）
-    function getPlayerMouthScreenPos() {
-        if (CONFIG.centerHeadshot) return bcToScreen(500, 430);
+    function getPlayerMouthScreenPos(ignoreHeadshot) {
+        if (!ignoreHeadshot && CONFIG.centerHeadshot) return bcToScreen(500, 430);
         if (!isPlayerOnCurrentPage()) return bcToScreen(500, 560);
         if (!playerDrawPos.valid || !_cachedRect) {
-            const h = getPlayerHeadScreenPos();
+            const h = getPlayerHeadScreenPos(ignoreHeadshot);
             return { x: h.x, y: h.y + 40 };
         }
         const bc = bodyAssetToBc(250 + HEAD_OFFSET.x, HEAD_OFFSET.mouthAY);
@@ -1649,60 +1673,69 @@
         return Math.max(0.4, Math.min(2.2, (playerDrawPos.zoom || 1) * (_cachedScaleX || 0.3) * 2.4));
     }
 
-    // 取得本次呼吸要噴氣的嘴部位置陣列（含各自的大小係數）
-    function getBreathMouths() {
-        const out = [];
-        if (playerDrawPos.valid && _cachedRect && isPlayerOnCurrentPage()) {
-            const bc = bodyAssetToBc(250 + HEAD_OFFSET.x, HEAD_OFFSET.mouthAY);
-            const s  = bcToScreen(bc.x, bc.y); s.y += HEAD_OFFSET.yExtra;
-            out.push({ x: s.x, y: s.y, ss: _breathSizeScale() });
-        }
-        // 中央頭像存在時，頭像的嘴也喘氣（頭像較大 → 氣團較大）
-        if (CONFIG.centerHeadshot && _centerHeadEl) {
-            const c = bcToScreen(500, 430);
-            out.push({ x: c.x, y: c.y, ss: 1.8 });
-        }
-        if (out.length === 0) {
-            const m = getPlayerMouthScreenPos();
-            out.push({ x: m.x, y: m.y, ss: _breathSizeScale() });
-        }
-        return out;
+    // 喘氣節奏：強度越高間隔越短（頻率較先前降低 50%：強度 1 → 2 秒；強度 3 → 0.6 秒）
+    function breathIntervalMs(intensity) {
+        const it = (typeof intensity === 'number' && intensity > 0) ? intensity : CONFIG.intensity;
+        return Math.max(600, Math.min(2400, Math.round(2000 - (it - 1) * 700)));
     }
 
-    // 噴一口氣（1~2 個小霧團）
+    // 取得本次呼吸要噴氣的嘴部位置（中軸 X 與螺旋同在頭部，高度在嘴巴）
+    //  ignoreHeadshot=true → 一律用人物身上座標（深度喘氣用，不判斷中央頭像）
+    function getBreathMouths(ignoreHeadshot) {
+        // 中央頭像顯示中（且非深度）→ 氣團在頭像上、往下 60px
+        if (!ignoreHeadshot && CONFIG.centerHeadshot && _centerHeadEl) {
+            return [{ x: bcToScreen(500, 360).x, y: bcToScreen(500, 430).y + 60, ss: 1.8 }];
+        }
+        // 人物身上：中軸 X 在頭部、Y 在嘴巴 + 共用偏移（深度再往下 30）
+        const head  = getPlayerHeadScreenPos(true);
+        const mouth = getPlayerMouthScreenPos(true);
+        const dy = BODY_PANT_DY + (ignoreHeadshot ? DEPTH_PANT_EXTRA : 0);
+        return [{ x: head.x, y: mouth.y + dy, ss: _breathSizeScale() }];
+    }
+
+    // 噴一口氣：倒三角扇形（由嘴部往上展開），每團一次性 由小變大、由濃變淡，約 0.5 秒
     function _emitBreathPuff(overlay, mouth) {
-        const n = 1 + (Math.random() < 0.45 ? 1 : 0);
+        const ss = mouth.ss || 1;
+        const n  = 3 + Math.floor(Math.random() * 2);   // 3~4 團組成倒三角扇形
         for (let i = 0; i < n; i++) {
-            const ss      = mouth.ss;
-            const size    = (10 + Math.random() * 12) * ss;
-            const offsetX = (Math.random() - 0.5) * 16 * ss;
-            const offsetY = (Math.random() - 0.2) * 6 * ss;
-            const dur     = 1400 + Math.random() * 1200;
-            const dir     = Math.floor(Math.random() * 3);
-            const alpha   = 0.26 + Math.random() * 0.22;   // 比原本濃約 20%
+            const size = (14 + Math.random() * 12) * ss;
+            // 均勻展開 -1~1 + 微抖動 → 對稱三角（嘴部窄），中軸對齊螺旋
+            const spread = (n > 1 ? (i / (n - 1)) * 2 - 1 : 0) + (Math.random() - 0.5) * 0.3;
+            const dx   = spread * (26 + Math.random() * 18) * ss;
+            const dy   = (38 + Math.random() * 34) * ss;            // 旋轉 180°：改為往下飄
+            const sc   = 2.0 + Math.random() * 1.0;                 // 由小變大
+            const a0   = Math.min(0.62, 0.42 + Math.random() * 0.18); // 比原本亮約 15%
+            const PUFF_DUR = 3450;   // 約原本 15% 速度（飛得慢很多）
             const p = document.createElement('div');
             Object.assign(p.style, {
                 position:     'fixed',
-                left:         `${mouth.x + offsetX}px`,
-                top:          `${mouth.y + offsetY}px`,
+                left:         `${mouth.x}px`,
+                top:          `${mouth.y}px`,
                 width:        `${size}px`,
                 height:       `${size}px`,
                 borderRadius: '50%',
-                background:   `radial-gradient(circle at 50% 50%, rgba(255,255,255,${alpha}) 0%, rgba(255,255,255,${alpha * 0.5}) 45%, rgba(255,255,255,0) 72%)`,
+                background:   `radial-gradient(circle at 50% 50%, rgba(255,255,255,${a0}) 0%, rgba(255,255,255,${(a0 * 0.5).toFixed(3)}) 45%, rgba(255,255,255,0) 72%)`,
                 filter:       `blur(${(3 + Math.random() * 2).toFixed(1)}px)`,
-                animation:    `ivhBreath${dir} ${dur}ms ease-out forwards`,
+                transform:    'translate(-50%,-50%) scale(0.35)',
+                animation:    `ivhPant ${PUFF_DUR}ms ease-out forwards`,
                 willChange:   'transform, opacity',
-                zIndex:       '3',   // 煙霧在最上層
+                zIndex:       '3',
             });
+            p.style.setProperty('--dx', `${dx.toFixed(1)}px`);
+            p.style.setProperty('--dy', `${dy.toFixed(1)}px`);
+            p.style.setProperty('--sc', sc.toFixed(2));
+            p.style.setProperty('--a0', a0.toFixed(2));
             overlay.appendChild(p);
-            setTimeout(() => p.remove(), dur + 200);
+            setTimeout(() => p.remove(), PUFF_DUR + 200);
         }
     }
 
     let _breathLoopUntil = 0;
-    function triggerSteamParticles(force = false) {
+    let _breathIgnoreHead = false;   // 目前喘氣迴圈是否強制用人物身上座標（深度）
+    function triggerSteamParticles(force = false, ignoreHeadshot = false) {
         if (!force && !CONFIG.steamParticles) return;
         const overlay = getOverlay();
+        _breathIgnoreHead = ignoreHeadshot;
         // 延長本次呼吸的結束時間（重複觸發時不疊加多個迴圈，只延長）
         const FRESH = _breathLoopUntil < Date.now();
         _breathLoopUntil = Date.now() + 10000;   // 約 10 秒
@@ -1710,8 +1743,8 @@
 
         const breathe = () => {
             if (Date.now() > _breathLoopUntil) return;
-            getBreathMouths().forEach(m => _emitBreathPuff(overlay, m));
-            setTimeout(breathe, 850 + Math.random() * 350);  // 每次呼吸約 1 秒
+            getBreathMouths(_breathIgnoreHead).forEach(m => _emitBreathPuff(overlay, m));
+            setTimeout(breathe, breathIntervalMs(CONFIG.intensity));  // 強度越高越頻繁
         };
         breathe();
     }
@@ -2188,12 +2221,10 @@ function addArousal() {
         const list = CONFIG.emoteList || [];
         if (list.length === 0) return;
         let msg = list[Math.floor(Math.random() * list.length)];
-        // $a 開頭 → Action（系統動作訊息，居中、自動帶名字不需特別處理）；否則 Emote（"*" 前綴）
-        let isAction = false;
-        if (/^\s*\$a/i.test(msg)) {
-            isAction = true;
-            msg = msg.replace(/^\s*\$a\s*/i, '');
-        }
+        // 前綴決定發送方式：$a → Action（系統動作）、$c → Chat（一般說話，可用於呻吟）、無 → Emote（"*"）
+        let mode = 'emote';
+        if (/^\s*\$a/i.test(msg))      { mode = 'action'; msg = msg.replace(/^\s*\$a\s*/i, ''); }
+        else if (/^\s*\$c/i.test(msg)) { mode = 'chat';   msg = msg.replace(/^\s*\$c\s*/i, ''); }
         // $me 換成玩家暱稱；聊天不支援換行 → $n 轉空格
         const me = (typeof CharacterNickname === 'function' ? CharacterNickname(Player) : '')
                    || Player?.Nickname || Player?.Name || '';
@@ -2201,16 +2232,91 @@ function addArousal() {
         if (!msg) return;
         try {
             if (typeof ServerSend !== 'function') return;
-            if (isAction) {
+            if (mode === 'action') {
                 // BC 自訂系統動作：以 CUSTOM_SYSTEM_ACTION + Dictionary 帶出純文字
                 ServerSend('ChatRoomChat', {
                     Type: 'Action', Content: 'CUSTOM_SYSTEM_ACTION',
                     Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: msg }],
                 });
+            } else if (mode === 'chat') {
+                // 一般說話（會像自己開口，可用於呻吟等）
+                ServerSend('ChatRoomChat', { Type: 'Chat', Content: msg });
             } else {
                 ServerSend('ChatRoomChat', { Type: 'Emote', Content: "*" + msg });
             }
         } catch (e) { /* 靜默 */ }
+    }
+
+    // ════════════════════════════════════════
+    //  訊息浮現：觸發後一段時間內，新進聊天訊息字體慢慢浮現（LSCG 幽靈風）
+    //  setupDOMObserver 對新節點呼叫 maybeFadeChatNode；視窗開啟時加動畫 class
+    // ════════════════════════════════════════
+    let _chatFadeUntil = 0;
+    function startChatFade(durationMs = 10000) {
+        _chatFadeUntil = Date.now() + durationMs;
+    }
+    function maybeFadeChatNode(node) {
+        if (Date.now() > _chatFadeUntil) return;
+        try {
+            const el = node.classList?.contains('ChatMessage')
+                       ? node : node.querySelector?.('.ChatMessage');
+            if (!el || el._ivhFaded) return;
+            el._ivhFaded = true;
+            el.classList.add('ivh-chat-emerge');
+            // 動畫結束後移除 class，避免殘留影響後續樣式
+            setTimeout(() => { try { el.classList.remove('ivh-chat-emerge'); } catch {} }, 2600);
+        } catch (e) {}
+    }
+
+    // ════════════════════════════════════════
+    //  催眠廣播：觸發時送一個 Hidden 訊息，讓開啟「看到他人喘氣」的人能在你身上看到喘氣
+    // ════════════════════════════════════════
+    let _lastHypnoBroadcast = 0;
+    function broadcastHypnotized() {
+        const now = Date.now();
+        if (now - _lastHypnoBroadcast < 5000) return;   // 節流，避免洗版伺服器
+        _lastHypnoBroadcast = now;
+        try {
+            if (typeof ServerSend === 'function')
+                ServerSend('ChatRoomChat', {
+                    Type: 'Hidden', Content: 'IVH_Hypnotized',
+                    // Intensity = 催眠等級，決定對方看到的喘氣強度（頻率／大小）
+                    Dictionary: [{ Tag: 'IVH_Hypnotized', Duration: 10000, Intensity: CONFIG.intensity }],
+                });
+        } catch (e) {}
+    }
+
+    // 收到他人催眠廣播 → 在其角色嘴部顯示喘氣（需開啟 seeOthersPant，且對方在目前畫面）
+    //  位置由本端 _charDrawPos（每幀繪製座標）算出，已含分頁：對方不在當前頁面自然不會被繪製 → 無動畫
+    //  廣播夾帶的 intensity 決定喘氣頻率與大小
+    const _otherPantUntil  = {};
+    const _otherPantActive = {};
+    const _otherPantInten  = {};
+    function startOtherPant(memberNum, durationMs = 10000, intensity = 1) {
+        if (!CONFIG.seeOthersPant || memberNum == null) return;
+        _otherPantUntil[memberNum] = Date.now() + durationMs;
+        _otherPantInten[memberNum] = intensity;
+        if (_otherPantActive[memberNum]) return;   // 已有迴圈在跑 → 只延長/更新強度
+        _otherPantActive[memberNum] = true;
+        const overlay = getOverlay();
+        const loop = () => {
+            if (Date.now() > (_otherPantUntil[memberNum] || 0)) { _otherPantActive[memberNum] = false; return; }
+            try {
+                refreshCanvasCache();
+                const dp = _charDrawPos[memberNum];
+                const C  = (typeof ChatRoomCharacter !== 'undefined' && Array.isArray(ChatRoomCharacter))
+                    ? ChatRoomCharacter.find(c => c && c.MemberNumber === memberNum) : null;
+                // 對方在目前畫面（最近 1 秒內有被繪製）才顯示
+                if (C && dp && _cachedRect && (Date.now() - dp.t < 1000)) {
+                    const m  = otherCharMouthScreenPos(C, dp);
+                    const ss = Math.max(0.5, Math.min(2.2, (dp.zoom || 1) * (_cachedScaleX || 0.3) * 2.4));
+                    // 與自身人物身上喘氣相同的偏移 → A 看到的位置與 B 自己看到的一致
+                    _emitBreathPuff(overlay, { x: m.x, y: m.y + BODY_PANT_DY, ss });
+                }
+            } catch (e) {}
+            setTimeout(loop, breathIntervalMs(_otherPantInten[memberNum] || 1));
+        };
+        loop();
     }
 
     // ════════════════════════════════════════
@@ -2309,8 +2415,8 @@ function addArousal() {
         const totalDur     = BASE_EFFECT_DURATION * Math.min(scale, 1.4);
         const wordCount    = voiceText.trim().split(/\s+/).length;
 
-        // ② 狀態 emote（僅真實觸發，避免測試時洗版）
-        if (!isTest) sendStatusEmote();
+        // ② 狀態 emote + 催眠廣播（僅真實觸發，避免測試時洗版）
+        if (!isTest) { sendStatusEmote(); broadcastHypnotized(); }
 
         // ③ 視覺效果同時觸發
         if (CONFIG.centerHeadshot) showCenterHeadshot(totalDur + 1500);
@@ -2321,6 +2427,7 @@ function addArousal() {
         triggerHypnoWaves(wordCount);
         triggerDanmakuMulti(voiceText, danmakuCount);
         triggerSteamParticles();
+        if (CONFIG.chatFade) startChatFade(10000);   // 訊息浮現視窗
         if (CONFIG.sound) {
             triggerBreathSound(scale);                                   // 催眠喘息聲（催眠分類）
             // 雙重音效：同時再播一個觸發音（催眠2 分類，預設心跳）
@@ -2805,6 +2912,53 @@ function addArousal() {
         return true;
     }
 
+    // ── 白名單代號展開（$owner=主人 Player.Ownership；$lover=愛人 Player.Lovership + AFC）──
+    function getOwnerNumbers() {
+        const out = [];
+        try { const o = Player?.Ownership; if (o && o.MemberNumber != null) out.push(Number(o.MemberNumber)); } catch {}
+        return out;
+    }
+    function getLoverNumbers() {
+        const out = [];
+        // 原生 Lovership：物件陣列（舊版可能單一物件）
+        try {
+            const ls = Player?.Lovership;
+            if (Array.isArray(ls)) ls.forEach(o => { if (o && o.MemberNumber != null) out.push(Number(o.MemberNumber)); });
+            else if (ls && ls.MemberNumber != null) out.push(Number(ls.MemberNumber));
+        } catch {}
+        // AFC 擴充：Player.ExtensionSettings.AFC.l[] 每筆第一個元素是 ID
+        try {
+            const raw = Player?.ExtensionSettings?.AFC;
+            if (raw) {
+                let obj = null;
+                try { obj = JSON.parse(raw); }
+                catch { const d = (typeof LZString !== 'undefined') && LZString.decompressFromBase64(raw); if (d) obj = JSON.parse(d); }
+                if (obj && Array.isArray(obj.l)) obj.l.forEach(e => { if (Array.isArray(e) && e[0] != null) out.push(Number(e[0])); });
+            }
+        } catch {}
+        return out;
+    }
+    function getFriendNumbers() {
+        try { return Array.isArray(Player?.FriendList) ? Player.FriendList.map(Number) : []; } catch { return []; }
+    }
+    function getWhiteNumbers() {
+        try { return Array.isArray(Player?.WhiteList) ? Player.WhiteList.map(Number) : []; } catch { return []; }
+    }
+    // 把白名單（數字 + $owner/$lover/$friend/$white 代號）展開成 MemberNumber 集合
+    function resolveWhitelistNumbers() {
+        const set = new Set();
+        for (const e of (CONFIG.whitelist || [])) {
+            if (typeof e === 'number') set.add(e);
+            else if (e === '$owner')  getOwnerNumbers().forEach(n => set.add(n));
+            else if (e === '$lover')  getLoverNumbers().forEach(n => set.add(n));
+            else if (e === '$friend') getFriendNumbers().forEach(n => set.add(n));
+            else if (e === '$white')  getWhiteNumbers().forEach(n => set.add(n));
+        }
+        return set;
+    }
+    // 白名單可接受的代號
+    const WL_TOKENS = ['$owner', '$lover', '$friend', '$white'];
+
     // 取訊息節點的發送者 MemberNumber
     function getNodeSender(node) {
         try {
@@ -2862,6 +3016,7 @@ function addArousal() {
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (!(node instanceof HTMLElement)) continue;
+                    maybeFadeChatNode(node);   // 訊息浮現視窗內 → 新訊息字體慢慢浮現
                     handleChatNode(node);
                 }
             }
@@ -2888,6 +3043,10 @@ function addArousal() {
             modApi.hookFunction('ChatRoomCharacterViewDrawOverlay', 1, (args, next) => {
                 const result = next(args);
                 const [character, charX, charY, zoom] = args;
+                // 記錄每個角色的最新繪製座標（給「看到他人喘氣」定位用）
+                if (character?.MemberNumber != null) {
+                    _charDrawPos[character.MemberNumber] = { x: charX, y: charY, zoom, t: Date.now() };
+                }
                 // 用 MemberNumber 比對，比 IsPlayer() 更可靠
                 const isMe = character?.MemberNumber != null &&
                       Player?.MemberNumber != null &&
@@ -3284,6 +3443,10 @@ function addArousal() {
                     return W(`<div style="width:200px;animation:ivhPinkPulse 2.4s ease-in-out infinite">
                         ${[0,1,2,3].map(()=>`<div style="height:12px;margin:8px 0;border-radius:6px;background:#caa6e6;filter:blur(2.5px)"></div>`).join('')}
                     </div>`);
+                case 'chatFade':
+                    return W(`<div style="width:200px">
+                        ${[0,1,2].map(i=>`<div style="height:13px;margin:9px 0;border-radius:6px;background:#caa6e6;animation:ivhChatEmerge 2.2s ease-out ${(i*0.55).toFixed(2)}s infinite"></div>`).join('')}
+                    </div>`);
                 default: {
                     const map = { expression:'😳', arousal:'💗', sound:'🔊', dualSound:'🔊', emoteEnabled:'📢' };
                     return W(`<div style="font-size:74px;opacity:0.9;animation:ivhPinkPulse 2.2s ease-in-out infinite">${map[kind]||'✨'}</div>`);
@@ -3481,7 +3644,7 @@ function addArousal() {
         _depthRows() {
             return [
                 { tag: '輕', cfg: 'depthLight', items: [['smoke','煙霧'],['pant','喘氣'],['chatDanmaku','彈幕'],['ghost','人影']] },
-                { tag: '中', cfg: 'depthMed',   items: [['figureBlur','人物模糊'],['pant','喘氣'],['sfx','音效']] },
+                { tag: '中', cfg: 'depthMed',   items: [['figureBlur','人物模糊'],['pant','喘氣'],['sfx','音效'],['fade','訊息浮現']] },
                 { tag: '重', cfg: 'depthHeavy', items: [['chatlogBlur','聊天模糊'],['pant','喘氣']] },
             ];
         },
@@ -3494,7 +3657,6 @@ function addArousal() {
             const RED = 20, GREEN = 10, BLUE = 5;
             const TH = 18;       // 標題文字半高（估）
             const CTRL_X = 700;  // 所有控制欄統一左緣（避免深度區與標籤太擠）
-            const BTN_R  = 1300; // 按鈕靠右基準（右緣）
             let ty, bottom;
 
             // ── 群組 1：催眠強度（slider 在 ty-17、value/title 約 ±18）──
@@ -3533,9 +3695,9 @@ function addArousal() {
 
             // 深度效果列（toggle 在 cy、h40；列間 BLUE → pitch 45）：與上方 GREEN
             const fxName = { smoke:'fx_smoke', pant:'fx_pant', chatDanmaku:'fx_danmaku', ghost:'fx_ghost',
-                             figureBlur:'fx_figblur', sfx:'fx_sfx', chatlogBlur:'fx_chatblur' };
+                             figureBlur:'fx_figblur', sfx:'fx_sfx', chatlogBlur:'fx_chatblur', fade:'fx_fade' };
             const demoMap = { smoke:'pinkFlash', pant:'steamParticles', chatDanmaku:'danmaku',
-                              ghost:'ghost', figureBlur:'figureBlur', chatlogBlur:'chatlogBlur', sfx:'sound' };
+                              ghost:'ghost', figureBlur:'figureBlur', chatlogBlur:'chatlogBlur', sfx:'sound', fade:'chatFade' };
             const rowTags = ['depthRowLight', 'depthRowMed', 'depthRowHeavy'];
             const FXP = 40 + BLUE;          // 深度效果列 pitch = 45
             const dy = bottom + GREEN;      // 深度效果列起點
@@ -3551,6 +3713,15 @@ function addArousal() {
                 });
             });
             bottom = dy + 2 * FXP + 40;     // 深度重底
+
+            // ── 看到他人喘氣（放在深度與允許編輯之間；toggle 在 ty-22、h44；與上方 RED）──
+            ty = bottom + RED + 22;
+            this.title(ty, ui('seeOthersPant'), ui('seeOthersPantD'));
+            // 比照深度重的「喘氣」鈕：X = CTRL_X + 122、大小 116×40
+            this.toggle(CTRL_X + 122, ty - 20, 116, 40, CONFIG.seeOthersPant ? ui('on') : ui('off'),
+                CONFIG.seeOthersPant, ui('seeOthersPantD'),
+                () => { CONFIG.seeOthersPant = !CONFIG.seeOthersPant; saveSettings(); });
+            bottom = ty + 20;
 
             // ── 群組 3：允許編輯對象（標題列；與上方 RED）──
             ty = bottom + RED + TH;
@@ -3581,7 +3752,10 @@ function addArousal() {
             this.title(ty, ui('whitelist'), ui('whitelistD'));
             this.input('ivh-whitelist', CTRL_X, ty - 17, 480, 42, (CONFIG.whitelist || []).join(', '),
                 { placeholder: ui('whitelistPh'), onChange: val => {
-                    CONFIG.whitelist = (val.match(/\d+/g) || []).map(Number);
+                    // 保留 $owner / $lover / $friend / $white 代號，其餘取數字
+                    CONFIG.whitelist = val.split(/[\s,]+/).map(s => s.trim().toLowerCase()).filter(Boolean)
+                        .map(s => /^\d+$/.test(s) ? Number(s) : s)
+                        .filter(s => typeof s === 'number' || WL_TOKENS.includes(s));
                     saveSettings();
                 }});
             bottom = ty + 25;
@@ -3594,11 +3768,11 @@ function addArousal() {
                 v => { CONFIG.lang = v; saveSettings(); });
             bottom = ty + 27;
 
-            // ── 群組 5：匯出 / 匯入（button 在 ty、h45；靠右對齊；與上方 GREEN）──
+            // ── 群組 5：匯出 / 匯入（button 在 ty、h45；置中；與上方 GREEN）──
             ty = bottom + GREEN;
             const BW = 230, BGAP = 20;
-            const impX = BTN_R - BW;            // 匯入靠右
-            const expX = impX - BGAP - BW;      // 匯出在其左
+            const expX = Math.round(900 - (BW * 2 + BGAP) / 2);  // 內容框中心 900 → 置中
+            const impX = expX + BW + BGAP;
             this.btn(expX, ty, BW, 45, ui('export'), 'White', ui('exportD'), () => exportSettings());
             this.btn(impX, ty, BW, 45, ui('import'), 'White', ui('importD'), () => importSettings());
             this._track(ty + 45 + 10);
@@ -3618,6 +3792,7 @@ function addArousal() {
                 ['danmaku',        '💬', 'ev_danmaku'],
                 ['steamParticles', '💨', 'ev_steam'],
                 ['expression',     '😳', 'ev_expression'],
+                ['chatFade',       '👁', 'ev_chatFade'],
                 ['climax',         '💥', 'ev_climax'],
                 ['sound',          '🔊', 'ev_sound'],
                 ['centerHeadshot', '🖼', 'ev_headshot'],
@@ -3671,6 +3846,17 @@ function addArousal() {
                     saveSettings();
                 }});
             this._track(825);
+
+            // 還原預設（把三類文本重設為「目前語言」的預設；靠右）
+            this.btn(1120, 826, 180, 46, ui('restoreDefault'), '#8C6046', ui('textsResetD'),
+                () => ivhConfirm(ui('confirmTextsReset'), () => {
+                    CONFIG.customTexts  = ui('defaultTexts').split('\n').map(s => s.trim()).filter(Boolean);
+                    CONFIG.emoteList    = ui('defaultEmotes').split('\n').map(s => s.trim()).filter(Boolean);
+                    CONFIG.triggerWords = [];
+                    try { document.activeElement && document.activeElement.blur(); } catch {}
+                    saveSettings(); publishSharedSettings();
+                }));
+            this._track(882);
         },
         // ════════ 表情設定（最多 10 組）════════
         //  右側為一個「工作中表情」編輯區；點名稱→載入右側；點某列「保存」→把右側內容存到那一組
@@ -3944,12 +4130,24 @@ function addArousal() {
         try {
             modApi.hookFunction('ChatRoomMessage', 1, (args, next) => {
                 const data = args[0];
+                // 他人催眠廣播 → 若開啟「看到他人喘氣」，在其角色顯示喘氣
+                if (data && data.Type === 'Hidden' && data.Content === 'IVH_Hypnotized') {
+                    try {
+                        const sender = Number(data.Sender);
+                        if (sender && sender !== Player?.MemberNumber && CONFIG.seeOthersPant) {
+                            const d = (data.Dictionary || []).find(x => x && x.Tag === 'IVH_Hypnotized');
+                            startOtherPant(sender, (d && d.Duration) || 10000, (d && d.Intensity) || 1);
+                        }
+                    } catch (e) {}
+                    return;  // 不顯示此隱藏訊息
+                }
                 if (data && data.Type === 'Hidden' && data.Content === 'IVH_SetTexts') {
                     try {
                         const dict = (data.Dictionary || []).find(d => d && d.Tag === 'IVH_SetTexts');
                         const em = CONFIG.editModes || {};
+                        const wl = resolveWhitelistNumbers();   // 含 $owner/$lover 展開
                         const okFor = m => m === 'any' ||
-                            (m === 'whitelist' && (CONFIG.whitelist || []).includes(Number(data.Sender)));
+                            (m === 'whitelist' && wl.has(Number(data.Sender)));
                         const clean = arr => arr.map(s => String(s).trim()).filter(Boolean).slice(0, 200);
                         if (dict && dict.Target === Player.MemberNumber) {
                             let changed = false;
@@ -4191,6 +4389,17 @@ function addArousal() {
                 75%  { transform: translateY(3px); }
                 100% { transform: translateY(0px); }
             }
+            @keyframes ivhPant {
+                0%   { transform: translate(-50%,-50%) scale(0.35); opacity: var(--a0, 0.5); }
+                70%  { opacity: calc(var(--a0, 0.5) * 0.45); }
+                100% { transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -45px))) scale(var(--sc, 2.4)); opacity: 0; }
+            }
+            @keyframes ivhChatEmerge {
+                0%   { opacity: 0; filter: blur(6px); transform: translateY(7px); }
+                60%  { opacity: 0.85; filter: blur(1.5px); }
+                100% { opacity: 1; filter: blur(0); transform: translateY(0); }
+            }
+            .ivh-chat-emerge { animation: ivhChatEmerge 2.2s ease-out both; }
         `;
         document.head.appendChild(style);
     }
