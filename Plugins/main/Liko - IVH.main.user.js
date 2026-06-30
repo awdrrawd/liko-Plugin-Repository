@@ -2,7 +2,7 @@
 // @name         IVH - Immersive Voice Hypnosis
 // @name:zh      沉浸式聲音催眠效果
 // @namespace    https://likulisu.dev/
-// @version      2.1.0
+// @version      2.1.1
 // @description  收到 [Voice] 訊息時觸發深度催眠視覺效果，支援 /ivh 指令
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,7 +14,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.1.0";
+    const MOD_VER = "2.1.1";
     if (window.Liko.IVH) return;
     window.Liko.IVH = MOD_VER;
 
@@ -4120,28 +4120,52 @@ function addArousal() {
         return ['catalyst', 'status', 'trigger'].some(k => _viewerCanEdit(info, modes[k]));
     }
 
+    // ── 即時權限詢問：開對方 profile 時直接問對方「我能編輯哪些」，對方即時回覆 ──
+    //   避免靠公告快照（會有同步延遲／需重開設定才更新的問題）；回覆只告訴詢問者本人，不公開白名單
+    const _permCache = {};      // { memberNum: { can:{catalyst,status,trigger}, texts, emotes, triggers, ts } }
+    const _permQueryTs = {};
+    function _queryPerm(num) {
+        const now = Date.now();
+        if (_permQueryTs[num] && now - _permQueryTs[num] < 2500) return;   // 節流
+        _permQueryTs[num] = now;
+        try {
+            if (typeof ServerSend === 'function')
+                ServerSend('ChatRoomChat', { Type: 'Hidden', Content: 'IVH_PermQuery',
+                    Dictionary: [{ Tag: 'IVH_PermQuery', Target: Number(num) }] });
+        } catch (e) {}
+    }
+    // 我對 C 各類是否可編輯：優先用對方即時回覆，60 秒內有效；否則退回公告快照
+    function _permFor(C, info) {
+        const pc = _permCache[C.MemberNumber];
+        if (pc && (Date.now() - pc.ts < 60000)) return pc.can;
+        const modes = _viewerEditModes(info);
+        return { catalyst: _viewerCanEdit(info, modes.catalyst), status: _viewerCanEdit(info, modes.status), trigger: _viewerCanEdit(info, modes.trigger) };
+    }
+
     function hookProfileButton() {
         if (!modApi) return;
         try {
-            modApi.hookFunction('InformationSheetRun', 1, (args, next) => {
+            // 優先權需高於 UBC(4)：UBC 在 altchsh 模式會 return 不呼叫 next()，吃掉低優先 hook
+            modApi.hookFunction('InformationSheetRun', 10, (args, next) => {
                 const r = next(args);
                 const C = _sheetChar();
                 const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
                 if (info) {
-                    const canEdit = _viewerCanEditAny(info);
-                    // 灰色原因：對方完全沒開放(off) → 未開放；有開放但我不在白名單 → 無權限
+                    _queryPerm(C.MemberNumber);   // 開著 profile 時即時詢問對方權限
+                    const can = _permFor(C, info), canEdit = can.catalyst || can.status || can.trigger;
                     const tip = canEdit ? ui('profileEditBtn')
                         : (info.edit ? ui('profileEditNoPerm') : ui('profileEditOff'));
                     DrawButton(1700, 75, 90, 90, '', canEdit ? 'White' : '#ccc', IVH_ICON, tip, !canEdit);
                 }
                 return r;
             });
-            modApi.hookFunction('InformationSheetClick', 1, (args, next) => {
+            modApi.hookFunction('InformationSheetClick', 10, (args, next) => {
                 const C = _sheetChar();
                 const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
-                if (info && _viewerCanEditAny(info) && MouseIn(1700, 75, 90, 90)) {
-                    openRemoteTextEditor(C);
-                    return;
+                if (info && MouseIn(1700, 75, 90, 90)) {
+                    const can = _permFor(C, info);
+                    if (can.catalyst || can.status || can.trigger) openRemoteTextEditor(C);
+                    return;   // 吃掉此點擊，避免落到 UBC 的同位置按鈕
                 }
                 return next(args);
             });
@@ -4156,6 +4180,42 @@ function addArousal() {
         try {
             modApi.hookFunction('ChatRoomMessage', 1, (args, next) => {
                 const data = args[0];
+                // 有人問「我能否編輯你的內容」→ 即時依目前白名單回覆（只回給詢問者本人）
+                if (data && data.Type === 'Hidden' && data.Content === 'IVH_PermQuery') {
+                    try {
+                        const d = (data.Dictionary || []).find(x => x && x.Tag === 'IVH_PermQuery');
+                        if (d && Number(d.Target) === Player?.MemberNumber) {
+                            const sender = Number(data.Sender), em = CONFIG.editModes || {};
+                            const wl = resolveWhitelistNumbers();
+                            const can = m => m === 'any' || (m === 'whitelist' && wl.has(sender));
+                            const cc = can(em.catalyst), cs = can(em.status), ct = can(em.trigger);
+                            if (typeof ServerSend === 'function')
+                                ServerSend('ChatRoomChat', { Type: 'Hidden', Content: 'IVH_PermReply', Dictionary: [{
+                                    Tag: 'IVH_PermReply', Target: sender, cc, cs, ct,
+                                    texts:    cc ? (CONFIG.customTexts || [])  : [],
+                                    emotes:   cs ? (CONFIG.emoteList || [])    : [],
+                                    triggers: ct ? (CONFIG.triggerWords || []) : [],
+                                }] });
+                        }
+                    } catch (e) {}
+                    return;  // 不顯示
+                }
+                // 對方回覆我的權限查詢 → 快取，供按鈕與編輯面板即時使用
+                if (data && data.Type === 'Hidden' && data.Content === 'IVH_PermReply') {
+                    try {
+                        const d = (data.Dictionary || []).find(x => x && x.Tag === 'IVH_PermReply');
+                        if (d && Number(d.Target) === Player?.MemberNumber) {
+                            _permCache[Number(data.Sender)] = {
+                                can: { catalyst: !!d.cc, status: !!d.cs, trigger: !!d.ct },
+                                texts: Array.isArray(d.texts) ? d.texts : [],
+                                emotes: Array.isArray(d.emotes) ? d.emotes : [],
+                                triggers: Array.isArray(d.triggers) ? d.triggers : [],
+                                ts: Date.now(),
+                            };
+                        }
+                    } catch (e) {}
+                    return;  // 不顯示
+                }
                 // 他人催眠廣播 → 若開啟「看到他人喘氣」，在其角色顯示喘氣
                 if (data && data.Type === 'Hidden' && data.Content === 'IVH_Hypnotized') {
                     try {
@@ -4230,14 +4290,18 @@ function addArousal() {
         // 相容舊版（只公告單一 editMode + texts）：視為催眠文本可編輯
         const modes = _viewerEditModes(info);
         const name  = (typeof CharacterNickname === 'function' ? CharacterNickname(C) : '') || C.Name || C.MemberNumber;
+        // 即時回覆優先（_permCache），否則退回公告快照
+        const pc = _permCache[C.MemberNumber];
+        const canCat = k => pc ? !!pc.can[k] : _viewerCanEdit(info, modes[k]);
+        const dataCat = (k, field) => ((pc ? pc[field] : info[field]) || []);
 
         // 對方各類允許編輯的分類（off 的不顯示）；editable=我是否真的可編輯（白名單外→唯讀加遮罩）
         const cats = [
-            { key: 'catalyst', dictKey: 'Texts',    label: ui('sec_hypnoText'),   data: Array.isArray(info.texts)    ? info.texts    : [] },
-            { key: 'status',   dictKey: 'Emotes',   label: ui('sec_statusMsg'),   data: Array.isArray(info.emotes)   ? info.emotes   : [] },
-            { key: 'trigger',  dictKey: 'Triggers', label: ui('sec_triggerWords'),data: Array.isArray(info.triggers) ? info.triggers : [] },
+            { key: 'catalyst', dictKey: 'Texts',    field: 'texts',    label: ui('sec_hypnoText')    },
+            { key: 'status',   dictKey: 'Emotes',   field: 'emotes',   label: ui('sec_statusMsg')    },
+            { key: 'trigger',  dictKey: 'Triggers', field: 'triggers', label: ui('sec_triggerWords') },
         ].filter(c => (modes[c.key] || 'off') !== 'off')
-         .map(c => ({ ...c, editable: _viewerCanEdit(info, modes[c.key]) }));
+         .map(c => ({ ...c, editable: canCat(c.key), data: dataCat(c.key, c.field) }));
 
         const panel = document.createElement('div');
         _remoteEditor = panel;
