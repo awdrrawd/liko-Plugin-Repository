@@ -3195,6 +3195,8 @@ function addArousal() {
         load() {
             this.scroll = 0;
             this._bindCanvasEvents();
+            // 開設定頁時重新公告：讓 $owner/$lover/$friend/$white 依目前關係即時更新對外白名單
+            try { publishSharedSettings(); } catch (e) {}
         },
         unload() { this._cleanup(); },
         exit() { this.hoverDesc = ''; this._cleanup(); },
@@ -3762,6 +3764,7 @@ function addArousal() {
                         .map(s => /^\d+$/.test(s) ? Number(s) : s)
                         .filter(s => typeof s === 'number' || WL_TOKENS.includes(s));
                     saveSettings();
+                    publishSharedSettings();   // 名單改動要即時重新公告，否則對方拿到的是舊白名單
                 }});
             bottom = ty + 25;
 
@@ -4129,14 +4132,15 @@ function addArousal() {
                     // 灰色原因：對方完全沒開放(off) → 未開放；有開放但我不在白名單 → 無權限
                     const tip = canEdit ? ui('profileEditBtn')
                         : (info.edit ? ui('profileEditNoPerm') : ui('profileEditOff'));
-                    DrawButton(1700, 75, 90, 90, '', canEdit ? 'White' : '#ccc', IVH_ICON, tip, !canEdit);
+                    // 用右側按鈕欄的空格(1815,650)，避開左上角與其他 mod 按鈕互相覆蓋的擁擠區
+                    DrawButton(1815, 650, 90, 90, '', canEdit ? 'White' : '#ccc', IVH_ICON, tip, !canEdit);
                 }
                 return r;
             });
             modApi.hookFunction('InformationSheetClick', 1, (args, next) => {
                 const C = _sheetChar();
                 const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
-                if (info && _viewerCanEditAny(info) && MouseIn(1700, 75, 90, 90)) {
+                if (info && _viewerCanEditAny(info) && MouseIn(1815, 650, 90, 90)) {
                     openRemoteTextEditor(C);
                     return;
                 }
@@ -4510,6 +4514,8 @@ function addArousal() {
                     started = true;
                     clearBCXCache();
                     setTimeout(setupDOMObserver, 500);
+                    // 進房間時關係已同步 → 重新公告白名單($friend/$white 等才會即時)
+                    setTimeout(() => { try { publishSharedSettings(); } catch (e) {} }, 800);
                 }
                 return result;
             });
