@@ -4132,15 +4132,14 @@ function addArousal() {
                     // 灰色原因：對方完全沒開放(off) → 未開放；有開放但我不在白名單 → 無權限
                     const tip = canEdit ? ui('profileEditBtn')
                         : (info.edit ? ui('profileEditNoPerm') : ui('profileEditOff'));
-                    // 用右側按鈕欄的空格(1815,650)，避開左上角與其他 mod 按鈕互相覆蓋的擁擠區
-                    DrawButton(1815, 650, 90, 90, '', canEdit ? 'White' : '#ccc', IVH_ICON, tip, !canEdit);
+                    DrawButton(1700, 75, 90, 90, '', canEdit ? 'White' : '#ccc', IVH_ICON, tip, !canEdit);
                 }
                 return r;
             });
             modApi.hookFunction('InformationSheetClick', 1, (args, next) => {
                 const C = _sheetChar();
                 const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
-                if (info && _viewerCanEditAny(info) && MouseIn(1815, 650, 90, 90)) {
+                if (info && _viewerCanEditAny(info) && MouseIn(1700, 75, 90, 90)) {
                     openRemoteTextEditor(C);
                     return;
                 }
