@@ -46,6 +46,7 @@
         'exportDone': { TW: '📤 IVH 設定已匯出 (IVH-settings.json)', CN: '📤 IVH 设置已导出 (IVH-settings.json)', EN: '📤 IVH settings exported (IVH-settings.json)', DE: '📤 IVH-Einstellungen exportiert', FR: '📤 Réglages IVH exportés', RU: '📤 Настройки IVH экспортированы', UA: '📤 Налаштування IVH експортовано' },
         'importDone': { TW: '📥 IVH 設定已匯入', CN: '📥 IVH 设置已导入', EN: '📥 IVH settings imported', DE: '📥 IVH-Einstellungen importiert', FR: '📥 Réglages IVH importés', RU: '📥 Настройки IVH импортированы', UA: '📥 Налаштування IVH імпортовано' },
         'editedYourText': { TW: '📝 {who} 編輯了你的 IVH 催眠文本', CN: '📝 {who} 编辑了你的 IVH 催眠文本', EN: '📝 {who} edited your IVH hypnosis text', DE: '📝 {who} hat deinen IVH-Hypnosetext bearbeitet', FR: '📝 {who} a modifié votre texte d\'hypnose IVH', RU: '📝 {who} изменил(а) ваш текст гипноза IVH', UA: '📝 {who} змінив(ла) ваш текст гіпнозу IVH' },
+        'accessedYourText': { TW: '👁 {who} 正在查看你的 IVH 文本', CN: '👁 {who} 正在查看你的 IVH 文本', EN: '👁 {who} is viewing your IVH text', DE: '👁 {who} sieht deinen IVH-Text an', FR: '👁 {who} consulte votre texte IVH', RU: '👁 {who} просматривает ваш IVH-текст', UA: '👁 {who} переглядає ваш IVH-текст' },
 
         // ── 分頁名稱 ──────────────────────────────────────────────────
         'tab_basic':   { TW: '基本設定', CN: '基本设置', EN: 'Basic',      DE: 'Allgemein',   FR: 'Général',    RU: 'Основные',   UA: 'Основні' },

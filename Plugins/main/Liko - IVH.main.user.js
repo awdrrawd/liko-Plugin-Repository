@@ -86,6 +86,7 @@
         exportDone: '📤 IVH 設定已匯出 (IVH-settings.json)',
         importDone: '📥 IVH 設定已匯入',
         editedYourText: '📝 {who} 編輯了你的 IVH 催眠文本',
+        accessedYourText: '👁 {who} 正在查看你的 IVH 文本',
         tab_basic: '基本設定', tab_effects: '效果設定', tab_texts: '文本設定', tab_expr: '表情設定', tab_sounds: '音效設定', tab_about: '關於插件',
         exit: '離開', info: '── 說明 ──', cancel: '取消', confirm: '確定', save: '💾 保存', delete: '🗑 刪除',
         upload: '上傳', clear: '清除', other: '其他', restoreDefault: '還原預設', export: '匯出全部設定', import: '匯入全部設定',
@@ -4124,9 +4125,11 @@ function addArousal() {
     //   避免靠公告快照（會有同步延遲／需重開設定才更新的問題）；回覆只告訴詢問者本人，不公開白名單
     const _permCache = {};      // { memberNum: { can:{catalyst,status,trigger}, texts, emotes, triggers, ts } }
     const _permQueryTs = {};
-    function _queryPerm(num) {
+    let   _permViewing = null;     // 目前正在看的對象 → 換人時強制即時重查（避免拿到舊快取）
+    let   _permSheetLastFrame = 0; // 上次 InformationSheet 繪製時間 → 偵測「離開後重開」也強制重查
+    function _queryPerm(num, force) {
         const now = Date.now();
-        if (_permQueryTs[num] && now - _permQueryTs[num] < 2500) return;   // 節流
+        if (!force && _permQueryTs[num] && now - _permQueryTs[num] < 1500) return;   // 停留時節流
         _permQueryTs[num] = now;
         try {
             if (typeof ServerSend === 'function')
@@ -4151,7 +4154,13 @@ function addArousal() {
                 const C = _sheetChar();
                 const info = C && _isOther(C) && C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY];
                 if (info) {
-                    _queryPerm(C.MemberNumber);   // 開著 profile 時即時詢問對方權限
+                    // 換看不同人、或離開後重開 profile → 立刻強制重查（解決剛被加白名單卻仍顯示無權限的延遲）
+                    const now = Date.now();
+                    const reopened = (now - _permSheetLastFrame) > 500;   // 上一幀沒在畫 → 重新開啟
+                    _permSheetLastFrame = now;
+                    const fresh = reopened || C.MemberNumber !== _permViewing;
+                    if (fresh) _permViewing = C.MemberNumber;
+                    _queryPerm(C.MemberNumber, fresh);
                     const can = _permFor(C, info), canEdit = can.catalyst || can.status || can.trigger;
                     const tip = canEdit ? ui('profileEditBtn')
                         : (info.edit ? ui('profileEditNoPerm') : ui('profileEditOff'));
@@ -4196,6 +4205,19 @@ function addArousal() {
                                     emotes:   cs ? (CONFIG.emoteList || [])    : [],
                                     triggers: ct ? (CONFIG.triggerWords || []) : [],
                                 }] });
+                        }
+                    } catch (e) {}
+                    return;  // 不顯示
+                }
+                // 有人打開了我的文本編輯器 → 顯示訪問通知
+                if (data && data.Type === 'Hidden' && data.Content === 'IVH_Access') {
+                    try {
+                        const d = (data.Dictionary || []).find(x => x && x.Tag === 'IVH_Access');
+                        if (d && Number(d.Target) === Player?.MemberNumber) {
+                            const who = d.Name
+                                || (ChatRoomCharacter?.find(c => c.MemberNumber === Number(data.Sender))?.Nickname)
+                                || data.Sender;
+                            printChat(ui('accessedYourText', { who }), 8000);
                         }
                     } catch (e) {}
                     return;  // 不顯示
@@ -4284,8 +4306,20 @@ function addArousal() {
 
     // 遠端文本編輯面板（DOM）
     let _remoteEditor = null;
+    const _accessNotifyTs = {};
     function openRemoteTextEditor(C) {
         if (_remoteEditor) { _remoteEditor.remove(); _remoteEditor = null; }
+        // 訪問通知：打開對方文本編輯器時，通知對方「有人正在查看你的文本」（節流 15 秒）
+        try {
+            const num = C.MemberNumber, now = Date.now();
+            if (num != null && (!_accessNotifyTs[num] || now - _accessNotifyTs[num] > 15000)) {
+                _accessNotifyTs[num] = now;
+                const myName = (typeof CharacterNickname === 'function' ? CharacterNickname(Player) : '') || Player?.Name || Player?.MemberNumber;
+                if (typeof ServerSend === 'function')
+                    ServerSend('ChatRoomChat', { Type: 'Hidden', Content: 'IVH_Access',
+                        Dictionary: [{ Tag: 'IVH_Access', Target: Number(num), Name: String(myName) }] });
+            }
+        } catch (e) {}
         const info  = (C.OnlineSharedSettings && C.OnlineSharedSettings[ES_KEY]) || {};
         // 相容舊版（只公告單一 editMode + texts）：視為催眠文本可編輯
         const modes = _viewerEditModes(info);
