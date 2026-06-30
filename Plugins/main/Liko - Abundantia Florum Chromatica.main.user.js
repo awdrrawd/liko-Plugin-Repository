@@ -2,7 +2,7 @@
 // @name         Abundantia Florum ─Chromatica─
 // @name:zh      繁戀如花 ─繽紛─
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6.2
+// @version      0.7.0
 // @description  拓展戀人系統 | Extended Lover System for BondageClub
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -20,8 +20,10 @@
         return;
     }
     const MOD_NAME     = "AbundantiaFlorumChromatica";
-    const MOD_VERSION  = "0.6.2";
+    const MOD_VERSION  = "0.7.0";
     const AFC_BEEP_TYPE = "AFC::Beep";
+    // AccountBeep 跨房通道（vanilla BC 對非空/非 Leash 的 BeepType 靜默忽略 → 不彈通知）
+    const AFC_AB_TYPE   = "afcBeep";
     window.Liko.AFC.version = MOD_VERSION;
     window.Liko.AFC.api     = window.Liko.AFC.api ?? {};
 
@@ -41,6 +43,23 @@
         LOCK_ACCESS_OFF:  "AFCLockAccessOff",
         BREAKUP:          "AFCBreakup",
         ROOM_NAME:        "AFCRoomName",
+        ACK_T:            "AFCAckT",        // 傳輸層 ACK（與語意 ACK 區分）
+    };
+
+    // 需要可靠送達（重送到 ACK 為止 + 接收端冪等）的訊息
+    const RELIABLE_BEEPS = new Set([
+        BEEP.PROPOSE, BEEP.ACCEPT,
+        BEEP.RESTORE_PROPOSE, BEEP.RESTORE_ACCEPT,
+        BEEP.PROPOSE_ENGAGE, BEEP.ACCEPT_ENGAGE,
+        BEEP.PROPOSE_MARRY,  BEEP.ACCEPT_MARRY,
+        BEEP.BREAKUP,
+    ]);
+
+    // AccountBeep（跨房）訊息：只用於戀人房名分享
+    const AB = {
+        ROOM_NAME: "RoomName",   // 帶房名（IsSecret:false → 伺服器蓋上 ChatRoomName）
+        REQ_ROOM:  "ReqRoom",    // 請求對方回送房名
+        DEL_ROOM:  "DelRoom",    // 通知對方移除已分享的房名
     };
 
     const STAGE = { DATING: 0, ENGAGED: 1, MARRIED: 2 };
@@ -180,6 +199,8 @@
             restoreConfirmBtn:() => `Confirm Restore`,
             restoreConfirmAll:(s) => `Use all data from ${s}?`,
             restoreOKMsg:     (n) => `Restored ${n} lover(s)`,
+            dbMismatchLoss:   () => `Extended-lover data may be lost (online list is empty but a local backup exists). Open AFC Settings → Restore to recover, or ignore if this is a new device.`,
+            dbMismatchDiff:   () => `Your online extended-lover list differs from the local backup. Open AFC Settings → Restore to reconcile manually; nothing is overwritten automatically.`,
         },
         TW: {
             notFriend:      (n) => `請先添加 ${n} 為好友後重新提交申請。`,
@@ -278,6 +299,8 @@
             restoreConfirmBtn:() => `確認復原`,
             restoreConfirmAll:(s) => `確認使用 ${s} 的全部資料？`,
             restoreOKMsg:     (n) => `已復原 ${n} 筆戀人資料`,
+            dbMismatchLoss:   () => `偵測到拓展戀人資料可能丟失（線上資料為空，但本機存有備份）。請至「拓展戀人設定 → 復原」確認要還原，或忽略（若這是新裝置）。`,
+            dbMismatchDiff:   () => `偵測到線上拓展戀人資料與本機備份不一致。請至「拓展戀人設定 → 復原」自行確認，系統不會自動覆蓋任何一方。`,
         },
     };
     // Simplified Chinese inherits Traditional Chinese
@@ -402,7 +425,9 @@
         };
     }
 
-    function _packPrivate(s, lovers) {
+    // v0.7.0：ExtensionSettings.AFC 只留私人設定檔，不再夾帶戀人備份（l）。
+    // 戀人備份改放 localStorage「DB」，避免與 ExtensionSettings 一起被伺服器清空。
+    function _packPrivate(s, _loversIgnored) {
         return {
             v:   MOD_VERSION,
             cfg: [
@@ -415,26 +440,108 @@
                 s.lockSettings?.allowSelfUnlock     ? 1 : 0,
             ],
             // lp removed - runtime only
-            l:  (lovers ?? []).map(l => [
-                l.memberNumber, l.name,
-                l.stage ?? 0,
-                l.startDate ?? Date.now(), l.stageDate ?? l.startDate ?? Date.now(),
-                l.lastSeen ?? null,
-            ]),
+            // l  removed - 戀人備份改存 localStorage（_lsWrite）
         };
     }
 
-    /** 從私人設定備份讀取 lovers（展開緊湊格式） */
-    function _readBackupLovers() {
+    // ============================================================
+    // 本地存底（localStorage「DB」）— 抗伺服器端資料丟失
+    //   以帳號區分 key；只當「保險箱」用來偵測丟失/提供還原來源，
+    //   OnlineSharedSettings.AFC.lovers 仍是日常活本（對方客戶端唯一讀得到的地方）。
+    //   只有換裝置（本機天生空）或手動清除才會與線上不一致。
+    // ============================================================
+    const LS_PREFIX = "AFC_DB::";
+
+    function _lsKey() {
+        const acct = Player?.AccountName ?? Player?.MemberNumber ?? "anon";
+        return LS_PREFIX + acct;
+    }
+
+    function _lsWrite(lovers) {
         try {
+            localStorage.setItem(_lsKey(), JSON.stringify({
+                v:  MOD_VERSION,
+                ts: Date.now(),
+                memberNumber: Player?.MemberNumber ?? null,
+                lovers: (lovers ?? []).map(l => ({
+                    memberNumber: l.memberNumber, name: l.name,
+                    stage: l.stage ?? 0,
+                    startDate: l.startDate ?? null, stageDate: l.stageDate ?? null,
+                    lastSeen: l.lastSeen ?? null,
+                })),
+            }));
+        } catch {}
+    }
+
+    function _lsRead() {
+        try {
+            const raw = localStorage.getItem(_lsKey());
+            return raw ? JSON.parse(raw) : null;
+        } catch { return null; }
+    }
+
+    function _lsReadLovers() {
+        const d = _lsRead();
+        return Array.isArray(d?.lovers) ? d.lovers : [];
+    }
+
+    // 任何合法的戀人變動（已通過 saveSharedSettings 的防呆）都同步寫一份本地存底
+    function _dbSync() {
+        try { _lsWrite(getSharedSettings()?.lovers ?? []); } catch {}
+    }
+
+    /** 還原 UI「備份資料」欄位的來源 → 本地存底 DB（取代舊的 ExtensionSettings.l 備份）*/
+    function _readBackupLovers() {
+        return _lsReadLovers();
+    }
+
+    // 一次性遷移：把舊版 ExtensionSettings.AFC.l 戀人備份搬進本機 DB（僅在本機 DB 為空時）
+    // 保護「升級當下 OnlineSharedSettings 已被清空、但舊 l 備份仍在」的邊界情況。
+    function _migrateOldBackupToDB() {
+        try {
+            if (_lsRead()) return;   // 本機已有 DB → 不覆蓋
             const raw = Player?.ExtensionSettings?.AFC;
-            if (!raw) return [];
-            const p = JSON.parse(raw);
-            return (p.l ?? []).map(e => Array.isArray(e) ? {
+            if (!raw) return;
+            const p   = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            const old = Array.isArray(p?.l) ? p.l : null;
+            if (!old || !old.length) return;
+            const lovers = old.map(e => Array.isArray(e) ? {
                 memberNumber: e[0], name: e[1], stage: e[2] ?? 0,
                 startDate: e[3], stageDate: e[4], lastSeen: e[5] ?? null,
             } : e);
-        } catch { return []; }
+            _lsWrite(lovers);
+            console.log("🐈‍⬛ [AFC] 🔧 已將舊版 ExtensionSettings 戀人備份遷移到本機 DB");
+        } catch {}
+    }
+
+    // 比對「線上活本」與「本機 DB」的戀人集合（只看 memberNumber + stage）
+    function _loverSetEqual(a, b) {
+        if (a.length !== b.length) return false;
+        const ka = new Set(a.map(l => `${l.memberNumber}:${l.stage ?? 0}`));
+        return b.every(l => ka.has(`${l.memberNumber}:${l.stage ?? 0}`));
+    }
+
+    // 登入時比對：依「資料丟失 / 換裝置 / 不一致 / 一致」四種情況決定通知與否（不主動還原）
+    function reconcileLocalDB() {
+        const oss   = getSharedSettings()?.lovers ?? [];
+        const dbRec = _lsRead();
+        const db    = Array.isArray(dbRec?.lovers) ? dbRec.lovers : [];
+        const ossHas = oss.length > 0;
+        const dbHas  = db.length  > 0;
+
+        if (!dbHas && !ossHas) return;                       // 都空：正常
+        if (!dbHas &&  ossHas) { _dbSync(); return; }        // 換裝置：本機天生空 → 靜默回填，不警告
+        if ( dbHas && !ossHas) {                             // 資料丟失：線上空、本機有 → 通知
+            console.warn("🐈‍⬛ [AFC] ⚠️ 偵測到線上戀人資料丟失，本機 DB 仍有備份");
+            try { toast(t('dbMismatchLoss'), 14000, "#e53935"); } catch {}
+            try { chatLocalNotice(t('dbMismatchLoss')); } catch {}
+            return;
+        }
+        if (_loverSetEqual(oss, db)) { _dbSync(); return; }  // 一致：更新時間戳即可
+        // 兩者都有但不一致 → 通知，讓玩家自己到復原頁決定
+        console.warn("🐈‍⬛ [AFC] ⚠️ 線上戀人資料與本機 DB 不一致");
+        try { toast(t('dbMismatchDiff'), 14000, "#FB8C00"); } catch {}
+        try { chatLocalNotice(t('dbMismatchDiff')); } catch {}
     }
 
     // ── 舊版資料一次性處理（短期輔助，未來版本將移除）────────────────
@@ -516,6 +623,7 @@
             AFCLockAccessOn.clear();
             _lastKnownLoverCount = 0;   // 解除 saveSharedSettings 的「戀人歸零」保護
             getSharedSettings();
+            _dbSync();                  // 一併清空本機 DB（初廠＝手動清除）
             // 送整個 ExtensionSettings（含重置後的 AFC）+ OnlineSharedSettings
             try { ServerAccountUpdate?.QueueData?.({ ExtensionSettings: Player.ExtensionSettings, OnlineSharedSettings: Player.OnlineSharedSettings }, true); } catch {}
             console.warn("🐈‍⬛ [AFC] ⚠️ 已執行初廠設定（戀人關係解除、所有戀人鎖破壞、設定重置）");
@@ -574,6 +682,8 @@
             }
             _lastKnownLoverCount = currentCount;
             ServerAccountUpdate?.QueueData?.({ OnlineSharedSettings: Player.OnlineSharedSettings });
+            // 通過防呆後，同步寫一份本地存底 DB
+            _dbSync();
         } catch (e) { console.error("🐈‍⬛ [AFC] ❌ 儲存共享設定失敗:", e.message); }
         // 同時廣播給房間內玩家
         broadcastAFCData();
@@ -631,12 +741,59 @@
     // 工具
     // ============================================================
 
-    function sendBeep(target, msgType, extra = {}) {
+    // ── 可靠傳輸層 ────────────────────────────────────────────────
+    // 同房間 Hidden 走 socket.io 雖然可靠，但「接收端 listener 尚未就緒 / 兩人短暫不同房 /
+    // OnlineSharedSettings 尚未同步造成驗證 race」都會吃掉單發訊息且無法復原。
+    // 對關鍵訊息加上「重送到 ACK 為止 + 接收端冪等去重」。
+    const RELIABLE_INTERVAL = 2500;
+    const RELIABLE_MAXTRY   = 6;
+    const _pendingAcks = {};   // mid -> { timer }
+    let   _midSeq = 0;
+
+    function _newMid() {
+        return `${Player?.MemberNumber ?? 0}-${Date.now().toString(36)}-${(_midSeq++).toString(36)}`;
+    }
+
+    function _sendHidden(target, msgType, extra = {}) {
         try {
             ServerSend("ChatRoomChat", {
                 Type:    "Hidden",
                 Content: "AFC::Beep",
                 Dictionary: [{ Tag: "AFC::Beep", MsgType: msgType, TargetMember: target, ...extra }],
+            });
+        } catch {}
+    }
+
+    function sendBeep(target, msgType, extra = {}) {
+        if (!RELIABLE_BEEPS.has(msgType)) { _sendHidden(target, msgType, extra); return; }
+        const mid     = _newMid();
+        const payload = { ...extra, _mid: mid };
+        _sendHidden(target, msgType, payload);
+        let tries = 1;
+        const timer = setInterval(() => {
+            if (tries >= RELIABLE_MAXTRY) { _clearAck(mid); return; }
+            tries++;
+            _sendHidden(target, msgType, payload);
+        }, RELIABLE_INTERVAL);
+        _pendingAcks[mid] = { timer };
+    }
+
+    function _clearAck(mid) {
+        const p = _pendingAcks[mid];
+        if (p) { clearInterval(p.timer); delete _pendingAcks[mid]; }
+    }
+
+    // ── AccountBeep（跨房）：戀人房名分享，仿 BCTweaks ───────────────
+    // IsSecret:false 時，BC 伺服器會在轉發的 beep 上自動蓋上發送者當下的
+    // ChatRoomName / ChatRoomSpace / Private，接收端直接讀 data.ChatRoomName。
+    function sendAccountBeep(target, msg, includeRoom = false) {
+        try {
+            if (!Player?.FriendList?.includes(target)) return;   // 必須是好友才送得出
+            ServerSend("AccountBeep", {
+                MemberNumber: target,
+                BeepType:     AFC_AB_TYPE,
+                Message:      msg,
+                IsSecret:     !includeRoom,
             });
         } catch {}
     }
@@ -887,7 +1044,7 @@
     const pendingRestoreOut = {};
     const pendingRestoreInc = {};
 
-    function proposeRestore(C) {
+    function proposeRestore(C, quiet = false) {
         const target = C.MemberNumber;
         const iHaveC = isAFCLover(target);
         const cHasMe = C.OnlineSharedSettings?.AFC?.lovers
@@ -917,7 +1074,48 @@
         pendingRestoreOut[target] = {
             timer: setTimeout(() => { delete pendingRestoreOut[target]; }, PROPOSE_EXPIRE_MS),
         };
-        chatLocalNotice(t('restoreSent', C.Name));
+        if (!quiet) chatLocalNotice(t('restoreSent', C.Name));
+    }
+
+    // ============================================================
+    // 房內雙向對帳（自動補齊不對稱的戀人關係）
+    //   - 我有他、他沒我 → 我是資料保有方 → 自動送恢復申請（節流），對方點同意即補回
+    //   - 他有我、我沒他 → 我這邊丟了 → 若本地 DB 有他就直接補回（本地證據可信）；
+    //     否則保留現有手動恢復入口（ChatRoomAFCCanRestore）交給玩家決定
+    // ============================================================
+    function reconcileWithRoom() {
+        const s = getSharedSettings();
+        if (!s) return;
+        const dbLovers = _lsReadLovers();
+        for (const C of ChatRoomCharacter ?? []) {
+            if (!C?.MemberNumber || C.MemberNumber === Player.MemberNumber) continue;
+            if (!targetHasAFC(C)) continue;
+            const num    = C.MemberNumber;
+            const iHaveC = isAFCLover(num);
+            const cHasMe = (C.OnlineSharedSettings?.AFC?.lovers ?? [])
+                .some(l => Number(l.memberNumber) === Number(Player.MemberNumber));
+
+            if (!iHaveC && cHasMe) {
+                const fromDB = dbLovers.find(l => Number(l.memberNumber) === Number(num));
+                if (fromDB) {
+                    s.lovers.push({
+                        memberNumber: num, name: fromDB.name ?? C.Name,
+                        stage:     fromDB.stage     ?? STAGE.DATING,
+                        startDate: fromDB.startDate ?? Date.now(),
+                        stageDate: fromDB.stageDate ?? fromDB.startDate ?? Date.now(),
+                        lastSeen:  Date.now(),
+                    });
+                    AFCLockAccessOn.add(num);
+                    _lastKnownLoverCount = s.lovers.length;
+                    saveSharedSettings();
+                    broadcastAFCData();
+                    console.log("🐈‍⬛ [AFC] 🔧 自本地DB補回戀人:", num);
+                }
+                // 否則：交給 ChatRoomAFCCanRestore 的手動恢復入口
+            } else if (iHaveC && !cHasMe) {
+                if (!pendingRestoreOut[num]) proposeRestore(C, true);
+            }
+        }
     }
 
     function handleIncomingRestore(senderNum, senderName, stage, startDate, stageDate) {
@@ -1263,7 +1461,27 @@
         const senderChar = ChatRoomCharacter?.find(c => c.MemberNumber === senderNum);
         const senderHasMe = senderChar?.OnlineSharedSettings?.AFC?.lovers
         ?.some(l => Number(l.memberNumber) === Number(Player.MemberNumber)) ?? false;
-        if (!isAFCLover(senderNum) && !senderHasMe) return;
+
+        // 我這邊沒有對方紀錄時：先嘗試從本機 DB 補回基礎關係，否則升格會無效
+        if (!isAFCLover(senderNum)) {
+            const fromDB = _lsReadLovers().find(l => Number(l.memberNumber) === Number(senderNum));
+            if (fromDB) {
+                const s = getSharedSettings();
+                if (s && !s.lovers.some(l => Number(l.memberNumber) === Number(senderNum))) {
+                    s.lovers.push({
+                        memberNumber: senderNum, name: fromDB.name ?? senderName,
+                        stage:     fromDB.stage     ?? STAGE.DATING,
+                        startDate: fromDB.startDate ?? Date.now(),
+                        stageDate: fromDB.stageDate ?? fromDB.startDate ?? Date.now(),
+                        lastSeen:  Date.now(),
+                    });
+                    _lastKnownLoverCount = s.lovers.length;
+                    saveSharedSettings(); broadcastAFCData();
+                }
+            } else if (!senderHasMe) {
+                return;   // 我沒有、DB 沒有、對方也沒列我 → 無從升格
+            }
+        }
 
         const key   = `${senderNum}_${newStage}`;
         const uiId  = `el-stage-${senderNum}-${newStage}`;
@@ -1376,13 +1594,59 @@
     // 房間名稱共享
     // ============================================================
 
-    function sendRoomNameTo(num) {
+    // 進房 / 改房 / 建房後：把房名廣播給所有在線戀人
+    async function broadcastRoomNameToLovers() {
         if (CurrentScreen !== "ChatRoom" || !ChatRoomData?.Private) return;
-        sendBeep(num, BEEP.ROOM_NAME, {}, false);
+        await refreshOnlineFriends();
+        let i = 1;
+        for (const l of getSharedSettings()?.lovers ?? []) {
+            if (!isOnline(l.memberNumber)) continue;
+            await sleep(200 * i++);
+            sendAccountBeep(l.memberNumber, AB.ROOM_NAME, true);
+        }
     }
 
-    function broadcastRoomNameToLovers() {
-        for (const num of AFCLockAccessOn) sendRoomNameTo(num);
+    // 登入 / 重連後：向所有在線戀人請求他們的房名
+    async function requestRoomNamesFromLovers() {
+        await refreshOnlineFriends();
+        let i = 1;
+        for (const l of getSharedSettings()?.lovers ?? []) {
+            if (!isOnline(l.memberNumber)) continue;
+            await sleep(300 * i++);
+            sendAccountBeep(l.memberNumber, AB.REQ_ROOM, false);
+        }
+    }
+
+    // 離開私人房：通知戀人移除已分享的房名
+    function clearSharedRoomName() {
+        for (const l of getSharedSettings()?.lovers ?? [])
+            sendAccountBeep(l.memberNumber, AB.DEL_ROOM, false);
+    }
+
+    // AccountBeep 解析（跨房房名分享專用；vanilla BC 對此 BeepType 靜默忽略）
+    function parseAccountBeep(data) {
+        if (!data || typeof data !== "object" || Array.isArray(data)) return;
+        if (data.BeepType !== AFC_AB_TYPE) return;
+        if (typeof data.MemberNumber !== "number") return;
+        const from = data.MemberNumber;
+        switch (data.Message) {
+            case AB.ROOM_NAME:
+                // 只接受戀人的房名
+                if (!isAFCLover(from)) return;
+                loversPrivateRoom[from] = {
+                    ChatRoomName:  data.ChatRoomName  ?? null,
+                    ChatRoomSpace: data.ChatRoomSpace ?? "X",
+                };
+                break;
+            case AB.REQ_ROOM:
+                // 對方請求我的房名：我在私人房且對方是戀人時回送
+                if (isAFCLover(from) && CurrentScreen === "ChatRoom" && ChatRoomData?.Private)
+                    sendAccountBeep(from, AB.ROOM_NAME, true);
+                break;
+            case AB.DEL_ROOM:
+                delete loversPrivateRoom[from];
+                break;
+        }
     }
 
     // ============================================================
@@ -1391,17 +1655,26 @@
 
     function parseBeep(data) {
         if (!data) return;
-
-        // BC 原生戀人申請攔截
-        if (data.BeepType === "Lovers") {
-            handleBCLoverProposal(data);
-            return;
-        }
-
+        // 注意：BC 原生戀人申請（BeepType:"Lovers"）改由 AccountBeep listener 直接處理
         if (data.BeepType !== AFC_BEEP_TYPE) return;
 
         const from     = data.MemberNumber;
         const fromName = data.MemberName ?? `#${from}`;
+
+        // ── 傳輸層 ACK：收到對方的 ACK → 停止重送 ──────────────
+        if (data.Message === BEEP.ACK_T) { _clearAck(data.AckId); return; }
+
+        // ── 可靠訊息（帶 _mid）：先回 ACK，再冪等去重 ──────────
+        if (data._mid) {
+            _sendHidden(from, BEEP.ACK_T, { AckId: data._mid });
+            if (_recentBeepKeys.has(data._mid)) return;   // 重複投遞：只回 ACK，不重做
+            _recentBeepKeys.add(data._mid);
+            if (_recentBeepKeys.size > 500) {
+                // 防無限增長：清掉最舊的一半
+                const arr = [..._recentBeepKeys];
+                for (let i = 0; i < 250; i++) _recentBeepKeys.delete(arr[i]);
+            }
+        }
 
         switch (data.Message) {
             case BEEP.PROPOSE:
@@ -1433,14 +1706,12 @@
                     AFCLockAccessOn.add(from);
                     updateLastSeen(from);
                     sendBeep(from, BEEP.SYNC_GRANT, { GranterName: Player.Name });
-                    sendRoomNameTo(from);
                 }
                 break;
             case BEEP.SYNC_GRANT:
                 if (isAFCLover(from)) {
                     AFCLockAccessOn.add(from);
                     updateLastSeen(from);
-                    sendRoomNameTo(from);
                 }
                 break;
             case BEEP.LOCK_ACCESS_OFF:
@@ -1451,12 +1722,7 @@
                     chatLocalNotice(t('breakupOther', fromName));
                 }
                 break;
-            case BEEP.ROOM_NAME:
-                loversPrivateRoom[from] = {
-                    ChatRoomName:  data.ChatRoomName  ?? null,
-                    ChatRoomSpace: data.ChatRoomSpace  ?? "X",
-                };
-                break;
+            // 房名分享已改走 AccountBeep（見 parseAccountBeep），Hidden 不再處理 ROOM_NAME
             default:
                 console.warn("🐈‍⬛ [AFC] ⚠️ 未知 Beep:", data.Message);
         }
@@ -2498,6 +2764,14 @@
             return next(args);
         });
 
+        // ── AccountBeep（跨房房名分享 + BC 原生戀人申請美化通知）──────
+        registerSocketListener("AccountBeep", (data) => {
+            try {
+                if (data?.BeepType === "Lovers") { handleBCLoverProposal(data); return; }
+                parseAccountBeep(data);
+            } catch (e) {}
+        });
+
         // ── 房間同步 ────────────────────────────────────────────────
         registerSocketListener("ChatRoomSync", () => {
             setTimeout(() => {
@@ -2509,6 +2783,8 @@
                 // 廣播 AFC 資料給房間內玩家（EBC 等環境下伺服器同步可能失效）
                 broadcastAFCData();
             }, 600);
+            // 房內角色的 OnlineSharedSettings 載入後做雙向對帳，自動補齊不對稱
+            setTimeout(() => { try { reconcileWithRoom(); } catch (e) {} }, 1800);
         });
 
         registerSocketListener("ChatRoomMessage", (data) => {
@@ -2555,6 +2831,13 @@
         // ── 離線撤銷授權 ────────────────────────────────────────────
         modApi.hookFunction("ServerDisconnect", 5, (args, next) => {
             try { for (const num of AFCLockAccessOn) sendBeep(num, BEEP.LOCK_ACCESS_OFF); } catch (e) {}
+            return next(args);
+        });
+
+        // ── 離開私人房：通知戀人移除已分享的房名 ─────────────────────
+        modApi.hookFunction("ChatRoomLeave", 5, (args, next) => {
+            try { if (ChatRoomData?.Private) clearSharedRoomName(); } catch (e) {}
+            currentPrivateRoomName = "";
             return next(args);
         });
 
@@ -2656,6 +2939,11 @@
                 syncWithOnlineLovers();
                 checkAutoBreakup();
 
+                // 登入比對本機 DB（資料丟失/換裝置/不一致），並向在線戀人請求房名
+                _migrateOldBackupToDB();
+                reconcileLocalDB();
+                requestRoomNamesFromLovers();
+
                 if (typeof modApi.onUnload === 'function') modApi.onUnload(() => cleanup());
 
                 isInitialized = true;
@@ -2708,6 +2996,7 @@
 
     function cleanup() {
         unregisterAllSocketListeners();
+        for (const k of Object.keys(_pendingAcks)) _clearAck(k);
         for (const k of Object.keys(pendingOutgoing)) clearTimeout(pendingOutgoing[k].timer);
         for (const k of Object.keys(pendingIncoming)) {
             clearInterval(pendingIncoming[k].timer);

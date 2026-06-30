@@ -2,7 +2,7 @@
 // @name         BC Heart Lock Extension
 // @name:zh      BC 心形鎖拓展
 // @namespace    https://github.com/awdrrawd/
-// @version      2.5.4
+// @version      2.6.0
 // @description  Heart Padlock for Bondage Club with AFC lover integration
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -14,7 +14,7 @@
 (function () {
     window.Liko = window.Liko ?? {};
     if (window.Liko.AFC_HeartLock) return;
-    const MOD_VER = '2.5.4';
+    const MOD_VER = '2.6.0';
     window.Liko.AFC_HeartLock = MOD_VER;
 
     const HEARTLOCK_NAME   = 'Heart Padlock';
@@ -84,6 +84,7 @@
             resistEscape   : '{0}身上的{1}抵禦了掙脫嘗試。',
             resistRestore  : '{0}身上的{1}抵禦了外部干擾，自動復原。',
             protectDisabled: '{0}的{1}防護暫時停用，請聯繫鎖主處理衝突。',
+            pendingRestore : '{0}身上的{1}因相依物件（如 Echo 拘束）尚未載入而無法復原，將於下次登入或刷新遊戲後自動嘗試。',
             timerExpired   : '{0}身上的{1}隨約定時刻到來，化作點點微光悄然消散。',
             removeRestraints   : '時間到時移除拘束',
             removeRestraintsSub: '(同時移除所有被鎖住的拘束物品)',
@@ -127,6 +128,7 @@
             resistEscape   : '{0}\'s {1} resisted the escape attempt.',
             resistRestore  : '{0}\'s {1} resisted external interference and restored automatically.',
             protectDisabled: '{0}\'s {1} protection is temporarily disabled. Please contact the lock owner.',
+            pendingRestore : 'The {1} on {0} cannot be restored yet because a dependent item (e.g. an Echo restraint) has not loaded. It will retry on next login or page refresh.',
             timerExpired   : 'The {1} on {0} dissolves into a gentle shimmer as the promised moment arrives.',
             removeRestraints   : 'Remove restraints on expiry',
             removeRestraintsSub: '(Also removes all locked restraint items)',
@@ -669,7 +671,10 @@
     // ═══════════════════════════════════════════
     //  Storage（與原版完全一致）
     // ═══════════════════════════════════════════
-    const DEFAULT_STORAGE = { debug: false, previewImage: HEARTLOCK_IMAGE, padlocks: {} };
+    const DEFAULT_STORAGE = { debug: false, previewImage: HEARTLOCK_IMAGE, padlocks: {}, updatedAt: 0 };
+
+    // 因相依物件（如 Echo 拘束）尚未載入而無法復原的部位 → 暫掛，下次登入/刷新再試，不定時重試/洗版
+    const _pendingRestore = new Set();
 
     function ensureStorage() {
         if (!window.Player) return false;
@@ -717,8 +722,79 @@
 
     function saveAndSync() {
         if (!ensureStorage()) return;
+        Player.HeartLock.updatedAt = Date.now();   // 任何上鎖/解鎖/設定變動都更新時間戳
         try { if (typeof ServerPlayerExtensionSettingsSync === 'function') ServerPlayerExtensionSettingsSync(EXT_KEY); } catch {}
+        _hlLsWrite();   // 同步寫一份本地存底 DB
         broadcastStorage();
+    }
+
+    // ═══════════════════════════════════════════
+    //  本地存底 DB（localStorage）+ 啟動對帳
+    //  抗「ExtensionSettings 整欄被清空 / 被初始化」與「跨裝置復原」的衝突。
+    // ═══════════════════════════════════════════
+    function _hlLsKey() { return 'HL_DB::' + (Player?.AccountName ?? Player?.MemberNumber ?? 'anon'); }
+
+    function _hlLsWrite() {
+        try {
+            localStorage.setItem(_hlLsKey(), JSON.stringify({
+                ts:   Player.HeartLock?.updatedAt ?? 0,
+                data: clone(Player.HeartLock),
+            }));
+        } catch {}
+    }
+    function _hlLsRead() {
+        try { const raw = localStorage.getItem(_hlLsKey()); return raw ? JSON.parse(raw) : null; } catch { return null; }
+    }
+
+    // 鎖狀態指紋：部位 + 鎖主 + lockId + 計時 + 設定（用於判斷兩份資料是否一致）
+    function _hlNormalize(s) {
+        const p = s?.padlocks ?? {};
+        return Object.keys(p).sort().map(gn => {
+            const c = p[gn] ?? {};
+            return `${gn}:${c.owner}:${c.lockId ?? ''}:${c.unlockTime ?? ''}:${c.vibe ?? ''}:${c.orgasmMode ?? ''}`;
+        }).join('|');
+    }
+    function _hlStorageEqual(a, b) { return _hlNormalize(a) === _hlNormalize(b); }
+
+    function _hlAdoptDB(data) {
+        if (!data || typeof data !== 'object') return;
+        Player.ExtensionSettings[EXT_KEY] = clone(data);
+        if (!Player.ExtensionSettings[EXT_KEY].padlocks) Player.ExtensionSettings[EXT_KEY].padlocks = {};
+        Player.HeartLock = Player.ExtensionSettings[EXT_KEY];
+        saveAndSync();                         // 會 bump updatedAt 並回寫 DB，使兩邊一致
+        try { reapplyFromAppearance(); } catch {}
+        try { CharacterRefresh?.(Player, false); ChatRoomCharacterUpdate?.(Player); } catch {}
+    }
+
+    function reconcileHLStorage() {
+        if (!ensureStorage()) return;
+        const db = _hlLsRead();
+        const serverTs    = Player.HeartLock?.updatedAt ?? 0;
+        const serverLocks = Object.keys(Player.HeartLock?.padlocks ?? {}).length;
+
+        if (!db) {
+            // 本機沒有 DB（換裝置 / 初次）→ 若伺服器有資料就建立 DB，不警告
+            if (serverTs > 0 || serverLocks > 0) _hlLsWrite();
+            return;
+        }
+        const dbTs    = db.ts ?? 0;
+        const dbLocks = Object.keys(db.data?.padlocks ?? {}).length;
+
+        // 情況1：伺服器時間戳為 0/null（被初始化）但 DB 有鎖 → 全部一起壞，直接抓 DB
+        if ((serverTs === 0 || serverTs == null) && dbLocks > 0) {
+            log('reconcile: server updatedAt is 0/null but local DB has locks → restoring from DB');
+            _hlAdoptDB(db.data);
+            return;
+        }
+        // 情況2：伺服器時間比 DB 舊（可能在別的裝置復原過）→ 比對，不一致就採用最新（DB）
+        //   理由：若 BUG 當下重新上/解鎖，時間戳會更新到現在，不可能比 DB 舊。
+        if (serverTs < dbTs && !_hlStorageEqual(Player.HeartLock, db.data)) {
+            log('reconcile: server older than DB and differs → adopting DB (newest)');
+            _hlAdoptDB(db.data);
+            return;
+        }
+        // 否則伺服器較新或相等 → 以伺服器為準，更新 DB 時間戳
+        _hlLsWrite();
     }
 
     // ── 解鎖輔助（直接操作 Property，繞過 InventoryUnlock hook 干擾）──
@@ -1074,22 +1150,37 @@
      * @param {object} cfg - padlock config
      * @param {boolean} [updateUI=true] - false = 只修資料，不動 DialogFocusItem / 面板狀態（編輯中保護）
      */
+    // 相依物件尚未載入而無法復原 → 暫掛該部位，發一次性提示，停止定時重試
+    function _markPendingRestore(gn) {
+        if (!_pendingRestore.has(gn)) {
+            _pendingRestore.add(gn);
+            try {
+                const nick = Player.Nickname || Player.Name;
+                ServerSend('ChatRoomChat', { Type: 'Action', Content: 'CUSTOM_SYSTEM_ACTION',
+                    Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION',
+                                   Text: T('pendingRestore', nick, HEARTLOCK_NAME) }] });
+            } catch {}
+            log('restore: pending (dependent asset not loaded) for', gn);
+        }
+    }
+
+    // 回傳：'ok' 成功復原 / 'pending' 相依物件未載入暫掛 / 'skip' 不需處理
     function restoreLockFromConfig(gn, cfg, updateUI = true) {
         let item = InventoryGet?.(Player, gn);
         if (!item) {
             const snap = cfg._fullSnapshot;
-            if (!snap?.assetName) { log('restore: no snapshot for', gn); return; }
+            if (!snap?.assetName) { _markPendingRestore(gn); return 'pending'; }
             try {
                 const asset = AssetGet?.(Player.AssetFamily, gn, snap.assetName);
-                if (!asset) { log('restore: asset not found', snap.assetName); return; }
+                if (!asset) { _markPendingRestore(gn); return 'pending'; }   // Echo 等自訂物件尚未註冊
                 state._restoring = true;
                 item = InventoryWear?.(Player, snap.assetName, gn, snap.color, asset.Difficulty, Player.MemberNumber, snap.craft);
                 state._restoring = false;
                 if (!item) item = InventoryGet?.(Player, gn);
-                if (!item) { log('restore: InventoryWear failed for', gn); return; }
-            } catch (e) { state._restoring = false; log('restore: error', e); return; }
+                if (!item) { _markPendingRestore(gn); return 'pending'; }
+            } catch (e) { state._restoring = false; log('restore: error', e); return 'skip'; }
         }
-        if (cfg.assetName && item.Asset?.Name !== cfg.assetName) return;
+        if (cfg.assetName && item.Asset?.Name !== cfg.assetName) return 'skip';
         try {
             const hsAsset = AssetGet?.('Female3DCG', 'ItemMisc', HSLOCK_NAME);
             if (hsAsset) InventoryLock?.(Player, item, { Asset: hsAsset }, cfg.owner);
@@ -1100,6 +1191,8 @@
         item.Property.ExclusiveUnlock = true;
         if (cfg.lockId) item.Property.HeartLockId = cfg.lockId;
         try { ValidationSanitizeProperties?.(Player, item); ValidationSanitizeLock?.(Player, item); } catch {}
+        _pendingRestore.delete(gn);   // 復原成功 → 解除暫掛
+        return 'ok';
     }
 
     function checkLockIntegrity() {
@@ -2023,6 +2116,8 @@
                 const cfg = padlocks[gn], item = InventoryGet?.(Player, gn);
                 const broken = !item || item.Property?.Name !== HEARTLOCK_NAME || item.Property?.LockedBy !== HSLOCK_NAME;
                 if (broken) {
+                    // 相依物件未載入而暫掛的部位：不重試、不計入防作弊、不洗版，留待下次登入/刷新或 Echo 重載後由 integrity 復原
+                    if (_pendingRestore.has(gn)) continue;
                     if (sourceMember != null && Number(sourceMember) === Number(cfg.owner)) { deleteConfig(gn); continue; }
                     if (sourceMember != null && Number(sourceMember) === Player.MemberNumber && Number(cfg.owner) === Player.MemberNumber) { deleteConfig(gn); continue; }
                     if (sourceMember != null) {
@@ -2042,8 +2137,7 @@
                     }
                     // 若正在編輯此物品的筆記，只修資料，不動 UI 狀態
                     const editingThis = state.panel.noteEditing && gn === state.panel.groupName;
-                    restoreLockFromConfig(gn, cfg, !editingThis);
-                    anyRestored = true;
+                    if (restoreLockFromConfig(gn, cfg, !editingThis) === 'ok') anyRestored = true;
                 } else { grabStateChar.count = 0; }
             }
             if (anyRestored) {
@@ -2074,6 +2168,8 @@
                 const cfg = padlocks[gn], item = InventoryGet?.(Player, gn);
                 const broken = !item || item.Property?.Name !== HEARTLOCK_NAME || item.Property?.LockedBy !== HSLOCK_NAME;
                 if (broken) {
+                    // 相依物件未載入而暫掛的部位：不重試、不計入防作弊、不洗版，留待下次登入/刷新或 Echo 重載後由 integrity 復原
+                    if (_pendingRestore.has(gn)) continue;
                     if (sourceMember != null && Number(sourceMember) === Number(cfg.owner)) { deleteConfig(gn); continue; }
                     if (sourceMember != null && Number(sourceMember) === Player.MemberNumber && Number(cfg.owner) === Player.MemberNumber) { deleteConfig(gn); continue; }
                     // 授權解鎖者（EL 戀人 / BC 戀人）
@@ -2093,8 +2189,7 @@
                         return result;
                     }
                     const editingThis2 = state.panel.noteEditing && gn === state.panel.groupName;
-                    restoreLockFromConfig(gn, cfg, !editingThis2);
-                    anyRestored = true;
+                    if (restoreLockFromConfig(gn, cfg, !editingThis2) === 'ok') anyRestored = true;
                 } else { grabStateSingle.count = 0; }
             }
             if (anyRestored) {
@@ -2156,6 +2251,7 @@
         patchFunctions(modApi);
         await waitFor(() => window.Player?.ExtensionSettings !== undefined, 30000);
         ensureStorage();
+        reconcileHLStorage();   // 與本機 DB 對帳：被初始化→抓 DB；伺服器較舊且不符→採用最新
         saveAndSync();
         reapplyFromAppearance();
         startVibeTimer();
