@@ -530,14 +530,14 @@
       ]
     },
     {
-      "id": "Liko-IVH",
+      "id": "Liko-HSC",
       "name": {
-        "cn": "沉浸式聲音催眠效果",
-        "en": "Immersive Voice Hypnosis"
+        "cn": "催眠奴隸俱樂部",
+        "en": "Hypnotic Slave Club"
       },
       "description": {
-        "cn": "配合BCX的聽我聲音功能增加沉浸體驗",
-        "en": "Enhance the immersive experience with BCX's 'Listen to My Voice' feature."
+        "cn": "提供多樣催眠效果，增強催眠的沉浸度",
+        "en": "Provides a variety of hypnosis effects to enhance the immersion of the experience."
       },
       "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
       "author": "莉柯莉絲(Likolisu)",
@@ -549,7 +549,7 @@
       "versions": [
         {
           "distribution": "stable",
-          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20IVH.main.user.js"
+          "source": "https://raw.githubusercontent.com/awdrrawd/BC-HSC/main/loader.user.js"
         }
       ]
     },
