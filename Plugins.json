@@ -155,8 +155,8 @@
       "en_description": "An abundance of lovers, like a love story blooming in countless flowers, featuring an extensible Lover’s Lock system.",
       "additionalInfo": "",
       "en_additionalInfo": "",
-      "icon": "🌸",
-      "url": "https://raw.githubusercontent.com/awdrrawd/BC-AFC/refs/heads/main/Images/Abundantia_Florum_Chromatica.png",
+      "icon": "https://raw.githubusercontent.com/awdrrawd/BC-AFC/refs/heads/main/Images/Abundantia_Florum_Chromatica.png",
+      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js",
       "priority": 3,
       "version": "0.7.0"
     },
