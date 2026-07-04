@@ -169,7 +169,8 @@
       "additionalInfo": "提供個人資料的保存、查詢，房間名單的管理",
       "en_additionalInfo": "Provides features for saving and searching personal profiles, and managing room lists.",
       "icon": "👥",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20FCM.main.user.js",
+      "url": "https://raw.githubusercontent.com/awdrrawd/BC-FCM/main/loader.user.js",
+      "website": "https://github.com/awdrrawd/BC-FCM",
       "priority": 3,
       "version": "1.4.2-4"
     },
