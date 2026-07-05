@@ -6,9 +6,10 @@
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
-// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
+// @icon         https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png
 // @grant        none
 // @run-at       document-end
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @downloadURL  https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
 // @updateURL    https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
 // ==/UserScript==
@@ -24,11 +25,11 @@
 
     // === i18n ===================================================
     
-    const t = (key, vars) => window.Liko.i18n?.t('PCM', key, vars) ?? key;
+    const t = (key, vars) => window.Liko.__Sys_i18n__?.t('PCM', key, vars) ?? key;
 
     function registerI18n() {
         // EN strings are the authoritative fallback — other languages live in PCM-i18n.js
-        window.Liko.i18n?.register('PCM', {
+        window.Liko.__Sys_i18n__?.register('PCM', {
             'loaded':           { EN: 'Liko\'s Plugin Collection Manager v{ver} loaded! Click the floating button to manage plugins.' },
             'shortLoaded':      { EN: '📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button to open panel\n• Toggle switches to enable/disable plugins\n• Three-state toggle: OFF → ON → BETA\n\n📝 Commands:\n/pcm help — show this\n/pcm list — list all plugins\n\n💡 Plugins load on enable, or take effect on next refresh.' },
             'welcomeTitle':     { EN: '🐈‍⬛ Plugin Manager' },
@@ -433,7 +434,7 @@
 
     // === 語言輔助 ================================================
 
-    function getLang() { return window.Liko.i18n?.detectLang() ?? 'EN'; }
+    function getLang() { return window.Liko.__Sys_i18n__?.detectLang() ?? 'EN'; }
     function isCJK() { const l = getLang(); return l === 'TW' || l === 'CN'; }
     function getPluginName(p) { return isCJK() ? p.name : (p.en_name || p.name); }
     function getPluginDescription(p) { return isCJK() ? p.description : (p.en_description || p.description); }
@@ -1109,7 +1110,7 @@
 
         const floatBtn = document.createElement('button');
         floatBtn.className = 'bc-plugin-floating-btn';
-        floatBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
+        floatBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png" alt="🐱" />`;
         floatBtn.title = t('welcomeTitle');
 
         const refreshBtn = document.createElement('button');
@@ -1417,7 +1418,7 @@
         PreferenceRegisterExtensionSetting({
             Identifier: "PCMSettings",
             ButtonText:  isCJK() ? "PCM 插件管理器" : "PCM Plugin Manager",
-            Image: "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+            Image: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png",
             click: window.PreferenceSubscreenPCMSettingsClick,
             run:   window.PreferenceSubscreenPCMSettingsRun,
             exit:  window.PreferenceSubscreenPCMSettingsExit,
@@ -1427,33 +1428,49 @@
 
     // === 初始化 =================================================
 
-    const _PCM_CDN = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/";
+    // 系統依賴走「雙通道競速」：jsDelivr + raw 同時抓，誰先回有效 JS 就用誰（其一被封鎖/慢也不卡）。
+    // 系統檔少更新 → 多打一個並行請求成本可忽略；本地測試時 window.LikoDevBase 只走單一 localhost。
+    const _DEP_BASES = (typeof window !== 'undefined' && window.LikoDevBase)
+        ? [window.LikoDevBase]
+        : [
+            "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/",
+            "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/",
+        ];
 
-    function _loadScriptTag(url) {
-        return new Promise((resolve, reject) => {
-            const s = document.createElement('script');
-            s.src = url; s.crossOrigin = 'anonymous';
-            s.onload = resolve;
-            s.onerror = () => reject(new Error(`Failed: ${url}`));
-            document.head.appendChild(s);
-        });
+    function _injectCode(code) {
+        const s = document.createElement('script');
+        s.textContent = code;              // 內聯 script → 同步執行（與下方 injectScript 同機制）
+        document.head.appendChild(s);
     }
+
+    // 多通道競速抓取，並驗證內容（避免把 404 的 HTML 當 JS 注入）
+    function _fetchDepRaced(rel) {
+        return Promise.any(_DEP_BASES.map(async base => {
+            const res = await fetch(base + rel);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const text = await res.text();
+            if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
+            return text;
+        }));   // 第一個成功者勝出；全部失敗才 reject
+    }
+
+    async function _loadDep(rel) { _injectCode(await _fetchDepRaced(rel)); }
 
     async function _ensureDeps() {
         // bcmodsdk must exist before registerMod — must be first
         if (typeof bcModSdk === 'undefined') {
-            await _loadScriptTag(_PCM_CDN + "expand/bcmodsdk.js")
-                .catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ bcmodsdk:", e.message));
+            await _loadDep("expand/bcmodsdk.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ bcmodsdk:", e.message));
         }
-        // Remaining deps — skip if already provided
+        // Remaining deps — skip if already provided (unified system extensions live under window.Liko.__Sys_*)
         const rest = [
-            { url: _PCM_CDN + "Translation/Liko-i18n.js", ready: () => !!window.Liko?.i18n?.version },
-            { url: _PCM_CDN + "Translation/PCM-i18n.js",  ready: () => !!window.Liko?.i18n?.has?.('PCM', 'tabLocal') },
-            { url: _PCM_CDN + "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.Toast },
+            { rel: "expand/BC_i18n.js",              ready: () => typeof window.Liko?.__Sys_i18n__?.ensure === 'function' },
+            { rel: "Translation/PCM-i18n.js",        ready: () => !!window.Liko?.__Sys_i18n__?.has?.('PCM', 'tabLocal') },
+            { rel: "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.__Sys_Toast__ },
+            { rel: "expand/BC_ThemeColorCheck.js",   ready: () => !!window.Liko?.__Sys_ColorAPI__ },
         ];
-        for (const { url, ready } of rest) {
+        for (const { rel, ready } of rest) {
             if (ready()) continue;
-            await _loadScriptTag(url).catch(e => console.warn(`🐈‍⬛ [PCM] ⚠️ ${url}:`, e.message));
+            await _loadDep(rel).catch(e => console.warn(`🐈‍⬛ [PCM] ⚠️ ${rel}:`, e.message));
         }
     }
 

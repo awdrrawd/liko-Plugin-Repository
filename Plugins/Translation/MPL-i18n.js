@@ -3,12 +3,12 @@
 // 載入完畢後自動呼叫 register，將字串注入共用引擎
 
 (function () {
-    if (!window.Liko?.i18n?.register) {
+    if (!window.Liko?.__Sys_i18n__?.register) {
         console.error('[Liko MPL strings] i18n 引擎尚未載入');
         return;
     }
 
-    window.Liko.i18n.register('MPL', {
+    window.Liko.__Sys_i18n__.register('MPL', {
 
         // ── 登入頁面 ──────────────────────────────────────────────────────
         'login.enter_hint': {

@@ -7,9 +7,9 @@
 // @author         Likolisu
 // @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant          none
-// @icon           https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
-// @updateURL      https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Plugin_Collection_Manager.user.js
-// @downloadURL    https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Plugin_Collection_Manager.user.js
+// @icon           https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png
+// @updateURL      https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/PCM_Loader.user.js
+// @downloadURL    https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/PCM_Loader.user.js
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository/issues
 // @run-at         document-end
 // ==/UserScript==
@@ -17,8 +17,12 @@
 (function () {
     "use strict";
 
-    const CDN            = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/";
-    const MAIN_URL       = CDN + "main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
+    // 雙通道競速：jsDelivr + raw 同時抓主體，誰先回有效 JS 就用誰（其一被封鎖/慢也不卡）
+    const MAIN_REL       = "Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
+    const MAIN_URLS      = [
+        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/" + MAIN_REL,
+        "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/" + MAIN_REL,
+    ];
     const MAIN_CACHE_KEY = "pcm_main_cache";
     const MAIN_CACHE_TTL = 24 * 60 * 60 * 1000;
 
@@ -34,20 +38,25 @@
         try { localStorage.setItem(MAIN_CACHE_KEY, JSON.stringify({ time: Date.now(), code })); } catch(e) {}
     }
 
+    // 競速抓取並驗證內容（避免把 404 的 HTML 當 JS）
+    function fetchMainRaced() {
+        return Promise.any(MAIN_URLS.map(async url => {
+            const res = await fetch(url, { cache: "no-cache" });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const code = await res.text();
+            if (!code || code.trimStart().startsWith('<')) throw new Error("Invalid response");
+            return code;
+        }));
+    }
+
     async function fetchMain() {
         const cached = getCachedMain();
         if (cached) {
-            // SWR: background update
-            fetch(MAIN_URL, { cache: "no-cache" })
-                .then(r => r.text())
-                .then(code => { if (code && !code.trimStart().startsWith('<')) setCachedMain(code); })
-                .catch(() => {});
+            // SWR: background update（競速）
+            fetchMainRaced().then(code => setCachedMain(code)).catch(() => {});
             return cached;
         }
-        const res = await fetch(MAIN_URL, { cache: "no-cache" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const code = await res.text();
-        if (!code || code.trimStart().startsWith('<')) throw new Error("Invalid response");
+        const code = await fetchMainRaced();
         setCachedMain(code);
         return code;
     }

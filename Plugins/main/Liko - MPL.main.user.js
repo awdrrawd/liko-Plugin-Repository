@@ -7,9 +7,9 @@
 // @description:zh 支援房間搜尋與聊天室的直版佈局
 // @author         Likolisu
 // @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
-// @icon           https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
+// @icon         https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png
 // @grant          none
-// @require        https://cdn.jsdelivr.net/gh/Jomshir98/bondage-club-mod-sdk@0.3.3/dist/bcmodsdk.js
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @run-at         document-end
 // ==/UserScript==
 
@@ -163,8 +163,10 @@
     // i18n 動態載入
     // ════════════════════════════════════════════════════════════════════════════
 
-    const LIKO_I18N_ENGINE_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/Liko-i18n.js';
-    const LIKO_MPL_STRINGS_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/MPL-i18n.js';
+    // production 走 CDN；本地測試由 window.LikoDevBase 覆寫成 http://localhost/…/Plugins/
+    const _I18N_BASE = (typeof window !== 'undefined' && window.LikoDevBase) || 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/';
+    const LIKO_I18N_ENGINE_URL = _I18N_BASE + 'expand/BC_i18n.js';
+    const LIKO_MPL_STRINGS_URL = _I18N_BASE + 'Translation/MPL-i18n.js';
 
     /**
      * 動態載入並執行一個遠端 JS 檔案。
@@ -182,17 +184,13 @@
 
     /**
      * 確保 i18n 引擎與 MPL 字庫都已就緒。
-     * 用旗標避免重複 register，兩段非同步載入依序執行。
+     * 用能力偵測（ensure）判斷 v2 引擎 —— 舊版 v1 只有 version，會被誤判為已載入而擋掉 v2。
+     * 字庫改用引擎的 ensure() 載入（依 URL 去重，不需自訂旗標）。
      * @returns {Promise<void>}
      */
     async function ensureI18n() {
-        if (!window.Liko?.i18n?.version) {
-            await loadScript(LIKO_I18N_ENGINE_URL);
-        }
-        if (!window.Liko?.i18n?._mplStringsLoaded) {
-            await loadScript(LIKO_MPL_STRINGS_URL);
-            if (window.Liko?.i18n) window.Liko.i18n._mplStringsLoaded = true;
-        }
+        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') await loadScript(LIKO_I18N_ENGINE_URL);
+        if (typeof window.Liko?.__Sys_i18n__?.ensure === 'function') await window.Liko.__Sys_i18n__.ensure('MPL', LIKO_MPL_STRINGS_URL);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -3441,7 +3439,7 @@
             .then(() => {
             // 設定 MPL i18n 包裝函式（讓 MPLT() 能正確呼叫引擎）
             window.Liko.MPL.i18n = {
-                t: (key, vars) => window.Liko.i18n.t('MPL', key, vars),
+                t: (key, vars) => window.Liko.__Sys_i18n__.t('MPL', key, vars),
             };
 
             injectLoginStyles();

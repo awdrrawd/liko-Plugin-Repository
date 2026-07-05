@@ -1,9 +1,9 @@
 // PCM-i18n.js — Plugin Collection Manager translations (non-EN)
-// Loaded by the PCM loader after Liko-i18n.js.
+// Loaded by the PCM loader after BC_i18n.js.
 // EN strings live in the main body as fallback; this file only registers other languages.
 (function () {
     window.Liko = window.Liko ?? {};
-    window.Liko.i18n?.register('PCM', {
+    window.Liko.__Sys_i18n__?.register('PCM', {
         'loaded': {
             TW: 'Liko的插件管理器 v{ver} 載入完成！點擊浮動按鈕管理插件。',
             CN: 'Liko的插件管理器 v{ver} 载入完成！点击浮动按钮管理插件。',

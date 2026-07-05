@@ -7,9 +7,9 @@
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
-// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
+// @icon         https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png
 // @grant        none
-// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @run-at       document-end
 // ==/UserScript==
 
@@ -45,9 +45,11 @@
     };
 
     // ===== 多语言支持 (i18n) =====
-    // 翻译字库已外移到 Plugins/Translation/Prank-i18n.js，透过共用引擎 Liko-i18n 载入
-    const LIKO_I18N_ENGINE_URL   = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/Liko-i18n.js';
-    const LIKO_PRANK_STRINGS_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/Prank-i18n.js';
+    // 引擎在 Plugins/expand/BC_i18n.js，翻译字库在 Plugins/Translation/Prank-i18n.js
+    // production 走 CDN；本地测试由 window.LikoDevBase 覆写成 http://localhost/…/Plugins/
+    const _I18N_BASE = (typeof window !== 'undefined' && window.LikoDevBase) || 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/';
+    const LIKO_I18N_ENGINE_URL   = _I18N_BASE + 'expand/BC_i18n.js';
+    const LIKO_PRANK_STRINGS_URL = _I18N_BASE + 'Translation/Prank-i18n.js';
     const I18N_NS = 'Prank';
 
     function loadScript(url) {
@@ -57,17 +59,16 @@
     }
 
     // 确保共用引擎与本插件字库都已载入（各只载入一次）
+    // 用能力侦测（ensure）判断 v2 引擎 —— 旧版 v1 只有 version，会被误判为已载入而挡掉 v2。
+    // 字库改用引擎的 ensure() 载入（依 URL 去重，不需自订旗标）。
     async function ensureI18n() {
-        if (!window.Liko?.i18n?.version) await loadScript(LIKO_I18N_ENGINE_URL);
-        if (!window.Liko?.i18n?._prankStringsLoaded) {
-            await loadScript(LIKO_PRANK_STRINGS_URL);
-            if (window.Liko?.i18n) window.Liko.i18n._prankStringsLoaded = true;
-        }
+        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') await loadScript(LIKO_I18N_ENGINE_URL);
+        if (typeof window.Liko?.__Sys_i18n__?.ensure === 'function') await window.Liko.__Sys_i18n__.ensure(I18N_NS, LIKO_PRANK_STRINGS_URL);
     }
 
     // 取翻译字串；引擎尚未就绪时回传 key 本身，不丢例外。vars 以 {name}/{v} 占位代入。
     function getMessage(key, vars) {
-        const fn = window.Liko?.i18n?.t;
+        const fn = window.Liko?.__Sys_i18n__?.t;
         return fn ? fn(I18N_NS, key, vars) : key;
     }
 
