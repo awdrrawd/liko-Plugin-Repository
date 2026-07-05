@@ -79,5 +79,6 @@
 
     window.Liko.Toast              = ChatRoomSendLocalStyled;
     window.ChatRoomSendLocalStyled = ChatRoomSendLocalStyled;
+    (window.Liko.__SystemAPI__ = window.Liko.__SystemAPI__ ?? {}).Toast = ChatRoomSendLocalStyled;
     console.log(`🐈‍⬛ [GlobalToast] ✅ v${MOD_VER} loaded`);
 })();

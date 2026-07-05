@@ -443,7 +443,7 @@ pre {
       <div class="install-card">
         <h3>🐵 <span class="zh">腳本管理器（Tampermonkey / Violentmonkey）</span><span class="en">Script Manager</span></h3>
         <p><span class="zh">點擊下方按鈕，透過腳本管理器安裝 PCM：</span><span class="en">Click the button below to install PCM via your script manager:</span></p>
-        <a class="btn-primary" href="https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js" target="_blank">
+        <a class="btn-primary" href="https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js" target="_blank">
           👉 <span class="zh">點此安裝 PCM</span><span class="en">Install PCM Now</span>
         </a>
       </div>
@@ -456,7 +456,7 @@ pre {
         <div style="position:relative">
           <pre id="code-bm">javascript:(function(){
   var s=document.createElement('script');
-  s.src="https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js?"+Date.now();
+  s.src="https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?"+Date.now();
   s.type="text/javascript";
   s.crossOrigin="anonymous";
   document.head.appendChild(s);
@@ -471,7 +471,7 @@ pre {
         <h3>💻 <span class="zh">瀏覽器控制台</span><span class="en">Browser Console</span></h3>
         <p><span class="zh">開啟 F12 開發者工具，在 Console 分頁貼上：</span><span class="en">Open F12 DevTools and paste into the Console tab:</span></p>
         <div style="position:relative">
-          <pre id="code-co">import(`https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js?v=${(Date.now()/10000).toFixed(0)}`);</pre>
+          <pre id="code-co">import(`https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?v=${(Date.now()/10000).toFixed(0)}`);</pre>
           <button class="copy-btn" onclick="copyCode('code-co',this)"><span class="zh">複製</span><span class="en">Copy</span></button>
         </div>
       </div>

@@ -1445,11 +1445,12 @@
             await _loadScriptTag(_PCM_CDN + "expand/bcmodsdk.js")
                 .catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ bcmodsdk:", e.message));
         }
-        // Remaining deps — skip if already provided
+        // Remaining deps — skip if already provided (unified system extensions live under window.Liko)
         const rest = [
-            { url: _PCM_CDN + "Translation/Liko-i18n.js", ready: () => !!window.Liko?.i18n?.version },
+            { url: _PCM_CDN + "expand/Liko-i18n.js", ready: () => typeof window.Liko?.i18n?.ensure === 'function' },
             { url: _PCM_CDN + "Translation/PCM-i18n.js",  ready: () => !!window.Liko?.i18n?.has?.('PCM', 'tabLocal') },
             { url: _PCM_CDN + "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.Toast },
+            { url: _PCM_CDN + "expand/BC_ThemeColorCheck.js",    ready: () => !!window.Liko?.ColorAPI },
         ];
         for (const { url, ready } of rest) {
             if (ready()) continue;

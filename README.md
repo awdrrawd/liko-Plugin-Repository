@@ -34,7 +34,7 @@ You can continue reading the README below, or visit the interactive website for 
 
 #### A. 腳本管理器 · Script Manager（Tampermonkey / Violentmonkey / Userscripts）
 
-[👉 點此安裝 PCM · Click to Install PCM](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js)
+[👉 點此安裝 PCM · Click to Install PCM](https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js)
 
 ---
 
@@ -45,7 +45,7 @@ You can continue reading the README below, or visit the interactive website for 
 ```javascript
 javascript:(function(){
   var s=document.createElement('script');
-  s.src="https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js?"+Date.now();
+  s.src="https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?"+Date.now();
   s.type="text/javascript";
   s.crossOrigin="anonymous";
   document.head.appendChild(s);
@@ -59,7 +59,7 @@ javascript:(function(){
 開啟 F12 開發者工具，在 Console 貼上 / Open F12 DevTools and paste in the Console tab：
 
 ```javascript
-import(`https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Plugin_Collection_Manager.user.js?v=${(Date.now()/10000).toFixed(0)}`);
+import(`https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?v=${(Date.now()/10000).toFixed(0)}`);
 ```
 
 ---

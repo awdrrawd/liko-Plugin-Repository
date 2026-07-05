@@ -52,7 +52,7 @@
     // ============================================================
     // i18n 系統
     // ============================================================
-    const LIKO_I18N_ENGINE_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/Liko-i18n.js';
+    const LIKO_I18N_ENGINE_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/expand/Liko-i18n.js';
     const LIKO_MAT_STRINGS_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/MAT-i18n.js';
     const I18N_NS = 'MAT';
 

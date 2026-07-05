@@ -8,8 +8,8 @@
 // @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant          none
 // @icon           https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
-// @updateURL      https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Plugin_Collection_Manager.user.js
-// @downloadURL    https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/Liko-Plugin_Collection_Manager.user.js
+// @updateURL      https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/PCM_Loader.user.js
+// @downloadURL    https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/PCM_Loader.user.js
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository/issues
 // @run-at         document-end
 // ==/UserScript==

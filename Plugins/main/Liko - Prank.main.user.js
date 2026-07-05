@@ -45,8 +45,8 @@
     };
 
     // ===== 多语言支持 (i18n) =====
-    // 翻译字库已外移到 Plugins/Translation/Prank-i18n.js，透过共用引擎 Liko-i18n 载入
-    const LIKO_I18N_ENGINE_URL   = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/Liko-i18n.js';
+    // 引擎在 Plugins/expand/Liko-i18n.js，翻译字库在 Plugins/Translation/Prank-i18n.js
+    const LIKO_I18N_ENGINE_URL   = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/expand/Liko-i18n.js';
     const LIKO_PRANK_STRINGS_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/Prank-i18n.js';
     const I18N_NS = 'Prank';
 
