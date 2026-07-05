@@ -1428,35 +1428,49 @@
 
     // === 初始化 =================================================
 
-    // production 走 CDN；本地測試時 PCM_Loader.local 會設 window.LikoDevBase 覆寫成 http://localhost/…/Plugins/，讓依賴全走本地
-    const _PCM_CDN = (typeof window !== 'undefined' && window.LikoDevBase) || "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/";
+    // 系統依賴走「雙通道競速」：jsDelivr + raw 同時抓，誰先回有效 JS 就用誰（其一被封鎖/慢也不卡）。
+    // 系統檔少更新 → 多打一個並行請求成本可忽略；本地測試時 window.LikoDevBase 只走單一 localhost。
+    const _DEP_BASES = (typeof window !== 'undefined' && window.LikoDevBase)
+        ? [window.LikoDevBase]
+        : [
+            "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/",
+            "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/",
+        ];
 
-    function _loadScriptTag(url) {
-        return new Promise((resolve, reject) => {
-            const s = document.createElement('script');
-            s.src = url; s.crossOrigin = 'anonymous';
-            s.onload = resolve;
-            s.onerror = () => reject(new Error(`Failed: ${url}`));
-            document.head.appendChild(s);
-        });
+    function _injectCode(code) {
+        const s = document.createElement('script');
+        s.textContent = code;              // 內聯 script → 同步執行（與下方 injectScript 同機制）
+        document.head.appendChild(s);
     }
+
+    // 多通道競速抓取，並驗證內容（避免把 404 的 HTML 當 JS 注入）
+    function _fetchDepRaced(rel) {
+        return Promise.any(_DEP_BASES.map(async base => {
+            const res = await fetch(base + rel);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const text = await res.text();
+            if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
+            return text;
+        }));   // 第一個成功者勝出；全部失敗才 reject
+    }
+
+    async function _loadDep(rel) { _injectCode(await _fetchDepRaced(rel)); }
 
     async function _ensureDeps() {
         // bcmodsdk must exist before registerMod — must be first
         if (typeof bcModSdk === 'undefined') {
-            await _loadScriptTag(_PCM_CDN + "expand/bcmodsdk.js")
-                .catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ bcmodsdk:", e.message));
+            await _loadDep("expand/bcmodsdk.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ bcmodsdk:", e.message));
         }
-        // Remaining deps — skip if already provided (unified system extensions live under window.Liko)
+        // Remaining deps — skip if already provided (unified system extensions live under window.Liko.__Sys_*)
         const rest = [
-            { url: _PCM_CDN + "expand/BC_i18n.js", ready: () => typeof window.Liko?.__Sys_i18n__?.ensure === 'function' },
-            { url: _PCM_CDN + "Translation/PCM-i18n.js",  ready: () => !!window.Liko?.__Sys_i18n__?.has?.('PCM', 'tabLocal') },
-            { url: _PCM_CDN + "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.__Sys_Toast__ },
-            { url: _PCM_CDN + "expand/BC_ThemeColorCheck.js",    ready: () => !!window.Liko?.__Sys_ColorAPI__ },
+            { rel: "expand/BC_i18n.js",              ready: () => typeof window.Liko?.__Sys_i18n__?.ensure === 'function' },
+            { rel: "Translation/PCM-i18n.js",        ready: () => !!window.Liko?.__Sys_i18n__?.has?.('PCM', 'tabLocal') },
+            { rel: "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.__Sys_Toast__ },
+            { rel: "expand/BC_ThemeColorCheck.js",   ready: () => !!window.Liko?.__Sys_ColorAPI__ },
         ];
-        for (const { url, ready } of rest) {
+        for (const { rel, ready } of rest) {
             if (ready()) continue;
-            await _loadScriptTag(url).catch(e => console.warn(`🐈‍⬛ [PCM] ⚠️ ${url}:`, e.message));
+            await _loadDep(rel).catch(e => console.warn(`🐈‍⬛ [PCM] ⚠️ ${rel}:`, e.message));
         }
     }
 
