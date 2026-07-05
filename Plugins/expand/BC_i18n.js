@@ -71,10 +71,13 @@
     // 語言解析：目前語言 →（TW/CN 互退、再退 ZH）→ EN → 表中任一
     function _pick(entry, lang) {
         if (!entry) return undefined;
+        const isCJK = (lang === 'TW' || lang === 'CN');
         let s = entry[lang];
-        if (s == null && (lang === 'TW' || lang === 'CN')) s = entry[lang === 'TW' ? 'CN' : 'TW'] ?? entry.ZH;
-        if (s == null) s = entry.ZH;      // 舊字庫可能只有 ZH
+        // CJK 之間互退、再退 ZH（僅 CJK）
+        if (s == null && isCJK) s = entry[lang === 'TW' ? 'CN' : 'TW'] ?? entry.ZH;
+        // 預設一律退英文 —— 非 CJK 語言缺翻譯時直接看英文，不會退到中文（單字簡單、通用）
         if (s == null) s = entry.EN;
+        // 最後手段：表中任一（理論上不該用到；請確保每個 key 都有 EN）
         if (s == null) { const vals = Object.values(entry); s = vals.length ? vals[0] : undefined; }
         return s;
     }

@@ -76,6 +76,7 @@
             'customUrlInvalid':   { EN: 'URL must end in .js' },
             'customNameRequired': { EN: 'Please enter a name' },
             'customEmptyHint':    { EN: 'No custom plugins yet.\nClick ⚙ above to add one.' },
+            'prefButton':         { EN: 'PCM Plugin Manager' },
         });
     }
 
@@ -1417,7 +1418,7 @@
 
         PreferenceRegisterExtensionSetting({
             Identifier: "PCMSettings",
-            ButtonText:  isCJK() ? "PCM 插件管理器" : "PCM Plugin Manager",
+            ButtonText:  t('prefButton'),
             Image: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png",
             click: window.PreferenceSubscreenPCMSettingsClick,
             run:   window.PreferenceSubscreenPCMSettingsRun,

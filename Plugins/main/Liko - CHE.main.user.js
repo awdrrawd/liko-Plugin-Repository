@@ -81,6 +81,7 @@
             toastRestore:n=>`[CHE] ✅ 恢復了 ${n} 條未保存的訊息`,
             toastRestoreFail:"[CHE] ❌ 恢復數據保存失敗",toastInitFail:"[CHE] ❌ 初始化失敗",
             toastNotLoaded:"❌ 聊天室尚未載入",
+            prefButton:"CHE設定",
         },
         en: {
             btnHTML:"📥 Export HTML",btnExcel:"📥 Export Excel",btnClear:"🗑️ Clear Chat",
@@ -114,6 +115,7 @@
             toastRestore:n=>`[CHE] ✅ Restored ${n} unsaved messages`,
             toastRestoreFail:"[CHE] ❌ Failed to save restored data",toastInitFail:"[CHE] ❌ Initialization failed",
             toastNotLoaded:"❌ Chat room not loaded yet",
+            prefButton:"CHE Settings",
         }
     };
 
@@ -2060,7 +2062,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             waitForPreference().then(() => {
                 PreferenceRegisterExtensionSetting({
                     Identifier: "CHE",
-                    ButtonText: isZh() ? "CHE設定" : "CHE Settings",
+                    ButtonText: ui('prefButton'),
                     Image: gameAsset("Icons/Changelog.png"),
                     load:   () => EXT_SCREEN.load(),
                     run:    () => EXT_SCREEN.run(),
