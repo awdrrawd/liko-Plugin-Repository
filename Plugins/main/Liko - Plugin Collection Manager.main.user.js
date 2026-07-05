@@ -29,7 +29,7 @@
 
     function registerI18n() {
         // EN strings are the authoritative fallback — other languages live in PCM-i18n.js
-        window.Liko.__Sys_i18n__?.register('PCM', {
+        const _enStrings = {
             'loaded':           { EN: 'Liko\'s Plugin Collection Manager v{ver} loaded! Click the floating button to manage plugins.' },
             'shortLoaded':      { EN: '📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button to open panel\n• Toggle switches to enable/disable plugins\n• Three-state toggle: OFF → ON → BETA\n\n📝 Commands:\n/pcm help — show this\n/pcm list — list all plugins\n\n💡 Plugins load on enable, or take effect on next refresh.' },
             'welcomeTitle':     { EN: '🐈‍⬛ Plugin Manager' },
@@ -77,7 +77,23 @@
             'customNameRequired': { EN: 'Please enter a name' },
             'customEmptyHint':    { EN: 'No custom plugins yet.\nClick ⚙ above to add one.' },
             'prefButton':         { EN: 'PCM Plugin Manager' },
-        });
+        };
+
+        // 引擎（window.Liko.__Sys_i18n__）有時會晚一點才就位（例如 Electron-BC 環境下，
+        // _ensureDeps() 自己去抓 expand/BC_i18n.js 可能失敗/輸掉競速，引擎要等別的插件
+        // 順便載入才出現）。原本用 `?.register(...)` 只嘗試一次，當下引擎不存在就會
+        // 靜靜地失敗，導致連 EN fallback 都永遠沒註冊成功。改成輪詢等待，最多等 10 秒。
+        (function registerWhenReady(tries) {
+            if (window.Liko.__Sys_i18n__?.register) {
+                window.Liko.__Sys_i18n__.register('PCM', _enStrings);
+                return;
+            }
+            if ((tries ?? 0) > 100) {
+                console.warn('🐈‍⬛ [PCM] ⚠️ __Sys_i18n__ never became available, EN fallback not registered');
+                return;
+            }
+            setTimeout(() => registerWhenReady((tries ?? 0) + 1), 100);
+        })();
     }
 
     // === PCM 徽章系統 ====================================
