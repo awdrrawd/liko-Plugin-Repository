@@ -23,10 +23,13 @@
     'use strict';
     if (typeof window === 'undefined') return;
     window.Liko = window.Liko ?? {};
+    window.Liko.__SystemAPI__ = window.Liko.__SystemAPI__ ?? {};
 
+    // 統一防重複載入：以 __SystemAPI__.i18n 作為註冊旗標（存版本），與其他系統擴充同體系。
+    // 實際 API 仍暴露在 window.Liko.i18n / window.Liko.L10N 供其他插件調用。
+    if (window.Liko.__SystemAPI__.i18n) return;
     const ENGINE_VER = '2.0.0';
-    // 已是相同（或更新）版本就跳過，避免重複安裝洗掉別的插件已註冊的字庫
-    if (window.Liko.i18n?.version === ENGINE_VER && window.Liko.L10N?.version === ENGINE_VER) return;
+    window.Liko.__SystemAPI__.i18n = ENGINE_VER;
 
     // ── 共用：語言偵測 ────────────────────────────────────────────────────────
     //  優先讀「已持久化」的 BondageClubLanguage —— BC 啟動時 TranslationLanguage 先是
@@ -233,10 +236,6 @@
         ensure: (ns, spec, lang) => (typeof spec === 'string' ? loadScript(spec) : _loadLangs('msg', ns, spec, lang)),
     };
 
-    // 一併登記到系統 API 註冊表（與 Toast / ColorAPI 同處，便於統一查詢）
-    const _sys = (window.Liko.__SystemAPI__ = window.Liko.__SystemAPI__ ?? {});
-    _sys.i18n = window.Liko.i18n;
-    _sys.L10N = window.Liko.L10N;
-
+    // __SystemAPI__.i18n 版本旗標已於頂部登記；此檔同時提供 i18n 與 L10N 兩套 API。
     console.log(`🐈‍⬛ [Liko i18n] ✅ engine v${ENGINE_VER} ready (i18n + L10N)`);
 })();

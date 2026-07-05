@@ -1427,7 +1427,8 @@
 
     // === 初始化 =================================================
 
-    const _PCM_CDN = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/";
+    // production 走 CDN；本地測試時 PCM_Loader.local 會設 window.LikoDevBase 覆寫成 http://localhost/…/Plugins/，讓依賴全走本地
+    const _PCM_CDN = (typeof window !== 'undefined' && window.LikoDevBase) || "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/";
 
     function _loadScriptTag(url) {
         return new Promise((resolve, reject) => {

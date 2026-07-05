@@ -163,8 +163,10 @@
     // i18n 動態載入
     // ════════════════════════════════════════════════════════════════════════════
 
-    const LIKO_I18N_ENGINE_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/expand/Liko-i18n.js';
-    const LIKO_MPL_STRINGS_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/MPL-i18n.js';
+    // production 走 CDN；本地測試由 window.LikoDevBase 覆寫成 http://localhost/…/Plugins/
+    const _I18N_BASE = (typeof window !== 'undefined' && window.LikoDevBase) || 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/';
+    const LIKO_I18N_ENGINE_URL = _I18N_BASE + 'expand/Liko-i18n.js';
+    const LIKO_MPL_STRINGS_URL = _I18N_BASE + 'Translation/MPL-i18n.js';
 
     /**
      * 動態載入並執行一個遠端 JS 檔案。
@@ -182,17 +184,13 @@
 
     /**
      * 確保 i18n 引擎與 MPL 字庫都已就緒。
-     * 用旗標避免重複 register，兩段非同步載入依序執行。
+     * 用能力偵測（ensure）判斷 v2 引擎 —— 舊版 v1 只有 version，會被誤判為已載入而擋掉 v2。
+     * 字庫改用引擎的 ensure() 載入（依 URL 去重，不需自訂旗標）。
      * @returns {Promise<void>}
      */
     async function ensureI18n() {
-        if (!window.Liko?.i18n?.version) {
-            await loadScript(LIKO_I18N_ENGINE_URL);
-        }
-        if (!window.Liko?.i18n?._mplStringsLoaded) {
-            await loadScript(LIKO_MPL_STRINGS_URL);
-            if (window.Liko?.i18n) window.Liko.i18n._mplStringsLoaded = true;
-        }
+        if (typeof window.Liko?.i18n?.ensure !== 'function') await loadScript(LIKO_I18N_ENGINE_URL);
+        if (typeof window.Liko?.i18n?.ensure === 'function') await window.Liko.i18n.ensure('MPL', LIKO_MPL_STRINGS_URL);
     }
 
     // ════════════════════════════════════════════════════════════════════════════

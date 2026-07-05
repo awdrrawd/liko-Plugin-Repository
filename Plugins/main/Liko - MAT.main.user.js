@@ -52,8 +52,10 @@
     // ============================================================
     // i18n 系統
     // ============================================================
-    const LIKO_I18N_ENGINE_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/expand/Liko-i18n.js';
-    const LIKO_MAT_STRINGS_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Translation/MAT-i18n.js';
+    // production 走 CDN；本地測試由 window.LikoDevBase 覆寫成 http://localhost/…/Plugins/
+    const _I18N_BASE = (typeof window !== 'undefined' && window.LikoDevBase) || 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/';
+    const LIKO_I18N_ENGINE_URL = _I18N_BASE + 'expand/Liko-i18n.js';
+    const LIKO_MAT_STRINGS_URL = _I18N_BASE + 'Translation/MAT-i18n.js';
     const I18N_NS = 'MAT';
 
     function loadScript(url) {
@@ -62,12 +64,11 @@
             .then(code => { new Function(code)(); });
     }
 
+    // 用能力偵測（ensure）判斷 v2 引擎是否就緒 —— 舊版 v1 只有 version，會被誤判為已載入而擋掉 v2。
+    // 字庫改用引擎的 ensure() 載入（依 URL 去重，不需自訂旗標）。
     async function ensureI18n() {
-        if (!window.Liko?.i18n?.version) await loadScript(LIKO_I18N_ENGINE_URL);
-        if (!window.Liko?.i18n?._matStringsLoaded) {
-            await loadScript(LIKO_MAT_STRINGS_URL);
-            if (window.Liko?.i18n) window.Liko.i18n._matStringsLoaded = true;
-        }
+        if (typeof window.Liko?.i18n?.ensure !== 'function') await loadScript(LIKO_I18N_ENGINE_URL);
+        if (typeof window.Liko?.i18n?.ensure === 'function') await window.Liko.i18n.ensure(I18N_NS, LIKO_MAT_STRINGS_URL);
     }
 
     // 取翻譯字串；引擎尚未就緒時回傳 key 本身，不丟例外。vars 以 {name} 佔位代入。

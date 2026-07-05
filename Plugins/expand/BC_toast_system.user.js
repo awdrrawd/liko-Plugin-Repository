@@ -1,9 +1,11 @@
 // toast-system.js
 (function() {
     window.Liko = window.Liko ?? {};
-    if (window.Liko.Toast) return;
+    window.Liko.__SystemAPI__ = window.Liko.__SystemAPI__ ?? {};
+    // 統一防重複載入：__SystemAPI__.Toast 存版本旗標；API 暴露在 window.Liko.Toast
+    if (window.Liko.__SystemAPI__.Toast) return;
     const MOD_VER = "1.3";
-    window.Liko.Toast = MOD_VER;
+    window.Liko.__SystemAPI__.Toast = MOD_VER;
 
     let activeMessages = [];
 
@@ -77,8 +79,7 @@
     ChatRoomSendLocalStyled._version  = MOD_VER;
     ChatRoomSendLocalStyled._loadTime = Date.now();
 
-    window.Liko.Toast              = ChatRoomSendLocalStyled;
-    window.ChatRoomSendLocalStyled = ChatRoomSendLocalStyled;
-    (window.Liko.__SystemAPI__ = window.Liko.__SystemAPI__ ?? {}).Toast = ChatRoomSendLocalStyled;
+    window.Liko.Toast              = ChatRoomSendLocalStyled;   // 暴露 API 供其他插件調用
+    window.ChatRoomSendLocalStyled = ChatRoomSendLocalStyled;   // 相容全域別名
     console.log(`🐈‍⬛ [GlobalToast] ✅ v${MOD_VER} loaded`);
 })();

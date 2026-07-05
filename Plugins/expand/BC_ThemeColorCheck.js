@@ -10,15 +10,18 @@
  *                         如果你覺得演算法判斷錯了，把那個顏色手動標記成
  *                         亮/暗，之後 isDark() 遇到同一個顏色就用你的判斷
  *
- *  用法：當一般 <script> 載入即可，會掛在 window.BCColorAPI 上。
+ *  用法：當一般 <script> 載入即可，API 掛在 window.Liko.ColorAPI 上。
  * =============================================================================
  */
 (function (global) {
   'use strict';
 
-  // 防重複載入：已註冊過就直接沿用（PCM 由 _ensureDeps 載入，其他插件也可能載入）
+  // 統一防重複載入：__SystemAPI__.ColorAPI 存版本旗標；API 暴露在 global.Liko.ColorAPI
   global.Liko = global.Liko ?? {};
-  if (global.Liko.ColorAPI) { global.BCColorAPI = global.BCColorAPI ?? global.Liko.ColorAPI; return; }
+  global.Liko.__SystemAPI__ = global.Liko.__SystemAPI__ ?? {};
+  if (global.Liko.__SystemAPI__.ColorAPI) return;
+  const MOD_VER = "1.0";
+  global.Liko.__SystemAPI__.ColorAPI = MOD_VER;
 
   // ---------------------------------------------------------------------------
   // 找到 BC 實際在畫的那個 <canvas> 元素
@@ -63,7 +66,7 @@
       return rgbToHex(r / count, g / count, b / count);
     } catch (err) {
       // 常見原因：canvas 尚未渲染、或座標超出範圍
-      console.warn('[BCColorAPI] getCanvasColor 讀取失敗', err);
+      console.warn('[Liko.ColorAPI] getCanvasColor 讀取失敗', err);
       return null;
     }
   }
@@ -132,16 +135,14 @@
   // ---------------------------------------------------------------------------
 
   const API = {
-    version: '1.0',
+    version: MOD_VER,
     getCanvasColor,
     isDark,
     setOverride,
     clearOverrides,
   };
 
-  // 統一註冊在 Liko 命名空間底下；BCColorAPI 保留為相容別名
+  // 暴露 API 供其他插件調用（統一在 Liko 命名空間底下）
   global.Liko.ColorAPI = API;
-  global.BCColorAPI = API;
-  (global.Liko.__SystemAPI__ = global.Liko.__SystemAPI__ ?? {}).ColorAPI = API;
-  console.log('🐈‍⬛ [BCColorAPI] ✅ v1.0 loaded (Liko.ColorAPI)');
+  console.log(`🐈‍⬛ [ColorAPI] ✅ v${MOD_VER} loaded (Liko.ColorAPI)`);
 })(typeof window !== 'undefined' ? window : globalThis);
