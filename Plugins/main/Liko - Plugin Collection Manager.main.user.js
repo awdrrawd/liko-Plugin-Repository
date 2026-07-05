@@ -6,9 +6,10 @@
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
-// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
+// @icon         https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png
 // @grant        none
 // @run-at       document-end
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @downloadURL  https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
 // @updateURL    https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
 // ==/UserScript==
@@ -1109,7 +1110,7 @@
 
         const floatBtn = document.createElement('button');
         floatBtn.className = 'bc-plugin-floating-btn';
-        floatBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png" alt="🐱" />`;
+        floatBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png" alt="🐱" />`;
         floatBtn.title = t('welcomeTitle');
 
         const refreshBtn = document.createElement('button');
@@ -1417,7 +1418,7 @@
         PreferenceRegisterExtensionSetting({
             Identifier: "PCMSettings",
             ButtonText:  isCJK() ? "PCM 插件管理器" : "PCM Plugin Manager",
-            Image: "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
+            Image: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png",
             click: window.PreferenceSubscreenPCMSettingsClick,
             run:   window.PreferenceSubscreenPCMSettingsRun,
             exit:  window.PreferenceSubscreenPCMSettingsExit,
