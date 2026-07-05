@@ -3,7 +3,8 @@
 // EN strings live in the main body as fallback; this file only registers other languages.
 (function () {
     window.Liko = window.Liko ?? {};
-    window.Liko.__Sys_i18n__?.register('PCM', {
+
+    const _strings = {
         'loaded': {
             TW: 'Liko的插件管理器 v{ver} 載入完成！點擊浮動按鈕管理插件。',
             CN: 'Liko的插件管理器 v{ver} 载入完成！点击浮动按钮管理插件。',
@@ -65,5 +66,21 @@
         'customNameRequired':{ TW: '請輸入插件名稱', CN: '请输入插件名称', DE: 'Bitte einen Namen eingeben', FR: 'Veuillez saisir un nom', RU: 'Введите название', UA: 'Введіть назву' },
         'customEmptyHint':   { TW: '尚無自訂插件。\n點擊上方 ⚙ 來新增。', CN: '尚无自定义插件。\n点击上方 ⚙ 来新增。', DE: 'Noch keine eigenen Plugins.\nKlicke ⚙ oben.', FR: 'Aucun plugin personnalisé.\nCliquez sur ⚙ ci-dessus.', RU: 'Своих плагинов пока нет.\nНажмите ⚙ выше.', UA: 'Власних плагінів немає.\nНатисніть ⚙ вище.' },
         'prefButton':        { TW: 'PCM 插件管理器', CN: 'PCM 插件管理器', DE: 'PCM Plugin-Manager', FR: 'Gestionnaire de plugins PCM', RU: 'Менеджер плагинов PCM', UA: 'Менеджер плагінів PCM' },
-    });
+    };
+
+    // 引擎（window.Liko.__Sys_i18n__）有時會晚一點才就位（例如 Electron-BC 環境下，
+    // 抓取順序/時間跟一般瀏覽器不同）。原本用 `?.register(...)` 只嘗試一次，
+    // 若當下引擎還沒掛上去，這行會靜靜地失敗、翻譯資料就永遠不會被註冊。
+    // 改成輪詢等待，最多等 10 秒，引擎隨時就位就立刻補註冊。
+    (function registerWhenReady(tries) {
+        if (window.Liko.__Sys_i18n__?.register) {
+            window.Liko.__Sys_i18n__.register('PCM', _strings);
+            return;
+        }
+        if ((tries ?? 0) > 100) {
+            console.warn('🐈‍⬛ [PCM-i18n] ⚠️ __Sys_i18n__ never became available, translations not registered');
+            return;
+        }
+        setTimeout(() => registerWhenReady((tries ?? 0) + 1), 100);
+    })();
 })();
