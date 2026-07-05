@@ -2,10 +2,9 @@
 (function() {
     window.Liko = window.Liko ?? {};
     window.Liko.__SystemAPI__ = window.Liko.__SystemAPI__ ?? {};
-    // 統一防重複載入：__SystemAPI__.Toast 存版本旗標；API 暴露在 window.Liko.Toast
+    // 統一防重複載入 + 註冊：__SystemAPI__.Toast 與 window.Liko.Toast 指向同一函式（見檔尾登記）
     if (window.Liko.__SystemAPI__.Toast) return;
     const MOD_VER = "1.3";
-    window.Liko.__SystemAPI__.Toast = MOD_VER;
 
     let activeMessages = [];
 
@@ -80,6 +79,7 @@
     ChatRoomSendLocalStyled._loadTime = Date.now();
 
     window.Liko.Toast              = ChatRoomSendLocalStyled;   // 暴露 API 供其他插件調用
-    window.ChatRoomSendLocalStyled = ChatRoomSendLocalStyled;   // 相容全域別名
-    console.log(`🐈‍⬛ [GlobalToast] ✅ v${MOD_VER} loaded`);
+    window.ChatRoomSendLocalStyled = ChatRoomSendLocalStyled;   // 相容全域別名（有實際調用端）
+    window.Liko.__SystemAPI__.Toast = ChatRoomSendLocalStyled;  // 統一登記（同一參考）
+    console.log(`🐈‍⬛ [BC toast] ✅ v${MOD_VER} loaded`);
 })();

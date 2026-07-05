@@ -1,6 +1,6 @@
 // Liko - MAT i18n 字庫
 // 此檔案由 MAT 插件動態載入，不需手動安裝
-// 載入完畢後自動呼叫 register，將字串注入共用引擎 Liko-i18n
+// 載入完畢後自動呼叫 register，將字串注入共用引擎 BC_i18n
 // 佔位符以 {name} 表示，由引擎的 t(ns, key, vars) 代入
 
 (function () {

@@ -24,7 +24,7 @@ const TYPES = {
     '.gif': 'image/gif', '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg',
 };
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'no-store');
     if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
@@ -40,8 +40,24 @@ http.createServer(async (req, res) => {
         res.statusCode = 404;
         res.end('404 Not Found: ' + req.url);
     }
-}).listen(PORT, () => {
+});
+
+// 友善錯誤：埠被佔用時給明確指引，不噴整串堆疊
+server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error(`🐈‍⬛ [dev server] ❌ 埠 ${PORT} 已被佔用（可能上一個伺服器沒關）。`);
+        console.error(`   解法一：換埠 →  PowerShell:  $env:PORT=5176; node dev/serve-local.mjs`);
+        console.error(`            （記得把 PCM_Loader.local.user.js 裡的 PORT 也改成同一個）`);
+        console.error(`   解法二：關掉舊的 →  Get-NetTCPConnection -LocalPort ${PORT} -State Listen | %{ Stop-Process -Id $_.OwningProcess -Force }`);
+    } else {
+        console.error('🐈‍⬛ [dev server] ❌', err.message);
+    }
+    process.exit(1);
+});
+
+server.listen(PORT, () => {
     console.log(`🐈‍⬛ [dev server] serving  ${ROOT}`);
     console.log(`🐈‍⬛ [dev server] at       http://localhost:${PORT}/  (CORS on, no-store)`);
     console.log(`🐈‍⬛ [dev server] loader   → 安裝 PCM_Loader.local.user.js 後重整 BC`);
+    console.log(`🐈‍⬛ [dev server] 停止：Ctrl+C`);
 });

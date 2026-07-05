@@ -25,11 +25,10 @@
     window.Liko = window.Liko ?? {};
     window.Liko.__SystemAPI__ = window.Liko.__SystemAPI__ ?? {};
 
-    // 統一防重複載入：以 __SystemAPI__.i18n 作為註冊旗標（存版本），與其他系統擴充同體系。
-    // 實際 API 仍暴露在 window.Liko.i18n / window.Liko.L10N 供其他插件調用。
+    // 統一防重複載入 + 註冊：__SystemAPI__.i18n / .L10N 直接指向 API 物件（含 .version），
+    // 且與 window.Liko.i18n / .L10N 為同一參考——不再另存版本字串，避免重複登記（見檔尾）。
     if (window.Liko.__SystemAPI__.i18n) return;
     const ENGINE_VER = '2.0.0';
-    window.Liko.__SystemAPI__.i18n = ENGINE_VER;
 
     // ── 共用：語言偵測 ────────────────────────────────────────────────────────
     //  優先讀「已持久化」的 BondageClubLanguage —— BC 啟動時 TranslationLanguage 先是
@@ -236,6 +235,8 @@
         ensure: (ns, spec, lang) => (typeof spec === 'string' ? loadScript(spec) : _loadLangs('msg', ns, spec, lang)),
     };
 
-    // __SystemAPI__.i18n 版本旗標已於頂部登記；此檔同時提供 i18n 與 L10N 兩套 API。
-    console.log(`🐈‍⬛ [Liko i18n] ✅ engine v${ENGINE_VER} ready (i18n + L10N)`);
+    // 統一登記：__SystemAPI__.<name> 與 window.Liko.<name> 指向同一 API 物件（版本讀物件的 .version）
+    window.Liko.__SystemAPI__.i18n = window.Liko.i18n;
+    window.Liko.__SystemAPI__.L10N = window.Liko.L10N;
+    console.log(`🐈‍⬛ [BC i18n] ✅ engine v${ENGINE_VER} ready (i18n + L10N)`);
 })();

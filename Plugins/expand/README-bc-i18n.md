@@ -1,10 +1,10 @@
-# Liko 共用多語引擎（Liko-i18n.js）接入指南
+# Liko 共用多語引擎（BC_i18n.js）接入指南
 
 > 一份 JS、兩個子系統：`window.Liko.i18n`（介面字串）+ `window.Liko.L10N`（聊天訊息在地化）。
 > 供 **BC-HSC / BC-AFC / BC-FCM**（及其他 Liko 插件）接入時參閱與修改。
 
 檔案位置（本倉庫）：
-- **引擎** → `Plugins/expand/Liko-i18n.js`（與 bcmodsdk / toast / ColorAPI 等系統擴充同處）。
+- **引擎** → `Plugins/expand/BC_i18n.js`（與 bcmodsdk / toast / ColorAPI 等系統擴充同處）。
 - **各插件文本字庫**（`XXX-i18n.js`）→ `Plugins/Translation/`。
 - sibling repo 各自把引擎放自己的 `Translation/`（或 `expand/`）、文本放自己的 `Translation/`，路徑自訂，行為一致即可。
 
@@ -12,11 +12,11 @@ CDN / 取得網址：
 
 | 來源 | 網址 |
 |------|------|
-| raw | `https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/expand/Liko-i18n.js` |
-| jsDelivr | `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/Liko-i18n.js` |
-| Pages | `https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/Liko-i18n.js` |
+| raw | `https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/expand/BC_i18n.js` |
+| jsDelivr | `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_i18n.js` |
+| Pages | `https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_i18n.js` |
 
-各 sibling repo 若透過 `copy-assets` 自帶一份，請把自己 `Translation/Liko-i18n.js` 同步成本檔內容即可（引擎有版本防重載，先載到者建立，後載者跳過）。
+各 sibling repo 若透過 `copy-assets` 自帶一份，請把自己 `Translation/BC_i18n.js` 同步成本檔內容即可（引擎有版本防重載，先載到者建立，後載者跳過）。
 
 ---
 
@@ -189,10 +189,25 @@ await Liko.i18n.ensure('HSC', {
 
 ## 7. 系統 API 註冊表 `window.Liko.__SystemAPI__`
 
-引擎、Toast、ColorAPI 皆登記於此，便於統一查詢：
+所有系統擴充統一登記於此。**`__SystemAPI__.<name>` 與 `window.Liko.<name>` 指向同一個 API 物件**
+（不另存版本字串，版本讀物件自身的 `.version`）。它同時也是各擴充的「防重複載入旗標」。
 
 ```js
-window.Liko.__SystemAPI__  // { i18n, L10N, Toast, ColorAPI }
+window.Liko.__SystemAPI__            // { i18n:{…}, L10N:{…}, Toast:ƒ, ColorAPI:{…} }
+window.Liko.__SystemAPI__.i18n === window.Liko.i18n         // true（同一參考）
+window.Liko.__SystemAPI__.i18n.version                      // '2.0.0'
 ```
 
-`bcModSdk` 不納入（需最先、獨立載入）。
+各擴充頂部的防重載寫法一致：
+
+```js
+window.Liko = window.Liko ?? {};
+window.Liko.__SystemAPI__ = window.Liko.__SystemAPI__ ?? {};
+if (window.Liko.__SystemAPI__.i18n) return;   // 已載入就跳過
+const MOD_VER = '2.0.0';
+// …建立 API…
+window.Liko.i18n = api;
+window.Liko.__SystemAPI__.i18n = window.Liko.i18n;   // 同一參考，統一登記
+```
+
+`bcModSdk` 不納入（需最先、獨立載入，且自帶 `window.bcModSdk` 防重載）。

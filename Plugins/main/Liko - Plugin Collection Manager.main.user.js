@@ -1448,7 +1448,7 @@
         }
         // Remaining deps — skip if already provided (unified system extensions live under window.Liko)
         const rest = [
-            { url: _PCM_CDN + "expand/Liko-i18n.js", ready: () => typeof window.Liko?.i18n?.ensure === 'function' },
+            { url: _PCM_CDN + "expand/BC_i18n.js", ready: () => typeof window.Liko?.i18n?.ensure === 'function' },
             { url: _PCM_CDN + "Translation/PCM-i18n.js",  ready: () => !!window.Liko?.i18n?.has?.('PCM', 'tabLocal') },
             { url: _PCM_CDN + "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.Toast },
             { url: _PCM_CDN + "expand/BC_ThemeColorCheck.js",    ready: () => !!window.Liko?.ColorAPI },

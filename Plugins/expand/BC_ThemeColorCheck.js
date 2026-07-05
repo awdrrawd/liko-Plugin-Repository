@@ -16,12 +16,11 @@
 (function (global) {
   'use strict';
 
-  // 統一防重複載入：__SystemAPI__.ColorAPI 存版本旗標；API 暴露在 global.Liko.ColorAPI
+  // 統一防重複載入 + 註冊：__SystemAPI__.ColorAPI 與 global.Liko.ColorAPI 指向同一物件（見檔尾登記）
   global.Liko = global.Liko ?? {};
   global.Liko.__SystemAPI__ = global.Liko.__SystemAPI__ ?? {};
   if (global.Liko.__SystemAPI__.ColorAPI) return;
   const MOD_VER = "1.0";
-  global.Liko.__SystemAPI__.ColorAPI = MOD_VER;
 
   // ---------------------------------------------------------------------------
   // 找到 BC 實際在畫的那個 <canvas> 元素
@@ -142,7 +141,8 @@
     clearOverrides,
   };
 
-  // 暴露 API 供其他插件調用（統一在 Liko 命名空間底下）
+  // 統一登記：__SystemAPI__.ColorAPI 與 global.Liko.ColorAPI 指向同一物件（版本讀 API.version）
   global.Liko.ColorAPI = API;
+  global.Liko.__SystemAPI__.ColorAPI = API;
   console.log(`🐈‍⬛ [ColorAPI] ✅ v${MOD_VER} loaded (Liko.ColorAPI)`);
 })(typeof window !== 'undefined' ? window : globalThis);

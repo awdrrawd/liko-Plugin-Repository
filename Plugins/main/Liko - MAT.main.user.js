@@ -54,7 +54,7 @@
     // ============================================================
     // production 走 CDN；本地測試由 window.LikoDevBase 覆寫成 http://localhost/…/Plugins/
     const _I18N_BASE = (typeof window !== 'undefined' && window.LikoDevBase) || 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/';
-    const LIKO_I18N_ENGINE_URL = _I18N_BASE + 'expand/Liko-i18n.js';
+    const LIKO_I18N_ENGINE_URL = _I18N_BASE + 'expand/BC_i18n.js';
     const LIKO_MAT_STRINGS_URL = _I18N_BASE + 'Translation/MAT-i18n.js';
     const I18N_NS = 'MAT';
 

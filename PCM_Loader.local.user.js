@@ -39,7 +39,7 @@
     // 依序：先系統擴充與字庫（自註冊），再本體（本體的 ensureI18n 會發現引擎/字庫已就緒而略過重載）
     const modules = [
         'expand/bcmodsdk.js',
-        'expand/Liko-i18n.js',
+        'expand/BC_i18n.js',
         'expand/BC_toast_system.user.js',
         'expand/BC_ThemeColorCheck.js',
         'Translation/PCM-i18n.js',

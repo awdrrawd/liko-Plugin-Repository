@@ -1,5 +1,5 @@
 // PCM-i18n.js — Plugin Collection Manager translations (non-EN)
-// Loaded by the PCM loader after Liko-i18n.js.
+// Loaded by the PCM loader after BC_i18n.js.
 // EN strings live in the main body as fallback; this file only registers other languages.
 (function () {
     window.Liko = window.Liko ?? {};
