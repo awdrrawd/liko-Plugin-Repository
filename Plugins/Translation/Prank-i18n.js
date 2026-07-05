@@ -5,11 +5,11 @@
 // 動作描述中的 SourceCharacter / TargetCharacter 為 BC 內建代換 token，請勿翻譯
 
 (function () {
-    if (!window.Liko?.i18n?.register) {
+    if (!window.Liko?.__Sys_i18n__?.register) {
         console.error('[Liko Prank strings] i18n 引擎尚未載入');
         return;
     }
-    window.Liko.i18n.register('Prank', {
+    window.Liko.__Sys_i18n__.register('Prank', {
 
         // ── 載入 / 系統訊息 ───────────────────────────────────────────────
         'loaded': {

@@ -3,7 +3,7 @@
 // @name:zh        Liko 共用多語引擎（介面 + 聊天在地化）
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @version        2.0.0
-// @description    Shared translation engine for all Liko plugins — UI strings (Liko.i18n) + chat-message localization (Liko.L10N)
+// @description    Shared translation engine for all Liko plugins — UI strings (Liko.__Sys_i18n__) + chat-message localization (Liko.__Sys_L10N__)
 // @author         Likolisu
 // @grant          none
 // ==/UserScript==
@@ -11,8 +11,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 //  統一多語引擎：同一份 JS 內含兩個子系統，共用語言偵測 / 佔位符 / 字庫載入。
 //
-//    window.Liko.i18n   介面字串（同步 register + 取字 t(ns,key,vars)）
-//    window.Liko.L10N   聊天訊息在地化（送出英文底本 + Dictionary 標記，接收端依己方語言重寫）
+//    window.Liko.__Sys_i18n__   介面字串（同步 register + 取字 t(ns,key,vars)）
+//    window.Liko.__Sys_L10N__   聊天訊息在地化（送出英文底本 + Dictionary 標記，接收端依己方語言重寫）
 //
 //  佔位符：具名 {name} 為主，亦相容位置式 {0}{1}（vars 傳陣列時）。
 //  字庫可用「單一合併 JS」或「依語言分檔（.js 自註冊 / .json 純資料）」兩種方式載入。
@@ -23,11 +23,10 @@
     'use strict';
     if (typeof window === 'undefined') return;
     window.Liko = window.Liko ?? {};
-    window.Liko.__SystemAPI__ = window.Liko.__SystemAPI__ ?? {};
 
-    // 統一防重複載入 + 註冊：__SystemAPI__.i18n / .L10N 直接指向 API 物件（含 .version），
-    // 且與 window.Liko.i18n / .L10N 為同一參考——不再另存版本字串，避免重複登記（見檔尾）。
-    if (window.Liko.__SystemAPI__.i18n) return;
+    // 防重複載入旗標：檔尾把 API 掛到 window.Liko.__Sys_i18n__ / __Sys_L10N__
+    // （系統擴充統一掛在 window.Liko 底下、以 __Sys_ 開頭，一看即知是系統檔）
+    if (window.Liko.__Sys_i18n__) return;
     const ENGINE_VER = '2.0.0';
 
     // ── 共用：語言偵測 ────────────────────────────────────────────────────────
@@ -55,7 +54,7 @@
     }
 
     // ── 共用：字庫存取（_bank[realm][ns][key][lang] = string）─────────────────
-    //  realm: 'ui' 給 Liko.i18n；'msg' 給 Liko.L10N。兩者隔離但共用同一套函式。
+    //  realm: 'ui' 給 Liko.__Sys_i18n__；'msg' 給 Liko.__Sys_L10N__。兩者隔離但共用同一套函式。
     const _bank = { ui: Object.create(null), msg: Object.create(null) };
 
     function _register(realm, ns, strings) {
@@ -147,7 +146,7 @@
         return Promise.all(jobs).then(() => {});
     }
 
-    // ── 對外 API：Liko.i18n（介面字串）────────────────────────────────────────
+    // ── 對外 API：Liko.__Sys_i18n__（介面字串）────────────────────────────────────────
     //  t(ns, key, vars, forceLang)：forceLang 省略時用 detectLang()；插件有自己的語言
     //  選單（如 HSC/FCM 的 auto/TW/CN/JP…）時，算出語言後以第 4 參數傳入即可，不會污染其他插件。
     function ui_t(ns, key, vars, forceLang) {
@@ -156,7 +155,7 @@
         return out;
     }
 
-    window.Liko.i18n = {
+    window.Liko.__Sys_i18n__ = {
         version: ENGINE_VER,
         detectLang,
         register: (ns, strings) => _register('ui', ns, strings),
@@ -169,7 +168,7 @@
         ensure: (ns, spec, lang) => (typeof spec === 'string' ? loadScript(spec) : _loadLangs('ui', ns, spec, lang)),
     };
 
-    // ── 對外 API：Liko.L10N（聊天訊息在地化）─────────────────────────────────
+    // ── 對外 API：Liko.__Sys_L10N__（聊天訊息在地化）─────────────────────────────────
     //  送出時 Text 放英文底本（沒裝插件者看到英文），Dictionary 夾帶 { Tag:'Liko_L10N', ns, key, data }。
     //  接收端 hook ChatRoomMessage，偵測標記→用「自己的語言」重寫 Text 後顯示（含自己發的）。
     const L10N_TAG   = 'Liko_L10N';
@@ -221,7 +220,7 @@
         } catch (e) { console.warn('🐈‍⬛ [Liko L10N] hook 失敗:', e.message); }
     }
 
-    window.Liko.L10N = {
+    window.Liko.__Sys_L10N__ = {
         version: ENGINE_VER,
         lang: detectLang,
         register: (ns, table) => _register('msg', ns, table),
@@ -235,8 +234,5 @@
         ensure: (ns, spec, lang) => (typeof spec === 'string' ? loadScript(spec) : _loadLangs('msg', ns, spec, lang)),
     };
 
-    // 統一登記：__SystemAPI__.<name> 與 window.Liko.<name> 指向同一 API 物件（版本讀物件的 .version）
-    window.Liko.__SystemAPI__.i18n = window.Liko.i18n;
-    window.Liko.__SystemAPI__.L10N = window.Liko.L10N;
     console.log(`🐈‍⬛ [BC i18n] ✅ engine v${ENGINE_VER} ready (i18n + L10N)`);
 })();

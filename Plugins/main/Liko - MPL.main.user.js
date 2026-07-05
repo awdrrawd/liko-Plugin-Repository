@@ -189,8 +189,8 @@
      * @returns {Promise<void>}
      */
     async function ensureI18n() {
-        if (typeof window.Liko?.i18n?.ensure !== 'function') await loadScript(LIKO_I18N_ENGINE_URL);
-        if (typeof window.Liko?.i18n?.ensure === 'function') await window.Liko.i18n.ensure('MPL', LIKO_MPL_STRINGS_URL);
+        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') await loadScript(LIKO_I18N_ENGINE_URL);
+        if (typeof window.Liko?.__Sys_i18n__?.ensure === 'function') await window.Liko.__Sys_i18n__.ensure('MPL', LIKO_MPL_STRINGS_URL);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -3439,7 +3439,7 @@
             .then(() => {
             // 設定 MPL i18n 包裝函式（讓 MPLT() 能正確呼叫引擎）
             window.Liko.MPL.i18n = {
-                t: (key, vars) => window.Liko.i18n.t('MPL', key, vars),
+                t: (key, vars) => window.Liko.__Sys_i18n__.t('MPL', key, vars),
             };
 
             injectLoginStyles();

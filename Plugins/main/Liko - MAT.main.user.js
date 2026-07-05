@@ -67,13 +67,13 @@
     // 用能力偵測（ensure）判斷 v2 引擎是否就緒 —— 舊版 v1 只有 version，會被誤判為已載入而擋掉 v2。
     // 字庫改用引擎的 ensure() 載入（依 URL 去重，不需自訂旗標）。
     async function ensureI18n() {
-        if (typeof window.Liko?.i18n?.ensure !== 'function') await loadScript(LIKO_I18N_ENGINE_URL);
-        if (typeof window.Liko?.i18n?.ensure === 'function') await window.Liko.i18n.ensure(I18N_NS, LIKO_MAT_STRINGS_URL);
+        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') await loadScript(LIKO_I18N_ENGINE_URL);
+        if (typeof window.Liko?.__Sys_i18n__?.ensure === 'function') await window.Liko.__Sys_i18n__.ensure(I18N_NS, LIKO_MAT_STRINGS_URL);
     }
 
     // 取翻譯字串；引擎尚未就緒時回傳 key 本身，不丟例外。vars 以 {name} 佔位代入。
     function ui(key, vars) {
-        const fn = window.Liko?.i18n?.t;
+        const fn = window.Liko?.__Sys_i18n__?.t;
         return fn ? fn(I18N_NS, key, vars) : key;
     }
 

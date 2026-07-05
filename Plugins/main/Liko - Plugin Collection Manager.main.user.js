@@ -24,11 +24,11 @@
 
     // === i18n ===================================================
     
-    const t = (key, vars) => window.Liko.i18n?.t('PCM', key, vars) ?? key;
+    const t = (key, vars) => window.Liko.__Sys_i18n__?.t('PCM', key, vars) ?? key;
 
     function registerI18n() {
         // EN strings are the authoritative fallback — other languages live in PCM-i18n.js
-        window.Liko.i18n?.register('PCM', {
+        window.Liko.__Sys_i18n__?.register('PCM', {
             'loaded':           { EN: 'Liko\'s Plugin Collection Manager v{ver} loaded! Click the floating button to manage plugins.' },
             'shortLoaded':      { EN: '📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button to open panel\n• Toggle switches to enable/disable plugins\n• Three-state toggle: OFF → ON → BETA\n\n📝 Commands:\n/pcm help — show this\n/pcm list — list all plugins\n\n💡 Plugins load on enable, or take effect on next refresh.' },
             'welcomeTitle':     { EN: '🐈‍⬛ Plugin Manager' },
@@ -433,7 +433,7 @@
 
     // === 語言輔助 ================================================
 
-    function getLang() { return window.Liko.i18n?.detectLang() ?? 'EN'; }
+    function getLang() { return window.Liko.__Sys_i18n__?.detectLang() ?? 'EN'; }
     function isCJK() { const l = getLang(); return l === 'TW' || l === 'CN'; }
     function getPluginName(p) { return isCJK() ? p.name : (p.en_name || p.name); }
     function getPluginDescription(p) { return isCJK() ? p.description : (p.en_description || p.description); }
@@ -1448,10 +1448,10 @@
         }
         // Remaining deps — skip if already provided (unified system extensions live under window.Liko)
         const rest = [
-            { url: _PCM_CDN + "expand/BC_i18n.js", ready: () => typeof window.Liko?.i18n?.ensure === 'function' },
-            { url: _PCM_CDN + "Translation/PCM-i18n.js",  ready: () => !!window.Liko?.i18n?.has?.('PCM', 'tabLocal') },
-            { url: _PCM_CDN + "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.Toast },
-            { url: _PCM_CDN + "expand/BC_ThemeColorCheck.js",    ready: () => !!window.Liko?.ColorAPI },
+            { url: _PCM_CDN + "expand/BC_i18n.js", ready: () => typeof window.Liko?.__Sys_i18n__?.ensure === 'function' },
+            { url: _PCM_CDN + "Translation/PCM-i18n.js",  ready: () => !!window.Liko?.__Sys_i18n__?.has?.('PCM', 'tabLocal') },
+            { url: _PCM_CDN + "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.__Sys_Toast__ },
+            { url: _PCM_CDN + "expand/BC_ThemeColorCheck.js",    ready: () => !!window.Liko?.__Sys_ColorAPI__ },
         ];
         for (const { url, ready } of rest) {
             if (ready()) continue;

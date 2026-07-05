@@ -4,12 +4,12 @@
 // 佔位符以 {name} 表示，由引擎的 t(ns, key, vars) 代入
 
 (function () {
-    if (!window.Liko?.i18n?.register) {
+    if (!window.Liko?.__Sys_i18n__?.register) {
         console.error('[Liko MAT strings] i18n 引擎尚未載入');
         return;
     }
 
-    window.Liko.i18n.register('MAT', {
+    window.Liko.__Sys_i18n__.register('MAT', {
 
         // ── 載入 / SDK ────────────────────────────────────────────────────
         'sdkTimeout': {

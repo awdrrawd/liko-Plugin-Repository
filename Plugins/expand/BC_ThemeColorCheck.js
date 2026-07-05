@@ -10,16 +10,15 @@
  *                         如果你覺得演算法判斷錯了，把那個顏色手動標記成
  *                         亮/暗，之後 isDark() 遇到同一個顏色就用你的判斷
  *
- *  用法：當一般 <script> 載入即可，API 掛在 window.Liko.ColorAPI 上。
+ *  用法：當一般 <script> 載入即可，API 掛在 window.Liko.__Sys_ColorAPI__ 上。
  * =============================================================================
  */
 (function (global) {
   'use strict';
 
-  // 統一防重複載入 + 註冊：__SystemAPI__.ColorAPI 與 global.Liko.ColorAPI 指向同一物件（見檔尾登記）
+  // 防重複載入旗標：檔尾把 API 掛到 global.Liko.__Sys_ColorAPI__（系統擴充統一以 __Sys_ 開頭）
   global.Liko = global.Liko ?? {};
-  global.Liko.__SystemAPI__ = global.Liko.__SystemAPI__ ?? {};
-  if (global.Liko.__SystemAPI__.ColorAPI) return;
+  if (global.Liko.__Sys_ColorAPI__) return;
   const MOD_VER = "1.0";
 
   // ---------------------------------------------------------------------------
@@ -65,7 +64,7 @@
       return rgbToHex(r / count, g / count, b / count);
     } catch (err) {
       // 常見原因：canvas 尚未渲染、或座標超出範圍
-      console.warn('[Liko.ColorAPI] getCanvasColor 讀取失敗', err);
+      console.warn('[Liko.__Sys_ColorAPI__] getCanvasColor 讀取失敗', err);
       return null;
     }
   }
@@ -141,8 +140,7 @@
     clearOverrides,
   };
 
-  // 統一登記：__SystemAPI__.ColorAPI 與 global.Liko.ColorAPI 指向同一物件（版本讀 API.version）
-  global.Liko.ColorAPI = API;
-  global.Liko.__SystemAPI__.ColorAPI = API;
-  console.log(`🐈‍⬛ [ColorAPI] ✅ v${MOD_VER} loaded (Liko.ColorAPI)`);
+  // 掛上系統擴充命名（下方腳本會改名為 __Sys_ColorAPI__；版本讀 API.version）
+  global.Liko.__Sys_ColorAPI__ = API;
+  console.log(`🐈‍⬛ [ColorAPI] ✅ v${MOD_VER} loaded`);
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,9 +1,8 @@
 // toast-system.js
 (function() {
     window.Liko = window.Liko ?? {};
-    window.Liko.__SystemAPI__ = window.Liko.__SystemAPI__ ?? {};
-    // 統一防重複載入 + 註冊：__SystemAPI__.Toast 與 window.Liko.Toast 指向同一函式（見檔尾登記）
-    if (window.Liko.__SystemAPI__.Toast) return;
+    // 防重複載入旗標：檔尾把 API 掛到 window.Liko.__Sys_Toast__（系統擴充統一以 __Sys_ 開頭）
+    if (window.Liko.__Sys_Toast__) return;
     const MOD_VER = "1.3";
 
     let activeMessages = [];
@@ -78,8 +77,7 @@
     ChatRoomSendLocalStyled._version  = MOD_VER;
     ChatRoomSendLocalStyled._loadTime = Date.now();
 
-    window.Liko.Toast              = ChatRoomSendLocalStyled;   // 暴露 API 供其他插件調用
-    window.ChatRoomSendLocalStyled = ChatRoomSendLocalStyled;   // 相容全域別名（有實際調用端）
-    window.Liko.__SystemAPI__.Toast = ChatRoomSendLocalStyled;  // 統一登記（同一參考）
+    window.Liko.__Sys_Toast__              = ChatRoomSendLocalStyled;   // 系統擴充 API（下方腳本會改名為 __Sys_Toast__）
+    window.ChatRoomSendLocalStyled = ChatRoomSendLocalStyled;   // 相容全域別名（有實際調用端，保留）
     console.log(`🐈‍⬛ [BC toast] ✅ v${MOD_VER} loaded`);
 })();
