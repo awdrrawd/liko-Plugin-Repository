@@ -1,24 +1,27 @@
 {
-  "updateId": "260703",
+  "updateId": "260706",
   "changelog": [
-    "⭐HSC - 催眠奴隸俱樂部 v1.0 新增",
-    "將IVH(沉浸式聲音催眠)更新並重新命名，現在是HSC(催眠奴隸俱樂部)，請重新啟用插件",
-    "新增催眠系統",
-    "更多自定義功能",
-    "新增新的催眠情境",
-    "⭐AFC - 繁戀如花 ─繽紛─ v0.7.0 更新",
-    "修改信息發送機制",
-    "修改修改保存邏輯，現在會在本地保存一份避免關係丟失"
+    "⭐HSC - 催眠奴隸俱樂部 更新",
+    "現在已經上傳FUSAM，對非PCM用戶也能引導安裝",
+    "現在催眠狀態解除機制從降低催眠值改成時間控制，輕時間更為明確",
+    "⭐AEE - 外觀編輯器 更新",
+    "重寫颜色吸管工具，避免原EyeDropper使用時卡死問題",
+    "⭐FCM - 朋友與房間管理 更新",
+    "新增profile關係人快速查閱功能(需啟用設定)，須配合profile紀錄才有用，並且支援AFC戀人查詢",
+    "修改修改保存邏輯，現在會在本地保存一份避免關係丟失",
+    "AEE、AFC、HSC、FCM皆移動到獨立倉庫，有任何問題PCM或新倉庫都能回報",
+    "最近插件修改翻譯邏輯，部份使用環境會看到PCM是英文，但插件清單是中文，這是正常現象，但預計未來修復"
   ],
   "en_changelog": [
-    "⭐HSC - Hypnotic Slave Club v1.0 Added",
-    "Updated and renamed IVH (Immersive Voice Hypnosis) to HSC (Hypnotic Slave Club). Please re-enable the plugin.",
-    "Added hypnosis system",
-    "More customization options",
-    "Added new hypnosis scenarios",
-    "⭐AFC - Abundantia Florum ─Chromatica─ v0.7.0 Updated",
-    "Modified message sending mechanism",
-    "Modified save logic — now saves a local backup to prevent data loss"
+    "⭐HSC - Hypnotic Slave Club Update",
+    "Now on FUSAM — guides non-PCM users through installation.",
+    "Hypnosis release changed from value-based to time-based for clearer duration.",
+    "⭐AEE - Appearance editing extension Update",
+    "Rewrote eyedropper tool to fix freezing issue.",
+    "⭐FCM - Friends and ChatRoom Manager Update",
+    "Added profile relationship quick-lookup (requires settings toggle). Works with profile records and supports AFC lover queries.",
+    "Save logic improved — local backup added to prevent data loss.",
+    "AEE, AFC, HSC, FCM moved to independent repos. Report issues via PCM or new repos."
   ],
   "plugins": [
     {
