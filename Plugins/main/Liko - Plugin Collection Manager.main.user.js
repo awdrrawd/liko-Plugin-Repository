@@ -19,6 +19,39 @@
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
 
+    // ===== TEMP DIAG（EBC i18n 偵錯，確認後移除）=========================
+    // 監視 window.Liko.__Sys_i18n__ 被指派幾次、被哪個版本換掉、換掉時舊引擎是否已有 PCM 字串。
+    // 若看到 SET #2 且 prevHasPCM=true → 證實：PCM 註冊進舊引擎後，被另一支（如 AFC/EBC 的
+    // Translation/Liko-i18n.js）不同版本的引擎覆寫掉，新引擎是空的 → t('PCM',...) 讀不到。
+    (function _pcmI18nDiag(){
+        try {
+            const L = window.Liko;
+            let _e = L.__Sys_i18n__;
+            let _seq = _e ? 1 : 0;
+            const log = (...a) => console.log('🐈‍⬛ [PCM][diag]', ...a);
+            if (_e) log(`__Sys_i18n__ 已存在 ver=${_e?.version} hasPCM=${_e?.has?.('PCM','tabLocal')}`);
+            try {
+                Object.defineProperty(L, '__Sys_i18n__', {
+                    configurable: true,
+                    get() { return _e; },
+                    set(v) {
+                        _seq++;
+                        log(`__Sys_i18n__ SET #${_seq} newVer=${v?.version} prevVer=${_e?.version} prevHasPCM=${_e?.has?.('PCM','tabLocal')}`);
+                        _e = v;
+                    },
+                });
+            } catch(err) { log('defineProperty 失敗:', err.message); }
+            let ticks = 0;
+            const id = setInterval(() => {
+                ticks++;
+                const e = L.__Sys_i18n__;
+                log(`t+${ticks}s lang=${e?.detectLang?.()} hasPCM/tabLocal=${e?.has?.('PCM','tabLocal')} ver=${e?.version} sets=${_seq}`);
+                if (ticks >= 12) clearInterval(id);
+            }, 1000);
+        } catch(e) {}
+    })();
+    // ===== /TEMP DIAG ===================================================
+
     let modApi;
     let isInitialized = false;
     const _lifecycle = { intervals: [], mousemoveHandler: null };
@@ -86,6 +119,7 @@
         (function registerWhenReady(tries) {
             if (window.Liko.__Sys_i18n__?.register) {
                 window.Liko.__Sys_i18n__.register('PCM', _enStrings);
+                console.log(`🐈‍⬛ [PCM][diag] registerI18n → register EN 完成，engine ver=${window.Liko.__Sys_i18n__?.version} hasPCM/tabLocal=${window.Liko.__Sys_i18n__?.has?.('PCM','tabLocal')}`); // TEMP DIAG
                 return;
             }
             if ((tries ?? 0) > 100) {
