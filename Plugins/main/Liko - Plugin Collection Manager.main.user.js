@@ -194,8 +194,8 @@
     function initializePCMBadgeImage() {
         if (!pcmBadgeImage) {
             // jsDelivr 優先、raw 後備 —— raw.githubusercontent 在 EBC 會 429，圖片同樣會破圖。
-            const _badgeCdn = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-tool-Image-storage@main/Images/LOGO_4.png";
-            const _badgeRaw = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_4.png";
+            const _badgeCdn = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_Badge.png";
+            const _badgeRaw = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/refs/heads/main/Images/PCM_Badge.png";
             pcmBadgeImage = new Image();
             pcmBadgeImage.crossOrigin = "anonymous";
             pcmBadgeImage.onload = () => { pcmImageLoaded = true; };
