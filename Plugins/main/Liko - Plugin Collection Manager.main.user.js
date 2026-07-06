@@ -1461,9 +1461,12 @@
     }
 
     // 多通道競速抓取，並驗證內容（避免把 404 的 HTML 當 JS 注入）
+    // 加時間戳讓 URL 每次唯一，繞過 jsDelivr 邊緣快取與 Electron 的 HTTP 快取（帶 no-cache 仍可能
+    // 因 URL 相同而吃邊緣快取），確保常更新的 Translation/*-i18n.js 一定拿到最新版。與引擎 _bust() 一致。
     function _fetchDepRaced(rel) {
+        const bust = (rel.includes('?') ? '&' : '?') + 't=' + Date.now();
         return Promise.any(_DEP_BASES.map(async base => {
-            const res = await fetch(base + rel);
+            const res = await fetch(base + rel + bust, { cache: 'no-cache' });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const text = await res.text();
             if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
@@ -1473,21 +1476,39 @@
 
     async function _loadDep(rel) { _injectCode(await _fetchDepRaced(rel)); }
 
+    // 系統依賴改用 new Function 執行，而非 _injectCode 的 inline <script> 注入 ——
+    // 這是 MAT / MPL / Prank 都在用、且在 Electron-BC 實測正常的路徑。
+    // EBC 是 contextIsolation:true、由 preload 注入 render.js 再以 new Function 跑 userscript；
+    // 經由 PCM_Loader 的 eval(MAIN) 啟動時，用 inline <script> 注入的 Translation/PCM-i18n.js
+    // 其 register() 打不到主體實際讀取的引擎實例，PCM 介面因此永遠退回內建 EN。走引擎自己的
+    // new Function 路徑（loadScript / ensure）即與姊妹插件一致，翻譯正常註冊。
+    async function _loadDepEval(rel) { new Function(await _fetchDepRaced(rel))(); }
+
     async function _ensureDeps() {
-        // bcmodsdk must exist before registerMod — must be first
+        // bcmodsdk must exist before registerMod — must be first。維持 inline 注入（既有可用路徑；
+        // 某些 UMD 會讀 document.currentScript，new Function 下會是 null，故不改動這支）。
         if (typeof bcModSdk === 'undefined') {
             await _loadDep("expand/bcmodsdk.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ bcmodsdk:", e.message));
         }
-        // Remaining deps — skip if already provided (unified system extensions live under window.Liko.__Sys_*)
+
+        // i18n 引擎：能力偵測（ensure 為 v2 專有），沒有才載入。用 new Function 執行，確保與主體同一 realm。
+        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') {
+            await _loadDepEval("expand/BC_i18n.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ BC_i18n.js:", e.message));
+        }
+        // PCM 字庫：用 new Function 執行（保留 PCM 的雙通道 race + ?t= 破快取），PCM-i18n.js 內部
+        // 會自行 register 到引擎。不再用 has('PCM','tabLocal') 判斷是否已載入 —— 該鍵在本體內建的
+        // EN fallback 也存在，會被誤判成「翻譯檔已載入」而整包跳過，只剩英文。register 為覆寫式，
+        // 且 _ensureDeps 每次頁面載入只跑一次，重複註冊無害。
+        await _loadDepEval("Translation/PCM-i18n.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ PCM-i18n.js:", e.message));
+
+        // 其餘系統擴充 —— 已就位就跳過（統一系統擴充掛在 window.Liko.__Sys_* 底下）
         const rest = [
-            { rel: "expand/BC_i18n.js",              ready: () => typeof window.Liko?.__Sys_i18n__?.ensure === 'function' },
-            { rel: "Translation/PCM-i18n.js",        ready: () => !!window.Liko?.__Sys_i18n__?.has?.('PCM', 'tabLocal') },
             { rel: "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.__Sys_Toast__ },
             { rel: "expand/BC_ThemeColorCheck.js",   ready: () => !!window.Liko?.__Sys_ColorAPI__ },
         ];
         for (const { rel, ready } of rest) {
             if (ready()) continue;
-            await _loadDep(rel).catch(e => console.warn(`🐈‍⬛ [PCM] ⚠️ ${rel}:`, e.message));
+            await _loadDepEval(rel).catch(e => console.warn(`🐈‍⬛ [PCM] ⚠️ ${rel}:`, e.message));
         }
     }
 
