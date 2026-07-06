@@ -159,11 +159,14 @@
 
     function initializePCMBadgeImage() {
         if (!pcmBadgeImage) {
+            // jsDelivr 優先、raw 後備 —— raw.githubusercontent 在 EBC 會 429，圖片同樣會破圖。
+            const _badgeCdn = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-tool-Image-storage@main/Images/LOGO_4.png";
+            const _badgeRaw = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_4.png";
             pcmBadgeImage = new Image();
             pcmBadgeImage.crossOrigin = "anonymous";
             pcmBadgeImage.onload = () => { pcmImageLoaded = true; };
-            pcmBadgeImage.onerror = () => { pcmImageLoaded = false; };
-            pcmBadgeImage.src = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_4.png";
+            pcmBadgeImage.onerror = () => { if (pcmBadgeImage.src !== _badgeRaw) pcmBadgeImage.src = _badgeRaw; else pcmImageLoaded = false; };
+            pcmBadgeImage.src = _badgeCdn;
         }
     }
 
@@ -261,9 +264,10 @@
     }
 
     // === JSON 來源 ===============================================
+    // jsDelivr 優先、raw 後備（raw.githubusercontent 在 EBC 會 429，見 _DEP_BASES 註解）
     const PLUGINS_JSON_URLS = [
-        "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
         "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
+        "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
     ];
 
     // === 設定存取 ================================================
@@ -485,8 +489,9 @@
 
     function buildFetchUrls(url) {
         if (!url) return [];
+        // jsDelivr 優先、raw 當後備 —— 每個子插件都先打 raw 會在 EBC 觸發 429（見 _DEP_BASES 註解）。
         const cdn = url.replace(/^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/, "https://cdn.jsdelivr.net/gh/$1/$2@$3/$4");
-        return cdn !== url ? [url, cdn] : [url];
+        return cdn !== url ? [cdn, url] : [url];
     }
 
     async function loadSubPlugin(plugin, isCustom = false) {
@@ -1445,8 +1450,11 @@
 
     // === 初始化 =================================================
 
-    // 系統依賴走「雙通道競速」：jsDelivr + raw 同時抓，誰先回有效 JS 就用誰（其一被封鎖/慢也不卡）。
-    // 系統檔少更新 → 多打一個並行請求成本可忽略；本地測試時 window.LikoDevBase 只走單一 localhost。
+    // 系統依賴「依序」抓：先 jsDelivr，失敗才退 raw.githubusercontent。
+    // 絕不並行同打兩邊 —— raw.githubusercontent 有嚴格速率限制，Electron-BC 單一 IP + Loader 啟動時
+    // 的突發請求（本體、各依賴、每個子插件、Plugins.json）很容易觸發 429 (Too Many Requests)，
+    // 造成 PCM-i18n.js 等檔案抓取失敗、翻譯註冊不上（介面退回英文甚至顯示 key）。
+    // jsDelivr 在 EBC 正常且無此限制，一律優先。本地測試時 window.LikoDevBase 只有單一 localhost。
     const _DEP_BASES = (typeof window !== 'undefined' && window.LikoDevBase)
         ? [window.LikoDevBase]
         : [
@@ -1460,46 +1468,37 @@
         document.head.appendChild(s);
     }
 
-    // 多通道競速抓取，並驗證內容（避免把 404 的 HTML 當 JS 注入）
-    // 加時間戳讓 URL 每次唯一，繞過 jsDelivr 邊緣快取與 Electron 的 HTTP 快取（帶 no-cache 仍可能
-    // 因 URL 相同而吃邊緣快取），確保常更新的 Translation/*-i18n.js 一定拿到最新版。與引擎 _bust() 一致。
-    function _fetchDepRaced(rel) {
-        const bust = (rel.includes('?') ? '&' : '?') + 't=' + Date.now();
-        return Promise.any(_DEP_BASES.map(async base => {
-            const res = await fetch(base + rel + bust, { cache: 'no-cache' });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const text = await res.text();
-            if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
-            return text;
-        }));   // 第一個成功者勝出；全部失敗才 reject
+    // 依序抓取（jsDelivr 優先），並驗證內容（避免把 404 的 HTML 當 JS 注入）。
+    // 不加 ?t= 破快取 —— 讓 Electron 的 HTTP 快取能重用同一 URL，降低請求量、遠離 429。
+    async function _fetchDep(rel) {
+        let lastErr;
+        for (const base of _DEP_BASES) {
+            try {
+                const res = await fetch(base + rel);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const text = await res.text();
+                if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
+                return text;
+            } catch(e) { lastErr = e; console.warn(`🐈‍⬛ [PCM] ⚠️ ${base}${rel}: ${e.message}`); }
+        }
+        throw lastErr ?? new Error('all bases failed');
     }
 
-    async function _loadDep(rel) { _injectCode(await _fetchDepRaced(rel)); }
-
-    // 系統依賴改用 new Function 執行，而非 _injectCode 的 inline <script> 注入 ——
-    // 這是 MAT / MPL / Prank 都在用、且在 Electron-BC 實測正常的路徑。
-    // EBC 是 contextIsolation:true、由 preload 注入 render.js 再以 new Function 跑 userscript；
-    // 經由 PCM_Loader 的 eval(MAIN) 啟動時，用 inline <script> 注入的 Translation/PCM-i18n.js
-    // 其 register() 打不到主體實際讀取的引擎實例，PCM 介面因此永遠退回內建 EN。走引擎自己的
-    // new Function 路徑（loadScript / ensure）即與姊妹插件一致，翻譯正常註冊。
-    async function _loadDepEval(rel) { new Function(await _fetchDepRaced(rel))(); }
+    async function _loadDep(rel) { _injectCode(await _fetchDep(rel)); }
 
     async function _ensureDeps() {
-        // bcmodsdk must exist before registerMod — must be first。維持 inline 注入（既有可用路徑；
-        // 某些 UMD 會讀 document.currentScript，new Function 下會是 null，故不改動這支）。
+        // bcmodsdk must exist before registerMod — must be first
         if (typeof bcModSdk === 'undefined') {
             await _loadDep("expand/bcmodsdk.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ bcmodsdk:", e.message));
         }
-
-        // i18n 引擎：能力偵測（ensure 為 v2 專有），沒有才載入。用 new Function 執行，確保與主體同一 realm。
+        // i18n 引擎：能力偵測（ensure 為 v2 專有），沒有才載入
         if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') {
-            await _loadDepEval("expand/BC_i18n.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ BC_i18n.js:", e.message));
+            await _loadDep("expand/BC_i18n.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ BC_i18n.js:", e.message));
         }
-        // PCM 字庫：用 new Function 執行（保留 PCM 的雙通道 race + ?t= 破快取），PCM-i18n.js 內部
-        // 會自行 register 到引擎。不再用 has('PCM','tabLocal') 判斷是否已載入 —— 該鍵在本體內建的
-        // EN fallback 也存在，會被誤判成「翻譯檔已載入」而整包跳過，只剩英文。register 為覆寫式，
-        // 且 _ensureDeps 每次頁面載入只跑一次，重複註冊無害。
-        await _loadDepEval("Translation/PCM-i18n.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ PCM-i18n.js:", e.message));
+        // PCM 字庫：一律載入。不用 has('PCM','tabLocal') 判斷是否已載入 —— 該鍵在本體內建的 EN
+        // fallback 也存在，會被誤判成「已載入」而整包跳過、只剩英文。jsDelivr 優先後不再 429，這支能
+        // 穩定抓到並註冊 TW/CN…（PCM-i18n.js 內部自帶輪詢等引擎就位後再 register）。
+        await _loadDep("Translation/PCM-i18n.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ PCM-i18n.js:", e.message));
 
         // 其餘系統擴充 —— 已就位就跳過（統一系統擴充掛在 window.Liko.__Sys_* 底下）
         const rest = [
@@ -1508,7 +1507,7 @@
         ];
         for (const { rel, ready } of rest) {
             if (ready()) continue;
-            await _loadDepEval(rel).catch(e => console.warn(`🐈‍⬛ [PCM] ⚠️ ${rel}:`, e.message));
+            await _loadDep(rel).catch(e => console.warn(`🐈‍⬛ [PCM] ⚠️ ${rel}:`, e.message));
         }
     }
 

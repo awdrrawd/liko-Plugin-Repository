@@ -17,7 +17,8 @@
 (function () {
     "use strict";
 
-    // 雙通道競速：jsDelivr + raw 同時抓主體，誰先回有效 JS 就用誰（其一被封鎖/慢也不卡）
+    // 依序抓主體：先 jsDelivr，失敗才退 raw。切勿並行同打兩邊 —— raw.githubusercontent 有速率限制，
+    // 在 Electron-BC（單一 IP、啟動時大量子插件同時抓）容易觸發 429，連帶讓翻譯字庫抓取失敗。
     const MAIN_REL       = "Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
     const MAIN_URLS      = [
         "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/" + MAIN_REL,
@@ -38,15 +39,19 @@
         try { localStorage.setItem(MAIN_CACHE_KEY, JSON.stringify({ time: Date.now(), code })); } catch(e) {}
     }
 
-    // 競速抓取並驗證內容（避免把 404 的 HTML 當 JS）
-    function fetchMainRaced() {
-        return Promise.any(MAIN_URLS.map(async url => {
-            const res = await fetch(url, { cache: "no-cache" });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const code = await res.text();
-            if (!code || code.trimStart().startsWith('<')) throw new Error("Invalid response");
-            return code;
-        }));
+    // 依序抓取（jsDelivr 優先，失敗才退 raw）並驗證內容（避免把 404 的 HTML 當 JS）
+    async function fetchMainRaced() {
+        let lastErr;
+        for (const url of MAIN_URLS) {
+            try {
+                const res = await fetch(url, { cache: "no-cache" });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const code = await res.text();
+                if (!code || code.trimStart().startsWith('<')) throw new Error("Invalid response");
+                return code;
+            } catch(e) { lastErr = e; console.warn(`🐈‍⬛ [PCM Loader] ⚠️ ${url}: ${e.message}`); }
+        }
+        throw lastErr ?? new Error("all main URLs failed");
     }
 
     async function fetchMain() {
