@@ -410,7 +410,7 @@
       ]
     },
     {
-      "id": "Liko-ACF",
+      "id": "Liko-AFC",
       "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
       "name": {
         "cn": "繁戀如花 ─繽紛─",
@@ -421,7 +421,7 @@
         "en": "An abundance of lovers, like a love story blooming in countless flowers, featuring an extensible Lover’s Lock system."
       },
       "author": "莉柯莉絲(Likolisu)",
-      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "repository": "https://github.com/awdrrawd/BC-AFC",
       "tags": [
         "enhancements"
       ],
@@ -429,7 +429,7 @@
       "versions": [
         {
           "distribution": "stable",
-          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js"
+          "source": "https://raw.githubusercontent.com/awdrrawd/BC-AFC/main/loader.user.js"
         }
       ]
     },
@@ -445,7 +445,7 @@
         "en": "A more powerful editor, 和 support for more clothing editing."
       },
       "author": "莉柯莉絲(Likolisu)",
-      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "repository": "https://github.com/awdrrawd/BC-AEE",
       "tags": [
         "enhancements"
       ],
@@ -453,7 +453,7 @@
       "versions": [
         {
           "distribution": "stable",
-          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20AEE.main.user.js"
+          "source": "https://raw.githubusercontent.com/awdrrawd/BC-AEE/main/loader.user.js"
         }
       ]
     },
@@ -469,7 +469,7 @@
         "en": "AImproved friend and room management features."
       },
       "author": "莉柯莉絲(Likolisu)",
-      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "repository": "https://github.com/awdrrawd/BC-FCM",
       "tags": [
         "enhancements"
       ],
@@ -477,7 +477,7 @@
       "versions": [
         {
           "distribution": "stable",
-          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20FCM.main.user.js"
+          "source": "https://raw.githubusercontent.com/awdrrawd/BC-FCM/main/loader.user.js"
         }
       ]
     },
@@ -541,7 +541,7 @@
       },
       "icon": "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png",
       "author": "莉柯莉絲(Likolisu)",
-      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "repository": "https://github.com/awdrrawd/BC-HSC",
       "tags": [
         "enhancements"
       ],
