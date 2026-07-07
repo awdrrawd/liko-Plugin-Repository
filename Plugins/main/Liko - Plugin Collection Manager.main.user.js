@@ -303,6 +303,7 @@
     }
 
     // === JSON 來源 ===============================================
+<<<<<<< HEAD
     // raw 優先、jsDelivr 後備 —— Plugins.json 承載版本號/更新日誌等資訊，需要即時性；
     // jsDelivr 有 CDN 快取（更新後可能要一段時間才會反映最新內容），raw.githubusercontent
     // 才是即時的。這裡跟其他「插件本體/依賴」用 jsDelivr 優先剛好相反：本體檔案大、多支
@@ -311,6 +312,10 @@
         "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
         "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
     ];
+=======
+    // Plugins需要快速更新，所以不走jsDelivr
+    const PLUGINS_JSON_URLS = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json";
+>>>>>>> c0a5b0364edd408b3643d0d5ef2163d9f591ce2c
 
     // === 設定存取 ================================================
 

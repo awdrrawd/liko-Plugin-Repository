@@ -21,7 +21,7 @@
     // 在 Electron-BC（單一 IP、啟動時大量子插件同時抓）容易觸發 429，連帶讓翻譯字庫抓取失敗。
     const MAIN_REL       = "Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
     const MAIN_URLS      = [
-        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/" + MAIN_REL,
+        //"https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/" + MAIN_REL,
         "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/" + MAIN_REL,
     ];
     const MAIN_CACHE_KEY = "pcm_main_cache";
