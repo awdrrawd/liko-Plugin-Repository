@@ -683,8 +683,8 @@
             return false;
         }
 
-        // 找出目前已有呆毛的群組
-        const occupiedGroups = new Set(
+        // 找出目前已有呆毛的群組（僅用於排除，不代表全部佔用情況）
+        const ahogeGroups = new Set(
             getAhogeItems(target).map(item => item.Asset?.Group?.Name)
         );
 
@@ -693,9 +693,13 @@
         const allowFullWardrobe = isSelfInsert || target.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
         const availableGroups = allowFullWardrobe ? AHOGE_GROUPS : AHOGE_GROUPS.filter(g => g !== "额外头发_Luzi");
 
-        // 依優先順序找第一個空格
-        const targetGroup = availableGroups.find(g => !occupiedGroups.has(g));
-        if (!targetGroup) return false; // 所有可用格已滿
+        // 依優先順序找「真正空」的欄位：該群組完全沒有穿任何物品才算空，
+        // 避免覆蓋掉已存在的其他物品（例如原本戴著的髮飾）
+        const targetGroup = availableGroups.find(g => {
+            if (ahogeGroups.has(g)) return false; // 已經是呆毛，跳過
+            return !InventoryGet(target, g);      // 只有完全沒有物品的欄位才算空格
+        });
+        if (!targetGroup) return false; // 所有可用格已滿或被其他物品佔用
 
         // 找呆毛 asset（從 AssetFemale3DCG 找，避免寫死路徑）
         const ahogeAsset = AssetGet("Female3DCG", targetGroup, "呆毛");
@@ -756,11 +760,11 @@
             return getAhogeItems(target2).length > 0;
         });
         actData.CustomPrerequisiteFuncs.set("LikoHasEmptyAhogeSlot", function(target1, target2, group) {
-            const occupied = new Set(getAhogeItems(target2).map(item => item.Asset?.Group?.Name));
+            const ahogeGroups = new Set(getAhogeItems(target2).map(item => item.Asset?.Group?.Name));
             const isSelfSlot = target2.MemberNumber === Player.MemberNumber;
             const allowFullWardrobe = isSelfSlot || target2.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
             const available = allowFullWardrobe ? AHOGE_GROUPS : AHOGE_GROUPS.filter(g => g !== "额外头发_Luzi");
-            return available.some(g => !occupied.has(g));
+            return available.some(g => !ahogeGroups.has(g) && !InventoryGet(target2, g));
         });
         actData.CustomPrerequisiteFuncs.set("LikoPlayerMouthFree", function(target1, target2, group) {
             return !InventoryGroupIsBlocked(target1, "ItemMouth") && SpeechGetGagLevel(target1, "ItemMouth") === 0;
