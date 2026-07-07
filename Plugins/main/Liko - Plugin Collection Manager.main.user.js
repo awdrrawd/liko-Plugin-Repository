@@ -303,11 +303,8 @@
     }
 
     // === JSON 來源 ===============================================
-    // jsDelivr 優先、raw 後備（raw.githubusercontent 在 EBC 會 429，見 _DEP_BASES 註解）
-    const PLUGINS_JSON_URLS = [
-        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
-        "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
-    ];
+    // Plugins需要快速更新，所以不走jsDelivr
+    const PLUGINS_JSON_URLS = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json";
 
     // === 設定存取 ================================================
 
