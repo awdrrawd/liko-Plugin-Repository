@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.0.1
+// @version      2.1.0
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,8 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.0.1";
+    const MOD_VER = "2.1.0"; // 2.1.0: 子插件新增 type 欄位（eval／scr／mod）決定載入方式，預設 eval 不影響舊資料；
+                              // mod 用 dynamic import 直接載入像 AEE 這類 Vite/Rollup ESM bundle，不再需要中介 loader.user.js。
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
 
@@ -100,6 +101,10 @@
             'customFieldUrl':     { EN: 'URL (.js) *' },
             'customFieldIcon':    { EN: 'Icon — emoji or image URL (optional)' },
             'customFieldDesc':    { EN: 'Description (optional)' },
+            'customFieldType':    { EN: 'Load method (advanced, leave default if unsure)' },
+            'customTypeEval':     { EN: 'Eval — fetch code as text & run it (default)' },
+            'customTypeScr':      { EN: 'Script tag — <script src>, use if the host blocks fetch() with CORS' },
+            'customTypeMod':      { EN: 'Module — dynamic import(), for Vite/Rollup ESM bundles' },
             'customBtnAdd':       { EN: 'Add' },
             'customBtnCancel':    { EN: 'Cancel' },
             'customDeleteConfirm':{ EN: 'Remove "{name}"?' },
@@ -298,10 +303,13 @@
     }
 
     // === JSON 來源 ===============================================
-    // jsDelivr 優先、raw 後備（raw.githubusercontent 在 EBC 會 429，見 _DEP_BASES 註解）
+    // raw 優先、jsDelivr 後備 —— Plugins.json 承載版本號/更新日誌等資訊，需要即時性；
+    // jsDelivr 有 CDN 快取（更新後可能要一段時間才會反映最新內容），raw.githubusercontent
+    // 才是即時的。這裡跟其他「插件本體/依賴」用 jsDelivr 優先剛好相反：本體檔案大、多支
+    // 同時打 raw 容易 429，但 Plugins.json 只有這一支請求，即時性優先於避免 429。
     const PLUGINS_JSON_URLS = [
-        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
         "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
+        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
     ];
 
     // === 設定存取 ================================================
@@ -528,6 +536,52 @@
         return cdn !== url ? [cdn, url] : [url];
     }
 
+    // === 載入方式（type）==========================================
+    // 三種載入方式並列，透過 plugin.type 選擇；沒填視為 "eval"（現行預設，向後相容所有舊資料）：
+    //   eval — fetch 拿到原始碼文字，用 <script> 塞文字執行（本質等同 eval，現行絕大多數子插件用這個）
+    //   scr  — 用 <script src="url"> 直接讓瀏覽器載入 URL，不自己 fetch。適合 fetch() 會被 CORS
+    //          擋掉、但瀏覽器原生 <script src> 仍可正常載入執行的來源
+    //   mod  — dynamic import(url)。給 Vite/Rollup 打包、含 import.meta 或需要模組作用域的插件用
+    //          （像 AEE），這類 bundle 塞進純文字 <script> 執行會噴 "Unexpected token 'export'" 或
+    //          "import.meta outside a module"。過去得靠額外一支 loader.user.js 用 import() 中介，
+    //          現在 PCM 原生支援，直接對 bundle URL 做 dynamic import 即可，不再需要中介腳本。
+    function getLoadType(plugin) {
+        const ty = plugin?.type;
+        return (ty === 'mod' || ty === 'scr') ? ty : 'eval';
+    }
+
+    function withCacheBuster(url) {
+        const sep = url.includes('?') ? '&' : '?';
+        return `${url}${sep}_pcmv=${Date.now()}`;
+    }
+
+    async function tryImportModule(urls) {
+        for (const url of urls) {
+            try { await import(withCacheBuster(url)); return true; }
+            catch(e) { console.warn(`🐈‍⬛ [PCM] ⚠️ ${url}: ${e.message}`); }
+        }
+        return false;
+    }
+
+    function loadViaScriptTag(url, id) {
+        return new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = url;
+            s.setAttribute('data-plugin', id);
+            s.onload  = () => resolve();
+            s.onerror = () => reject(new Error('script load error'));
+            document.body.appendChild(s);
+        });
+    }
+
+    async function tryLoadScriptTag(urls, id) {
+        for (const url of urls) {
+            try { await loadViaScriptTag(url, id); return true; }
+            catch(e) { console.warn(`🐈‍⬛ [PCM] ⚠️ ${url}: ${e.message}`); }
+        }
+        return false;
+    }
+
     async function loadSubPlugin(plugin, isCustom = false) {
         if (loadedPlugins.has(plugin.id)) return;
         if (!isCustom && !isPluginEnabledForLoading(plugin)) return;
@@ -539,7 +593,28 @@
         }
         if (!plugin.url) return;
 
-        const rawUrl  = isCustom ? plugin.url : getActivePluginUrl(plugin);
+        const rawUrl   = isCustom ? plugin.url : getActivePluginUrl(plugin);
+        const loadType = getLoadType(plugin);
+
+        // mod / scr 都不進 fetch+eval / localStorage 快取邏輯 —— mod 因為模組沒法安全地存純文字
+        // 再用 <script> 重放；scr 因為本來就是要讓瀏覽器直接載，不自己 fetch 文字。快取交給瀏覽器
+        // 自己的 HTTP cache 處理即可。
+        if (loadType === 'mod' || loadType === 'scr') {
+            const ok = loadType === 'mod'
+                ? await tryImportModule(buildFetchUrls(rawUrl))
+                : await tryLoadScriptTag(buildFetchUrls(rawUrl), plugin.id);
+            if (!ok) {
+                failedPlugins.add(plugin.id);
+                showPluginRetryBtn(plugin.id);
+                showNotification("❌", t('pluginLoadFailed', { name: getPluginName(plugin) }), t('pluginLoadRetry'));
+                throw new Error(`All ${loadType} URLs failed`);
+            }
+            loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
+            hidePluginRetryBtn(plugin.id);
+            console.log(`🐈‍⬛ [PCM] ✅ ${plugin.name} loaded (${loadType})`);
+            return;
+        }
+
         const urls    = buildFetchUrls(rawUrl);
         const primary = urls[0];
 
@@ -935,7 +1010,13 @@
             <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldIcon')}</label>
             <input id="pcm-add-icon" type="text" style="${fieldStyle}" autocomplete="off" placeholder="🔌 / https://..." />
             <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldDesc')}</label>
-            <input id="pcm-add-desc" type="text" style="${fieldStyle.replace('margin-bottom:10px','margin-bottom:14px')}" autocomplete="off" />
+            <input id="pcm-add-desc" type="text" style="${fieldStyle}" autocomplete="off" />
+            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldType')}</label>
+            <select id="pcm-add-type" style="${fieldStyle.replace('margin-bottom:10px','margin-bottom:14px')}">
+                <option value="eval">${t('customTypeEval')}</option>
+                <option value="scr">${t('customTypeScr')}</option>
+                <option value="mod">${t('customTypeMod')}</option>
+            </select>
             <div style="display:flex;gap:8px;">
                 <button id="pcm-add-cancel" style="flex:1;padding:9px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:#a0a9c0;font-size:13px;cursor:pointer;font-family:inherit;">${t('customBtnCancel')}</button>
                 <button id="pcm-add-confirm" style="flex:1;padding:9px;border:none;border-radius:8px;background:linear-gradient(135deg,#7F53CD,#A78BFA);color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">${t('customBtnAdd')}</button>
@@ -949,6 +1030,7 @@
         const urlInput     = overlay.querySelector('#pcm-add-url');
         const iconInput    = overlay.querySelector('#pcm-add-icon');
         const descInput    = overlay.querySelector('#pcm-add-desc');
+        const typeSelect   = overlay.querySelector('#pcm-add-type');
         const cancelBtn    = overlay.querySelector('#pcm-add-cancel');
         const confirmBtn   = overlay.querySelector('#pcm-add-confirm');
         nameInput.focus();
@@ -968,7 +1050,8 @@
             if (!name) { showNotification("⚠️", "PCM", t('customNameRequired')); return; }
             if (!url.endsWith('.js')) { showNotification("⚠️", "PCM", t('customUrlInvalid')); return; }
 
-            const plugin = { id: 'custom_' + Date.now(), name, en_name: name, url, icon: icon || '🔌', description: desc, en_description: desc, enabled: false };
+            const type = typeSelect.value; // 'eval' | 'scr' | 'mod'
+            const plugin = { id: 'custom_' + Date.now(), name, en_name: name, url, icon: icon || '🔌', description: desc, en_description: desc, enabled: false, type };
             customPlugins.push(plugin);
             saveCustomPlugins();
 
