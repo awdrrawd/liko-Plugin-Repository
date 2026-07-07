@@ -119,9 +119,10 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🐈‍⬛",
-      "url": "https://raw.githubusercontent.com/awdrrawd/BC-AEE/main/loader1.user.js",
+      "url": "https://awdrrawd.github.io/BC-AEE/assets/main.js",
       "website": "https://github.com/awdrrawd/BC-AEE/tree/main",
-      "priority": 3
+      "priority": 3,
+      "type": "mod"
     },
     {
       "id": "Liko-HSC",
