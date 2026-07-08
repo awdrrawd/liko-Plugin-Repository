@@ -17,76 +17,79 @@
 (function () {
     "use strict";
 
-    // 依序抓主體：先 jsDelivr，失敗才退 raw。切勿並行同打兩邊 —— raw.githubusercontent 有速率限制，
-    // 在 Electron-BC（單一 IP、啟動時大量子插件同時抓）容易觸發 429，連帶讓翻譯字庫抓取失敗。
-    // 下載優先，快取只當救援：先嘗試抓最新版並直接執行；只有「抓不到」或「抓到的檔案執行出錯」
-    // 才退回使用舊快取。快取本身不設有效期(TTL)——它不是用來判斷「新不新鮮」，純粹是下載失敗
-    // 時的最後一道防線，所以只有在新版成功執行後才會覆蓋掉它，絕不會因為舊檔還沒過期就搶著先用。
-    const MAIN_REL       = "Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
-    const MAIN_URLS      = [
-        //"https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/" + MAIN_REL,
-        "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/" + MAIN_REL,
-    ];
+    const MAIN_REL = "Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
+
+    // 優先序：
+    // 1. GitHub Pages — 即時（push 後幾乎立刻生效）且不會 429，帶時間戳確保拿最新版
+    // 2. raw.githubusercontent — 即時，但限流嚴格，只在 Pages 掛掉時當備援，不加時間戳降低疊加量
+    // 3. jsDelivr — 可能有快取延遲（有時隔天才更新），但幾乎不會掛，留著當最後保底
+    function buildMainUrls() {
+        const ts = Date.now();
+        return [
+            `https://awdrrawd.github.io/liko-Plugin-Repository/${MAIN_REL}?timestamp=${ts}`,
+            `https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/${MAIN_REL}`,
+            `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${MAIN_REL}`,
+        ];
+    }
+
     const MAIN_CACHE_KEY = "pcm_main_cache";
 
     function getCachedMain() {
         try {
             const c = JSON.parse(localStorage.getItem(MAIN_CACHE_KEY) || "null");
             return c?.code ?? null;
-        } catch(e) { return null; }
+        } catch (e) { return null; }
     }
 
     function setCachedMain(code) {
-        try { localStorage.setItem(MAIN_CACHE_KEY, JSON.stringify({ time: Date.now(), code })); } catch(e) {}
+        try { localStorage.setItem(MAIN_CACHE_KEY, JSON.stringify({ time: Date.now(), code })); } catch (e) {}
     }
 
-    // 依序抓取（jsDelivr 優先，失敗才退 raw）並驗證內容（避免把 404 的 HTML 當 JS）
-    async function fetchMainRaced() {
+    // 依序抓取，第一個成功就回傳，不並行、不對 raw/jsDelivr 加時間戳
+    async function fetchMainSequential() {
         let lastErr;
-        for (const url of MAIN_URLS) {
+        for (const url of buildMainUrls()) {
             try {
-                const res = await fetch(url, { cache: "no-cache" });
+                const res = await fetch(url);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const code = await res.text();
                 if (!code || code.trimStart().startsWith('<')) throw new Error("Invalid response");
                 return code;
-            } catch(e) { lastErr = e; console.warn(`🐈‍⬛ [PCM Loader] ⚠️ ${url}: ${e.message}`); }
+            } catch (e) { lastErr = e; console.warn(`⚠️ ${url}: ${e.message}`); }
         }
         throw lastErr ?? new Error("all main URLs failed");
     }
 
     (async () => {
-        const oldCache = getCachedMain(); // 先留著當救援，下載/執行成功前絕不覆蓋掉它
+        const oldCache = getCachedMain();
 
         let freshCode = null;
         try {
-            freshCode = await fetchMainRaced();
-        } catch(e) {
-            console.warn(`🐈‍⬛ [PCM Loader] ⚠️ 下載失敗，改用舊版快取：${e.message}`);
+            freshCode = await fetchMainSequential();
+        } catch (e) {
+            console.warn(`⚠️ 下載失敗，改用舊版快取：${e.message}`);
         }
 
         if (freshCode) {
             try {
-                // eslint-disable-next-line no-eval
                 eval(freshCode);
-                setCachedMain(freshCode); // 執行成功才覆蓋快取，避免存進一份會炸掉的版本
-                console.log("🐈‍⬛ [PCM Loader] ✅ Main script started (latest)");
+                setCachedMain(freshCode);
+                console.log("✅ Main script started (latest)");
                 return;
-            } catch(evalErr) {
-                console.error(`🐈‍⬛ [PCM Loader] ❌ 新版執行失敗，改用舊版快取：${evalErr.message}`);
+            } catch (evalErr) {
+                console.error(`❌ 新版執行失敗，改用舊版快取：${evalErr.message}`);
             }
         }
 
         if (oldCache) {
             try {
-                // eslint-disable-next-line no-eval
                 eval(oldCache);
-                console.log("🐈‍⬛ [PCM Loader] ✅ Main script started (cached fallback)");
-            } catch(e) {
-                console.error("🐈‍⬛ [PCM Loader] ❌ 舊版快取也執行失敗", e.message);
+                console.log("✅ Main script started (cached fallback)");
+            } catch (e) {
+                console.error("❌ 舊版快取也執行失敗", e.message);
             }
         } else {
-            console.error("🐈‍⬛ [PCM Loader] ❌ 無可用版本（下載失敗且無快取）");
+            console.error("❌ 無可用版本（下載失敗且無快取）");
         }
     })();
 })();

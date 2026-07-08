@@ -270,7 +270,6 @@
             // 載入時若已在房內（不會再有 ChatRoomSync/MemberJoin 觸發），廣播一發並要求回覆讓在場所有人回應自己
             sendPCMInitialization(true);
             if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
-            	delete window.Liko.PCM;
                 _lifecycle.unloaded = true; // #5：讓其餘輪詢鏈（i18n 註冊、本函式自己的 wait）知道要停止
                 try { ServerSocket.off("ChatRoomMessage", parsePCMMessage); } catch(e) {}
                 if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
@@ -281,11 +280,13 @@
     }
 
     // === JSON 來源 ===============================================
-    // raw 優先、jsDelivr 後備 —— Plugins.json 承載版本號/更新日誌等資訊，需要即時性；
-    // jsDelivr 有 CDN 快取（更新後可能要一段時間才會反映最新內容），raw.githubusercontent
-    // 才是即時的。這裡跟其他「插件本體/依賴」用 jsDelivr 優先剛好相反：本體檔案大、多支
-    // 同時打 raw 容易 429，但 Plugins.json 只有這一支請求，即時性優先於避免 429。
+    // GitHub Pages 優先、raw 備援、jsDelivr 最後保底 —— Plugins.json 承載版本號/更新日誌等
+    // 資訊，需要即時性。Pages 走 Fastly、push 後幾乎立即生效且不易觸發限流；raw.githubusercontent
+    // 同樣即時但限流嚴格，只在 Pages 掛掉時當備援；jsDelivr 有 CDN 快取（更新後可能要數小時
+    // 甚至隔天才反映最新內容），只在前兩者都失敗時當最後保底，避免完全拿不到資料。
+    // Plugins.json 只有這一支請求，量小，即時性優先於避免 429 本來就不是問題。
     const PLUGINS_JSON_URLS = [
+        `https://awdrrawd.github.io/liko-Plugin-Repository/Plugins.json?timestamp=${Date.now()}`,
         "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
         "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
     ];
@@ -321,6 +322,11 @@
     const PLUGIN_CACHE_PREFIX = 'pcm_p_';
 
     function isJsDelivrUrl(url) { return typeof url === 'string' && url.includes('cdn.jsdelivr.net'); }
+    // 自家 repo 的 Pages 鏡像也視為「CDN 來源」——primary 落在這兩者之一時才啟用本地快取當
+    // 最後防線；純粹直打 raw 時不需要，因為 raw 本身就是即時來源，沒有「CDN 快取延遲」要救。
+    function isOwnPagesUrl(url) { return typeof url === 'string' && url.includes('awdrrawd.github.io/liko-Plugin-Repository'); }
+    const OWN_REPO_RAW_PREFIX   = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/";
+    const OWN_REPO_PAGES_PREFIX = "https://awdrrawd.github.io/liko-Plugin-Repository/";
 
     function getCachedPluginCode(id) {
         try {
@@ -350,34 +356,8 @@
     let remoteVersion = MOD_VER, remoteUpdateId = null;
     let remoteChangelogTW = [], remoteChangelogEN = [];
 
-    // 自動重試上限：避免清單一直抓不到時，每次切換畫面都重打一次網路，造成效能衰減。
-    // 達到上限後就放棄自動重試，直到玩家手動按「刷新」才重新計次、再試一輪。
-    const PLUGINS_FETCH_MAX_RETRIES = 3;
-    let _pluginsFetchRetryCount = 0;
-    let _pluginsFetchGaveUp = false;
-
-    async function ensurePluginsLoaded() {
-        if (pluginsLoaded) return true;
-        if (_pluginsFetchGaveUp) return false; // 已達重試上限，不再自動嘗試
-
-        const cached = getCachedJSON();
-        if (cached && validateJSON(cached)) { processPluginData(cached, true); return true; }
-
-        if (_pluginsFetchRetryCount >= PLUGINS_FETCH_MAX_RETRIES) {
-            _pluginsFetchGaveUp = true;
-            return false;
-        }
-        _pluginsFetchRetryCount++;
-
-        const data = await fetchJSONFromNetwork();
-        if (data) { processPluginData(data, false); return true; }
-
-        if (_pluginsFetchRetryCount >= PLUGINS_FETCH_MAX_RETRIES) {
-            _pluginsFetchGaveUp = true;
-            console.warn(`🐈‍⬛ [PCM] ⚠️ Plugins.json 已重試 ${PLUGINS_FETCH_MAX_RETRIES} 次仍失敗，停止自動重試，等待手動刷新`);
-        }
-        return false;
-    }
+    let _resolvePluginsReady;
+    const pluginsReady = new Promise(r => { _resolvePluginsReady = r; });
 
     function validateJSON(data) { return data && Array.isArray(data.plugins) && data.plugins.length > 0; }
 
@@ -391,7 +371,7 @@
         });
     }
 
-    function processPluginData(data, fromCache = false) {
+    function processPluginData(data) {
         remoteVersion    = data.version  || MOD_VER;
         remoteUpdateId   = data.updateId || null;
         remoteChangelogTW = data.changelog    || [];
@@ -399,7 +379,7 @@
         subPlugins = applyPluginSettings(data.plugins);
         subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
         pluginsLoaded = true;
-        console.log(`🐈‍⬛ [PCM] 📦 ${subPlugins.length} plugins ${fromCache ? 'loaded (cache)' : 'loaded'}`);
+        console.log(`🐈‍⬛ [PCM] 📦 ${subPlugins.length} plugins loaded`);
     }
 
     async function fetchJSONFromNetwork() {
@@ -417,33 +397,27 @@
         return null;
     }
 
-async function initPlugins() {
-    const cached = getCachedJSON();
-    if (cached && validateJSON(cached)) processPluginData(cached, true);
-
-    const wasLoaded = pluginsLoaded;
-
-    if (_pluginsFetchGaveUp) {
-        if (!pluginsLoaded) showNotification("❌", "PCM", t('loadPluginsFailed'));
-        return;
-    }
-    _pluginsFetchRetryCount++;
-
-    const data = await fetchJSONFromNetwork();
-    if (data) {
-        processPluginData(data, false);
-        refreshPluginListUI();
-        if (wasLoaded && checkVersionUpdate()) {
-            setTimeout(() => { showChangelogModal(); showNotification("✨", t('newVersionTitle'), `v${remoteVersion} — ${t('newVersionHint')}`); }, 2000);
+    async function initPlugins() {
+        const cached = getCachedJSON();
+        if (cached && validateJSON(cached)) {
+            processPluginData(cached);
+            _resolvePluginsReady(true);
         }
-    } else {
-        if (_pluginsFetchRetryCount >= PLUGINS_FETCH_MAX_RETRIES) {
-            _pluginsFetchGaveUp = true;
-            console.warn(`🐈‍⬛ [PCM] ⚠️ Plugins.json 已重試 ${PLUGINS_FETCH_MAX_RETRIES} 次仍失敗，停止自動重試，等待手動刷新`);
+
+        const data = await fetchJSONFromNetwork();
+        if (data) {
+            const wasLoaded = pluginsLoaded;
+            processPluginData(data);
+            if (!wasLoaded) _resolvePluginsReady(true);
+            refreshPluginListUI();
+            if (checkVersionUpdate()) {
+                setTimeout(() => { showChangelogModal(); showNotification("✨", t('newVersionTitle'), `v${remoteVersion} — ${t('newVersionHint')}`); }, 2000);
+            }
+        } else if (!pluginsLoaded) {
+            showNotification("❌", "PCM", t('loadPluginsFailed'));
+            _resolvePluginsReady(false);
         }
-        if (!pluginsLoaded) showNotification("❌", "PCM", t('loadPluginsFailed'));
     }
-}
 
     // === 強制刷新（清除所有快取並重新下載）=========================
 
@@ -467,21 +441,9 @@ async function initPlugins() {
             keysToRemove.forEach(k => localStorage.removeItem(k));
         } catch(e) {}
 
-        // 手動刷新視為玩家主動意願，重置自動重試的計數與放棄旗標，讓它重新有機會
-        _pluginsFetchRetryCount = 0;
-        _pluginsFetchGaveUp = false;
         const data = await fetchJSONFromNetwork();
-                if (data) {
-            processPluginData(data, false);
-            refreshPluginListUI();
-            showNotification("✅", t('refreshTitle'), t('refreshDone'));
-            // 補上：把因為之前抓不到清單而沒能載入的已啟用插件，這次一併載入，不用等玩家逐一手動切換開關
-            localLoadStarted = false; accountLoadStarted = false;
-            loadLocalPluginsPhase();
-            loadAccountPluginsPhase();
-        } else {
-            showNotification("⚠️", t('refreshTitle'), t('refreshFailed'));
-        }
+        if (data) { processPluginData(data); refreshPluginListUI(); showNotification("✅", t('refreshTitle'), t('refreshDone')); }
+        else showNotification("⚠️", t('refreshTitle'), t('refreshFailed'));
         btn?.classList.remove('spinning');
         isRefreshing = false;
     }
@@ -613,7 +575,18 @@ async function initPlugins() {
 
     function buildFetchUrls(url) {
         if (!url) return [];
-        // jsDelivr 優先、raw 當後備 —— 每個子插件都先打 raw 會在 EBC 觸發 429（見 _DEP_BASES 註解）。
+        // 自家 repo（liko-Plugin-Repository）host 的檔案：Pages 優先（push 後幾乎即時生效、
+        // 不易觸發限流）、raw 備援、jsDelivr 最後保底（可能有數小時甚至隔天的快取延遲）。
+        // 帶時間戳是為了確保每次都真的問到 Pages 的最新版本，不會被瀏覽器快取卡住；Pages
+        // 對這種每次不同 query string 的請求量還算耐操，不像 raw 那樣容易被判定為濫用。
+        if (url.startsWith(OWN_REPO_RAW_PREFIX)) {
+            const rel = url.slice(OWN_REPO_RAW_PREFIX.length);
+            const pages = `${OWN_REPO_PAGES_PREFIX}${rel}${rel.includes('?') ? '&' : '?'}timestamp=${Date.now()}`;
+            const cdn   = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${rel}`;
+            return [pages, url, cdn];
+        }
+        // 外部作者的 repo：沒有對應的 Pages 網域可以自動推導，維持原本 jsDelivr 優先、raw 備援。
+        // jsDelivr 優先 —— 每個子插件都先打 raw 會在 EBC 觸發 429（見 _DEP_BASES 註解）。
         const cdn = url.replace(/^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/, "https://cdn.jsdelivr.net/gh/$1/$2@$3/$4");
         return cdn !== url ? [cdn, url] : [url];
     }
@@ -735,7 +708,7 @@ async function initPlugins() {
 
         const urls    = buildAllFetchUrls(rawUrl, plugin.mirrorUrl);
         const primary = urls[0];
-        const useCache = isJsDelivrUrl(primary);
+        const useCache = isJsDelivrUrl(primary) || isOwnPagesUrl(primary);
         const oldCache = useCache ? getCachedPluginCode(plugin.id) : null; // 先留著當救援，成功前絕不覆蓋
 
         const code = await tryFetch(urls);
@@ -802,7 +775,7 @@ async function initPlugins() {
 
     async function loadLocalPluginsPhase() {
         if (localLoadStarted) return; localLoadStarted = true;
-        if (!(await ensurePluginsLoaded())) { localLoadStarted = false; return; }
+        await pluginsReady; if (!pluginsLoaded) { localLoadStarted = false; return; }
         let w = 0; while (typeof Player === 'undefined' && w < 15 * 60000) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); w += 1000; }
         if (typeof Player === 'undefined' || _lifecycle.unloaded) { localLoadStarted = false; return; }
         await runPluginBatch(subPlugins.filter(p => isPluginEnabled(p)));
@@ -810,7 +783,7 @@ async function initPlugins() {
 
     async function loadAccountPluginsPhase() {
         if (accountLoadStarted) return; accountLoadStarted = true;
-        if (!(await ensurePluginsLoaded())) { accountLoadStarted = false; return; }
+        await pluginsReady; if (!pluginsLoaded) { accountLoadStarted = false; return; }
         let w = 0; while (!Player?.AccountName && w < 15 * 60000) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); w += 1000; }
         if (!Player?.AccountName || _lifecycle.unloaded) { accountLoadStarted = false; return; }
         accountPluginSettings = loadAccountSettings();
@@ -1215,8 +1188,6 @@ async function initPlugins() {
             customPlugins = customPlugins.filter(p => p.id !== pluginId);
             saveCustomPlugins();
             loadedPlugins.delete(pluginId);
-            failedPlugins.delete(pluginId);
-            for (const [key, id] of _pluginSourceRegistry) { if (id === pluginId) _pluginSourceRegistry.delete(key); }
             const container = document.getElementById('bc-plugin-content-custom');
             if (container) buildCustomContent(container);
             applyFilter();
@@ -1804,8 +1775,7 @@ async function initPlugins() {
         registerPreferencePage();
 
         if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
-            delete window.Liko.PCM;
-            _lifecycle.unloaded = true;
+            _lifecycle.unloaded = true; // #5：讓 registerWhenReady / registerPCMBadge 的輪詢鏈停止重排
             _lifecycle.intervals.forEach(id => clearInterval(id));
             _lifecycle.intervals.length = 0;
             if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
