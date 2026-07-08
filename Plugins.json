@@ -1,27 +1,16 @@
 {
-  "updateId": "260706",
+  "updateId": "260707",
   "changelog": [
-    "⭐HSC - 催眠奴隸俱樂部 更新",
-    "現在已經上傳FUSAM，對非PCM用戶也能引導安裝",
-    "現在催眠狀態解除機制從降低催眠值改成時間控制，輕時間更為明確",
     "⭐AEE - 外觀編輯器 更新",
-    "重寫颜色吸管工具，避免原EyeDropper使用時卡死問題",
+    "新增部位篩選功能，快速篩選有穿服裝跟沒穿服裝的部位",
     "⭐FCM - 朋友與房間管理 更新",
-    "新增profile關係人快速查閱功能(需啟用設定)，須配合profile紀錄才有用，並且支援AFC戀人查詢",
-    "修改修改保存邏輯，現在會在本地保存一份避免關係丟失",
-    "AEE、AFC、HSC、FCM皆移動到獨立倉庫，有任何問題PCM或新倉庫都能回報",
-    "最近插件修改翻譯邏輯，部份使用環境會看到PCM是英文，但插件清單是中文，這是正常現象，但預計未來修復"
+    "現在profile關係人快速查閱功能支援染色功能(包含無色)"
   ],
   "en_changelog": [
-    "⭐HSC - Hypnotic Slave Club Update",
-    "Now on FUSAM — guides non-PCM users through installation.",
-    "Hypnosis release changed from value-based to time-based for clearer duration.",
     "⭐AEE - Appearance editing extension Update",
-    "Rewrote eyedropper tool to fix freezing issue.",
+    "Added part filtering: quickly filter clothed and unclothed parts",
     "⭐FCM - Friends and ChatRoom Manager Update",
-    "Added profile relationship quick-lookup (requires settings toggle). Works with profile records and supports AFC lover queries.",
-    "Save logic improved — local backup added to prevent data loss.",
-    "AEE, AFC, HSC, FCM moved to independent repos. Report issues via PCM or new repos."
+    "Profile contact quick lookup now supports color highlighting (including colorless)"
   ],
   "plugins": [
     {
@@ -246,7 +235,7 @@
       "icon": "🪄",
       "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Prank.main.user.js",
       "priority": 5,
-      "version": "1.6.6"
+      "version": "1.6.7"
     },
     {
       "id": "Liko-NOI",
