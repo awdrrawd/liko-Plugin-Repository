@@ -24,7 +24,7 @@
     // 時的最後一道防線，所以只有在新版成功執行後才會覆蓋掉它，絕不會因為舊檔還沒過期就搶著先用。
     const MAIN_REL       = "Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
     const MAIN_URLS      = [
-        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/" + MAIN_REL,
+        //"https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/" + MAIN_REL,
         "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/" + MAIN_REL,
     ];
     const MAIN_CACHE_KEY = "pcm_main_cache";

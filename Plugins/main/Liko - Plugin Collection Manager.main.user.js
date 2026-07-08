@@ -20,42 +20,16 @@
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
 
-    // ===== TEMP DIAG（EBC i18n 偵錯，確認後移除）=========================
-    // 監視 window.Liko.__Sys_i18n__ 被指派幾次、被哪個版本換掉、換掉時舊引擎是否已有 PCM 字串。
-    // 若看到 SET #2 且 prevHasPCM=true → 證實：PCM 註冊進舊引擎後，被另一支（如 AFC/EBC 的
-    // Translation/Liko-i18n.js）不同版本的引擎覆寫掉，新引擎是空的 → t('PCM',...) 讀不到。
-    (function _pcmI18nDiag(){
-        try {
-            const L = window.Liko;
-            let _e = L.__Sys_i18n__;
-            let _seq = _e ? 1 : 0;
-            const log = (...a) => console.log('🐈‍⬛ [PCM][diag]', ...a);
-            if (_e) log(`__Sys_i18n__ 已存在 ver=${_e?.version} hasPCM=${_e?.has?.('PCM','tabLocal')}`);
-            try {
-                Object.defineProperty(L, '__Sys_i18n__', {
-                    configurable: true,
-                    get() { return _e; },
-                    set(v) {
-                        _seq++;
-                        log(`__Sys_i18n__ SET #${_seq} newVer=${v?.version} prevVer=${_e?.version} prevHasPCM=${_e?.has?.('PCM','tabLocal')}`);
-                        _e = v;
-                    },
-                });
-            } catch(err) { log('defineProperty 失敗:', err.message); }
-            let ticks = 0;
-            const id = setInterval(() => {
-                ticks++;
-                const e = L.__Sys_i18n__;
-                log(`t+${ticks}s lang=${e?.detectLang?.()} hasPCM/tabLocal=${e?.has?.('PCM','tabLocal')} ver=${e?.version} sets=${_seq}`);
-                if (ticks >= 12) clearInterval(id);
-            }, 1000);
-        } catch(e) {}
-    })();
-    // ===== /TEMP DIAG ===================================================
-
     let modApi;
     let isInitialized = false;
-    const _lifecycle = { intervals: [], mousemoveHandler: null };
+    // unloaded: 讓所有遞迴 setTimeout 輪詢鏈（registerWhenReady / registerPCMBadge 的 wait 等）
+    // 在 mod 被卸載後知道要停止，避免卸載後仍在背景無限重排 timer。
+    const _lifecycle = { intervals: [], mousemoveHandler: null, unloaded: false };
+
+    // === 簡易 HTML escape（防止插件名稱/描述/連結等被當成 HTML 注入，見 innerHTML 使用處）====
+    function escapeHtml(str) {
+        return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
 
     // === i18n ===================================================
     
@@ -124,9 +98,9 @@
         (function registerWhenReady(tries) {
             if (window.Liko.__Sys_i18n__?.register) {
                 window.Liko.__Sys_i18n__.register('PCM', _enStrings);
-                console.log(`🐈‍⬛ [PCM][diag] registerI18n → register EN 完成，engine ver=${window.Liko.__Sys_i18n__?.version} hasPCM/tabLocal=${window.Liko.__Sys_i18n__?.has?.('PCM','tabLocal')}`); // TEMP DIAG
                 return;
             }
+            if (_lifecycle.unloaded) return; // mod 已卸載，停止輪詢鏈（#5 生命週期修正）
             if ((tries ?? 0) > 100) {
                 console.warn('🐈‍⬛ [PCM] ⚠️ __Sys_i18n__ never became available, EN fallback not registered');
                 return;
@@ -159,6 +133,7 @@
         if (typeof Player !== 'undefined' && Player?.AccountName) doSetup();
         else {
             const id = setInterval(() => { if (typeof Player !== 'undefined' && Player?.AccountName) { clearInterval(id); doSetup(); } }, 500);
+            _lifecycle.intervals.push(id); // #5 納入生命週期管理，卸載時一併清除
         }
     }
 
@@ -288,12 +263,14 @@
 
     function registerPCMBadge() {
         const wait = () => {
+            if (_lifecycle.unloaded) return; // #5 mod 已卸載，停止輪詢鏈
             if (!modApi?.hookFunction || typeof ServerSocket === 'undefined' || !ServerSocket) { setTimeout(wait, 500); return; }
             initializePCMBadgeImage(); setupHoverTracking(); cleanupLegacyOnlineSettings(); hookCharacterDrawing();
             bindPCMSocketListener();
             // 載入時若已在房內（不會再有 ChatRoomSync/MemberJoin 觸發），廣播一發並要求回覆讓在場所有人回應自己
             sendPCMInitialization(true);
             if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
+                _lifecycle.unloaded = true; // #5：讓其餘輪詢鏈（i18n 註冊、本函式自己的 wait）知道要停止
                 try { ServerSocket.off("ChatRoomMessage", parsePCMMessage); } catch(e) {}
                 if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
                 hoveredCharacters.clear(); characterDrawPositions.clear();
@@ -484,7 +461,13 @@
 
     function checkVersionUpdate() {
         const saved = pluginSettings['_pcm_updateId'];
-        if (remoteUpdateId && saved !== remoteUpdateId) { pluginSettings['_pcm_updateId'] = remoteUpdateId; saveSettings(pluginSettings); return true; }
+        if (remoteUpdateId && saved !== remoteUpdateId) {
+            pluginSettings['_pcm_updateId'] = remoteUpdateId;
+            saveSettings(pluginSettings);
+            // #4：saved === undefined 代表這是全新安裝（本地從未記錄過任何 updateId），
+            // 不是「從舊版更新上來」，不該跳出 changelog / "PCM Updated" 通知。
+            return saved !== undefined;
+        }
         return false;
     }
 
@@ -518,12 +501,29 @@
     let loadedPlugins = new Set(), failedPlugins = new Set();
     let isLoadingPlugins = false, localLoadStarted = false, accountLoadStarted = false, customLoadStarted = false;
 
+    // #3 修正：舊版把插件程式碼包在內層 try/catch 裡吞掉所有執行期錯誤（console.error 後就結束），
+    // 導致 loadSubPlugin 外層的 try/catch 永遠捕捉不到「新版執行失敗」，「退回舊版快取救援」形同虛設。
+    // 這裡改成：不在內部吞錯誤，讓它自然拋出；同時用一個僅在本次同步注入期間存在的 window 'error'
+    // 監聽器攔截這個錯誤（<script> 標籤同步執行時拋出的例外會先變成 window 的 error 事件，
+    // 不會直接被 appendChild 呼叫端的 try/catch 捕捉到，所以必須用這種方式攔截）。
+    // 加上 //# sourceURL 方便在 DevTools 的 Sources 面板中依插件 id 辨識來源、設中斷點除錯。
     function injectScript(id, code) {
         if (code.trimStart().startsWith('<')) throw new Error('Received HTML instead of JS');
-        const s = document.createElement('script');
-        s.setAttribute('data-plugin', id);
-        s.textContent = `(function(){try{${code}}catch(e){console.error('🐈‍⬛ [PCM] plugin error (${id}):', e.message);}})();`;
-        document.body.appendChild(s);
+        let caught = null;
+        const onWindowError = (ev) => { if (caught === null) caught = ev.error || new Error(ev.message || 'plugin execution error'); };
+        window.addEventListener('error', onWindowError);
+        try {
+            const s = document.createElement('script');
+            s.setAttribute('data-plugin', id);
+            s.textContent = `${code}\n//# sourceURL=pcm-plugin-${id}.js`;
+            document.body.appendChild(s);
+        } finally {
+            window.removeEventListener('error', onWindowError);
+        }
+        if (caught) {
+            console.error(`🐈‍⬛ [PCM] plugin error (${id}):`, caught.message);
+            throw caught;
+        }
     }
 
     async function tryFetch(urls) {
@@ -568,7 +568,27 @@
     async function tryImportModule(urls) {
         for (const url of urls) {
             try { await import(withCacheBuster(url)); return true; }
-            catch(e) { console.warn(`🐈‍⬛ [PCM] ⚠️ ${url}: ${e.message}`); }
+            catch(e) {
+                console.warn(`🐈‍⬛ [PCM] ⚠️ ${url} (direct import): ${e.message}`);
+                // #7 後備方案：部分 CDN/來源對 .js 回傳的 Content-Type 不是嚴格的
+                // text/javascript 或 application/javascript，瀏覽器對 dynamic import() 的
+                // MIME 檢查比 <script src> 嚴格，會直接拒絕載入。改成自己 fetch 原始碼文字，
+                // 用正確 MIME type 包成 Blob URL 再 import，繞開來源端宣告錯誤的 Content-Type。
+                let blobUrl;
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const code = await res.text();
+                    if (!code || code.trimStart().startsWith('<')) throw new Error('Invalid content');
+                    blobUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+                    await import(blobUrl);
+                    return true;
+                } catch(e2) {
+                    console.warn(`🐈‍⬛ [PCM] ⚠️ ${url} (blob import): ${e2.message}`);
+                } finally {
+                    if (blobUrl) URL.revokeObjectURL(blobUrl);
+                }
+            }
         }
         return false;
     }
@@ -798,8 +818,8 @@
         const box = document.createElement("div");
         box.style.cssText = "background:rgba(26,32,46,0.98);border:1px solid rgba(127,83,205,0.4);border-radius:16px;padding:24px;max-width:340px;width:90%;box-shadow:0 20px 40px rgba(0,0,0,0.4);font-family:'Noto Sans TC',sans-serif;color:#fff;";
         const log = isCJK() ? (remoteChangelogTW.length ? remoteChangelogTW : remoteChangelogEN) : (remoteChangelogEN.length ? remoteChangelogEN : remoteChangelogTW);
-        const items = (log.length ? log : ["..."]).map(c => `<li style="margin:6px 0;font-size:13px;color:#d4c8f5;">${c}</li>`).join('');
-        box.innerHTML = `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">${t('changelogTitle')}</div><div style="font-size:12px;color:#a0a9c0;margin-bottom:16px;">v${remoteVersion}</div><ul style="padding-left:18px;margin:0 0 20px;list-style:disc;">${items}</ul><button id="pcm-cl-close" style="width:100%;padding:10px;border:none;border-radius:10px;background:linear-gradient(135deg,#7F53CD,#A78BFA);color:#fff;font-size:14px;cursor:pointer;font-family:inherit;">${t('changelogClose')}</button>`;
+        const items = (log.length ? log : ["..."]).map(c => `<li style="margin:6px 0;font-size:13px;color:#d4c8f5;">${escapeHtml(c)}</li>`).join('');
+        box.innerHTML = `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">${escapeHtml(t('changelogTitle'))}</div><div style="font-size:12px;color:#a0a9c0;margin-bottom:16px;">v${escapeHtml(remoteVersion)}</div><ul style="padding-left:18px;margin:0 0 20px;list-style:disc;">${items}</ul><button id="pcm-cl-close" style="width:100%;padding:10px;border:none;border-radius:10px;background:linear-gradient(135deg,#7F53CD,#A78BFA);color:#fff;font-size:14px;cursor:pointer;font-family:inherit;">${escapeHtml(t('changelogClose'))}</button>`;
         overlay.appendChild(box); document.body.appendChild(overlay);
         document.getElementById("pcm-cl-close").addEventListener("click", () => overlay.remove());
         overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
@@ -941,19 +961,23 @@
         item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}${failedPlugins.has(plugin.id) ? ' failed' : ''}`;
         item.setAttribute('data-plugin-id', plugin.id);
 
-        const iconHtml = plugin.customIcon
-            ? `<img src="${plugin.customIcon}" alt="" />`
-            : (plugin.icon?.startsWith('http') ? `<img src="${plugin.icon}" alt="" />` : (plugin.icon || '🔌'));
+        // #1 XSS 修正：icon/website 只接受 https 開頭的網址（拒絕 javascript: 等危險 scheme），
+        // 且插入屬性前一律 escapeHtml；純文字 emoji/icon 一樣 escape 後再放進 innerHTML。
+        const isHttpsUrl = (u) => typeof u === 'string' && /^https:\/\//i.test(u);
+        const iconUrl = isHttpsUrl(plugin.customIcon) ? plugin.customIcon : (isHttpsUrl(plugin.icon) ? plugin.icon : null);
+        const iconHtml = iconUrl
+            ? `<img src="${escapeHtml(iconUrl)}" alt="" />`
+            : escapeHtml(plugin.icon || '🔌');
 
-        const infoBtnHtml = plugin.website
-            ? `<a class="bc-plugin-info-btn" href="${plugin.website}" target="_blank" rel="noopener noreferrer" title="${t('visitWebsite')}"></a>`
+        const infoBtnHtml = isHttpsUrl(plugin.website)
+            ? `<a class="bc-plugin-info-btn" href="${escapeHtml(plugin.website)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t('visitWebsite'))}"></a>`
             : '';
 
         const toggleHtml = isTri
-            ? (() => { const labels = getTriLabels(plugin); return `<button class="bc-plugin-toggle-tri" data-plugin-tri="${plugin.id}" data-source="${source}" data-state="${currentState}"><div class="bc-plugin-toggle-tri-track"></div><div class="bc-plugin-toggle-tri-labels"><span class="bc-plugin-toggle-tri-label">${labels[0]}</span><span class="bc-plugin-toggle-tri-label">${labels[1]}</span><span class="bc-plugin-toggle-tri-label">${labels[2]}</span></div></button>`; })()
+            ? (() => { const labels = getTriLabels(plugin); return `<button class="bc-plugin-toggle-tri" data-plugin-tri="${plugin.id}" data-source="${source}" data-state="${currentState}"><div class="bc-plugin-toggle-tri-track"></div><div class="bc-plugin-toggle-tri-labels"><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[0])}</span><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[1])}</span><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[2])}</span></div></button>`; })()
             : `<button class="bc-plugin-toggle${isEnabled ? ' active' : ''}" data-plugin="${plugin.id}" data-source="${source}"></button>`;
 
-        item.innerHTML = `${infoBtnHtml}<div class="bc-plugin-item-header"><div class="bc-plugin-icon">${iconHtml}</div><div class="bc-plugin-info"><h4 class="bc-plugin-name">${getPluginName(plugin)}</h4><p class="bc-plugin-desc">${getPluginDescription(plugin)}</p></div>${toggleHtml}</div>`;
+        item.innerHTML = `${infoBtnHtml}<div class="bc-plugin-item-header"><div class="bc-plugin-icon">${iconHtml}</div><div class="bc-plugin-info"><h4 class="bc-plugin-name">${escapeHtml(getPluginName(plugin))}</h4><p class="bc-plugin-desc">${escapeHtml(getPluginDescription(plugin))}</p></div>${toggleHtml}</div>`;
 
         if (failedPlugins.has(plugin.id)) showPluginRetryBtn(plugin.id); // re-attach if rebuilding
 
@@ -1088,10 +1112,10 @@
         const box = document.createElement('div');
         box.style.cssText = 'background:rgba(26,32,46,0.98);border:1px solid rgba(255,80,80,0.3);border-radius:14px;padding:20px;width:280px;max-width:90vw;font-family:\'Noto Sans TC\',sans-serif;color:#fff;text-align:center;';
         box.innerHTML = `
-            <div style="font-size:14px;margin-bottom:16px;line-height:1.5;">${t('customDeleteConfirm', { name: plugin.name })}</div>
+            <div style="font-size:14px;margin-bottom:16px;line-height:1.5;">${escapeHtml(t('customDeleteConfirm', { name: plugin.name }))}</div>
             <div style="display:flex;gap:8px;">
-                <button id="pcm-del-no"  style="flex:1;padding:9px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:#a0a9c0;font-size:13px;cursor:pointer;font-family:inherit;">${t('customBtnCancel')}</button>
-                <button id="pcm-del-yes" style="flex:1;padding:9px;border:none;border-radius:8px;background:rgba(200,50,50,0.7);color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">${t('customDeleteYes')}</button>
+                <button id="pcm-del-no"  style="flex:1;padding:9px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:#a0a9c0;font-size:13px;cursor:pointer;font-family:inherit;">${escapeHtml(t('customBtnCancel'))}</button>
+                <button id="pcm-del-yes" style="flex:1;padding:9px;border:none;border-radius:8px;background:rgba(200,50,50,0.7);color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">${escapeHtml(t('customDeleteYes'))}</button>
             </div>
         `;
         overlay.appendChild(box); document.body.appendChild(overlay);
@@ -1456,7 +1480,7 @@
         else { notif = document.createElement("div"); notif.id = "pcm-toggle-notif"; notif.className = "bc-liko-toggle-notification"; document.body.appendChild(notif); }
         const panel = document.getElementById("bc-plugin-panel");
         if (panel) { const r = panel.getBoundingClientRect(); notif.style.top = (r.bottom + 3) + "px"; notif.style.width = panel.clientWidth + "px"; notif.style.left = r.left + "px"; notif.style.right = "auto"; }
-        notif.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:2px;"><span style="font-size:16px;margin-right:7px;">${icon}</span><strong style="font-size:12px;">${title}</strong></div><div style="font-size:11px;opacity:.88;">${message}</div>`;
+        notif.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:2px;"><span style="font-size:16px;margin-right:7px;">${escapeHtml(icon)}</span><strong style="font-size:12px;">${escapeHtml(title)}</strong></div><div style="font-size:11px;opacity:.88;">${escapeHtml(message)}</div>`;
         requestAnimationFrame(() => requestAnimationFrame(() => notif.classList.add('show')));
         toggleNotifTimer = setTimeout(() => { notif.classList.remove('show'); notif.classList.add('hide'); setTimeout(() => notif?.parentNode?.removeChild(notif), 350); }, 2500);
     }
@@ -1472,7 +1496,7 @@
         const notif = document.createElement("div");
         notif.id = "pcm-system-notif";
         notif.className = "bc-liko-system-notification";
-        notif.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:2px;"><span style="font-size:16px;margin-right:7px;">${icon}</span><strong style="font-size:12px;">${title}</strong></div><div style="font-size:11px;opacity:.85;">${message}</div>`;
+        notif.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:2px;"><span style="font-size:16px;margin-right:7px;">${escapeHtml(icon)}</span><strong style="font-size:12px;">${escapeHtml(title)}</strong></div><div style="font-size:11px;opacity:.85;">${escapeHtml(message)}</div>`;
         document.body.appendChild(notif);
         notif.addEventListener('click', () => { notif.classList.remove('show'); notif.classList.add('hide'); clearTimeout(systemNotifTimer); setTimeout(() => notif?.parentNode?.removeChild(notif), 400); });
         requestAnimationFrame(() => requestAnimationFrame(() => notif.classList.add('show')));
@@ -1680,6 +1704,7 @@
         registerPreferencePage();
 
         if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
+            _lifecycle.unloaded = true; // #5：讓 registerWhenReady / registerPCMBadge 的輪詢鏈停止重排
             _lifecycle.intervals.forEach(id => clearInterval(id));
             _lifecycle.intervals.length = 0;
             if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
