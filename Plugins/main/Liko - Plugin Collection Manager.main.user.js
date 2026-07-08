@@ -471,10 +471,6 @@
         return false;
     }
 
-    function parseGameVersion(v) { const m = String(v || '').match(/R?(\d+)/i); return m ? parseInt(m[1], 10) : 0; }
-    function getCurrentGameVersion() { try { return typeof GameVersion !== 'undefined' ? parseGameVersion(GameVersion) : 0; } catch(e) { return 0; } }
-    function isPluginSkippedByVersion(plugin) { if (!plugin.autoDisableAfterVersion) return false; const v = getCurrentGameVersion(); return v > 0 && v > parseGameVersion(plugin.autoDisableAfterVersion); }
-
     // === 三段開關輔助 ============================================
 
     function isTriStatePlugin(p) { return !!p.altUrl; }
@@ -507,6 +503,36 @@
     // 監聽器攔截這個錯誤（<script> 標籤同步執行時拋出的例外會先變成 window 的 error 事件，
     // 不會直接被 appendChild 呼叫端的 try/catch 捕捉到，所以必須用這種方式攔截）。
     // 加上 //# sourceURL 方便在 DevTools 的 Sources 面板中依插件 id 辨識來源、設中斷點除錯。
+
+    // === 插件執行期錯誤歸因（best-effort：比對 sourceURL / 實際載入 URL，比對不到就不計入）====
+    // 各種載入方式成功後，把「可辨識字串」（eval 的 sourceURL、scr/mod 實際打的 URL、mod 走 blob
+    // fallback 時自行加註的 sourceURL）登記進來；之後不限時間點觸發的 window error /
+    // unhandledrejection，只要訊息或堆疊含有這個字串，就回推是哪個插件，方便診斷「晚發」的執行期錯誤
+    // （injectScript 內的 window 'error' 監聽器只能抓到注入當下的同步錯誤，抓不到之後才發生的）。
+    const _pluginSourceRegistry = new Map(); // key: 可辨識字串 -> plugin id
+    function registerPluginSource(id, ...keys) {
+        keys.filter(Boolean).forEach(k => _pluginSourceRegistry.set(k, id));
+    }
+    function _findPluginIdBySource(str) {
+        if (!str) return null;
+        for (const [key, id] of _pluginSourceRegistry) { if (str.includes(key)) return id; }
+        return null;
+    }
+    function _handlePluginRuntimeError(id, err) {
+        // 只記錄、不強制標記失敗 —— 插件初次載入已經成功過，晚發的執行期錯誤不代表整支不能用，
+        // 是否要用 ↺ 手動重試交由使用者自己判斷。
+        const plugin = subPlugins.find(p => p.id === id) || customPlugins.find(p => p.id === id);
+        console.error(`🐈‍⬛ [PCM] ⚠️ 插件執行期錯誤 [${plugin ? getPluginName(plugin) : id}]:`, err?.message || err);
+    }
+    const _onPluginWindowError = (ev) => {
+        try { const id = _findPluginIdBySource(ev.filename || ev.error?.stack || ''); if (id) _handlePluginRuntimeError(id, ev.error || ev.message); } catch(e) {}
+    };
+    const _onPluginUnhandledRejection = (ev) => {
+        try { const id = _findPluginIdBySource(ev.reason?.stack || String(ev.reason || '')); if (id) _handlePluginRuntimeError(id, ev.reason); } catch(e) {}
+    };
+    window.addEventListener('error', _onPluginWindowError);
+    window.addEventListener('unhandledrejection', _onPluginUnhandledRejection);
+
     function injectScript(id, code) {
         if (code.trimStart().startsWith('<')) throw new Error('Received HTML instead of JS');
         let caught = null;
@@ -524,6 +550,7 @@
             console.error(`🐈‍⬛ [PCM] plugin error (${id}):`, caught.message);
             throw caught;
         }
+        registerPluginSource(id, `pcm-plugin-${id}.js`);
     }
 
     async function tryFetch(urls) {
@@ -546,6 +573,16 @@
         return cdn !== url ? [cdn, url] : [url];
     }
 
+    // 部分插件的主要網址是 GitHub Pages（例如 xxx.github.io/...），不符合上面的 raw.githubusercontent
+    // 規則、無法自動推導 jsDelivr 鏡像；Plugins.json 可以額外填 mirrorUrl 提供一組完全獨立的備援來源
+    // （例如同一份程式碼另外 commit 進 repo 的 raw 路徑），失敗時接在原本候選清單後面再試一次。
+    // 沒填 mirrorUrl 就跟原本行為完全一樣，向後相容所有舊資料。
+    function buildAllFetchUrls(primaryUrl, mirrorUrl) {
+        const urls = buildFetchUrls(primaryUrl);
+        if (mirrorUrl) urls.push(...buildFetchUrls(mirrorUrl));
+        return urls;
+    }
+
     // === 載入方式（type）==========================================
     // 三種載入方式並列，透過 plugin.type 選擇；沒填視為 "eval"（現行預設，向後相容所有舊資料）：
     //   eval — fetch 拿到原始碼文字，用 <script> 塞文字執行（本質等同 eval，現行絕大多數子插件用這個）
@@ -560,14 +597,18 @@
         return (ty === 'mod' || ty === 'scr') ? ty : 'eval';
     }
 
-    function withCacheBuster(url) {
-        const sep = url.includes('?') ? '&' : '?';
-        return `${url}${sep}_pcmv=${Date.now()}`;
-    }
-
-    async function tryImportModule(urls) {
+    // #4 修正：原本每次 dynamic import 都加 `_pcmv=Date.now()` 破快取，跟本檔其他地方「同一 URL
+    // 重複利用、降低請求量、遠離 429」的設計方向相反 —— 對 jsDelivr 而言，帶著每次都不同的 query
+    // string 等於每次都是快取未命中，逼 jsDelivr edge 對 GitHub 原站重新拉取，量大時反而是造成
+    // 429 的來源之一，而不是防守手段。這裡拿掉破快取，跟 eval/scr 類型一樣信任瀏覽器與 CDN 快取；
+    // 真的需要強制拿最新版時（例如插件本體有更新），應該讓使用者重新整理頁面，而不是每次載入都繞開快取。
+    async function tryImportModule(urls, id) {
         for (const url of urls) {
-            try { await import(withCacheBuster(url)); return true; }
+            try {
+                await import(url);
+                registerPluginSource(id, url);
+                return true;
+            }
             catch(e) {
                 console.warn(`🐈‍⬛ [PCM] ⚠️ ${url} (direct import): ${e.message}`);
                 // #7 後備方案：部分 CDN/來源對 .js 回傳的 Content-Type 不是嚴格的
@@ -578,10 +619,13 @@
                 try {
                     const res = await fetch(url);
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    const code = await res.text();
+                    let code = await res.text();
                     if (!code || code.trimStart().startsWith('<')) throw new Error('Invalid content');
+                    const sourceTag = `liko-plugin://${id}`;
+                    code += `\n//# sourceURL=${sourceTag}`; // blob 沒有真實檔名，自行加註供錯誤歸因比對
                     blobUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
                     await import(blobUrl);
+                    registerPluginSource(id, url, sourceTag);
                     return true;
                 } catch(e2) {
                     console.warn(`🐈‍⬛ [PCM] ⚠️ ${url} (blob import): ${e2.message}`);
@@ -598,7 +642,7 @@
             const s = document.createElement('script');
             s.src = url;
             s.setAttribute('data-plugin', id);
-            s.onload  = () => resolve();
+            s.onload  = () => { registerPluginSource(id, url); resolve(); };
             s.onerror = () => reject(new Error('script load error'));
             document.body.appendChild(s);
         });
@@ -615,7 +659,6 @@
     async function loadSubPlugin(plugin, isCustom = false) {
         if (loadedPlugins.has(plugin.id)) return;
         if (!isCustom && !isPluginEnabledForLoading(plugin)) return;
-        if (!isCustom && isPluginSkippedByVersion(plugin)) { loadedPlugins.add(plugin.id); return; }
 
         if (!plugin.url && plugin.inlineCode) {
             try { injectScript(plugin.id, plugin.inlineCode); loadedPlugins.add(plugin.id); } catch(e) {}
@@ -630,9 +673,10 @@
         // 再用 <script> 重放；scr 因為本來就是要讓瀏覽器直接載，不自己 fetch 文字。快取交給瀏覽器
         // 自己的 HTTP cache 處理即可。
         if (loadType === 'mod' || loadType === 'scr') {
+            const urls = buildAllFetchUrls(rawUrl, plugin.mirrorUrl);
             const ok = loadType === 'mod'
-                ? await tryImportModule(buildFetchUrls(rawUrl))
-                : await tryLoadScriptTag(buildFetchUrls(rawUrl), plugin.id);
+                ? await tryImportModule(urls, plugin.id)
+                : await tryLoadScriptTag(urls, plugin.id);
             if (!ok) {
                 failedPlugins.add(plugin.id);
                 showPluginRetryBtn(plugin.id);
@@ -641,11 +685,10 @@
             }
             loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
             hidePluginRetryBtn(plugin.id);
-            console.log(`🐈‍⬛ [PCM] ✅ ${plugin.name} loaded (${loadType})`);
             return;
         }
 
-        const urls    = buildFetchUrls(rawUrl);
+        const urls    = buildAllFetchUrls(rawUrl, plugin.mirrorUrl);
         const primary = urls[0];
         const useCache = isJsDelivrUrl(primary);
         const oldCache = useCache ? getCachedPluginCode(plugin.id) : null; // 先留著當救援，成功前絕不覆蓋
@@ -656,7 +699,6 @@
                 injectScript(plugin.id, code);
                 loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
                 hidePluginRetryBtn(plugin.id);
-                console.log(`🐈‍⬛ [PCM] ✅ ${plugin.name} loaded`);
                 if (useCache) setCachedPluginCode(plugin.id, code); // 注入成功才覆蓋快取
                 return;
             } catch(e) {
@@ -716,16 +758,16 @@
     async function loadLocalPluginsPhase() {
         if (localLoadStarted) return; localLoadStarted = true;
         await pluginsReady; if (!pluginsLoaded) { localLoadStarted = false; return; }
-        let w = 0; while (typeof Player === 'undefined' && w < 15 * 60000) { await new Promise(r => setTimeout(r, 1000)); w += 1000; }
-        if (typeof Player === 'undefined') { localLoadStarted = false; return; }
+        let w = 0; while (typeof Player === 'undefined' && w < 15 * 60000) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); w += 1000; }
+        if (typeof Player === 'undefined' || _lifecycle.unloaded) { localLoadStarted = false; return; }
         await runPluginBatch(subPlugins.filter(p => isPluginEnabled(p)));
     }
 
     async function loadAccountPluginsPhase() {
         if (accountLoadStarted) return; accountLoadStarted = true;
         await pluginsReady; if (!pluginsLoaded) { accountLoadStarted = false; return; }
-        let w = 0; while (!Player?.AccountName && w < 15 * 60000) { await new Promise(r => setTimeout(r, 1000)); w += 1000; }
-        if (!Player?.AccountName) { accountLoadStarted = false; return; }
+        let w = 0; while (!Player?.AccountName && w < 15 * 60000) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); w += 1000; }
+        if (!Player?.AccountName || _lifecycle.unloaded) { accountLoadStarted = false; return; }
         accountPluginSettings = loadAccountSettings();
         await runPluginBatch(subPlugins.filter(p => isPluginEnabledInAccount(p) && !loadedPlugins.has(p.id)));
     }
@@ -816,7 +858,7 @@
         overlay.id = "pcm-changelog-modal";
         overlay.style.cssText = "position:fixed;inset:0;z-index:2147483648;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;";
         const box = document.createElement("div");
-        box.style.cssText = "background:rgba(26,32,46,0.98);border:1px solid rgba(127,83,205,0.4);border-radius:16px;padding:24px;max-width:340px;width:90%;box-shadow:0 20px 40px rgba(0,0,0,0.4);font-family:'Noto Sans TC',sans-serif;color:#fff;";
+        box.style.cssText = "background:rgba(26,32,46,0.98);border:1px solid rgba(127,83,205,0.4);border-radius:16px;padding:24px;max-width:340px;width:90%;box-shadow:0 20px 40px rgba(0,0,0,0.4);font-family:'PingFang TC','Microsoft JhengHei','Noto Sans TC','Heiti TC',sans-serif;color:#fff;";
         const log = isCJK() ? (remoteChangelogTW.length ? remoteChangelogTW : remoteChangelogEN) : (remoteChangelogEN.length ? remoteChangelogEN : remoteChangelogTW);
         const items = (log.length ? log : ["..."]).map(c => `<li style="margin:6px 0;font-size:13px;color:#d4c8f5;">${escapeHtml(c)}</li>`).join('');
         box.innerHTML = `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">${escapeHtml(t('changelogTitle'))}</div><div style="font-size:12px;color:#a0a9c0;margin-bottom:16px;">v${escapeHtml(remoteVersion)}</div><ul style="padding-left:18px;margin:0 0 20px;list-style:disc;">${items}</ul><button id="pcm-cl-close" style="width:100%;padding:10px;border:none;border-radius:10px;background:linear-gradient(135deg,#7F53CD,#A78BFA);color:#fff;font-size:14px;cursor:pointer;font-family:inherit;">${escapeHtml(t('changelogClose'))}</button>`;
@@ -832,8 +874,7 @@
         const style = document.createElement("style");
         style.id = "bc-plugin-styles";
         style.textContent = `
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600&display=swap');
-        .bc-plugin-container *,.bc-plugin-panel *,.bc-plugin-btn-group * { font-family:'Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; user-select:none; -webkit-user-select:none; }
+        .bc-plugin-container *,.bc-plugin-panel *,.bc-plugin-btn-group * { font-family:'PingFang TC','Microsoft JhengHei','Noto Sans TC','Heiti TC',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; user-select:none; -webkit-user-select:none; }
 
         .bc-plugin-btn-group { position:fixed; top:60px; right:20px; display:flex; flex-direction:column; align-items:center; gap:8px; z-index:2147483647; touch-action:none; }
 
@@ -933,11 +974,11 @@
 
         .bc-plugin-account-locked { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; color:#a0a9c0; font-size:13px; text-align:center; line-height:1.8; white-space:pre-wrap; }
 
-        .bc-liko-toggle-notification { position:fixed; box-sizing:border-box; background:linear-gradient(135deg,#7F53CD 0%,#A78BFA 100%); color:#fff; padding:10px 14px; border-radius:10px; box-shadow:0 8px 20px rgba(127,83,205,0.25); z-index:2147483645; font-family:'Noto Sans TC',sans-serif; font-size:13px; transform:translateY(-6px); opacity:0; transition:transform .35s cubic-bezier(.34,1.4,.64,1),opacity .3s ease; pointer-events:none; user-select:none; }
+        .bc-liko-toggle-notification { position:fixed; box-sizing:border-box; background:linear-gradient(135deg,#7F53CD 0%,#A78BFA 100%); color:#fff; padding:10px 14px; border-radius:10px; box-shadow:0 8px 20px rgba(127,83,205,0.25); z-index:2147483645; font-family:'PingFang TC','Microsoft JhengHei','Noto Sans TC','Heiti TC',sans-serif; font-size:13px; transform:translateY(-6px); opacity:0; transition:transform .35s cubic-bezier(.34,1.4,.64,1),opacity .3s ease; pointer-events:none; user-select:none; }
         .bc-liko-toggle-notification.show { transform:translateY(0); opacity:1; }
         .bc-liko-toggle-notification.hide { transform:translateY(-6px); opacity:0; }
 
-        .bc-liko-system-notification { position:fixed; top:20px; right:20px; background:rgba(26,32,46,0.95); border:1px solid rgba(127,83,205,0.4); color:#fff; padding:12px 16px; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.3); z-index:2147483648; font-family:'Noto Sans TC',sans-serif; font-size:13px; max-width:280px; transform:translateX(320px); opacity:0; transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .3s ease; user-select:none; cursor:pointer; pointer-events:auto; }
+        .bc-liko-system-notification { position:fixed; top:20px; right:20px; background:rgba(26,32,46,0.95); border:1px solid rgba(127,83,205,0.4); color:#fff; padding:12px 16px; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.3); z-index:2147483648; font-family:'PingFang TC','Microsoft JhengHei','Noto Sans TC','Heiti TC',sans-serif; font-size:13px; max-width:280px; transform:translateX(320px); opacity:0; transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .3s ease; user-select:none; cursor:pointer; pointer-events:auto; }
         .bc-liko-system-notification.show { transform:translateX(0); opacity:1; }
         .bc-liko-system-notification.hide { transform:translateX(320px); opacity:0; }
 
@@ -1034,7 +1075,7 @@
         overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483648;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;';
 
         const box = document.createElement('div');
-        box.style.cssText = 'background:rgba(26,32,46,0.98);border:1px solid rgba(127,83,205,0.4);border-radius:16px;padding:20px;width:320px;max-width:90vw;box-shadow:0 20px 40px rgba(0,0,0,0.4);font-family:\'Noto Sans TC\',sans-serif;color:#fff;';
+        box.style.cssText = 'background:rgba(26,32,46,0.98);border:1px solid rgba(127,83,205,0.4);border-radius:16px;padding:20px;width:320px;max-width:90vw;box-shadow:0 20px 40px rgba(0,0,0,0.4);font-family:\'PingFang TC\',\'Microsoft JhengHei\',\'Noto Sans TC\',\'Heiti TC\',sans-serif;color:#fff;';
 
         const fieldStyle = 'width:100%;box-sizing:border-box;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px 10px;color:#fff;font-size:12px;font-family:inherit;outline:none;margin-bottom:10px;';
 
@@ -1110,7 +1151,7 @@
         overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483648;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;';
 
         const box = document.createElement('div');
-        box.style.cssText = 'background:rgba(26,32,46,0.98);border:1px solid rgba(255,80,80,0.3);border-radius:14px;padding:20px;width:280px;max-width:90vw;font-family:\'Noto Sans TC\',sans-serif;color:#fff;text-align:center;';
+        box.style.cssText = 'background:rgba(26,32,46,0.98);border:1px solid rgba(255,80,80,0.3);border-radius:14px;padding:20px;width:280px;max-width:90vw;font-family:\'PingFang TC\',\'Microsoft JhengHei\',\'Noto Sans TC\',\'Heiti TC\',sans-serif;color:#fff;text-align:center;';
         box.innerHTML = `
             <div style="font-size:14px;margin-bottom:16px;line-height:1.5;">${escapeHtml(t('customDeleteConfirm', { name: plugin.name }))}</div>
             <div style="display:flex;gap:8px;">
@@ -1534,7 +1575,8 @@
             let list = "🔌 " + (zhMode ? "可用插件：" : "Available plugins:") + "\n\n";
             subPlugins.forEach(p => {
                 const on = isTriStatePlugin(p) ? (p.state !== "off" ? "✅" : "⭕") : (p.enabled ? "✅" : "⭕");
-                list += `${on} ${p.icon || ''} ${getPluginName(p)}\n  ${getPluginDescription(p)}\n\n`;
+                const info = getPluginAdditionalInfo(p);
+                list += `${on} ${p.icon || ''} ${getPluginName(p)}\n  ${getPluginDescription(p)}${info ? `\n  💡 ${info}` : ''}\n\n`;
             });
             send(list);
         } else {
@@ -1570,8 +1612,8 @@
 
     async function registerPreferencePage() {
         let n = 0;
-        while (typeof PreferenceRegisterExtensionSetting !== 'function' && n < 60) { await new Promise(r => setTimeout(r, 1000)); n++; }
-        if (typeof PreferenceRegisterExtensionSetting !== 'function') return;
+        while (typeof PreferenceRegisterExtensionSetting !== 'function' && n < 60) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); n++; }
+        if (typeof PreferenceRegisterExtensionSetting !== 'function' || _lifecycle.unloaded) return;
 
         window.PreferenceSubscreenPCMSettingsLoad = () => {};
         window.PreferenceSubscreenPCMSettingsRun = () => {
@@ -1687,8 +1729,19 @@
 
         registerI18n();
 
-        // Wait briefly for TranslationLanguage
-        await new Promise(r => { const check = () => { if (typeof TranslationLanguage !== 'undefined') r(); else setTimeout(check, 100); }; check(); setTimeout(r, 3000); });
+        // Wait briefly for TranslationLanguage（#2：加入 done/unloaded 判斷，避免 resolve 後
+        // 或 mod 卸載後，check() 的遞迴 setTimeout 鏈仍在背景無限重排）
+        await new Promise(r => {
+            let done = false;
+            const finish = () => { if (!done) { done = true; r(); } };
+            const check = () => {
+                if (done || _lifecycle.unloaded) return finish();
+                if (typeof TranslationLanguage !== 'undefined') return finish();
+                setTimeout(check, 100);
+            };
+            check();
+            setTimeout(finish, 3000);
+        });
 
         lastDetectedLanguage = getLang();
         customPlugins = loadCustomPlugins();
@@ -1708,6 +1761,8 @@
             _lifecycle.intervals.forEach(id => clearInterval(id));
             _lifecycle.intervals.length = 0;
             if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
+            window.removeEventListener('error', _onPluginWindowError);
+            window.removeEventListener('unhandledrejection', _onPluginUnhandledRejection);
             isInitialized = false;
         });
     }
