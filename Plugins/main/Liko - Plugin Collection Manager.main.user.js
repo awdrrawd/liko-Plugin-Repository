@@ -270,6 +270,7 @@
             // 載入時若已在房內（不會再有 ChatRoomSync/MemberJoin 觸發），廣播一發並要求回覆讓在場所有人回應自己
             sendPCMInitialization(true);
             if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
+            	delete window.Liko.PCM;
                 _lifecycle.unloaded = true; // #5：讓其餘輪詢鏈（i18n 註冊、本函式自己的 wait）知道要停止
                 try { ServerSocket.off("ChatRoomMessage", parsePCMMessage); } catch(e) {}
                 if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
@@ -349,8 +350,34 @@
     let remoteVersion = MOD_VER, remoteUpdateId = null;
     let remoteChangelogTW = [], remoteChangelogEN = [];
 
-    let _resolvePluginsReady;
-    const pluginsReady = new Promise(r => { _resolvePluginsReady = r; });
+    // 自動重試上限：避免清單一直抓不到時，每次切換畫面都重打一次網路，造成效能衰減。
+    // 達到上限後就放棄自動重試，直到玩家手動按「刷新」才重新計次、再試一輪。
+    const PLUGINS_FETCH_MAX_RETRIES = 3;
+    let _pluginsFetchRetryCount = 0;
+    let _pluginsFetchGaveUp = false;
+
+    async function ensurePluginsLoaded() {
+        if (pluginsLoaded) return true;
+        if (_pluginsFetchGaveUp) return false; // 已達重試上限，不再自動嘗試
+
+        const cached = getCachedJSON();
+        if (cached && validateJSON(cached)) { processPluginData(cached, true); return true; }
+
+        if (_pluginsFetchRetryCount >= PLUGINS_FETCH_MAX_RETRIES) {
+            _pluginsFetchGaveUp = true;
+            return false;
+        }
+        _pluginsFetchRetryCount++;
+
+        const data = await fetchJSONFromNetwork();
+        if (data) { processPluginData(data, false); return true; }
+
+        if (_pluginsFetchRetryCount >= PLUGINS_FETCH_MAX_RETRIES) {
+            _pluginsFetchGaveUp = true;
+            console.warn(`🐈‍⬛ [PCM] ⚠️ Plugins.json 已重試 ${PLUGINS_FETCH_MAX_RETRIES} 次仍失敗，停止自動重試，等待手動刷新`);
+        }
+        return false;
+    }
 
     function validateJSON(data) { return data && Array.isArray(data.plugins) && data.plugins.length > 0; }
 
@@ -364,7 +391,7 @@
         });
     }
 
-    function processPluginData(data) {
+    function processPluginData(data, fromCache = false) {
         remoteVersion    = data.version  || MOD_VER;
         remoteUpdateId   = data.updateId || null;
         remoteChangelogTW = data.changelog    || [];
@@ -372,7 +399,7 @@
         subPlugins = applyPluginSettings(data.plugins);
         subPlugins.sort((a, b) => (a.priority || 5) - (b.priority || 5));
         pluginsLoaded = true;
-        console.log(`🐈‍⬛ [PCM] 📦 ${subPlugins.length} plugins loaded`);
+        console.log(`🐈‍⬛ [PCM] 📦 ${subPlugins.length} plugins ${fromCache ? 'loaded (cache)' : 'loaded'}`);
     }
 
     async function fetchJSONFromNetwork() {
@@ -390,27 +417,33 @@
         return null;
     }
 
-    async function initPlugins() {
-        const cached = getCachedJSON();
-        if (cached && validateJSON(cached)) {
-            processPluginData(cached);
-            _resolvePluginsReady(true);
-        }
+async function initPlugins() {
+    const cached = getCachedJSON();
+    if (cached && validateJSON(cached)) processPluginData(cached, true);
 
-        const data = await fetchJSONFromNetwork();
-        if (data) {
-            const wasLoaded = pluginsLoaded;
-            processPluginData(data);
-            if (!wasLoaded) _resolvePluginsReady(true);
-            refreshPluginListUI();
-            if (checkVersionUpdate()) {
-                setTimeout(() => { showChangelogModal(); showNotification("✨", t('newVersionTitle'), `v${remoteVersion} — ${t('newVersionHint')}`); }, 2000);
-            }
-        } else if (!pluginsLoaded) {
-            showNotification("❌", "PCM", t('loadPluginsFailed'));
-            _resolvePluginsReady(false);
-        }
+    const wasLoaded = pluginsLoaded;
+
+    if (_pluginsFetchGaveUp) {
+        if (!pluginsLoaded) showNotification("❌", "PCM", t('loadPluginsFailed'));
+        return;
     }
+    _pluginsFetchRetryCount++;
+
+    const data = await fetchJSONFromNetwork();
+    if (data) {
+        processPluginData(data, false);
+        refreshPluginListUI();
+        if (wasLoaded && checkVersionUpdate()) {
+            setTimeout(() => { showChangelogModal(); showNotification("✨", t('newVersionTitle'), `v${remoteVersion} — ${t('newVersionHint')}`); }, 2000);
+        }
+    } else {
+        if (_pluginsFetchRetryCount >= PLUGINS_FETCH_MAX_RETRIES) {
+            _pluginsFetchGaveUp = true;
+            console.warn(`🐈‍⬛ [PCM] ⚠️ Plugins.json 已重試 ${PLUGINS_FETCH_MAX_RETRIES} 次仍失敗，停止自動重試，等待手動刷新`);
+        }
+        if (!pluginsLoaded) showNotification("❌", "PCM", t('loadPluginsFailed'));
+    }
+}
 
     // === 強制刷新（清除所有快取並重新下載）=========================
 
@@ -434,9 +467,21 @@
             keysToRemove.forEach(k => localStorage.removeItem(k));
         } catch(e) {}
 
+        // 手動刷新視為玩家主動意願，重置自動重試的計數與放棄旗標，讓它重新有機會
+        _pluginsFetchRetryCount = 0;
+        _pluginsFetchGaveUp = false;
         const data = await fetchJSONFromNetwork();
-        if (data) { processPluginData(data); refreshPluginListUI(); showNotification("✅", t('refreshTitle'), t('refreshDone')); }
-        else showNotification("⚠️", t('refreshTitle'), t('refreshFailed'));
+                if (data) {
+            processPluginData(data, false);
+            refreshPluginListUI();
+            showNotification("✅", t('refreshTitle'), t('refreshDone'));
+            // 補上：把因為之前抓不到清單而沒能載入的已啟用插件，這次一併載入，不用等玩家逐一手動切換開關
+            localLoadStarted = false; accountLoadStarted = false;
+            loadLocalPluginsPhase();
+            loadAccountPluginsPhase();
+        } else {
+            showNotification("⚠️", t('refreshTitle'), t('refreshFailed'));
+        }
         btn?.classList.remove('spinning');
         isRefreshing = false;
     }
@@ -757,7 +802,7 @@
 
     async function loadLocalPluginsPhase() {
         if (localLoadStarted) return; localLoadStarted = true;
-        await pluginsReady; if (!pluginsLoaded) { localLoadStarted = false; return; }
+        if (!(await ensurePluginsLoaded())) { localLoadStarted = false; return; }
         let w = 0; while (typeof Player === 'undefined' && w < 15 * 60000) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); w += 1000; }
         if (typeof Player === 'undefined' || _lifecycle.unloaded) { localLoadStarted = false; return; }
         await runPluginBatch(subPlugins.filter(p => isPluginEnabled(p)));
@@ -765,7 +810,7 @@
 
     async function loadAccountPluginsPhase() {
         if (accountLoadStarted) return; accountLoadStarted = true;
-        await pluginsReady; if (!pluginsLoaded) { accountLoadStarted = false; return; }
+        if (!(await ensurePluginsLoaded())) { accountLoadStarted = false; return; }
         let w = 0; while (!Player?.AccountName && w < 15 * 60000) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); w += 1000; }
         if (!Player?.AccountName || _lifecycle.unloaded) { accountLoadStarted = false; return; }
         accountPluginSettings = loadAccountSettings();
@@ -1170,6 +1215,8 @@
             customPlugins = customPlugins.filter(p => p.id !== pluginId);
             saveCustomPlugins();
             loadedPlugins.delete(pluginId);
+            failedPlugins.delete(pluginId);
+            for (const [key, id] of _pluginSourceRegistry) { if (id === pluginId) _pluginSourceRegistry.delete(key); }
             const container = document.getElementById('bc-plugin-content-custom');
             if (container) buildCustomContent(container);
             applyFilter();
@@ -1757,7 +1804,8 @@
         registerPreferencePage();
 
         if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
-            _lifecycle.unloaded = true; // #5：讓 registerWhenReady / registerPCMBadge 的輪詢鏈停止重排
+            delete window.Liko.PCM;
+            _lifecycle.unloaded = true;
             _lifecycle.intervals.forEach(id => clearInterval(id));
             _lifecycle.intervals.length = 0;
             if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
