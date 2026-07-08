@@ -85,9 +85,9 @@
             'newVersionHint':     { EN: 'Click 📋 to view again anytime' },
             'loadingPlugins':     { EN: 'Loading plugin list...' },
             'loadPluginsFailed':  { EN: 'Failed to load plugin list, please refresh' },
-            'refreshTitle':       { EN: 'Refresh' },
-            'refreshing':         { EN: 'Fetching latest plugin list...' },
-            'refreshDone':        { EN: 'Plugin list updated!' },
+            'refreshTitle':       { EN: 'Clear Cache & Refresh' },
+            'refreshing':         { EN: 'Clearing cache and re-downloading...' },
+            'refreshDone':        { EN: 'All cache cleared, plugin list updated! Please refresh the game to fully apply the latest main script and plugins.' },
             'refreshFailed':      { EN: 'Update failed, using cached list' },
             'pluginLoadComplete': { EN: 'Plugin loading complete' },
             'successLoaded':      { EN: 'Loaded' },
@@ -303,7 +303,6 @@
     }
 
     // === JSON 來源 ===============================================
-<<<<<<< HEAD
     // raw 優先、jsDelivr 後備 —— Plugins.json 承載版本號/更新日誌等資訊，需要即時性；
     // jsDelivr 有 CDN 快取（更新後可能要一段時間才會反映最新內容），raw.githubusercontent
     // 才是即時的。這裡跟其他「插件本體/依賴」用 jsDelivr 優先剛好相反：本體檔案大、多支
@@ -312,10 +311,6 @@
         "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
         "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
     ];
-=======
-    // Plugins需要快速更新，所以不走jsDelivr
-    const PLUGINS_JSON_URLS = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json";
->>>>>>> c0a5b0364edd408b3643d0d5ef2163d9f591ce2c
 
     // === 設定存取 ================================================
 
@@ -346,16 +341,13 @@
     // ============================================================
 
     const PLUGIN_CACHE_PREFIX = 'pcm_p_';
-    const PLUGIN_CACHE_TTL    = 24 * 60 * 60 * 1000;
 
     function isJsDelivrUrl(url) { return typeof url === 'string' && url.includes('cdn.jsdelivr.net'); }
 
     function getCachedPluginCode(id) {
         try {
             const c = JSON.parse(localStorage.getItem(PLUGIN_CACHE_PREFIX + id) || 'null');
-            if (!c) return null;
-            if (Date.now() - c.time > PLUGIN_CACHE_TTL) { localStorage.removeItem(PLUGIN_CACHE_PREFIX + id); return null; }
-            return c.code;
+            return c?.code ?? null;
         } catch(e) { return null; }
     }
     function setCachedPluginCode(id, code) {
@@ -443,7 +435,7 @@
         }
     }
 
-    // === 強制刷新 ===============================================
+    // === 強制刷新（清除所有快取並重新下載）=========================
 
     let isRefreshing = false;
     async function refreshPluginList() {
@@ -452,6 +444,19 @@
         const btn = document.getElementById('bc-plugin-refresh-btn');
         btn?.classList.add('spinning');
         showNotification("↻", t('refreshTitle'), t('refreshing'));
+
+        // 清除所有本機快取：Loader 快取的 Main 腳本、Plugins.json 清單快取、各插件程式碼快取
+        try {
+            localStorage.removeItem('pcm_main_cache');
+            localStorage.removeItem(JSON_CACHE_KEY);
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.startsWith(PLUGIN_CACHE_PREFIX)) keysToRemove.push(k);
+            }
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+        } catch(e) {}
+
         const data = await fetchJSONFromNetwork();
         if (data) { processPluginData(data); refreshPluginListUI(); showNotification("✅", t('refreshTitle'), t('refreshDone')); }
         else showNotification("⚠️", t('refreshTitle'), t('refreshFailed'));
@@ -622,35 +627,38 @@
 
         const urls    = buildFetchUrls(rawUrl);
         const primary = urls[0];
+        const useCache = isJsDelivrUrl(primary);
+        const oldCache = useCache ? getCachedPluginCode(plugin.id) : null; // 先留著當救援，成功前絕不覆蓋
 
-        // JsDelivr cache (SWR)
-        if (isJsDelivrUrl(primary)) {
-            const cached = getCachedPluginCode(plugin.id);
-            if (cached) {
-                try {
-                    injectScript(plugin.id, cached);
-                    loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
-                    hidePluginRetryBtn(plugin.id);
-                    console.log(`🐈‍⬛ [PCM] ⚡ ${plugin.name} from cache`);
-                    tryFetch(urls).then(nc => { if (nc && nc !== cached) setCachedPluginCode(plugin.id, nc); }).catch(() => {});
-                    return;
-                } catch(e) { /* fall through to fresh fetch */ }
+        const code = await tryFetch(urls);
+        if (code) {
+            try {
+                injectScript(plugin.id, code);
+                loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
+                hidePluginRetryBtn(plugin.id);
+                console.log(`🐈‍⬛ [PCM] ✅ ${plugin.name} loaded`);
+                if (useCache) setCachedPluginCode(plugin.id, code); // 注入成功才覆蓋快取
+                return;
+            } catch(e) {
+                console.warn(`🐈‍⬛ [PCM] ⚠️ ${plugin.name} 新版執行失敗，改用舊版快取：${e.message}`);
             }
         }
 
-        const code = await tryFetch(urls);
-        if (!code) {
-            failedPlugins.add(plugin.id);
-            showPluginRetryBtn(plugin.id);
-            showNotification("❌", t('pluginLoadFailed', { name: getPluginName(plugin) }), t('pluginLoadRetry'));
-            throw new Error('All URLs failed');
+        // 下載失敗，或下載到的新版執行出錯 → 退回舊版快取救援
+        if (oldCache) {
+            try {
+                injectScript(plugin.id, oldCache);
+                loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
+                hidePluginRetryBtn(plugin.id);
+                console.log(`🐈‍⬛ [PCM] ⚡ ${plugin.name} from cache (fallback)`);
+                return;
+            } catch(e) { /* 舊版也壞了，繼續往下走失敗流程 */ }
         }
 
-        injectScript(plugin.id, code);
-        loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
-        hidePluginRetryBtn(plugin.id);
-        console.log(`🐈‍⬛ [PCM] ✅ ${plugin.name} loaded`);
-        if (isJsDelivrUrl(primary)) setCachedPluginCode(plugin.id, code);
+        failedPlugins.add(plugin.id);
+        showPluginRetryBtn(plugin.id);
+        showNotification("❌", t('pluginLoadFailed', { name: getPluginName(plugin) }), t('pluginLoadRetry'));
+        throw new Error('All URLs failed');
     }
 
     function showPluginRetryBtn(pluginId) {

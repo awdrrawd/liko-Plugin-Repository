@@ -119,9 +119,11 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🐈‍⬛",
-      "url": "https://raw.githubusercontent.com/awdrrawd/BC-AEE/main/loader.user.js",
+      "url": "https://awdrrawd.github.io/BC-AEE/assets/main.js",
       "website": "https://github.com/awdrrawd/BC-AEE/tree/main",
-      "priority": 3
+      "priority": 3,
+      "version": "0.8.5",
+      "type": "mod"
     },
     {
       "id": "Liko-HSC",
@@ -132,10 +134,11 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🌀",
-      "url": "https://raw.githubusercontent.com/awdrrawd/BC-HSC/main/loader.user.js",
+      "url": "https://awdrrawd.github.io/BC-HSC/assets/main.js",
       "website": "https://github.com/awdrrawd/BC-HSC",
       "priority": 3,
-      "version": "1.0"
+      "version": "1.0",
+      "type": "mod"
     },
     {
       "id": "Liko-Tool",
@@ -159,10 +162,11 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🌸",
-      "url": "https://raw.githubusercontent.com/awdrrawd/BC-AFC/main/loader.user.js",
+      "url": "https://awdrrawd.github.io/BC-AFC/assets/main.js",
       "website": "https://github.com/awdrrawd/BC-AFC",
       "priority": 3,
-      "version": "0.7.0"
+      "version": "0.7.0",
+      "type": "mod"
     },
     {
       "id": "Liko-FCM",
@@ -173,10 +177,11 @@
       "additionalInfo": "提供個人資料的保存、查詢，房間名單的管理",
       "en_additionalInfo": "Provides features for saving and searching personal profiles, and managing room lists.",
       "icon": "👥",
-      "url": "https://raw.githubusercontent.com/awdrrawd/BC-FCM/main/loader.user.js",
+      "url": "https://awdrrawd.github.io/BC-FCM/assets/main.js",
       "website": "https://github.com/awdrrawd/BC-FCM",
       "priority": 3,
-      "version": "1.4.2-4"
+      "version": "1.5.0",
+      "type": "mod"
     },
     {
       "id": "Liko-CPB",
