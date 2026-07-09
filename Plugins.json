@@ -95,8 +95,10 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🎲",
-      "url": "https://raw.githubusercontent.com/galia-bc/galia.github.io/main/club-gaming/club-gaming.js",
-      "altUrl": "https://raw.githubusercontent.com/galia-bc/galia.github.io/main/club-gaming/beta/club-gaming.js",
+      "url": "https://galia-bc.github.io/galia.github.io/club-gaming/club-gaming.js",
+      "mirrorUrl": "https://raw.githubusercontent.com/galia-bc/galia.github.io/main/club-gaming/club-gaming.js",
+      "altUrl": "https://galia-bc.github.io/galia.github.io/club-gaming/beta/club-gaming.js",
+      "altMirrorUrl": "https://raw.githubusercontent.com/galia-bc/galia.github.io/main/club-gaming/beta/club-gaming.js",
       "website": "https://galia-bc.github.io/galia.github.io",
       "priority": 4
     },
@@ -110,7 +112,7 @@
       "en_additionalInfo": "",
       "icon": "🐈‍⬛",
       "url": "https://awdrrawd.github.io/BC-AEE/assets/main.js",
-      "mirrorUrl": "https://raw.githubusercontent.com/awdrrawd/BC-AEE/main/loader.user.js",
+      "mirrorUrl": "https://awdrrawd.github.io/BC-AEE/loader.user.js",
       "website": "https://github.com/awdrrawd/BC-AEE/tree/main",
       "priority": 3,
       "version": "0.8.5",
@@ -126,7 +128,7 @@
       "en_additionalInfo": "",
       "icon": "🌀",
       "url": "https://awdrrawd.github.io/BC-HSC/assets/main.js",
-      "mirrorUrl": "https://raw.githubusercontent.com/awdrrawd/BC-HSC/main/loader.user.js",
+      "mirrorUrl": "https://awdrrawd.github.io/BC-HSC/loader.user.js",
       "website": "https://github.com/awdrrawd/BC-HSC",
       "priority": 3,
       "version": "1.0",
@@ -141,7 +143,7 @@
       "additionalInfo": "詳細使用說明請輸入/LT或/LT help查詢",
       "en_additionalInfo": "For detailed usage instructions, please enter /LT or /LT help.",
       "icon": "🧰",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Tool.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Tool.main.user.js",
       "priority": 3,
       "version": "1.5.3"
     },
@@ -155,7 +157,7 @@
       "en_additionalInfo": "",
       "icon": "🌸",
       "url": "https://awdrrawd.github.io/BC-AFC/assets/main.js",
-      "mirrorUrl": "https://raw.githubusercontent.com/awdrrawd/BC-AFC/main/loader.user.js",
+      "mirrorUrl": "https://awdrrawd.github.io/BC-AFC/loader.user.js",
       "website": "https://github.com/awdrrawd/BC-AFC",
       "priority": 3,
       "version": "0.7.0",
@@ -171,7 +173,7 @@
       "en_additionalInfo": "Provides features for saving and searching personal profiles, and managing room lists.",
       "icon": "👥",
       "url": "https://awdrrawd.github.io/BC-FCM/assets/main.js",
-      "mirrorUrl": "https://raw.githubusercontent.com/awdrrawd/BC-FCM/main/loader.user.js",
+      "mirrorUrl": "https://awdrrawd.github.io/BC-FCM/loader.user.js",
       "website": "https://github.com/awdrrawd/BC-FCM",
       "priority": 3,
       "version": "1.5.0",
@@ -186,7 +188,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🪪",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CPB.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CPB.main.user.js",
       "priority": 9,
       "version": "1.2.2-1"
     },
@@ -199,7 +201,7 @@
       "additionalInfo": "圖片上傳失敗時，可以使用/IMG或/IMG HELP查閱說明",
       "en_additionalInfo": "If the image fails to upload, you can use /IMG or /IMG HELP to view the instructions.",
       "icon": "🖼️",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
       "priority": 3,
       "version": "1.6.1"
     },
@@ -212,7 +214,7 @@
       "additionalInfo": "包含完整的聊天記錄、時間戳和角色信息，可以搭配Neocities等網站上傳分享",
       "en_additionalInfo": "Includes complete chat logs, timestamps and character info, compatible with sites like Neocities for sharing",
       "icon": "📖",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CHE.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CHE.main.user.js",
       "priority": 3,
       "version": "2.4.4-1"
     },
@@ -225,7 +227,7 @@
       "additionalInfo": "現在多了替換姿勢的功能",
       "en_additionalInfo": "Now there is a function to change posture",
       "icon": "👗",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDB.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CDB.main.user.js",
       "priority": 6,
       "version": "1.5.2"
     },
@@ -238,7 +240,7 @@
       "additionalInfo": "注意：這是個惡作劇插件，請謹慎使用！指令 /偷取, /溶解, /传送",
       "en_additionalInfo": "Warning: This is a prank plugin, use with caution! Command /Steal, /dissolve, /Teleport",
       "icon": "🪄",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Prank.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Prank.main.user.js",
       "priority": 5,
       "version": "1.6.7"
     },
@@ -251,7 +253,7 @@
       "additionalInfo": "可以使用/NOI或/NOI HELP查閱說明",
       "en_additionalInfo": "For detailed usage instructions, please enter /NOI or /NOI help.",
       "icon": "📧",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20NOI.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20NOI.main.user.js",
       "priority": 6,
       "version": "1.1"
     },
@@ -264,7 +266,7 @@
       "additionalInfo": "請評估自己需求，避免降低遊戲樂趣",
       "en_additionalInfo": "Please consider your own needs to avoid diminishing the enjoyment of the game.",
       "icon": "🧹",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Release%20Maid.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Release%20Maid.main.user.js",
       "priority": 10,
       "version": "1.2-1"
     },
@@ -277,7 +279,7 @@
       "additionalInfo": "使用/指令、!!說話、#房名#都會變成可以點擊的按鈕，#房名#提供傳送功能",
       "en_additionalInfo": "Commands starting with /, !! for speech, 和 #RoomName# will become clickable buttons. The #RoomName# button provides a teleport function.",
       "icon": "💬",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
       "priority": 10,
       "version": "1.1.1-1"
     },
@@ -290,7 +292,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🖌️",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CDT.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CDT.main.user.js",
       "priority": 10,
       "version": "1.3-1"
     },
@@ -303,7 +305,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🎬",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20ACV.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20ACV.main.user.js",
       "priority": 4,
       "version": "1.3.1"
     },
@@ -316,7 +318,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🆔",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20WPS.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20WPS.main.user.js",
       "priority": 6,
       "version": "1.1.2"
     },
@@ -329,7 +331,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🌐",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20MAT.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MAT.main.user.js",
       "priority": 3,
       "version": "1.5.0"
     },
@@ -342,7 +344,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "⚧️",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Region%20switch.main.user.js",
       "priority": 7,
       "version": "1.2-3"
     },
@@ -355,7 +357,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "📋",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CFT.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CFT.main.user.js",
       "priority": 8,
       "version": "1.1.3"
     },
@@ -368,7 +370,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🎮",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20TRC.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TRC.main.user.js",
       "priority": 7,
       "version": "1.1.0"
     },
@@ -381,7 +383,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🎵",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CMC.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CMC.main.user.js",
       "priority": 6,
       "version": "1.3.0"
     },
@@ -394,7 +396,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "📱",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20MPL.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MPL.main.user.js",
       "priority": 6,
       "version": "0.5.3"
     },
@@ -407,7 +409,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "🔧",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20CRA.main.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CRA.main.user.js",
       "priority": 5,
       "version": "1.0.2"
     },
@@ -420,7 +422,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "💉",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Hotfix/HHA.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HHA.user.js",
       "priority": 10,
       "version": "0.2"
     },
@@ -433,7 +435,7 @@
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "💉",
-      "url": "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/Hotfix/HLF.user.js",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HLF.user.js",
       "priority": 10,
       "version": "0.2"
     }

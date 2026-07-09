@@ -2,20 +2,20 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.0
+// @version      2.1.1
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
-// @icon         https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png
+// @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @grant        none
 // @run-at       document-end
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
-// @downloadURL  https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
-// @updateURL    https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
+// @downloadURL  https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
+// @updateURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.1.0"; // 2.1.0: 子插件新增 type 欄位（eval／scr／mod）決定載入方式，預設 eval 不影響舊資料；
+    const MOD_VER = "2.1.1"; // 2.1.0: 子插件新增 type 欄位（eval／scr／mod）決定載入方式，預設 eval 不影響舊資料；
                               // mod 用 dynamic import 直接載入像 AEE 這類 Vite/Rollup ESM bundle，不再需要中介 loader.user.js。
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
@@ -173,14 +173,21 @@
 
     function initializePCMBadgeImage() {
         if (!pcmBadgeImage) {
-            // jsDelivr 優先、raw 後備 —— raw.githubusercontent 在 EBC 會 429，圖片同樣會破圖。
+            // Stable image asset: CDN first, Pages as fresh fallback, raw last.
+            const _badgePages = "https://awdrrawd.github.io/liko-Plugin-Repository/Images/PCM_Badge.png";
             const _badgeCdn = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_Badge.png";
             const _badgeRaw = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/refs/heads/main/Images/PCM_Badge.png";
+            const _badgeUrls = [_badgeCdn, _badgePages, _badgeRaw];
+            let _badgeIndex = 0;
             pcmBadgeImage = new Image();
             pcmBadgeImage.crossOrigin = "anonymous";
             pcmBadgeImage.onload = () => { pcmImageLoaded = true; };
-            pcmBadgeImage.onerror = () => { if (pcmBadgeImage.src !== _badgeRaw) pcmBadgeImage.src = _badgeRaw; else pcmImageLoaded = false; };
-            pcmBadgeImage.src = _badgeCdn;
+            pcmBadgeImage.onerror = () => {
+                _badgeIndex++;
+                if (_badgeIndex < _badgeUrls.length) pcmBadgeImage.src = _badgeUrls[_badgeIndex];
+                else pcmImageLoaded = false;
+            };
+            pcmBadgeImage.src = _badgeUrls[_badgeIndex];
         }
     }
 
@@ -287,8 +294,8 @@
     // Plugins.json 只有這一支請求，量小，即時性優先於避免 429 本來就不是問題。
     const PLUGINS_JSON_URLS = [
         `https://awdrrawd.github.io/liko-Plugin-Repository/Plugins.json?timestamp=${Date.now()}`,
-        "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
         "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
+        "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
     ];
 
     // === 設定存取 ================================================
@@ -328,14 +335,31 @@
     const OWN_REPO_RAW_PREFIX   = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/";
     const OWN_REPO_PAGES_PREFIX = "https://awdrrawd.github.io/liko-Plugin-Repository/";
 
-    function getCachedPluginCode(id) {
+    function getCachedPluginRecord(id) {
         try {
             const c = JSON.parse(localStorage.getItem(PLUGIN_CACHE_PREFIX + id) || 'null');
-            return c?.code ?? null;
+            if (!c) return null;
+            if (typeof c === 'string') return { time: 0, version: null, code: c };
+            return c;
         } catch(e) { return null; }
     }
-    function setCachedPluginCode(id, code) {
-        try { localStorage.setItem(PLUGIN_CACHE_PREFIX + id, JSON.stringify({ time: Date.now(), code })); } catch(e) {}
+    function getCachedPluginCode(id) {
+        return getCachedPluginRecord(id)?.code ?? null;
+    }
+    function setCachedPluginCode(id, code, version = null) {
+        try { localStorage.setItem(PLUGIN_CACHE_PREFIX + id, JSON.stringify({ time: Date.now(), version: version ?? null, code })); } catch(e) {}
+    }
+    function setCachedPluginVersion(id, version = null) {
+        try {
+            const old = getCachedPluginRecord(id) || {};
+            localStorage.setItem(PLUGIN_CACHE_PREFIX + id, JSON.stringify({ ...old, time: Date.now(), version: version ?? null }));
+        } catch(e) {}
+    }
+    function getPluginVersionKey(plugin) {
+        const v = plugin?.version;
+        if (v === undefined || v === null) return null;
+        const s = String(v).trim();
+        return s && s !== '0' ? s : null; // Missing/0 means "unversioned": always prefer Pages.
     }
 
 
@@ -385,7 +409,7 @@
     async function fetchJSONFromNetwork() {
         for (const url of PLUGINS_JSON_URLS) {
             try {
-                const res = await fetch(url, { cache: 'no-cache' });
+                const res = await fetch(url, { cache: 'no-store' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 let data; try { data = JSON.parse(await res.text()); } catch(e) { continue; }
                 if (!validateJSON(data)) continue;
@@ -398,22 +422,23 @@
     }
 
     async function initPlugins() {
-        const cached = getCachedJSON();
-        if (cached && validateJSON(cached)) {
-            processPluginData(cached);
-            _resolvePluginsReady(true);
-        }
-
         const data = await fetchJSONFromNetwork();
         if (data) {
-            const wasLoaded = pluginsLoaded;
             processPluginData(data);
-            if (!wasLoaded) _resolvePluginsReady(true);
+            _resolvePluginsReady(true);
             refreshPluginListUI();
             if (checkVersionUpdate()) {
                 setTimeout(() => { showChangelogModal(); showNotification("✨", t('newVersionTitle'), `v${remoteVersion} — ${t('newVersionHint')}`); }, 2000);
             }
-        } else if (!pluginsLoaded) {
+            return;
+        }
+
+        const cached = getCachedJSON();
+        if (cached && validateJSON(cached)) {
+            processPluginData(cached);
+            _resolvePluginsReady(true);
+            refreshPluginListUI();
+        } else {
             showNotification("❌", "PCM", t('loadPluginsFailed'));
             _resolvePluginsReady(false);
         }
@@ -563,7 +588,7 @@
     async function tryFetch(urls) {
         for (const url of urls) {
             try {
-                const res = await fetch(url);
+                const res = await fetch(url, { cache: 'no-store' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const text = await res.text();
                 if (!text || text.trimStart().startsWith('<')) throw new Error('Invalid content');
@@ -573,7 +598,11 @@
         return null;
     }
 
-    function buildFetchUrls(url) {
+    function uniqueUrls(urls) {
+        return [...new Set(urls.filter(Boolean))];
+    }
+
+    function buildFetchUrls(url, preferCdn = false) {
         if (!url) return [];
         // 自家 repo（liko-Plugin-Repository）host 的檔案：Pages 優先（push 後幾乎即時生效、
         // 不易觸發限流）、raw 備援、jsDelivr 最後保底（可能有數小時甚至隔天的快取延遲）。
@@ -583,7 +612,15 @@
             const rel = url.slice(OWN_REPO_RAW_PREFIX.length);
             const pages = `${OWN_REPO_PAGES_PREFIX}${rel}${rel.includes('?') ? '&' : '?'}timestamp=${Date.now()}`;
             const cdn   = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${rel}`;
-            return [pages, url, cdn];
+            return preferCdn ? [cdn, pages, url] : [pages, cdn, url];
+        }
+        if (url.startsWith(OWN_REPO_PAGES_PREFIX)) {
+            const relWithQuery = url.slice(OWN_REPO_PAGES_PREFIX.length);
+            const [rel] = relWithQuery.split('?');
+            const pages = `${OWN_REPO_PAGES_PREFIX}${rel}${rel.includes('?') ? '&' : '?'}timestamp=${Date.now()}`;
+            const cdn   = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${rel}`;
+            const raw   = `${OWN_REPO_RAW_PREFIX}${rel}`;
+            return preferCdn ? [cdn, pages, raw] : [pages, cdn, raw];
         }
         // 外部作者的 repo：沒有對應的 Pages 網域可以自動推導，維持原本 jsDelivr 優先、raw 備援。
         // jsDelivr 優先 —— 每個子插件都先打 raw 會在 EBC 觸發 429（見 _DEP_BASES 註解）。
@@ -595,10 +632,10 @@
     // 規則、無法自動推導 jsDelivr 鏡像；Plugins.json 可以額外填 mirrorUrl 提供一組完全獨立的備援來源
     // （例如同一份程式碼另外 commit 進 repo 的 raw 路徑），失敗時接在原本候選清單後面再試一次。
     // 沒填 mirrorUrl 就跟原本行為完全一樣，向後相容所有舊資料。
-    function buildAllFetchUrls(primaryUrl, mirrorUrl) {
-        const urls = buildFetchUrls(primaryUrl);
-        if (mirrorUrl) urls.push(...buildFetchUrls(mirrorUrl));
-        return urls;
+    function buildAllFetchUrls(primaryUrl, mirrorUrl, options = {}) {
+        const urls = buildFetchUrls(primaryUrl, !!options.preferCdn);
+        if (mirrorUrl) urls.push(...buildFetchUrls(mirrorUrl, !!options.preferCdn));
+        return uniqueUrls(urls);
     }
 
     // === 載入方式（type）==========================================
@@ -635,7 +672,7 @@
                 // 用正確 MIME type 包成 Blob URL 再 import，繞開來源端宣告錯誤的 Content-Type。
                 let blobUrl;
                 try {
-                    const res = await fetch(url);
+                    const res = await fetch(url, { cache: 'no-store' });
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     let code = await res.text();
                     if (!code || code.trimStart().startsWith('<')) throw new Error('Invalid content');
@@ -686,12 +723,17 @@
 
         const rawUrl   = isCustom ? plugin.url : getActivePluginUrl(plugin);
         const loadType = getLoadType(plugin);
+        const versionKey = isCustom ? null : getPluginVersionKey(plugin);
+        const cachedRecord = getCachedPluginRecord(plugin.id);
+        const preferCdn = !!versionKey && cachedRecord?.version === versionKey;
+        const isAltUrl = !isCustom && plugin.altUrl && rawUrl === plugin.altUrl;
+        const mirrorUrl = isAltUrl ? (plugin.altMirrorUrl || plugin.mirrorUrl) : plugin.mirrorUrl;
 
         // mod / scr 都不進 fetch+eval / localStorage 快取邏輯 —— mod 因為模組沒法安全地存純文字
         // 再用 <script> 重放；scr 因為本來就是要讓瀏覽器直接載，不自己 fetch 文字。快取交給瀏覽器
         // 自己的 HTTP cache 處理即可。
         if (loadType === 'mod' || loadType === 'scr') {
-            const urls = buildAllFetchUrls(rawUrl, plugin.mirrorUrl);
+            const urls = buildAllFetchUrls(rawUrl, mirrorUrl, { preferCdn });
             const ok = loadType === 'mod'
                 ? await tryImportModule(urls, plugin.id)
                 : await tryLoadScriptTag(urls, plugin.id);
@@ -703,13 +745,14 @@
             }
             loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
             hidePluginRetryBtn(plugin.id);
+            setCachedPluginVersion(plugin.id, versionKey);
             return;
         }
 
-        const urls    = buildAllFetchUrls(rawUrl, plugin.mirrorUrl);
+        const urls    = buildAllFetchUrls(rawUrl, mirrorUrl, { preferCdn });
         const primary = urls[0];
         const useCache = isJsDelivrUrl(primary) || isOwnPagesUrl(primary);
-        const oldCache = useCache ? getCachedPluginCode(plugin.id) : null; // 先留著當救援，成功前絕不覆蓋
+        const oldCache = useCache ? cachedRecord?.code : null; // 先留著當救援，成功前絕不覆蓋
 
         const code = await tryFetch(urls);
         if (code) {
@@ -717,7 +760,7 @@
                 injectScript(plugin.id, code);
                 loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
                 hidePluginRetryBtn(plugin.id);
-                if (useCache) setCachedPluginCode(plugin.id, code); // 注入成功才覆蓋快取
+                if (useCache) setCachedPluginCode(plugin.id, code, versionKey); // 注入成功才覆蓋快取
                 return;
             } catch(e) {
                 console.warn(`🐈‍⬛ [PCM] ⚠️ ${plugin.name} 新版執行失敗，改用舊版快取：${e.message}`);
@@ -1098,24 +1141,24 @@
         const fieldStyle = 'width:100%;box-sizing:border-box;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px 10px;color:#fff;font-size:12px;font-family:inherit;outline:none;margin-bottom:10px;';
 
         box.innerHTML = `
-            <div style="font-size:15px;font-weight:600;margin-bottom:14px;">${t('customAddTitle')}</div>
-            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldName')}</label>
+            <div style="font-size:15px;font-weight:600;margin-bottom:14px;">${escapeHtml(t('customAddTitle'))}</div>
+            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${escapeHtml(t('customFieldName'))}</label>
             <input id="pcm-add-name" type="text" style="${fieldStyle}" autocomplete="off" />
-            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldUrl')}</label>
+            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${escapeHtml(t('customFieldUrl'))}</label>
             <input id="pcm-add-url"  type="text" style="${fieldStyle}" autocomplete="off" placeholder="https://..." />
-            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldIcon')}</label>
+            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${escapeHtml(t('customFieldIcon'))}</label>
             <input id="pcm-add-icon" type="text" style="${fieldStyle}" autocomplete="off" placeholder="🔌 / https://..." />
-            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldDesc')}</label>
+            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${escapeHtml(t('customFieldDesc'))}</label>
             <input id="pcm-add-desc" type="text" style="${fieldStyle}" autocomplete="off" />
-            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${t('customFieldType')}</label>
+            <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${escapeHtml(t('customFieldType'))}</label>
             <select id="pcm-add-type" style="${fieldStyle.replace('margin-bottom:10px','margin-bottom:14px')}">
-                <option value="eval">${t('customTypeEval')}</option>
-                <option value="scr">${t('customTypeScr')}</option>
-                <option value="mod">${t('customTypeMod')}</option>
+                <option value="eval">${escapeHtml(t('customTypeEval'))}</option>
+                <option value="scr">${escapeHtml(t('customTypeScr'))}</option>
+                <option value="mod">${escapeHtml(t('customTypeMod'))}</option>
             </select>
             <div style="display:flex;gap:8px;">
-                <button id="pcm-add-cancel" style="flex:1;padding:9px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:#a0a9c0;font-size:13px;cursor:pointer;font-family:inherit;">${t('customBtnCancel')}</button>
-                <button id="pcm-add-confirm" style="flex:1;padding:9px;border:none;border-radius:8px;background:linear-gradient(135deg,#7F53CD,#A78BFA);color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">${t('customBtnAdd')}</button>
+                <button id="pcm-add-cancel" style="flex:1;padding:9px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:#a0a9c0;font-size:13px;cursor:pointer;font-family:inherit;">${escapeHtml(t('customBtnCancel'))}</button>
+                <button id="pcm-add-confirm" style="flex:1;padding:9px;border:none;border-radius:8px;background:linear-gradient(135deg,#7F53CD,#A78BFA);color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">${escapeHtml(t('customBtnAdd'))}</button>
             </div>
         `;
 
@@ -1129,6 +1172,11 @@
         const typeSelect   = overlay.querySelector('#pcm-add-type');
         const cancelBtn    = overlay.querySelector('#pcm-add-cancel');
         const confirmBtn   = overlay.querySelector('#pcm-add-confirm');
+        if (!nameInput || !urlInput || !iconInput || !descInput || !typeSelect || !cancelBtn || !confirmBtn) {
+            console.error('🐈‍⬛ [PCM] Custom plugin panel failed to render');
+            overlay.remove();
+            return;
+        }
         nameInput.focus();
 
         const close = () => overlay.remove();
@@ -1345,7 +1393,7 @@
 
         const floatBtn = document.createElement('button');
         floatBtn.className = 'bc-plugin-floating-btn';
-        floatBtn.innerHTML = `<img src="https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png" alt="🐱" />`;
+        floatBtn.innerHTML = `<img src="https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png" alt="🐱" />`;
         floatBtn.title = t('welcomeTitle');
 
         const refreshBtn = document.createElement('button');
@@ -1654,7 +1702,7 @@
         PreferenceRegisterExtensionSetting({
             Identifier: "PCMSettings",
             ButtonText:  t('prefButton'),
-            Image: "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png",
+            Image: "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png",
             click: window.PreferenceSubscreenPCMSettingsClick,
             run:   window.PreferenceSubscreenPCMSettingsRun,
             exit:  window.PreferenceSubscreenPCMSettingsExit,
@@ -1673,6 +1721,7 @@
         ? [window.LikoDevBase]
         : [
             "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/",
+            "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/",
             "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/",
         ];
 
@@ -1688,7 +1737,7 @@
         let lastErr;
         for (const base of _DEP_BASES) {
             try {
-                const res = await fetch(base + rel);
+                const res = await fetch(base + rel, { cache: 'no-store' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const text = await res.text();
                 if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');

@@ -7,9 +7,9 @@
 // @author         Likolisu
 // @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant          none
-// @icon           https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png
-// @updateURL      https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/PCM_Loader.user.js
-// @downloadURL    https://github.com/awdrrawd/liko-Plugin-Repository/raw/refs/heads/main/PCM_Loader.user.js
+// @icon           https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
+// @updateURL      https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js
+// @downloadURL    https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository/issues
 // @run-at         document-end
 // ==/UserScript==
@@ -27,8 +27,8 @@
         const ts = Date.now();
         return [
             `https://awdrrawd.github.io/liko-Plugin-Repository/${MAIN_REL}?timestamp=${ts}`,
-            `https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/${MAIN_REL}`,
             `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${MAIN_REL}`,
+            `https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/${MAIN_REL}`,
         ];
     }
 
@@ -50,7 +50,7 @@
         let lastErr;
         for (const url of buildMainUrls()) {
             try {
-                const res = await fetch(url);
+                const res = await fetch(url, { cache: "no-store" });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const code = await res.text();
                 if (!code || code.trimStart().startsWith('<')) throw new Error("Invalid response");
