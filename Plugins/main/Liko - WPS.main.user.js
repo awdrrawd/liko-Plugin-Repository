@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Liko - WPS
 // @namespace    https://likulisu.dev/
-// @version      1.1.2
+// @version      1.1.3
 // @description  WCE Profile Share
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -13,7 +13,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.1.2";
+    const MOD_VER = "1.1.3";
     if (window.Liko.WPS) return;
     window.Liko.WPS = MOD_VER;
     
@@ -285,5 +285,5 @@
         document.querySelectorAll(".ChatMessageLocalMessage").forEach(processShareText);
         enhanceProfilesUI();
     }, 500);
-    log("✅", VERSION," Loading completed!");
+    log("✅", MOD_VER," Loading completed!");
 })();
