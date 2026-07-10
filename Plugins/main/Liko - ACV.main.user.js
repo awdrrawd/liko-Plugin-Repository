@@ -2,7 +2,7 @@
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.3.1
+// @version      1.4.0
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,7 +14,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.3.1";
+    const MOD_VER = "1.4.0";
     if (window.Liko.ACV) return;
     window.Liko.ACV = MOD_VER;
     
@@ -46,11 +46,12 @@
         vimeo:           "Vimeo",
         niconico:        "Niconico",
         douyin:          "抖音",
+        catbox:          "Catbox/Litterbox",
     };
 
     // ─────────────────────────────────────────────────────────────
     //  影片平台 Patterns
-    //  ratio: "16:9" | "9:16" | "1:1" | "auto"(twitter/spotify)
+    //  ratio: "16:9" | "9:16" | "1:1" | "auto"(twitter/spotify/catbox)
     // ─────────────────────────────────────────────────────────────
     const videoPatterns = {
         youtubeShorts: {
@@ -119,6 +120,12 @@
             regex: /open\.spotify\.com\/(track|album|playlist|episode|show|artist)\/([a-zA-Z0-9]+)/,
             ratio: "auto",
         },
+        // ★ Catbox / Litterbox：直接檔案連結（非 embed），用 <video> 播放
+        //   files.catbox.moe/xxxxx.mp4、litter.catbox.moe/xxxxx.mp4、litterbox.catbox.moe/xxxxx.mp4
+        catbox: {
+            regex: /(?:files\.catbox\.moe|litter(?:box)?\.catbox\.moe)\/([a-zA-Z0-9]+\.(?:mp4|webm|mov|m4v|ogg|ogv))/i,
+            ratio: "auto",
+        },
     };
 
     // ─────────────────────────────────────────────────────────────
@@ -175,6 +182,14 @@
                     allow="autoplay;clipboard-write;encrypted-media;fullscreen;picture-in-picture"
                     style="border-radius:12px;"></iframe>
             </div>`;
+        }
+
+        // ── Catbox / Litterbox：直接檔案，非 iframe embed，用原生 <video> 播放 ──
+        if (videoInfo.platform === "catbox") {
+            return `<video controls preload="metadata"
+                src="${videoInfo.originalUrl}"
+                style="display:block;width:100%;max-width:${PLAYER_MAX_W}px;max-height:${PLAYER_MAX_H}px;border:none;border-radius:6px;background:#000;margin:0.3em 0;"
+                ></video>`;
         }
 
         // ── 取得 src ──
