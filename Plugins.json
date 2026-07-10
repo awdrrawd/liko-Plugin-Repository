@@ -115,7 +115,6 @@
       "mirrorUrl": "https://awdrrawd.github.io/BC-AEE/loader.user.js",
       "website": "https://github.com/awdrrawd/BC-AEE/tree/main",
       "priority": 3,
-      "version": "0.8.5",
       "type": "mod"
     },
     {
@@ -131,7 +130,6 @@
       "mirrorUrl": "https://awdrrawd.github.io/BC-HSC/loader.user.js",
       "website": "https://github.com/awdrrawd/BC-HSC",
       "priority": 3,
-      "version": "1.0",
       "type": "mod"
     },
     {
@@ -160,7 +158,6 @@
       "mirrorUrl": "https://awdrrawd.github.io/BC-AFC/loader.user.js",
       "website": "https://github.com/awdrrawd/BC-AFC",
       "priority": 3,
-      "version": "0.7.0",
       "type": "mod"
     },
     {
@@ -176,7 +173,6 @@
       "mirrorUrl": "https://awdrrawd.github.io/BC-FCM/loader.user.js",
       "website": "https://github.com/awdrrawd/BC-FCM",
       "priority": 3,
-      "version": "1.5.0",
       "type": "mod"
     },
     {
