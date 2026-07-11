@@ -19,7 +19,7 @@
   // 防重複載入旗標：檔尾把 API 掛到 global.Liko.__Sys_ColorAPI__（系統擴充統一以 __Sys_ 開頭）
   global.Liko = global.Liko ?? {};
   if (global.Liko.__Sys_ColorAPI__) return;
-  const MOD_VER = "1.0";
+  const MOD_VER = "1.1";
 
   // ---------------------------------------------------------------------------
   // 找到 BC 實際在畫的那個 <canvas> 元素
@@ -46,14 +46,42 @@
    *   size: 取樣區域邊長，預設 4（4x4 像素取平均）
    * @returns {string|null} 例如 '#eeeeee'，讀取失敗（例如 canvas 還沒畫出來）回傳 null
    */
+  // 重用的離屏取樣畫布：用 willReadFrequently 建立。
+  //  不直接對 BC 的 MainCanvas 做 getImageData——那個 2D context 由 BC 建立、無法補上
+  //  willReadFrequently 旗標，被頻繁讀取時 Chrome 會一直噴
+  //  「Multiple readback operations using getImageData are faster with willReadFrequently」。
+  //  改成把取樣區塊 drawImage 進這張自己的畫布再讀，讀取端就有旗標、不再噴提示。
+  let _sampleCv = null, _sampleCtx = null;
+  function _getSampleCtx(w, h) {
+    if (!_sampleCv) {
+      _sampleCv = document.createElement('canvas');
+      _sampleCtx = _sampleCv.getContext('2d', { willReadFrequently: true });
+    }
+    if (_sampleCv.width !== w || _sampleCv.height !== h) { _sampleCv.width = w; _sampleCv.height = h; }
+    return _sampleCtx;
+  }
+
+  // 失敗訊息節流：同一原因短時間只印一次，避免每幀呼叫時洗版 console。
+  let _lastWarnAt = 0;
+  function _warnThrottled(msg, err) {
+    const now = Date.now();
+    if (now - _lastWarnAt < 5000) return;
+    _lastWarnAt = now;
+    console.warn(msg, err);
+  }
+
   function getCanvasColor(options = {}) {
     const { x = 1910, y = 60, size = 4 } = options;
     const canvas = _getCanvasElement();
     if (!canvas) return null;
 
     try {
-      const ctx = canvas.getContext('2d');
-      const { data } = ctx.getImageData(x, y, size, size);
+      const sctx = _getSampleCtx(size, size);
+      if (!sctx) return null;
+      // 從 BC 畫布把取樣區塊畫進離屏畫布，再從離屏畫布讀（讀取端具 willReadFrequently）
+      sctx.clearRect(0, 0, size, size);
+      sctx.drawImage(canvas, x, y, size, size, 0, 0, size, size);
+      const { data } = sctx.getImageData(0, 0, size, size);
       let r = 0, g = 0, b = 0, count = 0;
       for (let i = 0; i < data.length; i += 4) {
         r += data[i];
@@ -63,8 +91,8 @@
       }
       return rgbToHex(r / count, g / count, b / count);
     } catch (err) {
-      // 常見原因：canvas 尚未渲染、或座標超出範圍
-      console.warn('[Liko.__Sys_ColorAPI__] getCanvasColor 讀取失敗', err);
+      // 常見原因：canvas 尚未渲染、座標超出範圍、或畫布被跨域圖片汙染
+      _warnThrottled('[Liko.__Sys_ColorAPI__] getCanvasColor 讀取失敗', err);
       return null;
     }
   }
