@@ -2,7 +2,7 @@
 // @name           Hotfix - Leash Fix
 // @name:zh        牽引補丁
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.4
+// @version        0.3
 // @description    Fix some Leash failures
 // @description:zh 修復部分牽引失敗的錯誤
 // @author         likolisu
@@ -24,9 +24,13 @@ HLF 會阻止加入並向牽引者發送失敗通知。
 導致誤判為異常牽引的問題做了修正，並加上 [HLF][DEBUG] 診斷 log。
 */
 
+/* global ChatRoomLeashPlayer, ChatRoomJoinLeash, ChatRoomSendLocal, ChatRoomCanBeLeashedBy,
+   ChatSelectGendersAllowed, ChatRoomData, ChatRoomLeave, ServerSend, ServerRoomJoin,
+   CommonSetScreen, Player, TranslationLanguage, bcModSdk */
+
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VERSION = "0.4";
+    const MOD_VERSION = "0.3";
     if (window.Liko.HLF) return;
     window.Liko.HLF = MOD_VERSION;
 
@@ -133,7 +137,9 @@ HLF 會阻止加入並向牽引者發送失敗通知。
             return;
         }
 
-        //if (LeashGlobalState.leashPlayer == null && senderNumber != null) {LeashGlobalState.leashPlayer = senderNumber;}
+        if (LeashGlobalState.leashPlayer == null && senderNumber != null) {
+            LeashGlobalState.leashPlayer = senderNumber;
+        }
 
         if (LeashGlobalState.leashPlayer !== senderNumber) {
             dbg("⛔ ChatRoomLeashPlayer 與 sender 不符，交給原版處理");
