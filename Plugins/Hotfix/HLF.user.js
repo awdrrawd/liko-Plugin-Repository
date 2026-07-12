@@ -24,10 +24,6 @@ HLF 會阻止加入並向牽引者發送失敗通知。
 導致誤判為異常牽引的問題做了修正，並加上 [HLF][DEBUG] 診斷 log。
 */
 
-/* global ChatRoomLeashPlayer, ChatRoomJoinLeash, ChatRoomSendLocal, ChatRoomCanBeLeashedBy,
-   ChatSelectGendersAllowed, ChatRoomData, ChatRoomLeave, ServerSend, ServerRoomJoin,
-   CommonSetScreen, Player, TranslationLanguage, bcModSdk */
-
 (function () {
     window.Liko = window.Liko ?? {};
     const MOD_VERSION = "0.3";
