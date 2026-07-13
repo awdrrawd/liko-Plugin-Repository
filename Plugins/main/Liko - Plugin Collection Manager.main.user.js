@@ -124,7 +124,7 @@
             try {
                 if (Player?.OnlineSharedSettings?.PCM) delete Player.OnlineSharedSettings.PCM;
                 Player.PCM = { version: MOD_VER };
-                accountPluginSettings = loadAccountSettings();
+                refreshAccountSettingsFromPlayer();
                 const cfg = loadAccountConfig();
                 accountFloatingBtnVisible = cfg.showFloatingBtn !== false;
                 applyFloatingBtnVisibility();
@@ -254,7 +254,7 @@
         sh('ServerInit', 1, (args, next) => { const r = next(args); bindPCMSocketListener(); return r; });
         sh('CommonSetScreen', 1, (args, next) => {
             const r = next(args);
-            try { lastScreenCheck = null; lastScreenCheckTime = 0; cachedViewingCharacter = null; lastCharacterCheck = 0; currentUIState = null; checkLanguageChange(); createManagerUI(); if (!localLoadStarted) loadLocalPluginsPhase(); if (!accountLoadStarted) loadAccountPluginsPhase(); } catch(e) {}
+            try { lastScreenCheck = null; lastScreenCheckTime = 0; cachedViewingCharacter = null; lastCharacterCheck = 0; currentUIState = null; checkLanguageChange(); createManagerUI(); if (!configuredLoadStarted) loadConfiguredPluginsPhase(); } catch(e) {}
             return r;
         });
         let _lastBcxState = false;
@@ -305,9 +305,38 @@
     function loadSettings() { return JSON.parse(localStorage.getItem("BC_PluginManager_Settings") || "{}"); }
     let pluginSettings = loadSettings();
     let accountPluginSettings = {};
+    let accountSettingsLoaded = false;
+    let accountSettingsLoadPromise = null;
 
     function loadAccountSettings() {
         try { const raw = Player?.ExtensionSettings?.PCMAccount; if (!raw) return {}; return typeof raw === 'object' ? raw : JSON.parse(raw) || {}; } catch(e) { return {}; }
+    }
+    function refreshAccountSettingsFromPlayer() {
+        if (typeof Player === 'undefined' || !Player?.AccountName) return false;
+        accountPluginSettings = loadAccountSettings();
+        accountSettingsLoaded = true;
+        return true;
+    }
+    async function ensureAccountSettingsLoaded() {
+        if (accountSettingsLoaded) return true;
+        if (accountSettingsLoadPromise) return accountSettingsLoadPromise;
+
+        accountSettingsLoadPromise = (async () => {
+            let waited = 0;
+            while ((typeof Player === 'undefined' || !Player?.AccountName) && waited < 15 * 60000) {
+                if (_lifecycle.unloaded) return false;
+                await new Promise(r => setTimeout(r, 1000));
+                waited += 1000;
+            }
+            if (_lifecycle.unloaded) return false;
+            return refreshAccountSettingsFromPlayer();
+        })();
+
+        try {
+            return await accountSettingsLoadPromise;
+        } finally {
+            accountSettingsLoadPromise = null;
+        }
     }
     function saveAccountSettings() {
         try {
@@ -527,7 +556,8 @@
     // === 插件加載 ================================================
     
     let loadedPlugins = new Set(), failedPlugins = new Set();
-    let isLoadingPlugins = false, localLoadStarted = false, accountLoadStarted = false, customLoadStarted = false;
+    const pluginLoadPromises = new Map();
+    let isLoadingPlugins = false, configuredLoadStarted = false, customLoadStarted = false;
 
     // #3 修正：舊版把插件程式碼包在內層 try/catch 裡吞掉所有執行期錯誤（console.error 後就結束），
     // 導致 loadSubPlugin 外層的 try/catch 永遠捕捉不到「新版執行失敗」，「退回舊版快取救援」形同虛設。
@@ -711,9 +741,24 @@
         return false;
     }
 
-    async function loadSubPlugin(plugin, isCustom = false) {
+    function loadSubPlugin(plugin, isCustom = false) {
+        if (loadedPlugins.has(plugin.id)) return Promise.resolve();
+        const existing = pluginLoadPromises.get(plugin.id);
+        if (existing) return existing;
+
+        const trackedPromise = loadSubPluginOnce(plugin, isCustom).finally(() => {
+            if (pluginLoadPromises.get(plugin.id) === trackedPromise) pluginLoadPromises.delete(plugin.id);
+        });
+        pluginLoadPromises.set(plugin.id, trackedPromise);
+        return trackedPromise;
+    }
+
+    async function loadSubPluginOnce(plugin, isCustom = false) {
         if (loadedPlugins.has(plugin.id)) return;
-        if (!isCustom && !isPluginEnabledForLoading(plugin)) return;
+        if (!isCustom) {
+            const settingsReady = accountSettingsLoaded || await ensureAccountSettingsLoaded();
+            if (!settingsReady || !isPluginEnabledForLoading(plugin)) return;
+        }
 
         if (!plugin.url && plugin.inlineCode) {
             try { injectScript(plugin.id, plugin.inlineCode); loadedPlugins.add(plugin.id); } catch(e) {}
@@ -816,21 +861,19 @@
         } finally { isLoadingPlugins = false; }
     }
 
-    async function loadLocalPluginsPhase() {
-        if (localLoadStarted) return; localLoadStarted = true;
-        await pluginsReady; if (!pluginsLoaded) { localLoadStarted = false; return; }
-        let w = 0; while (typeof Player === 'undefined' && w < 15 * 60000) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); w += 1000; }
-        if (typeof Player === 'undefined' || _lifecycle.unloaded) { localLoadStarted = false; return; }
-        await runPluginBatch(subPlugins.filter(p => isPluginEnabled(p)));
-    }
+    async function loadConfiguredPluginsPhase() {
+        if (configuredLoadStarted) return;
+        configuredLoadStarted = true;
 
-    async function loadAccountPluginsPhase() {
-        if (accountLoadStarted) return; accountLoadStarted = true;
-        await pluginsReady; if (!pluginsLoaded) { accountLoadStarted = false; return; }
-        let w = 0; while (!Player?.AccountName && w < 15 * 60000) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); w += 1000; }
-        if (!Player?.AccountName || _lifecycle.unloaded) { accountLoadStarted = false; return; }
-        accountPluginSettings = loadAccountSettings();
-        await runPluginBatch(subPlugins.filter(p => isPluginEnabledInAccount(p) && !loadedPlugins.has(p.id)));
+        await pluginsReady;
+        if (!pluginsLoaded) { configuredLoadStarted = false; return; }
+
+        const settingsReady = await ensureAccountSettingsLoaded();
+        if (!settingsReady || _lifecycle.unloaded) { configuredLoadStarted = false; return; }
+
+        // Compute the effective state once both local and account settings are available.
+        // This guarantees an account beta selection wins before a local stable plugin starts.
+        await runPluginBatch(subPlugins.filter(p => isPluginEnabledForLoading(p)));
     }
 
     async function loadCustomPluginsPhase() {
@@ -1818,8 +1861,7 @@
         tryRegisterCommand();
 
         initPlugins();
-        loadLocalPluginsPhase();
-        loadAccountPluginsPhase();
+        loadConfiguredPluginsPhase();
         setTimeout(() => loadCustomPluginsPhase(), 5000);
         registerPreferencePage();
 

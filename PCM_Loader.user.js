@@ -27,8 +27,8 @@
         const ts = Date.now();
         return [
             `https://awdrrawd.github.io/liko-Plugin-Repository/${MAIN_REL}?timestamp=${ts}`,
-            `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${MAIN_REL}`,
             `https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/${MAIN_REL}`,
+            `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${MAIN_REL}`,
         ];
     }
 
