@@ -2,7 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.1
+// @version      2.1.2
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -15,7 +15,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.1.1"; // 2.1.0: 子插件新增 type 欄位（eval／scr／mod）決定載入方式，預設 eval 不影響舊資料；
+    const MOD_VER = "2.1.2"; // 2.1.0: 子插件新增 type 欄位（eval／scr／mod）決定載入方式，預設 eval 不影響舊資料；
                               // mod 用 dynamic import 直接載入像 AEE 這類 Vite/Rollup ESM bundle，不再需要中介 loader.user.js。
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
@@ -254,7 +254,7 @@
         sh('ServerInit', 1, (args, next) => { const r = next(args); bindPCMSocketListener(); return r; });
         sh('CommonSetScreen', 1, (args, next) => {
             const r = next(args);
-            try { lastScreenCheck = null; lastScreenCheckTime = 0; cachedViewingCharacter = null; lastCharacterCheck = 0; currentUIState = null; checkLanguageChange(); createManagerUI(); if (!configuredLoadStarted) loadConfiguredPluginsPhase(); } catch(e) {}
+            try { lastScreenCheck = null; lastScreenCheckTime = 0; cachedViewingCharacter = null; lastCharacterCheck = 0; currentUIState = null; checkLanguageChange(); createManagerUI(); if (!localLoadStarted) loadLocalPluginsPhase(); if (!accountLoadStarted) loadAccountPluginsPhase(); } catch(e) {}
             return r;
         });
         let _lastBcxState = false;
@@ -537,9 +537,11 @@
     function isTriStatePlugin(p) { return !!p.altUrl; }
     function isPluginEnabled(p) { return isTriStatePlugin(p) ? p.state !== "off" : p.enabled; }
     function isPluginEnabledInAccount(p) { const v = accountPluginSettings[p.id]; return v !== undefined && v !== 0 && v !== "off"; }
-    function isPluginEnabledForLoading(p) { return isPluginEnabled(p) || isPluginEnabledInAccount(p); }
-    function getActivePluginUrl(p) {
-        if (p.altUrl) { const ls = p.state || "off"; const as = accountPluginSettings[p.id] || "off"; if (ls === "beta" || as === "beta") return p.altUrl; }
+    function getPluginState(p, source) { return (source === 'account' ? accountPluginSettings[p.id] : p.state) || "off"; }
+    function isPluginEnabledForSource(p, source) { return source === 'account' ? isPluginEnabledInAccount(p) : isPluginEnabled(p); }
+    function getPluginLoadSource(p) { return isPluginEnabled(p) ? 'local' : 'account'; }
+    function getActivePluginUrl(p, source = 'local') {
+        if (p.altUrl && getPluginState(p, source) === "beta") return p.altUrl;
         return p.url;
     }
     function getTriLabels(p) { return p.triLabels?.length === 3 ? p.triLabels : ["OFF", "ON", "BETA"]; }
@@ -557,7 +559,8 @@
     
     let loadedPlugins = new Set(), failedPlugins = new Set();
     const pluginLoadPromises = new Map();
-    let isLoadingPlugins = false, configuredLoadStarted = false, customLoadStarted = false;
+    let isLoadingPlugins = false, localLoadStarted = false, accountLoadStarted = false, customLoadStarted = false;
+    let localPhasePromise = null;
 
     // #3 修正：舊版把插件程式碼包在內層 try/catch 裡吞掉所有執行期錯誤（console.error 後就結束），
     // 導致 loadSubPlugin 外層的 try/catch 永遠捕捉不到「新版執行失敗」，「退回舊版快取救援」形同虛設。
@@ -741,23 +744,24 @@
         return false;
     }
 
-    function loadSubPlugin(plugin, isCustom = false) {
+    function loadSubPlugin(plugin, source = 'local') {
         if (loadedPlugins.has(plugin.id)) return Promise.resolve();
         const existing = pluginLoadPromises.get(plugin.id);
         if (existing) return existing;
 
-        const trackedPromise = loadSubPluginOnce(plugin, isCustom).finally(() => {
+        const trackedPromise = loadSubPluginOnce(plugin, source).finally(() => {
             if (pluginLoadPromises.get(plugin.id) === trackedPromise) pluginLoadPromises.delete(plugin.id);
         });
         pluginLoadPromises.set(plugin.id, trackedPromise);
         return trackedPromise;
     }
 
-    async function loadSubPluginOnce(plugin, isCustom = false) {
+    async function loadSubPluginOnce(plugin, source = 'local') {
+        const isCustom = source === 'custom';
         if (loadedPlugins.has(plugin.id)) return;
         if (!isCustom) {
-            const settingsReady = accountSettingsLoaded || await ensureAccountSettingsLoaded();
-            if (!settingsReady || !isPluginEnabledForLoading(plugin)) return;
+            if (source === 'account' && !accountSettingsLoaded && !(await ensureAccountSettingsLoaded())) return;
+            if (!isPluginEnabledForSource(plugin, source)) return;
         }
 
         if (!plugin.url && plugin.inlineCode) {
@@ -766,7 +770,7 @@
         }
         if (!plugin.url) return;
 
-        const rawUrl   = isCustom ? plugin.url : getActivePluginUrl(plugin);
+        const rawUrl   = isCustom ? plugin.url : getActivePluginUrl(plugin, source);
         const loadType = getLoadType(plugin);
         const versionKey = isCustom ? null : getPluginVersionKey(plugin);
         const cachedRecord = getCachedPluginRecord(plugin.id);
@@ -845,7 +849,7 @@
         document.querySelector(`.bc-plugin-item[data-plugin-id="${CSS.escape(pluginId)}"]`)?.classList.remove('failed');
     }
 
-    async function runPluginBatch(plugins, isCustom = false) {
+    async function runPluginBatch(plugins, source = 'local') {
         while (isLoadingPlugins) await new Promise(r => setTimeout(r, 200));
         if (!plugins.length) return;
         isLoadingPlugins = true;
@@ -853,7 +857,7 @@
             const batchSize = 3; let ok = 0, fail = 0;
             for (let i = 0; i < plugins.length; i += batchSize) {
                 const batch = plugins.slice(i, i + batchSize);
-                const results = await Promise.allSettled(batch.map(p => loadSubPlugin(p, isCustom)));
+                const results = await Promise.allSettled(batch.map(p => loadSubPlugin(p, source)));
                 results.forEach((r, idx) => { if (r.status === 'fulfilled') ok++; else { fail++; console.error(`🐈‍⬛ [PCM] ❌ ${batch[idx].name}`); } });
                 if (i + batchSize < plugins.length) await new Promise(r => setTimeout(r, 800));
             }
@@ -861,26 +865,40 @@
         } finally { isLoadingPlugins = false; }
     }
 
-    async function loadConfiguredPluginsPhase() {
-        if (configuredLoadStarted) return;
-        configuredLoadStarted = true;
+    function loadLocalPluginsPhase() {
+        if (localLoadStarted) return localPhasePromise;
+        localLoadStarted = true;
+
+        localPhasePromise = (async () => {
+            await pluginsReady;
+            if (!pluginsLoaded || _lifecycle.unloaded) { localLoadStarted = false; localPhasePromise = null; return; }
+            await runPluginBatch(subPlugins.filter(p => isPluginEnabled(p)), 'local');
+        })();
+        return localPhasePromise;
+    }
+
+    async function loadAccountPluginsPhase() {
+        if (accountLoadStarted) return;
+        accountLoadStarted = true;
 
         await pluginsReady;
-        if (!pluginsLoaded) { configuredLoadStarted = false; return; }
+        if (!pluginsLoaded) { accountLoadStarted = false; return; }
 
         const settingsReady = await ensureAccountSettingsLoaded();
-        if (!settingsReady || _lifecycle.unloaded) { configuredLoadStarted = false; return; }
+        if (!settingsReady || _lifecycle.unloaded) { accountLoadStarted = false; return; }
 
-        // Compute the effective state once both local and account settings are available.
-        // This guarantees an account beta selection wins before a local stable plugin starts.
-        await runPluginBatch(subPlugins.filter(p => isPluginEnabledForLoading(p)));
+        if (localPhasePromise) await localPhasePromise;
+        if (_lifecycle.unloaded) { accountLoadStarted = false; return; }
+
+        const pending = subPlugins.filter(p => isPluginEnabledInAccount(p) && !loadedPlugins.has(p.id) && !pluginLoadPromises.has(p.id));
+        await runPluginBatch(pending, 'account');
     }
 
     async function loadCustomPluginsPhase() {
         if (customLoadStarted) return; customLoadStarted = true;
         while (isLoadingPlugins) await new Promise(r => setTimeout(r, 500));
         const enabled = customPlugins.filter(p => p.enabled);
-        if (enabled.length) await runPluginBatch(enabled, true);
+        if (enabled.length) await runPluginBatch(enabled, 'custom');
     }
 
     // === UI 狀態 ================================================
@@ -1301,7 +1319,7 @@
             if (!plugin) return;
             failedPlugins.delete(id);
             hidePluginRetryBtn(id);
-            loadSubPlugin(plugin, isCustom).catch(() => {});
+            loadSubPlugin(plugin, isCustom ? 'custom' : getPluginLoadSource(plugin)).catch(() => {});
             return;
         }
 
@@ -1324,20 +1342,20 @@
                 toggle.classList.toggle('active', newVal);
                 toggle.closest('.bc-plugin-item').classList.toggle('enabled', newVal);
                 showToggleNotification(newVal ? "🐈‍⬛" : "🐾", `${getPluginName(plugin)} ${newVal ? t('pluginEnabled') : t('pluginDisabled')}`, newVal ? t('willTakeEffect') : t('willNotStart'));
-                if (newVal && !loadedPlugins.has(id) && typeof Player !== 'undefined') loadSubPlugin(plugin);
+                if (newVal && !loadedPlugins.has(id) && typeof Player !== 'undefined') loadSubPlugin(plugin, 'account').catch(() => {});
             } else if (src === 'custom') {
                 plugin.enabled = !plugin.enabled; saveCustomPlugins();
                 toggle.classList.toggle('active', plugin.enabled);
                 toggle.closest('.bc-plugin-item').classList.toggle('enabled', plugin.enabled);
                 showToggleNotification(plugin.enabled ? "🐈‍⬛" : "🐾", `${plugin.name} ${plugin.enabled ? t('pluginEnabled') : t('pluginDisabled')}`, plugin.enabled ? t('willTakeEffect') : t('willNotStart'));
-                if (plugin.enabled && !loadedPlugins.has(id)) loadSubPlugin(plugin, true).catch(() => {});
+                if (plugin.enabled && !loadedPlugins.has(id)) loadSubPlugin(plugin, 'custom').catch(() => {});
             } else {
                 plugin.enabled = !plugin.enabled;
                 pluginSettings[id] = plugin.enabled; saveSettings(pluginSettings);
                 toggle.classList.toggle('active', plugin.enabled);
                 toggle.closest('.bc-plugin-item').classList.toggle('enabled', plugin.enabled);
                 showToggleNotification(plugin.enabled ? "🐈‍⬛" : "🐾", `${getPluginName(plugin)} ${plugin.enabled ? t('pluginEnabled') : t('pluginDisabled')}`, plugin.enabled ? t('willTakeEffect') : t('willNotStart'));
-                if (plugin.enabled && !loadedPlugins.has(id) && typeof Player !== 'undefined') loadSubPlugin(plugin);
+                if (plugin.enabled && !loadedPlugins.has(id)) loadSubPlugin(plugin, 'local').catch(() => {});
             }
             return;
         }
@@ -1366,7 +1384,7 @@
             showToggleNotification(next === 'off' ? "🐾" : next === 'stable' ? "🐈‍⬛" : "🧪",
                 next === 'off' ? `${getPluginName(plugin)} ${t('pluginDisabled')}` : `${getPluginName(plugin)} ${labels[next === 'stable' ? 1 : 2]} ${t('pluginEnabled')}`,
                 next === 'off' ? t('willNotStart') : t('willTakeEffect'));
-            if (next !== 'off' && !loadedPlugins.has(id) && typeof Player !== 'undefined') loadSubPlugin(plugin);
+            if (next !== 'off' && !loadedPlugins.has(id)) loadSubPlugin(plugin, src === 'account' ? 'account' : 'local').catch(() => {});
         }
     }
 
@@ -1861,7 +1879,8 @@
         tryRegisterCommand();
 
         initPlugins();
-        loadConfiguredPluginsPhase();
+        loadLocalPluginsPhase();
+        loadAccountPluginsPhase();
         setTimeout(() => loadCustomPluginsPhase(), 5000);
         registerPreferencePage();
 
