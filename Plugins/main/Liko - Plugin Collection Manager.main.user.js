@@ -124,7 +124,7 @@
             try {
                 if (Player?.OnlineSharedSettings?.PCM) delete Player.OnlineSharedSettings.PCM;
                 Player.PCM = { version: MOD_VER };
-                accountPluginSettings = loadAccountSettings();
+                refreshAccountSettingsFromPlayer();
                 const cfg = loadAccountConfig();
                 accountFloatingBtnVisible = cfg.showFloatingBtn !== false;
                 applyFloatingBtnVisibility();
@@ -305,9 +305,38 @@
     function loadSettings() { return JSON.parse(localStorage.getItem("BC_PluginManager_Settings") || "{}"); }
     let pluginSettings = loadSettings();
     let accountPluginSettings = {};
+    let accountSettingsLoaded = false;
+    let accountSettingsLoadPromise = null;
 
     function loadAccountSettings() {
         try { const raw = Player?.ExtensionSettings?.PCMAccount; if (!raw) return {}; return typeof raw === 'object' ? raw : JSON.parse(raw) || {}; } catch(e) { return {}; }
+    }
+    function refreshAccountSettingsFromPlayer() {
+        if (typeof Player === 'undefined' || !Player?.AccountName) return false;
+        accountPluginSettings = loadAccountSettings();
+        accountSettingsLoaded = true;
+        return true;
+    }
+    async function ensureAccountSettingsLoaded() {
+        if (accountSettingsLoaded) return true;
+        if (accountSettingsLoadPromise) return accountSettingsLoadPromise;
+
+        accountSettingsLoadPromise = (async () => {
+            let waited = 0;
+            while ((typeof Player === 'undefined' || !Player?.AccountName) && waited < 15 * 60000) {
+                if (_lifecycle.unloaded) return false;
+                await new Promise(r => setTimeout(r, 1000));
+                waited += 1000;
+            }
+            if (_lifecycle.unloaded) return false;
+            return refreshAccountSettingsFromPlayer();
+        })();
+
+        try {
+            return await accountSettingsLoadPromise;
+        } finally {
+            accountSettingsLoadPromise = null;
+        }
     }
     function saveAccountSettings() {
         try {
@@ -529,13 +558,9 @@
     // === 插件加載 ================================================
     
     let loadedPlugins = new Set(), failedPlugins = new Set();
-<<<<<<< HEAD
-    let isLoadingPlugins = false, localLoadStarted = false, accountLoadStarted = false, customLoadStarted = false;
-=======
     const pluginLoadPromises = new Map();
     let isLoadingPlugins = false, localLoadStarted = false, accountLoadStarted = false, customLoadStarted = false;
     let localPhasePromise = null;
->>>>>>> c341bbe5095e58d0f2487c27ab2047b6faf7d66c
 
     // #3 修正：舊版把插件程式碼包在內層 try/catch 裡吞掉所有執行期錯誤（console.error 後就結束），
     // 導致 loadSubPlugin 外層的 try/catch 永遠捕捉不到「新版執行失敗」，「退回舊版快取救援」形同虛設。
@@ -719,11 +744,6 @@
         return false;
     }
 
-<<<<<<< HEAD
-    async function loadSubPlugin(plugin, isCustom = false) {
-        if (loadedPlugins.has(plugin.id)) return;
-        if (!isCustom && !isPluginEnabledForLoading(plugin)) return;
-=======
     function loadSubPlugin(plugin, source = 'local') {
         if (loadedPlugins.has(plugin.id)) return Promise.resolve();
         const existing = pluginLoadPromises.get(plugin.id);
@@ -743,7 +763,6 @@
             if (source === 'account' && !accountSettingsLoaded && !(await ensureAccountSettingsLoaded())) return;
             if (!isPluginEnabledForSource(plugin, source)) return;
         }
->>>>>>> c341bbe5095e58d0f2487c27ab2047b6faf7d66c
 
         if (!plugin.url && plugin.inlineCode) {
             try { injectScript(plugin.id, plugin.inlineCode); loadedPlugins.add(plugin.id); } catch(e) {}
@@ -846,23 +865,6 @@
         } finally { isLoadingPlugins = false; }
     }
 
-<<<<<<< HEAD
-    async function loadLocalPluginsPhase() {
-        if (localLoadStarted) return; localLoadStarted = true;
-        await pluginsReady; if (!pluginsLoaded) { localLoadStarted = false; return; }
-        let w = 0; while (typeof Player === 'undefined' && w < 15 * 60000) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); w += 1000; }
-        if (typeof Player === 'undefined' || _lifecycle.unloaded) { localLoadStarted = false; return; }
-        await runPluginBatch(subPlugins.filter(p => isPluginEnabled(p)));
-    }
-
-    async function loadAccountPluginsPhase() {
-        if (accountLoadStarted) return; accountLoadStarted = true;
-        await pluginsReady; if (!pluginsLoaded) { accountLoadStarted = false; return; }
-        let w = 0; while (!Player?.AccountName && w < 15 * 60000) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); w += 1000; }
-        if (!Player?.AccountName || _lifecycle.unloaded) { accountLoadStarted = false; return; }
-        accountPluginSettings = loadAccountSettings();
-        await runPluginBatch(subPlugins.filter(p => isPluginEnabledInAccount(p) && !loadedPlugins.has(p.id)));
-=======
     function loadLocalPluginsPhase() {
         if (localLoadStarted) return localPhasePromise;
         localLoadStarted = true;
@@ -890,7 +892,6 @@
 
         const pending = subPlugins.filter(p => isPluginEnabledInAccount(p) && !loadedPlugins.has(p.id) && !pluginLoadPromises.has(p.id));
         await runPluginBatch(pending, 'account');
->>>>>>> c341bbe5095e58d0f2487c27ab2047b6faf7d66c
     }
 
     async function loadCustomPluginsPhase() {
