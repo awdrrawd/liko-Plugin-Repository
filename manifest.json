@@ -453,7 +453,7 @@
       "versions": [
         {
           "distribution": "stable",
-          "source": "https://raw.githubusercontent.com/awdrrawd/BC-AEE/main/loader.user.js"
+          "source": "https://awdrrawd.github.io/BC-AEE/assets/main.js"
         }
       ]
     },
