@@ -3,8 +3,7 @@
 // @namespace    https://example.com
 // @version      0.3.0
 // @description  在 BC 聊天室畫布上疊加繪圖層，透過 Hidden 訊息即時同步筆劃給房間內其他人
-// @match        https://www.bondageprojects.elementfx.com/*
-// @match        https://bondage-europe.com/*
+// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant        none
 // @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
 // ==/UserScript==
