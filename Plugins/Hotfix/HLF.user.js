@@ -2,7 +2,7 @@
 // @name           Hotfix - Leash Fix
 // @name:zh        牽引補丁
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.14
+// @version        0.15
 // @description    Fix some Leash failures
 // @description:zh 修復部分牽引失敗的錯誤
 // @author         likolisu
@@ -15,7 +15,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VERSION = "0.14";
+    const MOD_VERSION = "0.15";
     if (window.Liko.HLF) return;
     window.Liko.HLF = MOD_VERSION;
 
