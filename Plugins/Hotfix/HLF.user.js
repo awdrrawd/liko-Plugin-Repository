@@ -32,6 +32,9 @@
         cooldownTimer: null,
 
         leadsUs(id) {
+            if (!ChatRoomCanBeLeashedBy(id, Player)) {
+                return false;
+            }
             if (ChatRoomLeashPlayer === id) {
                 return true;
             }
@@ -39,7 +42,13 @@
             if (d?.leash === "follow" && (d.nextCharacter === id || d.prevCharacter === id)) {
                 return true;
             }
-            return ChatRoomCanBeLeashedBy(id, Player);
+            if (LSCG) {
+                const lscgLeash = LSCG.getModule("LeashingModule");
+                if (lscgLeash.Enabled && lscgLeash.LeashedByPairings.map(p => p.PairedMember).indexOf(data.MemberNumber) > -1){
+                    return true;
+                }
+            }
+            return false;
         },
 
         request(leader, room, space) {
@@ -117,8 +126,11 @@
         }
         if (Leash.leadsUs(leader)) {
             Leash.request(leader, room, data.ChatRoomSpace);
-            }
+        } else {
+            return next(args);
+        }
     });
 
     console.log(`🐈‍⬛ [HLF] v${MOD_VERSION} ready`);
 })();
+
