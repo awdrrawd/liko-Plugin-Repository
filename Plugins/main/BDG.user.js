@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BC Draw Game (你畫我猜繪圖插件)
 // @namespace    https://example.com
-// @version      0.2.0
+// @version      0.3.0
 // @description  在 BC 聊天室畫布上疊加繪圖層，透過 Hidden 訊息即時同步筆劃給房間內其他人
 // @match        https://www.bondageprojects.elementfx.com/*
 // @match        https://bondage-europe.com/*
@@ -12,7 +12,7 @@
 (function () {
     window.Liko = window.Liko ?? {};
     if (window.Liko.BDG) return;
-    const MOD_VER = "0.2.0";
+    const MOD_VER = "0.3.0";
     window.Liko.BDG = MOD_VER;
 
 	// ============================================================
@@ -25,6 +25,8 @@
 	const MOD_NAME = "DrawGame";
 	const SCREEN_POLL_INTERVAL = 300; // 輪詢 CurrentScreen 的間隔（ms）
 	const BRUSH_PREVIEW_HOLD_MS = 700; // 筆觸尺寸預覽點顯示多久後消失
+	const BALLOON_IDLE_BG = "rgba(255,255,255,0.95)";
+	const BALLOON_DRAWING_BG = "#ff8a80"; // 畫圖模式時氣球底色（需求 4：不用邊框，改用氣球變色表示）
 
 	// ============================================================
 	// 全域狀態
@@ -32,39 +34,47 @@
 	const State = {
 		inChatRoom: false, // 目前是否在 ChatRoom 畫面（只有這時才顯示/互動）
 		drawEnabled: false, // 是否處於「畫圖模式」（true 時攔截點擊給畫布）
-		ignoreSenders: new Set(), // 接收端的選擇權：不想看到這些人的畫面更新（畫圖本身一律分享，只有「要不要收」是接收方能決定的）
-		pluginUsers: new Set(), // 已知目前房間內有裝這個插件的人（MemberNumber），用來做「限制顯示」清單
+		hiddenSenders: new Set(), // 接收端的選擇權：這些人的畫面「不顯示」（但訊息照收，資料照畫，只是該人的圖層被 CSS 隱藏——需求 3）
+		pluginUsers: new Set(), // 已知目前房間內有裝這個插件的人（MemberNumber），用來做「顯示設定」清單
 		color: "#e24b4a",
 		width: 6,
 		tool: "pen", // 'pen' | 'eraser'
 		myStrokeId: 0,
 		currentStroke: null, // { id, color, width, tool, points: [...] }
 		pendingPoints: [], // 尚未送出的新點（本地畫完就丟進來，等批次 flush）
-		remoteStrokes: new Map(), // strokeKey(senderId+strokeId) -> 該筆畫最後一個點座標，用來銜接批次
+		remoteStrokes: new Map(), // remoteKey(senderId,strokeId) -> 該筆畫最後一個點座標，用來銜接批次
 		toolbarOpen: false, // 工具列面板是否展開
-		restrictOpen: false, // 限制顯示面板是否展開
+		restrictOpen: false, // 顯示設定面板是否展開
 		brushPreviewTimer: null,
 	};
 
 	// ============================================================
 	// Overlay 畫布：疊在 BC 主畫布正上方
-	// previewCanvas：疊在 overlay 之上，只用來顯示筆觸尺寸預覽點，不接收互動
+	// overlay：自己畫圖用的圖層（互動層），同時也是自己筆劃的顯示層
+	// senderLayers：每個「其他人」各自獨立一張畫布，這樣才能做到
+	//   - 清除只清自己的（需求 2：不會動到別人的圖層）
+	//   - 顯示/隱藏個別人（需求 3：資料照收，只是 CSS display 控制看不看得到）
+	// previewCanvas：疊在最上層，只用來顯示筆觸尺寸預覽點，不接收互動
 	// ============================================================
 	let overlay, octx;
 	let previewCanvas, pctx;
+	const senderLayers = new Map(); // senderId -> { canvas, ctx }
 
 	function makeLayerCanvas(zIndex) {
 		const c = document.createElement("canvas");
 		c.width = LOGICAL_W;
 		c.height = LOGICAL_H;
 
-		// 直接套用跟 MainCanvas 完全一樣的排版規則（position:absolute + inset:0 + margin:auto + width:100% + aspect-ratio），
-		// 讓瀏覽器排版引擎把兩者鎖在同一個框裡自動同步，不需要任何 JS 去讀/算/輪詢座標。
+		// canvas 元素本身帶有 2000x1000 的固有比例（來自 width/height 屬性，等同 <img> 的 intrinsic size），
+		// 所以只要 width:100% + height:auto，瀏覽器就會照原始比例自動算出高度，
+		// 效果跟原本額外寫一行 aspect-ratio 完全一樣，不需要重複宣告。
+		// 前提：#MainCanvas 本身也是用同一套「width:100%; height:auto」排版，才能保證兩者鎖在同一個框裡自動同步；
+		// 如果 MainCanvas 是用別的方式（例如 object-fit）縮放，這裡要對應調整。
 		c.style.position = "absolute";
 		c.style.inset = "0";
 		c.style.margin = "auto";
 		c.style.width = "100%";
-		c.style.aspectRatio = `${LOGICAL_W} / ${LOGICAL_H}`;
+		c.style.height = "auto";
 
 		c.style.pointerEvents = "none";
 		c.style.zIndex = String(zIndex);
@@ -72,7 +82,7 @@
 		c.style.userSelect = "none";
 		c.style.webkitUserSelect = "none";
 		c.style.outline = "none";
-		c.style.display = "none"; // 預設隱藏，進入 ChatRoom 後才顯示（需求 4）
+		c.style.display = "none"; // 預設隱藏，進入 ChatRoom 後才顯示（需求 4 相關：離開房間不殘留畫面）
 
 		return c;
 	}
@@ -81,11 +91,11 @@
 		const main = getMainCanvas();
 		if (!main || !main.parentElement) throw new Error("[DrawGame] 找不到 #MainCanvas 或其父節點，無法插入 overlay");
 
-		overlay = makeLayerCanvas(50); // 蓋過角色與背景，但不蓋 BCX 等常見插件子畫面（慣例 5~10 之外另計）
+		overlay = makeLayerCanvas(50); // 自己畫圖的互動層，蓋過角色與背景
 		main.insertAdjacentElement("afterend", overlay);
 		octx = overlay.getContext("2d");
 
-		previewCanvas = makeLayerCanvas(51); // 永遠疊在 overlay 之上，純顯示用
+		previewCanvas = makeLayerCanvas(51); // 永遠疊在最上層，純顯示用
 		overlay.insertAdjacentElement("afterend", previewCanvas);
 		pctx = previewCanvas.getContext("2d");
 	}
@@ -93,6 +103,28 @@
 	function getMainCanvas() {
 		// BC 的主畫布，實際 id 依版本可能不同，請視你載入的 BC 版本核對
 		return document.getElementById("MainCanvas") || document.querySelector("canvas#MainCanvas");
+	}
+
+	// 每個其他人各自的圖層，需要時才建立（第一次收到那個人的畫面更新時）
+	function getSenderLayer(senderId) {
+		let layer = senderLayers.get(senderId);
+		if (layer) return layer;
+
+		const c = makeLayerCanvas(49); // 比自己的 overlay(50) 低一層，避免蓋住自己正在畫的筆劃
+		overlay.insertAdjacentElement("beforebegin", c); // 插在 MainCanvas 與 overlay 之間
+		const ctx = c.getContext("2d");
+
+		const hidden = State.hiddenSenders.has(senderId);
+		c.style.display = State.inChatRoom ? (hidden ? "none" : "block") : "none";
+
+		layer = { canvas: c, ctx };
+		senderLayers.set(senderId, layer);
+		return layer;
+	}
+
+	function destroyAllSenderLayers() {
+		for (const layer of senderLayers.values()) layer.canvas.remove();
+		senderLayers.clear();
 	}
 
 	// 把滑鼠/觸控的螢幕座標，轉成 0~2000 / 0~1000 的邏輯座標
@@ -107,16 +139,17 @@
 	// ============================================================
 	// 畫圖模式切換：只控制「能不能畫、事件會不會被攔截」。
 	// 不做「要不要傳送」的開關——畫了就一定分享，
-	// 要不要接收是接收端的權利（見下方 ignoreSenders / 限制顯示面板）。
+	// 要不要顯示是接收端各自的權利（見下方 hiddenSenders / 顯示設定面板）。
 	// 額外用 State.inChatRoom 雙重把關：離開聊天室後即使 drawEnabled 沒被清掉，
 	// overlay 也不會再攔截任何點擊（需求 4）。
+	// 畫圖狀態指示：不用外框，改成氣球底色變化，一眼判斷目前是否在畫圖狀態（需求 4）。
 	// ============================================================
 	function setDrawMode(enabled) {
 		State.drawEnabled = enabled;
 		updateOverlayInteractivity();
 		overlay.style.cursor = enabled ? "crosshair" : "default";
-		overlay.style.boxShadow = enabled ? "inset 0 0 0 2px #e24b4a" : "none"; // 明顯的邊框，一眼判斷目前是否在畫圖狀態
 		document.body.style.userSelect = enabled ? "none" : ""; // 畫圖時鎖住全頁選取，避免拖曳途中不小心選到文字
+		if (balloon) balloon.style.background = enabled ? BALLOON_DRAWING_BG : BALLOON_IDLE_BG;
 		if (!enabled && State.currentStroke) endLocalStroke(); // 切出去前把沒收尾的筆畫收掉
 		const cb = toolbarPanel && toolbarPanel.querySelector("#dg-draw");
 		if (cb && cb.checked !== enabled) cb.checked = enabled;
@@ -127,9 +160,13 @@
 		overlay.style.pointerEvents = State.drawEnabled && State.inChatRoom ? "auto" : "none";
 	}
 
-	function toggleIgnoreSender(memberNumber) {
-		if (State.ignoreSenders.has(memberNumber)) State.ignoreSenders.delete(memberNumber);
-		else State.ignoreSenders.add(memberNumber);
+	// 設定某人的圖層要不要顯示。資料仍會持續接收並畫進該圖層，只是用 CSS display 控制看不看得到，
+	// 所以重新打開時，之前累積的畫面會立刻完整出現，不會漏掉（需求 3）。
+	function setSenderHidden(memberNumber, hidden) {
+		if (hidden) State.hiddenSenders.add(memberNumber);
+		else State.hiddenSenders.delete(memberNumber);
+		const layer = senderLayers.get(memberNumber);
+		if (layer) layer.canvas.style.display = hidden ? "none" : "block";
 	}
 
 	// ============================================================
@@ -178,7 +215,8 @@
 		State.currentStroke = null;
 	}
 
-	function clearOverlay(broadcast) {
+	// 只清「自己」畫的東西，不影響任何人的圖層（需求 2）
+	function clearOwnLayer(broadcast) {
 		octx.clearRect(0, 0, overlay.width, overlay.height);
 		if (broadcast) sendHidden({ action: "clear" });
 	}
@@ -260,7 +298,9 @@
 	}, BATCH_INTERVAL);
 
 	// ============================================================
-	// 接收：解析對方送來的批次，用插值動畫補畫，避免瞬間跳格
+	// 接收：解析對方送來的批次，用插值動畫補畫，避免瞬間跳格。
+	// 注意：不論該 sender 目前是否被隱藏，訊息都會照常處理、照常畫進他自己的圖層，
+	// 只是圖層的 CSS display 決定看不看得到（需求 3）。
 	// ============================================================
 	function remoteKey(senderId, strokeId) {
 		return senderId + ":" + strokeId;
@@ -272,14 +312,22 @@
 		if (!entry) return false;
 		const senderId = data.Sender;
 
-		// 只要收到這個 tag 的訊息，就代表對方有裝這個插件——記錄下來供「限制顯示」清單使用（需求 3）
-		if (senderId !== undefined && senderId !== null) State.pluginUsers.add(senderId);
-
-		if (State.ignoreSenders.has(senderId)) return true; // 已封鎖此人的畫面更新
+		// 只要收到這個 tag 的訊息，就代表對方有裝這個插件——記錄下來供「顯示設定」清單使用（需求 3）
+		// 預設不隱藏（全部人開啟），除非之前手動關過
+		if (senderId !== undefined && senderId !== null) {
+			const isNew = !State.pluginUsers.has(senderId);
+			State.pluginUsers.add(senderId);
+			if (isNew) refreshRestrictPanelIfOpen();
+		}
 
 		const payload = entry.payload;
 		if (payload.action === "clear") {
-			octx.clearRect(0, 0, overlay.width, overlay.height);
+			// 對方清畫布 = 只清「對方那一層」，不影響其他人或自己的畫面
+			const layer = senderLayers.get(senderId);
+			if (layer) layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+			for (const key of State.remoteStrokes.keys()) {
+				if (key.startsWith(senderId + ":")) State.remoteStrokes.delete(key);
+			}
 			return true;
 		}
 		if (payload.action === "batch") {
@@ -296,6 +344,7 @@
 	}
 
 	function replayBatch(senderId, payload) {
+		const layer = getSenderLayer(senderId);
 		const key = remoteKey(senderId, payload.strokeId);
 		const segments = []; // 要畫的線段清單
 		let prev = State.remoteStrokes.get(key) || null;
@@ -320,7 +369,7 @@
 		function step() {
 			if (i >= segments.length) return;
 			const [a, b] = segments[i];
-			drawSegment(octx, a, b, payload.color, payload.width, payload.tool);
+			drawSegment(layer.ctx, a, b, payload.color, payload.width, payload.tool);
 			i++;
 			setTimeout(() => requestAnimationFrame(step), perSegment);
 		}
@@ -328,7 +377,7 @@
 	}
 
 	// ============================================================
-	// 房間內成員名稱查詢（給「限制顯示」清單用）
+	// 房間內成員名稱查詢（給「顯示設定」清單用）
 	// ============================================================
 	function getRoomCharacters() {
 		try {
@@ -346,7 +395,7 @@
 	}
 
 	// ============================================================
-	// UI：氣球（可拖曳，點擊展開/收納工具面板）+ 工具面板 + 限制顯示面板
+	// UI：氣球（可拖曳，點擊展開/收納工具面板）+ 工具面板 + 顯示設定面板
 	// ============================================================
 	let balloon, toolbarPanel, restrictPanel;
 
@@ -362,7 +411,7 @@
 			width: "48px",
 			height: "48px",
 			borderRadius: "50%",
-			background: "rgba(255,255,255,0.95)",
+			background: BALLOON_IDLE_BG,
 			border: "1px solid #ccc",
 			boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
 			display: "none", // 只有在 ChatRoom 才顯示（需求 4）
@@ -373,6 +422,7 @@
 			userSelect: "none",
 			zIndex: "9999",
 			touchAction: "none",
+			transition: "background-color 120ms ease",
 		});
 		document.body.appendChild(balloon);
 
@@ -472,8 +522,8 @@
 			<label>顏色 <input type="color" id="dg-color" value="${State.color}"></label>
 			<label>筆觸 <input type="range" id="dg-width" min="1" max="30" value="${State.width}"></label>
 			<label><input type="checkbox" id="dg-eraser"> 橡皮擦</label>
-			<button id="dg-clear" type="button">清除畫布</button>
-			<button id="dg-restrict-toggle" type="button">限制顯示…</button>
+			<button id="dg-clear" type="button">清除我的畫布</button>
+			<button id="dg-restrict-toggle" type="button">顯示設定…</button>
 		`;
 		document.body.appendChild(toolbarPanel);
 
@@ -489,7 +539,7 @@
 			State.tool = e.target.checked ? "eraser" : "pen";
 			showBrushSizePreview();
 		});
-		toolbarPanel.querySelector("#dg-clear").addEventListener("click", () => clearOverlay(true));
+		toolbarPanel.querySelector("#dg-clear").addEventListener("click", () => clearOwnLayer(true));
 		toolbarPanel.querySelector("#dg-restrict-toggle").addEventListener("click", () => {
 			State.restrictOpen = !State.restrictOpen;
 			applyPanelVisibility();
@@ -512,14 +562,14 @@
 			fontSize: "12px",
 			fontFamily: "sans-serif",
 			userSelect: "none",
-			minWidth: "200px",
-			maxHeight: "260px",
+			minWidth: "210px",
+			maxHeight: "300px",
 			overflowY: "auto",
 		});
 
 		const header = document.createElement("div");
 		Object.assign(header.style, { display: "flex", justifyContent: "space-between", alignItems: "center", fontWeight: "bold" });
-		header.innerHTML = `<span>限制顯示（房間內有裝插件的人）</span>`;
+		header.innerHTML = `<span>顯示設定（房間內有裝插件的人）</span>`;
 		const closeBtn = document.createElement("button");
 		closeBtn.type = "button";
 		closeBtn.textContent = "×";
@@ -530,6 +580,27 @@
 		});
 		header.appendChild(closeBtn);
 		restrictPanel.appendChild(header);
+
+		// 全部顯示 / 全部隱藏（需求 3）
+		const bulkRow = document.createElement("div");
+		Object.assign(bulkRow.style, { display: "flex", gap: "6px", margin: "2px 0 4px" });
+		const showAllBtn = document.createElement("button");
+		showAllBtn.type = "button";
+		showAllBtn.textContent = "全部顯示";
+		showAllBtn.addEventListener("click", () => {
+			for (const n of State.pluginUsers) setSenderHidden(n, false);
+			renderRestrictPanel();
+		});
+		const hideAllBtn = document.createElement("button");
+		hideAllBtn.type = "button";
+		hideAllBtn.textContent = "全部隱藏";
+		hideAllBtn.addEventListener("click", () => {
+			for (const n of State.pluginUsers) setSenderHidden(n, true);
+			renderRestrictPanel();
+		});
+		bulkRow.appendChild(showAllBtn);
+		bulkRow.appendChild(hideAllBtn);
+		restrictPanel.appendChild(bulkRow);
 
 		const list = document.createElement("div");
 		list.id = "dg-restrict-list";
@@ -562,25 +633,26 @@
 
 		for (const memberNumber of members) {
 			const row = document.createElement("div");
-			Object.assign(row.style, { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" });
+			Object.assign(row.style, { display: "flex", alignItems: "center", gap: "6px" });
+
+			const label = document.createElement("label");
+			Object.assign(label.style, { display: "flex", alignItems: "center", gap: "4px", overflow: "hidden", cursor: "pointer" });
+
+			// 預設全部人開啟（checked = 顯示），手動關閉指定人才會取消勾選（需求 3）
+			const checkbox = document.createElement("input");
+			checkbox.type = "checkbox";
+			checkbox.checked = !State.hiddenSenders.has(memberNumber);
+			checkbox.addEventListener("change", (e) => {
+				setSenderHidden(memberNumber, !e.target.checked);
+			});
 
 			const nameSpan = document.createElement("span");
 			nameSpan.textContent = nameByNumber.get(memberNumber) || `#${memberNumber}`;
-			nameSpan.style.overflow = "hidden";
-			nameSpan.style.textOverflow = "ellipsis";
-			nameSpan.style.whiteSpace = "nowrap";
-			row.appendChild(nameSpan);
+			Object.assign(nameSpan.style, { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" });
 
-			const btn = document.createElement("button");
-			btn.type = "button";
-			const blocked = State.ignoreSenders.has(memberNumber);
-			btn.textContent = blocked ? "取消封鎖" : "封鎖";
-			btn.addEventListener("click", () => {
-				toggleIgnoreSender(memberNumber);
-				renderRestrictPanel();
-			});
-			row.appendChild(btn);
-
+			label.appendChild(checkbox);
+			label.appendChild(nameSpan);
+			row.appendChild(label);
 			list.appendChild(row);
 		}
 	}
@@ -693,13 +765,15 @@
 	function onLeaveChatRoom() {
 		State.inChatRoom = false;
 		setDrawMode(false);
-		clearOverlay(false); // 只清本地畫面，不用廣播（需求 5）
+		clearOwnLayer(false); // 只清本地畫面，不用廣播（需求 5）
+		destroyAllSenderLayers();
 		if (pctx) pctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
 		clearTimeout(State.brushPreviewTimer);
 		State.remoteStrokes.clear();
 		State.pendingPoints = [];
 		State.currentStroke = null;
 		State.pluginUsers.clear();
+		State.hiddenSenders.clear();
 		State.toolbarOpen = false;
 		State.restrictOpen = false;
 
