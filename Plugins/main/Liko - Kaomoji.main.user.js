@@ -1316,7 +1316,7 @@
             return { right: 16, bottom: 88 };
         }
 
-        /* ── 加载提示（贴齐 chat-room-bot 右上方，靠右对齐，8秒后自动消失）──── */
+        /* ── 加载提示（贴齐 chat-room-bot 右上方，靠右对齐，6秒后自动消失）──── */
         function showLoadToast(message) {
             var toast = document.createElement('div');
             toast.id = 'lk-kaomoji-toast';
@@ -1350,7 +1350,7 @@
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateY(8px)';
                 setTimeout(function () { if (toast.parentNode) toast.remove(); }, 400);
-            }, 8000);
+            }, 6000);
         }
 
         (async function waitForLoad() {
