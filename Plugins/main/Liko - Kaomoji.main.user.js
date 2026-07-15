@@ -1300,7 +1300,7 @@
             return { right: 16, bottom: 88 };
         }
 
-        /* ── 加载提示（贴齐 chat-room-bot 右上方，靠右对齐，10秒后自动消失）──── */
+        /* ── 加载提示（贴齐 chat-room-bot 右上方，靠右对齐，8秒后自动消失）──── */
         function showLoadToast(message) {
             var toast = document.createElement('div');
             toast.id = 'lk-kaomoji-toast';
@@ -1313,7 +1313,7 @@
                 'bottom:' + pos.bottom + 'px',
                 'max-width:260px',
                 'padding:10px 14px',
-                'z-index:99999',
+                'z-index:99',
                 'font-family:"Segoe UI",system-ui,sans-serif',
                 'font-size:14px',
                 'line-height:1.5',
@@ -1334,7 +1334,7 @@
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateY(8px)';
                 setTimeout(function () { if (toast.parentNode) toast.remove(); }, 400);
-            }, 10000);
+            }, 8000);
         }
 
         (async function waitForLoad() {
