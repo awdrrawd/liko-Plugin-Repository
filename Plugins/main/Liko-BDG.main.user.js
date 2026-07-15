@@ -4,8 +4,9 @@
 // @version      0.3.0
 // @description  在 BC 聊天室畫布上疊加繪圖層，透過 Hidden 訊息即時同步筆劃給房間內其他人
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @grant        none
-// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // ==/UserScript==
 
 (function () {
