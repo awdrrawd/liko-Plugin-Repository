@@ -1561,5 +1561,5 @@
             setTimeout(waitForGame, 500);
         }
     }
-    console.log(`🐈‍⬛ [MAT] ✅ v${MOD_VER} Ready`)
+    console.log(`🐈‍⬛ [MAT] ✅ v${MOD_VER} loaded`)
 })();

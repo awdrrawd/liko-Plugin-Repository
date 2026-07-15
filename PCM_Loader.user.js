@@ -55,7 +55,7 @@
                 const code = await res.text();
                 if (!code || code.trimStart().startsWith('<')) throw new Error("Invalid response");
                 return code;
-            } catch (e) { lastErr = e; console.warn(`⚠️ ${url}: ${e.message}`); }
+            } catch (e) { lastErr = e; console.warn(`🐈‍⬛ [PCM] ⚠️ ${url}: ${e.message}`); }
         }
         throw lastErr ?? new Error("all main URLs failed");
     }
@@ -67,29 +67,29 @@
         try {
             freshCode = await fetchMainSequential();
         } catch (e) {
-            console.warn(`⚠️ 下載失敗，改用舊版快取：${e.message}`);
+            console.warn(`🐈‍⬛ [PCM] ⚠️ 下載失敗，改用舊版快取：${e.message}`);
         }
 
         if (freshCode) {
             try {
                 eval(freshCode);
                 setCachedMain(freshCode);
-                console.log("✅ Main script started (latest)");
+                console.log("🐈‍⬛ [PCM] ✅ Main script started (latest)");
                 return;
             } catch (evalErr) {
-                console.error(`❌ 新版執行失敗，改用舊版快取：${evalErr.message}`);
+                console.error(`🐈‍⬛ [PCM] ❌ 新版執行失敗，改用舊版快取：${evalErr.message}`);
             }
         }
 
         if (oldCache) {
             try {
                 eval(oldCache);
-                console.log("✅ Main script started (cached fallback)");
+                console.log("🐈‍⬛ [PCM] ✅ Main script started (cached fallback)");
             } catch (e) {
-                console.error("❌ 舊版快取也執行失敗", e.message);
+                console.error("🐈‍⬛ [PCM] ❌ 舊版快取也執行失敗", e.message);
             }
         } else {
-            console.error("❌ 無可用版本（下載失敗且無快取）");
+            console.error("🐈‍⬛ [PCM] ❌ 無可用版本（下載失敗且無快取）");
         }
     })();
 })();

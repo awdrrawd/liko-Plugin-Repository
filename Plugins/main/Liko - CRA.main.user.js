@@ -724,7 +724,6 @@
                     ActivityOrgasmStart(Player);
                 }
             }]);
-            log("/cum 指令註冊成功");
         };
 
         const tryRegister = () => {
@@ -757,7 +756,7 @@
             });
         }
 
-        log(`v${MOD_VER} 已載入`);
+        log(`✅ v${MOD_VER} loaded`);
     }
 
     init();

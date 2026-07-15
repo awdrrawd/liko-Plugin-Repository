@@ -2012,7 +2012,7 @@
                 }
             };
 
-            safeLog(`🐈‍⬛ [CDB] ✅ 初始化完成 v${MOD_VER}`);
+            safeLog(`🐈‍⬛ [CDB] ✅ v${MOD_VER} loaded`);
         }).catch(function(e) {
             safeError("🐈‍⬛ [CDB] ❌ 初始化失敗:", e);
             isInitialized = false;

@@ -1386,7 +1386,7 @@
                     version: MOD_VER,
                     repository: "Liko's prank"
                 });
-                console.log(`🐈‍⬛ [Prank] ✅ v${MOD_VER} ready`);
+                console.log(`🐈‍⬛ [Prank] ✅ v${MOD_VER} loaded`);
             } catch (error) {
                 console.error("🐈‍⬛ [prank] ❌ Failed to register mod", error);
             }

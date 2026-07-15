@@ -399,7 +399,7 @@
                 });
             }
 
-            console.log(`🐈‍⬛ [Release Maid] ✅ 初始化完成 v${MOD_VER}`);
+            console.log(`🐈‍⬛ [Release Maid] ✅ v${MOD_VER} loaded`);
 
             // 如果在聊天室中，顯示載入訊息
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {

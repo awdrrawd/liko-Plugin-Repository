@@ -16,8 +16,8 @@
 
 (() => {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.3";
     if (window.Liko.CDT) return;
+    const MOD_VER = "1.3";
     window.Liko.CDT = MOD_VER;
     
     let modApi;
@@ -373,10 +373,10 @@
     // 初始化 hook 系統
     BCUIDebugger.initializeHooks();
 
-    console.log("🐈‍⬛ [CDT] ✅ Universal v1.4 - BCUIDebugger 已載入");
-    console.log("使用說明:");
-    console.log("• 點擊右上角 🖌️ 按鈕開關調試模式");
-    console.log("• BCUIDebugger.toggle() - 開關調試模式");
-    console.log("• BCUIDebugger.addElement('按鈕1', 100, 200, 120, 40) - 手動標記元素");
-    console.log("• BCUIDebugger.clear() - 清除所有標記");
+    console.log(`🐈‍⬛ [CDT] ✅ v${MOD_VER} loaded`);
+    console.log("使用說明:"+
+    "\n• 點擊右上角 🖌️ 按鈕開關調試模式"+
+    "\n• BCUIDebugger.toggle() - 開關調試模式"+
+    "\n• BCUIDebugger.addElement('按鈕1', 100, 200, 120, 40) - 手動標記元素"+
+    "\n• BCUIDebugger.clear() - 清除所有標記");
 })();

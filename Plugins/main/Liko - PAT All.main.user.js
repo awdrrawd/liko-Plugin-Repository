@@ -193,7 +193,7 @@
     // === 設置 Hook 函數 ===
     function setupHooks() {
         // Hook 繪製函數
-        safeHookFunction("DrawProcess"， 4, (args, next) => {
+        safeHookFunction("DrawProcess", 10, (args, next) => {
             const result = next(args);
             try {
                 if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom'
@@ -229,7 +229,7 @@
         });
 
         // Hook 點擊函數
-        safeHookFunction("ChatRoomClick", 4, (args, next) => {
+        safeHookFunction("ChatRoomClick", 10, (args, next) => {
             try {
                 if (typeof MouseIn !== 'function') {
                     next(args);

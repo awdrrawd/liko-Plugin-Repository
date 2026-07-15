@@ -237,5 +237,5 @@
         ensure: (ns, spec, lang) => (typeof spec === 'string' ? loadScript(spec) : _loadLangs('msg', ns, spec, lang)),
     };
 
-    console.log(`🐈‍⬛ [BC i18n] ✅ engine v${ENGINE_VER} ready (i18n + L10N)`);
+    console.log(`🐈‍⬛ [BC i18n] ✅ v${ENGINE_VER}  loaded (i18n + L10N)`);
 })();

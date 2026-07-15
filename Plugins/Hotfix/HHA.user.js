@@ -84,7 +84,7 @@
             if (shouldHide()) return false;
             return next(args);
         });
-        console.log('🐈‍⬛ [HHA] ✅ PreferenceArousalAtLeast hooked via SDK');
+        console.log(`🐈‍⬛ [HHA] v${MOD_VERSION} loaded`);
     });
 
 })();

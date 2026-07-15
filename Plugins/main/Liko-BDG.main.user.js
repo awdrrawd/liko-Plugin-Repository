@@ -91,7 +91,7 @@
 
 	function createOverlay() {
 		const main = getMainCanvas();
-		if (!main || !main.parentElement) throw new Error("[DrawGame] 找不到 #MainCanvas 或其父節點，無法插入 overlay");
+		if (!main || !main.parentElement) throw new Error("🐈‍⬛ [BDG] 找不到 #MainCanvas 或其父節點，無法插入 overlay");
 
 		overlay = makeLayerCanvas(50); // 自己畫圖的互動層，蓋過角色與背景
 		main.insertAdjacentElement("afterend", overlay);
@@ -828,8 +828,8 @@
 		setInterval(pollScreen, SCREEN_POLL_INTERVAL);
 		pollScreen(); // 立即檢查一次目前畫面，不用等第一次輪詢間隔
 
-		console.log("[DrawGame] loaded");
+		console.log(`🐈‍⬛ [BDG] ✅ v${MOD_VER} loaded`);
 	}
 
-	initialize().catch((e) => console.error("[DrawGame] init error", e));
+	initialize().catch((e) => console.error("🐈‍⬛ [BDG] init error", e));
 })();

@@ -15,8 +15,8 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.0";
     if (window.Liko.BMM) return;
+    const MOD_VER = "1.0";
     window.Liko.BMM = MOD_VER;
 
     const HDR_H = 36, FTR_H = 32;
@@ -410,7 +410,7 @@
         await waitFor(()=>typeof Player!=="undefined"&&typeof ChatRoomMapViewTileList!=="undefined");  // eslint-disable-line
 
         createPanel();
-        console.log(`🐈‍⬛ [BMM] v${MOD_VER} ready`);
+        console.log(`🐈‍⬛ [BMM] ✅ v${MOD_VER} loaded`);
 
         modApi.hookFunction("GameRun", 0, (args, next)=>{
             const r=next(args);

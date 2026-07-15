@@ -287,5 +287,5 @@
         document.querySelectorAll(".ChatMessageLocalMessage").forEach(processShareText);
         enhanceProfilesUI();
     }, 500);
-    log("✅", MOD_VER," Loading completed!");
+    log(`🐈‍⬛ [WPS] ✅ v${MOD_VER} loaded`);
 })();

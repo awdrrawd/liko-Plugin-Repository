@@ -2042,13 +2042,12 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             const waitForPlayer = setInterval(() => {
                 if (window.Player?.Name) {
                     clearInterval(waitForPlayer);
-                    console.log(`🐈‍⬛ [CHE] ⌛ Player loaded (${getAccountPrefix()}), initializing...`);
+                    console.log(`🐈‍⬛ [CHE] ✅ v${MOD_VER} loaded`);
                     checkTempData().catch(e => logError("init.checkTempData", e));
                     CacheManager.cleanOldData().catch(e => logError("init.cleanOldData", e));
                     addUI();
                     if (currentMode === "cache") initMessageObserver();
                     setTimeout(showOnboarding, 800);
-                    console.log("🐈‍⬛ [CHE] ✅ Init complete, mode:", currentMode);
                 }
             }, 1000);
 

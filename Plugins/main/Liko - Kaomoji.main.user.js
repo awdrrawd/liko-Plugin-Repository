@@ -17,7 +17,6 @@
 (function () {
     window.Liko = window.Liko ?? {};
     try {
-        console.log("🐈‍⬛ [Kaomoji] 脚本开始执行");
         window.Liko.Kaomoji = window.Liko.Kaomoji ?? {};
         if (typeof window.Liko.Kaomoji?.Destroy === 'function') {
             try { window.Liko.Kaomoji.Destroy(); } catch (e) {}
@@ -1298,7 +1297,6 @@
                 }, {
                     allowReplace: true, // 热更新/脚本重载时允许替换已注册的同名模组，避免"已加载不允许替换"报错
                 });
-                console.log("🐈‍⬛ [Kaomoji] bcModSdk 注册成功");
             } catch (e) {
                 console.error("🐈‍⬛ [Kaomoji] bcModSdk 注册失败:", e);
                 return;
@@ -1366,7 +1364,7 @@
             showLoadToast(t('toastMessage').replace('{VER}', MOD_VER));
         })();
 
-        console.log(`🐈‍⬛ [Kaomoji] v${MOD_VER} 初始化完成`);
+        console.log(`🐈‍⬛ [Kaomoji] ✅ v${MOD_VER} loaded`);
 
     } catch (e) {
         console.error("🐈‍⬛ [Kaomoji] 脚本顶层错误:", e);

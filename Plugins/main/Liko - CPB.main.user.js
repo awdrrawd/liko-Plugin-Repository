@@ -16,8 +16,8 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.2.2";
     if (window.Liko.CPB) return;
+    const MOD_VER = "1.2.2";
     window.Liko.CPB = MOD_VER;
 
     let modApi = null;
@@ -1296,7 +1296,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             startInterfaceMonitoring();
 
             isInitialized = true;
-            console.log("🐈‍⬛ [CPB] ✅ 初始化完成");
+            console.log(`🐈‍⬛ [CPB] ✅ v${MOD_VER} loaded`;
         } catch (e) {
             console.error("🐈‍⬛ [CPB] ❌初始化失敗:", e.message);
             cleanup();

@@ -226,5 +226,5 @@
         return next(args);
     });
 
-    console.log(`🐈‍⬛ [HLF] v${MOD_VERSION} ready DEBUG: "window.Liko.HLF.debug_Beep","window.Liko.HLF.debug_ban"`);
+    console.log(`🐈‍⬛ [HLF] ✅ v${MOD_VERSION} loaded\nDEBUG: "window.Liko.HLF.debug_Beep","window.Liko.HLF.debug_ban"`);
 })();

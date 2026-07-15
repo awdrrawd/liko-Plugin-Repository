@@ -242,7 +242,6 @@
                 version: MOD_VER,
                 repository: '莉柯莉絲的工具包'
             });
-            console.log("🐈‍⬛ [LT] ✅ modApi 初始化完成");
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ 初始化 modApi 失敗:", e.message);
         }
@@ -1260,12 +1259,12 @@
     // 主初始化
     // ──────────────────────────────────────────
     async function initialize() {
-        console.log("🐈‍⬛ [LT] ⌛ 開始初始化插件...");
+        console.log(`🐈‍⬛ [LT] ✅ v${MOD_VER} loaded`);
         await initializeModApi();
         try { await loadToastSystem(); }
         catch (e) { console.warn("🐈‍⬛ [LT] ❌ Toast system 載入失敗，備用模式運行:", e.message); }
 
-        console.log("🐈‍⬛ [LT] ⌛ 等待玩家登入...");
+        //等待玩家登入
         await waitFor(() => { try { return typeof Player?.MemberNumber === "number"; } catch { return false; } });
 
         initializeStorage();
@@ -1274,7 +1273,6 @@
 
         const registerCommand = () => {
             CommandCombine([{ Tag: "lt", Description: "Execute Liko Tool command", Action: handleLtCommand }]);
-            console.log("🐈‍⬛ [LT] ✅ /lt 指令註冊成功");
         };
         if (typeof CommandCombine === "function") {
             try { registerCommand(); }
@@ -1291,8 +1289,6 @@
             // LT 在已於房內時才載入完成（不會再有 ChatRoomSync 觸發），廣播一發並要求在場者回覆
             sendRpSync(true);
         });
-
-        console.log(`🐈‍⬛ [LT] ✅ 插件已載入 v${MOD_VER}`);
     }
 
     // ──────────────────────────────────────────

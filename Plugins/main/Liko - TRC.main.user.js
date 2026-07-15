@@ -1335,7 +1335,7 @@
         if (typeof ChatRoomCharacter === 'undefined' || typeof Player === 'undefined') return setTimeout(waitForBC, 500);
         buildPanel();
         applyI18n();
-        console.log(`🐈‍⬛ [TRC] ✅ 初始化完成 v${MOD_VER}`);
+        console.log(`🐈‍⬛ [TRC] ✅ v${MOD_VER} loaded`);
     }
     waitForBC();
 

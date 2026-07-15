@@ -523,7 +523,7 @@
     hookChatRoomLoad();
     enablePlugin();
 
-    console.log("🐈‍⬛ [CTB] ✅ 載入完成");
+    console.log(`🐈‍⬛ [CTB] ✅ v${MOD_VER} loaded`);
 
     // 監聽頁面卸載事件，自動清理
     window.addEventListener('beforeunload', destroyPlugin);
