@@ -56,10 +56,10 @@
                     "(〃'▽'〃)", "(⑉꒦ິ^꒦ິ⑉)", "(⑅•͈⌔•͈)", "(৹ᵒ̴̶̷᷄́ฅᵒ̴̶̷᷅৹)", "(꒪˙꒳˙꒪)", "(｡’▽’｡)♡",
                     "o(*////▽////*)q", "( ͒ ु•·̫• ू ͒)♡", "(´,,•ω•,,`)", "(´,,•ω•,,)♡", "(｡ﾉω＼｡)", "(ᐥ꒳ᐥ )",
                     "(´///ω/// `)", "૮៸៸›‹៸៸ა", "٩( ˵ᐛ ˵)۶", "(｡•ᴗ•｡)", "(⑉´•-•`⑉)", "◍´꒳`◍",
-                    "（ „•_•„）", "(⸝⸝•‧̫•⸝⸝)", "( ˶´⚰︎`˵ )", "´͈ ᵕ `͈", "ꈍ .̮ ꈍ", "(•̶̑ ૄ •̶̑)",
+                    "（ „•_•„）", "(⸝⸝•‧̫•⸝⸝)", "( ˶´⚰︎`˵ )", "´͈ ᵕ `͈", "ꈍ .̮ ꈍ", "(•̶̑ ૄ •̶̑)",
                     "(人 •͈ᴗ•͈)۶♡♡", "( ⑉¯ ꇴ ¯⑉ )", "⸝⸝⸝⸝◟̆◞̆♡", "(•ૢ⚈͒⌄⚈͒•ૢ)", "(˘❥˘)", "づ♡ど",
                     "⚗︎·̫⚗︎", "( ˘ ³˘)♥︎", "( ˶'ᵕ'˶)", "(･´з`･)", "( ⑉¯ ¯⑉ )", "⁄(⁄⁄⁄ω⁄⁄⁄)⁄",
-                    "- ̗̀ ෆ( ˶'ᵕ'˶)ෆ ̖́-", "(⸝⸝- -⸝⸝)", "ദ്ദി ˉ͈̀꒳ˉ͈́ )", "(՞˶･֊･˶՞) ෆ", "૮ ˶ᵔ ᵕ ᵔ˶ ა", "( ˘ ³˘)",
+                    "- ̗̀ ෆ( ˶'ᵕ'˶)ෆ ̖́-", "(⸝⸝- -⸝⸝)", "ദ്ദി ˉ͈̀꒳ˉ͈́ )", "(՞˶･֊･˶՞) ෆ", "૮ ˶ᵔ ᵕ ᵔ˶ ა", "( ˘ ³˘)",
                     "(๑ ⁰̴̷̷ ˙̮ ⁰̴̷̷๑)ﾉ", "(๑•ϖ•๑ )", "(๑ᵒ̴̶̷͈᷄ᗨᵒ̴̶̷͈᷅)", "⸜(๑⃙⃘ˊᗜˋ๑⃙⃘)⸝", "⁽⁽ (♡ˊᵕˋ♡) ⁾⁾", "(*´艸`*)♡",
                     "(♡˙︶˙♡)", "|•'-'•)", "(๑´ㅂ`๑)", "⁽⁽٩(๑˃̶͈̀ ᗨ ˂̶͈́)۶⁾⁾", "๐˙Ⱉ˙๐", "⸜(* ॑꒳ ॑* )⸝",
                     "⁄(⁄ ⁄•⁄ω⁄•⁄ ⁄)⁄", "٩(｡・ω・｡)و", "(´๐•ω•๐`)", "(⸝⸝⸝´꒳`⸝⸝⸝)", "(///ˊㅿˋ///)",
@@ -442,7 +442,7 @@
                 '}',
                 '#lk-kaomoji-panel.visible{',
                 '  opacity:1;',
-                '  transform:scale(1) translateY(0);',
+                '  transform:translateY(0);',
                 '}',
                 '.lk-km-header{',
                 '  display:flex;align-items:center;gap:8px;',
@@ -647,8 +647,8 @@
                 'font-family:"Segoe UI",system-ui,sans-serif',
                 'pointer-events:auto',
                 'opacity:0',
-                'transform:scale(0.95) translateY(-8px)',
-                'transition:opacity 0.2s ease,transform 0.2s ease',
+                'transform:translateY(24px)',
+                'transition:opacity 0.22s ease,transform 0.22s ease',
             ].join(';');
 
             var header = document.createElement('div');
@@ -998,7 +998,7 @@
             panelEl.style.height = p.h + 'px';
             panelEl.classList.add('visible');
             panelEl.style.opacity = '1';
-            panelEl.style.transform = 'scale(1) translateY(0)';
+            panelEl.style.transform = 'translateY(0)';
             panelEl.style.pointerEvents = 'auto';
         }
 
@@ -1011,7 +1011,7 @@
             exitEditing();
             exitCollecting();
             panelEl.style.opacity = '0';
-            panelEl.style.transform = 'scale(0.95) translateY(-8px)';
+            panelEl.style.transform = 'translateY(24px)';
             panelEl.style.pointerEvents = 'none';
         }
 
@@ -1020,6 +1020,22 @@
             if (panelVisible) closePanel();
             else openPanel();
         }
+
+        /* 点击面板与 InputChat 以外的地方时自动收纳面板。
+         * 用 capture 阶段监听，确保即使目标元素之后被移除/阻止冒泡也能侦测到。
+         * 排除条件：点击在面板内部，或点击在聊天输入框 InputChat 内部，或点击的是触发面板开关的原生按钮本身
+         * （避免与 togglePanel 的开关逻辑互相打架，导致点一下按钮变成"开了又立刻被这里关掉"）。
+         */
+        document.addEventListener('mousedown', function (e) {
+            if (!panelVisible || !panelEl) return;
+            var target = e.target;
+            if (panelEl.contains(target)) return;
+            var inputChat = document.getElementById('InputChat');
+            if (inputChat && inputChat.contains(target)) return;
+            var triggerBtn = document.getElementById('lk-kaomoji-trigger-btn');
+            if (triggerBtn && triggerBtn.contains(target)) return;
+            closePanel();
+        }, true);
 
         /* 只保留纵向缩放（高度），宽度始终跟随 TextAreaChatLog；缩放时仍保持贴齐 chat-room-bot 顶部，
          * 且高度不超过 TextAreaChatLog 的可用范围 */
