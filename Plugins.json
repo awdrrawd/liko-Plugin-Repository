@@ -1,16 +1,28 @@
 {
-  "updateId": "260707",
+  "updateId": "260715",
   "changelog": [
+    "⭐Kaomoji - 文字表情 新增",
+    "文字表情快捷面板，並提供自訂、常用快捷分類",
     "⭐AEE - 外觀編輯器 更新",
-    "新增部位篩選功能，快速篩選有穿服裝跟沒穿服裝的部位",
+    "新增衣櫃新UI",
     "⭐FCM - 朋友與房間管理 更新",
-    "現在profile關係人快速查閱功能支援染色功能(包含無色)"
+    "新增分享房間信息",
+    "新增邀請好友時發送信息(對方需要安裝FCM)",
+    "調整查詢房間的UI",
+    "⭐HLF - 牽引補丁(測試)",
+    "重新編寫邏輯，並且針對已知信息過濾，如果還有遇到問題請回報"
   ],
   "en_changelog": [
-    "⭐AEE - Appearance editing extension Update",
-    "Added part filtering: quickly filter clothed and unclothed parts",
-    "⭐FCM - Friends and ChatRoom Manager Update",
-    "Profile contact quick lookup now supports color highlighting (including colorless)"
+    "⭐Kaomoji - Text Emoji Added",
+    "Quick-access text emoji panel with custom and frequently-used categories",
+    "⭐AEE - Appearance Editor Updated",
+    "Added new wardrobe UI",
+    "⭐FCM - Friend & Room Management Updated",
+    "Added room info sharing",
+    "Added the ability to send a message when inviting friends (recipient needs FCM installed)",
+    "Adjusted the room search UI",
+    "⭐HLF - Tether Patch (Test)",
+    "Rewritten logic with filtering based on known information; please report if you still encounter issues"
   ],
   "plugins": [
     {
@@ -408,6 +420,32 @@
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CRA.main.user.js",
       "priority": 5,
       "version": "1.0.2"
+    },
+    {
+      "id": "Liko-Kaomoji",
+      "name": "文字表情",
+      "en_name": "Kaomoji",
+      "description": "文字表情快捷面板，並提供自訂、常用快捷分類",
+      "en_description": "Quick-access text emoji panel with custom and frequently-used categories.",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "😀",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Kaomoji.main.user.js",
+      "priority": 4,
+      "version": "1.0.0"
+    },
+    {
+      "id": "Liko-BDG",
+      "name": "你畫我猜(測試)",
+      "en_name": "Draw Game(test)",
+      "description": "可以在聊天室隨意塗鴉",
+      "en_description": "Can doodle freely in the chat room.",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "🫟",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko-BDG.main.user.js",
+      "priority": 9,
+      "version": "0.3.0"
     },
     {
       "id": "Fix-HHA",
