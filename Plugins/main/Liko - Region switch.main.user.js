@@ -2,7 +2,7 @@
 // @name         Liko - Region switch
 // @name:zh      快速切換混合&女性區
 // @namespace    https://likolisu.dev/
-// @version      1.2-3
+// @version      1.3
 // @description  快速切換混合/女性區 | Region switch
 // @author       Likolisu & yu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.2";
+    const MOD_VER = "1.3";
     if (window.Liko.RegionSwitch) return;
     window.Liko.RegionSwitch = MOD_VER;
 
@@ -70,6 +70,14 @@
 
     function performSearch() {
         try {
+            // 僅在聊天搜尋畫面且 InputSearch 元素存在時才搜尋。
+            // ChatSearchQuery 是非同步的，其伺服器回應會存取 InputSearch DOM
+            // (ChatSearchResultResponse / ChatSearchApplyFilterTerms)，
+            // 若此時元素已被移除，回傳的每個房間都會噴一次
+            // ElementValue/ElementContent "missing element: InputSearch" 錯誤。
+            if (typeof CurrentScreen === 'undefined' || CurrentScreen !== "ChatSearch") return;
+            if (!document.getElementById("InputSearch")) return;
+
             // 只更新 Player.ChatSearchSettings.Space 和 ChatSearchSpace
             if (inMixedZone) {
                 Player.ChatSearchSettings.Space = "X";
