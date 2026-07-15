@@ -10,6 +10,8 @@
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @grant        none
 // @run-at       document-end
+// @downloadURL  https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Prank.user.js
+// @updateURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-Prank.user.js
 // ==/UserScript==
 
 (function () {

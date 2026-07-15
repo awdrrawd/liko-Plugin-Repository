@@ -10,6 +10,8 @@
 // @grant        none
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @run-at       document-end
+// @downloadURL  https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/Liko%20-%20Bondage%20renew.main.user.js
+// @updateURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/Liko%20-%20Bondage%20renew.main.user.js
 // ==/UserScript==
 
 (function () {

@@ -11,6 +11,8 @@
 // @grant          none
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @run-at         document-end
+// @downloadURL  https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-MPL.user.js
+// @updateURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Liko-MPL.user.js
 // ==/UserScript==
 
 (function () {

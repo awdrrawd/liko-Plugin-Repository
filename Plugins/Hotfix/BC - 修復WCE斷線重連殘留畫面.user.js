@@ -13,6 +13,8 @@
 // @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @grant        none
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
+// @downloadURL  https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/BC%20-%20%E4%BF%AE%E5%BE%A9WCE%E6%96%B7%E7%B7%9A%E9%87%8D%E9%80%A3%E6%AE%98%E7%95%99%E7%95%AB%E9%9D%A2.user.js
+// @updateURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/BC%20-%20%E4%BF%AE%E5%BE%A9WCE%E6%96%B7%E7%B7%9A%E9%87%8D%E9%80%A3%E6%AE%98%E7%95%99%E7%95%AB%E9%9D%A2.user.js
 // ==/UserScript==
 
 (() => {
