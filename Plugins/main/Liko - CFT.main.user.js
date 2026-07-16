@@ -2,7 +2,7 @@
 // @name         Liko - Chat Filter Tool
 // @name:zh      Liko的聊天室信息過濾器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1.3
+// @version      1.1.4
 // @description  聊天室信息過濾
 // @author       Liko
 // @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
@@ -16,7 +16,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.1.3";
+    const MOD_VER = "1.1.4";
     if (window.Liko.CFT) return;
     window.Liko.CFT = MOD_VER;
 
@@ -105,9 +105,73 @@
         othersExpanded: false,
     };
 
-    function save() { localStorage.setItem("bc_cfp_v2", JSON.stringify(settings)); }
-    function load() {
-        try { Object.assign(settings, JSON.parse(localStorage.getItem("bc_cfp_v2") || "{}")); } catch (e) {}
+    const ES_KEY = "CFT";           // Player.ExtensionSettings 的 key
+    const LS_KEY = "bc_cfp_v2";     // 舊版 localStorage key（僅供一次性搬移）
+
+    // 等待 ExtensionSettings 由伺服器載入（最多 ~15 秒）
+    function waitForExtensionSettings(timeout = 15000) {
+        const start = Date.now();
+        return new Promise(resolve => {
+            const check = () => {
+                if (typeof Player !== 'undefined' && Player && Player.ExtensionSettings !== undefined) resolve(true);
+                else if (Date.now() - start > timeout) resolve(false);
+                else setTimeout(check, 200);
+            };
+            check();
+        });
+    }
+
+    let _saveTimer = null;
+    function save(immediate = false) {
+        const doSave = () => {
+            try {
+                if (typeof Player === 'undefined' || !Player) return;
+                if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
+                Player.ExtensionSettings[ES_KEY] = JSON.stringify(settings);
+                if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+                    ServerPlayerExtensionSettingsSync(ES_KEY);
+                }
+            } catch (e) {
+                console.warn("🐈‍⬛ [CFT] ❌ 設定儲存失敗:", e.message);
+            }
+        };
+        if (immediate) { if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; } doSave(); return; }
+        if (_saveTimer) clearTimeout(_saveTimer);
+        _saveTimer = setTimeout(() => { _saveTimer = null; doSave(); }, 600);
+    }
+
+    function applySaved(raw) {
+        if (!raw) return false;
+        try {
+            const saved = typeof raw === 'object' ? raw : JSON.parse(raw);
+            if (saved && typeof saved === 'object') { Object.assign(settings, saved); return true; }
+        } catch (e) { console.warn("🐈‍⬛ [CFT] ❌ 設定讀取失敗，使用預設:", e.message); }
+        return false;
+    }
+
+    /** 一次性搬移：舊的 localStorage 設定讀進來寫入 DB，成功後刪除原本的 key */
+    function migrateFromLocalStorage() {
+        let legacy = null;
+        try { legacy = localStorage.getItem(LS_KEY); } catch (e) { return; }
+        if (!legacy) return;
+        if (!applySaved(legacy)) { try { localStorage.removeItem(LS_KEY); } catch (e) {} return; }
+
+        save(true);
+        if (Player?.ExtensionSettings?.[ES_KEY] !== undefined) {
+            try { localStorage.removeItem(LS_KEY); } catch (e) {}
+            console.log("🐈‍⬛ [CFT] ✅ 設定已從 localStorage 搬移至 DB");
+        }
+    }
+
+    async function load() {
+        if (!(await waitForExtensionSettings())) return;
+
+        const raw = Player?.ExtensionSettings?.[ES_KEY];
+        if (raw !== undefined) applySaved(raw);
+        else migrateFromLocalStorage();
+
+        currentMode = settings.mode;   // 設定是登入後才進來的，補上解析時抓到的預設值
+        refreshAll();
     }
     load();
 

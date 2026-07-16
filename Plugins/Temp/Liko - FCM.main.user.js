@@ -2,7 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.2-4
+// @version      1.4.3
 // @description  Friends & Room Manager | 好友與房間管理
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -14,7 +14,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = '1.4.2';
+    const MOD_VER = '1.4.3';
     if (window.Liko.FCM) return;
     window.Liko.FCM = MOD_VER;
 
@@ -272,8 +272,90 @@
         btnShowMainHall: true,
         btnShowProfile: true,
     };
-    function loadCfg() { try { const s = localStorage.getItem('LikoFCM'); if (s) Object.assign(cfg, JSON.parse(s)); } catch {} }
-    function saveCfg() { try { localStorage.setItem('LikoFCM', JSON.stringify(cfg)); } catch {} }
+    // ── 設定儲存（Player.ExtensionSettings：跟著帳號走，登入後才由伺服器送達）──
+    const FCM_ES_KEY     = 'FCM';           // Player.ExtensionSettings 的 key
+    const FCM_LS_KEY     = 'LikoFCM';       // 舊版 localStorage key（僅供一次性搬移）
+    const FCM_FAV_LS_KEY = 'fcmFavRooms';   // 舊版 localStorage key（僅供一次性搬移）
+
+    // DB 裡實際存到的 cfg 原始內容：cfg 有預設值，分不出「沒存過」和「存了預設值」，故另外留一份
+    let _storedCfg = {};
+
+    // 等待 ExtensionSettings 由伺服器載入（最多 ~15 秒）
+    function waitForExtensionSettings(timeout = 15000) {
+        const start = Date.now();
+        return new Promise(resolve => {
+            const check = () => {
+                if (typeof Player !== 'undefined' && Player && Player.ExtensionSettings !== undefined) resolve(true);
+                else if (Date.now() - start > timeout) resolve(false);
+                else setTimeout(check, 200);
+            };
+            check();
+        });
+    }
+
+    let _fcmSaveTimer = null;
+    /** cfg 與最愛房間同存一個 key，兩邊的 save 都寫整包 */
+    function _writeEsBlob(immediate = false) {
+        const doSave = () => {
+            try {
+                if (typeof Player === 'undefined' || !Player) return;
+                if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
+                Player.ExtensionSettings[FCM_ES_KEY] = JSON.stringify({ cfg, favRooms: [..._favRooms] });
+                if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+                    ServerPlayerExtensionSettingsSync(FCM_ES_KEY);
+                }
+            } catch (e) { console.warn('🐈‍⬛ [FCM] ❌ 設定儲存失敗:', e.message); }
+        };
+        if (immediate) { if (_fcmSaveTimer) { clearTimeout(_fcmSaveTimer); _fcmSaveTimer = null; } doSave(); return; }
+        if (_fcmSaveTimer) clearTimeout(_fcmSaveTimer);
+        _fcmSaveTimer = setTimeout(() => { _fcmSaveTimer = null; doSave(); }, 600);
+    }
+
+    function saveCfg() { _storedCfg = { ...cfg }; _writeEsBlob(); }
+
+    /** 一次性搬移：舊的 localStorage 設定讀進來寫入 DB，成功後刪除原本的 key */
+    function _migrateFcmFromLocalStorage() {
+        let moved = false;
+        try {
+            const s = localStorage.getItem(FCM_LS_KEY);
+            if (s) {
+                const o = JSON.parse(s);
+                if (o && typeof o === 'object') { Object.assign(cfg, o); _storedCfg = { ...o }; moved = true; }
+            }
+        } catch {}
+        try {
+            const s = localStorage.getItem(FCM_FAV_LS_KEY);
+            if (s) {
+                const a = JSON.parse(s);
+                if (Array.isArray(a)) { _favRooms = new Set(a); moved = true; }
+            }
+        } catch {}
+        if (!moved) return;
+
+        _writeEsBlob(true);
+        if (Player?.ExtensionSettings?.[FCM_ES_KEY] !== undefined) {
+            try { localStorage.removeItem(FCM_LS_KEY); } catch {}
+            try { localStorage.removeItem(FCM_FAV_LS_KEY); } catch {}
+            console.log('🐈‍⬛ [FCM] ✅ 設定已從 localStorage 搬移至 DB');
+        }
+    }
+
+    async function loadCfg() {
+        if (!(await waitForExtensionSettings())) return;
+
+        let blob = null;
+        try {
+            const raw = Player?.ExtensionSettings?.[FCM_ES_KEY];
+            if (raw !== undefined) {
+                const o = typeof raw === 'object' ? raw : JSON.parse(raw);
+                if (o && typeof o === 'object') blob = o;
+            }
+        } catch (e) { console.warn('🐈‍⬛ [FCM] ❌ 設定讀取失敗，使用預設:', e.message); }
+
+        if (!blob) { _migrateFcmFromLocalStorage(); return; }
+        if (blob.cfg && typeof blob.cfg === 'object') { Object.assign(cfg, blob.cfg); _storedCfg = { ...blob.cfg }; }
+        if (Array.isArray(blob.favRooms)) _favRooms = new Set(blob.favRooms);
+    }
 
     // ═══════════════════════════════════════════════════════════
     //  PROFILE DB  (WCE bce-past-profiles compatible)
@@ -1118,11 +1200,11 @@
     let _roomResults = [];
     let _roomZoneFilter = 'X';
     let _roomSearchQ2 = '';
-    let _favRooms = new Set(JSON.parse(localStorage.getItem('fcmFavRooms') || '[]'));
+    let _favRooms = new Set();   // 內容由 loadCfg() 於登入後填入
     let _roomSortMode = 'fav';
     const _roomCache = new Map();
 
-    function saveFavRooms() { try { localStorage.setItem('fcmFavRooms', JSON.stringify([..._favRooms])); } catch {} }
+    function saveFavRooms() { _writeEsBlob(); }
 
     function _cacheRooms(rooms) {
         const now = Date.now();
@@ -2843,17 +2925,16 @@
     // ═══════════════════════════════════════════════════════════
     //  INIT
     // ═══════════════════════════════════════════════════════════
-    function init() {
-        loadCfg();
+    async function init() {
         if (typeof ChatRoomCharacter === 'undefined' || typeof Player === 'undefined') return setTimeout(init, 500);
+        await loadCfg();
 
         // Apply persisted feature states at startup
         if (cfg.oocProtect) _installOocProtect();
 
         Promise.all([PDB.init(), Snapshot.init()]).then(async ([pdbOk]) => {
             if (!pdbOk) console.warn('🐈‍⬛ [FCM] Profile DB: no profiles store');
-            const stored = JSON.parse(localStorage.getItem('LikoFCM') || '{}');
-            if (stored.saveMode === undefined) {
+            if (_storedCfg.saveMode === undefined) {
                 await detectWCESave();
             }
         });

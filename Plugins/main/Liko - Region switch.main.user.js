@@ -2,7 +2,7 @@
 // @name         Liko - Region switch
 // @name:zh      快速切換混合&女性區
 // @namespace    https://likolisu.dev/
-// @version      1.3
+// @version      1.3.1
 // @description  快速切換混合/女性區 | Region switch
 // @author       Likolisu & yu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,13 +16,16 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.3";
+    const MOD_VER = "1.3.1";
     if (window.Liko.RegionSwitch) return;
     window.Liko.RegionSwitch = MOD_VER;
 
     let modApi = null;
     let inMixedZone = true;
     let switchButton = null;
+
+    const ES_KEY = "RegionSwitch";              // Player.ExtensionSettings 的 key
+    const LS_KEY = "ChatSearchSwitch_Zone";     // 舊版 localStorage key（僅供一次性搬移）
 
     const ICONS = {
         mixed: 'Icons/Gender.png',
@@ -59,13 +62,59 @@
         return true;
     }
 
-    function loadSavedState() {
-        const storedZone = localStorage.getItem("ChatSearchSwitch_Zone");
-        if (storedZone !== null) {
+    // 等待 ExtensionSettings 由伺服器載入（最多 ~15 秒）
+    function waitForExtensionSettings(timeout = 15000) {
+        const start = Date.now();
+        return new Promise(resolve => {
+            const check = () => {
+                if (typeof Player !== 'undefined' && Player && Player.ExtensionSettings !== undefined) resolve(true);
+                else if (Date.now() - start > timeout) resolve(false);
+                else setTimeout(check, 200);
+            };
+            check();
+        });
+    }
+
+    function saveZone() {
+        try {
+            if (typeof Player === 'undefined' || !Player) return;
+            if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
+            Player.ExtensionSettings[ES_KEY] = inMixedZone ? "Mixed" : "FemaleOnly";
+            if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+                ServerPlayerExtensionSettingsSync(ES_KEY);
+            }
+        } catch (e) {
+            console.warn("🐈‍⬛ [Region switch] ❌ 設定儲存失敗:", e.message);
+        }
+    }
+
+    async function loadSavedState() {
+        if (!(await waitForExtensionSettings())) {
+            inMixedZone = detectCurrentZone();
+            return;
+        }
+
+        const storedZone = Player?.ExtensionSettings?.[ES_KEY] ?? migrateFromLocalStorage();
+        if (storedZone === "Mixed" || storedZone === "FemaleOnly") {
             inMixedZone = storedZone === "Mixed";
         } else {
             inMixedZone = detectCurrentZone();
         }
+    }
+
+    /** 一次性搬移：舊的 localStorage 設定讀進來寫入 DB，成功後刪除原本的 key */
+    function migrateFromLocalStorage() {
+        let legacy = null;
+        try { legacy = localStorage.getItem(LS_KEY); } catch (e) { return null; }
+        if (legacy !== "Mixed" && legacy !== "FemaleOnly") return null;
+
+        inMixedZone = legacy === "Mixed";
+        saveZone();
+        if (Player?.ExtensionSettings?.[ES_KEY] === legacy) {
+            try { localStorage.removeItem(LS_KEY); } catch (e) {}
+            console.log("🐈‍⬛ [Region switch] ✅ 設定已從 localStorage 搬移至 DB");
+        }
+        return legacy;
     }
 
     function performSearch() {
@@ -96,7 +145,7 @@
 
     function switchZone() {
         inMixedZone = !inMixedZone;
-        localStorage.setItem("ChatSearchSwitch_Zone", inMixedZone ? "Mixed" : "FemaleOnly");
+        saveZone();
         updateButtonAppearance();
         performSearch();
     }
@@ -160,7 +209,7 @@
                 repository: "快速切換混合&女性區 | Region switch"
             });
 
-            loadSavedState();
+            loadSavedState();   // 非同步等待 ExtensionSettings，不擋住 hook 註冊
 
             modApi.hookFunction("ChatSearchLoad", 1, (args, next) => {
                 const result = next(args);

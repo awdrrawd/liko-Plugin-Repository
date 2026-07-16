@@ -2,7 +2,7 @@
 // @name         Liko - Kaomoji
 // @name:zh      Liko的文字表情
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.0.1
+// @version      1.0.2
 // @description  Bondage Club - 文字表情快捷面板：点击颜文字自动插入聊天输入框，支持收藏/常用/自定义分组/拖动排序
 // @author       Likolisu & TAO
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -25,7 +25,7 @@
         // Destroy() 内部会把 window.Liko.Kaomoji 重置为 {}，这里保险起见再确认一次，
         window.Liko.Kaomoji = window.Liko.Kaomoji ?? {};
         if (window.Liko.Kaomoji.version) return;
-        const MOD_VER = "1.0.1";
+        const MOD_VER = "1.0.2";
         window.Liko.Kaomoji.version = MOD_VER;
 
         /* ── 常量 ──────────────────────────────────────────────────────────── */
@@ -197,14 +197,15 @@
         // ────────────────────────────────── 状态 ──────────────────────────────────
         let panelEl = null;
         let panelVisible = false;
-        let groups = loadGroups();           // 仅【自定义分组】 [{id,name,emotes:[string]}]
-        let recentList = loadRecent();        // [string] 最近使用（最新在前）
-        let favSet = loadFavs();              // Set<string>
+        // 以下带预设值的项目，登入后会由 initStorage() 用 DB 里的设定覆盖
+        let groups = [];                       // 仅【自定义分组】 [{id,name,emotes:[string]}]
+        let recentList = [];                   // [string] 最近使用（最新在前）
+        let favSet = new Set();                // Set<string>
         let activeGroupId = 'all';
-        let autoSend = loadAutoSend();
-        let autoClose = loadAutoClose();      // 点击表情后是否自动关闭面板
+        let autoSend = false;
+        let autoClose = false;                 // 点击表情后是否自动关闭面板
         let panelPos = { x: 0, y: 0 };         // 面板永远锚定在 chat-room-bot 顶部，X/宽度跟随 TextAreaChatLog
-        let panelSize = loadSize();           // { height } —— 宽度不再持久化，始终跟随 TextAreaChatLog 实时宽度
+        let panelSize = { height: 520 };       // { height } —— 宽度不再持久化，始终跟随 TextAreaChatLog 实时宽度
         let _resizing = false;
         let _resizeStart = { y: 0, h: 0 };
         let _dragSrc = null;                  // 表情项拖动排序用（跟面板拖动无关，保留）
@@ -213,86 +214,138 @@
         let _destroyed = false;               // 防止热更新时，旧实例仍在等待 bcModSdk 的异步注册在销毁后才完成
 
         // ────────────────────────────────── 存储 ──────────────────────────────────
-        function loadGroups() {
-            try {
-                const s = localStorage.getItem(STORAGE_GROUPS);
-                if (s) {
-                    const g = JSON.parse(s);
-                    if (Array.isArray(g)) {
-                        // 迁移：过滤掉任何内建/固定标签 id 的残留数据（例如旧版 1.2.0 的"默认"分组），
-                        // 只保留真正的自定义分组
-                        return g.filter(function (grp) { return grp && grp.id && !RESERVED_GROUP_IDS.has(grp.id); });
+        // 全部设定存 Player.ExtensionSettings（跟着帐号走），登入后才由伺服器送达；
+        // 原本七个 localStorage key 合并成这一包，各 load*/save* 改读写记忆体中的 _data。
+        const ES_KEY = 'Kaomoji';
+        const LEGACY_KEYS = [
+            ['groups',    STORAGE_GROUPS],
+            ['recent',    STORAGE_RECENT],
+            ['favs',      STORAGE_FAVS],
+            ['size',      STORAGE_SIZE],
+            ['autoSend',  STORAGE_SEND],
+            ['autoClose', STORAGE_AUTOCLOSE],
+            ['collapse',  STORAGE_COLLAPSE],
+        ];
+
+        let _data = {};   // { groups, recent, favs, size, autoSend, autoClose, collapse }
+
+        // 等待 ExtensionSettings 由伺服器载入（最多 ~15 秒）
+        function waitForExtensionSettings(timeout = 15000) {
+            const start = Date.now();
+            return new Promise(function (resolve) {
+                const check = function () {
+                    if (typeof Player !== 'undefined' && Player && Player.ExtensionSettings !== undefined) resolve(true);
+                    else if (Date.now() - start > timeout) resolve(false);
+                    else setTimeout(check, 200);
+                };
+                check();
+            });
+        }
+
+        let _saveTimer = null;
+        function saveData(immediate) {
+            const doSave = function () {
+                try {
+                    if (typeof Player === 'undefined' || !Player) return;
+                    if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
+                    Player.ExtensionSettings[ES_KEY] = JSON.stringify(_data);
+                    if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+                        ServerPlayerExtensionSettingsSync(ES_KEY);
                     }
-                }
-            } catch (_) {}
+                } catch (e) { console.warn('🐈‍⬛ [Kaomoji] ❌ 设定储存失败:', e.message); }
+            };
+            if (immediate) { if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; } doSave(); return; }
+            if (_saveTimer) clearTimeout(_saveTimer);
+            _saveTimer = setTimeout(function () { _saveTimer = null; doSave(); }, 600);
+        }
+
+        function loadGroups() {
+            const g = _data.groups;
+            if (Array.isArray(g)) {
+                // 迁移：过滤掉任何内建/固定标签 id 的残留数据（例如旧版 1.2.0 的"默认"分组），
+                // 只保留真正的自定义分组
+                return g.filter(function (grp) { return grp && grp.id && !RESERVED_GROUP_IDS.has(grp.id); });
+            }
             return [];
         }
-        function saveGroups() {
-            try { localStorage.setItem(STORAGE_GROUPS, JSON.stringify(groups)); } catch (_) {}
-        }
+        function saveGroups() { _data.groups = groups; saveData(); }
         function loadRecent() {
-            try {
-                const s = localStorage.getItem(STORAGE_RECENT);
-                if (s) return JSON.parse(s);
-            } catch (_) {}
-            return [];
+            return Array.isArray(_data.recent) ? _data.recent : [];
         }
-        function saveRecent() {
-            try { localStorage.setItem(STORAGE_RECENT, JSON.stringify(recentList.slice(0, 12))); } catch (_) {}
-        }
+        function saveRecent() { _data.recent = recentList.slice(0, 12); saveData(); }
         function loadFavs() {
-            try {
-                const s = localStorage.getItem(STORAGE_FAVS);
-                if (s) return new Set(JSON.parse(s));
-            } catch (_) {}
-            return new Set();
+            return new Set(Array.isArray(_data.favs) ? _data.favs : []);
         }
-        function saveFavs() {
-            try { localStorage.setItem(STORAGE_FAVS, JSON.stringify([...favSet])); } catch (_) {}
-        }
+        function saveFavs() { _data.favs = [...favSet]; saveData(); }
         function loadSize() {
-            try {
-                const s = localStorage.getItem(STORAGE_SIZE);
-                if (s) {
-                    const parsed = JSON.parse(s);
-                    if (parsed && typeof parsed.height === 'number') return { height: parsed.height };
-                }
-            } catch (_) {}
+            const s = _data.size;
+            if (s && typeof s.height === 'number') return { height: s.height };
             return { height: 520 };
         }
-        function saveSize() {
-            try { localStorage.setItem(STORAGE_SIZE, JSON.stringify({ height: panelSize.height })); } catch (_) {}
-        }
+        function saveSize() { _data.size = { height: panelSize.height }; saveData(); }
         function loadAutoSend() {
-            try {
-                const s = localStorage.getItem(STORAGE_SEND);
-                if (s !== null) return JSON.parse(s);
-            } catch (_) {}
-            return false;
+            return typeof _data.autoSend === 'boolean' ? _data.autoSend : false;
         }
-        function saveAutoSend() {
-            try { localStorage.setItem(STORAGE_SEND, JSON.stringify(autoSend)); } catch (_) {}
-        }
+        function saveAutoSend() { _data.autoSend = autoSend; saveData(); }
         function loadAutoClose() {
-            try {
-                const s = localStorage.getItem(STORAGE_AUTOCLOSE);
-                if (s !== null) return JSON.parse(s);
-            } catch (_) {}
-            return false;
+            return typeof _data.autoClose === 'boolean' ? _data.autoClose : false;
         }
-        function saveAutoClose() {
-            try { localStorage.setItem(STORAGE_AUTOCLOSE, JSON.stringify(autoClose)); } catch (_) {}
-        }
+        function saveAutoClose() { _data.autoClose = autoClose; saveData(); }
         function loadChatButtonsCollapseState() {
+            const s = _data.collapse;
+            return (s === 'true' || s === 'false') ? s : null;
+        }
+        function saveChatButtonsCollapseState(value) { _data.collapse = value; saveData(); }
+
+        /** 一次性搬移：旧的七个 localStorage key 读进来写入 DB，成功后删除原本的 key */
+        function migrateFromLocalStorage() {
+            let moved = false;
+            for (const [field, lsKey] of LEGACY_KEYS) {
+                let s = null;
+                try { s = localStorage.getItem(lsKey); } catch (_) { continue; }
+                if (s === null) continue;
+                try {
+                    // collapse 存的是裸字串 'true'/'false'，其余是 JSON
+                    _data[field] = (field === 'collapse') ? s : JSON.parse(s);
+                    moved = true;
+                } catch (_) {}
+            }
+            if (!moved) return;
+
+            saveData(true);
+            if (Player && Player.ExtensionSettings && Player.ExtensionSettings[ES_KEY] !== undefined) {
+                for (const [, lsKey] of LEGACY_KEYS) {
+                    try { localStorage.removeItem(lsKey); } catch (_) {}
+                }
+                console.log('🐈‍⬛ [Kaomoji] ✅ 设定已从 localStorage 搬移至 DB');
+            }
+        }
+
+        /** 设定是登入后才进来的，载入完要把解析时抓到的预设值覆盖掉 */
+        async function initStorage() {
+            if (!(await waitForExtensionSettings())) return;
+
+            let blob = null;
             try {
-                const s = localStorage.getItem(STORAGE_COLLAPSE);
-                if (s === 'true' || s === 'false') return s;
-            } catch (_) {}
-            return null;
+                const raw = Player?.ExtensionSettings?.[ES_KEY];
+                if (raw !== undefined) {
+                    const o = typeof raw === 'object' ? raw : JSON.parse(raw);
+                    if (o && typeof o === 'object') blob = o;
+                }
+            } catch (e) { console.warn('🐈‍⬛ [Kaomoji] ❌ 设定读取失败，使用预设:', e.message); }
+
+            if (blob) _data = blob;
+            else migrateFromLocalStorage();
+
+            groups     = loadGroups();
+            recentList = loadRecent();
+            favSet     = loadFavs();
+            autoSend   = loadAutoSend();
+            autoClose  = loadAutoClose();
+            panelSize  = loadSize();
+            if (panelVisible) { renderTabs(); renderGrid(); }
         }
-        function saveChatButtonsCollapseState(value) {
-            try { localStorage.setItem(STORAGE_COLLAPSE, value); } catch (_) {}
-        }
+        initStorage();
 
         /*
          * 面板锚点：X 与宽度参考 BC 自身对 TextAreaChatLog 的 DOM 处理方式 —— 直接读取其
@@ -1154,7 +1207,7 @@
         /**
          * 让原生「收纳/展开按钮列」的折叠状态持久化：
          * 第一次遇到该按钮时套用上次保存的状态（直接复用原生点击逻辑，保证图示与 hidden 状态同步），
-         * 之后每次用户点击都把最新状态写回 localStorage。
+         * 之后每次用户点击都把最新状态写回设定。
          * 用 dataset 标记挂钩状态，元素被重建（比如 PreserveChat=false 离开房间再进）时会自动重新挂钩。
          */
         function syncChatButtonsCollapse() {

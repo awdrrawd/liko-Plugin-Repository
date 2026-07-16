@@ -2,7 +2,7 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.8.0-2
+// @version      0.8.1
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "0.8.0";
+    const MOD_VER = "0.8.1";
     if (window.Liko.AEE) return;
     window.Liko.AEE = MOD_VER;
 
@@ -2426,49 +2426,125 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
     }
 
     // ============================================================
-    // SETTINGS（localStorage，無需 BC DB）
+    // SETTINGS（Player.ExtensionSettings：跟著帳號走，登入後才由伺服器送達）
     // ============================================================
 
-    const _aeeSettings = (() => {
-        try { return JSON.parse(localStorage.getItem('liko-aee-settings') || '{}'); } catch { return {}; }
-    })();
-    function _saveAeeSettings() { try { localStorage.setItem('liko-aee-settings', JSON.stringify(_aeeSettings)); } catch {} }
+    const AEE_ES_KEY = 'AEE';                   // Player.ExtensionSettings 的 key
+    const AEE_LS_KEY = 'liko-aee-settings';     // 舊版 localStorage key（僅供一次性搬移）
+
+    const _aeeSettings = {};   // 內容由 _loadAeeSettings() 於登入後填入
+
+    // 等待 ExtensionSettings 由伺服器載入（最多 ~15 秒）
+    function waitForExtensionSettings(timeout = 15000) {
+        const start = Date.now();
+        return new Promise(resolve => {
+            const check = () => {
+                if (typeof Player !== 'undefined' && Player && Player.ExtensionSettings !== undefined) resolve(true);
+                else if (Date.now() - start > timeout) resolve(false);
+                else setTimeout(check, 200);
+            };
+            check();
+        });
+    }
+
+    let _aeeSaveTimer = null;
+    function _saveAeeSettings(immediate = false) {
+        const doSave = () => {
+            try {
+                if (typeof Player === 'undefined' || !Player) return;
+                if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
+                Player.ExtensionSettings[AEE_ES_KEY] = JSON.stringify(_aeeSettings);
+                if (typeof ServerPlayerExtensionSettingsSync === 'function') {
+                    ServerPlayerExtensionSettingsSync(AEE_ES_KEY);
+                }
+            } catch (e) { console.warn('🐈‍⬛ [AEE] ❌ 設定儲存失敗:', e.message); }
+        };
+        if (immediate) { if (_aeeSaveTimer) { clearTimeout(_aeeSaveTimer); _aeeSaveTimer = null; } doSave(); return; }
+        if (_aeeSaveTimer) clearTimeout(_aeeSaveTimer);
+        _aeeSaveTimer = setTimeout(() => { _aeeSaveTimer = null; doSave(); }, 600);
+    }
     function getAeeSetting(k, def) { return _aeeSettings[k] ?? def; }
     function setAeeSetting(k, v) { _aeeSettings[k] = v; _saveAeeSettings(); }
 
-    // 初始化 state 設定值
-    state.hoverHighlight     = getAeeSetting('hoverHighlight', false);
-    state.hoverHighlightChar = getAeeSetting('hoverHighlightChar', false);
-    state.hideLscgLayers     = getAeeSetting('hideLscgLayers', false);
-    state.showCharCtrl       = getAeeSetting('showCharCtrl', false);
-    state.hideCloseup        = getAeeSetting('hideCloseup', false);
-    state.hideFullbody       = getAeeSetting('hideFullbody', false);
-    state.fullbodyOffsetX    = getAeeSetting('fullbodyOffsetX', 0);
+    /** 一次性搬移：舊的 localStorage 設定讀進來寫入 DB，成功後刪除原本的 key */
+    function _migrateAeeFromLocalStorage() {
+        let legacy = null;
+        try { legacy = localStorage.getItem(AEE_LS_KEY); } catch { return; }
+        if (!legacy) return;
+        try {
+            const o = JSON.parse(legacy);
+            if (!o || typeof o !== 'object') throw new Error('格式不符');
+            Object.assign(_aeeSettings, o);
+        } catch { try { localStorage.removeItem(AEE_LS_KEY); } catch {} return; }
+
+        _saveAeeSettings(true);
+        if (Player?.ExtensionSettings?.[AEE_ES_KEY] !== undefined) {
+            try { localStorage.removeItem(AEE_LS_KEY); } catch {}
+            console.log('🐈‍⬛ [AEE] ✅ 設定已從 localStorage 搬移至 DB');
+        }
+    }
+
+    async function _loadAeeSettings() {
+        if (!(await waitForExtensionSettings())) return;
+
+        const raw = Player?.ExtensionSettings?.[AEE_ES_KEY];
+        let loaded = false;
+        if (raw !== undefined) {
+            try {
+                const o = typeof raw === 'object' ? raw : JSON.parse(raw);
+                if (o && typeof o === 'object') { Object.assign(_aeeSettings, o); loaded = true; }
+            } catch (e) { console.warn('🐈‍⬛ [AEE] ❌ 設定讀取失敗，使用預設:', e.message); }
+        }
+        if (!loaded) _migrateAeeFromLocalStorage();
+
+        _applyAeeSettings();
+        try { _initBgFromSettings(); } catch (e) { console.warn('🐈‍⬛ [AEE] ❌ 背景初始化失敗:', e.message); }
+    }
+
+    /** 把 _aeeSettings 套用到各模組變數；登入後設定送達時會再跑一次覆蓋預設值 */
+    function _applyAeeSettings() {
+        state.hoverHighlight     = getAeeSetting('hoverHighlight', false);
+        state.hoverHighlightChar = getAeeSetting('hoverHighlightChar', false);
+        state.hideLscgLayers     = getAeeSetting('hideLscgLayers', false);
+        state.showCharCtrl       = getAeeSetting('showCharCtrl', false);
+        state.hideCloseup        = getAeeSetting('hideCloseup', false);
+        state.hideFullbody       = getAeeSetting('hideFullbody', false);
+        state.fullbodyOffsetX    = getAeeSetting('fullbodyOffsetX', 0);
+
+        _ctrlExpandUp = getAeeSetting('ctrlExpandUp', true);   // true=向上, false=向下
+        _ctrlSubLeft  = getAeeSetting('ctrlSubLeft',  true);   // true=子清單向左, false=向右
+        const savedCtrlPos = getAeeSetting('charCtrlPos', null);
+        if (savedCtrlPos) _charCtrlCustomPos = savedCtrlPos;
+
+        _bgEnabled       = getAeeSetting('bgEnabled',      false);
+        _bgColor         = getAeeSetting('bgColor',        '#87CEEB');
+        _bgGridEnabled   = getAeeSetting('bgGridEnabled',  false);
+        _bgGridMode      = getAeeSetting('bgGridMode',     'line');
+        _bgGridPx        = getAeeSetting('bgGridPx',       25);
+        _bgGridColor     = getAeeSetting('bgGridColor',    '#ffffff');
+        _bgGridOpacity   = getAeeSetting('bgGridOpacity',  0.25);
+        _bgGridLayer     = getAeeSetting('bgGridLayer',    'below');
+        _bgImgEnabled    = getAeeSetting('bgImgEnabled',   false);
+        _bgImgBtnVisible = getAeeSetting('bgImgBtnVisible',false);
+        _bgImgUrl        = getAeeSetting('bgImgUrl',       '');
+
+        _charOffsetX = getAeeSetting('charOffsetX', 0);
+        _charOffsetY = getAeeSetting('charOffsetY', 0);
+        _charScale   = getAeeSetting('charScale',   1.0);
+    }
 
     // ── CharCtrl 面板狀態 ──
     let _charCtrlHost = null, _charCtrlShadow = null, _charCtrlOpen = false, _charCtrlDrag = null;
     let _charCtrlCustomPos = null;
     // 展開方向設定（持久化）
-    let _ctrlExpandUp  = getAeeSetting('ctrlExpandUp',  true);  // true=向上, false=向下
-    let _ctrlSubLeft   = getAeeSetting('ctrlSubLeft',   true);  // true=子清單向左, false=向右
-    const _savedCtrlPos = getAeeSetting('charCtrlPos', null);
-    if (_savedCtrlPos) _charCtrlCustomPos = _savedCtrlPos;
+    let _ctrlExpandUp, _ctrlSubLeft;
     const _CTRL_BTN_SIZE   = 52;
     const _CTRL_ICON_MAIN  = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/AEE_ICON.png';
     const _CTRL_ICON_FRAME = 'https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/AEE_ICON2.png';
 
     // ── 背景系統狀態 ──
-    let _bgEnabled       = getAeeSetting('bgEnabled',      false);
-    let _bgColor         = getAeeSetting('bgColor',        '#87CEEB');
-    let _bgGridEnabled   = getAeeSetting('bgGridEnabled',  false);
-    let _bgGridMode      = getAeeSetting('bgGridMode',     'line');
-    let _bgGridPx        = getAeeSetting('bgGridPx',       25);
-    let _bgGridColor     = getAeeSetting('bgGridColor',    '#ffffff');
-    let _bgGridOpacity   = getAeeSetting('bgGridOpacity',  0.25);
-    let _bgGridLayer     = getAeeSetting('bgGridLayer',    'below');
-    let _bgImgEnabled    = getAeeSetting('bgImgEnabled',   false);
-    let _bgImgBtnVisible = getAeeSetting('bgImgBtnVisible',false);
-    let _bgImgUrl        = getAeeSetting('bgImgUrl',       '');
+    let _bgEnabled, _bgColor, _bgGridEnabled, _bgGridMode, _bgGridPx, _bgGridColor;
+    let _bgGridOpacity, _bgGridLayer, _bgImgEnabled, _bgImgBtnVisible, _bgImgUrl;
     let _bgImgEl = null, _bgOrigDrawImage = null;
     let _bgSettingHost = null, _bgSettingOpen = false;
     let _bgSubOpen     = false;
@@ -2476,11 +2552,12 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
 
     // ── 位移面板 / POSE 狀態 ──
     let _offsetPanelHost = null, _offsetPanelOpen = false, _offsetPanelCollapsed = false;
-    let _charOffsetX = getAeeSetting('charOffsetX', 0);
-    let _charOffsetY = getAeeSetting('charOffsetY', 0);
-    let _charScale   = getAeeSetting('charScale',   1.0);
+    let _charOffsetX, _charOffsetY, _charScale;
     let _wheelCtrlOn = false, _wheelMoveMode = false;
     let _poseFloatHost = null, _poseFloatOpen = false;
+
+    _applyAeeSettings();   // 先鋪預設值，登入後 _loadAeeSettings() 會用真正的設定覆蓋
+    _loadAeeSettings();
 
     function renderSettingsTab() {
         const useAeeCP    = getAeeSetting('useAeeColorPicker', false);
@@ -3424,9 +3501,11 @@ hr{border:none;border-top:1px solid var(--color-border-tertiary)}
         img.src = url;
     }
 
-    // 初始化背景 hook
-    if (_bgImgEnabled && _bgImgUrl) _loadBgImage(_bgImgUrl);
-    if (_bgEnabled || _bgGridEnabled) _applyBgHook();
+    // 初始化背景 hook（由 _loadAeeSettings() 在設定送達後呼叫，不能在解析時跑：那時還讀不到設定）
+    function _initBgFromSettings() {
+        if (_bgImgEnabled && _bgImgUrl) _loadBgImage(_bgImgUrl);
+        if (_bgEnabled || _bgGridEnabled) _applyBgHook(); else _removeBgHook();
+    }
 
     // ── 背景設定面板 ──
     // ── 背景子按鈕列展開狀態（BG主按鈕控制）──
