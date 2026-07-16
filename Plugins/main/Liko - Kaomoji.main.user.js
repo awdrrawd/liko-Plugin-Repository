@@ -2,7 +2,7 @@
 // @name         Liko - Kaomoji
 // @name:zh      Liko的文字表情
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.0.2
+// @version      1.0.3
 // @description  Bondage Club - 文字表情快捷面板：点击颜文字自动插入聊天输入框，支持收藏/常用/自定义分组/拖动排序
 // @author       Likolisu & TAO
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -25,7 +25,7 @@
         // Destroy() 内部会把 window.Liko.Kaomoji 重置为 {}，这里保险起见再确认一次，
         window.Liko.Kaomoji = window.Liko.Kaomoji ?? {};
         if (window.Liko.Kaomoji.version) return;
-        const MOD_VER = "1.0.2";
+        const MOD_VER = "1.0.3";
         window.Liko.Kaomoji.version = MOD_VER;
 
         /* ── 常量 ──────────────────────────────────────────────────────────── */
@@ -698,7 +698,7 @@
                 'height:' + initPos.h + 'px',
                 'display:flex',
                 'flex-direction:column',
-                'z-index:1',
+                'z-index:2',
                 'font-family:"Segoe UI",system-ui,sans-serif',
                 'pointer-events:auto',
                 'opacity:0',
