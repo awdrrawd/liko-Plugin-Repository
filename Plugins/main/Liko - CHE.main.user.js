@@ -2,7 +2,7 @@
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://likolisu.dev/
-// @version      2.4.4-1
+// @version      2.4.5
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.4.4";
+    const MOD_VER = "2.4.5";
     if (window.Liko.CHE) return;
     window.Liko.CHE = MOD_VER;
 
@@ -248,13 +248,16 @@
                     req.onsuccess = () => resolve(req.result ? req.result.messages : []);
                     req.onerror = () => reject(req.error);
                 });
+                // FIX: 原本用 content.substring(0,50) 當 key 的一部分，若兩則不同訊息
+                // 剛好同一分鐘、同一人、前 50 字相同（常見於連續短句/表情），會被
+                // 誤判為重複而遺失。改用完整內容，避免碰撞。
                 const existingKeys = new Set();
                 existing.forEach(msg => {
-                    const key = msg.msgid || `${msg.time}-${msg.id}-${(msg.content||"").substring(0,50)}`;
+                    const key = msg.msgid || `${msg.time}-${msg.id}-${msg.content||""}`;
                     existingKeys.add(key);
                 });
                 const newMessages = messages.filter(msg => {
-                    const key = msg.msgid || `${msg.time}-${msg.id}-${(msg.content||"").substring(0,50)}`;
+                    const key = msg.msgid || `${msg.time}-${msg.id}-${msg.content||""}`;
                     return !existingKeys.has(key);
                 });
                 if (newMessages.length === 0) return existing.length;
@@ -1463,74 +1466,140 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
 
     // =====================================================================
-    // processCurrentMessages
+    // Message normalization (shared by full-scan and incremental capture)
     // =====================================================================
+    function normalizeChatMessageNode(msg) {
+        try {
+            if (msg.classList?.contains("chat-room-sep-div")) {
+                const button = msg.querySelector(".chat-room-sep-header");
+                const roomName = button?.dataset?.room || "";
+                const iconDiv = button?.querySelector(".chat-room-sep-image");
+                const iconText = iconDiv ? (iconDiv.querySelector("span")?.innerText || "") : "";
+                const sepText = `˅${iconText ? iconText + " - " : ""}${roomName}`.trim();
+                return { time: new Date().toISOString(), id: "", name: "", content: sepText, msgid: `sep_${roomName}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`, type: "separator", roomName, color: "#8100E7" };
+            }
+            if (msg.matches?.("a.beep-link")) return null;
+            if (!msg.dataset) return null;
+
+            const rawTime = msg.dataset.time || "";
+            const normalizedTime = normalizeTime(rawTime);
+            const senderId = msg.dataset.sender || "";
+            const nameButton = msg.querySelector(".ChatMessageName");
+            const senderName = nameButton ? (nameButton.innerText || nameButton.textContent || "").trim() : "";
+            const msgidAttr = msg.querySelector("span[msgid]")?.getAttribute("msgid") || "";
+
+            const direction = msg.classList.contains("ChatMessageWhisper")
+            ? (msg.dataset.target ? 'outgoing' : 'incoming')
+            : undefined;
+
+            let content = "";
+            const isBceNotif = msg.classList.contains("bce-notification") || !!msg.querySelector('.bce-beep-link');
+            const contentSpan = msg.querySelector(".chat-room-message-content");
+            const originContentSpan = msg.querySelector(".chat-room-message-original");
+
+            if (isBceNotif) {
+                const beepLink = msg.querySelector('.bce-beep-link');
+                content = beepLink ? (beepLink.textContent || beepLink.innerText || "").trim() : "";
+            } else if (contentSpan) {
+                const _clone = contentSpan.cloneNode(true);
+                _clone.querySelectorAll('[style*="display: none"], [style*="display:none"]').forEach(el => el.remove());
+                _clone.querySelectorAll('img[src]').forEach(img => {
+                    img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
+                });
+                content = (_clone.textContent || _clone.innerText || "").trim();
+                if (originContentSpan) {
+                    const originContent = (originContentSpan.textContent || originContentSpan.innerText || "").trim();
+                    content = content + '\n' + originContent;
+                }
+            } else {
+                const clone = msg.cloneNode(true);
+                clone.querySelectorAll('.chat-room-message-popup, .chat-room-metadata, .ChatMessageName, .chat-room-message-original').forEach(el => el.remove());
+                clone.querySelectorAll('img[src]').forEach(img => { img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || '')); });
+                content = (clone.textContent || clone.innerText || "").trim();
+            }
+            if (content === '[🌐]' || content.startsWith('[🌐] ')) {
+                const originalText = msg.getAttribute('bce-original-text');
+                if (originalText && !originalText.startsWith('[🌐]') && originalText.trim()) {
+                    content = `${originalText} [🌐] ${content.replace(/^\[🌐\]\s*/, '')}`;
+                }
+            }
+
+            const messageType = detectMessageType(msg, content);
+            const labelColor = getLabelColor(msg, nameButton);
+            return { time: normalizedTime, id: senderId, name: senderName, content, direction, msgid: msgidAttr, type: messageType, color: labelColor, className: Array.from(msg.classList||[]).join(" ") };
+        } catch (e) {
+            logError("normalizeChatMessageNode", e);
+            return null;
+        }
+    }
+
     function processCurrentMessages() {
         const messages = DOMCache.getMessages();
         const processedMessages = [];
         messages.forEach(msg => {
-            try {
-                if (msg.classList?.contains("chat-room-sep-div")) {
-                    const button = msg.querySelector(".chat-room-sep-header");
-                    const roomName = button?.dataset?.room || "";
-                    const iconDiv = button?.querySelector(".chat-room-sep-image");
-                    const iconText = iconDiv ? (iconDiv.querySelector("span")?.innerText || "") : "";
-                    const sepText = `˅${iconText ? iconText + " - " : ""}${roomName}`.trim();
-                    processedMessages.push({ time: new Date().toISOString(), id: "", name: "", content: sepText, msgid: `sep_${roomName}_${Date.now()}`, type: "separator", roomName, color: "#8100E7" });
-                    return;
-                }
-                if (msg.matches?.("a.beep-link")) return;
-                if (!msg.dataset) return;
-
-                const rawTime = msg.dataset.time || "";
-                const normalizedTime = normalizeTime(rawTime);
-                const senderId = msg.dataset.sender || "";
-                const nameButton = msg.querySelector(".ChatMessageName");
-                const senderName = nameButton ? (nameButton.innerText || nameButton.textContent || "").trim() : "";
-                const msgidAttr = msg.querySelector("span[msgid]")?.getAttribute("msgid") || "";
-
-                const direction = msg.classList.contains("ChatMessageWhisper")
-                ? (msg.dataset.target ? 'outgoing' : 'incoming')
-                : undefined;
-
-                let content = "";
-                const isBceNotif = msg.classList.contains("bce-notification") || !!msg.querySelector('.bce-beep-link');
-                const contentSpan = msg.querySelector(".chat-room-message-content");
-                const originContentSpan = msg.querySelector(".chat-room-message-original");
-
-                if (isBceNotif) {
-                    const beepLink = msg.querySelector('.bce-beep-link');
-                    content = beepLink ? (beepLink.textContent || beepLink.innerText || "").trim() : "";
-                } else if (contentSpan) {
-                    const _clone = contentSpan.cloneNode(true);
-                    _clone.querySelectorAll('[style*="display: none"], [style*="display:none"]').forEach(el => el.remove());
-                    _clone.querySelectorAll('img[src]').forEach(img => {
-                        img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
-                    });
-                    content = (_clone.textContent || _clone.innerText || "").trim();
-                    if (originContentSpan) {
-                        const originContent = (originContentSpan.textContent || originContentSpan.innerText || "").trim();
-                        content = content + '\n' + originContent;
-                    }
-                } else {
-                    const clone = msg.cloneNode(true);
-                    clone.querySelectorAll('.chat-room-message-popup, .chat-room-metadata, .ChatMessageName, .chat-room-message-original').forEach(el => el.remove());
-                    clone.querySelectorAll('img[src]').forEach(img => { img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || '')); });
-                    content = (clone.textContent || clone.innerText || "").trim();
-                }
-                if (content === '[🌐]' || content.startsWith('[🌐] ')) {
-                    const originalText = msg.getAttribute('bce-original-text');
-                    if (originalText && !originalText.startsWith('[🌐]') && originalText.trim()) {
-                        content = `${originalText} [🌐] ${content.replace(/^\[🌐\]\s*/, '')}`;
-                    }
-                }
-
-                const messageType = detectMessageType(msg, content);
-                const labelColor = getLabelColor(msg, nameButton);
-                processedMessages.push({ time: normalizedTime, id: senderId, name: senderName, content, direction, msgid: msgidAttr, type: messageType, color: labelColor, className: Array.from(msg.classList||[]).join(" ") });
-            } catch (e) { logError("processCurrentMessages", e); }
+            const normalized = normalizeChatMessageNode(msg);
+            if (normalized) processedMessages.push(normalized);
         });
         return processedMessages;
+    }
+
+    // =====================================================================
+    // Incremental capture buffer
+    //
+    // 問題背景：原本只靠「每5分鐘 processCurrentMessages() 重新掃描整個 DOM」
+    // 來存檔。但遊戲的聊天室 DOM 節點在訊息量大時會被裁剪／移除，若訊息在
+    // 兩次自動保存之間就從 DOM 消失，就會永久遺失，完全不會進入緩存。
+    // 這就是「偶爾漏訊息」的主因。
+    //
+    // 修復方式：MutationObserver 偵測到新節點時，立即在當下把該節點正規化
+    // 並存進記憶體緩衝區 pendingBuffer，再用 debounce 盡快 flush 進
+    // IndexedDB，不等 DOM 節點日後被裁剪。同時保留較低頻率的整體重掃
+    // （processCurrentMessages）作為保險，抓取任何緩衝區可能漏接的訊息。
+    // =====================================================================
+    let pendingBuffer = [];
+    const capturedNodes = new WeakSet();
+    let flushDebounceTimer = null;
+    const FLUSH_DEBOUNCE_MS = 3000;
+    const FLUSH_MAX_WAIT_MS = 15000;
+    let flushMaxWaitTimer = null;
+    let isFlushing = false;
+
+    function captureNode(node) {
+        try {
+            if (!node || capturedNodes.has(node)) return;
+            capturedNodes.add(node);
+            const normalized = normalizeChatMessageNode(node);
+            if (normalized) pendingBuffer.push(normalized);
+        } catch (e) { logError("captureNode", e); }
+    }
+
+    function scheduleFlush() {
+        if (currentMode !== "cache") return;
+        if (flushDebounceTimer) clearTimeout(flushDebounceTimer);
+        flushDebounceTimer = setTimeout(flushBuffer, FLUSH_DEBOUNCE_MS);
+        if (!flushMaxWaitTimer) {
+            flushMaxWaitTimer = setTimeout(() => { flushMaxWaitTimer = null; flushBuffer(); }, FLUSH_MAX_WAIT_MS);
+        }
+    }
+
+    async function flushBuffer() {
+        if (flushDebounceTimer) { clearTimeout(flushDebounceTimer); flushDebounceTimer = null; }
+        if (flushMaxWaitTimer) { clearTimeout(flushMaxWaitTimer); flushMaxWaitTimer = null; }
+        if (isFlushing || pendingBuffer.length === 0 || currentMode !== "cache") return;
+        const toSave = pendingBuffer;
+        pendingBuffer = [];
+        isFlushing = true;
+        try {
+            await CacheManager.saveForDate(toSave, DateUtils.getDateKey());
+            lastSaveTime = Date.now();
+        } catch (e) {
+            logError("flushBuffer", e);
+            // 保存失敗，放回緩衝區稍後重試，避免資料遺失
+            pendingBuffer = toSave.concat(pendingBuffer);
+            scheduleFlush();
+        } finally {
+            isFlushing = false;
+        }
     }
 
     // =====================================================================
@@ -1546,6 +1615,9 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 if (chatLog && document.contains(chatLog)) {
                     clearInterval(checkChatRoom);
                     currentMessageCount = DOMCache.getMessageCount();
+                    // 初始化時，把目前畫面上已存在的訊息先標記為已捕捉，
+                    // 避免重複；真正遺漏的舊訊息交給 saveCurrentMessages 全量掃描補齊。
+                    DOMCache.getMessages().forEach(n => capturedNodes.add(n));
                     messageObserver = new MutationObserver(handleMutations);
                     try {
                         messageObserver.observe(chatLog, { childList: true, subtree: true, attributes: false, characterData: false });
@@ -1565,11 +1637,23 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 if (!mutation.addedNodes || mutation.addedNodes.length === 0) return;
                 mutation.addedNodes.forEach(node => {
                     try {
-                        if (node.nodeType === Node.ELEMENT_NODE && node.matches && (node.matches(".ChatMessage") || node.matches("a.beep-link"))) newMessages++;
+                        if (node.nodeType !== Node.ELEMENT_NODE) return;
+                        if (node.matches && (node.matches(".ChatMessage") || node.matches(".chat-room-sep-div"))) {
+                            captureNode(node);
+                            newMessages++;
+                        } else if (node.matches && node.matches("a.beep-link")) {
+                            newMessages++;
+                        } else if (node.querySelectorAll) {
+                            // 有些訊息可能是包在一個被整批插入的容器裡
+                            node.querySelectorAll(".ChatMessage, .chat-room-sep-div").forEach(sub => { captureNode(sub); newMessages++; });
+                        }
                     } catch {}
                 });
             });
-            if (newMessages > 0) currentMessageCount += newMessages;
+            if (newMessages > 0) {
+                currentMessageCount += newMessages;
+                if (currentMode === "cache" && pendingBuffer.length > 0) scheduleFlush();
+            }
         } catch (e) { logError("handleMutations", e); }
     }
 
@@ -1577,12 +1661,19 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         try { if (messageObserver) { messageObserver.disconnect(); messageObserver = null; } observerActive = false; } catch (e) { logError("cleanupObserver", e); }
     }
 
-    function stopMessageObserver() { cleanupObserver(); stopAutoSave(); }
+    function stopMessageObserver() {
+        cleanupObserver();
+        stopAutoSave();
+        if (currentMode === "cache" || pendingBuffer.length > 0) flushBuffer();
+    }
 
     function startAutoSave() {
         if (autoSaveTimer) clearInterval(autoSaveTimer);
         autoSaveTimer = setInterval(() => {
             if (currentMode === "cache") {
+                // 先 flush 緩衝區（即時捕捉到的訊息），再做一次全量重掃當保險，
+                // 撿回任何緩衝區可能漏接、但仍留在 DOM 上的訊息。
+                flushBuffer();
                 if (Date.now() - lastSaveTime >= AUTO_SAVE_INTERVAL) saveCurrentMessages();
             }
         }, 60 * 1000);
@@ -1605,29 +1696,65 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         }
     }
 
+    // =====================================================================
+    // Unload / visibility backup
+    //
+    // 原本會把整個 DOM 重新掃描一次，把所有訊息塞進 localStorage，資料量
+    // 大時很容易超過 localStorage 的配額（QuotaExceededError）。
+    // 現在改成：
+    //   1. 優先直接 flush 到 IndexedDB（visibilitychange 時頁面還沒真的關閉，
+    //      通常有機會讓非同步寫入跑完）。
+    //   2. 只把「flush 完後仍留在 pendingBuffer 裡的少量訊息」寫進
+    //      localStorage 當最後防線，資料量遠比整包 DOM 小很多。
+    //   3. 寫入 localStorage 失敗時（例如額度仍然不足）不再直接放棄，
+    //      而是嘗試只保留最後 N 筆訊息重試，盡量留下一部分紀錄。
+    // =====================================================================
+    function saveToLocalStorage(reason) {
+        try {
+            const messages = pendingBuffer.length > 0 ? pendingBuffer : processCurrentMessages();
+            if (messages.length === 0) return;
+            const tempData = { messages, date: DateUtils.getDateKey(), accountPrefix: getAccountPrefix(), timestamp: Date.now(), count: messages.length, reason };
+            const storageKey = `che_temp_data_${getAccountPrefix()}`;
+            try {
+                localStorage.setItem(storageKey, JSON.stringify(tempData));
+            } catch (quotaError) {
+                // 額度不足時，逐步縮減只保留最新的訊息重試，總比完全存不到好
+                let trimmed = messages;
+                let ok = false;
+                for (const keepCount of [200, 50, 10]) {
+                    trimmed = messages.slice(-keepCount);
+                    try {
+                        localStorage.setItem(storageKey, JSON.stringify({ ...tempData, messages: trimmed, count: trimmed.length, trimmed: true }));
+                        ok = true;
+                        break;
+                    } catch { /* 繼續縮減再試 */ }
+                }
+                if (!ok) logError("saveToLocalStorage.quota", quotaError);
+            }
+        } catch (e) { logError("saveToLocalStorage", e); }
+    }
+
     function setupDataBackup() {
         window.addEventListener('beforeunload', () => {
-            if (currentMode === "cache") saveToLocalStorage("beforeunload");
+            if (currentMode === "cache") {
+                flushBuffer();
+                saveToLocalStorage("beforeunload");
+            }
             cleanupObserver();
         });
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
                 if (observerActive) observerActive = false;
-                if (currentMode === "cache") saveToLocalStorage("visibilitychange");
+                if (currentMode === "cache") {
+                    // 分頁只是切到背景，還沒真的關閉，此時非同步的 IndexedDB
+                    // 寫入通常來得及完成，優先用它取代 localStorage 大量寫入。
+                    flushBuffer();
+                    saveToLocalStorage("visibilitychange");
+                }
             } else {
                 if (messageObserver && !observerActive) observerActive = true;
             }
         });
-    }
-
-    function saveToLocalStorage(reason) {
-        try {
-            const messages = processCurrentMessages();
-            if (messages.length > 0) {
-                const tempData = { messages, date: DateUtils.getDateKey(), accountPrefix: getAccountPrefix(), timestamp: Date.now(), count: messages.length, reason };
-                localStorage.setItem(`che_temp_data_${getAccountPrefix()}`, JSON.stringify(tempData));
-            }
-        } catch (e) { logError("saveToLocalStorage", e); }
     }
 
     async function checkTempData() {
