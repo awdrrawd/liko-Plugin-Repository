@@ -703,7 +703,7 @@
     // 初始化
     // ──────────────────────────────────────────
     async function initialize() {
-        console.log(`🐈‍⬛ [IMG] v${MOD_VER} loaded`);
+        console.log(`🐈‍⬛ [IMG] ✅ v${MOD_VER} loaded`);
         const ok = await waitForBcModSdk();
         if (!ok) { console.error("🐈‍⬛ [IMG] ❌ bcModSdk 載入失敗"); return; }
         await loadToastSystem();

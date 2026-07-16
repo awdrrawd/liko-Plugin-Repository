@@ -84,7 +84,7 @@
             if (shouldHide()) return false;
             return next(args);
         });
-        console.log(`🐈‍⬛ [HHA] v${MOD_VERSION} loaded`);
+        console.log(`🐈‍⬛ [HHA] ✅ v${MOD_VERSION} loaded`);
     });
 
 })();
