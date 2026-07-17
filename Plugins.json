@@ -148,7 +148,7 @@
     },
     {
       "id": "Liko-LCE",
-      "name": "Liko的俱樂部擴充(測試),
+      "name": "Liko的俱樂部擴充(測試)",
       "en_name": "Liko's Club Expansion(test)",
       "description": "以WCE為基底合併幾個小型插件功能，並提供美化登入介面與帳號記憶功能",
       "en_description": "Based on WCE, merge several small plugin features, and provide a beautified login interface with account memory functionality.",
