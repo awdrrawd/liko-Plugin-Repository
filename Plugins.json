@@ -147,6 +147,21 @@
       "type": "mod"
     },
     {
+      "id": "Liko-LCE",
+      "name": "Liko的俱樂部擴充(測試),
+      "en_name": "Liko's Club Expansion(test)",
+      "description": "以WCE為基底合併幾個小型插件功能，並提供美化登入介面與帳號記憶功能",
+      "en_description": "Based on WCE, merge several small plugin features, and provide a beautified login interface with account memory functionality.",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": " ✨",
+      "url": "https://awdrrawd.github.io/BC-LCE/assets/main.js",
+      "mirrorUrl": "https://awdrrawd.github.io/BC-LCE/loader.user.js",
+      "website": "https://github.com/awdrrawd/BC-LCE",
+      "priority": 4,
+      "type": "mod"
+    },
+    {
       "id": "Liko-Tool",
       "name": "Liko的工具包",
       "en_name": "Liko's Tool Kit",
@@ -292,6 +307,19 @@
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
       "priority": 10,
       "version": "1.1.1-1"
+    },
+   {
+      "id": "Liko-DDT",
+      "name": "繪圖檢測工具",
+      "en_name": "Draw Detection Tool",
+      "description": "偵測 canvas & DOM 物件的屬性，並支持染色與位移",
+      "en_description": "Detects canvas and DOM element properties, and allows color highlighting and positional offset.",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "icon": "🖌️",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20DDT.main.user.js",
+      "priority": 10,
+      "version": "0.1.0"
     },
     {
       "id": "Liko-CDT",
@@ -451,16 +479,16 @@
     },
     {
       "id": "Fix-HHA",
-      "name": "臨時修復興奮條隱藏",
-      "en_name": "Hotfix for Hidden Arousal",
-      "description": "在更衣室、個人資訊、角色互動中隱藏興奮條",
-      "en_description": "Hidden Arousal in Appearance, InformationSheet, ChatRoom+CurrentCharacter",
+      "name": "物件隱藏熱修",
+      "en_name": "Hotfix for Hidden elements",
+      "description": "在更衣室、個人資訊、角色互動中隱藏興奮條、MPA等物件",
+      "en_description": "Hide arousal meters, MPA, and similar elements in the locker room, character info, and interaction menus.",
       "additionalInfo": "",
       "en_additionalInfo": "",
       "icon": "💉",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HHA.user.js",
       "priority": 10,
-      "version": "0.2"
+      "version": "0.3"
     },
     {
       "id": "Fix-HLF",
