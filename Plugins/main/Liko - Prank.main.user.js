@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.6.8
+// @version      1.6.9
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -17,7 +17,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.8";
+    const MOD_VER = "1.6.9";
     if (window.Liko.Prank) return;
     window.Liko.Prank = MOD_VER;
 
@@ -1514,17 +1514,33 @@
         }
         setupHooks();  // hooks 掛在遊戲函式上，不需要玩家登入
         window.Liko._debug = { getAhogeItems };
-        // ── Phase 2 觸發：hook LoginResponse，登入完成時才註冊活動與指令 ──
+
+        // ── Phase 2 觸發：不綁定一次性的 LoginResponse 事件 ──
+        // 註冊不穩定的根因：舊版只在 LoginResponse hook 裡觸發 phase2。單獨安裝時 @run-at
+        // document-end 一定在登入前載入、hook 一定攔得到 LoginResponse，所以每次都成功；但透過
+        // 載入器（非同步抓取、載入時機浮動）時，若插件在「登入完成後」才載入，LoginResponse 早已
+        // 觸發過、不會再觸發，phase2 永遠不跑 → 按鈕時有時無。bcModSdk 載入較慢也會拉大這個空窗。
+        //
+        // 解法（比照 Echo：登記不依賴登入事件）：用 phase2Done 去重，兩條路任一先到就註冊一次——
+        //   A) LoginResponse hook：載入時「尚未登入」→ 登入完成當下觸發（也涵蓋登出再登入的重載）。
+        //   B) waitFor 輪詢：載入時「已登入」→ 條件立刻成立、直接補觸發，不必等永遠不會再來的事件。
+        let phase2Done = false;
+        const runPhase2Once = () => { if (phase2Done) return; phase2Done = true; phase2(); };
+
         if (modApi?.hookFunction) {
-            let phase2Done = false;
             modApi.hookFunction("LoginResponse", 1, (args, next) => {
                 const result = next(args);
-                if (!phase2Done) {
-                    phase2Done = true;
-                    phase2();
-                }
+                runPhase2Once();
                 return result;
             });
         }
+        // 條件：已登入（Player.AccountName 登入後才有值）＋ 註冊所需全域就緒。
+        // 不論插件在登入前或登入後載入都成立；早載入時它會在登入完成後才 resolve。
+        waitFor(() =>
+                !!window.Player?.AccountName &&
+                typeof CommandCombine === "function" &&
+                typeof ActivityFemale3DCG !== "undefined" &&
+                typeof ActivityDictionary !== "undefined"
+               ).then(runPhase2Once).catch(() => { /* 逾時就靠 LoginResponse hook 那條 */ });
     })();
 })();
