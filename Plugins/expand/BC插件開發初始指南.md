@@ -214,72 +214,60 @@ if (typeof CommandCombine === 'function') {
 
 倉庫內 `Liko - Prank.main.user.js` 有一個叫 `AddActivity()` 的函式，**但這不是 BC 原生 API，只是這支插件自己寫的一層封裝**，其他插件並不會走這條路（除非你也決定寫一支一樣的工具函式）。真正在做的事情、也是**其他插件會直接採用的原生做法**，是下面這幾件事：
 
-**(1) 把動作模板塞進原生陣列**
+**(1) 把動作模板塞進原生陣列，並讓它通過權限檢查**
 
 ```js
 const activity = {
     Name: 'MyMod_CutClothes',                 // 建議加上自己的前綴避免撞名
+    ActivityID: 990,                           // 給一個夠大、不與原生衝突的非負整數（見下方說明）
     MaxProgress: 50, MaxProgressSelf: 50,
     Prerequisite: [],                          // 前置條件名稱列表（見下）
     Target: ['ItemTorso', 'ItemPelvis'],       // 可對「他人」使用的身體部位群組
     TargetSelf: ['ItemTorso', 'ItemPelvis'],   // 可對「自己」使用的身體部位群組（不需要就整個省略）
 };
 ActivityFemale3DCG.push(activity);
-// ⚠️ R130 起 ActivityFemale3DCGOrdering 用 let 宣告，見下方警告，務必用 typeof 包起來
+// 排序陣列非必要（找不到就排最前）；且它可能不在 window 上（見下），務必用 typeof 包起來
 if (typeof ActivityFemale3DCGOrdering !== 'undefined') {
-    ActivityFemale3DCGOrdering.push(activity.Name);   // 只影響此動作在動作清單中的排序位置，非必要
+    ActivityFemale3DCGOrdering.push(activity.Name);
 }
 ```
 
-> **⚠️ R130 大坑：`var` vs `let` 全域變數，用戶腳本只看得到 `var`。**
->
-> BC 的腳本是**傳統 `<script>`（非 module）**載入的。傳統腳本的頂層宣告分兩種去處：
-> - `var` / `function` → 進「全域物件環境」，也就是掛到 `window` 上 → **用戶腳本（Tampermonkey，即使 `@grant none`）看得到**，裸寫識別字或 `window.X` 都能存取。
-> - `let` / `const` / `class` → 進「全域**詞法**環境」，**不**掛 `window` → **用戶腳本存取不到**，裸寫會直接 `ReferenceError`。
->
-> R130 把 `ActivityFemale3DCGOrdering` 從 `var` 改成了 `let`（`ActivityFemale3DCG` 仍是 `var`）。結果是：舊插件裡一句 `ActivityFemale3DCGOrdering.push(...)` 會在 R130 拋 `ReferenceError`，若它剛好落在 `try/catch` 的註冊流程裡，**整個活動註冊會被靜默中斷、所有自訂按鈕消失，而且畫面上不一定看得到錯誤**（只在 console 有一行）。Prank v1.6.7→ 就是踩這個坑修掉的。
->
-> 通則：**不要假設任何 BC 全域變數都在 `window` 上。** 會被用戶腳本 `push`/讀取的 BC 全域，存取前先 `typeof X !== 'undefined'` 探測；`ActivityFemale3DCGOrdering` 這種只影響排序、非必要的更要能省則省。想知道某個全域是 `var` 還是 `let`，在 BC 原始碼搜它的宣告即可。
+> **存取 BC 全域前，先 `typeof X !== 'undefined'` 探測。**
+> BC 腳本是傳統 `<script>` 載入的：`var`/`function` 宣告的全域會掛到 `window`，用戶腳本（Tampermonkey，即使 `@grant none`）存取得到；`let`/`const` 宣告的全域**不在 `window` 上**，用戶腳本裸寫會直接 `ReferenceError`。`ActivityFemale3DCGOrdering` 就是後者。任何要 `push`/讀取的 BC 全域，存取前先用 `typeof` 探測；非必要的（如這個只影響排序的陣列）拿不到就略過，別讓它中斷整段註冊。要確認某個全域是哪種，去 BC 原始碼搜它的宣告。
 
-> **⚠️ R130 另一個必備欄位：活動要能通過權限檢查，靠 `ActivityID` 或 hook `PreferenceGetActivityFactor`。**
->
-> R130 的 `PreferenceGetActivityFactor(C, Type, Self)` 對「沒有合法 `ActivityID`（非負整數）」的活動一律回傳 `0`，而 `ActivityCheckPermissions` 把 `0` 當成「不允許」→ 活動被過濾掉、按鈕不出現。原生活動的 `ActivityID` 是寫死在 `Female3DCG.js` 裡的；自訂活動沒有。兩種解法：
-> 1. **hook `PreferenceGetActivityFactor`**，對自己前綴的活動直接回非零值（Prank 的做法）：
->    ```js
->    modApi.hookFunction('PreferenceGetActivityFactor', 4, (args, next) =>
->        (typeof args[1] === 'string' && args[1].startsWith('MyMod_')) ? 2 : next(args));
->    ```
-> 2. 或給活動指定一個不與原生衝突的大 `ActivityID`（超出 `ArousalSettings.Activity` 字串長度時，原生會 fallback 成「普通=2」，等於自動放行）。`@sugarch/bc-activity-manager`（Echo 用的）走的是這條，所以 Echo 的按鈕在 R130 正常。
+> **活動一定要能通過權限檢查，按鈕才會出現。** `ActivityAllowedForGroup` 會用 `ActivityCheckPermissions` → `PreferenceGetActivityFactor` 篩活動，而後者對「沒有合法 `ActivityID`（非負整數）」的活動一律回 `0` = 不允許 → 活動被濾掉、按鈕不出現。兩種做法擇一：
+> - **給一個夠大的 `ActivityID`**（如上例）。取值只要大到超出玩家 `ArousalSettings.Activity` 字串長度，原生查不到就 fallback 成「普通 = 2」，等於自動放行；`@sugarch/bc-activity-manager`（Echo 用的）就是替每個自訂活動配一個遞增 ID。
+> - **或 hook `PreferenceGetActivityFactor`**，對自己前綴的活動直接回非零值：
+>   ```js
+>   modApi.hookFunction('PreferenceGetActivityFactor', 4, (args, next) =>
+>       (typeof args[1] === 'string' && args[1].startsWith('MyMod_')) ? 2 : next(args));
+>   ```
 
-**(2) 補上聊天訊息在地化字典（`ActivityDictionary`）**，否則畫面上只會顯示看不懂的原始 key：
+**(2) 補上動作的顯示文字（按鈕標籤 / 聊天訊息）**，否則按鈕上只會出現看不懂的原始 key。
+
+動作文字是用 `ActivityDictionaryText(key)` 去查的，它讀的是 `ActivityDictionary.csv` 這個 **`TextCache` 實例的 `.cache` 物件**。所以要把自己的 key 直接寫進那個 cache：
 
 ```js
-ActivityDictionary.push(
-    ['Activity' + activity.Name, '剪開衣物'],                                    // 動作按鈕的標籤文字
-    ['Label-ChatOther-ItemTorso-' + activity.Name, '剪開衣物'],                   // 對他人使用時，按鈕上顯示的標籤
-    ['ChatOther-ItemTorso-' + activity.Name, '剪開了 TargetCharacter 的衣物。'],  // 對他人使用時，送出的聊天訊息
-    ['Label-ChatSelf-ItemTorso-' + activity.Name, '剪開衣物'],
-    ['ChatSelf-ItemTorso-' + activity.Name, '剪開了自己的衣物。'],
-);
+const dictPath = ScreenFileGetPath('ActivityDictionary.csv', 'Character', 'Preference');
+const cache = TextPrefetchFile(dictPath);   // 取得（或建立並開始載入）該 CSV 的 TextCache
+
+const labels = {
+    ['Activity' + activity.Name]:                     '剪開衣物',                    // 動作按鈕的標籤文字
+    ['Label-ChatOther-ItemTorso-' + activity.Name]:   '剪開衣物',                    // 對他人使用時按鈕上的標籤
+    ['ChatOther-ItemTorso-' + activity.Name]:         '剪開了 TargetCharacter 的衣物。', // 對他人使用時送出的訊息
+    ['Label-ChatSelf-ItemTorso-' + activity.Name]:    '剪開衣物',
+    ['ChatSelf-ItemTorso-' + activity.Name]:          '剪開了自己的衣物。',
+};
+const inject = () => Object.assign(cache.cache, labels);
+cache.onRebuild(inject, true);   // 立刻注入一次；並在每次快取重建（含語言切換）後自動重注入
 ```
 
-> **⚠️ R130 大坑：`ActivityDictionaryText()` 不再讀 `ActivityDictionary` 陣列，改讀 TextCache。**
->
-> R130 的 `ActivityDictionaryText(key)` 內部是
-> `TextGetInScope(ScreenFileGetPath("ActivityDictionary.csv","Character","Preference"), key)`，也就是去查一個 **`TextCache` 實例**的 `.cache` 物件；全域 `ActivityDictionary` 陣列（雖然還在、還是 `var`）**已經沒人讀**。所以只 push 進陣列 → 按鈕標籤會顯示 `MISSING TEXT IN "ActivityDictionary": Label-ChatSelf-…`（按鈕出得來、只有標籤是亂碼）。正確做法是把標籤注入那個 TextCache：
->
-> ```js
-> const cache = TextPrefetchFile(ScreenFileGetPath("ActivityDictionary.csv", "Character", "Preference"));
-> const inject = () => { cache.cache['Label-ChatSelf-ItemTorso-' + activity.Name] = '剪開衣物'; /* …其餘 key… */ };
-> // onRebuild(fn, true)：立刻注入一次，並在每次快取重建（含語言切換）後自動重注入
-> cache.onRebuild(inject, true);
-> ```
->
 > 重點：
-> - `cache.cache` 是普通物件，直接 `cache.cache[key] = 文字` 即可；`cacheLines()` 是**合併**進 `this.cache`（不清空），所以自訂 key 能跨重建存活，但仍建議掛 `onRebuild` 以防未來改動。
-> - `get()` 只有在 `this.loaded === true` 後才回值，所以第一次要靠 `TextPrefetchFile` 觸發建置、或 `onRebuild` 在建置完成後補上。
-> - **群組鏡射**：BC 對有陰莖的角色會把 `ItemVulva`/`ItemVulvaPiercings` 標籤鍵鏡射成 `ItemPenis`/`ItemGlans`（見 `ActivityBuildChatTag` 的 `groupMap`），這些群組的活動要**額外**注入鏡射鍵，否則該類角色身上標籤會 MISSING。
-> - Echo 用的 `@sugarch/bc-activity-manager` 就是走 TextCache 注入，所以 R130 標籤正常。Prank v1.7.1 起改用此法修掉。（例如「必須手上正拿著剪刀」），要 hook `ActivityCheckPrerequisite`**：BC 原生只認得它自己內建的那些前置條件名稱字串，自訂名稱必須攔截這個函式自己判斷：
+> - `cache.cache` 是普通物件，`cache.cache[key] = 文字` 直接寫即可。`cacheLines()` 是**合併**進 `this.cache`（不清空 CSV 以外的 key），所以自訂 key 能跨重建存活；但仍建議掛 `onRebuild(fn, true)`，一來確保建置完成後補得上、二來語言切換時能重注入。
+> - cache 的值只有在 `cache.loaded === true` 後才被 `get()` 讀到；`TextPrefetchFile` 會觸發建置，`onRebuild` 的 immediate + rebuild 兩段涵蓋了「還沒建好」與「建好之後」。
+> - **群組鏡射**：對有陰莖的角色，BC 會把 `ItemVulva`/`ItemVulvaPiercings` 的標籤鍵鏡射成 `ItemPenis`/`ItemGlans`（見 `ActivityBuildChatTag`）。若活動用到這兩個群組，要**額外**寫入 `-ItemPenis-`/`-ItemGlans-` 版本的 key，否則這類角色身上的標籤會 MISSING。
+
+**(3) 若需要「自訂前置條件」（例如「必須手上正拿著剪刀」），要 hook `ActivityCheckPrerequisite`**：BC 原生只認得它自己內建的那些前置條件名稱字串，自訂名稱必須攔截這個函式自己判斷：
 
 ```js
 modApi.hookFunction('ActivityCheckPrerequisite', 4, (args, next) => {
