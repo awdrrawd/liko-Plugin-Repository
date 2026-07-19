@@ -2,7 +2,7 @@
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://likolisu.dev/
-// @version      1.6.7
+// @version      1.6.8
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -17,7 +17,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.7";
+    const MOD_VER = "1.6.8";
     if (window.Liko.Prank) return;
     window.Liko.Prank = MOD_VER;
 
@@ -146,6 +146,76 @@
                 }]
             });
         }
+    }
+
+    // ===== 動作旁白在地化（隱藏標籤，收訊端依「自己的語言」重寫） =====
+    // 技術與 BC-AFC / window.Liko.__Sys_L10N__ 同源：Action 的 Dictionary 除了帶「底本」的
+    // CUSTOM_SYSTEM_ACTION 條目外，再夾帶一個自訂條目 { Tag, data }。BC 伺服器只保留「非保留欄位」
+    // 的自訂條目（Tag + 任意欄位），所以 data 能原封不動送達每個人（實測 2026-06-29）。
+    //   • 底本（Text）用「發送者自己的語言」——沒裝 Prank 的人就看到發送者的語言（對同語系但
+    //     不想裝插件的人友善）。
+    //   • 有裝 Prank 的人 → 下方 hook 偵測到標籤，用「自己選的語言」把整句重新組出來覆寫顯示
+    //     （含自己發的訊息）。
+    // data 裝的是「食譜」：一個由「字面字串」與「字庫片段參照」組成的陣列，收訊端據此在自己語言下
+    // 重組。這樣直接沿用既有的片語字庫，不必另建一份整句翻譯表。
+    const PRANK_L10N_TAG   = 'Liko_Prank_L10N';
+    const PRANK_CUSTOM_TAG = 'CUSTOM_SYSTEM_ACTION';
+
+    // 取某語言下的字串（第四參數 forceLang：指定要抓的語言，不傳則用引擎的 detectLang）
+    function getMessageLang(key, vars, lang) {
+        const fn = window.Liko?.__Sys_i18n__?.t;
+        return fn ? fn(I18N_NS, key, vars, lang) : key;
+    }
+    // 收訊端當下語言
+    function localRenderLang() {
+        return window.Liko?.__Sys_i18n__?.detectLang?.() || 'EN';
+    }
+    // 依「食譜」在指定語言組出整句。
+    //   part 為字串           → 原樣輸出（暱稱、標點、道具名等）
+    //   part 為 [key]/[key,vars] → 查字庫（在 lang 語言下）
+    function renderRecipe(recipe, lang) {
+        return recipe.map(p =>
+            Array.isArray(p) ? getMessageLang(p[0], p[1], lang) : String(p ?? '')
+        ).join('');
+    }
+    // 送出一條在地化動作旁白。parts：字面字串，或 [key] / [key, vars] 字庫片段。
+    // 引擎不在時仍會送出（Text 為英文底本），不丟例外。
+    function sendAction(...parts) {
+        if (typeof ServerSend !== 'function') return;
+        // 底本用「發送者自己的語言」：沒裝插件的人會看到發送者的語言（對同語系不想裝插件的人友善）；
+        // 有裝插件的收訊端則由下方 hook 依「自己的語言」重寫。
+        const base = renderRecipe(parts, localRenderLang());
+        ServerSend('ChatRoomChat', {
+            Type: 'Action',
+            Content: PRANK_CUSTOM_TAG,
+            Dictionary: [
+                { Tag: `MISSING TEXT IN "Interface.csv": ${PRANK_CUSTOM_TAG}`, Text: base },
+                { Tag: PRANK_L10N_TAG, data: JSON.stringify(parts) },
+            ],
+        });
+    }
+    // 收訊端：hook ChatRoomMessage（資料層），偵測 Prank 標籤 → 用自己的語言重寫 Text。
+    // DOM 的 MutationObserver 看不到 Dictionary，一定要走 hookFunction 的資料層。
+    let _prankL10nInstalled = false;
+    function installPrankL10n() {
+        if (_prankL10nInstalled || !modApi?.hookFunction) return;
+        _prankL10nInstalled = true;
+        modApi.hookFunction('ChatRoomMessage', 5, (a, next) => {
+            try {
+                const data = a[0];
+                const dict = data && Array.isArray(data.Dictionary) ? data.Dictionary : null;
+                const tag  = dict && dict.find(x => x && x.Tag === PRANK_L10N_TAG && typeof x.data === 'string');
+                if (tag) {
+                    const recipe = JSON.parse(tag.data);
+                    if (Array.isArray(recipe)) {
+                        const local  = renderRecipe(recipe, localRenderLang());
+                        const custom = dict.find(x => x && typeof x.Tag === 'string' && x.Tag.includes(PRANK_CUSTOM_TAG));
+                        if (custom) custom.Text = local; else data.Content = local;
+                    }
+                }
+            } catch (e) { /* 壞掉就顯示英文底本，不影響其他訊息 */ }
+            return next(a);
+        });
     }
 
     function chatSendLocal(message, timeout = 10000) {
@@ -311,9 +381,9 @@
             ChatRoomCharacterUpdate(Player);
 
             if (target.MemberNumber === Player.MemberNumber) {
-                chatSendCustomAction(playerNick + " " + getMessage('removedOwnUnderwear'));
+                sendAction(playerNick, " ", ['removedOwnUnderwear']);
             } else {
-                chatSendCustomAction(playerNick + " " + getMessage('stealUnderwear') + " " + targetNick + getMessage('stealUnderwearSuffix'));
+                sendAction(playerNick, " ", ['stealUnderwear'], " ", targetNick, ['stealUnderwearSuffix']);
             }
         } catch (error) {
             console.error("Error in stealPanties:", error);
@@ -333,10 +403,10 @@
 
             dissolveAppearance(target, "normal");
 
-            chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesNormalMsg', { name: getNickname(target) }));
+            sendAction(getNickname(Player), " ", ['dissolveClothesNormalMsg', { name: getNickname(target) }]);
             if (Math.random() < 0.1) {
                 dissolveAppearance(Player, "weak");
-                chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveSprayedSelf', { name: getNickname(Player) }));
+                sendAction(getNickname(Player), " ", ['dissolveSprayedSelf', { name: getNickname(Player) }]);
             }
         } catch (error) {
             console.error("Error in spillObscenePotion:", error);
@@ -352,7 +422,7 @@
                 if (!roomName) return;
             }
 
-            chatSendCustomAction(getNickname(Player) + " " + getMessage('enterPortal') + "「" + roomName + "」");
+            sendAction(getNickname(Player), " ", ['enterPortal'], "「", roomName, "」");
 
             setTimeout(() => {
                 if (typeof ChatRoomLeave === "function") ChatRoomLeave();
@@ -360,7 +430,7 @@
                 if (typeof ServerSend === "function") {
                     ServerSend("ChatRoomJoin", { Name: roomName });
                     setTimeout(() => {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('exitPortal'));
+                        sendAction(getNickname(Player), " ", ['exitPortal']);
                     }, 1000);
                 }
             }, 500);
@@ -395,6 +465,44 @@
             actData.CustomImages.set(activity.Name, bundle.CustomImage);
     }
 
+    // ===== 活動標籤字典（R130：改用 TextCache，不再是 ActivityDictionary 陣列） =====
+    // R130 起 ActivityDictionaryText() 不再讀全域 ActivityDictionary 陣列，而是從
+    //   TextGetInScope(ScreenFileGetPath("ActivityDictionary.csv","Character","Preference"), key)
+    // 也就是一個 TextCache 實例的 .cache 物件。所以把標籤 push 進舊陣列完全沒作用，按鈕上就會
+    // 顯示 MISSING TEXT IN "ActivityDictionary": Label-ChatSelf-…。修法：把我們的標籤直接注入
+    // 那個 TextCache，並掛 onRebuild 監聽器，語言切換／快取重建後自動重新注入。
+    const _actDict = new Map();                                    // csvKey → 顯示文字
+    const _grpMirror = { ItemVulva: "ItemPenis", ItemVulvaPiercings: "ItemGlans" }; // 有陰莖角色的群組鏡射
+    function _dictSet(key, text) {
+        if (text == null) return;
+        _actDict.set(key, text);
+        if (typeof ActivityDictionary !== "undefined") ActivityDictionary.push([key, text]); // 舊版 BC 相容
+        // BC 對有陰莖的角色會把 ItemVulva/ItemVulvaPiercings 鏡射成 ItemPenis/ItemGlans 來找標籤，
+        // 補上鏡射鍵，否則這些角色身上的偷內褲類活動標籤會 MISSING。
+        for (const [from, to] of Object.entries(_grpMirror)) {
+            const seg = "-" + from + "-";
+            if (key.includes(seg)) {
+                const mk = key.replace(seg, "-" + to + "-");
+                _actDict.set(mk, text);
+                if (typeof ActivityDictionary !== "undefined") ActivityDictionary.push([mk, text]);
+            }
+        }
+    }
+
+    // 把 _actDict 注入 R130 的 ActivityDictionary TextCache（含語言切換後自動重注入）
+    function installActivityDict() {
+        if (typeof TextPrefetchFile !== "function" || typeof ScreenFileGetPath !== "function") return; // 舊版 BC 無此機制
+        let cache;
+        try {
+            cache = TextPrefetchFile(ScreenFileGetPath("ActivityDictionary.csv", "Character", "Preference"));
+        } catch (e) { return; }
+        if (!cache) return;
+        const inject = () => { if (cache.cache) for (const [k, v] of _actDict) cache.cache[k] = v; };
+        // onRebuild(fn, immediate=true)：立刻注入一次；之後每次快取重建（含語言切換）完成後再自動注入
+        if (typeof cache.onRebuild === "function") cache.onRebuild(inject, true);
+        else inject();
+    }
+
     function AddTargetToActivity(activity, tgt) {
         tgt.TargetLabel = tgt.TargetLabel ?? activity.Name.substring(5);
 
@@ -412,12 +520,12 @@
             }
         }
 
-        ActivityDictionary?.push(["Label-ChatOther-" + tgt.Name + "-" + activity.Name, tgt.TargetLabel]);
-        ActivityDictionary?.push(["ChatOther-" + tgt.Name + "-" + activity.Name, tgt.TargetAction]);
+        _dictSet("Label-ChatOther-" + tgt.Name + "-" + activity.Name, tgt.TargetLabel);
+        _dictSet("ChatOther-" + tgt.Name + "-" + activity.Name, tgt.TargetAction);
 
         if (tgt.SelfAllowed) {
-            ActivityDictionary?.push(["Label-ChatSelf-" + tgt.Name + "-" + activity.Name, tgt.TargetSelfLabel ?? tgt.TargetLabel]);
-            ActivityDictionary?.push(["ChatSelf-" + tgt.Name + "-" + activity.Name, tgt.TargetSelfAction ?? tgt.TargetAction]);
+            _dictSet("Label-ChatSelf-" + tgt.Name + "-" + activity.Name, tgt.TargetSelfLabel ?? tgt.TargetLabel);
+            _dictSet("ChatSelf-" + tgt.Name + "-" + activity.Name, tgt.TargetSelfAction ?? tgt.TargetAction);
         }
     }
 
@@ -430,14 +538,23 @@
         activity.Name = "Liko_" + activity.Name;
 
         RegisterCustomFuncs(bundle, bundle.Activity);
-        ActivityDictionary?.push(["Activity" + activity.Name, bundle.Targets[0].TargetLabel ?? activity.Name.substring(5)]);
+        _dictSet("Activity" + activity.Name, bundle.Targets[0].TargetLabel ?? activity.Name.substring(5));
 
         bundle.Targets.forEach((tgt) => {
             AddTargetToActivity(activity, tgt);
         });
 
         ActivityFemale3DCG.push(activity);
-        ActivityFemale3DCGOrdering.push(activity.Name);
+        // R130 修正：BC 把 ActivityFemale3DCGOrdering 從 var 改成 let 宣告。
+        //   var 會掛到 window（用户脚本看得到）；let/const 的顶层声明只进「全局词法环境」，
+        //   不挂 window，也不在用户脚本(Tampermonkey @grant none)的作用域里 ——
+        //   直接裸写 ActivityFemale3DCGOrdering.push(...) 会抛 ReferenceError，
+        //   连锁令整个 registerActivities() 被 phase2 的 try/catch 吞掉、所有按钮消失。
+        //   该数组只用于活动排序（indexOf 找不到就排到最前），并非必要；
+        //   用 typeof 侦测（对未声明标识符不会抛错）：拿得到就补进排序，拿不到就跳过。
+        if (typeof ActivityFemale3DCGOrdering !== "undefined") {
+            ActivityFemale3DCGOrdering.push(activity.Name);
+        }
     }
 
     function hasRemovableClothing(target, group) {
@@ -802,12 +919,12 @@
                         if (item) {
                             const isSelf = target.MemberNumber === Player.MemberNumber;
                             if (isSelf) {
-                                chatSendCustomAction(getNickname(Player) + " " + getMessage('cutOwnClothes') + " " + item);
+                                sendAction(getNickname(Player), " ", ['cutOwnClothes'], " ", item);
                             } else {
-                                chatSendCustomAction(getNickname(Player) + " " + getMessage('cutClothes') + " " + getNickname(target) + getMessage('cutClothesTarget') + " " + item);
+                                sendAction(getNickname(Player), " ", ['cutClothes'], " ", getNickname(target), ['cutClothesTarget'], " ", item);
                             }
                         } else {
-                            chatSendCustomAction(getNickname(target) + " " + getMessage('nothingToRemove'));
+                            sendAction(getNickname(target), " ", ['nothingToRemove']);
                         }
                     }
                 }
@@ -834,12 +951,12 @@
                         if (item) {
                             const isSelf = target.MemberNumber === Player.MemberNumber;
                             if (isSelf) {
-                                chatSendCustomAction(getNickname(Player) + " " + getMessage('removeOwnClothes') + " " + item);
+                                sendAction(getNickname(Player), " ", ['removeOwnClothes'], " ", item);
                             } else {
-                                chatSendCustomAction(getNickname(Player) + " " + getMessage('removeClothes') + " " + getNickname(target) + getMessage('cutClothesTarget') + " " + item);
+                                sendAction(getNickname(Player), " ", ['removeClothes'], " ", getNickname(target), ['cutClothesTarget'], " ", item);
                             }
                         } else {
-                            chatSendCustomAction(getNickname(target) + " " + getMessage('nothingToRemove'));
+                            sendAction(getNickname(target), " ", ['nothingToRemove']);
                         }
                     }
                 }
@@ -862,12 +979,12 @@
                     dissolveAppearance(target, "normal");
                     const isSelf = target.MemberNumber === Player.MemberNumber;
                     if (isSelf) {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
+                        sendAction(getNickname(Player), " ", ['dissolveOwnClothes']);
                     } else {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesNormalMsg', { name: getNickname(target) }));
+                        sendAction(getNickname(Player), " ", ['dissolveClothesNormalMsg', { name: getNickname(target) }]);
                         if (Math.random() < 0.3) {
                             dissolveAppearance(Player, "weak");
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveSprayedSelf', { name: getNickname(Player) }));
+                            sendAction(getNickname(Player), " ", ['dissolveSprayedSelf', { name: getNickname(Player) }]);
                         }
                     }
                 }
@@ -890,12 +1007,12 @@
                     dissolveAppearance(target, "weak");
                     const isSelf = target.MemberNumber === Player.MemberNumber;
                     if (isSelf) {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
+                        sendAction(getNickname(Player), " ", ['dissolveOwnClothes']);
                     } else {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesWeakMsg', { name: getNickname(target) }));
+                        sendAction(getNickname(Player), " ", ['dissolveClothesWeakMsg', { name: getNickname(target) }]);
                         if (Math.random() < 0.1) {
                             dissolveAppearance(Player, "weak");
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveSprayedSelf', { name: getNickname(Player) }));
+                            sendAction(getNickname(Player), " ", ['dissolveSprayedSelf', { name: getNickname(Player) }]);
                         }
                     }
                 }
@@ -918,12 +1035,12 @@
                     dissolveAppearance(target, "strong");
                     const isSelf = target.MemberNumber === Player.MemberNumber;
                     if (isSelf) {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveOwnClothes'));
+                        sendAction(getNickname(Player), " ", ['dissolveOwnClothes']);
                     } else {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveClothesStrongMsg', { name: getNickname(target) }));
+                        sendAction(getNickname(Player), " ", ['dissolveClothesStrongMsg', { name: getNickname(target) }]);
                         if (Math.random() < 0.1) {
                             dissolveAppearance(Player, "weak");
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('dissolveSprayedSelf', { name: getNickname(Player) }));
+                            sendAction(getNickname(Player), " ", ['dissolveSprayedSelf', { name: getNickname(Player) }]);
                         }
                     }
                 }
@@ -946,11 +1063,11 @@
             CustomAction: {
                 Func: (target, args, next) => {
                     if (!InventoryGet(target, "Panties")) {
-                        chatSendCustomAction(getNickname(target) + " " + getMessage('noUnderwear'));
+                        sendAction(getNickname(target), " ", ['noUnderwear']);
                         return;
                     }
                     if (stealItem(target, "panties")) {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('stoleUnderwear') + " " + getNickname(target) + getMessage('stealUnderwearSuffix'));
+                        sendAction(getNickname(Player), " ", ['stoleUnderwear'], " ", getNickname(target), ['stealUnderwearSuffix']);
                     } else {
                         chatSendLocal(getMessage('stealFailed'), 5000);
                     }
@@ -980,9 +1097,9 @@
                     if (stealItem(target, "panties")) {
                         const isSelf = target.MemberNumber === Player.MemberNumber;
                         if (isSelf) {
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('holdOwnUnderwear'));
+                            sendAction(getNickname(Player), " ", ['holdOwnUnderwear']);
                         } else {
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('removedAndHoldUnderwear') + " " + getNickname(target) + getMessage('holdUnderwear'));
+                            sendAction(getNickname(Player), " ", ['removedAndHoldUnderwear'], " ", getNickname(target), ['holdUnderwear']);
                         }
                     } else {
                         chatSendLocal(getMessage('removeFailed'), 5000);
@@ -1012,7 +1129,7 @@
                         return;
                     }
                     if (stealItem(target, "socks")) {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('stoleSocks') + " " + getNickname(target) + getMessage('socksSuffix'));
+                        sendAction(getNickname(Player), " ", ['stoleSocks'], " ", getNickname(target), ['socksSuffix']);
                     } else {
                         chatSendLocal(getMessage('stealFailed'), 5000);
                     }
@@ -1037,15 +1154,15 @@
                 Func: (target, args, next) => {
                     const hasSocks = InventoryGet(target, "Socks") || InventoryGet(target, "SocksRight") || InventoryGet(target, "SocksLeft");
                     if (!hasSocks) {
-                        chatSendCustomAction(getNickname(target) + " " + getMessage('noSocks'));
+                        sendAction(getNickname(target), " ", ['noSocks']);
                         return;
                     }
                     if (stealItem(target, "socks")) {
                         const isSelf = target.MemberNumber === Player.MemberNumber;
                         if (isSelf) {
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('holdOwnSocks'));
+                            sendAction(getNickname(Player), " ", ['holdOwnSocks']);
                         } else {
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('removedAndHoldSocks') + " " + getNickname(target) + getMessage('holdSocks'));
+                            sendAction(getNickname(Player), " ", ['removedAndHoldSocks'], " ", getNickname(target), ['holdSocks']);
                         }
                     } else {
                         chatSendLocal(getMessage('removeFailed'), 5000);
@@ -1070,28 +1187,28 @@
                 Func: (target, args, next) => {
                     const ahoges = getAhogeItems(target);
                     if (ahoges.length === 0) {
-                        chatSendCustomAction(getNickname(target) + " " + getMessage('hasAhoge'));
+                        sendAction(getNickname(target), " ", ['hasAhoge']);
                         return;
                     }
                     const result = pluckingHair(target);
                     const isSelf = target.MemberNumber === Player.MemberNumber;
                     if (result === "rebirth") {
-                        chatSendCustomAction(getNickname(Player) + " " + getMessage('ahogeRebirth', { name: getNickname(target) }));
+                        sendAction(getNickname(Player), " ", ['ahogeRebirth', { name: getNickname(target) }]);
                     } else if (result === "regrow") {
                         // 先送拔毛訊息
                         if (isSelf) {
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('pluckingOwnHair'));
+                            sendAction(getNickname(Player), " ", ['pluckingOwnHair']);
                         } else {
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('pluckingHair') + " " + getNickname(target) + getMessage('pluckingHairSuffix'));
+                            sendAction(getNickname(Player), " ", ['pluckingHair'], " ", getNickname(target), ['pluckingHairSuffix']);
                         }
                         // 插回一根，再送冒出訊息
                         insertAhoge(target);
-                        chatSendCustomAction(getMessage('ahogeRegrow', { name: getNickname(target) }));
+                        sendAction(['ahogeRegrow', { name: getNickname(target) }]);
                     } else if (result) {
                         if (isSelf) {
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('pluckingOwnHair'));
+                            sendAction(getNickname(Player), " ", ['pluckingOwnHair']);
                         } else {
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('pluckingHair') + " " + getNickname(target) + getMessage('pluckingHairSuffix'));
+                            sendAction(getNickname(Player), " ", ['pluckingHair'], " ", getNickname(target), ['pluckingHairSuffix']);
                         }
                     } else {
                         chatSendLocal(getMessage('removeFailed'), 5000);
@@ -1124,17 +1241,17 @@
                     );
                     const hasSlot = AHOGE_GROUPS.some(g => !occupied.has(g));
                     if (!hasSlot) {
-                        chatSendCustomAction(getNickname(target) + " " + getMessage('ahogeSlotFull'));
+                        sendAction(getNickname(target), " ", ['ahogeSlotFull']);
                         return;
                     }
                     if (insertAhoge(target)) {
                         const isSelf = target.MemberNumber === Player.MemberNumber;
                         if (isSelf) {
-                            chatSendCustomAction(getNickname(Player) + " " + getMessage('insertOwnAhoge'));
+                            sendAction(getNickname(Player), " ", ['insertOwnAhoge']);
                         } else {
-                            chatSendCustomAction(
-                                getNickname(Player) + " " + getMessage('insertAhoge') +
-                                " " + getNickname(target) + getMessage('insertAhogeSuffix', { name: getNickname(target) })
+                            sendAction(
+                                getNickname(Player), " ", ['insertAhoge'],
+                                " ", getNickname(target), ['insertAhogeSuffix', { name: getNickname(target) }]
                             );
                         }
                     } else {
@@ -1181,7 +1298,7 @@
                     }
                     ChatRoomCharacterUpdate(Player);
 
-                    chatSendCustomAction(playerNick + " " + getMessage('biteEar') + " " + targetNick + getMessage('biteEarSuffix'));
+                    sendAction(playerNick, " ", ['biteEar'], " ", targetNick, ['biteEarSuffix']);
                 }
             },
             CustomImage: "https://cdn.jsdelivr.net/gh/SugarChain-Studio/echo-clothing-ext@b827fd6921595dca58098ec34b52db47b4ab4f26/resources/Assets/Female3DCG/ItemMouth/Preview/%E6%9B%B2%E5%A5%87.png"
@@ -1202,13 +1319,13 @@
                 Func: (target, args, next) => {
                     const hasTail = !!(InventoryGet(target, "Luzi_TailStraps_0") || InventoryGet(target, "TailStraps"));
                     if (!hasTail) {
-                        chatSendCustomAction(getNickname(target) + " " + getMessage('noTail'));
+                        sendAction(getNickname(target), " ", ['noTail']);
                         return;
                     }
                     if (stealTail(target)) {
-                        chatSendCustomAction(
-                            getNickname(Player) + " " + getMessage('pluckingTail') +
-                            " " + getNickname(target) + getMessage('pluckingTailSuffix')
+                        sendAction(
+                            getNickname(Player), " ", ['pluckingTail'],
+                            " ", getNickname(target), ['pluckingTailSuffix']
                         );
                     } else {
                         chatSendLocal(getMessage('stealFailed'), 5000);
@@ -1217,6 +1334,9 @@
             },
             CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Activity/MasturbateFist.png")
         });
+
+        // R130：把上面所有活動的標籤注入 ActivityDictionary 的 TextCache，否則按鈕顯示 MISSING TEXT
+        installActivityDict();
     }
 
     // ===== 活动按钮标记 (🪄) =====
@@ -1275,6 +1395,7 @@
         if (!modApi || !modApi.hookFunction) return;
 
         injectPrankBadgeStyle();
+        installPrankL10n();   // 動作旁白在地化的收訊端 hook（裝一次即可）
 
         modApi.hookFunction("ActivityCheckPrerequisite", 4, (args, next) => {
             const prereqName = args[0];
