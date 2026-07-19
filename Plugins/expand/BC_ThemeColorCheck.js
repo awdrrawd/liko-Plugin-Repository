@@ -34,7 +34,7 @@
   // 防重複載入旗標：檔尾把 API 掛到 global.Liko.__Sys_ColorAPI__（系統擴充統一以 __Sys_ 開頭）
   global.Liko = global.Liko ?? {};
   if (global.Liko.__Sys_ColorAPI__) return;
-  const MOD_VER = "2.0";
+  const MOD_VER = "2.1";
 
   // ---------------------------------------------------------------------------
   // 共用小工具
@@ -84,6 +84,28 @@
     if (now - _lastWarnAt < 5000) return;
     _lastWarnAt = now;
     console.warn(msg, err);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 取色的健壯性：快取「上次成功的顏色」+ 跨域汙染偵測 + DOM 後備
+  //   目標：一旦讀到過顏色，之後即使某一幀讀失敗（汙染、還沒渲染、座標超界），
+  //   也回上次成功值而不是 null——呼叫端永遠拿得到色。
+  // ---------------------------------------------------------------------------
+  let _lastGoodTheme = null;   // getThemeColor 的最後成功值
+  let _lastGoodCanvas = null;  // getCanvasColor 的最後成功值
+  let _tainted = false;        // MainCanvas 是否已被跨域圖片汙染（getImageData 會丟 SecurityError）
+  let _taintedEl = null;       // 記住是哪個 canvas 元素被汙染，換了新畫布就重試
+
+  /** 絕對後備：讀畫布元素 / body / html 的 CSS 背景色（不透明才算數） */
+  function _readDomBg() {
+    try {
+      for (const node of [_getCanvasElement(), document.body, document.documentElement]) {
+        if (!node) continue;
+        const hex = normalizeColor(getComputedStyle(node).backgroundColor);
+        if (hex) return hex;
+      }
+    } catch { /* getComputedStyle 在極少數環境會丟 */ }
+    return null;
   }
 
   // ---------------------------------------------------------------------------
@@ -188,22 +210,30 @@
    * @returns {string|null} '#rrggbb'
    */
   function getThemeColor() {
+    let result = null;
+
     if (_arm()) {
+      // 1) 找滿版底色矩形（主題插件換底色的手法）
       let best = null;
       for (const r of _last) {
         if (!isFinite(r.w) || !isFinite(r.h)) continue;
-        // 要夠大才算「底」：至少蓋住畫面的四分之一
         const area = r.w * r.h;
-        if (area < 2000 * 1000 / 4) continue;
-        if (!_pointIn(1000, 500, r)) continue;
+        if (area < 2000 * 1000 / 4) continue;      // 至少蓋住畫面四分之一
+        if (!_pointIn(1000, 500, r)) continue;      // 且蓋住畫面中心
         if (!best || area > best.area) best = { area, hex: r.hex };
       }
-      if (best) return best.hex;
-
-      const declared = getUIColor();
-      if (declared) return declared;
+      if (best) result = best.hex;
+      // 2) 退一步：查右上角那個元件的宣告顏色
+      if (!result) result = getUIColor();
     }
-    return getCanvasColor();
+
+    // 3) 再退：像素取樣（本身會在汙染時回快取 / DOM）
+    if (!result) result = getCanvasColor();
+    // 4) 最後保底：上次成功值 → DOM 背景
+    if (!result) result = _lastGoodTheme ?? _readDomBg();
+
+    if (result) _lastGoodTheme = result;
+    return result;
   }
 
   // ---------------------------------------------------------------------------
@@ -240,11 +270,18 @@
   function getCanvasColor(options = {}) {
     const { x = 1910, y = 60, size = 8 } = options;
     const canvas = _getCanvasElement();
-    if (!canvas) return null;
+    if (!canvas) return _lastGoodCanvas ?? _readDomBg();
+
+    // 已知汙染：同一張畫布再讀還是會丟 SecurityError，別浪費效能也別洗版。
+    // 但若畫布被 BC 重建過（解析度切換等），元素會換一個，這時清掉旗標重試。
+    if (_tainted) {
+      if (canvas === _taintedEl) return _lastGoodCanvas ?? _readDomBg();
+      _tainted = false; _taintedEl = null;
+    }
 
     try {
       const sctx = _getSampleCtx(size, size);
-      if (!sctx) return null;
+      if (!sctx) return _lastGoodCanvas ?? _readDomBg();
       // 從 BC 畫布把取樣區塊畫進離屏畫布，再從離屏畫布讀（讀取端具 willReadFrequently）
       sctx.clearRect(0, 0, size, size);
       sctx.drawImage(canvas, x, y, size, size, 0, 0, size, size);
@@ -260,12 +297,20 @@
         tally.set(key, n);
         if (n > bestCount) { bestCount = n; bestKey = key; }
       }
-      if (bestKey === null) return null;
-      return rgbToHex((bestKey >> 16) & 255, (bestKey >> 8) & 255, bestKey & 255);
+      if (bestKey === null) return _lastGoodCanvas ?? _readDomBg();
+      const hex = rgbToHex((bestKey >> 16) & 255, (bestKey >> 8) & 255, bestKey & 255);
+      _lastGoodCanvas = hex;   // 記住這次成功值
+      return hex;
     } catch (err) {
-      // 常見原因：canvas 尚未渲染、座標超出範圍、或畫布被跨域圖片汙染
-      _warnThrottled('[Liko.__Sys_ColorAPI__] getCanvasColor 讀取失敗', err);
-      return null;
+      // 跨域汙染是永久性的（除非畫布重建）：標記起來走後備，不再逐幀重試觸發同一個錯
+      if (err && (err.name === 'SecurityError' || /taint|cross-origin/i.test(String(err && err.message)))) {
+        _tainted = true; _taintedEl = canvas;
+        _warnThrottled('[Liko.__Sys_ColorAPI__] canvas 已被跨域圖片汙染，像素路線停用，改走宣告值 / DOM / 快取', err);
+      } else {
+        // 其他常見原因：canvas 尚未渲染、座標超出範圍
+        _warnThrottled('[Liko.__Sys_ColorAPI__] getCanvasColor 讀取失敗', err);
+      }
+      return _lastGoodCanvas ?? _readDomBg();
     }
   }
 
@@ -330,7 +375,12 @@
 
   /** 目前用的是哪條路線，除錯用 */
   function getMode() {
-    return { hooked: _hooked, armed: _armed, lastFrameRects: _last.length };
+    return {
+      version: MOD_VER,
+      hooked: _hooked, armed: _armed, tainted: _tainted,
+      lastFrameRects: _last.length,
+      lastGoodTheme: _lastGoodTheme, lastGoodCanvas: _lastGoodCanvas,
+    };
   }
 
   // ---------------------------------------------------------------------------
