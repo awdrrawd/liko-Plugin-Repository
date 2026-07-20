@@ -2,7 +2,7 @@
 // @name         Liko - Image Uploader
 // @name:zh      Liko的圖片上傳器
 // @namespace    https://likolisu.dev/
-// @version      1.6.1
+// @version      1.6.2
 // @description  Bondage Club - 上傳圖片到圖床並分享網址 + 懸停/點擊圖片放大預覽
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.1";
+    const MOD_VER = "1.6.2";
     if (window.Liko.IMG) return;
     window.Liko.IMG = MOD_VER;
 
@@ -586,90 +586,117 @@
     }
 
     // ──────────────────────────────────────────
-    // /img 指令處理
+    // 說明按鈕：點擊後把指令填入聊天輸入框 InputChat
+    // （用 data 屬性 + 事件委派，避免依賴 inline onclick 被 CSP 擋掉）
     // ──────────────────────────────────────────
-    function handleImgCommand(text) {
-        const args = text.trim().split(/\s+/);
-        const sub  = args[0]?.toLowerCase();
+    function insertCommandToChat(cmd) {
+        if (typeof ElementValue === "function") {
+            ElementValue("InputChat", cmd);
+        }
+        const el = document.getElementById("InputChat");
+        if (el) {
+            if (typeof ElementValue !== "function") el.value = cmd;
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.focus();
+        }
+    }
 
-        if (!sub || sub === "help") {
+    let cmdBtnListenerBound = false;
+    function bindCmdButtonListener() {
+        if (cmdBtnListenerBound) return;
+        cmdBtnListenerBound = true;
+        document.addEventListener("click", (e) => {
+            const btn = e.target?.closest?.("[data-liko-cmd]");
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            insertCommandToChat(btn.getAttribute("data-liko-cmd"));
+        });
+    }
+
+    // 產生一顆可點擊的指令按鈕（放在本地訊息 HTML 內）
+    function cmdBtn(cmd, label) {
+        return `<span class="liko-cmd-btn" data-liko-cmd="${cmd}" style="display:inline-block;cursor:pointer;background:#FF69B4;color:#fff;border-radius:6px;padding:0 8px;margin:1px 3px;font-weight:bold;">${label}</span>`;
+    }
+
+    // ──────────────────────────────────────────
+    // /img 說明（按鈕版）
+    // ──────────────────────────────────────────
+    function showImgHelp() {
+        const hostNames = { litterbox: "Litterbox", uguu: "Uguu", imgbb: "ImgBB", cloudflare: "Cloudflare R2", tmpfiles: "TmpFiles" };
+        const hostTimes = { uguu: "3小時", tmpfiles: "60分鐘", litterbox: "12小時", cloudflare: "30分鐘", imgbb: "12小時" };
+        ChatRoomSendLocal(
+            `🖼️圖片上傳說明 | Image upload illustrate🖼️\n` +
+            `        當前設定(Current): 🌐${hostNames[imageHost] || imageHost} 📌${hostTimes[imageHost] || "12小時"}\n` +
+            `        懸停放大(Hover): ${zoomEnabled ? "✅" : "❌"}  |  點擊放大(Click): ${clickZoomEnabled ? "✅" : "❌"}\n\n` +
+            `${cmdBtn("/imgup", "/imgup")} 上傳圖片 | UPload image\n` +
+            `${cmdBtn("/imgweb ", "/imgweb")} [litterbox|uguu|imgbb|tmpfiles|cloudflare]\n` +
+            `               └選擇圖床 | Set img host\n` +
+            `${cmdBtn("/imgzoom", "/imgzoom")} 開關懸停放大 (桌面) | Toggle hover zoom\n` +
+            `${cmdBtn("/imgclick", "/imgclick")} 開關點擊放大🔍 (手機友善) | Toggle click zoom\n` +
+            `👆 點按鈕自動填入輸入框 | Click a button to fill chat input\n\n` +
+            `支援 | Support:\n` +
+            `• 可以拖曳圖片上傳 | You can direct drag & drop\n` +
+            `• 格式(Format): JPG/PNG/GIF/BMP/WEBP\n` +
+            `• 大小(Size): Litterbox(100MB) | Uguu(128MB) | ImgBB(32MB) | TmpFiles(100MB) | Cloudflare(10MB)\n` +
+            `• 時間(Time): Litterbox(12HR) | Uguu(3HR) | ImgBB(12HR) | TmpFiles(1HR) | Cloudflare(30Min)\n` +
+            `✦建議使用(suggestion) Cloudflare > litterbox > tmpfiles > uguu > imgbb\n` +
+            `✦ImgBB使用私人API請珍惜使用，如果過期將不會再更新\n` +
+            `  └Use private API. If expired, will not be updated.`
+            , 30000
+        );
+    }
+
+    // ──────────────────────────────────────────
+    // 各指令動作
+    // ──────────────────────────────────────────
+    function cmdImgUp() {
+        triggerFileSelect();
+    }
+
+    function cmdImgWeb(text) {
+        const validHosts = ["litterbox", "uguu", "imgbb", "tmpfiles", "cloudflare"];
+        const host = (text || "").trim().split(/\s+/)[0]?.toLowerCase();
+        if (host && validHosts.includes(host)) {
             const hostNames = { litterbox: "Litterbox", uguu: "Uguu", imgbb: "ImgBB", cloudflare: "Cloudflare R2", tmpfiles: "TmpFiles" };
-            const hostTimes = { uguu: "3小時", tmpfiles: "60分鐘", litterbox: "12小時", cloudflare: "30分鐘", imgbb: "12小時" };
-            ChatRoomSendLocal(
-                `🖼️圖片上傳說明 | Image upload illustrate🖼️\n` +
-                `        當前設定(Current): 🌐${hostNames[imageHost] || imageHost} 📌${hostTimes[imageHost] || "12小時"}\n` +
-                `        懸停放大(Hover): ${zoomEnabled ? "✅" : "❌"}  |  點擊放大(Click): ${clickZoomEnabled ? "✅" : "❌"}\n\n` +
-                `/img up - 上傳圖片 | UPload image\n` +
-                `/img web [litterbox|uguu|imgbb|tmpfiles|cloudflare]\n` +
-                `               └選擇圖床 | Set img host\n` +
-                `/img zoom  - 開關懸停放大 (桌面) | Toggle hover zoom\n` +
-                `/img click - 開關點擊放大🔍 (手機友善) | Toggle click zoom\n\n` +
-                `支援 | Support:\n` +
-                `• 可以拖曳圖片上傳 | You can direct drag & drop\n` +
-                `• 格式(Format): JPG/PNG/GIF/BMP/WEBP\n` +
-                `• 大小(Size): Litterbox(100MB) | Uguu(128MB) | ImgBB(32MB) | TmpFiles(100MB) | Cloudflare(10MB)\n` +
-                `• 時間(Time): Litterbox(12HR) | Uguu(3HR) | ImgBB(12HR) | TmpFiles(1HR) | Cloudflare(30Min)\n` +
-                `✦建議使用(suggestion) litterbox > tmpfiles > uguu > imgbb\n` +
-                `✦ImgBB使用私人API請珍惜使用，如果過期將不會再更新\n` +
-                `  └Use private API. If expired, will not be updated.`
-                ,30000
-            );
-            return true;
-        }
-
-        if (sub === "up") { triggerFileSelect(); return true; }
-
-        if (sub === "web") {
-            const validHosts = ["litterbox", "uguu", "imgbb", "tmpfiles", "cloudflare"];
-            if (args[1] && validHosts.includes(args[1])) {
-                const hostNames = { litterbox: "Litterbox", uguu: "Uguu", imgbb: "ImgBB", cloudflare: "Cloudflare R2", tmpfiles: "TmpFiles" };
-                const hostTimes = { litterbox: " (保存12小時)", uguu: " (保存3小時)", imgbb: " (保存12小時)", cloudflare: " (保存30分鐘)", tmpfiles: " (保存60分鐘)" };
-                imageHost = args[1];
-                saveSettings();
-                ChatRoomSendLocalStyled(`✅ 已設定圖床為 ${hostNames[args[1]]}${hostTimes[args[1]] || ""}`, 3000, "#50C878");
-            } else {
-                ChatRoomSendLocalStyled("❌ 圖床參數必須是 litterbox/uguu/imgbb/tmpfiles/cloudflare", 5000, "#ff4444");
-            }
-            return true;
-        }
-
-        // ★ /img zoom：懸停放大開關
-        if (sub === "zoom") {
-            zoomEnabled = !zoomEnabled;
+            const hostTimes = { litterbox: " (保存12小時)", uguu: " (保存3小時)", imgbb: " (保存12小時)", cloudflare: " (保存30分鐘)", tmpfiles: " (保存60分鐘)" };
+            imageHost = host;
             saveSettings();
-            if (zoomEnabled) {
-                const chatLog = document.getElementById("TextAreaChatLog");
-                if (chatLog) processImgsInNode(chatLog);
-                updateImgCursors();
-                ChatRoomSendLocalStyled("🔍 懸停放大已開啟 | Hover zoom ON", 3000, "#50C878");
-            } else {
-                hideHoverOverlay();
-                updateImgCursors();
-                ChatRoomSendLocalStyled("🚫 懸停放大已關閉 | Hover zoom OFF", 3000, "#FFA500");
-            }
-            return true;
+            ChatRoomSendLocalStyled(`✅ 已設定圖床為 ${hostNames[host]}${hostTimes[host] || ""}`, 3000, "#50C878");
+        } else {
+            ChatRoomSendLocalStyled("❌ 圖床參數必須是 litterbox/uguu/imgbb/tmpfiles/cloudflare", 5000, "#ff4444");
         }
+    }
 
-        // ★ /img click：點擊 🔍 放大開關（手機友善）
-        if (sub === "click") {
-            clickZoomEnabled = !clickZoomEnabled;
-            saveSettings();
-            if (clickZoomEnabled) {
-                // 確保所有圖片都已掛載按鈕
-                const chatLog = document.getElementById("TextAreaChatLog");
-                if (chatLog) processImgsInNode(chatLog);
-                updateAllClickBtns();
-                ChatRoomSendLocalStyled("🔍 點擊放大已開啟 | Click zoom ON\n圖片後方出現 🔍，點擊可放大", 3500, "#50C878");
-            } else {
-                hideClickModal();
-                updateAllClickBtns();
-                ChatRoomSendLocalStyled("🚫 點擊放大已關閉 | Click zoom OFF", 3000, "#FFA500");
-            }
-            return true;
+    function cmdImgZoom() {
+        zoomEnabled = !zoomEnabled;
+        saveSettings();
+        if (zoomEnabled) {
+            const chatLog = document.getElementById("TextAreaChatLog");
+            if (chatLog) processImgsInNode(chatLog);
+            updateImgCursors();
+            ChatRoomSendLocalStyled("🔍 懸停放大已開啟 | Hover zoom ON", 3000, "#50C878");
+        } else {
+            hideHoverOverlay();
+            updateImgCursors();
+            ChatRoomSendLocalStyled("🚫 懸停放大已關閉 | Hover zoom OFF", 3000, "#FFA500");
         }
+    }
 
-        ChatRoomSendLocalStyled("❌ 未知子指令，使用 /img help 查詢", 4000, "#ff4444");
-        return true;
+    function cmdImgClick() {
+        clickZoomEnabled = !clickZoomEnabled;
+        saveSettings();
+        if (clickZoomEnabled) {
+            // 確保所有圖片都已掛載按鈕
+            const chatLog = document.getElementById("TextAreaChatLog");
+            if (chatLog) processImgsInNode(chatLog);
+            updateAllClickBtns();
+            ChatRoomSendLocalStyled("🔍 點擊放大已開啟 | Click zoom ON\n圖片後方出現 🔍，點擊可放大", 3500, "#50C878");
+        } else {
+            hideClickModal();
+            updateAllClickBtns();
+            ChatRoomSendLocalStyled("🚫 點擊放大已關閉 | Click zoom OFF", 3000, "#FFA500");
+        }
     }
 
     // ──────────────────────────────────────────
@@ -685,7 +712,7 @@
                         setupChatObserver();
                         if (!window.LikoImageUploaderWelcomed) {
                             ChatRoomSendLocalStyled(
-                                `🖼️ Liko 圖片上傳器 v${MOD_VER} 載入！使用(use) /img help 查看說明`,
+                                `🖼️ Liko 圖片上傳器 v${MOD_VER} 載入！使用(use) /img 查看說明`,
                                 5000
                             );
                             window.LikoImageUploaderWelcomed = true;
@@ -718,11 +745,14 @@
             console.error("🐈‍⬛ [IMG] ❌ 初始化 modApi 失敗:", e.message);
         }
         loadSettings();
-        CommandCombine([{
-            Tag: "img",
-            Description: "圖片上傳 (/img help 查看說明)",
-            Action: handleImgCommand
-        }]);
+        bindCmdButtonListener();
+        CommandCombine([
+            { Tag: "img",      Description: "圖片上傳說明 | Image upload help",                   Action: () => { showImgHelp(); return true; } },
+            { Tag: "imgup",    Description: "上傳圖片 | Upload image",                            Action: () => { cmdImgUp(); return true; } },
+            { Tag: "imgweb",   Description: "選擇圖床 litterbox/uguu/imgbb/tmpfiles/cloudflare",  Action: (text) => { cmdImgWeb(text); return true; } },
+            { Tag: "imgzoom",  Description: "開關懸停放大 | Toggle hover zoom",                    Action: () => { cmdImgZoom(); return true; } },
+            { Tag: "imgclick", Description: "開關點擊放大 | Toggle click zoom",                    Action: () => { cmdImgClick(); return true; } },
+        ]);
         hookChatRoomLoad();
     }
     initialize();

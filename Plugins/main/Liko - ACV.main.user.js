@@ -2,7 +2,7 @@
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
 // @namespace    https://likolisu.dev/
-// @version      1.4.0
+// @version      1.4.1
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.4.0";
+    const MOD_VER = "1.4.1";
     if (window.Liko.ACV) return;
     window.Liko.ACV = MOD_VER;
     
@@ -372,6 +372,16 @@
     function togglePlugin() { isEnabled ? disablePlugin() : enablePlugin(); return isEnabled; }
     function destroyPlugin() { disablePlugin(); stopObserver(); delete window.LikoVideoPlayerInstance; }
 
+    // ★ 離開房間時：移除所有播放器（iframe/video），讓正在播放的影音立即停止
+    //   按鈕與 processed 標記一併清除，重新進房後由 scanChatMessages 重建
+    function stopAllPlayers() {
+        document.querySelectorAll(".likoVideoIframe").forEach((el) => el.remove());
+        document.querySelectorAll(".likoVideoButton").forEach((el) => el.remove());
+        document.querySelectorAll("[data-liko-processed]").forEach((el) => {
+            delete el.dataset.likoProcessed;
+        });
+    }
+
     window.LikoVideoPlayerInstance = {
         isEnabled: () => isEnabled,
         enable: enablePlugin,
@@ -421,6 +431,14 @@
                 setTimeout(() => scanChatMessages(), 200);
             }
         });
+
+        // ★ 離開房間時自動停止播放（移除所有播放器，音訊立即停止）
+        if (typeof ChatRoomLeave === "function") {
+            modApi.hookFunction("ChatRoomLeave", 0, (args, next) => {
+                stopAllPlayers();
+                return next(args);
+            });
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
