@@ -2,7 +2,7 @@
 // @name         Liko - Chat Music Controller
 // @name:zh      Liko的聊天室音樂控制器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.3.0
+// @version      1.3.1
 // @description  Chat Music Controller with playlist sharing and lyrics support
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
 (function() {
     window.Liko = window.Liko ?? {};
     if (window.Liko.CMC) return;
-    const MOD_VER = "1.3.0";
+    const MOD_VER = "1.3.1";
     window.Liko.CMC = MOD_VER;
 
     const debugMode = false;
@@ -91,6 +91,7 @@
 
         bcMusicURL: "",
         bcMusicMuted: false,
+        bcOriginalMusicVolume: null, // 保存玩家原本的 MusicVolume，靜音期間強制為 0，cleanup 時還原
 
         ytPlayer: null,
         ytReady: false,
@@ -393,18 +394,37 @@
     }
 
     // ============ BC 音樂靜音 ============
-    // Only mutes BC audio system when ChatRoomCustomized is true
+    // BC 的 AudioBackgroundMusicPlay() 在每次換歌時，會把 AudioBackgroundMusic.volume
+    // 重設為 Player.AudioSettings.MusicVolume。直接把 .volume 設 0 每次都會被覆蓋回去，
+    // 所以改成把「設定值本身」設為 0 —— 換歌重設後仍是 0，且 BC 會自己 pause 背景音樂
+    // (見 AudioBackgroundMusicPlay / AudioBackgroundMusicSetVolume)，不需要再手動 stop。
+    // 原始音量會被保存，並在 cleanup() (離開房間) 時還原，避免污染玩家帳號設定。
     function muteBCMusic() {
         if (!ChatRoomCustomized) return;
-        try { AudioBackgroundMusic.volume = 0; } catch(e) {}
-        setTimeout(() => { try { AudioBackgroundMusicStop(); } catch(e) {} }, 100);
+        try {
+            if (musicPlayer.bcOriginalMusicVolume === null && Player?.AudioSettings) {
+                musicPlayer.bcOriginalMusicVolume = Player.AudioSettings.MusicVolume ?? 0;
+            }
+            if (Player?.AudioSettings) Player.AudioSettings.MusicVolume = 0;
+            // 立即靜音當前已在播放的實例 (只改設定要到下次換歌才生效，故同步把元素音量設 0)
+            AudioBackgroundMusic.volume = 0;
+        } catch(e) {}
         musicPlayer.bcMusicMuted = true;
-        log('BC音樂已靜音');
+        log('BC音樂已靜音 (MusicVolume=0)');
     }
     function muteBCIfNeeded(url) {
         if (ChatRoomCustomized && isBCCompatibleURL(url)) muteBCMusic();
     }
-    function unmuteBCMusic() { musicPlayer.bcMusicMuted = false; }
+    // 還原玩家原本的 BC 音樂音量 (離開房間 / 清理時呼叫)
+    function unmuteBCMusic() {
+        if (musicPlayer.bcOriginalMusicVolume !== null) {
+            try {
+                if (Player?.AudioSettings) Player.AudioSettings.MusicVolume = musicPlayer.bcOriginalMusicVolume;
+            } catch(e) {}
+            musicPlayer.bcOriginalMusicVolume = null;
+        }
+        musicPlayer.bcMusicMuted = false;
+    }
 
     // ============ 房間名 ============
     function getCurrentRoomName() {
@@ -1286,8 +1306,8 @@
         recalcMyRank();
 
         // 2. Update our own list count visible to others
-        const myTs = getMyCmc()?.ts || 0;
-        if (myTs) setMyCmc(myTs, musicPlayer.currentPlaylist.length);
+        const myRank = getMyCmc()?.rank || 0;
+        if (myRank) setMyCmc(myRank, musicPlayer.currentPlaylist.length);
 
         // 3. Check Custom.MusicURL and play if changed
         const newURL = ChatRoomData?.Custom?.MusicURL || "";
@@ -2258,6 +2278,7 @@
 
         removeFromControllers();
         musicPlayer.bcMusicURL = "";
+        unmuteBCMusic(); // 還原玩家原本的 BC 音樂音量，避免帳號設定被永久改成 0
 
         saveSettings();
         log('資源清理完成');
