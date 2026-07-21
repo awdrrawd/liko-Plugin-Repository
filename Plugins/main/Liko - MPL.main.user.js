@@ -2,7 +2,7 @@
 // @name           Liko - Mobile Portrait Layout
 // @name:zh        Liko的手機直版佈局
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.5.3
+// @version        0.5.4
 // @description    Supports vertical layout for ChatSearch and ChatRoom
 // @description:zh 支援房間搜尋與聊天室的直版佈局
 // @author         Likolisu
@@ -25,7 +25,7 @@
     window.Liko.MPL = window.Liko.MPL ?? {};
     if (window.Liko.MPL.version) return;
 
-    const MOD_VER = '0.5.3';
+    const MOD_VER = '0.5.4';
     window.Liko.MPL.version = MOD_VER;
 
     const modApi = bcModSdk.registerMod({
@@ -2095,11 +2095,9 @@
         return r;
     });
 
-    modApi.hookFunction('ChatRoomTopMenuPosition', 0, (args, next) => {
-        if (crActive) { crMaintain(); return; }
-        return next(args);
-    });
-
+    // 註：新版 BC 已移除 ChatRoomTopMenuPosition（頂部選單改為 #chat-room-div 內、
+    // 由 CSS flex 排版的子元素），不再有可攔的單獨定位函式。重套直版版面的責任改由
+    // 下面的 ChatRoomResize hook 與 window resize/orientationchange 監聽器承擔。
     modApi.hookFunction('ChatRoomResize', 0, (args, next) => {
         const r = next(args);
         crMaintain();
