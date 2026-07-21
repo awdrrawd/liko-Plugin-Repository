@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Liko - PCM 載入器 - 本地測試
-// @name:zh      Liko的插件管理器 - 本地測試
+// @name         本地測試 - PCM 載入器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1
+// @version      0.1
 // @description  本地測試載入器：設定 LikoDevBase 指向 localhost，再載入四個本體；引擎/擴充/字庫由各本體自行抓取
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant        none
@@ -16,13 +16,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 (async () => {
-    'use strict';
-    const PORT = 5175;
-    const BASE = `http://localhost:${PORT}/Plugins/`;
-    window.LikoDevBase = BASE;   // ← 四個本體會讀這個覆寫依賴基底（引擎/擴充/字庫全走本地）
+    window.LikoDevBase = `http://localhost:5175/Plugins/`;   // ← 四個本體會讀這個覆寫依賴基底（引擎/擴充/字庫全走本地）
 
     const load = async (path) => {
-        const res = await fetch(BASE + path + '?t=' + Date.now(), { cache: 'no-store' });
+        const res = await fetch(`http://localhost:5175/Plugins/` + path + '?t=' + Date.now(), { cache: 'no-store' });
         if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`);
         const code = await res.text();
         if (code.trimStart().startsWith('<')) throw new Error(`${path} → 收到 HTML（伺服器有開嗎？）`);
