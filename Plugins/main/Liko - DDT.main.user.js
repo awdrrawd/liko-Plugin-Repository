@@ -3,9 +3,9 @@
 // @name:zh        繪圖檢測工具
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.1.0
-// @description    Detects canvas and DOM element properties, and allows color highlighting and positional offset.
-// @description:zh 偵測 canvas & DOM 物件的屬性，並支持染色與位移
+// @version        0.2.0
+// @description    Detects canvas/DOM properties (Ruler), draws editable overlay objects (Pen), and exports/imports layouts (Setting).
+// @description:zh 偵測 canvas & DOM 物件的屬性、疊加可編輯繪圖物件、匯出/匯入版面座標
 // @author         likolisu
 // @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon           https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
@@ -14,12 +14,18 @@
 // @run-at         document-end
 // ==/UserScript==
 /*
- * Liko - DrawDetectionTool 
+ * Liko - DrawDetectionTool
  *
- * 用法：F2 = 偵測游標下的物件（推薦，不會碰到滑鼠）。F3 = 凍結這一幀去看繪製清單。
- *       也可以按氣球後點擊目標。ESC 關閉。
+ * 氣球（BDG-ICON APNG，游標移上去才播放）點一下 → 展開三個工具：
+ *   🖊 Pen    —— 在畫面上疊加可編輯物件（按鈕/文字/純框，都是一個框可寫字），每個物件都能改
+ *                尺寸/字體/座標/顏色/旋轉，移動時原位虛線、新位實線；有網格＋自動貼齊、圖層隱藏/鎖定，
+ *                可疊 Sheet.jpg 底圖並調透明度。
+ *   📏 Ruler  —— 原本的偵測/檢視/編輯（見下方三層偵測）。
+ *   ⚙ Setting —— 匯出/匯入 Pen 物件座標；隱藏氣球（控制台 Liko.BDT.showBalloon() 重新叫出）。
  *
- * 三層偵測，由粗到細：
+ * 快捷：F2 = 偵測游標下的物件（推薦，不會碰到滑鼠）。F3 = 凍結這一幀去看繪製清單。ESC 關閉。
+ *
+ * 三層偵測（Ruler），由粗到細：
  *   1. 繪製呼叫 —— hook Drawing.js 的繪製函式，每幀記下所有呼叫的矩形與參數，
  *      點擊時反向掃這份清單就得到那個位置的繪製堆疊。DOM 則走 elementFromPoint。
  *   2. 角色部位 —— 用 DialogGetCharacterZone() 算出 AssetGroup 的螢幕矩形。
@@ -39,9 +45,20 @@
     if (window.Liko.BDT) return;
 
 	const MOD_NAME = "BDT";
-	const MOD_VERSION = "0.1.0";
-    window.Liko.BDT = MOD_VERSION;
+	const MOD_VERSION = "0.2.0";
+	window.Liko.BDT = MOD_VERSION; // 佔位，避免重複載入；initialize 尾端會換成完整控制台 API
 	const UI_Z = 2147483000;
+
+	// 圖示資源（Images/DDT/，走 jsDelivr 與既有 @require 一致）
+	const ASSET_BASE = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/DDT/";
+	const ICON = {
+		balloon: ASSET_BASE + "DDT-icon.png",    // APNG：游標移上去才播放
+		pen:     ASSET_BASE + "DDT-Pen.svg",
+		ruler:   ASSET_BASE + "DDT-Ruler.svg",
+		setting: ASSET_BASE + "DDT-Setting.svg",
+	};
+	const SHEET_IMG = "Backgrounds/Sheet.jpg";   // BC 內建資源，DrawGetImage 取得
+	const LS_PEN = "DDTPenObjects";              // Pen 物件的本地保存 key
 
 	// ---------------------------------------------------------------- 狀態
 
@@ -95,6 +112,46 @@
 	/** 上一幀的頂層呼叫總數（滑桿的上限） */
 	let frameTopCount = 0;
 
+	// --- Pen（可編輯繪圖物件）---
+	/**
+	 * Pen 物件清單，全部用 BC 的 2000×1000 虛擬座標存，跟解析度無關，可直接匯出/匯入。
+	 * 每個物件都是一個「框」，差別只在預設樣式（variant）：
+	 *   'button' 按鈕（填色+外框+置中文字）| 'text' 文字（無框，只有字）| 'frame' 純框（只有外框）
+	 * 欄位：{ id, variant, x, y, w, h, rot(度), fill, border, borderW, text, fontSize, textColor, align, hidden, locked }
+	 */
+	let penObjects = [];
+	let penSeq = 1;                 // 物件 id 流水號
+	let penMode = false;            // 是否處於 Pen 模式（點畫布 = 放置/選取物件；此時擋住底下 BC 的互動）
+	let penTool = "select";         // 'select' | 'button' | 'text' | 'frame'
+	let penSel = null;              // 目前選中的 Pen 物件
+	let penDrag = null;             // 拖曳中的暫存 { mode:'new'|'move', ... }
+	let propsCollapsed = false;     // 選中物件屬性面板是否收納
+	let layersCollapsed = false;    // 圖層清單是否收納（需求 6）
+	let globalHide = 0;             // DDT-Hidden 全域顯示：0 正常 | 1 全部虛線 | 2 全部隱藏(含底圖)（需求 5）
+
+	/** 各 variant 的建立預設值 */
+	const VARIANT = {
+		button: { fill: "#ffd54a", border: "#000000", borderW: 3, text: "按鈕", align: "center" },
+		text:   { fill: null,      border: null,      borderW: 0, text: "文字", align: "center" },
+		frame:  { fill: null,      border: "#ff3b6b", borderW: 3, text: "",     align: "center" },
+	};
+	const VARIANT_LABEL = { button: "按鈕", text: "文字", frame: "純框" };
+	const DEF_FONT = 40, DEF_TEXTCOLOR = "#000000";
+
+	// --- 網格 / 貼齊（需求 7、8）---
+	let gridOn = false;
+	let gridSize = 50;              // 網格間距（虛擬座標 px）
+	let gridAlpha = 0.6;            // 網格深淺（需求 2）
+	let snapOn = false;             // 自動貼齊（網格 + 物件邊/中對齊）
+
+	// --- Sheet.jpg 底圖疊層 ---
+	let sheetOn = false;
+	let sheetAlpha = 0.5;
+
+	// --- 目前啟動的工具面板：'ruler' | 'pen' | 'setting' | null ---
+	let activeTool = null;
+	let menuOpen = false;
+
 	/**
 	 * 跳過某個繪製呼叫時要回傳什麼。
 	 * 不能一律回 undefined —— DrawImageEx 這類會回傳 boolean，呼叫端有可能拿去判斷
@@ -107,8 +164,13 @@
 
 	let modApi = null;
 	let root = null; // UI 容器（shadow host）
-	let panel = null;
+	let panel = null;        // Ruler（偵測）面板
+	let penPanel = null;     // Pen（繪圖）面板
+	let setPanel = null;     // Setting（匯出/匯入）面板
+	let menu = null;         // 氣球展開的工具選單
 	let balloon = null;
+	let balloonImg = null;   // APNG（游標移上才播放）
+	let balloonPoster = null;// 靜止影格（移開時顯示）
 	let domHighlight = null;
 
 	// ---------------------------------------------------------------- 小工具
@@ -227,6 +289,29 @@
 		return o;
 	}
 
+	/** 有「字體大小」概念的文字類繪製（改的是 MainCanvas.font 的 px） */
+	const TEXT_FNS = new Set(["DrawText", "DrawTextFit", "DrawTextWrap"]);
+
+	/**
+	 * 依已套用位移後的參數，算出這次繪製的中心點（旋轉樞紐）。
+	 * 用的是 applyOverride 之後的 args，所以樞紐就是「移動後的新位置」，跟畫面上看到的一致。
+	 */
+	function drawCenter(fn, a) {
+		const s = UI_SPEC[fn];
+		if (!s || s.x == null || s.y == null) return null;
+		const x = a[s.x], y = a[s.y];
+		if (!isFinite(x) || !isFinite(y)) return null;
+		const w = s.w != null && isFinite(a[s.w]) ? a[s.w] : 0;
+		const h = s.h != null && isFinite(a[s.h]) ? a[s.h] : 0;
+		return [x + w / 2, y + h / 2];
+	}
+
+	/** 從 CSS font 字串（如 "bold 36px Arial"）取出 px 數字 */
+	function parseFontPx(font) {
+		const m = /(\d+(?:\.\d+)?)px/.exec(String(font || ""));
+		return m ? Math.round(parseFloat(m[1])) : null;
+	}
+
 	function esc(s) {
 		return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 	}
@@ -301,6 +386,23 @@
 			// 角色的實際貼圖參數藏在 DrawCharacter 內部那次 DrawImageEx，掛個標記讓它自己填回來
 			const prevBlit = charBlitTarget;
 			if (rec && rec.isCharacter) charBlitTarget = rec;
+
+			// 旋轉 / 字體大小覆寫：這兩個沒辦法只改 args（不是單純的參數位移），
+			// 得在真正繪製前後包一層 transform / 換 font，畫完再還原。跟位移一樣每幀都要套。
+			const ov = key ? uiOverrides.get(key) : null;
+			let rotated = false, savedFont = null;
+			try { if (ov && ov.rot) { const c = drawCenter(name, args); if (c) {
+				MainCanvas.save();
+				MainCanvas.translate(c[0], c[1]);
+				MainCanvas.rotate(ov.rot * Math.PI / 180);
+				MainCanvas.translate(-c[0], -c[1]);
+				rotated = true;
+			} } } catch { /* 旋轉套用失敗不能影響遊戲繪製 */ }
+			try { if (ov && ov.fs != null && TEXT_FNS.has(name)) {
+				savedFont = MainCanvas.font;
+				MainCanvas.font = String(savedFont).replace(/(\d+(?:\.\d+)?)px/, ov.fs + "px");
+			} } catch { savedFont = null; }
+
 			depth++;
 			const t0 = rec ? performance.now() : 0;
 			try {
@@ -310,6 +412,8 @@
 				depth--;
 				curTop = prevTop;
 				if (rec && rec.isCharacter) charBlitTarget = prevBlit;
+				if (savedFont != null) { try { MainCanvas.font = savedFont; } catch { /* 還原 font */ } }
+				if (rotated) { try { MainCanvas.restore(); } catch { /* 還原 transform */ } }
 			}
 		});
 	}
@@ -484,7 +588,8 @@
 				}
 				curLog = [];
 			}
-			try { drawOverlay(); } catch { /* 高亮畫失敗不能拖垮遊戲 */ }
+			// 疊加層（Sheet/網格/Pen 物件/Ruler 高亮）畫在 MainCanvas 上，跟 BC 共用 2000×1000 座標（需求 1）
+			try { drawOverlay(); } catch { /* 疊加層畫失敗不能拖垮遊戲 */ }
 			return ret;
 		});
 	}
@@ -547,10 +652,87 @@
 		});
 	}
 
-	/** 在畫布上畫出選取框與滑鼠停留框 */
+	// ---------------------------------------------------------------- 疊加層（畫在 MainCanvas 上）
+
+	/**
+	 * 需求 1：直接畫在 BC 的 MainCanvas（本來就是 2000×1000 座標系），跟遊戲共用同一套座標與縮放，
+	 * 這樣繪製起點、游標、命中測試就一定對齊，不會因為另開一張 canvas 而錯位。
+	 * 由 DrawProcess 的 hook 每幀在所有 BC 繪製之後呼叫。
+	 * 由下到上：Sheet.jpg 底圖 → 網格 → Pen 物件 → Ruler 高亮。
+	 */
 	function drawOverlay() {
-		if (!recording) return;
-		const ctx = MainCanvas;
+		const ctx = (typeof MainCanvas !== "undefined") ? MainCanvas : null;
+		if (!ctx) return;
+		if (globalHide >= 2) {
+			// DDT-Hidden 第二段：連底圖一起全部隱藏，只留 Ruler 高亮
+			if (recording) drawRulerHighlight(ctx);
+			return;
+		}
+		if (sheetOn) drawSheet(ctx);
+		if (gridOn) drawGrid(ctx);
+		drawPenObjects(ctx);
+		if (recording) drawRulerHighlight(ctx);
+	}
+
+	function drawGrid(ctx) {
+		const g = Math.max(5, gridSize);
+		ctx.save();
+		ctx.strokeStyle = `rgba(0,0,0,${Math.max(0, Math.min(1, gridAlpha))})`;
+		ctx.lineWidth = 1;
+		ctx.setLineDash([]);
+		ctx.beginPath();
+		for (let x = 0; x <= 2000; x += g) { ctx.moveTo(x, 0); ctx.lineTo(x, 1000); }
+		for (let y = 0; y <= 1000; y += g) { ctx.moveTo(0, y); ctx.lineTo(2000, y); }
+		ctx.stroke();
+		ctx.restore();
+	}
+
+	/** 網格貼齊：把座標吸到最近的網格倍數 */
+	function snap(v) { return snapOn ? Math.round(v / gridSize) * gridSize : v; }
+
+	/**
+	 * 需求 3：智慧貼齊。移動時除了吸網格，也吸到其他物件的邊（左/中/右、上/中/下），
+	 * 包含「併鄰」（我的右邊 = 對方左邊，反之亦然）。回傳吸附後的左上座標。
+	 */
+	const SNAP_TOL = 12; // 虛擬 px
+	function snapMove(o, nx, ny) {
+		let x = snap(nx), y = snap(ny);
+		if (!snapOn) return { x, y };
+		const myL = x, myR = x + o.w, myCx = x + o.w / 2;
+		const myT = y, myB = y + o.h, myCy = y + o.h / 2;
+		let bestDX = SNAP_TOL, snapX = null, bestDY = SNAP_TOL, snapY = null;
+		for (const t of penObjects) {
+			if (t === o || t.hidden === "full") continue;
+			const tL = t.x, tR = t.x + t.w, tCx = t.x + t.w / 2;
+			const tT = t.y, tB = t.y + t.h, tCy = t.y + t.h / 2;
+			// X：我的 左/中/右 對 目標 左/中/右，外加併鄰（我的左對目標右、我的右對目標左）
+			for (const [mine, tgt] of [[myL, tL], [myCx, tCx], [myR, tR], [myL, tR], [myR, tL]]) {
+				const d = Math.abs(mine - tgt);
+				if (d < bestDX) { bestDX = d; snapX = x + (tgt - mine); }
+			}
+			for (const [mine, tgt] of [[myT, tT], [myCy, tCy], [myB, tB], [myT, tB], [myB, tT]]) {
+				const d = Math.abs(mine - tgt);
+				if (d < bestDY) { bestDY = d; snapY = y + (tgt - mine); }
+			}
+		}
+		if (snapX != null) x = snapX;
+		if (snapY != null) y = snapY;
+		return { x, y };
+	}
+
+	function drawSheet(ctx) {
+		try {
+			const img = typeof DrawGetImage === "function" ? DrawGetImage(SHEET_IMG) : null;
+			if (!img || !img.width) return;
+			ctx.save();
+			ctx.globalAlpha = Math.max(0, Math.min(1, sheetAlpha));
+			ctx.drawImage(img, 0, 0, 2000, 1000);
+			ctx.restore();
+		} catch { /* 底圖畫失敗不能拖垮遊戲 */ }
+	}
+
+	/** Ruler 的滑鼠停留框 + 選取框；移動/旋轉時原位虛線、新位實線（需求 4） */
+	function drawRulerHighlight(ctx) {
 		ctx.save();
 		if (hoverRect) {
 			ctx.strokeStyle = "#00b7ff";
@@ -559,18 +741,169 @@
 			ctx.strokeRect(hoverRect[0], hoverRect[1], hoverRect[2], hoverRect[3]);
 		}
 		if (selection && selection.rect) {
-			const r = selection.rect;
-			ctx.strokeStyle = "#ff3b6b";
-			ctx.lineWidth = 3;
-			ctx.setLineDash([]);
-			ctx.strokeRect(r[0], r[1], r[2], r[3]);
-			// 四角標記
-			ctx.fillStyle = "#ff3b6b";
-			for (const [cx, cy] of [[r[0], r[1]], [r[0] + r[2], r[1]], [r[0], r[1] + r[3]], [r[0] + r[2], r[1] + r[3]]]) {
-				ctx.fillRect(cx - 3, cy - 3, 6, 6);
+			const orig = selection.rect;
+			const selRec = selection.hits && selection.hits[selection.index];
+			const ov = selRec && selRec.key ? uiOverrides.get(selRec.key) : null;
+			const moved = ov && (ov.dx || ov.dy || ov.dw || ov.dh || ov.rot);
+			if (moved) {
+				// 原始位置：虛線
+				ctx.setLineDash([10, 6]);
+				ctx.strokeStyle = "#9a9ab0";
+				ctx.lineWidth = 2;
+				ctx.strokeRect(orig[0], orig[1], orig[2], orig[3]);
+				// 新位置：實線（含旋轉）
+				const nr = [orig[0] + (ov.dx || 0), orig[1] + (ov.dy || 0), orig[2] + (ov.dw || 0), orig[3] + (ov.dh || 0)];
+				ctx.setLineDash([]);
+				ctx.strokeStyle = "#ff3b6b";
+				ctx.lineWidth = 3;
+				if (ov.rot) {
+					const cx = nr[0] + nr[2] / 2, cy = nr[1] + nr[3] / 2;
+					ctx.translate(cx, cy); ctx.rotate(ov.rot * Math.PI / 180); ctx.translate(-cx, -cy);
+				}
+				ctx.strokeRect(nr[0], nr[1], nr[2], nr[3]);
+				strokeCorners(ctx, nr);
+			} else {
+				ctx.setLineDash([]);
+				ctx.strokeStyle = "#ff3b6b";
+				ctx.lineWidth = 3;
+				ctx.strokeRect(orig[0], orig[1], orig[2], orig[3]);
+				strokeCorners(ctx, orig);
 			}
 		}
 		ctx.restore();
+	}
+
+	function strokeCorners(ctx, r) {
+		ctx.fillStyle = "#ff3b6b";
+		for (const [cx, cy] of [[r[0], r[1]], [r[0] + r[2], r[1]], [r[0], r[1] + r[3]], [r[0] + r[2], r[1] + r[3]]]) {
+			ctx.fillRect(cx - 3, cy - 3, 6, 6);
+		}
+	}
+
+	// ---------------------------------------------------------------- Pen：可編輯繪圖物件
+
+	const PEN_FONT = "Arial";
+
+	function newPenId() { return penSeq++; }
+
+	/** 把任意來源（舊存檔/匯入）正規化成目前的物件結構；並做 kind→variant 遷移 */
+	/** hidden 三態：false=顯示 | "outline"=只留外框 | "full"=完全隱藏（需求 4）。相容舊資料 true→"full" */
+	function normHidden(v) { return v === "outline" ? "outline" : (v === "full" || v === true) ? "full" : false; }
+
+	function normalizePenObj(o) {
+		const variant = VARIANT[o.variant] ? o.variant : (o.kind === "text" ? "text" : "frame");
+		return {
+			id: 0, variant,
+			x: +o.x || 0, y: +o.y || 0, w: +o.w || 40, h: +o.h || 40, rot: +o.rot || 0,
+			fill: o.fill ?? null, border: o.border ?? null, borderW: +o.borderW || 0,
+			text: o.text || "", fontSize: +o.fontSize || DEF_FONT, textColor: o.textColor || DEF_TEXTCOLOR,
+			align: o.align === "left" ? "left" : "center",
+			hidden: normHidden(o.hidden), locked: !!o.locked,
+		};
+	}
+
+	/** 每個物件都是一個框，可帶文字（需求 10）。forceOutline = DDT-Hidden 第一段：全部只留虛線外框 */
+	function drawPenObject(ctx, o, selected, forceOutline) {
+		if (o.hidden === "full") return;
+		const outlineOnly = forceOutline || o.hidden === "outline";
+		ctx.save();
+		if (o.rot) {
+			const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+			ctx.translate(cx, cy); ctx.rotate(o.rot * Math.PI / 180); ctx.translate(-cx, -cy);
+		}
+		if (outlineOnly) {
+			// 只留外框（虛線），不畫填色/文字
+			ctx.strokeStyle = o.border || "#888888"; ctx.lineWidth = Math.max(1, o.borderW || 2);
+			ctx.setLineDash([9, 6]);
+			ctx.strokeRect(o.x, o.y, o.w, o.h);
+		} else {
+			if (o.fill) { ctx.fillStyle = o.fill; ctx.fillRect(o.x, o.y, o.w, o.h); }
+			if (o.border && o.borderW > 0) {
+				ctx.strokeStyle = o.border; ctx.lineWidth = o.borderW; ctx.setLineDash([]);
+				ctx.strokeRect(o.x, o.y, o.w, o.h);
+			}
+			if (o.text) {
+				ctx.fillStyle = o.textColor || DEF_TEXTCOLOR;
+				ctx.font = `${o.fontSize || DEF_FONT}px ${PEN_FONT}`;
+				ctx.textBaseline = "middle";
+				if (o.align === "left") { ctx.textAlign = "left"; ctx.fillText(o.text, o.x + 6, o.y + o.h / 2); }
+				else { ctx.textAlign = "center"; ctx.fillText(o.text, o.x + o.w / 2, o.y + o.h / 2); }
+			}
+		}
+		ctx.restore();
+		if (selected) {
+			ctx.save();
+			ctx.strokeStyle = o.locked ? "#ff9800" : "#7b5cff";
+			ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+			ctx.strokeRect(o.x - 2, o.y - 2, o.w + 4, o.h + 4);
+			ctx.restore();
+		}
+	}
+
+	function drawPenObjects(ctx) {
+		const forceOutline = globalHide === 1; // DDT-Hidden 第一段：全部變虛線
+		for (const o of penObjects) drawPenObject(ctx, o, penMode && o === penSel, forceOutline);
+		if (penDrag && penDrag.mode === "new" && penDrag.preview) drawPenObject(ctx, penDrag.preview, true);
+		if (penDrag && penDrag.mode === "move" && penDrag.origRect) {
+			ctx.save();
+			ctx.strokeStyle = "#9a9ab0"; ctx.lineWidth = 2; ctx.setLineDash([10, 6]);
+			const r = penDrag.origRect;
+			ctx.strokeRect(r[0], r[1], r[2], r[3]);
+			ctx.restore();
+		}
+	}
+
+	/** 命中測試（軸對齊外框，忽略旋轉）；跳過完全隱藏；預設也跳過鎖定；最上層在前（需求 9：誰後畫誰更高） */
+	function penHitTest(x, y, includeLocked) {
+		for (let i = penObjects.length - 1; i >= 0; i--) {
+			const o = penObjects[i];
+			if (o.hidden === "full") continue;
+			if (!includeLocked && o.locked) continue;
+			if (x >= o.x && x <= o.x + o.w && y >= o.y && y <= o.y + o.h) return o;
+		}
+		return null;
+	}
+
+	function addPenObject(o) {
+		o.id = newPenId();
+		penObjects.push(o);
+		penSel = o;
+		savePenObjects();
+		return o;
+	}
+
+	function deletePenObject(o) {
+		const i = penObjects.indexOf(o);
+		if (i >= 0) penObjects.splice(i, 1);
+		if (penSel === o) penSel = null;
+		savePenObjects();
+	}
+
+	function clearPenObjects() {
+		penObjects = [];
+		penSel = null;
+		savePenObjects();
+	}
+
+	function savePenObjects() {
+		try { localStorage.setItem(LS_PEN, JSON.stringify(penObjects)); } catch { /* 無痛失敗 */ }
+	}
+
+	function loadPenObjects() {
+		try {
+			const raw = localStorage.getItem(LS_PEN);
+			if (!raw) return;
+			const arr = JSON.parse(raw);
+			if (!Array.isArray(arr)) return;
+			penObjects = arr.filter((o) => o && isFinite(o.x)).map(normalizePenObj);
+			penSeq = 1; penObjects.forEach((o) => (o.id = newPenId()));
+		} catch { /* 壞掉的存檔就忽略 */ }
+	}
+
+	/** 進出 Pen 模式（需求 4 的攔截由 window capture 的 penPointerDown 處理） */
+	function setPenMode(on) {
+		penMode = on;
+		if (!on) penDrag = null;
 	}
 
 	// ---------------------------------------------------------------- 命中測試
@@ -726,31 +1059,66 @@
 	:host { all: initial; --fs: 15px; }
 	* { box-sizing: border-box; font-family: system-ui, "Segoe UI", "Microsoft JhengHei", sans-serif; }
 	.balloon {
-		position: fixed; z-index: ${UI_Z}; width: 44px; height: 44px; border-radius: 50%;
-		background: linear-gradient(145deg, #7b5cff, #4a2fd6); color: #fff; border: 2px solid #fff;
-		box-shadow: 0 4px 14px rgba(0,0,0,.4); cursor: grab; display: flex; align-items: center;
-		justify-content: center; font-size: 20px; user-select: none; touch-action: none;
+		position: fixed; z-index: ${UI_Z}; width: 48px; height: 48px; border-radius: 50%;
+		background: linear-gradient(145deg, #7b5cff, #4a2fd6); border: 2px solid #fff;
+		box-shadow: 0 4px 14px rgba(0,0,0,.4); cursor: grab; overflow: hidden; padding: 0;
+		user-select: none; touch-action: none;
 	}
-	.balloon.on { background: linear-gradient(145deg, #ff5c8a, #d62f5a); }
+	/* 有工具啟動時的高亮環（用外框，不動內容，才不會蓋住 APNG） */
+	.balloon.on { border-color: #ffd54a; box-shadow: 0 0 0 2px #ffd54a, 0 4px 14px rgba(0,0,0,.4); }
 	.balloon:active { cursor: grabbing; }
+	/* APNG（img）疊在 poster（canvas，靜止影格）之上；hover 播 img、移開換 poster */
+	.balloon img, .balloon canvas { position: absolute; inset: 0; width: 100%; height: 100%;
+		object-fit: cover; pointer-events: none; display: block; }
+	.balloon .hidden { display: none; }
+
+	/* 氣球展開的工具選單：Pen / Ruler / Setting */
+	.menu { position: fixed; z-index: ${UI_Z}; display: none; flex-direction: column; gap: 8px; }
+	.menu.show { display: flex; }
+	.menu button { width: 44px; height: 44px; border-radius: 50%; border: 2px solid #fff;
+		background: #e8e8f0 center/58% no-repeat; box-shadow: 0 3px 10px rgba(0,0,0,.4);
+		cursor: pointer; padding: 0; }
+	.menu button:hover { background-color: #fff; }
+	.menu button.on { border-color: #ffd54a; box-shadow: 0 0 0 2px #ffd54a, 0 3px 10px rgba(0,0,0,.4); }
+	.menu button.emoji { background-image: none; font-size: 22px; line-height: 1;
+		display: flex; align-items: center; justify-content: center; }
+
+	/* Pen 工具箱：工具選擇的分段按鈕 */
+	.seg { display: flex; gap: 4px; flex-wrap: wrap; margin: 2px 0 4px; }
+	.seg .act { flex: 1; min-width: 60px; text-align: center; }
+	.seg .act.on { background: #4a2fd6; border-color: #6a4ff6; color: #fff; }
+	.objrow { display: flex; align-items: center; gap: 5px; padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+	.objrow:hover { background: #3a3a52; }
+	.objrow.sel { background: #4a3a80; }
+	.objrow .fn { flex-shrink: 0; }
+	.objrow .dt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+	.objrow .lyr { background: none; border: none; cursor: pointer; padding: 0 2px; line-height: 1;
+		font-size: calc(var(--fs) - 1px); flex-shrink: 0; filter: grayscale(.2); }
+	.objrow .lyr:hover { filter: none; }
+	.objrow .del { margin-left: auto; color: #ff7a90; background: none; border: none; cursor: pointer;
+		font-size: calc(var(--fs)); padding: 0 4px; flex-shrink: 0; }
 	.panel {
-		position: fixed; z-index: ${UI_Z}; width: 400px; max-height: 80vh; overflow: auto;
+		position: fixed; z-index: ${UI_Z}; width: 400px; max-height: 80vh;
 		background: rgba(24,24,32,.97); color: #e8e8f0; border: 1px solid #4a4a66; border-radius: 10px;
 		box-shadow: 0 8px 30px rgba(0,0,0,.5); font-size: var(--fs); line-height: 1.45; display: none;
+		flex-direction: column; overflow: hidden;
 	}
-	.panel.show { display: block; }
+	.panel.show { display: flex; }
+	/* .hd 與 .tabs 是 flex 固定項，只有 .bd 內部捲動 —— 捲內容時標題與頁籤永遠留在頂端 */
 	.hd { display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: #2b2b3d;
-		border-bottom: 1px solid #4a4a66; border-radius: 9px 9px 0 0; cursor: move; user-select: none; }
+		border-bottom: 1px solid #4a4a66; border-radius: 9px 9px 0 0; cursor: move; user-select: none;
+		flex: 0 0 auto; }
 	.hd b { flex: 1; font-size: calc(var(--fs) + 1px); }
 	.hd button { background: none; border: none; color: #aaa; cursor: pointer;
 		font-size: calc(var(--fs) + 2px); padding: 0 5px; line-height: 1; }
 	.hd button:hover { color: #fff; }
-	.tabs { display: flex; gap: 2px; padding: 0 8px; background: #242434; border-bottom: 1px solid #4a4a66; }
+	.tabs { display: flex; gap: 2px; padding: 0 8px; background: #242434; border-bottom: 1px solid #4a4a66;
+		flex: 0 0 auto; }
 	.tabs button { background: none; border: none; border-bottom: 2px solid transparent; color: #8a8aa0;
 		cursor: pointer; padding: 7px 14px; font-size: calc(var(--fs) - 1px); }
 	.tabs button:hover { color: #e8e8f0; }
 	.tabs button.on { color: #fff; border-bottom-color: #7b5cff; }
-	.bd { padding: 10px 12px 12px; }
+	.bd { padding: 10px 12px 12px; overflow: auto; flex: 1 1 auto; min-height: 0; }
 	.texbox { background: repeating-conic-gradient(#3a3a52 0% 25%, #2b2b3d 0% 50%) 0 0 / 14px 14px;
 		border: 1px solid #4a4a66; border-radius: 5px; padding: 4px; margin-top: 4px; overflow: auto;
 		max-height: 220px; text-align: center; }
@@ -811,31 +1179,31 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		style.textContent = CSS;
 		shadow.appendChild(style);
 
-		balloon = document.createElement("div");
-		balloon.className = "balloon";
-		balloon.title = "DrawDetectionTool  — 點一下進入偵測模式，可拖曳搬家";
-		balloon.textContent = "🎈";
-		balloon.style.left = "12px";
-		balloon.style.top = "120px";
-		shadow.appendChild(balloon);
+		createBalloon(shadow);
+		createMenu(shadow);
 
+		// --- Ruler（偵測）面板：加了「屬性」頁 ---
 		panel = document.createElement("div");
 		panel.className = "panel";
 		panel.style.left = "70px";
 		panel.style.top = "120px";
 		panel.innerHTML = `
 			<div class="hd">
-				<b>Draw Detection Tool </b>
+				<b>📏 Ruler · 偵測</b>
 				<button data-fsdn title="縮小文字">A−</button>
 				<button data-fsup title="放大文字">A+</button>
 				<button data-x title="關閉">✕</button>
 			</div>
 			<div class="tabs">
 				<button data-tab="select" class="on">選取</button>
+				<button data-tab="props">屬性</button>
 				<button data-tab="frame">幀</button>
 			</div>
-			<div class="bd"><div class="empty">按 🎈 或 <kbd>F2</kbd> 偵測游標下的物件</div></div>`;
+			<div class="bd"><div class="empty">按 🎈→📏 或 <kbd>F2</kbd> 偵測游標下的物件</div></div>`;
 		shadow.appendChild(panel);
+
+		createPenPanel(shadow);
+		createSetPanel(shadow);
 
 		domHighlight = document.createElement("div");
 		domHighlight.className = "hl";
@@ -843,7 +1211,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 
 		document.body.appendChild(root);
 
-		// 字級：存起來，下次載入沿用
+		// 字級：存起來，下次載入沿用（三個面板共用 root 的 --fs）
 		const savedFs = parseFloat(localStorage.getItem("DDTFontSize"));
 		setFontSize(isFinite(savedFs) ? savedFs : 15);
 		panel.querySelector("[data-fsup]").addEventListener("click", () => setFontSize(curFontSize + 1));
@@ -856,12 +1224,415 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			renderPanel();
 		}));
 
-		makeDraggable(balloon, balloon, () => togglePicking());
+		loadPenObjects();
+
+		// 氣球點一下 = 展開/收起工具選單；拖曳時附屬選單跟著跑（需求 2）
+		makeDraggable(balloon, balloon, toggleMenu, () => { if (menuOpen) positionMenuNearBalloon(); });
 		makeDraggable(panel, panel.querySelector(".hd"));
+		makeDraggable(penPanel, penPanel.querySelector(".hd"));
+		makeDraggable(setPanel, setPanel.querySelector(".hd"));
 	}
 
-	/** 讓元素可拖曳；沒有位移的話當成點擊 */
-	function makeDraggable(el, handle, onClick) {
+	// ---------------------------------------------------------------- 氣球（APNG）＋ 工具選單
+
+	function createBalloon(shadow) {
+		balloon = document.createElement("div");
+		balloon.className = "balloon";
+		balloon.title = "點一下展開工具（Pen / Ruler / Setting）；可拖曳搬家";
+		balloon.style.left = "12px";
+		balloon.style.top = "120px";
+
+		// poster = 靜止影格（預設顯示）；img = APNG（游標移上去才顯示 → 才看得到動畫）
+		balloonPoster = document.createElement("canvas");
+		balloonPoster.width = 96; balloonPoster.height = 96;
+		balloonImg = document.createElement("img");
+		balloonImg.className = "hidden";
+		balloonImg.alt = "";
+		balloonImg.crossOrigin = "anonymous"; // 讓 poster 能 drawImage 擷取影格而不污染畫布
+		balloon.appendChild(balloonPoster);
+		balloon.appendChild(balloonImg);
+		shadow.appendChild(balloon);
+
+		balloon.addEventListener("pointerenter", playBalloon);
+		balloon.addEventListener("pointerleave", freezeBalloon);
+		balloonImg.addEventListener("load", () => {
+			// 載入後先擷取一張當靜止 poster（此時多半是第一影格）
+			if (balloonImg.classList.contains("hidden")) snapshotBalloon();
+		});
+		balloonImg.src = ICON.balloon;
+	}
+
+	/** 擷取 APNG 目前影格畫進 poster；跨域讀不到就維持原樣（露出底色也還行） */
+	function snapshotBalloon() {
+		try {
+			const c = balloonPoster.getContext("2d");
+			c.clearRect(0, 0, 96, 96);
+			c.drawImage(balloonImg, 0, 0, 96, 96);
+		} catch { /* 跨域污染：放棄擷取 */ }
+	}
+	function playBalloon() {
+		balloonImg.classList.remove("hidden");
+		balloonPoster.classList.add("hidden");
+	}
+	function freezeBalloon() {
+		snapshotBalloon();
+		balloonImg.classList.add("hidden");
+		balloonPoster.classList.remove("hidden");
+	}
+
+	function createMenu(shadow) {
+		menu = document.createElement("div");
+		menu.className = "menu";
+		// DDT-Hidden 夾在 Ruler 與 Setting 中間；它不是工具面板，是全域顯示切換（需求 5）
+		menu.innerHTML = `
+			<button data-tool="pen" title="Pen — 繪圖工具箱" style="background-image:url('${ICON.pen}')"></button>
+			<button data-tool="ruler" title="Ruler — 偵測 / 檢視 / 編輯" style="background-image:url('${ICON.ruler}')"></button>
+			<button data-hidden class="emoji" title="DDT-Hidden — 全部虛線 / 全部隱藏 / 正常">👁</button>
+			<button data-tool="setting" title="Setting — 匯出/匯入/隱藏" style="background-image:url('${ICON.setting}')"></button>`;
+		shadow.appendChild(menu);
+		menu.querySelectorAll("[data-tool]").forEach((b) =>
+			b.addEventListener("click", () => openTool(b.dataset.tool)));
+		menu.querySelector("[data-hidden]").addEventListener("click", cycleGlobalHide);
+	}
+
+	/** DDT-Hidden：正常 → 全部虛線 → 全部隱藏(含底圖) → 正常（需求 5） */
+	function cycleGlobalHide() {
+		globalHide = (globalHide + 1) % 3;
+		const b = menu.querySelector("[data-hidden]");
+		if (b) {
+			b.classList.toggle("on", globalHide !== 0);
+			b.textContent = globalHide === 1 ? "▨" : globalHide === 2 ? "🚫" : "👁";
+			b.title = globalHide === 1 ? "DDT-Hidden — 目前：全部虛線（再按=全部隱藏）"
+				: globalHide === 2 ? "DDT-Hidden — 目前：全部隱藏含底圖（再按=正常）"
+				: "DDT-Hidden — 全部虛線 / 全部隱藏 / 正常";
+		}
+	}
+
+	function toggleMenu() {
+		menuOpen = !menuOpen;
+		if (menuOpen) { menu.classList.add("show"); positionMenuNearBalloon(); }
+		else menu.classList.remove("show");
+	}
+
+	function positionMenuNearBalloon() {
+		const r = balloon.getBoundingClientRect();
+		let left = r.right + 8;
+		if (left + 48 > window.innerWidth) left = r.left - 52; // 靠右邊界就往左展開
+		menu.style.left = Math.max(4, left) + "px";
+		menu.style.top = Math.max(4, r.top) + "px";
+	}
+
+	/** 從選單開啟某個工具：切面板 + 更新選單高亮 + 進/出各自的互動模式 */
+	function openTool(name) {
+		activeTool = activeTool === name ? null : name; // 再按一次同一個 = 收起
+		menu.querySelectorAll("[data-tool]").forEach((b) =>
+			b.classList.toggle("on", b.dataset.tool === activeTool));
+		balloon.classList.toggle("on", !!activeTool);
+
+		// 先把三個工具全部收起（含「再按一次同一個 = 收起」的情況），再打開選中的
+		setPenMode(false);
+		penPanel.classList.remove("show");
+		setPanel.classList.remove("show");
+		if (picking || panel.classList.contains("show")) closePanel();
+
+		if (activeTool === "pen") {
+			penPanel.classList.add("show"); setPenMode(true); positionNear(penPanel); renderPenPanel();
+		} else if (activeTool === "ruler") {
+			startPicking(); renderPanel(); positionNear(panel);
+		} else if (activeTool === "setting") {
+			setPanel.classList.add("show"); positionNear(setPanel); renderSetPanel();
+		}
+	}
+
+	/** 把面板擺到氣球旁邊（沒被拖過的話） */
+	function positionNear(p) {
+		const r = balloon.getBoundingClientRect();
+		let left = r.right + 8;
+		if (left + p.offsetWidth > window.innerWidth) left = Math.max(4, r.left - p.offsetWidth - 8);
+		p.style.left = left + "px";
+		p.style.top = Math.max(4, Math.min(r.top, window.innerHeight - 120)) + "px";
+	}
+
+	/** 關掉目前開著的工具（Pen / Setting 的 ✕ 共用；Ruler 走 closePanel） */
+	function closeTool() {
+		activeTool = null;
+		menu.querySelectorAll("[data-tool]").forEach((b) => b.classList.remove("on"));
+		balloon.classList.remove("on");
+		setPenMode(false);
+		penPanel.classList.remove("show");
+		setPanel.classList.remove("show");
+		if (picking || panel.classList.contains("show")) closePanel();
+	}
+
+	function hideBalloon() {
+		if (balloon) balloon.style.display = "none";
+		if (menu) menu.classList.remove("show");
+		menuOpen = false;
+	}
+	function showBalloon() {
+		if (balloon) balloon.style.display = "";
+	}
+
+	// ---------------------------------------------------------------- Pen 面板
+
+	const LABEL = "display:flex;gap:5px;align-items:center;cursor:pointer;flex:0 0 auto";
+
+	function createPenPanel(shadow) {
+		penPanel = document.createElement("div");
+		penPanel.className = "panel";
+		penPanel.style.left = "70px"; penPanel.style.top = "120px"; penPanel.style.width = "360px";
+		penPanel.innerHTML = `
+			<div class="hd"><b>🖊 Pen · 繪圖</b><button data-x title="關閉">✕</button></div>
+			<div class="bd"></div>`;
+		shadow.appendChild(penPanel);
+		penPanel.querySelector("[data-x]").addEventListener("click", closeTool);
+	}
+
+	function renderPenPanel() {
+		if (!penPanel || !penPanel.classList.contains("show")) return;
+		const bd = penPanel.querySelector(".bd");
+		const tools = [["select", "選取/移動"], ["button", "按鈕"], ["text", "文字"], ["frame", "純框"]];
+		let h = `<div class="seg">` +
+			tools.map(([v, l]) => `<button class="act ${penTool === v ? "on" : ""}" data-ptool="${v}">${l}</button>`).join("") + `</div>`;
+		h += `<div class="note">選「按鈕/文字/純框」後在畫布上拖出一個框（點一下則給預設大小）；框裡都能打字。點既有物件會自動變成拖移。</div>`;
+
+		// 網格 / 貼齊（需求 7、8）
+		h += `<h4>網格 / 貼齊</h4>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-gridon ${gridOn ? "checked" : ""}> 顯示網格</label>
+			<span class="k" style="width:auto">間距</span><input type="number" data-gridsize value="${gridSize}" style="width:64px"></div>`;
+		h += `<div class="row"><span class="k">網格深淺</span><input type="range" data-gridalpha min="0" max="100" value="${Math.round(gridAlpha * 100)}" style="flex:1">
+			<span class="v" style="flex:0 0 auto">${Math.round(gridAlpha * 100)}%</span></div>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-snapon ${snapOn ? "checked" : ""}> 自動貼齊（網格＋物件邊/中對齊）</label></div>`;
+
+		// Sheet 底圖
+		h += `<h4>Sheet.jpg 底圖</h4>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-sheeton ${sheetOn ? "checked" : ""}> 覆蓋 Backgrounds/Sheet.jpg</label></div>`;
+		h += `<div class="row"><span class="k">透明度</span><input type="range" data-sheeta min="0" max="100" value="${Math.round(sheetAlpha * 100)}" style="flex:1">
+			<span class="v" style="flex:0 0 auto">${Math.round(sheetAlpha * 100)}%</span></div>`;
+
+		// 選中物件屬性（可收納，需求 6）
+		h += renderPenObjProps();
+
+		// 圖層清單（可展開/收納，含隱藏 / 鎖定，需求 6）
+		const lcaret = layersCollapsed ? "▸" : "▾";
+		h += `<h4 style="display:flex;align-items:center;cursor:pointer" data-layerstoggle>
+			<span>${lcaret} 圖層（${penObjects.length}）</span><span style="color:#777;font-weight:400;margin-left:6px"> · 👁顯示/外框/隱藏 🔒鎖定</span></h4>`;
+		if (!layersCollapsed) {
+			if (!penObjects.length) {
+				h += `<div class="note">還沒有物件。</div>`;
+			} else {
+				h += `<div class="stack">`;
+				// 由上而下顯示 = 由最上層（陣列尾）到最底層
+				for (let i = penObjects.length - 1; i >= 0; i--) {
+					const o = penObjects[i];
+					const hicon = o.hidden === "full" ? "🚫" : o.hidden === "outline" ? "▨" : "👁";
+					h += `<div class="objrow ${o === penSel ? "sel" : ""}" data-obj="${i}">
+						<button class="lyr" data-hideobj="${i}" title="顯示 → 只留外框 → 完全隱藏">${hicon}</button>
+						<button class="lyr" data-lockobj="${i}" title="鎖定/解鎖">${o.locked ? "🔒" : "🔓"}</button>
+						<span class="fn">${VARIANT_LABEL[o.variant] || "框"}</span>
+						<span class="dt">${esc(shortStr(o.text || "", 10))}</span>
+						<button class="del" data-delobj="${i}" title="刪除">🗑</button></div>`;
+				}
+				h += `</div><div class="row"><button class="act" data-clearpen>清除全部</button></div>`;
+			}
+		}
+		h += `<div class="note">物件以 2000×1000 虛擬座標保存，跟解析度無關；改動即時存本地，可到 ⚙ Setting 匯出/匯入。</div>`;
+
+		bd.innerHTML = h;
+		wirePenPanel();
+	}
+
+	function renderPenObjProps() {
+		const o = penSel;
+		const caret = propsCollapsed ? "▸" : "▾";
+		let h = `<h4 style="display:flex;align-items:center;cursor:pointer" data-propstoggle>
+			<span>${caret} 選中物件${o ? " · " + (VARIANT_LABEL[o.variant] || "框") : ""}</span></h4>`;
+		if (!o) { h += `<div class="note">點畫布上的物件（或下面圖層清單）即可編輯它的尺寸/字級/座標/顏色/旋轉；拖動時原位虛線、新位實線。</div>`; return h; }
+		if (propsCollapsed) return h; // 收納：只留標題
+
+		// 切換 variant（需求 6：切換屬性）
+		h += `<div class="row"><span class="k">類型</span><div class="seg" style="flex:1;margin:0">` +
+			["button", "text", "frame"].map((v) => `<button class="act ${o.variant === v ? "on" : ""}" data-ovariant="${v}">${VARIANT_LABEL[v]}</button>`).join("") + `</div></div>`;
+
+		h += `<div class="row"><span class="k">X / Y</span><input type="number" data-ox value="${Math.round(o.x)}" style="width:80px"><input type="number" data-oy value="${Math.round(o.y)}" style="width:80px"></div>`;
+		h += `<div class="row"><span class="k">寬 / 高</span><input type="number" data-ow value="${Math.round(o.w)}" style="width:80px"><input type="number" data-oh value="${Math.round(o.h)}" style="width:80px"></div>`;
+		h += `<div class="row"><span class="k">旋轉°</span><input type="range" data-orot min="-180" max="180" value="${o.rot || 0}" style="flex:1"><input type="number" data-orotn value="${o.rot || 0}" style="width:64px"></div>`;
+		h += `<div class="row"><span class="k">文字</span><input type="text" data-otext value="${esc(o.text || "")}"></div>`;
+		h += `<div class="row"><span class="k">字級 / 色</span><input type="number" data-ofs value="${o.fontSize || DEF_FONT}" style="width:70px"><input type="color" data-otcolor value="${normalizeColor(o.textColor) || DEF_TEXTCOLOR}">
+			<label style="${LABEL}"><input type="checkbox" data-oleft ${o.align === "left" ? "checked" : ""}> 靠左</label></div>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-ofillon ${o.fill ? "checked" : ""}> 填色</label><input type="color" data-ofill value="${normalizeColor(o.fill) || "#ffd54a"}"></div>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-oborderon ${o.border ? "checked" : ""}> 外框</label><input type="color" data-oborder value="${normalizeColor(o.border) || "#000000"}"><input type="number" data-oborderw value="${o.borderW || 3}" style="width:58px"></div>`;
+		h += `<div class="row" style="margin-top:6px">
+			<span class="k">顯示</span>
+			<select data-ohide>
+				<option value="show" ${!o.hidden ? "selected" : ""}>顯示</option>
+				<option value="outline" ${o.hidden === "outline" ? "selected" : ""}>只留外框</option>
+				<option value="full" ${o.hidden === "full" ? "selected" : ""}>完全隱藏</option>
+			</select>
+			<label style="${LABEL}"><input type="checkbox" data-olocked ${o.locked ? "checked" : ""}> 鎖定</label></div>`;
+		h += `<div class="row"><button class="act" data-odel>刪除此物件</button></div>`;
+		return h;
+	}
+
+	function wirePenPanel() {
+		const q = (s) => penPanel.querySelector(s), qa = (s) => penPanel.querySelectorAll(s);
+
+		qa("[data-ptool]").forEach((b) => b.addEventListener("click", () => { penTool = b.dataset.ptool; renderPenPanel(); }));
+
+		q("[data-gridon]")?.addEventListener("change", (e) => { gridOn = e.target.checked; });
+		q("[data-gridsize]")?.addEventListener("input", (e) => { gridSize = Math.max(5, Number(e.target.value) || 50); });
+		const ga = q("[data-gridalpha]");
+		ga?.addEventListener("input", () => { gridAlpha = Number(ga.value) / 100; const lab = ga.nextElementSibling; if (lab) lab.textContent = ga.value + "%"; });
+		q("[data-snapon]")?.addEventListener("change", (e) => { snapOn = e.target.checked; });
+
+		q("[data-sheeton]")?.addEventListener("change", (e) => { sheetOn = e.target.checked; });
+		const sa = q("[data-sheeta]");
+		sa?.addEventListener("input", () => { sheetAlpha = Number(sa.value) / 100; const lab = sa.nextElementSibling; if (lab) lab.textContent = sa.value + "%"; });
+
+		q("[data-propstoggle]")?.addEventListener("click", () => { propsCollapsed = !propsCollapsed; renderPenPanel(); });
+		q("[data-layerstoggle]")?.addEventListener("click", () => { layersCollapsed = !layersCollapsed; renderPenPanel(); });
+
+		// 圖層清單
+		qa("[data-obj]").forEach((n) => n.addEventListener("click", (e) => {
+			if (e.target.closest("button")) return; // 讓 👁/🔒/🗑 各自處理
+			penSel = penObjects[parseInt(n.dataset.obj, 10)];
+			propsCollapsed = false; // 需求 6：選到物件就展開屬性
+			renderPenPanel();
+		}));
+		// 👁 循環：顯示 → 只留外框 → 完全隱藏 → 顯示（需求 4）
+		qa("[data-hideobj]").forEach((n) => n.addEventListener("click", (e) => {
+			e.stopPropagation();
+			const o = penObjects[parseInt(n.dataset.hideobj, 10)];
+			o.hidden = o.hidden === false ? "outline" : o.hidden === "outline" ? "full" : false;
+			savePenObjects(); renderPenPanel();
+		}));
+		qa("[data-lockobj]").forEach((n) => n.addEventListener("click", (e) => {
+			e.stopPropagation();
+			const o = penObjects[parseInt(n.dataset.lockobj, 10)]; o.locked = !o.locked; savePenObjects(); renderPenPanel();
+		}));
+		qa("[data-delobj]").forEach((n) => n.addEventListener("click", (e) => {
+			e.stopPropagation();
+			deletePenObject(penObjects[parseInt(n.dataset.delobj, 10)]);
+			renderPenPanel();
+		}));
+		q("[data-clearpen]")?.addEventListener("click", () => { if (confirm("清除全部 Pen 物件？")) { clearPenObjects(); renderPenPanel(); } });
+
+		const o = penSel;
+		if (!o) return;
+		const live = () => savePenObjects();
+		qa("[data-ovariant]").forEach((b) => b.addEventListener("click", () => {
+			const v = b.dataset.ovariant; const pre = VARIANT[v]; o.variant = v;
+			// 切換類型時把樣式套成該類型預設（座標/尺寸/文字保留）
+			o.fill = pre.fill; o.border = pre.border; o.borderW = pre.borderW; o.align = pre.align;
+			live(); renderPenPanel();
+		}));
+		q("[data-ox]")?.addEventListener("input", (e) => { o.x = Number(e.target.value) || 0; live(); });
+		q("[data-oy]")?.addEventListener("input", (e) => { o.y = Number(e.target.value) || 0; live(); });
+		q("[data-ow]")?.addEventListener("input", (e) => { o.w = Math.max(1, Number(e.target.value) || 1); live(); });
+		q("[data-oh]")?.addEventListener("input", (e) => { o.h = Math.max(1, Number(e.target.value) || 1); live(); });
+		const rot = q("[data-orot]"), rotn = q("[data-orotn]");
+		rot?.addEventListener("input", () => { o.rot = Number(rot.value) || 0; if (rotn) rotn.value = o.rot; live(); });
+		rotn?.addEventListener("input", () => { o.rot = Number(rotn.value) || 0; if (rot) rot.value = o.rot; live(); });
+		q("[data-otext]")?.addEventListener("input", (e) => { o.text = e.target.value; live(); });
+		q("[data-ofs]")?.addEventListener("input", (e) => { o.fontSize = Number(e.target.value) || DEF_FONT; live(); });
+		q("[data-otcolor]")?.addEventListener("input", (e) => { o.textColor = e.target.value; live(); });
+		q("[data-oleft]")?.addEventListener("change", (e) => { o.align = e.target.checked ? "left" : "center"; live(); });
+		q("[data-ofillon]")?.addEventListener("change", (e) => { o.fill = e.target.checked ? (q("[data-ofill]")?.value || "#ffd54a") : null; live(); });
+		q("[data-ofill]")?.addEventListener("input", (e) => { o.fill = e.target.value; const c = q("[data-ofillon]"); if (c) c.checked = true; live(); });
+		q("[data-oborderon]")?.addEventListener("change", (e) => { o.border = e.target.checked ? (q("[data-oborder]")?.value || "#000000") : null; live(); });
+		q("[data-oborder]")?.addEventListener("input", (e) => { o.border = e.target.value; const c = q("[data-oborderon]"); if (c) c.checked = true; live(); });
+		q("[data-oborderw]")?.addEventListener("input", (e) => { o.borderW = Number(e.target.value) || 0; live(); });
+		q("[data-ohide]")?.addEventListener("change", (e) => { o.hidden = normHidden(e.target.value); live(); renderPenPanel(); });
+		q("[data-olocked]")?.addEventListener("change", (e) => { o.locked = e.target.checked; live(); renderPenPanel(); });
+		q("[data-odel]")?.addEventListener("click", () => { deletePenObject(o); renderPenPanel(); });
+	}
+
+	// ---------------------------------------------------------------- Setting 面板
+
+	function createSetPanel(shadow) {
+		setPanel = document.createElement("div");
+		setPanel.className = "panel";
+		setPanel.style.left = "70px"; setPanel.style.top = "120px"; setPanel.style.width = "360px";
+		setPanel.innerHTML = `
+			<div class="hd"><b>⚙ Setting</b><button data-x title="關閉">✕</button></div>
+			<div class="bd"></div>`;
+		shadow.appendChild(setPanel);
+		setPanel.querySelector("[data-x]").addEventListener("click", closeTool);
+	}
+
+	function renderSetPanel() {
+		if (!setPanel || !setPanel.classList.contains("show")) return;
+		const bd = setPanel.querySelector(".bd");
+		let h = `<h4>Pen 座標匯出 / 匯入</h4>`;
+		h += `<div class="row"><button class="act pri" data-exportfile>匯出成檔案</button><button class="act" data-export>顯示 JSON</button><button class="act" data-copy>複製</button></div>`;
+		h += `<div class="row"><textarea data-io rows="6" placeholder="按「匯出」把座標填到這裡，或貼上 JSON 後按「匯入」" style="flex:1;width:100%;background:#2b2b3d;color:#e8e8f0;border:1px solid #4a4a66;border-radius:5px;padding:6px;font-family:ui-monospace,Consolas,monospace;font-size:calc(var(--fs) - 2px);resize:vertical"></textarea></div>`;
+		h += `<div class="row"><button class="act" data-import>從上框匯入</button><button class="act" data-importfile>選檔匯入…</button>
+			<input type="file" data-file accept="application/json,.json" style="display:none"></div>`;
+		h += `<div class="note">匯出目前 <b>${penObjects.length}</b> 個 Pen 物件（型別/座標/尺寸/字級/顏色/旋轉/隱藏/鎖定）。<span class="warn">匯入會取代目前全部物件。</span></div>`;
+		h += `<h4>氣球</h4>`;
+		h += `<div class="row"><button class="act" data-hide>隱藏氣球</button></div>`;
+		h += `<div class="note">隱藏後，可在瀏覽器控制台輸入 <kbd>Liko.BDT.showBalloon()</kbd> 重新叫出氣球。</div>`;
+		bd.innerHTML = h;
+		wireSetPanel();
+	}
+
+	function wireSetPanel() {
+		const q = (s) => setPanel.querySelector(s);
+		const io = q("[data-io]");
+		q("[data-exportfile]")?.addEventListener("click", exportPenToFile);
+		q("[data-export]")?.addEventListener("click", () => { io.value = exportPenJSON(); });
+		q("[data-copy]")?.addEventListener("click", async () => {
+			const t = exportPenJSON(); io.value = t;
+			try { await navigator.clipboard.writeText(t); } catch { /* 沒剪貼簿權限就算了，內容已在框裡 */ }
+		});
+		q("[data-import]")?.addEventListener("click", () => { if (importPenJSON(io.value)) { renderPenPanel(); renderSetPanel(); } });
+		const file = q("[data-file]");
+		q("[data-importfile]")?.addEventListener("click", () => file.click());
+		file?.addEventListener("change", () => {
+			const f = file.files && file.files[0];
+			if (!f) return;
+			const rd = new FileReader();
+			rd.onload = () => { io.value = String(rd.result); if (importPenJSON(io.value)) { renderPenPanel(); renderSetPanel(); } };
+			rd.readAsText(f);
+		});
+		q("[data-hide]")?.addEventListener("click", hideBalloon);
+	}
+
+	function exportPenJSON() {
+		return JSON.stringify({ mod: "DDT", type: "pen-objects", version: MOD_VERSION, objects: penObjects }, null, 2);
+	}
+
+	function importPenJSON(text) {
+		try {
+			const data = JSON.parse(text);
+			const arr = Array.isArray(data) ? data : data && data.objects;
+			if (!Array.isArray(arr)) throw new Error("格式不符（找不到 objects 陣列）");
+			penObjects = arr.filter((o) => o && isFinite(o.x) && isFinite(o.y)).map(normalizePenObj);
+			penSeq = 1; penObjects.forEach((o) => (o.id = newPenId()));
+			penSel = null;
+			savePenObjects();
+			return true;
+		} catch (e) {
+			alert("匯入失敗：" + (e && e.message ? e.message : e));
+			return false;
+		}
+	}
+
+	/** 需求 3：直接把 Pen 物件下載成 .json 檔 */
+	function exportPenToFile() {
+		try {
+			const blob = new Blob([exportPenJSON()], { type: "application/json" });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+			a.href = url; a.download = `DDT-pen-${ts}.json`;
+			document.body.appendChild(a); a.click(); a.remove();
+			setTimeout(() => URL.revokeObjectURL(url), 1000);
+		} catch (e) { alert("匯出檔案失敗：" + (e && e.message ? e.message : e)); }
+	}
+
+	/** 讓元素可拖曳；沒有位移的話當成點擊。onDrag 在拖曳中每次移動呼叫（讓附屬選單跟著跑）。 */
+	function makeDraggable(el, handle, onClick, onDrag) {
 		let sx = 0, sy = 0, ox = 0, oy = 0, moved = false, dragging = false;
 		handle.addEventListener("pointerdown", (e) => {
 			if (e.button !== 0) return;
@@ -882,6 +1653,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			if (!moved) return;
 			el.style.left = Math.max(0, Math.min(window.innerWidth - 40, ox + dx)) + "px";
 			el.style.top = Math.max(0, Math.min(window.innerHeight - 30, oy + dy)) + "px";
+			if (onDrag) onDrag();
 		});
 		handle.addEventListener("pointerup", (e) => {
 			if (!dragging) return;
@@ -893,15 +1665,11 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 
 	// ---------------------------------------------------------------- 取樣流程
 
-	function togglePicking() {
-		if (picking) stopPicking(); else startPicking();
-	}
-
 	function startPicking() {
 		picking = true;
 		recording = true;
-		balloon.classList.add("on");
-		balloon.textContent = "🎯";
+		// 注意：氣球內容現在是 APNG（img + poster canvas），不能再用 textContent 覆蓋，
+		// 否則會把子節點清掉。狀態改用 body 游標 + 選單/氣球外框高亮表示。
 		document.body.style.cursor = "crosshair";
 	}
 
@@ -910,8 +1678,6 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		hoverRect = null;
 		// 選中的是 DOM 時要留著框，否則選取狀態就看不見了
 		if (!(selection && selection.kind === "dom")) domHighlight.style.display = "none";
-		balloon.classList.remove("on");
-		balloon.textContent = "🎈";
 		document.body.style.cursor = "";
 		// 面板關掉才真的停止記錄，否則選取框需要每幀重畫
 		if (!panel.classList.contains("show")) recording = false;
@@ -973,6 +1739,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	 * 有些東西（tooltip、選單）一被點就收起來，用點的根本抓不到，所以這條路才是主要用法。
 	 */
 	async function inspectAtPointer() {
+		setPenMode(false); // F2 走偵測路線，先讓 Pen 別攔點擊
 		const { x, y } = lastMouse;
 		if (!recording) {
 			// 剛開錄時 lastLog 還是空的，要等一整幀 DrawProcess 跑完才有東西可以命中
@@ -986,15 +1753,106 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		else inspectDom(el, x, y);
 	}
 
+	// ---------------------------------------------------------------- Pen 模式的滑鼠互動（window capture）
+
+	function normRect(x0, y0, x1, y1) {
+		return [Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0)];
+	}
+
+	/** 新框的預覽（拖曳中），套用目前 variant 的預設樣式 */
+	function makePreview(variant, x0, y0, x1, y1) {
+		const [x, y, w, h] = normRect(x0, y0, x1, y1);
+		const v = VARIANT[variant] || VARIANT.frame;
+		return {
+			variant, x, y, w: Math.max(w, 4), h: Math.max(h, 4), rot: 0,
+			fill: v.fill, border: v.border, borderW: v.borderW,
+			text: v.text, fontSize: DEF_FONT, textColor: DEF_TEXTCOLOR, align: v.align,
+			hidden: false, locked: false,
+		};
+	}
+
+	function commitNew(d, endP) {
+		let [x, y, w, h] = normRect(d.sx, d.sy, endP.x, endP.y);
+		if (w < 8 || h < 8) {
+			// 只點一下沒拖：給一個預設大小的框，方便放「文字」這種不想拖的
+			w = Math.max(w, 160); h = Math.max(h, 60);
+		}
+		x = snap(x); y = snap(y); w = Math.max(8, snap(w)); h = Math.max(8, snap(h));
+		propsCollapsed = false; // 建立後展開屬性面板方便馬上編輯
+		const v = VARIANT[d.variant] || VARIANT.frame;
+		addPenObject({
+			variant: d.variant, x, y, w, h, rot: 0,
+			fill: v.fill, border: v.border, borderW: v.borderW,
+			text: v.text, fontSize: DEF_FONT, textColor: DEF_TEXTCOLOR, align: v.align,
+			hidden: false, locked: false,
+		});
+		renderPenPanel();
+	}
+
+	/** Pen 模式的座標是否落在主畫布上（避免點到 BC 的 DOM 元件時還去建物件） */
+	function penOnCanvas(e) {
+		return document.elementFromPoint(e.clientX, e.clientY) === (typeof MainCanvas !== "undefined" ? MainCanvas?.canvas : null);
+	}
+
+	function penPointerDown(e) {
+		if (!penMode || isOurUI(e) || e.button !== 0) return;
+		// 需求 4：繪圖模式下，畫布這層的點擊一律吞掉，底下 BC 碰不到
+		e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+		swallowUntil = Date.now() + 500;
+		if (!penOnCanvas(e)) return; // 點在 BC 的 DOM 元件上：吞掉但不建立物件
+		const p = toVirtual(e.clientX, e.clientY);
+		// 需求 9：先看有沒有點到既有物件（最上層優先）；有的話一律切成拖移，不管目前是什麼工具
+		const hit = penHitTest(p.x, p.y);
+		if (hit) {
+			penSel = hit;
+			propsCollapsed = false; // 需求 6：選到物件就展開屬性
+			penDrag = { mode: "move", obj: hit, sx: p.x, sy: p.y, ox: hit.x, oy: hit.y, origRect: [hit.x, hit.y, hit.w, hit.h] };
+			renderPenPanel();
+			return;
+		}
+		// 沒點到物件：選取工具 = 取消選取；繪製工具 = 開始拉一個新框
+		if (penTool === "select") {
+			penSel = null; renderPenPanel();
+		} else {
+			penDrag = { mode: "new", variant: penTool, sx: p.x, sy: p.y, preview: makePreview(penTool, p.x, p.y, p.x, p.y) };
+		}
+	}
+
+	function penPointerMove(e) {
+		if (!penMode) return;
+		if (penDrag) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); }
+		if (!penDrag) return;
+		const p = toVirtual(e.clientX, e.clientY);
+		if (penDrag.mode === "move") {
+			const s = snapMove(penDrag.obj, penDrag.ox + (p.x - penDrag.sx), penDrag.oy + (p.y - penDrag.sy));
+			penDrag.obj.x = s.x; penDrag.obj.y = s.y;
+		} else {
+			penDrag.preview = makePreview(penDrag.variant, penDrag.sx, penDrag.sy, p.x, p.y);
+		}
+	}
+
+	function penPointerUp(e) {
+		if (!penDrag) return;
+		e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+		swallowUntil = Date.now() + 500;
+		const d = penDrag; penDrag = null;
+		if (d.mode === "move") { savePenObjects(); renderPenPanel(); return; }
+		commitNew(d, toVirtual(e.clientX, e.clientY));
+	}
+
 	function installInput() {
 		// 永遠追蹤游標位置，F2 才知道要看哪裡
 		window.addEventListener("pointermove", (e) => {
 			lastMouse = { x: e.clientX, y: e.clientY };
 		}, true);
 
-		// capture 階段搶在 BC 之前處理
+		// capture 階段搶在 BC 之前：Pen 的 penPointerDown 與 Ruler 的 onPick 各自 gate（penMode / picking）
+		window.addEventListener("pointerdown", penPointerDown, true);
 		window.addEventListener("pointerdown", onPick, true);
+		window.addEventListener("pointermove", penPointerMove, true);
 		window.addEventListener("pointermove", onMove, true);
+		window.addEventListener("pointerup", penPointerUp, true);
+		window.addEventListener("pointercancel", penPointerUp, true);
 		for (const t of ["mousedown", "mouseup", "click", "touchstart", "touchend"]) {
 			window.addEventListener(t, onSwallow, true);
 		}
@@ -1019,9 +1877,14 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 				return;
 			}
 			// ESC：直接收掉，等同按 ✕。只清選取的話會留一個空面板跟殘框，沒有意義
-			if (e.key === "Escape" && (picking || panel.classList.contains("show"))) {
+			if (e.key === "Escape") {
+				const anyOpen = picking || panel.classList.contains("show") ||
+					penPanel.classList.contains("show") || setPanel.classList.contains("show") || menuOpen;
+				if (!anyOpen) return;
 				e.stopPropagation();
-				closePanel();
+				if (menuOpen) { menuOpen = false; menu.classList.remove("show"); }
+				if (penPanel.classList.contains("show") || setPanel.classList.contains("show")) closeTool();
+				if (picking || panel.classList.contains("show")) closePanel();
 			}
 		}, true);
 	}
@@ -1098,12 +1961,29 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			wireFrameTab();
 			return;
 		}
+		if (tab === "props") {
+			bd.innerHTML = renderPropsTab();
+			wirePanel();
+			return;
+		}
 		if (!selection) {
-			bd.innerHTML = `<div class="empty">按 🎈 或 <kbd>F2</kbd> 偵測游標下的物件</div>`;
+			bd.innerHTML = `<div class="empty">按 🎈→📏 或 <kbd>F2</kbd> 偵測游標下的物件</div>`;
 			return;
 		}
 		bd.innerHTML = selection.kind === "canvas" ? renderCanvasInfo() : renderDomInfo();
 		wirePanel();
+	}
+
+	/** 「屬性」頁：只放可即時編輯的幾何/樣式（尺寸、字級、座標、顏色、旋轉），偵測資訊留在「選取」頁 */
+	function renderPropsTab() {
+		if (!selection) return `<div class="empty">先在「選取」頁偵測一個物件，再回這裡改它的尺寸/字級/座標/顏色/旋轉</div>`;
+		if (selection.kind === "dom") {
+			selection.editKey = null;
+			return `<div class="row"><span class="k">類型</span><span class="v"><span class="tag dom">DOM</span></span></div>` + renderDomEdit(selection.el);
+		}
+		const rec = selection.hits[selection.index];
+		if (!rec) return `<div class="empty">這個位置沒有可編輯的繪製呼叫</div>`;
+		return renderUiTools(rec);
 	}
 
 	// ---------------------------------------------------------------- 幀（事件瀏覽器 + 回放）
@@ -1231,8 +2111,8 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		h += renderTexture(rec);
 		h += renderState(rec);
 
-		// 屬性表對所有繪製呼叫都適用（角色也在 UI_SPEC 裡，所以角色也能直接拖位置）
-		h += renderUiTools(rec);
+		// 幾何/樣式編輯（尺寸/字級/座標/顏色/旋轉）移到「屬性」頁；這裡只給個入口提示。
+		if (rec.key && rec.spec) h += `<div class="note">要改尺寸/字級/座標/顏色/旋轉 → 切到上方「屬性」頁。</div>`;
 		if (rec.isCharacter) h += renderCharacterTools(rec);
 		h += renderStack();
 		return h;
@@ -1427,14 +2307,33 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			</div>`;
 		}
 
+		// 字級：只有文字類繪製有意義（改的是繪製前的 MainCanvas.font 的 px）
+		if (TEXT_FNS.has(rec.fn)) {
+			const origPx = parseFontPx(rec.state && rec.state.font);
+			const cur = o.fs != null ? o.fs : "";
+			h += `<div class="row">
+				<span class="k">字級</span>
+				<input type="number" data-fs value="${cur}" placeholder="${origPx || "px"}" step="1">
+				<span class="dt" style="color:#777">原始 ${origPx || "?"}</span>
+			</div>`;
+		}
+
+		// 旋轉：任何可編輯繪製都能繞中心旋轉（畫面上會即時轉）
+		h += `<div class="row">
+			<span class="k">旋轉°</span>
+			<input type="range" data-rot min="-180" max="180" value="${o.rot || 0}" style="flex:1">
+			<input type="number" data-rotn value="${o.rot || 0}" style="width:64px">
+		</div>`;
+
 		const dirty = uiOverrides.has(rec.key);
 		h += `<div class="row" style="margin-top:6px">
 			<button class="act" data-uiclear ${dirty ? "" : "disabled"}>還原這個</button>
 			${uiOverrides.size ? `<button class="act" data-uiclearall>還原全部 (${uiOverrides.size})</button>` : ""}
 		</div>`;
-		h += `<div class="note">改的是繪製前的參數，不是資料 —— 畫面每幀重畫，所以拖動數字就能即時看到位移/變色的效果。
+		h += `<div class="note">改的是繪製前的參數/變換，不是資料 —— 畫面每幀重畫，所以拖動數字就即時看到位移/變色/旋轉/字級的效果。
 			比對依據是「函式名 + 原始座標」，換畫面或元件本來就會動的話就會失效（還原鈕仍可清掉）。
-			${rec.fn === "DrawButton" ? '<span class="warn">注意：滑鼠移上按鈕時 BC 會強制畫成 Cyan，改的顏色要移開滑鼠才看得到。</span>' : ""}</div>`;
+			${rec.fn === "DrawTextFit" ? '<span class="warn">DrawTextFit 會自動縮放字級去塞進固定寬度，改字級多半看不出來，建議改「寬」讓它自己放大。</span>' : ""}
+			${rec.fn === "DrawButton" ? '<span class="warn">滑鼠移上按鈕時 BC 會強制畫成 Cyan，改的顏色要移開滑鼠才看得到。</span>' : ""}</div>`;
 		return h;
 	}
 
@@ -1477,8 +2376,15 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		h += row("螢幕座標", `L ${r.left.toFixed(1)}, T ${r.top.toFixed(1)} <span style="color:#777">(實際 px)</span>`);
 		h += row("螢幕尺寸", `${r.width.toFixed(1)} × ${r.height.toFixed(1)}`);
 		h += row("position", esc(cs.position) + " / z-index: " + esc(cs.zIndex));
+		h += `<div class="note">要改位置/尺寸/顏色 → 切到上方「屬性」頁。</div>`;
+		return h;
+	}
 
-		h += `<h4>屬性 <span style="color:#777;font-weight:400">（改了立刻生效）</span></h4>`;
+	/** DOM 的可編輯欄位（位置/尺寸/顏色）；由「屬性」頁呼叫 */
+	function renderDomEdit(el) {
+		if (!el) return `<div class="empty">抓不到元素</div>`;
+		const cs = getComputedStyle(el);
+		let h = `<h4>屬性 <span style="color:#777;font-weight:400">（改了立刻生效）</span></h4>`;
 		for (const [prop, label] of [["left", "left"], ["top", "top"], ["width", "width"], ["height", "height"]]) {
 			h += `<div class="row">
 				<span class="k">${label}</span>
@@ -1500,6 +2406,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	}
 
 	function wirePanel() {
+		if (!selection) return; // 屬性頁在沒有選取時也會呼叫到這裡，先擋掉
 		const q = (sel) => panel.querySelector(sel);
 		const qa = (sel) => panel.querySelectorAll(sel);
 
@@ -1568,6 +2475,16 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			q("[data-uicolor]")?.addEventListener("input", (e) => {
 				overrideFor(key, true).color = e.target.value;
 			});
+			// 旋轉：滑桿與數字互相同步，存絕對角度
+			const rot = q("[data-rot]"), rotn = q("[data-rotn]");
+			rot?.addEventListener("input", () => { const v = Number(rot.value) || 0; overrideFor(key, true).rot = v; if (rotn) rotn.value = v; });
+			rotn?.addEventListener("input", () => { const v = Number(rotn.value) || 0; overrideFor(key, true).rot = v; if (rot) rot.value = v; });
+			// 字級：空字串 = 不覆寫（用原始）
+			q("[data-fs]")?.addEventListener("input", (e) => {
+				const v = e.target.value.trim();
+				const o = overrideFor(key, true);
+				if (v === "") delete o.fs; else o.fs = Number(v);
+			});
 			q("[data-uiclear]")?.addEventListener("click", () => {
 				uiOverrides.delete(key);
 				renderPanel();
@@ -1620,7 +2537,18 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		await waitFor(() => !!window.Player?.AccountName && typeof MainCanvas !== "undefined" && !!MainCanvas);
 		buildUI();
 		installInput();
-		console.log(`🐈‍⬛ [${MOD_NAME}] ✅ v${MOD_VERSION} loaded`);
+
+		// 控制台 API（Setting 隱藏氣球後用 Liko.BDT.showBalloon() 重新叫出）
+		window.Liko.BDT = {
+			version: MOD_VERSION,
+			showBalloon,
+			hideBalloon,
+			exportPen: exportPenJSON,
+			importPen: (t) => importPenJSON(t) && renderPenPanel(),
+			clearPen: () => { clearPenObjects(); renderPenPanel(); },
+		};
+
+		console.log(`🐈‍⬛ [${MOD_NAME}] ✅ v${MOD_VERSION} loaded — 氣球點一下展開 Pen / Ruler / Setting`);
 	}
 
 	initialize().catch((e) => console.error(`🐈‍⬛ [${MOD_NAME}] init error`, e));
