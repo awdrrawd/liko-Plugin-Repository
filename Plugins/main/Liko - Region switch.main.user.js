@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Region switch
 // @name:zh      快速切換混合&女性區
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.3.1
 // @description  快速切換混合/女性區 | Region switch
 // @author       Likolisu & yu
@@ -206,7 +207,7 @@
                 name: "liko - Region switch",
                 fullName: "Region switch",
                 version: MOD_VER,
-                repository: "快速切換混合&女性區 | Region switch"
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
             });
 
             loadSavedState();   // 非同步等待 ExtensionSettings，不擋住 hook 註冊

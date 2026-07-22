@@ -1,6 +1,7 @@
 // ==UserScript==
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu

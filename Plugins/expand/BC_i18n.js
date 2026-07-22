@@ -2,9 +2,13 @@
 // @name           Liko - i18n / L10N Engine
 // @name:zh        Liko 共用多語引擎（介面 + 聊天在地化）
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
 // @version        2.0.0
 // @description    Shared translation engine for all Liko plugins — UI strings (Liko.__Sys_i18n__) + chat-message localization (Liko.__Sys_L10N__)
 // @author         Likolisu
+// @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @icon           https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
+// @require        https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @grant          none
 // ==/UserScript==
 

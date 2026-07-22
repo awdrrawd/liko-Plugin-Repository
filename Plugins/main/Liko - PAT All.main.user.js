@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - PAT All
 // @name:zh      Liko的對大家互動
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      2.0
 // @description  A BCAR-style compact button to perform activity on everyone in room, with all configs centralized
 // @author       Likolisu & 約爾
@@ -48,7 +49,7 @@
                 name: 'Pat-all',
                 fullName: 'Bondage Club - Pat All',
                 version: '2.0',
-                repository: '對房內的朋友互動',
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
             });
             console.log("🐈‍⬛ [PAT All] ✅ 註冊成功");
             return modApi;

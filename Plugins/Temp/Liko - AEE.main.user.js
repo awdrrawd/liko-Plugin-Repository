@@ -2,12 +2,13 @@
 // @name         Liko - AEE
 // @name:cn      Liko的外觀編輯拓展
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      0.8.1
 // @description  Likolisu's Appearance editing extension.
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant        none
-// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @run-at       document-end
 // @downloadURL  https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20AEE.main.user.js
@@ -24,7 +25,7 @@
     if (typeof bcModSdk !== "object" || typeof bcModSdk.registerMod !== "function") return;
     const modApi = bcModSdk.registerMod({
         name: MOD_NAME, fullName: "Liko - Appearance Editor",
-        version: MOD_VER, repository: "外觀編輯拓展 | Appearance editing extension."
+        version: MOD_VER, repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
     });
 
     // ============================================================

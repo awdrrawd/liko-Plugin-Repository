@@ -2,6 +2,7 @@
 // @name         Liko - TRC
 // @name:zh      Liko的玩具遙控器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.1.0
 // @description  玩具遙控 | Toy remote control
 // @author       Likolisu
@@ -24,7 +25,7 @@
         name: 'Liko - TRC',
         fullName: 'Liko - Toy Remote Control',
         version: MOD_VER,
-        repository: '玩具遙控器 | ',
+        repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
     });
 
     // ─────────────────────────────────────────

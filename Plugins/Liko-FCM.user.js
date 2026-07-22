@@ -2,6 +2,7 @@
 // @name         Liko - FCM
 // @name:zh      Liko的好友與房間管理
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  Friends and ChatRoom Manager | 好友與房間管理
 // @author       Likolisu

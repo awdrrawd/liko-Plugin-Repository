@@ -1,6 +1,7 @@
 // ==UserScript==
 // @name         Hotfix - Hidden Arousal
-// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      0.3
 // @description  Hides arousal meter AND any mod-added HUD attached to DrawArousalMeter (e.g. MPA) in Appearance, InformationSheet, ChatRoom+CurrentCharacter
 // @author       Likolisu
@@ -68,7 +69,7 @@
                 name: MOD_NAME,
                 fullName: MOD_FULL,
                 version: MOD_VERSION,
-                repository: 'Hides arousal meter and any add-on HUD attached to DrawArousalMeter'
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
             });
         } catch (e) {
             console.error('🐈‍⬛ [HHA] ❌ SDK 註冊失敗:', e);

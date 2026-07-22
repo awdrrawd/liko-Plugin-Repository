@@ -2,6 +2,7 @@
 // @name         Liko - Chat Filter Tool
 // @name:zh      Liko的聊天室信息過濾器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.1.4
 // @description  聊天室信息過濾
 // @author       Liko
@@ -27,7 +28,7 @@
         name: "Liko's CFT",
         fullName: "Liko's Chat Filter Tool",
         version: MOD_VER,
-        repository: "聊天室信息過濾 | Chat room message filtering",
+        repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
     });
 
     // ===== 語言偵測 =====

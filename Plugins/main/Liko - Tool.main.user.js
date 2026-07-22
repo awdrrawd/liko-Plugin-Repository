@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.5.3
 // @description  Bondage Club - Likolisu's tool (R121 Compatible)
 // @author       Likolisu
@@ -240,7 +241,7 @@
                 name: "Liko - tool",
                 fullName: "Liko's tool",
                 version: MOD_VER,
-                repository: '莉柯莉絲的工具包'
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
             });
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ 初始化 modApi 失敗:", e.message);

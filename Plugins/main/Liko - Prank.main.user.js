@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Prank
 // @name:zh      Liko对朋友的恶作剧
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.6.9
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
@@ -1505,7 +1506,7 @@
                     name: "Liko - prank",
                     fullName: "Likolisu's prank on her friends",
                     version: MOD_VER,
-                    repository: "Liko's prank"
+                    repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
                 });
                 console.log(`🐈‍⬛ [Prank] ✅ v${MOD_VER} loaded`);
             } catch (error) {

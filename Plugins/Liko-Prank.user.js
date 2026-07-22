@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Prank
 // @name:zh      Liko對朋友的惡作劇
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  Likolisu's prank on her friends
 // @author       Likolisu

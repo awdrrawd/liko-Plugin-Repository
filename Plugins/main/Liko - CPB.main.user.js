@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - CPB
 // @name:zh      Liko的自定義個人資料頁面背景
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.2.2-1
 // @description  自定義個人資料頁面背景 | Custom Profile Background
 // @author       Likolisu
@@ -982,7 +983,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 name: "liko - CPB",
                 fullName: "liko's Custom Profile Background",
                 version: MOD_VER,
-                repository: '自訂個人資料頁面背景 | Custom Profile Background'
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
             });
             console.log("🐈‍⬛ [CPB] ✅ 模組註冊成功");
             return modApi;

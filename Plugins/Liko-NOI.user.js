@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - NOI
 // @name:zh      Liko的邀請通知器
-// @namespace    https://likulisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  Notify on Invite
 // @author       Likolisu

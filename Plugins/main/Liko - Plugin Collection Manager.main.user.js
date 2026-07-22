@@ -2,6 +2,7 @@
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      2.1.2
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
@@ -1841,7 +1842,7 @@
 
         try {
             if (!bcModSdk?.registerMod) { console.error("🐈‍⬛ [PCM] ❌ bcModSdk not available"); return; }
-            modApi = bcModSdk.registerMod({ name: "Liko's PCM", fullName: 'Liko - Plugin Collection Manager', version: MOD_VER, repository: 'https://github.com/awdrrawd/liko-Plugin-Repository' });
+            modApi = bcModSdk.registerMod({ name: "Liko's PCM", fullName: 'Liko - Plugin Collection Manager', version: MOD_VER, repository: "https://github.com/awdrrawd/liko-Plugin-Repository" });
             registerPCMBadge();
         } catch(e) { console.error("🐈‍⬛ [PCM] ❌ Init failed:", e.message); return; }
 

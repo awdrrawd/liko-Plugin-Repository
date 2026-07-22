@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Custom Profile Background
 // @name:zh      Liko的自定義個人資料頁面背景
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  自定義個人資料頁面背景
 // @author       Likolisu

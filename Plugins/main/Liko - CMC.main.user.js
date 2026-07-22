@@ -2,6 +2,7 @@
 // @name         Liko - Chat Music Controller
 // @name:zh      Liko的聊天室音樂控制器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.3.1
 // @description  Chat Music Controller with playlist sharing and lyrics support
 // @author       莉柯莉絲(Likolisu)
@@ -2536,7 +2537,7 @@
                 name: "liko - CMC",
                 fullName: "Chat Music Controller",
                 version: MOD_VER,
-                repository: '聊天室音樂控制器 | Chat Music Controller'
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
             });
             log('ModSDK 注冊成功');
         } catch(e) {

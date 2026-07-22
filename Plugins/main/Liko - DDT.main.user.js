@@ -2,6 +2,7 @@
 // @name           Liko - DrawDetectionTool 
 // @name:zh        繪圖檢測工具
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
 // @version        0.1.0
 // @description    Detects canvas and DOM element properties, and allows color highlighting and positional offset.
 // @description:zh 偵測 canvas & DOM 物件的屬性，並支持染色與位移

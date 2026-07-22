@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Bondage renew
 // @name:zh      Liko的綑綁刷新
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  Bondage Club - Likolisu's Bondage renew
 // @author       Likolisu
@@ -21,7 +22,7 @@
                 name: "liko's Bondage renew",
                 fullName: "Bondage Club - Likolisu's Bondage renew",
                 version: "1.0",
-                repository: "BC綑綁刷新 | Bondage renew"
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
             });
             modApi.hookFunction("ChatRoomMessage", 1, (args, next) => {
                 const data = args[0];

@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - CDT
 // @name:zh      Liko的座標繪製工具
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.3-1
 // @description  在BC所有畫面上顯示 UI 座標與滑鼠位置，方便 UI 對齊調整
 // @author       Likolisu
@@ -27,7 +28,7 @@
                 name: 'CDT',
                 fullName: 'Bondage Club - Universal Coordinate adjustment tool',
                 version: MOD_VER,
-                repository: '座標繪製工具 | Coordinate adjustment tool',
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
             });
             console.log("🐈‍⬛ [CDT] ✅ Universal 腳本啟動完成");
         } else {

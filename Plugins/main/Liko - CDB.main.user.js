@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - CDB
 // @name:zh      Liko的自訂更衣室背景
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.5.2
 // @description  自訂更衣室背景 | Custom Dressing Background
 // @author       Likolisu
@@ -1907,7 +1908,7 @@
                     name: "Liko - CDB",
                     fullName: "Liko's Custom Dressing Background",
                     version: MOD_VER,
-                    repository: '自訂更衣室背景 | Custom Dressing Background'
+                    repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
                 });
                 return modApi;
             } catch (e) { safeError("🐈‍⬛ [CDB] ❌ 初始化 modApi 失敗:", e); return null; }

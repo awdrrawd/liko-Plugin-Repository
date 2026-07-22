@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  Automatically create video.
 // @author       likolisu

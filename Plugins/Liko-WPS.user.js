@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - WPS
 // @name:zh      WCE的Profile分享
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  WCE的Profile分享 | WCE Profile Share
 // @author       Likolisu

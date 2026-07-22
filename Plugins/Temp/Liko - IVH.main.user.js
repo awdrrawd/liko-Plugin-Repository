@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         IVH - Immersive Voice Hypnosis
 // @name:zh      沉浸式聲音催眠效果
-// @namespace    https://likulisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      2.1.1
 // @description  收到 [Voice] 訊息時觸發深度催眠視覺效果，支援 /ivh 指令
 // @author       莉柯莉絲(Likolisu)
@@ -9,7 +10,7 @@
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
-// @require      https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/expand/bcmodsdk.js
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // ==/UserScript==
 
 (function () {
@@ -4666,7 +4667,7 @@ function addArousal() {
                     name:       'liko - IVH',
                     fullName:   "liko's Immersive Voice Hypnosis",
                     version:    MOD_VER,
-                    repository: '沉浸式催眠效果 | Immersive Voice Hypnosis',
+                    repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
                 });
             } catch (e) {
                 console.warn('🐈‍⬛ [IVH] ⚠️ registerMod 失敗，進入相容模式:', e.message);

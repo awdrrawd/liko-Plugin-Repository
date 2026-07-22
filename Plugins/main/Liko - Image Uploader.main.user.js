@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Image Uploader
 // @name:zh      Liko的圖片上傳器
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.6.2
 // @description  Bondage Club - 上傳圖片到圖床並分享網址 + 懸停/點擊圖片放大預覽
 // @author       Likolisu
@@ -739,7 +740,7 @@
                 name: "Liko - Image Uploader",
                 fullName: 'BC - Image Uploader',
                 version: MOD_VER,
-                repository: '圖片拖曳上傳並分享 | Image to litterbox/uguu/imgbb/tmpfiles and share'
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
             });
         } catch (e) {
             console.error("🐈‍⬛ [IMG] ❌ 初始化 modApi 失敗:", e.message);

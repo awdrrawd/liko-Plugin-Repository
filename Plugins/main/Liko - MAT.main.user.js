@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.5.0
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
@@ -115,7 +116,7 @@
                 name: "Liko - MAT",
                 fullName: "Liko's Messages Auto Translator",
                 version: MOD_VER,
-                repository: "Auto translate chat messages(Supports bio translation)",
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
             });
         } catch (e) {
             console.error("🐈‍⬛ [MAT] ❌ failed to load:", e);

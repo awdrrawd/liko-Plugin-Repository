@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         Liko - Release Maid
 // @name:zh      Liko的解綁女僕
-// @namespace    https://likulisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.2-1
 // @description  自動回應「救我 / 救救 / help」來解除拘束，支援指定救人
 // @author       莉柯莉絲(Likolisu)
+// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @match        https://bondageprojects.elementfx.com/*
 // @match        https://bondage-europe.com/*
 // @match        https://bondage-asia.com/*
@@ -57,7 +59,7 @@
                 name: 'Liko - Release Maid',
                 fullName: 'Bondage Club - Liko Auto Release Maid',
                 version: MOD_VER,
-                repository: '莉柯莉絲的自動解鎖女僕',
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
             });
             console.log("🐈‍⬛ [Release Maid] ✅ 註冊成功");
             return modApi;

@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - ACV
 // @name:zh      Liko的自動創建影片
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.4.1
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
@@ -450,7 +451,7 @@
                 name: "Liko - ACV",
                 fullName: "Liko's Automatically create video.",
                 version: MOD_VER,
-                repository: "自動創建影片 | Automatically create video.",
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
             });
         }
     } catch (e) {

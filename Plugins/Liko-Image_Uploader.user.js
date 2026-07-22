@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Image Uploader
 // @name:zh      Liko的圖片上傳器
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  Bondage Club - 上傳圖片到 litterbox 並分享網址
 // @author       Likolisu

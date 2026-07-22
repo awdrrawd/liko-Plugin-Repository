@@ -2,6 +2,7 @@
 // @name           Hotfix - Leash Fix
 // @name:zh        牽引補丁
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
 // @version        0.16
 // @description    Fix some Leash failures
 // @description:zh 修復部分牽引失敗的錯誤
@@ -9,7 +10,7 @@
 // @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant          none
-// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
+// @require        https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @run-at         document-end
 // @downloadURL  https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HLF.user.js
 // @updateURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HLF.user.js
@@ -84,7 +85,7 @@
         name:       'HLF',
         fullName:   'Hotfix - Leash Fix',
         version:    MOD_VERSION,
-        repository: 'Fix some Leash failures',
+        repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
     });
 
     const Leash = {

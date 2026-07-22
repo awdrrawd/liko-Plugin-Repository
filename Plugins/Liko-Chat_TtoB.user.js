@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Chat TtoB
 // @name:zh      Liko的對話變按鈕
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  display command buttons in chatroom, copying command to input and showing description
 // @author       likolisu

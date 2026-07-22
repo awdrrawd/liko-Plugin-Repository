@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Chat Music Controller
 // @name:zh      Liko的聊天室音樂控制器
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  Chat Music Controller with lyrics support
 // @author       莉柯莉絲(Likolisu)

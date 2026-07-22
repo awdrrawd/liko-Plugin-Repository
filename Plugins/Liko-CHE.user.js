@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  聊天室紀錄匯出 \\ Chat room history export to html/excel
 // @author       莉柯莉絲(likolisu)

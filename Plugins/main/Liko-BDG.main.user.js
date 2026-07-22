@@ -1,6 +1,8 @@
 // ==UserScript==
 // @name         BC Draw Game (你畫我猜繪圖插件)
-// @namespace    https://example.com
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
+// @author       Likolisu
 // @version      0.3.0
 // @description  在 BC 聊天室畫布上疊加繪圖層，透過 Hidden 訊息即時同步筆劃給房間內其他人
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -804,7 +806,7 @@
 			name: MOD_NAME,
 			fullName: "BC Draw Game",
 			version: MOD_VER,
-			repository: "",
+			repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
 		});
 
 		await waitFor(() => !!window.Player?.AccountName);

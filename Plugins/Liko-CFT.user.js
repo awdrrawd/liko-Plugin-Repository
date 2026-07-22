@@ -2,6 +2,7 @@
 // @name         Liko - Chat Filter Tool
 // @name:zh      Liko的聊天室信息過濾器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  聊天室信息過濾
 // @author       Liko

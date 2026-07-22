@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - CHE
 // @name:zh      Liko的聊天室書記官
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      2.4.5
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
@@ -2183,7 +2184,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                     name: "Liko - CHE",
                     fullName: "Chat History Exporter",
                     version: MOD_VER,
-                    repository: "Chat room history export with 7-day cache",
+                    repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
                 });
             }
 

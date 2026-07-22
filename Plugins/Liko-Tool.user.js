@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  Bondage Club - Likolisu's tool with BCC-inspired features
 // @author       Likolisu

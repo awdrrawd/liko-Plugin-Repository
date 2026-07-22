@@ -1,6 +1,7 @@
 // ==UserScript==
 // @name         Liko - WPS
-// @namespace    https://likulisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.1.3
 // @description  WCE Profile Share
 // @author       Likolisu
@@ -268,7 +269,7 @@
         name: "Liko - WPS",
         fullName: "Liko's WCE Profile Share",
         version: MOD_VER,
-        repository: "WCE個人資料分享 | WCE Profile Share"
+        repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
     });
 
     modApi.hookFunction("ChatRoomMessage", 0, (args, next) => {

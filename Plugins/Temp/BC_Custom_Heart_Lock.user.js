@@ -1,14 +1,16 @@
 // ==UserScript==
 // @name         BC Heart Lock Extension
 // @name:zh      BC 心形鎖拓展
-// @namespace    https://github.com/awdrrawd/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
+// @author       Likolisu
 // @version      2.6.0
 // @description  Heart Padlock for Bondage Club with AFC lover integration
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @run-at       document-end
 // @grant        none
-// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
+// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // ==/UserScript==
 
 (function () {
@@ -1072,7 +1074,7 @@
         try {
             state.modApi = window.bcModSdk.registerMod({
                 name: MOD_NAME, fullName: 'Heart Lock BC',
-                version: MOD_VER, repository: 'https://github.com/awdrrawd/liko-Plugin-Repository',
+                version: MOD_VER, repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
             });
             return state.modApi;
         } catch (e) {

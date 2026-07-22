@@ -1,6 +1,7 @@
 // ==UserScript==
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu
@@ -403,7 +404,8 @@
     (async()=>{
         await waitFor(()=>typeof bcModSdk!=="undefined");  // eslint-disable-line
 
-        const modApi=bcModSdk.registerMod({  // eslint-disable-line
+        const modApi=bcModSdk.registerMod({
+            repository: "https://github.com/awdrrawd/liko-Plugin-Repository",  // eslint-disable-line
             name:"Liko - BMM", fullName:"Liko's BC MiniMap", version:MOD_VER,
         });
 

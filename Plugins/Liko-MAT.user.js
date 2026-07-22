@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - MAT
 // @name:zh      Liko的自動翻譯(使用Google api)
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0
 // @description  Auto translate BC chat messages using Google API.
 // @author       Liko

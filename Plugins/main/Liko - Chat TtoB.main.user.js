@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Liko - Chat toB
 // @name:zh      Liko的對話變按鈕
-// @namespace    https://likolisu.dev/
+// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.1.1-1
 // @description  display command buttons in chatroom, copying command to input and showing description
 // @author       likolisu
@@ -52,7 +53,7 @@
                 name: "Liko - CTB",
                 fullName: 'BC - Chat room text conversion button',
                 version: MOD_VER,
-                repository: '聊天室[指令]、[!!內文]與[#房間#]轉按鈕\nChat Room [Commands], [!!Content], and [#RoomName#] conversion button.',
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
             });
             console.log("🐈‍⬛ [CTB] ✅ 啟動完成");
         } else {

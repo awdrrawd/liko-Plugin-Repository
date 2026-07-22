@@ -2,6 +2,7 @@
 // @name         Liko - Kaomoji
 // @name:zh      Liko的文字表情
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @version      1.0.0
 // @description  Bondage Club - 文字表情快捷面板：点击颜文字自动插入聊天输入框，支持收藏/常用/自定义分组/拖动排序
 // @author       Likolisu & TAO
