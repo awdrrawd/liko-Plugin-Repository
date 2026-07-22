@@ -130,8 +130,8 @@
     let api;
     try {
       api = global.bcModSdk.registerMod({
-        name: 'LikoColorAPI',
-        fullName: 'Liko Color API',
+        name: 'Liko - ColorAPI',
+        fullName: "Liko's Color API",
         version: MOD_VER,
         repository: 'https://github.com/awdrrawd/liko-Plugin-Repository',
       });

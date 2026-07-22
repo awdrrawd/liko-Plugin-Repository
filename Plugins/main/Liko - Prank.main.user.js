@@ -1503,8 +1503,8 @@
         if (sdkOk) {
             try {
                 modApi = bcModSdk.registerMod({
-                    name: "Liko - prank",
-                    fullName: "Likolisu's prank on her friends",
+                    name: "Liko - Prank",
+                    fullName: "Liko's Prank on her friends",
                     version: MOD_VER,
                     repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
                 });

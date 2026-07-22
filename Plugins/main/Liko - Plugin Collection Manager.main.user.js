@@ -16,18 +16,16 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.1.2"; // 2.1.0: 子插件新增 type 欄位（eval／scr／mod）決定載入方式，預設 eval 不影響舊資料；
-                              // mod 用 dynamic import 直接載入像 AEE 這類 Vite/Rollup ESM bundle，不再需要中介 loader.user.js。
+    const MOD_VER = "2.1.2"; 
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
 
     let modApi;
     let isInitialized = false;
-    // unloaded: 讓所有遞迴 setTimeout 輪詢鏈（registerWhenReady / registerPCMBadge 的 wait 等）
-    // 在 mod 被卸載後知道要停止，避免卸載後仍在背景無限重排 timer。
+    // unloaded 讓所有遞迴輪詢鏈在 mod 卸載後停止，避免背景無限重排 timer。
     const _lifecycle = { intervals: [], mousemoveHandler: null, unloaded: false };
 
-    // === 簡易 HTML escape（防止插件名稱/描述/連結等被當成 HTML 注入，見 innerHTML 使用處）====
+    // 簡易 HTML escape：插件名稱/描述/連結進 innerHTML 前一律過濾，防注入。
     function escapeHtml(str) {
         return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
@@ -92,16 +90,13 @@
             'prefButton':         { EN: 'PCM Plugin Manager' },
         };
 
-        // 引擎（window.Liko.__Sys_i18n__）有時會晚一點才就位（例如 Electron-BC 環境下，
-        // _ensureDeps() 自己去抓 expand/BC_i18n.js 可能失敗/輸掉競速，引擎要等別的插件
-        // 順便載入才出現）。原本用 `?.register(...)` 只嘗試一次，當下引擎不存在就會
-        // 靜靜地失敗，導致連 EN fallback 都永遠沒註冊成功。改成輪詢等待，最多等 10 秒。
+        // i18n 引擎可能晚就位（EBC 下要等別的插件順便載入），輪詢等待最多 10 秒再放棄。
         (function registerWhenReady(tries) {
             if (window.Liko.__Sys_i18n__?.register) {
                 window.Liko.__Sys_i18n__.register('PCM', _enStrings);
                 return;
             }
-            if (_lifecycle.unloaded) return; // mod 已卸載，停止輪詢鏈（#5 生命週期修正）
+            if (_lifecycle.unloaded) return;
             if ((tries ?? 0) > 100) {
                 console.warn('🐈‍⬛ [PCM] ⚠️ __Sys_i18n__ never became available, EN fallback not registered');
                 return;
@@ -134,7 +129,7 @@
         if (typeof Player !== 'undefined' && Player?.AccountName) doSetup();
         else {
             const id = setInterval(() => { if (typeof Player !== 'undefined' && Player?.AccountName) { clearInterval(id); doSetup(); } }, 500);
-            _lifecycle.intervals.push(id); // #5 納入生命週期管理，卸載時一併清除
+            _lifecycle.intervals.push(id);
         }
     }
 
@@ -143,7 +138,7 @@
             // 用伺服器房間狀態判斷，而非 CurrentScreen —— 避免進房轉場瞬間送出被吞掉
             if (typeof ServerPlayerIsInChatRoom !== 'function' || !ServerPlayerIsInChatRoom()) return;
             const msg = { Type: "Hidden", Content: PCM_HIDDEN_MSG, Sender: Player.MemberNumber, Dictionary: [{ pcm: { version: MOD_VER, replyRequested: requestReply } }] };
-            if (target) msg.Target = target; // 定向（只送給特定成員），減少全房廣播量
+            if (target) msg.Target = target; // 定向可減少全房廣播量
             ServerSend("ChatRoomChat", msg);
         } catch(e) {}
     }
@@ -155,15 +150,15 @@
             const pcmData = Array.isArray(data.Dictionary) ? data.Dictionary.find(d => d?.pcm)?.pcm : data.Dictionary?.pcm;
             if (!pcmData) return;
             const sender = Character?.find(c => c.MemberNumber === data.Sender);
-            // 隱藏訊息可能比遊戲建立 sender 角色更早到達 —— 延後到下一個微任務重試一次
+            // 隱藏訊息可能比 sender 角色建立更早到達 —— 延後到下一個微任務重試一次
             if (!sender) { if (deferred !== true) queueMicrotask(() => parsePCMMessage(data, true)); return; }
             if (sender.ID === 0) return;
             sender.PCM = { version: pcmData.version };
-            if (pcmData.replyRequested) sendPCMInitialization(false, data.Sender); // 定向回覆給發問者
+            if (pcmData.replyRequested) sendPCMInitialization(false, data.Sender);
         } catch(e) {}
     }
 
-    // 把 ChatRoomMessage 監聽重新綁到目前的 ServerSocket（off 再 on，避免同一 socket 重複綁）
+    // 把 ChatRoomMessage 監聽重綁到目前的 ServerSocket（off 再 on，避免重複綁）
     function bindPCMSocketListener() {
         try {
             if (typeof ServerSocket === 'undefined' || !ServerSocket) return;
@@ -174,7 +169,7 @@
 
     function initializePCMBadgeImage() {
         if (!pcmBadgeImage) {
-            // Stable image asset: CDN first, Pages as fresh fallback, raw last.
+            // 靜態圖檔：CDN 優先、Pages 次之、raw 保底。
             const _badgePages = "https://awdrrawd.github.io/liko-Plugin-Repository/Images/PCM_Badge.png";
             const _badgeCdn = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_Badge.png";
             const _badgeRaw = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/refs/heads/main/Images/PCM_Badge.png";
@@ -245,13 +240,13 @@
         });
         sh('ChatRoomClearAllElements', 5, (args, next) => { characterDrawPositions.clear(); hoveredCharacters.clear(); return next(args); });
         sh('ChatRoomSync', 5, (args, next) => { const r = next(args); syncDrawPositionsWithRoom(); sendPCMInitialization(true); return r; });
-        // 有人晚於自己進房時，BC 對既有成員觸發的是 ChatRoomSyncMemberJoin（不是 ChatRoomSync）——對新人定向握手並要求回覆
+        // 別人晚於自己進房時 BC 觸發的是 ChatRoomSyncMemberJoin，對新人定向握手並要求回覆
         sh('ChatRoomSyncMemberJoin', 5, (args, next) => {
             const r = next(args);
             try { const d = args[0]; if (d && d.SourceMemberNumber != null && d.SourceMemberNumber !== Player.MemberNumber) sendPCMInitialization(true, d.SourceMemberNumber); } catch(e) {}
             return r;
         });
-        // 遊戲重連 / 重複登入會重跑 ServerInit 並換掉 ServerSocket，必須把監聽重新綁到新 socket，否則從此收不到任何人的訊息
+        // 重連 / 重複登入會重跑 ServerInit 並換掉 ServerSocket，必須重綁監聽否則收不到訊息
         sh('ServerInit', 1, (args, next) => { const r = next(args); bindPCMSocketListener(); return r; });
         sh('CommonSetScreen', 1, (args, next) => {
             const r = next(args);
@@ -271,14 +266,14 @@
 
     function registerPCMBadge() {
         const wait = () => {
-            if (_lifecycle.unloaded) return; // #5 mod 已卸載，停止輪詢鏈
+            if (_lifecycle.unloaded) return;
             if (!modApi?.hookFunction || typeof ServerSocket === 'undefined' || !ServerSocket) { setTimeout(wait, 500); return; }
             initializePCMBadgeImage(); setupHoverTracking(); cleanupLegacyOnlineSettings(); hookCharacterDrawing();
             bindPCMSocketListener();
-            // 載入時若已在房內（不會再有 ChatRoomSync/MemberJoin 觸發），廣播一發並要求回覆讓在場所有人回應自己
+            // 載入時若已在房內（不會再觸發 ChatRoomSync/MemberJoin），廣播一發要求在場所有人回應
             sendPCMInitialization(true);
             if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
-                _lifecycle.unloaded = true; // #5：讓其餘輪詢鏈（i18n 註冊、本函式自己的 wait）知道要停止
+                _lifecycle.unloaded = true;
                 try { ServerSocket.off("ChatRoomMessage", parsePCMMessage); } catch(e) {}
                 if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
                 hoveredCharacters.clear(); characterDrawPositions.clear();
@@ -289,10 +284,6 @@
 
     // === JSON 來源 ===============================================
     // GitHub Pages 優先、raw 備援、jsDelivr 最後保底 —— Plugins.json 承載版本號/更新日誌等
-    // 資訊，需要即時性。Pages 走 Fastly、push 後幾乎立即生效且不易觸發限流；raw.githubusercontent
-    // 同樣即時但限流嚴格，只在 Pages 掛掉時當備援；jsDelivr 有 CDN 快取（更新後可能要數小時
-    // 甚至隔天才反映最新內容），只在前兩者都失敗時當最後保底，避免完全拿不到資料。
-    // Plugins.json 只有這一支請求，量小，即時性優先於避免 429 本來就不是問題。
     const PLUGINS_JSON_URLS = [
         `https://awdrrawd.github.io/liko-Plugin-Repository/Plugins.json?timestamp=${Date.now()}`,
         "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
@@ -300,7 +291,6 @@
     ];
 
     // === 設定存取 ================================================
-
     let saveTimer;
     function saveSettings(s) { clearTimeout(saveTimer); saveTimer = setTimeout(() => localStorage.setItem("BC_PluginManager_Settings", JSON.stringify(s)), 100); }
     function loadSettings() { return JSON.parse(localStorage.getItem("BC_PluginManager_Settings") || "{}"); }
@@ -359,8 +349,8 @@
     const PLUGIN_CACHE_PREFIX = 'pcm_p_';
 
     function isJsDelivrUrl(url) { return typeof url === 'string' && url.includes('cdn.jsdelivr.net'); }
-    // 自家 repo 的 Pages 鏡像也視為「CDN 來源」——primary 落在這兩者之一時才啟用本地快取當
-    // 最後防線；純粹直打 raw 時不需要，因為 raw 本身就是即時來源，沒有「CDN 快取延遲」要救。
+    // 自家 Pages 鏡像也視為「CDN 來源」，primary 落在 jsDelivr/Pages 時才啟用本地快取當救援
+    //（raw 本身即時，無快取延遲要救）。
     function isOwnPagesUrl(url) { return typeof url === 'string' && url.includes('awdrrawd.github.io/liko-Plugin-Repository'); }
     const OWN_REPO_RAW_PREFIX   = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/";
     const OWN_REPO_PAGES_PREFIX = "https://awdrrawd.github.io/liko-Plugin-Repository/";
@@ -389,7 +379,7 @@
         const v = plugin?.version;
         if (v === undefined || v === null) return null;
         const s = String(v).trim();
-        return s && s !== '0' ? s : null; // Missing/0 means "unversioned": always prefer Pages.
+        return s && s !== '0' ? s : null; // 缺值/0 視為未版控，一律優先 Pages
     }
 
 
@@ -526,8 +516,7 @@
         if (remoteUpdateId && saved !== remoteUpdateId) {
             pluginSettings['_pcm_updateId'] = remoteUpdateId;
             saveSettings(pluginSettings);
-            // #4：saved === undefined 代表這是全新安裝（本地從未記錄過任何 updateId），
-            // 不是「從舊版更新上來」，不該跳出 changelog / "PCM Updated" 通知。
+            // saved === undefined 是全新安裝（非從舊版更新），不該跳 changelog 通知。
             return saved !== undefined;
         }
         return false;
@@ -563,18 +552,10 @@
     let isLoadingPlugins = false, localLoadStarted = false, accountLoadStarted = false, customLoadStarted = false;
     let localPhasePromise = null;
 
-    // #3 修正：舊版把插件程式碼包在內層 try/catch 裡吞掉所有執行期錯誤（console.error 後就結束），
-    // 導致 loadSubPlugin 外層的 try/catch 永遠捕捉不到「新版執行失敗」，「退回舊版快取救援」形同虛設。
-    // 這裡改成：不在內部吞錯誤，讓它自然拋出；同時用一個僅在本次同步注入期間存在的 window 'error'
-    // 監聽器攔截這個錯誤（<script> 標籤同步執行時拋出的例外會先變成 window 的 error 事件，
-    // 不會直接被 appendChild 呼叫端的 try/catch 捕捉到，所以必須用這種方式攔截）。
-    // 加上 //# sourceURL 方便在 DevTools 的 Sources 面板中依插件 id 辨識來源、設中斷點除錯。
-
-    // === 插件執行期錯誤歸因（best-effort：比對 sourceURL / 實際載入 URL，比對不到就不計入）====
-    // 各種載入方式成功後，把「可辨識字串」（eval 的 sourceURL、scr/mod 實際打的 URL、mod 走 blob
-    // fallback 時自行加註的 sourceURL）登記進來；之後不限時間點觸發的 window error /
-    // unhandledrejection，只要訊息或堆疊含有這個字串，就回推是哪個插件，方便診斷「晚發」的執行期錯誤
-    // （injectScript 內的 window 'error' 監聽器只能抓到注入當下的同步錯誤，抓不到之後才發生的）。
+    // === 插件執行期錯誤歸因（best-effort）====
+    // 各載入方式成功後把「可辨識字串」（sourceURL / 實際 URL）登記進來；日後任何時點的 window
+    // error / unhandledrejection 只要訊息或堆疊含有這字串，就回推是哪個插件，用於診斷晚發的錯誤
+    //（injectScript 的 window 'error' 監聽器只抓得到注入當下的同步錯誤）。
     const _pluginSourceRegistry = new Map(); // key: 可辨識字串 -> plugin id
     function registerPluginSource(id, ...keys) {
         keys.filter(Boolean).forEach(k => _pluginSourceRegistry.set(k, id));
@@ -585,8 +566,7 @@
         return null;
     }
     function _handlePluginRuntimeError(id, err) {
-        // 只記錄、不強制標記失敗 —— 插件初次載入已經成功過，晚發的執行期錯誤不代表整支不能用，
-        // 是否要用 ↺ 手動重試交由使用者自己判斷。
+        // 只記錄、不強制標記失敗 —— 初次載入已成功，晚發錯誤不代表整支不能用，重試與否交給使用者。
         const plugin = subPlugins.find(p => p.id === id) || customPlugins.find(p => p.id === id);
         console.error(`🐈‍⬛ [PCM] ⚠️ 插件執行期錯誤 [${plugin ? getPluginName(plugin) : id}]:`, err?.message || err);
     }
@@ -638,10 +618,8 @@
 
     function buildFetchUrls(url, preferCdn = false) {
         if (!url) return [];
-        // 自家 repo（liko-Plugin-Repository）host 的檔案：Pages 優先（push 後幾乎即時生效、
-        // 不易觸發限流）、raw 備援、jsDelivr 最後保底（可能有數小時甚至隔天的快取延遲）。
-        // 帶時間戳是為了確保每次都真的問到 Pages 的最新版本，不會被瀏覽器快取卡住；Pages
-        // 對這種每次不同 query string 的請求量還算耐操，不像 raw 那樣容易被判定為濫用。
+        // 自家 repo 的檔案：Pages 優先（push 後幾乎即時、不易限流）、raw 備援、jsDelivr 保底
+        //（可能有數小時快取延遲）。帶時間戳確保每次都問到 Pages 最新版、不被瀏覽器快取卡住。
         if (url.startsWith(OWN_REPO_RAW_PREFIX)) {
             const rel = url.slice(OWN_REPO_RAW_PREFIX.length);
             const pages = `${OWN_REPO_PAGES_PREFIX}${rel}${rel.includes('?') ? '&' : '?'}timestamp=${Date.now()}`;
@@ -656,16 +634,13 @@
             const raw   = `${OWN_REPO_RAW_PREFIX}${rel}`;
             return preferCdn ? [cdn, pages, raw] : [pages, cdn, raw];
         }
-        // 外部作者的 repo：沒有對應的 Pages 網域可以自動推導，維持原本 jsDelivr 優先、raw 備援。
-        // jsDelivr 優先 —— 每個子插件都先打 raw 會在 EBC 觸發 429（見 _DEP_BASES 註解）。
+        // 外部作者 repo：無法推導 Pages 鏡像，維持 jsDelivr 優先、raw 備援（避免 EBC 429，見 _DEP_BASES）。
         const cdn = url.replace(/^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/, "https://cdn.jsdelivr.net/gh/$1/$2@$3/$4");
         return cdn !== url ? [cdn, url] : [url];
     }
 
-    // 部分插件的主要網址是 GitHub Pages（例如 xxx.github.io/...），不符合上面的 raw.githubusercontent
-    // 規則、無法自動推導 jsDelivr 鏡像；Plugins.json 可以額外填 mirrorUrl 提供一組完全獨立的備援來源
-    // （例如同一份程式碼另外 commit 進 repo 的 raw 路徑），失敗時接在原本候選清單後面再試一次。
-    // 沒填 mirrorUrl 就跟原本行為完全一樣，向後相容所有舊資料。
+    // Plugins.json 可額外填 mirrorUrl 提供一組獨立備援來源（給無法自動推導 jsDelivr 鏡像的
+    // Pages 網址用），接在候選清單後面再試。沒填則行為不變，向後相容。
     function buildAllFetchUrls(primaryUrl, mirrorUrl, options = {}) {
         const urls = buildFetchUrls(primaryUrl, !!options.preferCdn);
         if (mirrorUrl) urls.push(...buildFetchUrls(mirrorUrl, !!options.preferCdn));
@@ -673,24 +648,17 @@
     }
 
     // === 載入方式（type）==========================================
-    // 三種載入方式並列，透過 plugin.type 選擇；沒填視為 "eval"（現行預設，向後相容所有舊資料）：
-    //   eval — fetch 拿到原始碼文字，用 <script> 塞文字執行（本質等同 eval，現行絕大多數子插件用這個）
-    //   scr  — 用 <script src="url"> 直接讓瀏覽器載入 URL，不自己 fetch。適合 fetch() 會被 CORS
-    //          擋掉、但瀏覽器原生 <script src> 仍可正常載入執行的來源
-    //   mod  — dynamic import(url)。給 Vite/Rollup 打包、含 import.meta 或需要模組作用域的插件用
-    //          （像 AEE），這類 bundle 塞進純文字 <script> 執行會噴 "Unexpected token 'export'" 或
-    //          "import.meta outside a module"。過去得靠額外一支 loader.user.js 用 import() 中介，
-    //          現在 PCM 原生支援，直接對 bundle URL 做 dynamic import 即可，不再需要中介腳本。
+    // 透過 plugin.type 選擇，沒填視為 "eval"（預設，向後相容）：
+    //   eval — fetch 原始碼文字，用 <script> 塞文字執行（絕大多數子插件用這個）
+    //   scr  — <script src="url"> 讓瀏覽器直接載入，適合 fetch() 被 CORS 擋掉的來源
+    //   mod  — dynamic import(url)，給 Vite/Rollup 打包、含 import.meta 或需模組作用域的插件（如 AEE）
     function getLoadType(plugin) {
         const ty = plugin?.type;
         return (ty === 'mod' || ty === 'scr') ? ty : 'eval';
     }
 
-    // #4 修正：原本每次 dynamic import 都加 `_pcmv=Date.now()` 破快取，跟本檔其他地方「同一 URL
-    // 重複利用、降低請求量、遠離 429」的設計方向相反 —— 對 jsDelivr 而言，帶著每次都不同的 query
-    // string 等於每次都是快取未命中，逼 jsDelivr edge 對 GitHub 原站重新拉取，量大時反而是造成
-    // 429 的來源之一，而不是防守手段。這裡拿掉破快取，跟 eval/scr 類型一樣信任瀏覽器與 CDN 快取；
-    // 真的需要強制拿最新版時（例如插件本體有更新），應該讓使用者重新整理頁面，而不是每次載入都繞開快取。
+    // 不加破快取 query string：對 jsDelivr 而言每次不同 URL = 每次快取未命中，反而是 429 來源。
+    // 跟 eval/scr 一樣信任瀏覽器與 CDN 快取；要強制更新請重新整理頁面。
     async function tryImportModule(urls, id) {
         for (const url of urls) {
             try {
@@ -700,10 +668,8 @@
             }
             catch(e) {
                 console.warn(`🐈‍⬛ [PCM] ⚠️ ${url} (direct import): ${e.message}`);
-                // #7 後備方案：部分 CDN/來源對 .js 回傳的 Content-Type 不是嚴格的
-                // text/javascript 或 application/javascript，瀏覽器對 dynamic import() 的
-                // MIME 檢查比 <script src> 嚴格，會直接拒絕載入。改成自己 fetch 原始碼文字，
-                // 用正確 MIME type 包成 Blob URL 再 import，繞開來源端宣告錯誤的 Content-Type。
+                // 後備：部分來源對 .js 回傳錯誤 Content-Type，dynamic import() 的 MIME 檢查比
+                // <script src> 嚴格會拒載。自己 fetch 文字、用正確 MIME 包成 Blob URL 再 import。
                 let blobUrl;
                 try {
                     const res = await fetch(url, { cache: 'no-store' });
@@ -779,9 +745,8 @@
         const isAltUrl = !isCustom && plugin.altUrl && rawUrl === plugin.altUrl;
         const mirrorUrl = isAltUrl ? (plugin.altMirrorUrl || plugin.mirrorUrl) : plugin.mirrorUrl;
 
-        // mod / scr 都不進 fetch+eval / localStorage 快取邏輯 —— mod 因為模組沒法安全地存純文字
-        // 再用 <script> 重放；scr 因為本來就是要讓瀏覽器直接載，不自己 fetch 文字。快取交給瀏覽器
-        // 自己的 HTTP cache 處理即可。
+        // mod / scr 不進 fetch+eval / localStorage 快取，交給瀏覽器 HTTP cache（模組無法安全地
+        // 存純文字重放，scr 本來就讓瀏覽器直接載）。
         if (loadType === 'mod' || loadType === 'scr') {
             const urls = buildAllFetchUrls(rawUrl, mirrorUrl, { preferCdn });
             const ok = loadType === 'mod'
@@ -1125,8 +1090,7 @@
         item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}${failedPlugins.has(plugin.id) ? ' failed' : ''}`;
         item.setAttribute('data-plugin-id', plugin.id);
 
-        // #1 XSS 修正：icon/website 只接受 https 開頭的網址（拒絕 javascript: 等危險 scheme），
-        // 且插入屬性前一律 escapeHtml；純文字 emoji/icon 一樣 escape 後再放進 innerHTML。
+        // XSS 防護：icon/website 只接受 https（拒 javascript: 等 scheme），進 innerHTML 前一律 escapeHtml。
         const isHttpsUrl = (u) => typeof u === 'string' && /^https:\/\//i.test(u);
         const iconUrl = isHttpsUrl(plugin.customIcon) ? plugin.customIcon : (isHttpsUrl(plugin.icon) ? plugin.icon : null);
         const iconHtml = iconUrl
@@ -1774,11 +1738,9 @@
 
     // === 初始化 =================================================
 
-    // 系統依賴「依序」抓：先 jsDelivr，失敗才退 raw.githubusercontent。
-    // 絕不並行同打兩邊 —— raw.githubusercontent 有嚴格速率限制，Electron-BC 單一 IP + Loader 啟動時
-    // 的突發請求（本體、各依賴、每個子插件、Plugins.json）很容易觸發 429 (Too Many Requests)，
-    // 造成 PCM-i18n.js 等檔案抓取失敗、翻譯註冊不上（介面退回英文甚至顯示 key）。
-    // jsDelivr 在 EBC 正常且無此限制，一律優先。本地測試時 window.LikoDevBase 只有單一 localhost。
+    // 系統依賴依序抓（jsDelivr 優先、raw 保底），絕不並行同打兩邊：raw 有嚴格速率限制，
+    // EBC 單一 IP + Loader 啟動的突發請求很容易觸發 429，害 PCM-i18n.js 等抓取失敗、翻譯註冊不上。
+    // 本地測試時 window.LikoDevBase 只有單一 localhost。
     const _DEP_BASES = (typeof window !== 'undefined' && window.LikoDevBase)
         ? [window.LikoDevBase]
         : [
@@ -1789,12 +1751,11 @@
 
     function _injectCode(code) {
         const s = document.createElement('script');
-        s.textContent = code;              // 內聯 script → 同步執行（與下方 injectScript 同機制）
+        s.textContent = code;              // 內聯 script → 同步執行
         document.head.appendChild(s);
     }
 
-    // 依序抓取（jsDelivr 優先），並驗證內容（避免把 404 的 HTML 當 JS 注入）。
-    // 不加 ?t= 破快取 —— 讓 Electron 的 HTTP 快取能重用同一 URL，降低請求量、遠離 429。
+    // 依序抓取並驗證內容（避免把 404 的 HTML 當 JS 注入）。不加破快取 query，重用 HTTP 快取遠離 429。
     async function _fetchDep(rel) {
         let lastErr;
         for (const base of _DEP_BASES) {
@@ -1820,15 +1781,15 @@
         if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') {
             await _loadDep("expand/BC_i18n.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ BC_i18n.js:", e.message));
         }
-        // PCM 字庫：一律載入。不用 has('PCM','tabLocal') 判斷是否已載入 —— 該鍵在本體內建的 EN
-        // fallback 也存在，會被誤判成「已載入」而整包跳過、只剩英文。jsDelivr 優先後不再 429，這支能
-        // 穩定抓到並註冊 TW/CN…（PCM-i18n.js 內部自帶輪詢等引擎就位後再 register）。
+        // PCM 字庫：一律載入。不用 has('PCM','tabLocal') 判斷，否則會被本體內建的 EN fallback
+        // 誤判成「已載入」而跳過、只剩英文。（PCM-i18n.js 內部自帶輪詢等引擎就位後 register）
         await _loadDep("Translation/PCM-i18n.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ PCM-i18n.js:", e.message));
 
-        // 其餘系統擴充 —— 已就位就跳過（統一系統擴充掛在 window.Liko.__Sys_* 底下）
+        // 其餘系統擴充 —— 已就位就跳過
         const rest = [
-            { rel: "expand/BC_toast_system.user.js", ready: () => !!window.Liko?.__Sys_Toast__ },
-            { rel: "expand/BC_ThemeColorCheck.js",   ready: () => !!window.Liko?.__Sys_ColorAPI__ },
+            { rel: "expand/BC_toast_system.user.js",  ready: () => !!window.Liko?.__Sys_Toast__ },
+            { rel: "expand/BC_ThemeColorCheck.js",     ready: () => !!window.Liko?.__Sys_ColorAPI__ },
+            { rel: "expand/BC_ChatRoomButtons.js",     ready: () => !!window.Liko?.__Sys_ChatRoomButtons__ },
         ];
         for (const { rel, ready } of rest) {
             if (ready()) continue;
@@ -1842,7 +1803,7 @@
 
         try {
             if (!bcModSdk?.registerMod) { console.error("🐈‍⬛ [PCM] ❌ bcModSdk not available"); return; }
-            modApi = bcModSdk.registerMod({ name: "Liko's PCM", fullName: 'Liko - Plugin Collection Manager', version: MOD_VER, repository: "https://github.com/awdrrawd/liko-Plugin-Repository" });
+            modApi = bcModSdk.registerMod({ name: "Liko - PCM", fullName: "Liko's Plugin Collection Manager", version: MOD_VER, repository: "https://github.com/awdrrawd/liko-Plugin-Repository" });
             registerPCMBadge();
         } catch(e) { console.error("🐈‍⬛ [PCM] ❌ Init failed:", e.message); return; }
 
@@ -1858,8 +1819,7 @@
 
         registerI18n();
 
-        // Wait briefly for TranslationLanguage（#2：加入 done/unloaded 判斷，避免 resolve 後
-        // 或 mod 卸載後，check() 的遞迴 setTimeout 鏈仍在背景無限重排）
+        // 短暫等待 TranslationLanguage 就位（done/unloaded 判斷避免遞迴 setTimeout 鏈背景重排）
         await new Promise(r => {
             let done = false;
             const finish = () => { if (!done) { done = true; r(); } };
@@ -1886,7 +1846,7 @@
         registerPreferencePage();
 
         if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
-            _lifecycle.unloaded = true; // #5：讓 registerWhenReady / registerPCMBadge 的輪詢鏈停止重排
+            _lifecycle.unloaded = true; // 讓各輪詢鏈停止重排
             _lifecycle.intervals.forEach(id => clearInterval(id));
             _lifecycle.intervals.length = 0;
             if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }

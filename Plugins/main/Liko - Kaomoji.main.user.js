@@ -17,6 +17,21 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
+
+    // 共用按鈕順序協調器（與 expand/BC_ChatRoomButtons.js 同一份契約）：沒有就自己建，
+    // 有就沿用。版本守衛保證多份副本不打架、且保留別人登記過的順位。詳見該檔說明。
+    (function (g) {
+        const V = 1, cur = g.Liko.__Sys_ChatRoomButtons__;
+        if (cur && cur.v >= V) return;
+        g.Liko.__Sys_ChatRoomButtons__ = {
+            v: V,
+            slots: cur?.slots ?? {},
+            register(id, order, el) { this.slots[id] = order; if (el) el.style.order = String(order); return order; },
+            get(id) { return this.slots[id]; },
+            reapply(id, el) { if (el && id in this.slots) el.style.order = String(this.slots[id]); },
+        };
+    })(window);
+
     try {
         window.Liko.Kaomoji = window.Liko.Kaomoji ?? {};
         if (typeof window.Liko.Kaomoji?.Destroy === 'function') {
@@ -1257,6 +1272,8 @@
             var existing = document.getElementById('lk-kaomoji-trigger-btn');
             if (existing && existing.parentElement === container) {
                 injectStyles();
+                // BC 可能在原地重繪 grid，順位每輪重新套回，確保被清掉的 style.order 補回来
+                window.Liko.__Sys_ChatRoomButtons__.reapply('kaomoji', existing);
                 syncTriggerVisibility(existing);
                 return;
             }
@@ -1264,6 +1281,8 @@
             injectStyles();
             var newBtn = createNativeButton();
             container.appendChild(newBtn);
+            // 用共用協調器宣告順位（order 越小越靠 grid 起點；正數在原生按鈕之後，rtl 下＝偏左）
+            window.Liko.__Sys_ChatRoomButtons__.register('kaomoji', 3, newBtn);
             syncTriggerVisibility(newBtn);
         }
 

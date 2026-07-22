@@ -204,7 +204,7 @@
 
         try {
             modApi = bcModSdk.registerMod({
-                name: "liko - Region switch",
+                name: "Liko - Region switch",
                 fullName: "Region switch",
                 version: MOD_VER,
                 repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
