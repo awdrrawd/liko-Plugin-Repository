@@ -56,9 +56,14 @@
 		pen:     ASSET_BASE + "DDT-Pen.svg",
 		ruler:   ASSET_BASE + "DDT-Ruler.svg",
 		setting: ASSET_BASE + "DDT-Setting.svg",
+		hidden:  ASSET_BASE + "DDT-Hidden.svg",     // globalHide 第一段（全部虛線外框）
+		hidden2: ASSET_BASE + "DDT-Hidden2.svg",    // globalHide 第二段（全部隱藏含底圖）
+		clean:   ASSET_BASE + "DDT-Clean.svg",      // 清除所有繪製物件
+		adsorb:  ASSET_BASE + "DDT-Adsorption.svg", // 自動貼齊 toggle
 	};
 	const SHEET_IMG = "Backgrounds/Sheet.jpg";   // BC 內建資源，DrawGetImage 取得
 	const LS_PEN = "DDTPenObjects";              // Pen 物件的本地保存 key
+	const LS_SET = "DDTSettings";                // Pen 工具的偏好設定（網格/背景/繪製預設）本地保存 key
 
 	// ---------------------------------------------------------------- 狀態
 
@@ -122,31 +127,40 @@
 	let penObjects = [];
 	let penSeq = 1;                 // 物件 id 流水號
 	let penMode = false;            // 是否處於 Pen 模式（點畫布 = 放置/選取物件；此時擋住底下 BC 的互動）
-	let penTool = "select";         // 'select' | 'button' | 'text' | 'frame'
 	let penSel = null;              // 目前選中的 Pen 物件
 	let penDrag = null;             // 拖曳中的暫存 { mode:'new'|'move', ... }
-	let propsCollapsed = false;     // 選中物件屬性面板是否收納
-	let layersCollapsed = false;    // 圖層清單是否收納（需求 6）
-	let globalHide = 0;             // DDT-Hidden 全域顯示：0 正常 | 1 全部虛線 | 2 全部隱藏(含底圖)（需求 5）
+	let globalHide = 0;             // DDT-Hidden 全域顯示：0 正常 | 1 全部虛線 | 2 全部隱藏(含底圖)
 
-	/** 各 variant 的建立預設值 */
-	const VARIANT = {
-		button: { fill: "#ffd54a", border: "#000000", borderW: 3, text: "按鈕", align: "center" },
-		text:   { fill: null,      border: null,      borderW: 0, text: "文字", align: "center" },
-		frame:  { fill: null,      border: "#ff3b6b", borderW: 3, text: "",     align: "center" },
+	// --- 面板頁籤（繪圖工具大改）---
+	// 主體頁籤：'edit' 編輯 | 'draw' 繪製 | 'bg' 背景；'圖層' 是獨立側邊面板（layerPanelOpen），不算主體頁籤。
+	let penTab = "draw";
+	let layerPanelOpen = false;     // 圖層側邊面板是否展開（不受其他分頁控制）
+	let drawType = "button";        // 繪製頁目前選的物件類型 'button' | 'text' | 'frame'
+	// 目前實際的畫布工具：繪製頁時 = drawType（點畫布放物件），其餘頁 = 'select'（只選/移動，不新增）
+	function penTool() { return penTab === "draw" ? drawType : "select"; }
+
+	/** 各 variant 的建立預設值（繪製頁可即時修改並存本地，避免重複調基本參數） */
+	let VARIANT = {
+		button: { fill: "#ffd54a", border: "#000000", borderW: 3, text: "按鈕", align: "center", fontSize: 40, textColor: "#000000", w: 160, h: 60 },
+		text:   { fill: null,      border: null,      borderW: 0, text: "文字", align: "center", fontSize: 40, textColor: "#000000", w: 160, h: 60 },
+		frame:  { fill: null,      border: "#ff3b6b", borderW: 3, text: "",     align: "center", fontSize: 40, textColor: "#000000", w: 160, h: 60 },
 	};
 	const VARIANT_LABEL = { button: "按鈕", text: "文字", frame: "純框" };
 	const DEF_FONT = 40, DEF_TEXTCOLOR = "#000000";
 
-	// --- 網格 / 貼齊（需求 7、8）---
+	// --- 網格 / 貼齊 ---
 	let gridOn = false;
 	let gridSize = 50;              // 網格間距（虛擬座標 px）
-	let gridAlpha = 0.6;            // 網格深淺（需求 2）
-	let snapOn = false;             // 自動貼齊（網格 + 物件邊/中對齊）
+	let gridAlpha = 0.6;            // 網格深淺（0~1）
+	let gridWidth = 1;             // 網格線粗細（px）
+	let snapOn = false;             // 自動貼齊（網格 + 物件邊/中對齊）；toggle 移到面板標題列的 DDT-Adsorption
 
-	// --- Sheet.jpg 底圖疊層 ---
+	// --- 背景疊層：Sheet.jpg 底圖 / 純色背景 ---
 	let sheetOn = false;
 	let sheetAlpha = 0.5;
+	let bgOn = false;               // 純色背景開關
+	let bgColor = "#3a3a52";        // 純色背景顏色
+	let bgAlpha = 1;                // 純色背景透明度（0~1）
 
 	// --- 目前啟動的工具面板：'ruler' | 'pen' | 'setting' | null ---
 	let activeTool = null;
@@ -166,12 +180,17 @@
 	let root = null; // UI 容器（shadow host）
 	let panel = null;        // Ruler（偵測）面板
 	let penPanel = null;     // Pen（繪圖）面板
+	let penLayerPanel = null;// Pen 的圖層側邊面板（獨立浮動，不受主體分頁控制）
 	let setPanel = null;     // Setting（匯出/匯入）面板
 	let menu = null;         // 氣球展開的工具選單
 	let balloon = null;
 	let balloonImg = null;   // APNG（游標移上才播放）
 	let balloonPoster = null;// 靜止影格（移開時顯示）
 	let domHighlight = null;
+	// 需求 4：繪製物件的頂層疊圖畫布。BC 的 DOM 元件疊在遊戲 canvas 之上，畫在 MainCanvas 上的東西
+	// 一定被 DOM 蓋住；改用一張獨立、z-index 高於 BC DOM 的 canvas 畫「繪製物件」，並每幀貼齊
+	// MainCanvas 的螢幕矩形（backing 固定 2000×1000）→ 座標與遊戲一致、又能浮在 DOM 之上。
+	let fxCanvas = null, fxCtx = null;
 
 	// ---------------------------------------------------------------- 小工具
 
@@ -588,8 +607,10 @@
 				}
 				curLog = [];
 			}
-			// 疊加層（Sheet/網格/Pen 物件/Ruler 高亮）畫在 MainCanvas 上，跟 BC 共用 2000×1000 座標（需求 1）
+			// 背景/網格/底圖 + Ruler 高亮畫在 MainCanvas（跟 BC 共用 2000×1000 座標）；
+			// 繪製物件改畫在頂層 fxCanvas，浮在 BC DOM 之上（需求 4）
 			try { drawOverlay(); } catch { /* 疊加層畫失敗不能拖垮遊戲 */ }
+			try { drawPenOverlay(); } catch { /* 頂層物件畫失敗不能拖垮遊戲 */ }
 			return ret;
 		});
 	}
@@ -668,17 +689,51 @@
 			if (recording) drawRulerHighlight(ctx);
 			return;
 		}
+		if (bgOn) drawBgColor(ctx);
 		if (sheetOn) drawSheet(ctx);
 		if (gridOn) drawGrid(ctx);
-		drawPenObjects(ctx);
+		// 繪製物件改畫在頂層 fxCanvas（見 drawPenOverlay），這裡只保留背景/網格/底圖 + Ruler 高亮
 		if (recording) drawRulerHighlight(ctx);
+	}
+
+	/**
+	 * 需求 4：把「繪製物件」畫在獨立的頂層畫布上，使其浮在 BC 的 DOM 元件之上。
+	 * 每幀把 fxCanvas 貼齊 MainCanvas 的螢幕矩形（backing 固定 2000×1000），
+	 * 座標系與遊戲一致 → 物件位置、拖曳、貼齊都跟原本 MainCanvas 版本完全對齊。
+	 */
+	function drawPenOverlay() {
+		if (!fxCanvas || !fxCtx) return;
+		let cv = null;
+		try { cv = (typeof MainCanvas !== "undefined" && MainCanvas) ? MainCanvas.canvas : null; } catch { cv = null; }
+		if (!cv) { fxCanvas.style.display = "none"; return; }
+		const r = cv.getBoundingClientRect();
+		if (r.width < 1 || r.height < 1) { fxCanvas.style.display = "none"; return; }
+		// 位置/大小貼齊遊戲畫布（CSS px）；backing 2000×1000 由瀏覽器自動縮放，映射與 BC 相同
+		// 注意：要用明確的 "block"，不能用 ""；"" 只是清掉 inline，會退回 CSS 的 display:none 又被藏起來
+		fxCanvas.style.display = "block";
+		fxCanvas.style.left = r.left + "px";
+		fxCanvas.style.top = r.top + "px";
+		fxCanvas.style.width = r.width + "px";
+		fxCanvas.style.height = r.height + "px";
+		fxCtx.clearRect(0, 0, 2000, 1000);
+		if (globalHide >= 2) return; // 全部隱藏含底圖：物件也不畫
+		drawPenObjects(fxCtx);
+	}
+
+	/** 純色背景：整張畫布填一個顏色（在 Sheet 底圖之下） */
+	function drawBgColor(ctx) {
+		ctx.save();
+		ctx.globalAlpha = Math.max(0, Math.min(1, bgAlpha));
+		ctx.fillStyle = bgColor;
+		ctx.fillRect(0, 0, 2000, 1000);
+		ctx.restore();
 	}
 
 	function drawGrid(ctx) {
 		const g = Math.max(5, gridSize);
 		ctx.save();
 		ctx.strokeStyle = `rgba(0,0,0,${Math.max(0, Math.min(1, gridAlpha))})`;
-		ctx.lineWidth = 1;
+		ctx.lineWidth = Math.max(1, gridWidth);
 		ctx.setLineDash([]);
 		ctx.beginPath();
 		for (let x = 0; x <= 2000; x += g) { ctx.moveTo(x, 0); ctx.lineTo(x, 1000); }
@@ -900,6 +955,44 @@
 		} catch { /* 壞掉的存檔就忽略 */ }
 	}
 
+	/** 保存 Pen 工具偏好（網格 / 背景 / 貼齊 / 各類型繪製預設）到本地 */
+	function saveSettings() {
+		try {
+			localStorage.setItem(LS_SET, JSON.stringify({
+				gridOn, gridSize, gridAlpha, gridWidth, snapOn,
+				sheetOn, sheetAlpha, bgOn, bgColor, bgAlpha,
+				variant: VARIANT, drawType,
+			}));
+		} catch { /* 無痛失敗 */ }
+	}
+
+	function loadSettings() {
+		try {
+			const raw = localStorage.getItem(LS_SET);
+			if (!raw) return;
+			const s = JSON.parse(raw);
+			if (!s || typeof s !== "object") return;
+			if (typeof s.gridOn === "boolean") gridOn = s.gridOn;
+			if (isFinite(s.gridSize)) gridSize = Math.max(5, s.gridSize);
+			if (isFinite(s.gridAlpha)) gridAlpha = Math.max(0, Math.min(1, s.gridAlpha));
+			if (isFinite(s.gridWidth)) gridWidth = Math.max(1, s.gridWidth);
+			if (typeof s.snapOn === "boolean") snapOn = s.snapOn;
+			if (typeof s.sheetOn === "boolean") sheetOn = s.sheetOn;
+			if (isFinite(s.sheetAlpha)) sheetAlpha = Math.max(0, Math.min(1, s.sheetAlpha));
+			if (typeof s.bgOn === "boolean") bgOn = s.bgOn;
+			if (typeof s.bgColor === "string") bgColor = s.bgColor;
+			if (isFinite(s.bgAlpha)) bgAlpha = Math.max(0, Math.min(1, s.bgAlpha));
+			if (s.drawType && VARIANT[s.drawType]) drawType = s.drawType;
+			// 各類型繪製預設：只覆蓋已知欄位，避免壞資料汙染
+			if (s.variant && typeof s.variant === "object") {
+				for (const k of ["button", "text", "frame"]) {
+					const v = s.variant[k];
+					if (v && typeof v === "object") Object.assign(VARIANT[k], v);
+				}
+			}
+		} catch { /* 壞掉的設定就忽略 */ }
+	}
+
 	/** 進出 Pen 模式（需求 4 的攔截由 window capture 的 penPointerDown 處理） */
 	function setPenMode(on) {
 		penMode = on;
@@ -1097,6 +1190,17 @@
 	.objrow .lyr:hover { filter: none; }
 	.objrow .del { margin-left: auto; color: #ff7a90; background: none; border: none; cursor: pointer;
 		font-size: calc(var(--fs)); padding: 0 4px; flex-shrink: 0; }
+	/* Photoshop 式底部工具列：顯示 / 鎖定 / 刪除 選中物件 */
+	.footbar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: #242434;
+		border-top: 1px solid #4a4a66; flex: 0 0 auto; }
+	.footbar .fbtn { width: 34px; height: 30px; border-radius: 5px; border: 1px solid #4a4a66;
+		background: #2b2b3d; color: #e8e8f0; cursor: pointer; font-size: calc(var(--fs)); padding: 0;
+		display: flex; align-items: center; justify-content: center; }
+	.footbar .fbtn:hover:not(:disabled) { background: #3a3a52; }
+	.footbar .fbtn:disabled { opacity: .4; cursor: default; }
+	.footbar .fbtn.danger:hover:not(:disabled) { background: #5a2f3a; border-color: #a04a5e; }
+	.footbar .fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+		color: #9a9ab0; font-size: calc(var(--fs) - 2px); padding-left: 4px; }
 	.panel {
 		position: fixed; z-index: ${UI_Z}; width: 400px; max-height: 80vh;
 		background: rgba(24,24,32,.97); color: #e8e8f0; border: 1px solid #4a4a66; border-radius: 10px;
@@ -1112,6 +1216,12 @@
 	.hd button { background: none; border: none; color: #aaa; cursor: pointer;
 		font-size: calc(var(--fs) + 2px); padding: 0 5px; line-height: 1; }
 	.hd button:hover { color: #fff; }
+	/* 標題列的 SVG 圖示鈕（自動貼齊 / 清除）：黑色 SVG 反白成亮色才在深色標題上看得見 */
+	.hd .icobtn { width: 24px; height: 24px; padding: 0; border-radius: 5px;
+		background: center/72% no-repeat; filter: invert(.78); opacity: .9; flex: 0 0 auto; }
+	.hd .icobtn:hover { filter: invert(1); opacity: 1; background-color: #3a3a52; }
+	.hd .icobtn.on { filter: invert(1); opacity: 1; background-color: rgba(255,213,74,.28);
+		box-shadow: 0 0 0 1px #ffd54a inset; }
 	.tabs { display: flex; gap: 2px; padding: 0 8px; background: #242434; border-bottom: 1px solid #4a4a66;
 		flex: 0 0 auto; }
 	.tabs button { background: none; border: none; border-bottom: 2px solid transparent; color: #8a8aa0;
@@ -1161,6 +1271,8 @@
 	kbd { background: #3a3a52; border: 1px solid #5a5a7a; border-radius: 3px; padding: 0 4px;
 		font-family: ui-monospace, Consolas, monospace; font-size: calc(var(--fs) - 3px); }
 	.hl { position: fixed; z-index: ${UI_Z - 1}; border: 2px dashed #2f9e6b; pointer-events: none; display: none; }
+	/* 繪製物件的頂層疊圖畫布：浮在 BC DOM 之上、但在面板之下；只做顯示，不吃事件 */
+	.fx { position: fixed; z-index: ${UI_Z - 5}; pointer-events: none; display: none; }
 	.empty { color: #777; padding: 14px 4px; text-align: center; }
 	`;
 
@@ -1209,6 +1321,13 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		domHighlight.className = "hl";
 		shadow.appendChild(domHighlight);
 
+		// 頂層疊圖畫布（繪製物件浮在 BC DOM 之上，需求 4）
+		fxCanvas = document.createElement("canvas");
+		fxCanvas.className = "fx";
+		fxCanvas.width = 2000; fxCanvas.height = 1000;
+		fxCtx = fxCanvas.getContext("2d");
+		shadow.appendChild(fxCanvas);
+
 		document.body.appendChild(root);
 
 		// 字級：存起來，下次載入沿用（三個面板共用 root 的 --fs）
@@ -1225,11 +1344,13 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		}));
 
 		loadPenObjects();
+		loadSettings();
 
 		// 氣球點一下 = 展開/收起工具選單；拖曳時附屬選單跟著跑（需求 2）
 		makeDraggable(balloon, balloon, toggleMenu, () => { if (menuOpen) positionMenuNearBalloon(); });
 		makeDraggable(panel, panel.querySelector(".hd"));
 		makeDraggable(penPanel, penPanel.querySelector(".hd"));
+		makeDraggable(penLayerPanel, penLayerPanel.querySelector(".hd"));
 		makeDraggable(setPanel, setPanel.querySelector(".hd"));
 	}
 
@@ -1283,29 +1404,57 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	function createMenu(shadow) {
 		menu = document.createElement("div");
 		menu.className = "menu";
-		// DDT-Hidden 夾在 Ruler 與 Setting 中間；它不是工具面板，是全域顯示切換（需求 5）
+		// DDT-Hidden 夾在 Ruler 與 Setting 中間；它不是工具面板，是全域顯示切換
 		menu.innerHTML = `
 			<button data-tool="pen" title="Pen — 繪圖工具箱" style="background-image:url('${ICON.pen}')"></button>
 			<button data-tool="ruler" title="Ruler — 偵測 / 檢視 / 編輯" style="background-image:url('${ICON.ruler}')"></button>
 			<button data-hidden class="emoji" title="DDT-Hidden — 全部虛線 / 全部隱藏 / 正常">👁</button>
+			<button data-clean title="DDT-Clean — 清除所有繪製物件與偵測狀態" style="background-image:url('${ICON.clean}')"></button>
 			<button data-tool="setting" title="Setting — 匯出/匯入/隱藏" style="background-image:url('${ICON.setting}')"></button>`;
 		shadow.appendChild(menu);
 		menu.querySelectorAll("[data-tool]").forEach((b) =>
 			b.addEventListener("click", () => openTool(b.dataset.tool)));
 		menu.querySelector("[data-hidden]").addEventListener("click", cycleGlobalHide);
+		menu.querySelector("[data-clean]").addEventListener("click", clearAll);
+		updateHiddenButton();
 	}
 
-	/** DDT-Hidden：正常 → 全部虛線 → 全部隱藏(含底圖) → 正常（需求 5） */
+	/** DDT-Clean（選單）：一次清掉所有繪製物件 + 偵測狀態（選取/覆寫/高亮/回放） */
+	function clearAll() {
+		if (penObjects.length && !confirm("清除所有繪製物件與偵測狀態？")) return;
+		clearPenObjects();
+		// 偵測（Ruler）：清掉選取、即時覆寫、回放/凍結、滑鼠高亮
+		clearSelection();
+		uiOverrides.clear();
+		scrubLimit = -1;
+		frozen = false;
+		renderPenPanel();
+		if (panel && panel.classList.contains("show")) renderPanel();
+	}
+
+	/** 依 globalHide 更新隱藏鈕外觀：0 正常(👁 emoji) | 1 全部虛線(DDT-Hidden) | 2 全部隱藏含底圖(DDT-Hidden2) */
+	function updateHiddenButton() {
+		const b = menu && menu.querySelector("[data-hidden]");
+		if (!b) return;
+		b.classList.toggle("on", globalHide !== 0);
+		if (globalHide === 0) {
+			b.classList.add("emoji");
+			b.style.backgroundImage = "";
+			b.textContent = "👁";
+			b.title = "DDT-Hidden — 全部虛線 / 全部隱藏 / 正常";
+		} else {
+			b.classList.remove("emoji");
+			b.textContent = "";
+			b.style.backgroundImage = `url('${globalHide === 1 ? ICON.hidden : ICON.hidden2}')`;
+			b.title = globalHide === 1 ? "DDT-Hidden — 目前：全部虛線（再按=全部隱藏含底圖）"
+				: "DDT-Hidden — 目前：全部隱藏含底圖（再按=正常）";
+		}
+	}
+
+	/** DDT-Hidden：正常 → 全部虛線 → 全部隱藏(含底圖) → 正常 */
 	function cycleGlobalHide() {
 		globalHide = (globalHide + 1) % 3;
-		const b = menu.querySelector("[data-hidden]");
-		if (b) {
-			b.classList.toggle("on", globalHide !== 0);
-			b.textContent = globalHide === 1 ? "▨" : globalHide === 2 ? "🚫" : "👁";
-			b.title = globalHide === 1 ? "DDT-Hidden — 目前：全部虛線（再按=全部隱藏）"
-				: globalHide === 2 ? "DDT-Hidden — 目前：全部隱藏含底圖（再按=正常）"
-				: "DDT-Hidden — 全部虛線 / 全部隱藏 / 正常";
-		}
+		updateHiddenButton();
 	}
 
 	function toggleMenu() {
@@ -1332,11 +1481,13 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		// 先把三個工具全部收起（含「再按一次同一個 = 收起」的情況），再打開選中的
 		setPenMode(false);
 		penPanel.classList.remove("show");
+		showLayerPanel(false);
 		setPanel.classList.remove("show");
 		if (picking || panel.classList.contains("show")) closePanel();
 
 		if (activeTool === "pen") {
 			penPanel.classList.add("show"); setPenMode(true); positionNear(penPanel); renderPenPanel();
+			if (layerPanelOpen) showLayerPanel(true);
 		} else if (activeTool === "ruler") {
 			startPicking(); renderPanel(); positionNear(panel);
 		} else if (activeTool === "setting") {
@@ -1360,6 +1511,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		balloon.classList.remove("on");
 		setPenMode(false);
 		penPanel.classList.remove("show");
+		showLayerPanel(false);
 		setPanel.classList.remove("show");
 		if (picking || panel.classList.contains("show")) closePanel();
 	}
@@ -1382,78 +1534,95 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		penPanel.className = "panel";
 		penPanel.style.left = "70px"; penPanel.style.top = "120px"; penPanel.style.width = "360px";
 		penPanel.innerHTML = `
-			<div class="hd"><b>🖊 Pen · 繪圖</b><button data-x title="關閉">✕</button></div>
-			<div class="bd"></div>`;
+			<div class="hd">
+				<b>🖊 Pen · 繪圖</b>
+				<button data-adsorb class="icobtn" title="自動貼齊（網格＋物件邊/中對齊）" style="background-image:url('${ICON.adsorb}')"></button>
+				<button data-clean class="icobtn" title="清除所有繪製的物件" style="background-image:url('${ICON.clean}')"></button>
+				<button data-x title="關閉">✕</button>
+			</div>
+			<div class="tabs">
+				<button data-ptab="layers">圖層</button>
+				<button data-ptab="edit">編輯</button>
+				<button data-ptab="draw">繪製</button>
+				<button data-ptab="bg">背景</button>
+			</div>
+			<div class="bd"></div>
+			<div class="footbar" data-footbar style="display:none"></div>`;
 		shadow.appendChild(penPanel);
+
+		// 圖層側邊面板：獨立的浮動面板，開關由「圖層」頁籤切換，不受其他分頁影響
+		penLayerPanel = document.createElement("div");
+		penLayerPanel.className = "panel";
+		penLayerPanel.style.left = "440px"; penLayerPanel.style.top = "120px"; penLayerPanel.style.width = "230px";
+		penLayerPanel.innerHTML = `
+			<div class="hd"><b>🗂 圖層</b><button data-x title="關閉圖層面板">✕</button></div>
+			<div class="bd"></div>`;
+		shadow.appendChild(penLayerPanel);
+
 		penPanel.querySelector("[data-x]").addEventListener("click", closeTool);
+		penPanel.querySelector("[data-adsorb]").addEventListener("click", () => { snapOn = !snapOn; saveSettings(); updatePenHeader(); });
+		penPanel.querySelector("[data-clean]").addEventListener("click", () => {
+			if (!penObjects.length) return;
+			if (confirm("清除所有繪製的物件？")) { clearPenObjects(); renderPenPanel(); }
+		});
+		penPanel.querySelectorAll("[data-ptab]").forEach((b) => b.addEventListener("click", () => {
+			if (b.dataset.ptab === "layers") { toggleLayerPanel(); return; } // 圖層 = 側邊展開，不切主體
+			penTab = b.dataset.ptab; renderPenPanel();
+		}));
+		penLayerPanel.querySelector("[data-x]").addEventListener("click", () => toggleLayerPanel(false));
+	}
+
+	/** 更新標題列（自動貼齊高亮）與頁籤高亮 */
+	function updatePenHeader() {
+		if (!penPanel) return;
+		penPanel.querySelector("[data-adsorb]")?.classList.toggle("on", snapOn);
+		penPanel.querySelectorAll("[data-ptab]").forEach((b) => {
+			const on = b.dataset.ptab === "layers" ? layerPanelOpen : penTab === b.dataset.ptab;
+			b.classList.toggle("on", on);
+		});
+	}
+
+	function showLayerPanel(on) {
+		layerPanelOpen = on;
+		if (!penLayerPanel) return;
+		penLayerPanel.classList.toggle("show", on);
+		if (on) { positionLayerPanel(); renderLayerPanel(); }
+		updatePenHeader();
+	}
+	function toggleLayerPanel(force) { showLayerPanel(typeof force === "boolean" ? force : !layerPanelOpen); }
+
+	/** 圖層面板貼在 penPanel 右側；空間不夠就改貼左側 */
+	function positionLayerPanel() {
+		const r = penPanel.getBoundingClientRect();
+		let left = r.right + 8;
+		if (left + 230 > window.innerWidth) left = Math.max(4, r.left - 238);
+		penLayerPanel.style.left = left + "px";
+		penLayerPanel.style.top = Math.max(4, r.top) + "px";
 	}
 
 	function renderPenPanel() {
 		if (!penPanel || !penPanel.classList.contains("show")) return;
+		updatePenHeader();
 		const bd = penPanel.querySelector(".bd");
-		const tools = [["select", "選取/移動"], ["button", "按鈕"], ["text", "文字"], ["frame", "純框"]];
-		let h = `<div class="seg">` +
-			tools.map(([v, l]) => `<button class="act ${penTool === v ? "on" : ""}" data-ptool="${v}">${l}</button>`).join("") + `</div>`;
-		h += `<div class="note">選「按鈕/文字/純框」後在畫布上拖出一個框（點一下則給預設大小）；框裡都能打字。點既有物件會自動變成拖移。</div>`;
-
-		// 網格 / 貼齊（需求 7、8）
-		h += `<h4>網格 / 貼齊</h4>`;
-		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-gridon ${gridOn ? "checked" : ""}> 顯示網格</label>
-			<span class="k" style="width:auto">間距</span><input type="number" data-gridsize value="${gridSize}" style="width:64px"></div>`;
-		h += `<div class="row"><span class="k">網格深淺</span><input type="range" data-gridalpha min="0" max="100" value="${Math.round(gridAlpha * 100)}" style="flex:1">
-			<span class="v" style="flex:0 0 auto">${Math.round(gridAlpha * 100)}%</span></div>`;
-		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-snapon ${snapOn ? "checked" : ""}> 自動貼齊（網格＋物件邊/中對齊）</label></div>`;
-
-		// Sheet 底圖
-		h += `<h4>Sheet.jpg 底圖</h4>`;
-		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-sheeton ${sheetOn ? "checked" : ""}> 覆蓋 Backgrounds/Sheet.jpg</label></div>`;
-		h += `<div class="row"><span class="k">透明度</span><input type="range" data-sheeta min="0" max="100" value="${Math.round(sheetAlpha * 100)}" style="flex:1">
-			<span class="v" style="flex:0 0 auto">${Math.round(sheetAlpha * 100)}%</span></div>`;
-
-		// 選中物件屬性（可收納，需求 6）
-		h += renderPenObjProps();
-
-		// 圖層清單（可展開/收納，含隱藏 / 鎖定，需求 6）
-		const lcaret = layersCollapsed ? "▸" : "▾";
-		h += `<h4 style="display:flex;align-items:center;cursor:pointer" data-layerstoggle>
-			<span>${lcaret} 圖層（${penObjects.length}）</span><span style="color:#777;font-weight:400;margin-left:6px"> · 👁顯示/外框/隱藏 🔒鎖定</span></h4>`;
-		if (!layersCollapsed) {
-			if (!penObjects.length) {
-				h += `<div class="note">還沒有物件。</div>`;
-			} else {
-				h += `<div class="stack">`;
-				// 由上而下顯示 = 由最上層（陣列尾）到最底層
-				for (let i = penObjects.length - 1; i >= 0; i--) {
-					const o = penObjects[i];
-					const hicon = o.hidden === "full" ? "🚫" : o.hidden === "outline" ? "▨" : "👁";
-					h += `<div class="objrow ${o === penSel ? "sel" : ""}" data-obj="${i}">
-						<button class="lyr" data-hideobj="${i}" title="顯示 → 只留外框 → 完全隱藏">${hicon}</button>
-						<button class="lyr" data-lockobj="${i}" title="鎖定/解鎖">${o.locked ? "🔒" : "🔓"}</button>
-						<span class="fn">${VARIANT_LABEL[o.variant] || "框"}</span>
-						<span class="dt">${esc(shortStr(o.text || "", 10))}</span>
-						<button class="del" data-delobj="${i}" title="刪除">🗑</button></div>`;
-				}
-				h += `</div><div class="row"><button class="act" data-clearpen>清除全部</button></div>`;
-			}
+		const foot = penPanel.querySelector("[data-footbar]");
+		if (penTab === "edit") {
+			bd.innerHTML = renderEditTab();
+			foot.style.display = "flex"; foot.innerHTML = renderFootbar();
+		} else if (penTab === "draw") {
+			bd.innerHTML = renderDrawTab(); foot.style.display = "none";
+		} else {
+			bd.innerHTML = renderBgTab(); foot.style.display = "none";
 		}
-		h += `<div class="note">物件以 2000×1000 虛擬座標保存，跟解析度無關；改動即時存本地，可到 ⚙ Setting 匯出/匯入。</div>`;
-
-		bd.innerHTML = h;
 		wirePenPanel();
+		if (layerPanelOpen) renderLayerPanel();
 	}
 
-	function renderPenObjProps() {
+	// --- 編輯頁：選中物件的全部參數（顯示/鎖定/刪除移到底部工具列）---
+	function renderEditTab() {
 		const o = penSel;
-		const caret = propsCollapsed ? "▸" : "▾";
-		let h = `<h4 style="display:flex;align-items:center;cursor:pointer" data-propstoggle>
-			<span>${caret} 選中物件${o ? " · " + (VARIANT_LABEL[o.variant] || "框") : ""}</span></h4>`;
-		if (!o) { h += `<div class="note">點畫布上的物件（或下面圖層清單）即可編輯它的尺寸/字級/座標/顏色/旋轉；拖動時原位虛線、新位實線。</div>`; return h; }
-		if (propsCollapsed) return h; // 收納：只留標題
-
-		// 切換 variant（需求 6：切換屬性）
-		h += `<div class="row"><span class="k">類型</span><div class="seg" style="flex:1;margin:0">` +
+		if (!o) return `<div class="note">點畫布上的物件、或到「圖層」面板挑一個，即可在這裡編輯它的類型 / 座標 / 尺寸 / 旋轉 / 文字 / 顏色。拖動時原位虛線、新位實線。</div>`;
+		let h = `<div class="row"><span class="k">類型</span><div class="seg" style="flex:1;margin:0">` +
 			["button", "text", "frame"].map((v) => `<button class="act ${o.variant === v ? "on" : ""}" data-ovariant="${v}">${VARIANT_LABEL[v]}</button>`).join("") + `</div></div>`;
-
 		h += `<div class="row"><span class="k">X / Y</span><input type="number" data-ox value="${Math.round(o.x)}" style="width:80px"><input type="number" data-oy value="${Math.round(o.y)}" style="width:80px"></div>`;
 		h += `<div class="row"><span class="k">寬 / 高</span><input type="number" data-ow value="${Math.round(o.w)}" style="width:80px"><input type="number" data-oh value="${Math.round(o.h)}" style="width:80px"></div>`;
 		h += `<div class="row"><span class="k">旋轉°</span><input type="range" data-orot min="-180" max="180" value="${o.rot || 0}" style="flex:1"><input type="number" data-orotn value="${o.rot || 0}" style="width:64px"></div>`;
@@ -1462,44 +1631,92 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			<label style="${LABEL}"><input type="checkbox" data-oleft ${o.align === "left" ? "checked" : ""}> 靠左</label></div>`;
 		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-ofillon ${o.fill ? "checked" : ""}> 填色</label><input type="color" data-ofill value="${normalizeColor(o.fill) || "#ffd54a"}"></div>`;
 		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-oborderon ${o.border ? "checked" : ""}> 外框</label><input type="color" data-oborder value="${normalizeColor(o.border) || "#000000"}"><input type="number" data-oborderw value="${o.borderW || 3}" style="width:58px"></div>`;
-		h += `<div class="row" style="margin-top:6px">
-			<span class="k">顯示</span>
-			<select data-ohide>
-				<option value="show" ${!o.hidden ? "selected" : ""}>顯示</option>
-				<option value="outline" ${o.hidden === "outline" ? "selected" : ""}>只留外框</option>
-				<option value="full" ${o.hidden === "full" ? "selected" : ""}>完全隱藏</option>
-			</select>
-			<label style="${LABEL}"><input type="checkbox" data-olocked ${o.locked ? "checked" : ""}> 鎖定</label></div>`;
-		h += `<div class="row"><button class="act" data-odel>刪除此物件</button></div>`;
 		return h;
 	}
 
-	function wirePenPanel() {
-		const q = (s) => penPanel.querySelector(s), qa = (s) => penPanel.querySelectorAll(s);
+	/** Photoshop 式底部工具列：顯示 / 鎖定 / 刪除 選中物件 */
+	function renderFootbar() {
+		const o = penSel;
+		if (!o) return `<span class="fname">未選取物件</span>`;
+		const hicon = o.hidden === "full" ? "🚫" : o.hidden === "outline" ? "▨" : "👁";
+		return `<button class="fbtn" data-fhide title="顯示 → 只留外框 → 完全隱藏">${hicon}</button>
+			<button class="fbtn" data-flock title="鎖定 / 解鎖">${o.locked ? "🔒" : "🔓"}</button>
+			<span class="fname">${VARIANT_LABEL[o.variant] || "框"}${o.text ? " · " + esc(shortStr(o.text, 12)) : ""}</span>
+			<button class="fbtn danger" data-fdel title="刪除此物件">🗑</button>`;
+	}
 
-		qa("[data-ptool]").forEach((b) => b.addEventListener("click", () => { penTool = b.dataset.ptool; renderPenPanel(); }));
+	// --- 繪製頁：選類型 + 預先設定該類型的邊線/底色/外框/比例，之後畫的都套用 ---
+	function renderDrawTab() {
+		const v = VARIANT[drawType];
+		const tools = [["button", "按鈕"], ["text", "文字"], ["frame", "純框"]];
+		let h = `<div class="seg">` +
+			tools.map(([k, l]) => `<button class="act ${drawType === k ? "on" : ""}" data-dtype="${k}">${l}</button>`).join("") + `</div>`;
+		h += `<div class="note">選好類型後在畫布上拖出一個框（點一下 = 用下面的「預設尺寸」）；框裡都能打字。點既有物件會自動變成拖移。下方是「${VARIANT_LABEL[drawType]}」的預設樣式，之後畫的都會套用，不必反覆調整。</div>`;
+		h += `<h4>預設樣式 · ${VARIANT_LABEL[drawType]}</h4>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-dfillon ${v.fill ? "checked" : ""}> 底色</label><input type="color" data-dfill value="${normalizeColor(v.fill) || "#ffd54a"}"></div>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-dborderon ${v.border ? "checked" : ""}> 外框</label><input type="color" data-dborder value="${normalizeColor(v.border) || "#000000"}"><span class="k" style="width:auto">邊線</span><input type="number" data-dborderw value="${v.borderW || 0}" style="width:56px"></div>`;
+		h += `<div class="row"><span class="k">字級 / 色</span><input type="number" data-dfs value="${v.fontSize || DEF_FONT}" style="width:70px"><input type="color" data-dtcolor value="${normalizeColor(v.textColor) || DEF_TEXTCOLOR}">
+			<label style="${LABEL}"><input type="checkbox" data-dleft ${v.align === "left" ? "checked" : ""}> 靠左</label></div>`;
+		h += `<div class="row"><span class="k">預設文字</span><input type="text" data-dtext value="${esc(v.text || "")}"></div>`;
+		h += `<div class="row"><span class="k">預設尺寸</span><input type="number" data-dw value="${Math.round(v.w) || 160}" style="width:80px"><input type="number" data-dh value="${Math.round(v.h) || 60}" style="width:80px"><span class="k" style="width:auto">寬 × 高</span></div>`;
+		h += `<div class="note">「預設尺寸」= 在畫布上只點一下（不拖曳）時新物件的寬高；拖曳時仍以拉出的大小為準。設定會自動存本地。</div>`;
+		return h;
+	}
 
-		q("[data-gridon]")?.addEventListener("change", (e) => { gridOn = e.target.checked; });
-		q("[data-gridsize]")?.addEventListener("input", (e) => { gridSize = Math.max(5, Number(e.target.value) || 50); });
-		const ga = q("[data-gridalpha]");
-		ga?.addEventListener("input", () => { gridAlpha = Number(ga.value) / 100; const lab = ga.nextElementSibling; if (lab) lab.textContent = ga.value + "%"; });
-		q("[data-snapon]")?.addEventListener("change", (e) => { snapOn = e.target.checked; });
+	// --- 背景頁：網格粗細/間距/深淺（BAR 每格 5）+ Sheet 底圖 + 純色背景 ---
+	function renderBgTab() {
+		let h = `<h4>網格</h4>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-gridon ${gridOn ? "checked" : ""}> 顯示網格</label></div>`;
+		h += `<div class="row"><span class="k">間距</span><input type="range" data-gridsize min="5" max="200" step="5" value="${gridSize}" style="flex:1"><span class="v" style="flex:0 0 auto">${gridSize}</span></div>`;
+		h += `<div class="row"><span class="k">粗細</span><input type="range" data-gridw min="1" max="20" step="1" value="${gridWidth}" style="flex:1"><span class="v" style="flex:0 0 auto">${gridWidth}px</span></div>`;
+		h += `<div class="row"><span class="k">深淺</span><input type="range" data-gridalpha min="0" max="100" step="5" value="${Math.round(gridAlpha * 100)}" style="flex:1"><span class="v" style="flex:0 0 auto">${Math.round(gridAlpha * 100)}%</span></div>`;
 
-		q("[data-sheeton]")?.addEventListener("change", (e) => { sheetOn = e.target.checked; });
-		const sa = q("[data-sheeta]");
-		sa?.addEventListener("input", () => { sheetAlpha = Number(sa.value) / 100; const lab = sa.nextElementSibling; if (lab) lab.textContent = sa.value + "%"; });
+		h += `<h4>Sheet.jpg 底圖</h4>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-sheeton ${sheetOn ? "checked" : ""}> 覆蓋 Backgrounds/Sheet.jpg</label></div>`;
+		h += `<div class="row"><span class="k">透明度</span><input type="range" data-sheeta min="0" max="100" step="5" value="${Math.round(sheetAlpha * 100)}" style="flex:1"><span class="v" style="flex:0 0 auto">${Math.round(sheetAlpha * 100)}%</span></div>`;
 
-		q("[data-propstoggle]")?.addEventListener("click", () => { propsCollapsed = !propsCollapsed; renderPenPanel(); });
-		q("[data-layerstoggle]")?.addEventListener("click", () => { layersCollapsed = !layersCollapsed; renderPenPanel(); });
+		h += `<h4>純色背景</h4>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-bgon ${bgOn ? "checked" : ""}> 填滿純色</label><input type="color" data-bgcolor value="${normalizeColor(bgColor) || "#3a3a52"}"></div>`;
+		h += `<div class="row"><span class="k">透明度</span><input type="range" data-bga min="0" max="100" step="5" value="${Math.round(bgAlpha * 100)}" style="flex:1"><span class="v" style="flex:0 0 auto">${Math.round(bgAlpha * 100)}%</span></div>`;
+		h += `<div class="note">由下到上疊：純色背景 → Sheet 底圖 → 網格 → 繪製物件，三者可同時開。BAR 每格為 5。</div>`;
+		return h;
+	}
 
-		// 圖層清單
+	// --- 圖層側邊面板內容 ---
+	function renderLayerPanel() {
+		if (!penLayerPanel || !penLayerPanel.classList.contains("show")) return;
+		const bd = penLayerPanel.querySelector(".bd");
+		let h = "";
+		if (!penObjects.length) {
+			h += `<div class="note" style="margin-top:0">還沒有物件。到「繪製」頁選類型後在畫布上拖出來。</div>`;
+		} else {
+			h += `<div class="note" style="margin-top:0">👁顯示/外框/隱藏 · 🔒鎖定 · 🗑刪除</div>`;
+			h += `<div class="stack" style="max-height:64vh">`;
+			// 由上而下顯示 = 由最上層（陣列尾）到最底層
+			for (let i = penObjects.length - 1; i >= 0; i--) {
+				const o = penObjects[i];
+				const hicon = o.hidden === "full" ? "🚫" : o.hidden === "outline" ? "▨" : "👁";
+				h += `<div class="objrow ${o === penSel ? "sel" : ""}" data-obj="${i}">
+					<button class="lyr" data-hideobj="${i}" title="顯示 → 只留外框 → 完全隱藏">${hicon}</button>
+					<button class="lyr" data-lockobj="${i}" title="鎖定/解鎖">${o.locked ? "🔒" : "🔓"}</button>
+					<span class="fn">${VARIANT_LABEL[o.variant] || "框"}</span>
+					<span class="dt">${esc(shortStr(o.text || "", 10))}</span>
+					<button class="del" data-delobj="${i}" title="刪除">🗑</button></div>`;
+			}
+			h += `</div>`;
+		}
+		bd.innerHTML = h;
+		wireLayerPanel();
+	}
+
+	function wireLayerPanel() {
+		const qa = (s) => penLayerPanel.querySelectorAll(s);
 		qa("[data-obj]").forEach((n) => n.addEventListener("click", (e) => {
-			if (e.target.closest("button")) return; // 讓 👁/🔒/🗑 各自處理
+			if (e.target.closest("button")) return; // 👁/🔒/🗑 各自處理
 			penSel = penObjects[parseInt(n.dataset.obj, 10)];
-			propsCollapsed = false; // 需求 6：選到物件就展開屬性
+			penTab = "edit"; // 選到物件就跳到編輯頁
 			renderPenPanel();
 		}));
-		// 👁 循環：顯示 → 只留外框 → 完全隱藏 → 顯示（需求 4）
 		qa("[data-hideobj]").forEach((n) => n.addEventListener("click", (e) => {
 			e.stopPropagation();
 			const o = penObjects[parseInt(n.dataset.hideobj, 10)];
@@ -1515,14 +1732,59 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			deletePenObject(penObjects[parseInt(n.dataset.delobj, 10)]);
 			renderPenPanel();
 		}));
-		q("[data-clearpen]")?.addEventListener("click", () => { if (confirm("清除全部 Pen 物件？")) { clearPenObjects(); renderPenPanel(); } });
+	}
 
+	function wirePenPanel() {
+		const q = (s) => penPanel.querySelector(s), qa = (s) => penPanel.querySelectorAll(s);
+
+		// --- 底部工具列（作用於選中物件）---
+		q("[data-fhide]")?.addEventListener("click", () => {
+			const o = penSel; if (!o) return;
+			o.hidden = o.hidden === false ? "outline" : o.hidden === "outline" ? "full" : false;
+			savePenObjects(); renderPenPanel();
+		});
+		q("[data-flock]")?.addEventListener("click", () => { const o = penSel; if (!o) return; o.locked = !o.locked; savePenObjects(); renderPenPanel(); });
+		q("[data-fdel]")?.addEventListener("click", () => { const o = penSel; if (!o) return; deletePenObject(o); renderPenPanel(); });
+
+		// --- 繪製頁：類型 + 預設樣式 ---
+		qa("[data-dtype]").forEach((b) => b.addEventListener("click", () => { drawType = b.dataset.dtype; saveSettings(); renderPenPanel(); }));
+		const dv = VARIANT[drawType];
+		const dsave = () => saveSettings();
+		q("[data-dfillon]")?.addEventListener("change", (e) => { dv.fill = e.target.checked ? (q("[data-dfill]")?.value || "#ffd54a") : null; dsave(); });
+		q("[data-dfill]")?.addEventListener("input", (e) => { dv.fill = e.target.value; const c = q("[data-dfillon]"); if (c) c.checked = true; dsave(); });
+		q("[data-dborderon]")?.addEventListener("change", (e) => { dv.border = e.target.checked ? (q("[data-dborder]")?.value || "#000000") : null; dsave(); });
+		q("[data-dborder]")?.addEventListener("input", (e) => { dv.border = e.target.value; const c = q("[data-dborderon]"); if (c) c.checked = true; dsave(); });
+		q("[data-dborderw]")?.addEventListener("input", (e) => { dv.borderW = Number(e.target.value) || 0; dsave(); });
+		q("[data-dfs]")?.addEventListener("input", (e) => { dv.fontSize = Number(e.target.value) || DEF_FONT; dsave(); });
+		q("[data-dtcolor]")?.addEventListener("input", (e) => { dv.textColor = e.target.value; dsave(); });
+		q("[data-dleft]")?.addEventListener("change", (e) => { dv.align = e.target.checked ? "left" : "center"; dsave(); });
+		q("[data-dtext]")?.addEventListener("input", (e) => { dv.text = e.target.value; dsave(); });
+		q("[data-dw]")?.addEventListener("input", (e) => { dv.w = Math.max(8, Number(e.target.value) || 8); dsave(); });
+		q("[data-dh]")?.addEventListener("input", (e) => { dv.h = Math.max(8, Number(e.target.value) || 8); dsave(); });
+
+		// --- 背景頁：網格 / Sheet / 純色（滑桿即時更新右側數值標籤）---
+		q("[data-gridon]")?.addEventListener("change", (e) => { gridOn = e.target.checked; saveSettings(); });
+		const gs = q("[data-gridsize]");
+		gs?.addEventListener("input", () => { gridSize = Math.max(5, Number(gs.value) || 50); const l = gs.nextElementSibling; if (l) l.textContent = gridSize; saveSettings(); });
+		const gw = q("[data-gridw]");
+		gw?.addEventListener("input", () => { gridWidth = Math.max(1, Number(gw.value) || 1); const l = gw.nextElementSibling; if (l) l.textContent = gridWidth + "px"; saveSettings(); });
+		const gAl = q("[data-gridalpha]");
+		gAl?.addEventListener("input", () => { gridAlpha = Number(gAl.value) / 100; const l = gAl.nextElementSibling; if (l) l.textContent = gAl.value + "%"; saveSettings(); });
+		q("[data-sheeton]")?.addEventListener("change", (e) => { sheetOn = e.target.checked; saveSettings(); });
+		const sa = q("[data-sheeta]");
+		sa?.addEventListener("input", () => { sheetAlpha = Number(sa.value) / 100; const l = sa.nextElementSibling; if (l) l.textContent = sa.value + "%"; saveSettings(); });
+		q("[data-bgon]")?.addEventListener("change", (e) => { bgOn = e.target.checked; saveSettings(); });
+		q("[data-bgcolor]")?.addEventListener("input", (e) => { bgColor = e.target.value; saveSettings(); });
+		const bga = q("[data-bga]");
+		bga?.addEventListener("input", () => { bgAlpha = Number(bga.value) / 100; const l = bga.nextElementSibling; if (l) l.textContent = bga.value + "%"; saveSettings(); });
+
+		// --- 編輯頁：選中物件的即時編輯 ---
 		const o = penSel;
-		if (!o) return;
+		if (!o || penTab !== "edit") return;
 		const live = () => savePenObjects();
 		qa("[data-ovariant]").forEach((b) => b.addEventListener("click", () => {
 			const v = b.dataset.ovariant; const pre = VARIANT[v]; o.variant = v;
-			// 切換類型時把樣式套成該類型預設（座標/尺寸/文字保留）
+			// 切換類型時把樣式套成該類型目前的預設（座標/尺寸/文字保留）
 			o.fill = pre.fill; o.border = pre.border; o.borderW = pre.borderW; o.align = pre.align;
 			live(); renderPenPanel();
 		}));
@@ -1533,7 +1795,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		const rot = q("[data-orot]"), rotn = q("[data-orotn]");
 		rot?.addEventListener("input", () => { o.rot = Number(rot.value) || 0; if (rotn) rotn.value = o.rot; live(); });
 		rotn?.addEventListener("input", () => { o.rot = Number(rotn.value) || 0; if (rot) rot.value = o.rot; live(); });
-		q("[data-otext]")?.addEventListener("input", (e) => { o.text = e.target.value; live(); });
+		q("[data-otext]")?.addEventListener("input", (e) => { o.text = e.target.value; live(); renderFootbarName(); });
 		q("[data-ofs]")?.addEventListener("input", (e) => { o.fontSize = Number(e.target.value) || DEF_FONT; live(); });
 		q("[data-otcolor]")?.addEventListener("input", (e) => { o.textColor = e.target.value; live(); });
 		q("[data-oleft]")?.addEventListener("change", (e) => { o.align = e.target.checked ? "left" : "center"; live(); });
@@ -1542,9 +1804,14 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		q("[data-oborderon]")?.addEventListener("change", (e) => { o.border = e.target.checked ? (q("[data-oborder]")?.value || "#000000") : null; live(); });
 		q("[data-oborder]")?.addEventListener("input", (e) => { o.border = e.target.value; const c = q("[data-oborderon]"); if (c) c.checked = true; live(); });
 		q("[data-oborderw]")?.addEventListener("input", (e) => { o.borderW = Number(e.target.value) || 0; live(); });
-		q("[data-ohide]")?.addEventListener("change", (e) => { o.hidden = normHidden(e.target.value); live(); renderPenPanel(); });
-		q("[data-olocked]")?.addEventListener("change", (e) => { o.locked = e.target.checked; live(); renderPenPanel(); });
-		q("[data-odel]")?.addEventListener("click", () => { deletePenObject(o); renderPenPanel(); });
+	}
+
+	/** 文字改動時只更新底部工具列的名稱，不整頁重繪（避免打字時失焦） */
+	function renderFootbarName() {
+		const foot = penPanel && penPanel.querySelector("[data-footbar]");
+		const name = foot && foot.querySelector(".fname");
+		const o = penSel;
+		if (name && o) name.textContent = (VARIANT_LABEL[o.variant] || "框") + (o.text ? " · " + shortStr(o.text, 12) : "");
 	}
 
 	// ---------------------------------------------------------------- Setting 面板
@@ -1727,6 +1994,14 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		e.stopImmediatePropagation();
 	}
 
+	/** 需求 3：繪圖狀態下攔掉一切要傳到 BC 的滑鼠/觸控/滾輪事件（自家 UI 除外） */
+	function blockBcInteraction(e) {
+		if (!penMode || isOurUI(e)) return;
+		e.stopPropagation();
+		e.stopImmediatePropagation();
+		if (e.cancelable) e.preventDefault();
+	}
+
 	function nextFrames(n) {
 		return new Promise((resolve) => {
 			const step = () => (--n <= 0 ? resolve() : requestAnimationFrame(step));
@@ -1759,31 +2034,31 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		return [Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0)];
 	}
 
-	/** 新框的預覽（拖曳中），套用目前 variant 的預設樣式 */
+	/** 新框的預覽（拖曳中），套用該 variant 目前的預設樣式（繪製頁可調） */
 	function makePreview(variant, x0, y0, x1, y1) {
 		const [x, y, w, h] = normRect(x0, y0, x1, y1);
 		const v = VARIANT[variant] || VARIANT.frame;
 		return {
 			variant, x, y, w: Math.max(w, 4), h: Math.max(h, 4), rot: 0,
 			fill: v.fill, border: v.border, borderW: v.borderW,
-			text: v.text, fontSize: DEF_FONT, textColor: DEF_TEXTCOLOR, align: v.align,
+			text: v.text, fontSize: v.fontSize || DEF_FONT, textColor: v.textColor || DEF_TEXTCOLOR, align: v.align,
 			hidden: false, locked: false,
 		};
 	}
 
 	function commitNew(d, endP) {
+		const v = VARIANT[d.variant] || VARIANT.frame;
 		let [x, y, w, h] = normRect(d.sx, d.sy, endP.x, endP.y);
 		if (w < 8 || h < 8) {
-			// 只點一下沒拖：給一個預設大小的框，方便放「文字」這種不想拖的
-			w = Math.max(w, 160); h = Math.max(h, 60);
+			// 只點一下沒拖：套繪製頁設定的「預設尺寸」，方便放固定尺寸的物件
+			w = Math.max(w, v.w || 160); h = Math.max(h, v.h || 60);
 		}
 		x = snap(x); y = snap(y); w = Math.max(8, snap(w)); h = Math.max(8, snap(h));
-		propsCollapsed = false; // 建立後展開屬性面板方便馬上編輯
-		const v = VARIANT[d.variant] || VARIANT.frame;
+		// 需求 1：畫完不跳編輯頁，保持在繪製頁可連續繪製（新物件仍會被選取，方便到編輯頁或圖層調整）
 		addPenObject({
 			variant: d.variant, x, y, w, h, rot: 0,
 			fill: v.fill, border: v.border, borderW: v.borderW,
-			text: v.text, fontSize: DEF_FONT, textColor: DEF_TEXTCOLOR, align: v.align,
+			text: v.text, fontSize: v.fontSize || DEF_FONT, textColor: v.textColor || DEF_TEXTCOLOR, align: v.align,
 			hidden: false, locked: false,
 		});
 		renderPenPanel();
@@ -1804,17 +2079,18 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		// 需求 9：先看有沒有點到既有物件（最上層優先）；有的話一律切成拖移，不管目前是什麼工具
 		const hit = penHitTest(p.x, p.y);
 		if (hit) {
+			// 選到既有物件 = 拖移；不強制切頁，維持連續繪製體驗（要編輯可切「編輯」頁或點圖層清單）
 			penSel = hit;
-			propsCollapsed = false; // 需求 6：選到物件就展開屬性
 			penDrag = { mode: "move", obj: hit, sx: p.x, sy: p.y, ox: hit.x, oy: hit.y, origRect: [hit.x, hit.y, hit.w, hit.h] };
 			renderPenPanel();
 			return;
 		}
-		// 沒點到物件：選取工具 = 取消選取；繪製工具 = 開始拉一個新框
-		if (penTool === "select") {
+		// 沒點到物件：非繪製頁（tool=select） = 取消選取；繪製頁 = 開始拉一個新框
+		const tool = penTool();
+		if (tool === "select") {
 			penSel = null; renderPenPanel();
 		} else {
-			penDrag = { mode: "new", variant: penTool, sx: p.x, sy: p.y, preview: makePreview(penTool, p.x, p.y, p.x, p.y) };
+			penDrag = { mode: "new", variant: tool, sx: p.x, sy: p.y, preview: makePreview(tool, p.x, p.y, p.x, p.y) };
 		}
 	}
 
@@ -1855,6 +2131,15 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		window.addEventListener("pointercancel", penPointerUp, true);
 		for (const t of ["mousedown", "mouseup", "click", "touchstart", "touchend"]) {
 			window.addEventListener(t, onSwallow, true);
+		}
+		// 需求 3：繪圖狀態(penMode)下，把所有會傳到 BC 的滑鼠/觸控/滾輪事件擋在 window capture，
+		// 讓 BC 的 canvas 與 DOM 元件都收不到 → 點擊與懸停顯示都暫停。
+		// 註冊在自家 pen 處理器「之後」：pen 有動作時它們已 stopImmediatePropagation，這裡不會再跑；
+		// 純懸停（pen 沒攔）時就靠這裡把事件擋掉。自家面板（isOurUI）不擋，面板照常操作。
+		for (const t of ["pointerdown", "pointerup", "pointermove", "pointercancel",
+			"mousedown", "mouseup", "mousemove", "click", "dblclick", "wheel",
+			"contextmenu", "touchstart", "touchmove", "touchend"]) {
+			window.addEventListener(t, blockBcInteraction, true);
 		}
 		window.addEventListener("keydown", (e) => {
 			if (e.key === "F2") {
