@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動創建影片
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.1
+// @version      1.4.2
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,10 +17,10 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.4.1";
+    const MOD_VER = "1.4.2";
     if (window.Liko.ACV) return;
     window.Liko.ACV = MOD_VER;
-    
+
     if (window.LikoVideoPlayerInstance) return;
 
     let modApi;
@@ -144,7 +144,7 @@
             const base = { platform, originalUrl: url, platformName: PLATFORM_DISPLAY_NAME[platform] || platform };
             if (platform === "twitch")          return { ...base, id: m[1] || m[2], type: m[1] ? "video" : "channel" };
             if (platform === "bilibiliBangumi") return { ...base, type: m[1], id: m[2] };
-            if (platform === "facebook")        return { ...base };
+            if (platform === "facebook")        return { ...base, id: m[1] };
             if (platform === "spotify")         return { ...base, type: m[1], id: m[2] };
             // ★ 抖音有兩種 URL 格式：video/(m[1]) 和 jingxuan?modal_id=(m[2])
             if (platform === "douyin")          return { ...base, id: m[1] || m[2] };
@@ -244,6 +244,55 @@
     }
 
     // ─────────────────────────────────────────────────────────────
+    //  ★ 連結顯示文字：平台 + ID（預設），成功抓到標題後才升級顯示
+    // ─────────────────────────────────────────────────────────────
+    const titleCache = new Map(); // key: `${platform}:${id}` → title 字串 | null（null 代表抓過但失敗）
+
+    function buildIdLabel(videoInfo) {
+        const name = videoInfo.platformName || videoInfo.platform;
+        if (videoInfo.platform === "bilibiliBangumi") {
+            return `${name} - ${videoInfo.type}${videoInfo.id}`;
+        }
+        return videoInfo.id ? `${name} - ${videoInfo.id}` : name;
+    }
+
+    // 靜默嘗試抓取真實標題；任何失敗（CORS、逾時、404…）都吞掉，不影響原本顯示
+    async function fetchVideoTitle(videoInfo) {
+        const cacheKey = `${videoInfo.platform}:${videoInfo.id}`;
+        if (titleCache.has(cacheKey)) return titleCache.get(cacheKey);
+
+        let title = null;
+        try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 5000);
+
+            if (["youtube", "youtubeShorts", "youtubeLive"].includes(videoInfo.platform)) {
+                const url = `https://www.youtube.com/oembed?url=${encodeURIComponent(videoInfo.originalUrl)}&format=json`;
+                const res = await fetch(url, { signal: controller.signal });
+                if (res.ok) title = (await res.json())?.title || null;
+            } else if (videoInfo.platform === "bilibiliVideo") {
+                const url = `https://api.bilibili.com/x/web-interface/view?bvid=${videoInfo.id}`;
+                const res = await fetch(url, { signal: controller.signal });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data?.code === 0 && data?.data?.title) title = data.data.title;
+                }
+            } else if (videoInfo.platform === "vimeo") {
+                const url = `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(videoInfo.originalUrl)}`;
+                const res = await fetch(url, { signal: controller.signal });
+                if (res.ok) title = (await res.json())?.title || null;
+            }
+
+            clearTimeout(timer);
+        } catch (e) {
+            title = null; // 靜默失敗：CORS 被擋、逾時、影片下架等都不提示，維持平台+ID顯示
+        }
+
+        titleCache.set(cacheKey, title);
+        return title;
+    }
+
+    // ─────────────────────────────────────────────────────────────
     //  訊息掃描：🎬 按鈕（行內）
     // ─────────────────────────────────────────────────────────────
     function processInlineButtons(element) {
@@ -254,6 +303,22 @@
             if (!href) return;
             const videoInfo = detectVideoUrl(href);
             if (!videoInfo) return; // 行內只處理影片（資訊卡走 SendLocal）
+
+            // ★ 顯示文字：只動「顯示文字」，href 仍保留完整網址（點擊行為不受影響）
+            //   只有在顯示文字剛好等於原始網址時才處理，避免誤改使用者自訂的連結文字
+            let idLabel = null;
+            if (link.textContent === href) {
+                idLabel = buildIdLabel(videoInfo);
+                link.textContent = idLabel;
+
+                // 背景嘗試抓真實標題；成功才升級顯示，失敗（CORS/逾時等）完全靜默、維持平台+ID
+                fetchVideoTitle(videoInfo).then((title) => {
+                    if (!title) return;
+                    if (!link.isConnected || link.textContent !== idLabel) return; // 期間被移除或改過就不動
+                    const shortTitle = title.length > 40 ? title.slice(0, 40) + "…" : title;
+                    link.textContent = `${videoInfo.platformName} - ${shortTitle}`;
+                });
+            }
 
             const btn = document.createElement("span");
             btn.className = "likoVideoButton";
