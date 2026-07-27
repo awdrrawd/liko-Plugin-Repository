@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動創建影片
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.2
+// @version      1.4.3
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.4.2";
+    const MOD_VER = "1.4.3";
     if (window.Liko.ACV) return;
     window.Liko.ACV = MOD_VER;
 
@@ -190,7 +190,7 @@
         // ── Catbox / Litterbox：直接檔案，非 iframe embed，用原生 <video> 播放 ──
         if (videoInfo.platform === "catbox") {
             return `<video controls preload="metadata"
-                src="${videoInfo.originalUrl}"
+                src="${escapeHtmlAttr(videoInfo.originalUrl)}"
                 style="display:block;width:100%;max-width:${PLAYER_MAX_W}px;max-height:${PLAYER_MAX_H}px;border:none;border-radius:6px;background:#000;margin:0.3em 0;"
                 ></video>`;
         }
@@ -243,6 +243,11 @@
         }
     }
 
+    // ★ 簡單的 HTML 屬性跳脫，避免 originalUrl 中出現的 " 破壞屬性邊界
+    function escapeHtmlAttr(str) {
+        return String(str).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+    }
+
     // ─────────────────────────────────────────────────────────────
     //  ★ 連結顯示文字：平台 + ID（預設），成功抓到標題後才升級顯示
     // ─────────────────────────────────────────────────────────────
@@ -256,6 +261,52 @@
         return videoInfo.id ? `${name} - ${videoInfo.id}` : name;
     }
 
+    // ─────────────────────────────────────────────────────────────
+    //  ★ JSONP 輔助函式（給 @grant none 環境下無法用 fetch 跨域的 API 用）
+    //    原理：插入 <script src="...&jsonp=jsonp&callback=xxx">，
+    //    不經過 fetch/XHR，因此不受瀏覽器 CORS 限制。
+    //    Bilibili 的 x/web-interface/* 舊版 API 大多支援這個參數。
+    //    注意：此為非官方相容行為，Bilibili 隨時可能移除，
+    //    失敗時一律靜默 resolve(null)，不影響原本「平台+ID」顯示。
+    // ─────────────────────────────────────────────────────────────
+    function jsonpFetch(url, timeoutMs = 5000) {
+        return new Promise((resolve) => {
+            const cbName = `__liko_jsonp_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+            const script = document.createElement("script");
+            let done = false;
+
+            const cleanup = () => {
+                delete window[cbName];
+                script.remove();
+                clearTimeout(timer);
+            };
+
+            window[cbName] = (data) => {
+                if (done) return;
+                done = true;
+                cleanup();
+                resolve(data);
+            };
+
+            const timer = setTimeout(() => {
+                if (done) return;
+                done = true;
+                cleanup();
+                resolve(null); // 逾時，靜默失敗
+            }, timeoutMs);
+
+            script.onerror = () => {
+                if (done) return;
+                done = true;
+                cleanup();
+                resolve(null); // 載入失敗（例如該端點不支援 jsonp），靜默失敗
+            };
+
+            script.src = `${url}${url.includes("?") ? "&" : "?"}jsonp=jsonp&callback=${cbName}`;
+            document.head.appendChild(script);
+        });
+    }
+
     // 靜默嘗試抓取真實標題；任何失敗（CORS、逾時、404…）都吞掉，不影響原本顯示
     async function fetchVideoTitle(videoInfo) {
         const cacheKey = `${videoInfo.platform}:${videoInfo.id}`;
@@ -263,27 +314,28 @@
 
         let title = null;
         try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 5000);
-
             if (["youtube", "youtubeShorts", "youtubeLive"].includes(videoInfo.platform)) {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 5000);
                 const url = `https://www.youtube.com/oembed?url=${encodeURIComponent(videoInfo.originalUrl)}&format=json`;
                 const res = await fetch(url, { signal: controller.signal });
+                clearTimeout(timer);
                 if (res.ok) title = (await res.json())?.title || null;
             } else if (videoInfo.platform === "bilibiliVideo") {
-                const url = `https://api.bilibili.com/x/web-interface/view?bvid=${videoInfo.id}`;
-                const res = await fetch(url, { signal: controller.signal });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data?.code === 0 && data?.data?.title) title = data.data.title;
-                }
+                // ★ api.bilibili.com 對第三方網域不回傳 CORS header，一般瀏覽器下的
+                //   fetch() 會被擋下（EBC 之類會攔截 https:// 請求的殼層則不受影響，
+                //   這也是為什麼同一支影片在 EBC 抓得到標題、純瀏覽器抓不到的原因）。
+                //   改用 JSONP 迴避，不需要 fetch/XHR 權限。
+                const data = await jsonpFetch(`https://api.bilibili.com/x/web-interface/view?bvid=${videoInfo.id}`);
+                if (data?.code === 0 && data?.data?.title) title = data.data.title;
             } else if (videoInfo.platform === "vimeo") {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 5000);
                 const url = `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(videoInfo.originalUrl)}`;
                 const res = await fetch(url, { signal: controller.signal });
+                clearTimeout(timer);
                 if (res.ok) title = (await res.json())?.title || null;
             }
-
-            clearTimeout(timer);
         } catch (e) {
             title = null; // 靜默失敗：CORS 被擋、逾時、影片下架等都不提示，維持平台+ID顯示
         }
@@ -394,9 +446,12 @@
     let observer = null;
 
     function startObserver() {
-        if (observer) return;
         const chatLog = document.querySelector('#TextAreaChatLog, [role="log"]');
         if (!chatLog) return;
+        // ★ 換房或聊天記錄容器被重新渲染時，舊 observer 可能還盯著已離開 DOM 的節點，
+        //   導致之後新訊息都偵測不到（只能靠 3 秒 interval fallback）。
+        //   這裡改成每次都先斷開舊的，再重新綁到目前實際存在的節點上。
+        if (observer) observer.disconnect();
         observer = new MutationObserver((mutations) => {
             if (!isEnabled) return;
             // 只有真的新增節點才觸發（避免我們自己插按鈕時再掃）
@@ -464,6 +519,11 @@
 
         modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
             const result = next(args);
+
+            // ★ 進房（含換房）時重新綁定 observer，避免舊房間留下的
+            //   observer 指向已被替換掉的聊天記錄節點而失效
+            if (isEnabled) startObserver();
+
             setTimeout(() => {
                 if (!window.LikoVideoPlayerWelcomed && isEnabled) {
                     const platforms = [...new Set(
