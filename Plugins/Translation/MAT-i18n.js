@@ -530,6 +530,123 @@
 </div>
 </div>`,
         },
+
+        // ── 登入通知（v1.6）────────────────────────────────────────────────
+        'loginNotice': {
+            TW: "🌐 [MAT] v{v} 已初始化完成，將收到與發送的訊息自動翻譯。可能有不穩定的情況，可稍後再試，或檢查你的網路環境是否支援 Google 服務。第一次使用可到 /mat settings 前往設定。",
+            CN: "🌐 [MAT] v{v} 已初始化完成，将收到与发送的消息自动翻译。可能有不稳定的情况，可稍后再试，或检查你的网络环境是否支持 Google 服务。第一次使用可到 /mat settings 前往设置。",
+            EN: "🌐 [MAT] v{v} initialized — incoming and outgoing messages will be auto-translated. It may be unstable; try again later or check whether your network supports Google services. First time? Open /mat settings to configure.",
+            DE: "🌐 [MAT] v{v} initialisiert — ein- und ausgehende Nachrichten werden automatisch übersetzt. Bei Instabilität später erneut versuchen oder prüfen, ob dein Netzwerk Google-Dienste unterstützt. Erstnutzung: /mat settings öffnen.",
+            FR: "🌐 [MAT] v{v} initialisé — les messages entrants et sortants seront traduits automatiquement. En cas d'instabilité, réessayez plus tard ou vérifiez si votre réseau prend en charge les services Google. Première utilisation : /mat settings.",
+            RU: "🌐 [MAT] v{v} инициализирован — входящие и исходящие сообщения переводятся автоматически. Возможны сбои; повторите позже или проверьте, поддерживает ли сеть сервисы Google. Впервые? Откройте /mat settings.",
+            UA: "🌐 [MAT] v{v} ініціалізовано — вхідні та вихідні повідомлення перекладаються автоматично. Можливі збої; спробуйте пізніше або перевірте, чи підтримує мережа сервіси Google. Уперше? Відкрийте /mat settings."
+        },
+
+        // ── 設定頁：頁簽 ───────────────────────────────────────────────────
+        'tab_master': { TW: "總開關", CN: "总开关", EN: "Master", DE: "Haupt", FR: "Principal", RU: "Главный", UA: "Головний" },
+        'tab_basic':  { TW: "基本設定", CN: "基本设置", EN: "Basic", DE: "Grundlagen", FR: "Base", RU: "Основные", UA: "Основні" },
+        'tab_send':   { TW: "發送設定", CN: "发送设置", EN: "Send", DE: "Senden", FR: "Envoi", RU: "Отправка", UA: "Надсилання" },
+        'tab_recv':   { TW: "接收設定", CN: "接收设置", EN: "Receive", DE: "Empfang", FR: "Réception", RU: "Приём", UA: "Отримання" },
+        'tab_other':  { TW: "其他設定", CN: "其他设置", EN: "Other", DE: "Sonstiges", FR: "Autres", RU: "Прочее", UA: "Інше" },
+
+        // ── 總開關（左側第 0 鍵）──────────────────────────────────────────
+        'masterOn':  { TW: "總開關：開啟", CN: "总开关：开启", EN: "Master: ON", DE: "Haupt: AN", FR: "Principal : ON", RU: "Главный: ВКЛ", UA: "Головний: УВІМК" },
+        'masterOff': { TW: "總開關：關閉", CN: "总开关：关闭", EN: "Master: OFF", DE: "Haupt: AUS", FR: "Principal : OFF", RU: "Главный: ВЫКЛ", UA: "Головний: ВИМК" },
+
+        // ── 總開關頁 ───────────────────────────────────────────────────────
+        'optMasterEnable': {
+            TW: "啟用 MAT 自動翻譯", CN: "启用 MAT 自动翻译", EN: "Enable MAT auto-translate",
+            DE: "MAT-Autoübersetzung aktivieren", FR: "Activer la traduction auto MAT", RU: "Включить автоперевод MAT", UA: "Увімкнути автопереклад MAT"
+        },
+        'masterStatusOn': {
+            TW: "目前為啟用狀態。\n收到與發送的訊息會依你的設定自動翻譯。",
+            CN: "当前为启用状态。\n收到与发送的消息会按你的设置自动翻译。",
+            EN: "Currently ON.\nIncoming and outgoing messages are auto-translated per your settings."
+        },
+        'masterStatusOff': {
+            TW: "目前為停用狀態。\n自動翻譯已停止（選取翻譯、Bio 翻譯不受影響）。",
+            CN: "当前为停用状态。\n自动翻译已停止（选取翻译、Bio 翻译不受影响）。",
+            EN: "Currently OFF.\nAuto-translate is stopped (selection translate and Bio translate still work)."
+        },
+
+        // ── 發送 / 接收：分類標籤 ──────────────────────────────────────────
+        'optEmote':   { TW: "動作翻譯 (Emote)", CN: "动作翻译 (Emote)", EN: "Emote", DE: "Emote", FR: "Emote", RU: "Эмоция (Emote)", UA: "Емоція (Emote)" },
+        'optAction':  { TW: "互動翻譯 (Action)", CN: "互动翻译 (Action)", EN: "Action", DE: "Aktion", FR: "Action", RU: "Действие (Action)", UA: "Дія (Action)" },
+        'optWhisper': { TW: "悄悄話 (Whisper)", CN: "悄悄话 (Whisper)", EN: "Whisper", DE: "Flüstern", FR: "Chuchotement", RU: "Шёпот (Whisper)", UA: "Шепіт (Whisper)" },
+        'optBeep':    { TW: "私信翻譯 (Beep)", CN: "私信翻译 (Beep)", EN: "Beep", DE: "Beep", FR: "Beep", RU: "Бип (Beep)", UA: "Біп (Beep)" },
+        'optLocal':   { TW: "系統翻譯 (Local)", CN: "系统翻译 (Local)", EN: "System (Local)", DE: "System (Local)", FR: "Système (Local)", RU: "Системные (Local)", UA: "Системні (Local)" },
+        'optSkipZh':  {
+            TW: "語言為中文時跳過簡繁翻譯", CN: "语言为中文时跳过简繁翻译", EN: "Skip zh↔zh when lang is Chinese",
+            DE: "Zh↔Zh überspringen, wenn Sprache Chinesisch", FR: "Ignorer zh↔zh si langue chinoise", RU: "Пропускать кит.↔кит. при кит. языке", UA: "Пропускати кит.↔кит. за кит. мови"
+        },
+
+        // ── 其他設定：標籤 ─────────────────────────────────────────────────
+        'optLoginNotice': { TW: "登入通知訊息", CN: "登录通知消息", EN: "Login notice", DE: "Login-Hinweis", FR: "Avis de connexion", RU: "Уведомление при входе", UA: "Сповіщення при вході" },
+        'optManual':      { TW: "手動翻譯（點選訊息）", CN: "手动翻译（点选消息）", EN: "Manual translate (click message)", DE: "Manuell übersetzen (Nachricht klicken)", FR: "Traduction manuelle (clic message)", RU: "Ручной перевод (клик по сообщению)", UA: "Ручний переклад (клік на повідомлення)" },
+        'optChatButton':  { TW: "聊天室快捷按鈕", CN: "聊天室快捷按钮", EN: "Chat room quick button", DE: "Chat-Schnellschaltfläche", FR: "Bouton rapide du chat", RU: "Быстрая кнопка в чате", UA: "Швидка кнопка в чаті" },
+        'hkToggle': { TW: "快捷鍵－總開關", CN: "快捷键－总开关", EN: "Hotkey — master", DE: "Tastenkürzel — Haupt", FR: "Raccourci — principal", RU: "Клавиша — главный", UA: "Клавіша — головний" },
+        'hkRecv':   { TW: "快捷鍵－接收翻譯", CN: "快捷键－接收翻译", EN: "Hotkey — receive", DE: "Tastenkürzel — Empfang", FR: "Raccourci — réception", RU: "Клавиша — приём", UA: "Клавіша — отримання" },
+        'hkSend':   { TW: "快捷鍵－發送翻譯", CN: "快捷键－发送翻译", EN: "Hotkey — send", DE: "Tastenkürzel — Senden", FR: "Raccourci — envoi", RU: "Клавиша — отправка", UA: "Клавіша — надсилання" },
+
+        // ── 聊天室快捷選單 ─────────────────────────────────────────────────
+        'cbtnMaster':   { TW: "總開關", CN: "总开关", EN: "Master", DE: "Haupt", FR: "Principal", RU: "Главный", UA: "Головний" },
+        'cbtnSend':     { TW: "發送翻譯", CN: "发送翻译", EN: "Send", DE: "Senden", FR: "Envoi", RU: "Отправка", UA: "Надсилання" },
+        'cbtnRecv':     { TW: "接收翻譯", CN: "接收翻译", EN: "Receive", DE: "Empfang", FR: "Réception", RU: "Приём", UA: "Отримання" },
+        'cbtnSettings': { TW: "前往設定", CN: "前往设置", EN: "Settings", DE: "Einstellungen", FR: "Paramètres", RU: "Настройки", UA: "Налаштування" },
+
+        // ── 快捷鍵 / 快捷選單：切換回饋 ────────────────────────────────────
+        'hkRecvOn':  { TW: "✅ 接收翻譯已開啟", CN: "✅ 接收翻译已开启", EN: "✅ Receive translation ON", DE: "✅ Empfangsübersetzung an", FR: "✅ Traduction réception activée", RU: "✅ Перевод приёма включён", UA: "✅ Переклад отримання увімкнено" },
+        'hkRecvOff': { TW: "❌ 接收翻譯已關閉", CN: "❌ 接收翻译已关闭", EN: "❌ Receive translation OFF", DE: "❌ Empfangsübersetzung aus", FR: "❌ Traduction réception désactivée", RU: "❌ Перевод приёма выключен", UA: "❌ Переклад отримання вимкнено" },
+        'hkSendOn':  { TW: "✅ 發送翻譯已開啟", CN: "✅ 发送翻译已开启", EN: "✅ Send translation ON", DE: "✅ Sendeübersetzung an", FR: "✅ Traduction envoi activée", RU: "✅ Перевод отправки включён", UA: "✅ Переклад надсилання увімкнено" },
+        'hkSendOff': { TW: "❌ 發送翻譯已關閉", CN: "❌ 发送翻译已关闭", EN: "❌ Send translation OFF", DE: "❌ Sendeübersetzung aus", FR: "❌ Traduction envoi désactivée", RU: "❌ Перевод отправки выключен", UA: "❌ Переклад надсилання вимкнено" },
+
+        // ── 分頁常駐說明 ───────────────────────────────────────────────────
+        'descMaster': {
+            TW: "MAT 的總開關。關閉後聊天室的自動翻譯（收/發）全部停止，但「選取翻譯」與「Bio 翻譯」不受影響。",
+            CN: "MAT 的总开关。关闭后聊天室的自动翻译（收/发）全部停止，但「选取翻译」与「Bio 翻译」不受影响。",
+            EN: "MAT master switch. When off, all chat auto-translation (send/receive) stops, but Selection translate and Bio translate still work."
+        },
+        'descBasic': {
+            TW: "基本設定：開關「接收翻譯」「發送翻譯」並選擇各自的目標語言。細部分類（動作/互動/悄悄話/私信）在發送、接收分頁。",
+            CN: "基本设置：开关「接收翻译」「发送翻译」并选择各自的目标语言。细部分类（动作/互动/悄悄话/私信）在发送、接收分页。",
+            EN: "Basic: toggle Receive/Send translation and pick their target languages. Per-type toggles (emote/action/whisper/beep) are on the Send and Receive tabs."
+        },
+        'descSend': {
+            TW: "發送設定：分別控制動作、互動、悄悄話、私信是否翻譯後廣播。需先在基本設定開啟「發送翻譯」。一般聊天恆受發送翻譯總開關管。",
+            CN: "发送设置：分别控制动作、互动、悄悄话、私信是否翻译后广播。需先在基本设置开启「发送翻译」。普通聊天恒受发送翻译总开关管。",
+            EN: "Send: control whether emote/action/whisper/beep are translated and broadcast. Requires Send translation on (Basic tab). Normal chat always follows the Send master toggle."
+        },
+        'descRecv': {
+            TW: "接收設定：分別控制動作、互動、悄悄話、私信、系統(Local)訊息是否翻譯。需先在基本設定開啟「接收翻譯」。一般聊天恆受接收翻譯總開關管。",
+            CN: "接收设置：分别控制动作、互动、悄悄话、私信、系统(Local)消息是否翻译。需先在基本设置开启「接收翻译」。普通聊天恒受接收翻译总开关管。",
+            EN: "Receive: control whether emote/action/whisper/beep/system(Local) messages are translated. Requires Receive translation on (Basic tab). Normal chat always follows the Receive master toggle."
+        },
+        'descOther': {
+            TW: "其他設定：登入通知、手動翻譯、選取翻譯、自動捲動、略過結巴、聊天室快捷按鈕與三組快捷鍵。快捷鍵需勾選啟用才會生效。",
+            CN: "其他设置：登录通知、手动翻译、选取翻译、自动滚动、略过结巴、聊天室快捷按钮与三组快捷键。快捷键需勾选启用才会生效。",
+            EN: "Other: login notice, manual translate, selection translate, auto-scroll, skip stutter, chat quick button, and three hotkeys. Each hotkey must be checked to take effect."
+        },
+
+        // ── 逐項說明 ───────────────────────────────────────────────────────
+        'dRecv':     { TW: "自動翻譯收到的聊天訊息。", CN: "自动翻译收到的聊天消息。", EN: "Auto-translate messages you receive." },
+        'dRecvLang': { TW: "收到的訊息要翻成的語言。", CN: "收到的消息要翻成的语言。", EN: "Language to translate received messages into." },
+        'dSend':     { TW: "自動翻譯你發送的訊息並廣播 [🌐] 版本。", CN: "自动翻译你发送的消息并广播 [🌐] 版本。", EN: "Auto-translate your outgoing messages and broadcast a [🌐] version." },
+        'dSendLang': { TW: "你發送的訊息要翻成的語言。", CN: "你发送的消息要翻成的语言。", EN: "Language to translate your outgoing messages into." },
+        'dEmote':    { TW: "翻譯 *動作* 訊息（Emote）。", CN: "翻译 *动作* 消息（Emote）。", EN: "Translate *emote* messages." },
+        'dAction':   { TW: "翻譯互動／活動類訊息（Action）。", CN: "翻译互动／活动类消息（Action）。", EN: "Translate action/activity messages." },
+        'dWhisper':  { TW: "翻譯悄悄話（Whisper）。", CN: "翻译悄悄话（Whisper）。", EN: "Translate whispers." },
+        'dBeep':     { TW: "翻譯私信（Beep）。", CN: "翻译私信（Beep）。", EN: "Translate beep messages." },
+        'dLocal':    { TW: "翻譯系統／本機（Local）訊息，例如系統提示。預設關閉。", CN: "翻译系统／本机（Local）消息，例如系统提示。默认关闭。", EN: "Translate system/local messages (e.g. system notices). Off by default." },
+        'dSkipZh':   { TW: "當你的語言設為繁/簡體，且對象內容已是中文（含日、韓例外）時跳過翻譯，避免中翻中。", CN: "当你的语言设为繁/简体，且对象内容已是中文（日、韩例外）时跳过翻译，避免中翻中。", EN: "When your language is Traditional/Simplified Chinese and the text is already Chinese (Japanese/Korean excepted), skip the pointless zh→zh translation." },
+        'dLoginNotice':  { TW: "登入時在聊天室顯示 MAT 初始化通知。", CN: "登录时在聊天室显示 MAT 初始化通知。", EN: "Show the MAT init notice in chat on login." },
+        'dManual':       { TW: "點選一則訊息時，出現手動翻譯的小工具列。", CN: "点选一则消息时，出现手动翻译的小工具栏。", EN: "Show a small manual-translate toolbar when you click a message." },
+        'dSelection':    { TW: "選取任意文字後，出現翻譯氣泡（總開關關閉時仍可用）。", CN: "选取任意文字后，出现翻译气泡（总开关关闭时仍可用）。", EN: "Show a translate bubble after selecting text (works even when MAT is off)." },
+        'dAutoScroll':   { TW: "插入翻譯後，若已在底部則自動捲到最新。", CN: "插入翻译后，若已在底部则自动滚到最新。", EN: "After inserting a translation, auto-scroll to the newest if already near the bottom." },
+        'dSkipStutter':  { TW: "翻譯前移除結巴前綴（如 n-no → no），避免破碎結果。", CN: "翻译前移除结巴前缀（如 n-no → no），避免破碎结果。", EN: "Strip stutter prefixes (e.g. n-no → no) before translating to avoid broken results." },
+        'dChatButton':   { TW: "在聊天室按鈕列新增 🌐 按鈕，點擊向上展開總開關／發送／接收／前往設定。", CN: "在聊天室按钮栏新增 🌐 按钮，点击向上展开总开关／发送／接收／前往设置。", EN: "Add a 🌐 button to the chat button bar; click to pop up master/send/receive/settings." },
+        'dHkToggle': { TW: "啟用後可用快捷鍵切換 MAT 總開關（預設 Ctrl+M）。點右側按鈕可重新綁定。", CN: "启用后可用快捷键切换 MAT 总开关（默认 Ctrl+M）。点右侧按钮可重新绑定。", EN: "When enabled, a hotkey toggles the MAT master switch (default Ctrl+M). Click the button to rebind." },
+        'dHkRecv':   { TW: "啟用後可用快捷鍵切換接收翻譯（預設 Ctrl+R）。點右側按鈕可重新綁定。", CN: "启用后可用快捷键切换接收翻译（默认 Ctrl+R）。点右侧按钮可重新绑定。", EN: "When enabled, a hotkey toggles receive translation (default Ctrl+R). Click the button to rebind." },
+        'dHkSend':   { TW: "啟用後可用快捷鍵切換發送翻譯（預設 Ctrl+S）。點右側按鈕可重新綁定。", CN: "启用后可用快捷键切换发送翻译（默认 Ctrl+S）。点右侧按钮可重新绑定。", EN: "When enabled, a hotkey toggles send translation (default Ctrl+S). Click the button to rebind." },
     });
 
     console.log('[Liko MAT strings] ✅ 已注入 i18n 字庫');
