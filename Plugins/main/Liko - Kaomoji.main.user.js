@@ -52,6 +52,7 @@
         const STORAGE_SEND = 'likoKaomoji_autoSend';
         const STORAGE_AUTOCLOSE = 'likoKaomoji_autoClose'; // 点击表情后自动关闭面板
         const STORAGE_COLLAPSE = 'likoKaomoji_chatButtonsCollapsed'; // 原生"收纳按钮列"展开/收合状态
+        const sys_CRB = 5;   //#chat-room-buttons 順位設定
 
         /* 内建分类（只读，永远从代码读取，不写入 localStorage） */
         const DEFAULT_GROUPS = [
@@ -1282,7 +1283,7 @@
             var newBtn = createNativeButton();
             container.appendChild(newBtn);
             // 用共用協調器宣告順位（order 越小越靠 grid 起點；正數在原生按鈕之後，rtl 下＝偏左）
-            window.Liko.__Sys_ChatRoomButtons__.register('kaomoji', 3, newBtn);
+            window.Liko.__Sys_ChatRoomButtons__.register('kaomoji', sys_CRB, newBtn);
             syncTriggerVisibility(newBtn);
         }
 

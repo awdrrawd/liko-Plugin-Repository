@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.0
+// @version      1.6.0
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,28 +16,66 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.5.0";
+    const MOD_VER = "1.6.0";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
+    // MAT 圖示（偏好設定按鈕 + 聊天室快捷按鈕共用）。以 data URI 交給 <img> / BC 圖片載入器。
+    const MAT_ICON_SVG = `<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><style>.s0 { opacity: .99;fill: #000000 } </style><path id="Path 0" fill-rule="evenodd" class="s0" d="m49.97 7.98c25.92-0.02 26.63 0.03 31.03 2.33 2.51 1.3 5.83 4.23 10.5 10.86v28.17c0 26.62-0.11 28.38-2.09 32.16-1.15 2.2-4 5.35-10.58 10h-57.66l-4.26-3c-2.34-1.65-5.33-5.03-6.64-7.5-2.36-4.47-2.37-4.68-1.77-59.83l3.01-4.25c1.65-2.33 5.01-5.3 7.46-6.58 4.35-2.28 5.14-2.34 31-2.36zm-34.63 9.89c-1.29 1.72-2.59 4.59-2.9 6.38-0.3 1.79-0.42 14.58-0.25 28.43 0.29 23.34 0.46 25.38 2.31 27.88 1.1 1.48 3.27 3.65 4.82 4.82 2.72 2.04 3.85 2.12 30.68 2.12 26.29 0 28.01-0.11 30.56-2 1.48-1.1 3.65-3.27 4.82-4.82 2.04-2.72 2.12-3.85 2.12-30.68 0-26.83-0.08-27.96-2.12-30.68-1.17-1.55-3.34-3.72-4.82-4.82-2.52-1.87-4.47-2.02-29.38-2.23-20.53-0.19-27.47 0.07-30.09 1.11-1.87 0.75-4.46 2.76-5.75 4.49zm36.66 2.53c4.02 0.31 8.41 1.44 11.5 2.96 2.75 1.35 6.54 4.19 8.43 6.3 1.88 2.11 4.3 5.86 5.37 8.34 1.07 2.48 2.17 6.75 2.93 14.5l-28.23-0.5-0.01 23.5 5.51 3.35-3 0.72c-1.65 0.39-5.25 0.42-8 0.08-2.75-0.35-7.25-1.72-10-3.05-2.75-1.33-6.54-4.15-8.43-6.26-1.88-2.11-4.22-5.64-5.19-7.84-0.97-2.2-2.1-6.02-3.27-13l2.19 2.25c1.21 1.24 2.89 4.16 3.74 6.5 0.85 2.34 2.2 5.04 3 6 1.25 1.5 1.83 1.57 3.99 0.5 1.48-0.73 2.51-2.08 2.49-3.25-0.02-1.1-0.37-3.7-0.78-5.77-0.47-2.39-1.29-3.75-2.24-3.71-0.89 0.03-0.38-0.78 1.25-1.99 2.05-1.51 4.28-2.03 14.75-2.03l0.03-11.75c0.02-11.54-0.02-11.78-2.52-13.25-1.85-1.09-2.19-1.72-1.27-2.3 0.69-0.44 4.18-0.58 7.76-0.3zm0 15.6c5.04-1 6.73-1.46 7-1.67 0.28-0.21-0.29-1.94-1.25-3.85-0.96-1.92-2.62-3.95-3.69-4.52-1.81-0.96-1.95-0.66-2 4.5zm10-5.5c0.88 2.2 1.27 2.37 3.25 1.37l2.25-1.13c-3.88-2.96-5.34-3.8-5.75-3.78-0.41 0.03-0.75 0.27-0.75 0.54 0 0.28 0.45 1.63 1 3zm3.5 11.94l1 5.59 9.5-0.03c-0.95-5.03-2.18-8.19-3.36-10.27-1.18-2.07-2.37-3.74-2.64-3.71-0.28 0.04-1.63 0.69-3 1.45-2.42 1.33-2.47 1.57-1.5 6.97zm-13.74 1.64l0.24 3.92c8.32 0 10-0.41 10.01-1.25 0.01-0.68-0.33-2.72-0.75-4.52-0.62-2.68-1.22-3.25-3.26-3.13-1.38 0.07-3.4 0.34-4.49 0.59-1.63 0.38-1.95 1.18-1.75 4.39zm-13.02 13.7c0.55 2.37 1.31 3.26 2.76 3.23 1.1-0.02 3.01-0.25 4.25-0.52 1.87-0.4 2.25-1.15 2.25-4.49v-4c-8.33 0-10.01 0.42-10.01 1.25-0.01 0.69 0.33 2.73 0.75 4.53zm2.23 8.47c-0.02 0.69 1 2.8 2.25 4.68 1.25 1.88 2.84 3.57 3.53 3.75 0.89 0.23 1.25-1.27 1.25-5.18 0-3.02-0.11-5.42-0.25-5.34-0.14 0.09-1.71 0.32-3.5 0.5-1.79 0.19-3.26 0.91-3.28 1.59zm-5.58 5c1.44 0.97 2.83 1.53 3.11 1.25 0.27-0.27-0.08-1.63-0.79-3.01-1.11-2.18-1.53-2.35-3.1-1.25-1.72 1.19-1.67 1.37 0.78 3.01zm-4.39-47.25c7.66 0 9.29 0.3 11 2 1.55 1.56 2 3.34 2 8 0 4.67-0.45 6.45-2 8-1.1 1.1-3.13 2-4.5 2-1.38 0-4.41 1.4-6.75 3.11-2.34 1.71-4.81 2.84-5.5 2.5-0.69-0.33-1.25-1.73-1.25-3.11 0-1.37-0.45-2.5-1-2.5-0.55 0-1.9-0.9-3-2-1.56-1.55-2-3.33-2-8 0-4.66 0.44-6.44 2-8 1.7-1.7 3.33-2 11-2zm-8.79 11c0.24 3.83 0.63 4.54 2.54 4.75 1.24 0.14 2.59 1.15 3 2.24 0.71 1.9 0.84 1.91 2.63 0.25 1.03-0.95 3.51-1.97 5.5-2.25l3.62-0.52v-10.97c-14.23-0.5-16.62-0.23-17.03 0.71-0.31 0.71-0.43 3.32-0.26 5.79zm46.79 21c7.66 0 9.29 0.3 11 2 1.55 1.56 2 3.34 2 8 0 4.67-0.45 6.45-2 8-1.1 1.1-2.45 2-3 2-0.55 0-1 1.13-1 2.5 0 1.38-0.56 2.78-1.25 3.11-0.69 0.34-3.16-0.79-5.5-2.5-2.34-1.71-5.38-3.11-6.75-3.11-1.38 0-3.4-0.9-4.5-2-1.56-1.55-2-3.33-2-8 0-4.66 0.44-6.44 2-8 1.7-1.7 3.33-2 11-2zm-8.79 10.99c0.28 4.33 0.42 4.51 3.91 5 1.99 0.28 4.46 1.3 5.5 2.25 1.79 1.66 1.91 1.65 2.63-0.25 0.41-1.09 1.76-2.1 3-2.24 2.03-0.22 2.25-0.78 2.25-5.75v-5.5c-14.23-0.5-16.62-0.23-17.03 0.71-0.31 0.71-0.43 3.31-0.26 5.78z"/></svg>`;
+    const MAT_ICON_URI = 'data:image/svg+xml,' + encodeURIComponent(MAT_ICON_SVG);
+
     let modApi;
     let observer = null;
+    const sys_CRB = "2"; //#chat-room-buttons 順位設定
 
-    // 預設熱鍵；用工廠回傳新物件，避免多處共用同一參考被意外改到
+    // 預設熱鍵；用工廠回傳新物件，避免多處共用同一參考被意外改到。
+    // 三個動作各帶 enabled 旗標：總開關預設啟用，接收/發送快捷鍵預設關閉。
     function makeDefaultHotkeys() {
-        return { toggle: { key: 'KeyM', modifiers: ['Ctrl'] } };
+        return {
+            toggle: { key: 'KeyM', modifiers: ['Ctrl'], enabled: true },
+            recv:   { key: 'KeyR', modifiers: ['Ctrl'], enabled: false },
+            send:   { key: 'KeyS', modifiers: ['Ctrl'], enabled: false },
+        };
+    }
+
+    // 把 config.hotkeys 補齊成三動作 + enabled 布林（讀舊設定或殘缺時修復）
+    function normalizeHotkeys() {
+        const def = makeDefaultHotkeys();
+        if (!config.hotkeys || typeof config.hotkeys !== 'object') config.hotkeys = def;
+        for (const k of ['toggle', 'recv', 'send']) {
+            const cur = config.hotkeys[k];
+            if (!cur || typeof cur !== 'object') config.hotkeys[k] = { ...def[k] };
+            else if (typeof cur.enabled !== 'boolean') cur.enabled = def[k].enabled;
+        }
     }
 
     let config = {
         enabled: true,
-        sendLang: 'en',
-        recvLang: null, // 預設依瀏覽器語言決定，見 initializeConfig / detectDefaultRecvLang
+        // ── 基本 ──
         translateReceived: true,
-        translateSent: false,
+        recvLang: null, // 預設依瀏覽器語言決定，見 initializeConfig / detectDefaultRecvLang
+        translateSent: true,
+        sendLang: 'en',
+        // ── 發送分類（動作/互動/悄悄話/私信；一般聊天 Chat 恆受總發送開關管）──
+        sendEmote: true,
+        sendAction: true,
+        sendWhisper: true,
+        sendBeep: true,
+        sendSkipZhVariant: true,   // 發送語言為中文時，內容已是中文則跳過翻譯
+        // ── 接收分類（動作/互動/悄悄話/私信/系統 Local）──
+        recvEmote: true,
+        recvAction: true,
+        recvWhisper: true,
+        recvBeep: true,
+        recvLocal: false,
+        recvSkipZhVariant: true,   // 接收語言為中文時，收到內容為中文則跳過翻譯
+        // ── 其他 ──
+        loginNotice: true,
+        translateChat: true,       // 手動翻譯（點選訊息出現翻譯按鈕）
         translateSelection: true,
-        translateChat: true,
         autoScroll: true,
         skipStutter: true,
+        chatButton: true,          // 聊天室快捷按鈕
         hotkeys: makeDefaultHotkeys()
     };
 
@@ -131,22 +169,25 @@
     function initializeConfig() {
         const defaults = {
             enabled: true,
-            sendLang: 'en',
-            recvLang: detectDefaultRecvLang(),
             translateReceived: true,
-            translateSent: false,
-            translateSelection: true,
+            recvLang: detectDefaultRecvLang(),
+            translateSent: true,
+            sendLang: 'en',
+            sendEmote: true, sendAction: true, sendWhisper: true, sendBeep: true, sendSkipZhVariant: true,
+            recvEmote: true, recvAction: true, recvWhisper: true, recvBeep: true, recvLocal: false, recvSkipZhVariant: true,
+            loginNotice: true,
             translateChat: true,
+            translateSelection: true,
             autoScroll: true,
             skipStutter: true,
+            chatButton: true,
             hotkeys: makeDefaultHotkeys()
         };
         if (!config || typeof config !== 'object') config = { ...defaults };
         for (const [key, val] of Object.entries(defaults)) {
             if (config[key] === undefined || config[key] === null) config[key] = val;
         }
-        if (!config.hotkeys || typeof config.hotkeys !== 'object') config.hotkeys = makeDefaultHotkeys();
-        if (!config.hotkeys.toggle) config.hotkeys.toggle = makeDefaultHotkeys().toggle;
+        normalizeHotkeys();
     }
 
     const SETTINGS_KEY = "Liko_MAT";
@@ -167,12 +208,7 @@
         const saved = Player?.ExtensionSettings?.[SETTINGS_KEY];
         if (!saved) return;
         config = { ...config, ...saved };
-        if (!config.hotkeys || typeof config.hotkeys !== 'object') {
-            config.hotkeys = makeDefaultHotkeys();
-        }
-        if (!config.hotkeys.toggle) {
-            config.hotkeys.toggle = makeDefaultHotkeys().toggle;
-        }
+        normalizeHotkeys();
     }
 
     // 舊版設定以 BCMachineTranslation 為鍵，現改名為 Liko_MAT。
@@ -366,6 +402,29 @@
         return false;
     }
 
+    // 短顏文字過濾：收到 ≤10 字的短句，若字母數 <3（1~2 個）且彼此不相鄰（無連續字母），
+    // 視為顏文字（:D、o.O、T_T、>w< …）跳過。含中日韓/假名/諺文則豁免——單一「好/はい/네」
+    // 是有意義的字，需翻譯。兩個相鄰字母（hi/ok/xD）視為真的短單字，不過濾。
+    function looksLikeShortKaomoji(text) {
+        const t = (text || '').trim();
+        if (!t || t.length > 10) return false;
+        if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(t)) return false;
+        const letters = t.match(/\p{L}/gu) || [];
+        if (letters.length >= 3) return false;
+        if (/\p{L}\p{L}/u.test(t)) return false;   // 有相鄰字母 → 可能是真的短單字
+        return true;
+    }
+
+    // 是否為中文文本：含漢字，且不含日文假名 / 韓文諺文（用來與日、韓區分）。
+    function isChineseText(text) {
+        if (!/\p{Script=Han}/u.test(text)) return false;
+        if (/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text)) return false;
+        return true;
+    }
+    // 「設定語言為中文時跳過簡繁翻譯」：己方目標為中文且內容已是中文 → 中翻中無意義，跳過。
+    function skipZhSend(text) { return config.sendSkipZhVariant && /^zh/i.test(config.sendLang) && isChineseText(text); }
+    function skipZhRecv(text) { return config.recvSkipZhVariant && /^zh/i.test(config.recvLang) && isChineseText(text); }
+
     // 自動翻譯的統一跳過判斷：送出端據此決定要不要夾旗標、接收端據此跳過——兩邊必須一致，
     // 否則「不該翻的句子」被夾了旗標，接收端會空等 1 秒造成爆量塞車。
     function isUntranslatable(text) {
@@ -375,6 +434,7 @@
             text.includes('🔊') || text.includes('📞')) return true;
         if (isPureUrl(text)) return true;
         if (!/\p{L}/u.test(text)) return true;   // 純顏文字/符號/emoji
+        if (looksLikeShortKaomoji(text)) return true;  // 短顏文字（含 1~2 個不連續字母）
         if (looksEncoded(text)) return true;     // LZString/base64/hex/hash
         return false;
     }
@@ -479,6 +539,18 @@
         return hasRemoteTranslation(node);
     }
 
+    // 依訊息類型的 CSS class 對應接收分類開關（BC 訊息 class 為 ChatMessage${Type}）。
+    // 一般聊天 ChatMessageChat 只受總接收開關管，回傳 true。
+    function recvGateAllows(node) {
+        const cl = node.classList;
+        if (cl.contains('ChatMessageBeep')) return config.recvBeep;
+        if (cl.contains('ChatMessageWhisper')) return config.recvWhisper;
+        if (cl.contains('ChatMessageEmote')) return config.recvEmote;
+        if (cl.contains('ChatMessageAction') || cl.contains('ChatMessageActivity')) return config.recvAction;
+        if (cl.contains('ChatMessageLocalMessage') || cl.contains('ChatMessageServerMessage')) return config.recvLocal;
+        return true;
+    }
+
     async function handleReceivedMessage(node) {
         if (!config.enabled || !config.translateReceived) return;
         if (!(node instanceof HTMLElement)) return;
@@ -488,6 +560,8 @@
             node.classList.contains("mat-manual-translated") ||
             node.textContent.includes(TRANSLATE_MARKER) ||
             node.textContent.includes('[🌐]')) return;
+
+        if (!recvGateAllows(node)) return;
 
         const senderEl = node.querySelector('.chat-room-sender');
         if (senderEl?.textContent == Player?.MemberNumber) return;
@@ -500,7 +574,7 @@
             node.classList.add("mat-processed");
             const colonIdx = beepText.indexOf(': ');
             const msg = colonIdx >= 0 ? beepText.slice(colonIdx + 2) : beepText;
-            if (!msg.trim()) return;
+            if (!msg.trim() || skipZhRecv(msg)) return;
             const translated = await smartTranslate(msg, config.recvLang);
             if (translated !== null && translated !== msg) createTranslatedDiv(node, translated);
             return;
@@ -509,6 +583,7 @@
         node.classList.add("mat-processed");
         const message = extractCleanMessage(node);
         if (!message) return;
+        if (skipZhRecv(message)) return;
         // 對方已標記要翻成我的語言（mat-skip）：先等其 [🌐] 廣播，最多 1 秒；沒到（對方翻譯失敗）才自翻
         if (node.classList.contains('mat-skip') && await waitForRemoteTranslation(node)) return;
         const translated = await smartTranslate(message, config.recvLang);
@@ -913,21 +988,23 @@
     // ============================================================
     function hookSendFunctions() {
         if (!modApi) return;
+        const safeStr = (v) => typeof v === 'string' ? v : null;
 
         modApi.hookFunction("ServerSend", 10, (args, next) => {
             const [command, data] = args;
             if (!config.enabled || !config.translateSent) return next(args);
-            const safeStr = (v) => typeof v === 'string' ? v : null;
 
-            // 夾意圖旗標到原句：只夾「會被翻譯廣播」的句子；顏文字/編碼/[🌐] 不夾，免接收端空等 1 秒
+            // 夾意圖旗標到原句：只夾「該分類開啟、會被翻譯廣播、非跳過」的句子；
+            // 顏文字/編碼/[🌐]/關閉的分類不夾，免接收端空等 1 秒。
             if (command === "ChatRoomChat" && MAT_FLAG_TYPES.includes(data.Type)) {
+                const typeOn = { Chat: true, Emote: config.sendEmote, Whisper: config.sendWhisper, Action: config.sendAction };
                 const ot = data.Type === "Action" ? safeStr(data.Dictionary?.[0]?.Text) : safeStr(data.Content);
-                if (ot && !isUntranslatable(ot)) addMATFlag(data);
+                if (ot && typeOn[data.Type] && !isUntranslatable(ot) && !skipZhSend(ot)) addMATFlag(data);
             }
 
             if (command === "ChatRoomChat" && data.Type === "Chat") {
                 const t = safeStr(data.Content);
-                if (t && !t.includes('[🌐]')) {
+                if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
                     next(args);
                     smartTranslate(t, config.sendLang).then(r => {
                         if (r !== null && r !== t) ServerSend("ChatRoomChat", { Content: `[🌐] ${r}`, Type: "Chat" });
@@ -935,9 +1012,9 @@
                     return;
                 }
             }
-            if (command === "ChatRoomChat" && data.Type === "Action") {
+            if (command === "ChatRoomChat" && data.Type === "Action" && config.sendAction) {
                 const t = safeStr(data.Dictionary?.[0]?.Text);
-                if (t && !t.includes('[🌐]')) {
+                if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
                     next(args);
                     smartTranslate(t, config.sendLang).then(r => {
                         if (r !== null && r !== t) ServerSend("ChatRoomChat", {
@@ -948,9 +1025,9 @@
                     return;
                 }
             }
-            if (command === "ChatRoomChat" && data.Type === "Whisper") {
+            if (command === "ChatRoomChat" && data.Type === "Whisper" && config.sendWhisper) {
                 const t = safeStr(data.Content);
-                if (t && !t.includes('[🌐]')) {
+                if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
                     next(args);
                     smartTranslate(t, config.sendLang).then(r => {
                         if (r !== null && r !== t) ServerSend("ChatRoomChat", { Content: `[🌐] ${r}`, Type: "Whisper", Target: data.Target, Sender: data.Sender });
@@ -958,9 +1035,9 @@
                     return;
                 }
             }
-            if (command === "AccountBeep") {
+            if (command === "AccountBeep" && config.sendBeep) {
                 const t = safeStr(data.Message);
-                if (t && !t.includes('[🌐]') && (!data.BeepType || data.BeepType === '') && isUserMessage(t) && !t.trim().startsWith('{')) {
+                if (t && !t.includes('[🌐]') && (!data.BeepType || data.BeepType === '') && isUserMessage(t) && !t.trim().startsWith('{') && !skipZhSend(t)) {
                     next(args);
                     smartTranslate(t, config.sendLang).then(r => {
                         if (r !== null && r !== t) ServerSend("AccountBeep", { MemberNumber: data.MemberNumber, Message: `[🌐] ${r}` });
@@ -972,9 +1049,9 @@
         });
 
         modApi.hookFunction("ChatRoomSendEmote", 10, (args, next) => {
-            if (!config.enabled || !config.translateSent) return next(args);
+            if (!config.enabled || !config.translateSent || !config.sendEmote) return next(args);
             const [t] = args;
-            if (t && !t.includes('[🌐]')) {
+            if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
                 next(args);
                 smartTranslate(t, config.sendLang).then(r => {
                     if (r !== null && r !== t) ChatRoomSendEmote(`[🌐] ${r}`);
@@ -1063,24 +1140,44 @@
         return true;
     }
 
+    // 三個快捷鍵動作：總開關 / 接收翻譯 / 發送翻譯。各自帶 enabled 旗標，關閉則不觸發。
+    function hotkeyActionToggle() {
+        const hk = config.hotkeys.toggle;
+        config.enabled = !config.enabled;
+        ChatRoomSendLocal(config.enabled
+                          ? ui('hotkeyEnabled',  { hk: hotkeyToString(hk) })
+                          : ui('hotkeyDisabled', { hk: hotkeyToString(hk) }));
+        if (config.enabled) startObserver(); else stopObserver();
+    }
+    function hotkeyActionRecv() {
+        config.translateReceived = !config.translateReceived;
+        ChatRoomSendLocal(config.translateReceived ? ui('hkRecvOn') : ui('hkRecvOff'));
+    }
+    function hotkeyActionSend() {
+        config.translateSent = !config.translateSent;
+        ChatRoomSendLocal(config.translateSent ? ui('hkSendOn') : ui('hkSendOff'));
+    }
+
     function setupHotkeyListener() {
+        const actions = { toggle: hotkeyActionToggle, recv: hotkeyActionRecv, send: hotkeyActionSend };
         document.addEventListener('keydown', (e) => {
             if (e.isComposing || e.keyCode === 229) return;
-            const hk = config.hotkeys.toggle;
-            const mods = hk?.modifiers || [];
-            const hasModifier = mods.includes('Ctrl') || mods.includes('Alt');
-            if (!hasModifier) {
-                const tag = document.activeElement?.tagName?.toLowerCase();
-                if (tag === 'input' || tag === 'textarea') return;
-            }
-            if (matchesHotkey(e, hk)) {
-                e.preventDefault();
-                config.enabled = !config.enabled;
-                ChatRoomSendLocal(config.enabled
-                                  ? ui('hotkeyEnabled', { hk: hotkeyToString(hk) })
-                                  : ui('hotkeyDisabled', { hk: hotkeyToString(hk) }));
-                if (config.enabled) startObserver(); else stopObserver();
-                saveSettings();
+            if (hotkeyRecording) return;   // 錄製新鍵時不觸發動作
+            for (const name of ['toggle', 'recv', 'send']) {
+                const hk = config.hotkeys[name];
+                if (!hk || !hk.enabled || !hk.key) continue;
+                const mods = hk.modifiers || [];
+                const hasModifier = mods.includes('Ctrl') || mods.includes('Alt');
+                if (!hasModifier) {
+                    const tag = document.activeElement?.tagName?.toLowerCase();
+                    if (tag === 'input' || tag === 'textarea') continue;
+                }
+                if (matchesHotkey(e, hk)) {
+                    e.preventDefault();
+                    actions[name]();
+                    saveSettings();
+                    return;
+                }
             }
         }, true);
     }
@@ -1123,139 +1220,170 @@
     // ============================================================
     // 設定畫面
     // ============================================================
-    // 版面座標：run() 繪製與 click() 命中判定共用同一份，避免兩邊各寫一份不同步
-    const MAT_LAYOUT = {
-        L_CB: 400, L_TXT: 484, L_TXTW: 500,
-        R_LBL: 1050, R_LBLW: 220, R_BTN: 1290, BTN_W: 280, CB_SZ: 64,
-        secY: 185, enabledY: 225, recvY: 305, sendY: 385,
-        chatY: 465, selectionY: 545, autoScrollY: 625, skipStutterY: 705,
-        RLANG_RECV_Y: 225, RLANG_SEND_Y: 305,
-        HK_SEC_Y: 410, HK_ROW1_Y: 450,
-        HK_BTN_X: 1290, HK_BTN_W: 200, HK_CLR_X: 1500, HK_CLR_W: 70,
-    };
-
+    // 分頁式版面：左側頁簽（總開關/基本/發送/接收/其他）、中間設定、右側說明框。
+    // run() 每幀重建互動命中區 _hits，click() 直接比對，兩邊不需各寫一份座標。
     const matSettingsScreen = {
+        tab: 1,             // 內容頁：1基本 2發送 3接收 4其他（左側第 0 鍵為總開關直接切換）
+        hoverDesc: '',
+        _hits: [],          // [{x,y,w,h,onClick}]
+
+        C: {
+            TAB_X: 90, TAB_Y0: 210, TAB_W: 300, TAB_H: 66, TAB_GAP: 78,
+            // CB_SZ=64：BC 的打勾圖以原生尺寸（約 60×60）畫在框內 +2 偏移處，框需 64 才裝得下
+            CBX: 490, CB_SZ: 64, LBL_X: 575, LBL_W: 460,
+            SEL_X: 1060, SEL_W: 250,
+            ROW_Y0: 225, ROW_H: 80,
+            HK_KEY_X: 970, HK_KEY_W: 210, HK_CLR_X: 1195, HK_CLR_W: 90,
+            HELP_X: 1350, HELP_Y: 200, HELP_W: 560, HELP_H: 700,
+        },
+
         load() {
             uiSendIdx = Math.max(0, langCodes.indexOf(config.sendLang));
             uiRecvIdx = Math.max(0, langCodes.indexOf(config.recvLang));
         },
+
+        // 螢幕座標錨點（供語言下拉定位於按鈕旁）
+        _anchor(btnX, btnY, w) {
+            return { getBoundingClientRect: () => {
+                const canvas = document.querySelector('canvas');
+                const r = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: 2000, height: 1000 };
+                return {
+                    left:  r.left + btnX * (r.width / 2000),
+                    right: r.left + (btnX + w) * (r.width / 2000),
+                    top:   r.top  + btnY * (r.height / 1000)
+                };
+            }};
+        },
+        _hit(x, y, w, h, onClick) { this._hits.push({ x, y, w, h, onClick }); },
+        _rowMid(y) { return y + this.C.CB_SZ / 2 + 9; },
+        _left(fn) { const p = MainCanvas.textAlign; MainCanvas.textAlign = "left"; try { fn(); } finally { MainCanvas.textAlign = p; } },
+
+        // checkbox 列：勾選框 + 標籤，hover 顯示說明
+        _cb(y, label, val, desc, onClick, disabled) {
+            const { CBX, CB_SZ, LBL_X, LBL_W } = this.C;
+            DrawCheckbox(CBX, y, CB_SZ, CB_SZ, "", val, disabled);
+            this._left(() => DrawTextFit(label, LBL_X, this._rowMid(y), LBL_W, disabled ? "Gray" : "Black"));
+            if (!disabled) this._hit(CBX, y, CB_SZ, CB_SZ, onClick);
+            if (desc && MouseIn(CBX, y, LBL_X - CBX + LBL_W, CB_SZ)) this.hoverDesc = desc;
+        },
+
+        // 語言選擇列：標籤 + 顯示目前語言的按鈕（點開下拉）
+        _lang(y, label, idx, desc, onSelect) {
+            const { CB_SZ, LBL_X, LBL_W, SEL_X, SEL_W } = this.C;
+            this._left(() => DrawTextFit(label, LBL_X, this._rowMid(y), LBL_W, "Black"));
+            DrawButton(SEL_X, y, SEL_W, CB_SZ, langNameNative[idx], "White", "", "");
+            this._hit(SEL_X, y, SEL_W, CB_SZ, () => openMATLangSelect(this._anchor(SEL_X, y, SEL_W), onSelect));
+            if (desc && MouseIn(LBL_X, y, SEL_X - LBL_X + SEL_W, CB_SZ)) this.hoverDesc = desc;
+        },
+
+        // 熱鍵列：啟用勾選框 + 標籤 + 綁定鈕（點擊錄製）+ 清除鈕
+        _hotkey(y, label, actionName, desc) {
+            const { CBX, CB_SZ, LBL_X, HK_KEY_X, HK_KEY_W, HK_CLR_X, HK_CLR_W } = this.C;
+            const hk = config.hotkeys[actionName] || {};
+            DrawCheckbox(CBX, y, CB_SZ, CB_SZ, "", !!hk.enabled);
+            this._hit(CBX, y, CB_SZ, CB_SZ, () => { hk.enabled = !hk.enabled; config.hotkeys[actionName] = hk; saveSettings(); });
+            this._left(() => DrawTextFit(label, LBL_X, this._rowMid(y), HK_KEY_X - LBL_X - 10, "Black"));
+            const rec = hotkeyRecording && hotkeyRecordingTarget === actionName;
+            DrawButton(HK_KEY_X, y, HK_KEY_W, CB_SZ, rec ? ui('hotkeyRecording') : hotkeyToString(hk), rec ? "#FFD700" : "White", "", ui('tipHotkeySet'));
+            this._hit(HK_KEY_X, y, HK_KEY_W, CB_SZ, () => {
+                if (hotkeyRecording && hotkeyRecordingTarget === actionName) { hotkeyRecording = false; hotkeyRecordingTarget = null; }
+                else startHotkeyRecording(actionName);
+            });
+            DrawButton(HK_CLR_X, y, HK_CLR_W, CB_SZ, ui('btnHotkeyClear'), "White", "", "");
+            this._hit(HK_CLR_X, y, HK_CLR_W, CB_SZ, () => { clearHotkey(actionName); });
+            if (desc && MouseIn(CBX, y, HK_KEY_X - CBX - 10, CB_SZ)) this.hoverDesc = desc;
+        },
+
+        _tabLabels() { return [ui('tab_basic'), ui('tab_send'), ui('tab_recv'), ui('tab_other')]; },
+        _tabDesc()   { return [ui('descBasic'), ui('descSend'), ui('descRecv'), ui('descOther')][this.tab - 1]; },
+
         run() {
-            const names = langNameNative;
-
-            const {
-                L_CB, L_TXT, L_TXTW, R_LBL, R_LBLW, R_BTN, BTN_W, CB_SZ,
-                secY, enabledY, recvY, sendY, chatY, selectionY, autoScrollY, skipStutterY,
-                RLANG_RECV_Y, RLANG_SEND_Y, HK_SEC_Y, HK_ROW1_Y,
-                HK_BTN_X, HK_BTN_W, HK_CLR_X, HK_CLR_W,
-            } = MAT_LAYOUT;
-
-            const withLeft = (fn) => {
-                const prev = MainCanvas.textAlign;
-                MainCanvas.textAlign = "left";
-                try { fn(); } finally { MainCanvas.textAlign = prev; }
-            };
+            this.hoverDesc = '';
+            this._hits = [];
+            const { TAB_X, TAB_Y0, TAB_W, TAB_H, TAB_GAP, HELP_X, HELP_Y, HELP_W, HELP_H } = this.C;
 
             DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", ui('btnBack'));
-            DrawText(ui('pageTitle', { v: MOD_VER }), 1000, 105, "Black", "Gray");
-            DrawText(ui('secLive'), 630,  secY, "#2e7d32", "Gray");
-            DrawText(ui('secLang'), 1300, secY, "#2e7d32", "Gray");
+            DrawText(ui('pageTitle', { v: MOD_VER }), 1000, 110, "Black", "Gray");
 
-            DrawCheckbox(L_CB, enabledY,    CB_SZ, CB_SZ, "", config.enabled);
-            DrawCheckbox(L_CB, recvY,       CB_SZ, CB_SZ, "", config.translateReceived,  !config.enabled);
-            DrawCheckbox(L_CB, sendY,       CB_SZ, CB_SZ, "", config.translateSent,      !config.enabled);
-            DrawCheckbox(L_CB, chatY,       CB_SZ, CB_SZ, "", config.translateChat,      !config.enabled);
-            DrawCheckbox(L_CB, selectionY,  CB_SZ, CB_SZ, "", config.translateSelection);
-            DrawCheckbox(L_CB, autoScrollY, CB_SZ, CB_SZ, "", config.autoScroll);
-            DrawCheckbox(L_CB, skipStutterY, CB_SZ, CB_SZ, "", config.skipStutter);
-
-            withLeft(() => {
-                const rowMid = (y) => y + CB_SZ / 2 + 9;
-                DrawTextFit(ui('optEnabled'),    L_TXT, rowMid(enabledY),    L_TXTW, "Black");
-                DrawTextFit(ui('optRecv'),       L_TXT, rowMid(recvY),       L_TXTW, config.enabled ? "Black" : "Gray");
-                DrawTextFit(ui('optSend'),       L_TXT, rowMid(sendY),       L_TXTW, config.enabled ? "Black" : "Gray");
-                DrawTextFit(ui('optChat'),       L_TXT, rowMid(chatY),       L_TXTW, config.enabled ? "Black" : "Gray");
-                DrawTextFit(ui('optSelection'),  L_TXT, rowMid(selectionY),  L_TXTW, "Black");
-                DrawTextFit(ui('optAutoScroll'), L_TXT, rowMid(autoScrollY), L_TXTW, "Black");
-                DrawTextFit(ui('optSkipStutter'), L_TXT, rowMid(skipStutterY), L_TXTW, "Black");
-            });
-
-            withLeft(() => {
-                const rowMid = (y) => y + CB_SZ / 2 + 9;
-                DrawTextFit(ui('lblRecvLang'), R_LBL, rowMid(RLANG_RECV_Y), R_LBLW, "Black");
-                DrawTextFit(ui('lblSendLang'), R_LBL, rowMid(RLANG_SEND_Y), R_LBLW, "Black");
-            });
-            DrawButton(R_BTN, RLANG_RECV_Y, BTN_W, CB_SZ, names[uiRecvIdx], "White", "", ui('tipRecvLang'));
-            DrawButton(R_BTN, RLANG_SEND_Y, BTN_W, CB_SZ, names[uiSendIdx], "White", "", ui('tipSendLang'));
-
-            DrawText(ui('secHotkey'), 1300, HK_SEC_Y, "#2e7d32", "Gray");
-            withLeft(() => {
-                DrawTextFit(ui('lblHotkeyToggle'), R_LBL, HK_ROW1_Y + CB_SZ / 2 + 9, R_LBLW, "Black");
-            });
-
-            const isRecording = hotkeyRecording && hotkeyRecordingTarget === 'toggle';
-            DrawButton(HK_BTN_X, HK_ROW1_Y, HK_BTN_W, CB_SZ,
-                       isRecording ? ui('hotkeyRecording') : hotkeyToString(config.hotkeys.toggle),
-                       isRecording ? "#FFD700" : "White", "", ui('tipHotkeySet'));
-            DrawButton(HK_CLR_X, HK_ROW1_Y, HK_CLR_W, CB_SZ, ui('btnHotkeyClear'), "White", "", ui('btnHotkeyClear'));
-
-            DrawRect(395, 795, 1180, 2, "rgba(0,0,0,0.15)");
-            DrawText(ui('desc1'), 1000, 825, "Gray", "Silver");
-            DrawText(ui('desc2'), 1000, 880, "Gray", "Silver");
-            DrawText(ui('desc3'), 1000, 935, "Gray", "Silver");
-        },
-        click() {
-            if (MouseIn(1815, 75, 90, 90)) { if (typeof PreferenceExit === "function") PreferenceExit(); return; }
-
-            const {
-                L_CB, CB_SZ, R_BTN, BTN_W,
-                enabledY, recvY, sendY, chatY, selectionY, autoScrollY, skipStutterY,
-                RLANG_RECV_Y, RLANG_SEND_Y,
-                HK_ROW1_Y, HK_BTN_X, HK_BTN_W, HK_CLR_X, HK_CLR_W,
-            } = MAT_LAYOUT;
-
-            const makeFakeAnchor = (btnX, btnY) => ({ getBoundingClientRect: () => {
-                const canvas = document.querySelector('canvas');
-                const rect = canvas ? canvas.getBoundingClientRect() : {left:0,top:0,width:2000,height:1000};
-                return {
-                    left:  rect.left + btnX * (rect.width / 2000),
-                    right: rect.left + (btnX + BTN_W) * (rect.width / 2000),
-                    top:   rect.top  + btnY * (rect.height / 1000)
-                };
-            }});
-
-            if (MouseIn(L_CB, enabledY, CB_SZ, CB_SZ)) {
+            // 左側第 0 鍵：總開關（直接切換，顏色反映啟用狀態）
+            DrawButton(TAB_X, TAB_Y0, TAB_W, TAB_H,
+                       config.enabled ? ui('masterOn') : ui('masterOff'),
+                       config.enabled ? "#2e7d32" : "#c62828", "", "");
+            this._hit(TAB_X, TAB_Y0, TAB_W, TAB_H, () => {
                 config.enabled = !config.enabled;
                 if (config.enabled) startObserver(); else stopObserver();
-                saveSettings(); return;
-            }
-            if (config.enabled && MouseIn(L_CB, recvY, CB_SZ, CB_SZ))       { config.translateReceived  = !config.translateReceived;  saveSettings(); return; }
-            if (config.enabled && MouseIn(L_CB, sendY, CB_SZ, CB_SZ))       { config.translateSent      = !config.translateSent;      saveSettings(); return; }
-            if (config.enabled && MouseIn(L_CB, chatY, CB_SZ, CB_SZ))       { config.translateChat      = !config.translateChat;      if (!config.translateChat) hideClickToolbar(); saveSettings(); return; }
-            if (MouseIn(L_CB, selectionY,  CB_SZ, CB_SZ))                   { config.translateSelection = !config.translateSelection; if (!config.translateSelection) hideSelectionPopup(); saveSettings(); return; }
-            if (MouseIn(L_CB, autoScrollY, CB_SZ, CB_SZ))                   { config.autoScroll         = !config.autoScroll;         saveSettings(); return; }
-            if (MouseIn(L_CB, skipStutterY, CB_SZ, CB_SZ))                  { config.skipStutter        = !config.skipStutter;        saveSettings(); return; }
+                saveSettings();
+            });
+            if (MouseIn(TAB_X, TAB_Y0, TAB_W, TAB_H)) this.hoverDesc = ui('descMaster');
 
-            if (MouseIn(R_BTN, RLANG_RECV_Y, BTN_W, CB_SZ)) {
-                openMATLangSelect(makeFakeAnchor(R_BTN, RLANG_RECV_Y), (code) => {
-                    const idx = langCodes.indexOf(code); if (idx === -1) return;
-                    uiRecvIdx = idx; config.recvLang = code; saveSettings();
-                }); return;
-            }
-            if (MouseIn(R_BTN, RLANG_SEND_Y, BTN_W, CB_SZ)) {
-                openMATLangSelect(makeFakeAnchor(R_BTN, RLANG_SEND_Y), (code) => {
-                    const idx = langCodes.indexOf(code); if (idx === -1) return;
-                    uiSendIdx = idx; config.sendLang = code; saveSettings();
-                }); return;
-            }
+            // 左側其餘頁簽（基本 / 發送 / 接收 / 其他）
+            this._tabLabels().forEach((lb, i) => {
+                const idx = i + 1;
+                const y = TAB_Y0 + idx * TAB_GAP;
+                DrawButton(TAB_X, y, TAB_W, TAB_H, lb, this.tab === idx ? "#4CAF50" : "White", "", "");
+                this._hit(TAB_X, y, TAB_W, TAB_H, () => { this.tab = idx; });
+            });
 
-            if (MouseIn(HK_BTN_X, HK_ROW1_Y, HK_BTN_W, CB_SZ)) {
-                if (hotkeyRecording && hotkeyRecordingTarget === 'toggle') { hotkeyRecording = false; hotkeyRecordingTarget = null; }
-                else { startHotkeyRecording('toggle'); }
-                return;
-            }
-            if (MouseIn(HK_CLR_X, HK_ROW1_Y, HK_CLR_W, CB_SZ)) {
-                clearHotkey('toggle'); hotkeyRecording = false; hotkeyRecordingTarget = null; return;
-            }
+            // 右側說明框
+            DrawEmptyRect(HELP_X, HELP_Y, HELP_W, HELP_H, "#888");
+
+            // 中間內容
+            [this._runBasic, this._runSend, this._runRecv, this._runOther][this.tab - 1].call(this);
+
+            // 說明文字（hover 優先，否則顯示分頁常駐說明）
+            const desc = this.hoverDesc || this._tabDesc();
+            if (desc) DrawTextWrap(desc, HELP_X + 25, HELP_Y + 20, HELP_W - 50, HELP_H - 40, "Black", undefined, 8);
+        },
+
+        _runBasic() {
+            let y = this.C.ROW_Y0; const H = this.C.ROW_H;
+            DrawText(ui('tab_basic'), 850, 200, "#2e7d32", "Gray");
+            this._cb(y, ui('optRecv'), config.translateReceived, ui('dRecv'), () => { config.translateReceived = !config.translateReceived; saveSettings(); }); y += H;
+            this._lang(y, ui('lblRecvLang'), uiRecvIdx, ui('dRecvLang'), code => { const i = langCodes.indexOf(code); if (i < 0) return; uiRecvIdx = i; config.recvLang = code; saveSettings(); }); y += H;
+            this._cb(y, ui('optSend'), config.translateSent, ui('dSend'), () => { config.translateSent = !config.translateSent; saveSettings(); }); y += H;
+            this._lang(y, ui('lblSendLang'), uiSendIdx, ui('dSendLang'), code => { const i = langCodes.indexOf(code); if (i < 0) return; uiSendIdx = i; config.sendLang = code; saveSettings(); }); y += H;
+        },
+
+        _runSend() {
+            let y = this.C.ROW_Y0; const H = this.C.ROW_H;
+            DrawText(ui('tab_send'), 850, 200, "#2e7d32", "Gray");
+            const dis = !config.translateSent;
+            this._cb(y, ui('optEmote'),   config.sendEmote,        ui('dEmote'),   () => { config.sendEmote = !config.sendEmote; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optAction'),  config.sendAction,       ui('dAction'),  () => { config.sendAction = !config.sendAction; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optWhisper'), config.sendWhisper,      ui('dWhisper'), () => { config.sendWhisper = !config.sendWhisper; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optBeep'),    config.sendBeep,         ui('dBeep'),    () => { config.sendBeep = !config.sendBeep; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optSkipZh'),  config.sendSkipZhVariant, ui('dSkipZh'), () => { config.sendSkipZhVariant = !config.sendSkipZhVariant; saveSettings(); }, dis); y += H;
+        },
+
+        _runRecv() {
+            let y = this.C.ROW_Y0; const H = this.C.ROW_H;
+            DrawText(ui('tab_recv'), 850, 200, "#2e7d32", "Gray");
+            const dis = !config.translateReceived;
+            this._cb(y, ui('optEmote'),   config.recvEmote,        ui('dEmote'),   () => { config.recvEmote = !config.recvEmote; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optAction'),  config.recvAction,       ui('dAction'),  () => { config.recvAction = !config.recvAction; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optWhisper'), config.recvWhisper,      ui('dWhisper'), () => { config.recvWhisper = !config.recvWhisper; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optBeep'),    config.recvBeep,         ui('dBeep'),    () => { config.recvBeep = !config.recvBeep; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optLocal'),   config.recvLocal,        ui('dLocal'),   () => { config.recvLocal = !config.recvLocal; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optSkipZh'),  config.recvSkipZhVariant, ui('dSkipZh'), () => { config.recvSkipZhVariant = !config.recvSkipZhVariant; saveSettings(); }, dis); y += H;
+        },
+
+        _runOther() {
+            let y = 240; const H = 70;
+            DrawText(ui('tab_other'), 850, 200, "#2e7d32", "Gray");
+            this._cb(y, ui('optLoginNotice'), config.loginNotice,        ui('dLoginNotice'), () => { config.loginNotice = !config.loginNotice; saveSettings(); }); y += H;
+            this._cb(y, ui('optManual'),      config.translateChat,      ui('dManual'),      () => { config.translateChat = !config.translateChat; if (!config.translateChat) hideClickToolbar(); saveSettings(); }); y += H;
+            this._cb(y, ui('optSelection'),   config.translateSelection, ui('dSelection'),   () => { config.translateSelection = !config.translateSelection; if (!config.translateSelection) hideSelectionPopup(); saveSettings(); }); y += H;
+            this._cb(y, ui('optAutoScroll'),  config.autoScroll,         ui('dAutoScroll'),  () => { config.autoScroll = !config.autoScroll; saveSettings(); }); y += H;
+            this._cb(y, ui('optSkipStutter'), config.skipStutter,        ui('dSkipStutter'), () => { config.skipStutter = !config.skipStutter; saveSettings(); }); y += H;
+            this._cb(y, ui('optChatButton'),  config.chatButton,         ui('dChatButton'),  () => { config.chatButton = !config.chatButton; saveSettings(); updateChatButton(); }); y += H;
+            this._hotkey(y, ui('hkToggle'), 'toggle', ui('dHkToggle')); y += H;
+            this._hotkey(y, ui('hkRecv'),   'recv',   ui('dHkRecv'));   y += H;
+            this._hotkey(y, ui('hkSend'),   'send',   ui('dHkSend'));   y += H;
+        },
+
+        click() {
+            if (MouseIn(1815, 75, 90, 90)) { if (typeof PreferenceExit === "function") PreferenceExit(); return; }
+            for (const h of this._hits) { if (MouseIn(h.x, h.y, h.w, h.h)) { h.onClick(); return; } }
         },
         unload() { hotkeyRecording = false; hotkeyRecordingTarget = null; },
         exit()   { hotkeyRecording = false; hotkeyRecordingTarget = null; }
@@ -1499,14 +1627,207 @@
                 }
             }
         }]);
+    }
 
-        ChatRoomSendLocal(ui('loaded', { v: MOD_VER }));
+    // 登入通知：ChatRoomSendLocal 只在房間內有效，故等進入 ChatRoom 後延遲 1 秒顯示一次（仿 HSC）
+    function notifyLoginOnce() {
+        let done = false;
+        const timer = setInterval(() => {
+            if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom') return;
+            clearInterval(timer);
+            if (done) return;
+            done = true;
+            setTimeout(() => { if (config.loginNotice) ChatRoomSendLocal(ui('loginNotice', { v: MOD_VER })); }, 1000);
+        }, 500);
     }
 
     // /mat settings：直接開啟拓展設定內的 MAT 子頁
     function openSettingsScreen() {
         if (typeof PreferenceSubscreenExtensionsOpen !== 'function') return;
         PreferenceSubscreenExtensionsOpen("Liko_MAT_Settings");
+    }
+
+    // ============================================================
+    // 聊天室快捷按鈕（#chat-room-buttons）
+    // 點擊向上展開小選單：總開關 / 發送 / 接收 / 前往設定。
+    // ============================================================
+    // 共用按鈕順序協調器（與 expand/BC_ChatRoomButtons.js 同一份契約）：沒有就自己建。
+    (function (g) {
+        const V = 1, cur = g.Liko.__Sys_ChatRoomButtons__;
+        if (cur && cur.v >= V) return;
+        g.Liko.__Sys_ChatRoomButtons__ = {
+            v: V, slots: cur?.slots ?? {},
+            register(id, order, el) { this.slots[id] = order; if (el) el.style.order = String(order); return order; },
+            get(id) { return this.slots[id]; },
+            reapply(id, el) { if (el && id in this.slots) el.style.order = String(this.slots[id]); },
+        };
+    })(window);
+
+    const MAT_BTN_ID = 'lk-mat-trigger-btn';
+    const MAT_MENU_ID = 'lk-mat-quick-menu';
+    let matBtnTimer = null;
+
+    function matQuickToggle(kind) {
+        if (kind === 'master') {
+            config.enabled = !config.enabled;
+            if (config.enabled) startObserver(); else stopObserver();
+            ChatRoomSendLocal(config.enabled ? ui('cmdOn') : ui('cmdOff'));
+        } else if (kind === 'send') {
+            config.translateSent = !config.translateSent;
+            ChatRoomSendLocal(config.translateSent ? ui('hkSendOn') : ui('hkSendOff'));
+        } else if (kind === 'recv') {
+            config.translateReceived = !config.translateReceived;
+            ChatRoomSendLocal(config.translateReceived ? ui('hkRecvOn') : ui('hkRecvOff'));
+        }
+        saveSettings();
+        refreshMatQuickMenu();
+    }
+
+    function refreshMatQuickMenu() {
+        const menu = document.getElementById(MAT_MENU_ID);
+        if (!menu) return;
+        const paint = (cls, on) => {
+            const b = menu.querySelector('.' + cls);
+            if (b) b.style.background = on ? 'rgba(76,175,80,0.9)' : 'rgba(60,60,80,0.85)';
+        };
+        paint('lk-mat-q-master', config.enabled);
+        paint('lk-mat-q-send', config.translateSent);
+        paint('lk-mat-q-recv', config.translateReceived);
+    }
+
+    function buildMatQuickMenu() {
+        let menu = document.getElementById(MAT_MENU_ID);
+        if (menu) return menu;
+        menu = document.createElement('div');
+        menu.id = MAT_MENU_ID;
+        menu.style.cssText = 'position:fixed;z-index:100000;display:none;flex-direction:column;gap:4px;background:#1a1a2e;border:1px solid #4CAF50;border-radius:8px;padding:6px;box-shadow:0 4px 16px rgba(0,0,0,0.5);min-width:132px;';
+        const mkBtn = (cls, label, kind) => {
+            const b = document.createElement('button');
+            b.className = cls;
+            b.textContent = label;
+            b.style.cssText = 'all:unset;box-sizing:border-box;width:100%;cursor:pointer;color:#fff;font-size:13px;text-align:center;padding:6px 10px;border-radius:5px;background:rgba(60,60,80,0.85);white-space:nowrap;';
+            b.addEventListener('click', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                if (kind) matQuickToggle(kind);
+                else { hideMatQuickMenu(); openSettingsScreen(); }
+            });
+            return b;
+        };
+        menu.appendChild(mkBtn('lk-mat-q-master',   ui('cbtnMaster'),   'master'));
+        menu.appendChild(mkBtn('lk-mat-q-send',     ui('cbtnSend'),     'send'));
+        menu.appendChild(mkBtn('lk-mat-q-recv',     ui('cbtnRecv'),     'recv'));
+        menu.appendChild(mkBtn('lk-mat-q-settings', ui('cbtnSettings'), null));
+        document.body.appendChild(menu);
+        return menu;
+    }
+
+    function toggleMatQuickMenu() {
+        const menu = buildMatQuickMenu();
+        if (menu.style.display === 'flex') { hideMatQuickMenu(); return; }
+        refreshMatQuickMenu();
+        menu.style.display = 'flex';
+        // 先移出畫面取得尺寸，再定位於按鈕上方（向上展開）
+        menu.style.left = '-9999px'; menu.style.top = '0px';
+        const btn = document.getElementById(MAT_BTN_ID);
+        requestAnimationFrame(() => {
+            const r = btn ? btn.getBoundingClientRect() : { left: 100, top: 100, right: 140, bottom: 140, width: 40, height: 40 };
+            const mw = menu.offsetWidth, mh = menu.offsetHeight;
+            let left = r.left + r.width / 2 - mw / 2;
+            left = Math.max(4, Math.min(left, window.innerWidth - mw - 4));
+            let top = r.top - mh - 6;
+            if (top < 4) top = r.bottom + 6;
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
+        });
+    }
+    function hideMatQuickMenu() { const m = document.getElementById(MAT_MENU_ID); if (m) m.style.display = 'none'; }
+
+    document.addEventListener('mousedown', (e) => {
+        const menu = document.getElementById(MAT_MENU_ID);
+        if (!menu || menu.style.display !== 'flex') return;
+        if (menu.contains(e.target)) return;
+        if (e.target.closest && e.target.closest('#' + MAT_BTN_ID)) return;
+        hideMatQuickMenu();
+    });
+
+    // 圖示用 CSS mask 上色（白色勾勒在綠底上），不受 SVG 自身 #000 填色與深色主題影響——
+    // 與 Kaomoji 同一手法，已驗證可在 BC 環境正常顯示（避免黑圖貼在深色按鈕上看不見）。
+    function injectMatStyles() {
+        if (document.getElementById('lk-mat-style')) return;
+        const maskUrl = `url("${MAT_ICON_URI}")`;
+        const style = document.createElement('style');
+        style.id = 'lk-mat-style';
+        style.textContent = [
+            '#' + MAT_BTN_ID + '.chat-room-button{',
+            '  background-color:rgba(76,175,80,0.9) !important;',
+            '  border-radius:12px !important;',
+            '  position:relative !important;',
+            '  overflow:hidden !important;',
+            '}',
+            '#' + MAT_BTN_ID + '.chat-room-button::before{',
+            '  content:"" !important;',
+            '  position:absolute !important;',
+            '  top:0 !important; left:0 !important;',
+            '  width:100% !important; height:100% !important;',
+            '  background-color:#ffffff !important;',
+            '  mask-position:center center !important;',
+            '  mask-size:62% 62% !important;',
+            '  mask-repeat:no-repeat !important;',
+            '  -webkit-mask-position:center center !important;',
+            '  -webkit-mask-size:62% 62% !important;',
+            '  -webkit-mask-repeat:no-repeat !important;',
+            '  mask-image:' + maskUrl + ' !important;',
+            '  -webkit-mask-image:' + maskUrl + ' !important;',
+            '}',
+            '#' + MAT_BTN_ID + '.chat-room-button:hover{',
+            '  background-color:rgba(102,187,106,0.95) !important;',
+            '}',
+        ].join('\n');
+        document.head.appendChild(style);
+    }
+
+    function createMatButton() {
+        const btn = document.createElement('button');
+        btn.id = MAT_BTN_ID;
+        btn.type = 'button';
+        btn.className = 'blank-button button HideOnPopup chat-room-button';
+        btn.setAttribute('role', 'menuitem');
+        btn.setAttribute('tabindex', '0');
+        btn.setAttribute('aria-label', ui('prefButton'));
+        btn.title = ui('prefButton');
+        // 圖示由 injectMatStyles 的 ::before mask 繪製，這裡不放 <img>
+        btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleMatQuickMenu(); });
+        return btn;
+    }
+
+    function injectMatButton() {
+        const container = document.getElementById('chat-room-buttons');
+        if (!container) return;
+        let btn = document.getElementById(MAT_BTN_ID);
+        if (!config.chatButton) { if (btn) btn.remove(); hideMatQuickMenu(); return; }
+        injectMatStyles();
+
+        if (btn && btn.parentElement === container) {
+            window.Liko.__Sys_ChatRoomButtons__.reapply('mat', btn);
+            return;
+        }
+
+        if (btn) btn.remove();
+        btn = createMatButton();
+        const referenceBtn = Array.from(container.children).find(el => el.id !== 'chat-room-send');
+        if (referenceBtn) btn.toggleAttribute('hidden', referenceBtn.hasAttribute('hidden'));
+
+        container.appendChild(btn);
+        window.Liko.__Sys_ChatRoomButtons__.register('mat', sys_CRB, btn);
+    }
+
+    // 設定切換後即時反映（開→注入、關→移除）
+    function updateChatButton() { injectMatButton(); }
+
+    function setupChatButton() {
+        if (matBtnTimer) return;
+        injectMatButton();
+        matBtnTimer = setInterval(injectMatButton, 500);
     }
 
     // ============================================================
@@ -1539,7 +1860,7 @@
                     PreferenceRegisterExtensionSetting({
                         Identifier: "Liko_MAT_Settings",
                         ButtonText: ui('prefButton'),
-                        Image: "Icons/Chat.png",
+                        Image: MAT_ICON_URI,
                         load:   () => matSettingsScreen.load(),
                         run:    () => matSettingsScreen.run(),
                         click:  () => matSettingsScreen.click(),
@@ -1555,6 +1876,8 @@
                     setupSelectionListener();
                     setupClickTranslateListener();
                     setupHotkeyListener();
+                    setupChatButton();
+                    notifyLoginOnce();
                     if (config.enabled) startObserver();
                 });
             });
