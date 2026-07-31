@@ -1,0 +1,31 @@
+{
+  "updateId": "260726",
+  "changelog": {
+    "cn": [
+      "⭐Shuang的貼圖分享 新增",
+      "新增貼圖分享物品。可設定貼圖網址，設置在角色身上並分享顯示給其他人",
+      "⭐DDT - 繪圖檢測工具 新增",
+      "偵測 canvas & DOM 物件的屬性，支持染色與位移，並支持繪製物件功能",
+      "⭐LCE - 俱樂部擴展 新增",
+      "以WCE為基底合併幾個小型插件功能，並提供美化登入介面與帳號記憶功能",
+      "⭐AEE - 外觀編輯器 更新",
+      "新增修改字體功能",
+      "⭐HSC - 催眠奴隸俱樂部 更新",
+      "修正名稱識別障礙失效錯誤",
+      "修正編輯他人文本時，顯示不全錯誤"
+    ],
+    "en": [
+      "⭐Shuang's sticker sharing Added",
+      "Add sticker item: allows setting a sticker URL, attaching it to a character, and sharing it so that it is visible to others.",
+      "⭐DDT - Draw Detection Tool Added",
+      "Detect properties of canvas & DOM objects, support tinting and displacement, and support object drawing functionality.",
+      "⭐LCE - Club Extension  Added",
+      "Based on WCE, merge several small plugin features, and provide a beautified login interface with account memory functionality.",
+      "⭐AEE - Appearance Editor Extension - Update",
+      "Added font modification feature.",
+      "⭐HSC - Hypno Slave Club - Update",
+      "Fixed name recognition impairment bug.",
+      "Fixed display truncation issue when editing others' text."
+    ]
+  }
+}
