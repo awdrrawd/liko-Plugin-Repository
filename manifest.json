@@ -577,6 +577,30 @@
           "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20PAT%20All.main.user.js"
         }
       ]
+    },
+    {
+      "id": "Shuang-CustomAssets",
+      "name": {
+        "cn": "Shuang的自定义道具扩展",
+        "en": "ShuangCustomAssets"
+      },
+      "description": {
+        "cn": "新增貼圖分享物品。可設定貼圖網址，設置在角色身上並分享顯示給其他人",
+        "en": "Add sticker item: allows setting a sticker URL, attaching it to a character, and sharing it so that it is visible to others."
+      },
+      "icon": "https://shuang-custom-assets.pages.dev/SCA_logo.png",
+      "author": "Shuang",
+      "repository": "https://gitgud.io/yeshuang26/shuangcustomassets",
+      "tags": [
+        "enhancements"
+      ],
+      "type": "module",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/ShuangCustomAssets-Mirror/shuang-assets.js"
+        }
+      ]
     }
   ]
 }
