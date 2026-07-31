@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.0
+// @version      1.6.1
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -1667,6 +1667,11 @@
     const MAT_MENU_ID = 'lk-mat-quick-menu';
     let matBtnTimer = null;
 
+    // 快速選單開合動畫：向上展開／向下收回，速度與 easing 對齊 BC_ChatRoomButtons 的按鈕動畫。
+    const MAT_MENU_SLIDE_PX = 10;
+    const MAT_MENU_REDUCE_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const MAT_MENU_ANIM_MS = MAT_MENU_REDUCE_MOTION ? 0 : 200;
+
     function matQuickToggle(kind) {
         if (kind === 'master') {
             config.enabled = !config.enabled;
@@ -1700,7 +1705,9 @@
         if (menu) return menu;
         menu = document.createElement('div');
         menu.id = MAT_MENU_ID;
-        menu.style.cssText = 'position:fixed;z-index:100000;display:none;flex-direction:column;gap:4px;background:#1a1a2e;border:1px solid #4CAF50;border-radius:8px;padding:6px;box-shadow:0 4px 16px rgba(0,0,0,0.5);min-width:132px;';
+        menu.style.cssText = 'position:fixed;z-index:100000;display:none;flex-direction:column;gap:4px;background:#1a1a2e;border:1px solid #4CAF50;border-radius:8px;padding:6px;box-shadow:0 4px 16px rgba(0,0,0,0.5);min-width:132px;' +
+            'opacity:0;transform:translateY(' + MAT_MENU_SLIDE_PX + 'px);pointer-events:none;' +
+            'transition:opacity ' + MAT_MENU_ANIM_MS + 'ms ease,transform ' + MAT_MENU_ANIM_MS + 'ms ease;';
         const mkBtn = (cls, label, kind) => {
             const b = document.createElement('button');
             b.className = cls;
@@ -1721,30 +1728,49 @@
         return menu;
     }
 
+    function positionMatQuickMenu(menu) {
+        // opacity:0 期間量測不會有任何閃現，不必再靠移出畫面外那招
+        const btn = document.getElementById(MAT_BTN_ID);
+        const r = btn ? btn.getBoundingClientRect() : { left: 100, top: 100, right: 140, bottom: 140, width: 40, height: 40 };
+        const mw = menu.offsetWidth, mh = menu.offsetHeight;
+        let left = r.left + r.width / 2 - mw / 2;
+        left = Math.max(4, Math.min(left, window.innerWidth - mw - 4));
+        let top = r.top - mh - 6;
+        if (top < 4) top = r.bottom + 6;
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+    }
+
     function toggleMatQuickMenu() {
         const menu = buildMatQuickMenu();
-        if (menu.style.display === 'flex') { hideMatQuickMenu(); return; }
+        if (menu.dataset.open === '1') { hideMatQuickMenu(); return; }
+        clearTimeout(menu._lkHideTimer);
         refreshMatQuickMenu();
-        menu.style.display = 'flex';
-        // 先移出畫面取得尺寸，再定位於按鈕上方（向上展開）
-        menu.style.left = '-9999px'; menu.style.top = '0px';
-        const btn = document.getElementById(MAT_BTN_ID);
+        menu.dataset.open = '1';
+        menu.style.display = 'flex'; // 此時 opacity 仍是初始的 0，量測/定位不會被使用者看到
+        positionMatQuickMenu(menu);
+        // 定位完成後才在下一影格淡入＋從按鈕位置往上滑到定位，呼應「向上展開」的方向
         requestAnimationFrame(() => {
-            const r = btn ? btn.getBoundingClientRect() : { left: 100, top: 100, right: 140, bottom: 140, width: 40, height: 40 };
-            const mw = menu.offsetWidth, mh = menu.offsetHeight;
-            let left = r.left + r.width / 2 - mw / 2;
-            left = Math.max(4, Math.min(left, window.innerWidth - mw - 4));
-            let top = r.top - mh - 6;
-            if (top < 4) top = r.bottom + 6;
-            menu.style.left = left + 'px';
-            menu.style.top = top + 'px';
+            menu.style.opacity = '1';
+            menu.style.transform = 'translateY(0)';
+            menu.style.pointerEvents = 'auto';
         });
     }
-    function hideMatQuickMenu() { const m = document.getElementById(MAT_MENU_ID); if (m) m.style.display = 'none'; }
+
+    function hideMatQuickMenu() {
+        const menu = document.getElementById(MAT_MENU_ID);
+        if (!menu || menu.dataset.open !== '1') return;
+        menu.dataset.open = '0';
+        menu.style.opacity = '0';
+        menu.style.transform = 'translateY(' + MAT_MENU_SLIDE_PX + 'px)'; // 向下收回，回到按鈕的方向
+        menu.style.pointerEvents = 'none';
+        clearTimeout(menu._lkHideTimer);
+        menu._lkHideTimer = setTimeout(() => { menu.style.display = 'none'; }, MAT_MENU_ANIM_MS + 30);
+    }
 
     document.addEventListener('mousedown', (e) => {
         const menu = document.getElementById(MAT_MENU_ID);
-        if (!menu || menu.style.display !== 'flex') return;
+        if (!menu || menu.dataset.open !== '1') return;
         if (menu.contains(e.target)) return;
         if (e.target.closest && e.target.closest('#' + MAT_BTN_ID)) return;
         hideMatQuickMenu();
