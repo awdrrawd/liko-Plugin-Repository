@@ -2,36 +2,48 @@
  * =============================================================================
  *  BC ChatRoomButtons Order + Collapse Animation (BC_ChatRoomButtons.js)
  * =============================================================================
- *
- *  兩件事，都圍繞 BC 的 #chat-room-buttons：
- *
- *  【1. 排序】多個插件都往 #chat-room-buttons 加自訂按鈕時，用來協調彼此的排列順序。
- *  #chat-room-buttons 是 CSS Grid（direction:rtl），grid 項目會遵守 CSS `order` 屬性 ——
- *  所以每個插件只要對「自己的按鈕」設 style.order = N，瀏覽器就會照 N 由小到大排版，
- *  完全不受 DOM 插入順序或載入時機影響（無競態、無需集中重排）。
- *  BC 原生按鈕沒有 order → 視為 0；正數排在原生按鈕之後（rtl 下＝偏左），負數排在之前。
- *
- *  【2. 收合/展開動畫】BC 原生的 #chat-room-buttons-collapse 按鈕，點下去是直接對每個
- *  子按鈕切換 [hidden]（等同 display:none），沒有任何過渡效果，觀感是「瞬間消失/出現」。
- *  這裡不去攔截、取代原生的點擊邏輯（風險高，還要處理 click/touch/hold 各種事件），
- *  而是用 MutationObserver 純觀察 #chat-room-buttons 底下子元素的 [hidden] 屬性變化，
- *  把「瞬間切換」改寫成「向右滑出淡出後才真的隱藏／從右邊滑回原位淡入」。因為只監看 DOM 屬性，
- *  不管 hidden 是原生按鈕、Kaomoji 的 syncTriggerVisibility、還是任何其他腳本切換的，
- *  都會一視同仁套上動畫 —— 這也表示動畫本身完全不依賴任何其他插件是否有載入成功。
- *
- *  API（掛在 window.Liko.__Sys_ChatRoomButtons__）：
- *    register(id, order, el)  記錄某插件的順位並套到按鈕上（回傳 order）
- *    get(id)                  查某插件已宣告的順位（沒有則 undefined）
- *    reapply(id, el)          BC 重建按鈕列後，把記錄的順位重新套回新按鈕（手動呼叫用）
- *
- *  排序本身也會自我巡邏：register/reapply 時會記住元素參照，之後用低頻 interval 定期
- *  把記得的順位補套回目前還在文件內的元素。也就是說，就算某個插件自己的重繪/重掛勾邏輯
- *  掛掉、忘了呼叫 reapply，只要按鈕元素本身還在，順位依然不會跑掉 —— 這個檔案本身單獨
- *  載入（其他插件都沒載入成功）也能完整提供排序功能，不必依賴任何外部呼叫。
- *
- *  用法：當一般 <script> 載入即可，無依賴。契約刻意極簡且凍結 —— 任何插件都能內嵌同一份
- *  v1 bootstrap（只有排序）自行建立，版本守衛保證較新版本（本檔）生效、且保留已登記的
- *  順位，多份副本不會打架；動畫子系統則只有這份完整版才有，不強求其他插件跟著實作。
+BC_ChatRoomButtons.js 說明
+一份給 Bondage Club 插件共用的基礎設施腳本,圍繞著聊天室畫面的 #chat-room-buttons(那一排按鈕的容器)處理兩件事:排序與收合/展開動畫。單獨載入(沒有其他插件配合)就能完整運作,無外部依賴。
+
+掛載位置:window.Liko.__Sys_ChatRoomButtons__
+
+一、排序功能
+問題:多個插件都想在 #chat-room-buttons 裡加自己的按鈕,誰先誰後、誰放哪裡容易打架。
+做法:#chat-room-buttons 是 CSS Grid(direction: rtl),grid 項目會遵守 CSS order 屬性。每個插件只要幫自己的按鈕設定 style.order = N,瀏覽器就會照數字排版——不管插件載入順序、不管誰先跑,不會有 race condition。
+BC 原生按鈕沒有設 order → 視為 0
+正數排在原生按鈕之後(rtl 下視覺上偏左)
+負數排在原生按鈕之前
+
+API:
+函式	說明
+register(id, order, el)	記錄某插件的順位並套用到按鈕上,回傳 order
+get(id)	查某插件已宣告的順位(沒有則 undefined)
+reapply(id, el)	BC 重建按鈕列後,把記錄的順位重新套回新按鈕(手動呼叫用)
+
+自我巡邏(self-healing):每 500ms 會自動把記住的順位重新套回目前還在文件內的元素。所以就算某插件自己的重繪邏輯忘了呼叫 reapply,只要按鈕元素還在,順位依然不會跑掉。
+版本相容:用版本號(V = 2)守衛,已存在且版本 ≥ 本檔就跳過;升級時沿用舊的 slots,不會清掉別人已登記的順位。契約刻意極簡凍結,其他插件可以自行內嵌一份精簡版(只有排序)也不會互相打架。
+
+二、收合/展開動畫
+問題:BC 原生的 chat-room-buttons-collapse 按鈕,點下去是直接對每顆子按鈕切換 [hidden],沒有任何過渡效果,是「瞬間消失/出現」。
+做法:不去攔截、取代原生的點擊邏輯(風險高,要處理各種事件),而是用 MutationObserver 純觀察 #chat-room-buttons 底下子元素的 hidden 屬性變化,把「瞬間切換」改寫成:
+收合:向右滑出 + 淡出,動畫播完才真的隱藏
+展開:從右邊滑回原位 + 淡入
+因為只監看屬性本身,不管是原生按鈕、其他插件的可見度同步邏輯改的,都會一視同仁套上動畫——動畫完全不依賴任何其他插件是否成功載入。
+行為細節:
+
+動畫時長 200ms,滑動距離 18px,對齊 Kaomoji 面板開合的速度風格
+尊重 prefers-reduced-motion,開啟時維持原生瞬間切換
+chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
+會過濾「值沒變」的重複觸發,避免動畫播到一半被同狀態重新觸發而頓一下
+
+近期修正(重建誤觸發問題):切換畫面時,有些插件會整批重建自己的按鈕(產生全新的 DOM 元素而非重用舊的),插入後緊接著同步一次 hidden 狀態以符合目前收合/展開狀態——這個「同步」動作本身會被 observer 捕捉,誤判成使用者真的按了收合鈕,導致畫面切換時跳出不該有的滑動動畫。
+
+修法是用 WeakMap(鍵是元素物件本身)判斷「這個按鈕元素是不是第一次被看到」:第一次出現只靜默記錄狀態、不播動畫;因為新建立的元素在 WeakMap 裡必然沒有舊紀錄,天然就能分辨「重建後的初始同步」跟「真正的使用者切換」,不需要另外監聽 childList 或去猜容器何時被整個換掉。
+
+效能考量
+排序巡邏是低頻 interval(500ms),量小
+動畫觀察只過濾 hidden 屬性變化(attributeFilter: ['hidden']),沒有觀察 childList,對整頁 DOM 增刪不敏感,效能開銷小
+綁在 document.documentElement 而非容器本身,是因為容器會隨切換聊天室被 BC 整個重建,綁在穩定的祖先節點上就不必處理重新掛勾的時機問題
  * =============================================================================
  */
 (function (global) {
@@ -160,9 +172,19 @@
         if (el.id === 'chat-room-send') return; // 送出按鈕本來就不會被收合
 
         const isHidden = el.hasAttribute('hidden');
-        if (lastHidden.get(el) === isHidden) return; // 有些插件會用自己的輪詢重複 set 同一個狀態，
+        const firstSight = !lastHidden.has(el); // 這個「按鈕元素物件」是不是第一次被觀察到 hidden 變化
+        if (!firstSight && lastHidden.get(el) === isHidden) return; // 有些插件會用自己的輪詢重複 set 同一個狀態，
         // 這種「值沒變」的重複觸發要濾掉，不然動畫播到一半又被同一個狀態重新觸發，看起來會頓一下
         lastHidden.set(el, isHidden);
+
+        // 切換畫面時，有些插件會整批重建自己的按鈕（新的 DOM 元素，不是原本那顆），
+        // 插入後緊接著把 hidden 同步成目前面板的收合/展開狀態，這一下 set 也會被上面的
+        // MutationObserver 捕捉到。但這其實不是使用者按收合鈕的「真實切換」，只是重建後
+        // 的初始同步 —— 因為 lastHidden 是用 WeakMap 存、鍵是元素本身，新元素在這裡一定
+        // 是第一次出現（firstSight === true），藉此可以準確分辨兩者，不需要另外監看
+        // childList 或去猜容器何時被整個換掉。第一次出現只記錄狀態，不播動畫；之後才是
+        // 真正的收合/展開觸發。
+        if (firstSight) return;
 
         if (reduceMotion) return; // 尊重「減少動態效果」偏好，維持原生瞬間切換
 
