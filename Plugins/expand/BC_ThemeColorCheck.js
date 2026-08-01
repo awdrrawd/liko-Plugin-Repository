@@ -5,7 +5,14 @@
  *
  *  取得 BC 介面顏色，並判斷亮暗。
  *
- *  兩條取色路線，能用哪條就用哪條：
+ *  三條取色路線，由上而下能用哪條就用哪條：
+ *
+ *    0. 讀「LCE 暴露的主題 API」（最準確，v2.2 新增）—— 如果玩家有裝 Liko Club
+ *       Extensions（LCE）並且開啟了它的染色功能，LCE 本身就是那個在換色的引擎，
+ *       它 window.Liko.LCE.Theme 裡的 Main 色碼就是「正在套用」的主題色，
+ *       比自己 hook 或取樣都直接、也不受畫面尚未繪製、跨域汙染等問題影響。
+ *       沒裝 LCE、或裝了但沒開染色（Theme.enabled 為 false）時，這條自動跳過，
+ *       改用下面兩條自力更生的路線。
  *
  *    A. 讀「宣告值」（準確，v2.0 新增）—— BC 的介面不是圖片，是 DrawRect / DrawButton
  *       這些函式畫出來的，顏色就寫在參數裡。只要 hook 這些函式，就能直接拿到
@@ -17,15 +24,16 @@
  *       平均則會把邊緣的抗鋸齒像素混進來，得到一個既不是背景也不是前景的髒色。
  *
  *  API（掛在 window.Liko.__Sys_ColorAPI__）：
- *    getThemeColor()            取得目前介面的主題底色（建議用這個）
+ *    getThemeColor()            取得目前介面的主題底色（建議用這個；已自動依上述優先序處理 LCE）
  *    getUIColor({x, y})         讀某座標上那個元件的宣告顏色
  *    getCanvasColor({x,y,size}) 讀某區域實際渲染出來的顏色
  *    isDark(color, threshold)   判斷亮暗
  *    setOverride(color, isDark) 手動覆寫某顏色的亮暗結論
  *    clearOverrides()
  *
- *  用法：當一般 <script> 載入即可。若頁面上有 bcModSdk（大多數插件都會 @require），
- *  精確路線會自動啟用。
+ *  用法：當一般 <script> 載入即可。若頁面上有 LCE（window.Liko.LCE.Theme）會自動優先採用；
+ *  若頁面上有 bcModSdk（大多數插件都會 @require），沒有 LCE 時精確路線 A 會自動啟用。
+ *  呼叫端（例如 HSC）永遠只需要問這支腳本要顏色，不必自己判斷「有沒有裝 LCE」。
  * =============================================================================
  */
 (function (global) {
@@ -34,7 +42,7 @@
   // 防重複載入旗標：檔尾把 API 掛到 global.Liko.__Sys_ColorAPI__（系統擴充統一以 __Sys_ 開頭）
   global.Liko = global.Liko ?? {};
   if (global.Liko.__Sys_ColorAPI__) return;
-  const MOD_VER = "2.1";
+  const MOD_VER = "2.2";
 
   // ---------------------------------------------------------------------------
   // 共用小工具
@@ -106,6 +114,24 @@
       }
     } catch { /* getComputedStyle 在極少數環境會丟 */ }
     return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 0. LCE 路線：直接讀 LCE 暴露出來的主題 API（window.Liko.LCE.Theme）
+  // ---------------------------------------------------------------------------
+  //  LCE（Liko Club Extensions）自己就是那個在畫面上換色的染色引擎，它算好的
+  //  Theme.Main 就是「當下實際套用」的主題色，比我們自己 hook / 取樣都直接。
+  //  只有「有裝 LCE 且 Theme.enabled 為 true」時才採用；沒裝、還沒載入好、
+  //  或裝了但沒開染色，一律當作沒有這條路線，靜靜落到路線 A / B。
+  function _getLceColor() {
+    try {
+      const theme = global.Liko && global.Liko.LCE && global.Liko.LCE.Theme;
+      if (!theme || !theme.enabled) return null;
+      return normalizeColor(theme.Main);
+    } catch {
+      // LCE 版本不同導致的存取例外也視為「沒有這條路線」，不影響其他路線
+      return null;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -203,16 +229,21 @@
   /**
    * 取得目前介面的主題底色。
    *
-   * 作法：找出上一幀「面積最大且蓋住畫面中心」的矩形——主題插件就是靠畫一張滿版
-   * DrawRect 來換底色的，所以那張的顏色就是主題色本身，精確到位。
-   * 拿不到就退回宣告值查詢，再拿不到就退回像素取樣。
+   * 優先序：
+   *   0) LCE 暴露的主題 API —— 有裝且開啟染色就直接採用，最準確。
+   *   1) 找上一幀「面積最大且蓋住畫面中心」的矩形（宣告值路線）——主題插件
+   *      就是靠畫一張滿版 DrawRect 來換底色的，所以那張的顏色就是主題色本身。
+   *      拿不到就退回宣告值查詢（右上角那個元件）。
+   *   2) 再退：像素取樣。
+   *   3) 最後保底：上次成功值 → DOM 背景。
    *
    * @returns {string|null} '#rrggbb'
    */
   function getThemeColor() {
-    let result = null;
+    // 0) LCE：有裝且開啟染色，直接用它算好的主色，其餘路線都不必跑
+    let result = _getLceColor();
 
-    if (_arm()) {
+    if (!result && _arm()) {
       // 1) 找滿版底色矩形（主題插件換底色的手法）
       let best = null;
       for (const r of _last) {
@@ -377,6 +408,7 @@
   function getMode() {
     return {
       version: MOD_VER,
+      lceAvailable: _getLceColor() !== null,   // LCE 有裝且已開啟染色（getThemeColor 目前是否會走路線 0）
       hooked: _hooked, armed: _armed, tainted: _tainted,
       lastFrameRects: _last.length,
       lastGoodTheme: _lastGoodTheme, lastGoodCanvas: _lastGoodCanvas,
