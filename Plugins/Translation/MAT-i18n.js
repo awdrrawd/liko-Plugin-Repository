@@ -39,6 +39,11 @@
             RU: "⚠️ Вы не вошли в систему, не удаётся сохранить настройки",
             UA: "⚠️ Ви не увійшли, неможливо зберегти налаштування"
         },
+        'scrollFreezeLoadFail': {
+            TW: "⚠️ [MAT] 進階聊天室凍結模組載入失敗，已改用 BC 內建的基礎凍結機制，不影響一般使用",
+            CN: "⚠️ [MAT] 进阶聊天室冻结模块加载失败，已改用 BC 内建的基础冻结机制，不影响一般使用",
+            EN: "⚠️ [MAT] Advanced chat-freeze module failed to load; falling back to BC's built-in basic freeze (no impact on normal use)"
+        },
 
         // ── API / 翻譯失敗 ────────────────────────────────────────────────
         'apiFail': {
@@ -641,7 +646,11 @@
         'dLoginNotice':  { TW: "登入時在聊天室顯示 MAT 初始化通知。", CN: "登录时在聊天室显示 MAT 初始化通知。", EN: "Show the MAT init notice in chat on login." },
         'dManual':       { TW: "點選一則訊息時，出現手動翻譯的小工具列。", CN: "点选一则消息时，出现手动翻译的小工具栏。", EN: "Show a small manual-translate toolbar when you click a message." },
         'dSelection':    { TW: "選取任意文字後，出現翻譯氣泡（總開關關閉時仍可用）。", CN: "选取任意文字后，出现翻译气泡（总开关关闭时仍可用）。", EN: "Show a translate bubble after selecting text (works even when MAT is off)." },
-        'dAutoScroll':   { TW: "插入翻譯後，若已在底部則自動捲到最新。", CN: "插入翻译后，若已在底部则自动滚到最新。", EN: "After inserting a translation, auto-scroll to the newest if already near the bottom." },
+        'dAutoScroll': {
+            TW: "插入翻譯後，若你本來就停在聊天室最底部，會自動捲到最新；若你正往上翻看歷史訊息，則不會被打斷。",
+            CN: "插入翻译后，若你本来就停在聊天室最底部，会自动滚到最新；若你正往上翻看历史消息，则不会被打断。",
+            EN: "After inserting a translation, auto-scrolls to the newest message if you were already at the bottom. Won't interrupt you while you're scrolled up reading history."
+        },
         'dSkipStutter':  { TW: "翻譯前移除結巴前綴（如 n-no → no），避免破碎結果。", CN: "翻译前移除结巴前缀（如 n-no → no），避免破碎结果。", EN: "Strip stutter prefixes (e.g. n-no → no) before translating to avoid broken results." },
         'dChatButton':   { TW: "在聊天室按鈕列新增 🌐 按鈕，點擊向上展開總開關／發送／接收／前往設定。", CN: "在聊天室按钮栏新增 🌐 按钮，点击向上展开总开关／发送／接收／前往设置。", EN: "Add a 🌐 button to the chat button bar; click to pop up master/send/receive/settings." },
         'dHkToggle': { TW: "啟用後可用快捷鍵切換 MAT 總開關（預設 Ctrl+M）。點右側按鈕可重新綁定。", CN: "启用后可用快捷键切换 MAT 总开关（默认 Ctrl+M）。点右侧按钮可重新绑定。", EN: "When enabled, a hotkey toggles the MAT master switch (default Ctrl+M). Click the button to rebind." },

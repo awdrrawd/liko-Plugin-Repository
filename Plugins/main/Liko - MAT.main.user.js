@@ -466,12 +466,32 @@
         }
     }
 
-    function scrollChatToBottom() {
-        if (!config.autoScroll) return;
+    // 捲動採 BC 原生語義（Element.js 的 ElementIsScrolledToEnd / ElementScrollToEnd），
+    // 分成「插入前判斷」＋「插入後才捲」兩段——這正是 BC 收到新訊息時的作法：只有你本來就
+    // 停在最底部，新內容才把你帶到底；你往上看歷史就不動你。因為判斷放在插入「之前」，
+    // 不必再用 150px 容差去猜，也不會因剛插入的長翻譯撐高而誤判成「不在底部」。
+
+    // 插入翻譯「之前」呼叫：聊天室本來是否就捲在最底部。
+    // 凍結中（使用者往上看歷史）一律回 false，交給 ChatScrollFreeze 決定、MAT 不搶。
+    function chatWasAtEnd() {
+        if (!config.autoScroll) return false;
+        if (window.Liko.__Sys_ChatScrollFreeze__?.isFrozen?.()) return false;
         const log = document.querySelector('#TextAreaChatLog');
-        if (!log) return;
-        const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 150;
-        if (nearBottom) setTimeout(() => { log.scrollTop = log.scrollHeight; }, 60);
+        if (!log) return false;
+        return (typeof ElementIsScrolledToEnd === 'function')
+            ? ElementIsScrolledToEnd(log)
+            : (log.scrollHeight - log.scrollTop - log.clientHeight <= 1);
+    }
+
+    // 插入翻譯「之後」呼叫：只有插入前本來就在底部才捲到底。
+    // 這 60ms 內若使用者已往上捲觸發凍結就放棄，避免把人拉回底部。
+    function scrollChatToEndIfWasAtEnd(wasAtEnd) {
+        if (!wasAtEnd) return;
+        setTimeout(() => {
+            if (window.Liko.__Sys_ChatScrollFreeze__?.isFrozen?.()) return;
+            if (typeof ElementScrollToEnd === 'function') ElementScrollToEnd('TextAreaChatLog');
+            else { const log = document.querySelector('#TextAreaChatLog'); if (log) log.scrollTop = log.scrollHeight; }
+        }, 60);
     }
 
     // ============================================================
@@ -631,8 +651,9 @@
         }
         div.textContent = `[🌐] ${body}`;
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
+        const wasAtEnd = chatWasAtEnd();   // 插入前先判斷是否本來就在底部
         originalNode.parentNode.insertBefore(div, originalNode.nextSibling);
-        scrollChatToBottom();
+        scrollChatToEndIfWasAtEnd(wasAtEnd);
     }
 
     // ============================================================
@@ -717,8 +738,9 @@
                insertAfter.nextElementSibling?.classList.contains('mat-manual-translated')) {
             insertAfter = insertAfter.nextElementSibling;
         }
+        const wasAtEnd = chatWasAtEnd();   // 插入前先判斷是否本來就在底部
         node.parentNode.insertBefore(div, insertAfter.nextSibling);
-        scrollChatToBottom();
+        scrollChatToEndIfWasAtEnd(wasAtEnd);
     }
 
     // ============================================================
@@ -1651,17 +1673,47 @@
     // 聊天室快捷按鈕（#chat-room-buttons）
     // 點擊向上展開小選單：總開關 / 發送 / 接收 / 前往設定。
     // ============================================================
-    // 共用按鈕順序協調器（與 expand/BC_ChatRoomButtons.js 同一份契約）：沒有就自己建。
-    (function (g) {
-        const V = 1, cur = g.Liko.__Sys_ChatRoomButtons__;
-        if (cur && cur.v >= V) return;
-        g.Liko.__Sys_ChatRoomButtons__ = {
-            v: V, slots: cur?.slots ?? {},
-            register(id, order, el) { this.slots[id] = order; if (el) el.style.order = String(order); return order; },
-            get(id) { return this.slots[id]; },
-            reapply(id, el) { if (el && id in this.slots) el.style.order = String(this.slots[id]); },
-        };
-    })(window);
+    // 共用系統擴充載入器：先判斷是否存在，不存在才上網抓。不再自帶精簡版（避免多處維護）。
+    // 通常經 PCM 路徑早已載好，這裡是罕見的獨立安裝 fallback；抓來的檔案自身都有防重複載入守衛。
+    const _EXPAND_BASES = (typeof window !== 'undefined' && window.LikoDevBase)
+        ? [window.LikoDevBase]
+        : [
+            'https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/',
+            'https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/',
+            'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/',
+        ];
+    const _expandDepPromises = {};
+    function ensureExpandDep(rel, ready) {
+        if (ready && ready()) return Promise.resolve();
+        if (_expandDepPromises[rel]) return _expandDepPromises[rel];
+        _expandDepPromises[rel] = (async () => {
+            let lastErr;
+            for (const base of _EXPAND_BASES) {
+                try {
+                    const res = await fetch(base + rel, { cache: 'no-store' });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    const text = await res.text();
+                    if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
+                    const s = document.createElement('script');
+                    s.textContent = text + '\n//# sourceURL=' + rel;
+                    document.head.appendChild(s);
+                    return;
+                } catch (e) { lastErr = e; console.warn('🐈‍⬛ [MAT] ⚠️ ' + base + rel + ': ' + e.message); }
+            }
+            throw lastErr ?? new Error('all bases failed: ' + rel);
+        })();
+        return _expandDepPromises[rel];
+    }
+
+    // 共用按鈕順序協調器：不存在才抓；抓好後補跑一次 injectMatButton()，讓順位補上。
+    ensureExpandDep('expand/BC_ChatRoomButtons.js', () => window.Liko.__Sys_ChatRoomButtons__)
+        .then(() => { try { injectMatButton(); } catch (e) {} })
+        .catch(e => console.warn('🐈‍⬛ [MAT] ⚠️ ChatRoomButtons 載入失敗（順位改由 BC 預設）:', e.message));
+
+    // 聊天室凍結/捲動協調器：讓「使用者往上看歷史時不要被捲走」由這個共用系統統一決定，
+    // MAT 不再自帶捲動手段去跟別人搶（見下方 chatWasAtEnd / scrollChatToEndIfWasAtEnd：凍結中一律不捲）。
+    ensureExpandDep('expand/BC_ChatScrollFreeze.js', () => window.Liko.__Sys_ChatScrollFreeze__)
+        .catch(e => console.warn('🐈‍⬛ [MAT] ⚠️ ChatScrollFreeze 載入失敗:', e.message));
 
     const MAT_BTN_ID = 'lk-mat-trigger-btn';
     const MAT_MENU_ID = 'lk-mat-quick-menu';
@@ -1825,35 +1877,52 @@
         btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleMatQuickMenu(); });
         return btn;
     }
-
+    function syncTriggerVisibility(btn) {
+        if (!btn) return;
+        const collapseBtn = document.getElementById("chat-room-buttons-collapse");
+        if (!collapseBtn) {
+            btn.hidden = false;
+            return;
+        }
+        btn.hidden = collapseBtn.getAttribute("aria-expanded") !== "true";
+    }
     function injectMatButton() {
         const container = document.getElementById('chat-room-buttons');
         if (!container) return;
         let btn = document.getElementById(MAT_BTN_ID);
-        if (!config.chatButton) { if (btn) btn.remove(); hideMatQuickMenu(); return; }
-        injectMatStyles();
-
-        if (btn && btn.parentElement === container) {
-            window.Liko.__Sys_ChatRoomButtons__.reapply('mat', btn);
+        if (!config.chatButton) {
+            if (btn) btn.remove();
+            hideMatQuickMenu();
             return;
         }
 
+        injectMatStyles();
+
+        if (btn && btn.parentElement === container) {
+            // 協調器可能還在非同步載入中（罕見）；載好前先不套，載好後這裡會再被叫到。
+            // 首次見到本 id（get 為 undefined）用 register，之後才 reapply。
+            const crb = window.Liko.__Sys_ChatRoomButtons__;
+            if (crb) (crb.get("mat") === undefined ? crb.register("mat", sys_CRB, btn) : crb.reapply("mat", btn));
+            syncTriggerVisibility(btn);
+            return;
+        }
         if (btn) btn.remove();
         btn = createMatButton();
-        const referenceBtn = Array.from(container.children).find(el => el.id !== 'chat-room-send');
-        if (referenceBtn) btn.toggleAttribute('hidden', referenceBtn.hasAttribute('hidden'));
-
         container.appendChild(btn);
-        window.Liko.__Sys_ChatRoomButtons__.register('mat', sys_CRB, btn);
+        window.Liko.__Sys_ChatRoomButtons__?.register("mat", sys_CRB, btn);
+        syncTriggerVisibility(btn);
     }
 
-    // 設定切換後即時反映（開→注入、關→移除）
-    function updateChatButton() { injectMatButton(); }
+    function updateChatButton() {
+        injectMatButton();
+        const btn = document.getElementById(MAT_BTN_ID);
+        if (btn) syncTriggerVisibility(btn);
+    }
 
     function setupChatButton() {
         if (matBtnTimer) return;
         injectMatButton();
-        matBtnTimer = setInterval(injectMatButton, 500);
+        matBtnTimer = setInterval(injectMatButton, 200);
     }
 
     // ============================================================

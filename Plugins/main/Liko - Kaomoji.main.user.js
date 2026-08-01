@@ -18,19 +18,42 @@
 (function () {
     window.Liko = window.Liko ?? {};
 
-    // 共用按鈕順序協調器（與 expand/BC_ChatRoomButtons.js 同一份契約）：沒有就自己建，
-    // 有就沿用。版本守衛保證多份副本不打架、且保留別人登記過的順位。詳見該檔說明。
-    (function (g) {
-        const V = 1, cur = g.Liko.__Sys_ChatRoomButtons__;
-        if (cur && cur.v >= V) return;
-        g.Liko.__Sys_ChatRoomButtons__ = {
-            v: V,
-            slots: cur?.slots ?? {},
-            register(id, order, el) { this.slots[id] = order; if (el) el.style.order = String(order); return order; },
-            get(id) { return this.slots[id]; },
-            reapply(id, el) { if (el && id in this.slots) el.style.order = String(this.slots[id]); },
-        };
-    })(window);
+    // 共用系統擴充載入器：先判斷是否存在，不存在才上網抓。不再自帶精簡版協調器（避免多處維護）。
+    // 通常經 PCM 路徑早已載好，這裡是罕見的獨立安裝 fallback；抓來的檔案自身有防重複載入守衛。
+    const _EXPAND_BASES = (typeof window !== 'undefined' && window.LikoDevBase)
+        ? [window.LikoDevBase]
+        : [
+            'https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/',
+            'https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/',
+            'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/',
+        ];
+    const _expandDepPromises = {};
+    function ensureExpandDep(rel, ready) {
+        if (ready && ready()) return Promise.resolve();
+        if (_expandDepPromises[rel]) return _expandDepPromises[rel];
+        _expandDepPromises[rel] = (async () => {
+            let lastErr;
+            for (const base of _EXPAND_BASES) {
+                try {
+                    const res = await fetch(base + rel, { cache: 'no-store' });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    const text = await res.text();
+                    if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
+                    const s = document.createElement('script');
+                    s.textContent = text + '\n//# sourceURL=' + rel;
+                    document.head.appendChild(s);
+                    return;
+                } catch (e) { lastErr = e; console.warn('🐈‍⬛ [Kaomoji] ⚠️ ' + base + rel + ': ' + e.message); }
+            }
+            throw lastErr ?? new Error('all bases failed: ' + rel);
+        })();
+        return _expandDepPromises[rel];
+    }
+
+    // 共用按鈕順序協調器：不存在才抓。抓好前，下方 injectNativeButton 的每輪重繪會 no-op（?.），
+    // 載好後某一輪就會用 register 補上順位（見該處 get==undefined 判斷）。
+    ensureExpandDep('expand/BC_ChatRoomButtons.js', () => window.Liko.__Sys_ChatRoomButtons__)
+        .catch(e => console.warn('🐈‍⬛ [Kaomoji] ⚠️ ChatRoomButtons 載入失敗（順位改由 BC 預設）:', e.message));
 
     try {
         window.Liko.Kaomoji = window.Liko.Kaomoji ?? {};
@@ -1273,8 +1296,10 @@
             var existing = document.getElementById('lk-kaomoji-trigger-btn');
             if (existing && existing.parentElement === container) {
                 injectStyles();
-                // BC 可能在原地重繪 grid，順位每輪重新套回，確保被清掉的 style.order 補回来
-                window.Liko.__Sys_ChatRoomButtons__.reapply('kaomoji', existing);
+                // BC 可能在原地重繪 grid，順位每輪重新套回，確保被清掉的 style.order 補回来。
+                // 協調器可能仍在非同步載入中（罕見）：首次見到本 id 用 register，之後才 reapply。
+                const crb = window.Liko.__Sys_ChatRoomButtons__;
+                if (crb) (crb.get('kaomoji') === undefined ? crb.register('kaomoji', sys_CRB, existing) : crb.reapply('kaomoji', existing));
                 syncTriggerVisibility(existing);
                 return;
             }
@@ -1283,7 +1308,7 @@
             var newBtn = createNativeButton();
             container.appendChild(newBtn);
             // 用共用協調器宣告順位（order 越小越靠 grid 起點；正數在原生按鈕之後，rtl 下＝偏左）
-            window.Liko.__Sys_ChatRoomButtons__.register('kaomoji', sys_CRB, newBtn);
+            window.Liko.__Sys_ChatRoomButtons__?.register('kaomoji', sys_CRB, newBtn);
             syncTriggerVisibility(newBtn);
         }
 

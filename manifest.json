@@ -24,7 +24,7 @@
         }
       ],
       "priority": 5,
-      "pcmskip":"true"
+      "pcmskip": true
     },
     {
       "id": "Liko-LCE",
@@ -381,7 +381,7 @@
         }
       ],
       "priority": 10,
-      "pcmskip":"true"
+      "pcmskip": true
     },
     {
       "id": "Liko-Prank",

@@ -44,7 +44,8 @@ function addonToPcm(a) {
   };
 }
 
-// Liko's own, minus any flagged pcmskip (published to FUSAM but hidden from the PCM list)
+// Liko's own, minus any flagged pcmskip (published to FUSAM but hidden from the PCM list).
+// pcmskip 在 manifest 一律寫布林 true（不要寫字串 "true"，否則這個 !== 比較會漏掉）。
 const own = manifest.addons.filter((a) => a.pcmskip !== true).map(addonToPcm);
 
 const out = {
