@@ -233,7 +233,7 @@
         }
       ],
       "priority": 4,
-      "version": "1.6.0"
+      "version": "1.6.1"
     },
     {
       "id": "Liko-Tool",
@@ -309,7 +309,7 @@
         }
       ],
       "priority": 4,
-      "version": "1.0.3"
+      "version": "1.0.4"
     },
     {
       "id": "Liko-BMM",
