@@ -3,7 +3,7 @@
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.2
+// @version      2.1.3
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.1.2"; 
+    const MOD_VER = "2.1.3";
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
 
@@ -1787,9 +1787,13 @@
 
         // 其餘系統擴充 —— 已就位就跳過
         const rest = [
-            { rel: "expand/BC_toast_system.user.js",  ready: () => !!window.Liko?.__Sys_Toast__ },
-            { rel: "expand/BC_ThemeColorCheck.js",     ready: () => !!window.Liko?.__Sys_ColorAPI__ },
-            { rel: "expand/BC_ChatRoomButtons.js",     ready: () => !!window.Liko?.__Sys_ChatRoomButtons__ },
+            { rel: "expand/BC_toast_system.user.js",   ready: () => !!window.Liko?.__Sys_Toast__ },
+            { rel: "expand/BC_ThemeColorCheck.js",      ready: () => !!window.Liko?.__Sys_ColorAPI__ },
+            { rel: "expand/BC_ChatRoomButtons.js",      ready: () => !!window.Liko?.__Sys_ChatRoomButtons__ },
+            // ChatScrollFreeze：PCM 載得快 → 早早裝好「凍結捲動＋搜尋」的攔截，趕在 LCE
+            // 較慢的聊天功能（chat-augments 會 ElementScrollToEnd 把畫面拉到底）之前就位。
+            // 它走 bcModSdk.hookFunction，與 LCE 等 SDK 插件依 priority 疊合、不受載入順序影響。
+            { rel: "expand/BC_ChatScrollFreeze.js",     ready: () => !!window.Liko?.__Sys_ChatScrollFreeze__ },
         ];
         for (const { rel, ready } of rest) {
             if (ready()) continue;
@@ -1797,9 +1801,66 @@
         }
     }
 
+    // === 提早啟動（early-boot）==================================
+    // 少數插件的 UI 必須在「登入前」就位（LCE 的美化登入介面 + 帳號記憶），
+    // 不能等 Plugins.json 抓完才拿到網址。這裡只烤「id + 網址」，metadata（名稱/
+    // 圖示/描述/i18n）仍以 Plugins.json 為唯一真相源 —— 所以 LCE 不需要 pcmskip，
+    // 清單照常只出現一筆。啟用與否讀本地 pluginSettings（登入前就在 localStorage）。
+    // loadedPlugins 以 id 去重：之後 Plugins.json 到了、正常 phase 再跑也不會重載。
+    const EARLY_BOOT = [
+        { id: "Liko-LCE",
+          url: "https://awdrrawd.github.io/BC-LCE/assets/main.js",
+          mirrorUrl: "https://awdrrawd.github.io/BC-LCE/loader.user.js",
+          type: "mod" },
+    ];
+
+    // 與 applyPluginSettings 的預設對齊：undefined＝未設定＝停用；off/false/0 皆停用，
+    // 其餘（true / "on" / "beta"）視為啟用。early-boot 只看本地啟用（登入前沒有帳號設定）。
+    function earlyBootEnabled(e) {
+        const saved = pluginSettings[e.id];
+        return saved !== undefined && saved !== false && saved !== "off" && saved !== 0;
+    }
+
+    // 預熱：在 _ensureDeps() 這個會 await 網路的步驟「之前」，先對 enabled 的 early-boot mod
+    // 注入 <link rel=modulepreload>，讓瀏覽器現在就開始抓，與 PCM 抓自身系統依賴的時間重疊；
+    // 稍後 earlyBootPlugins() 真正 import() 時直接命中預熱好的連線/快取，縮短登入 UI 首屏。
+    // 純提示、最佳努力：任何失敗都不影響後續的正常載入。crossOrigin 需與 module 的匿名抓取一致。
+    let _warmed = false;
+    function warmEarlyBoot() {
+        if (_warmed) return; _warmed = true;
+        for (const e of EARLY_BOOT) {
+            if (!earlyBootEnabled(e)) continue;
+            try {
+                const href = buildAllFetchUrls(getActivePluginUrl(e, 'local'), e.mirrorUrl, {})[0];
+                if (!href) continue;
+                const link = document.createElement('link');
+                link.rel = e.type === 'mod' ? 'modulepreload' : 'preload';
+                if (e.type !== 'mod') link.as = 'script';
+                link.href = href;
+                link.crossOrigin = 'anonymous';
+                (document.head || document.documentElement).appendChild(link);
+            } catch (err) { /* 預熱失敗無所謂，正常載入照走 */ }
+        }
+    }
+
+    function earlyBootPlugins() {
+        for (const e of EARLY_BOOT) {
+            if (!earlyBootEnabled(e)) continue;
+            // enabled:true 讓 loadSubPluginOnce 內部的來源啟用檢查通過（LCE 非三段式，走 p.enabled）。
+            loadSubPlugin({ ...e, enabled: true }, 'local').catch(() => {});
+        }
+    }
+
     // _ensureDeps runs async before everything else
     (async () => {
+        // 先預熱（不 await），讓 early-boot mod 的下載與 _ensureDeps 的網路抓取平行。
+        warmEarlyBoot();
+
         await _ensureDeps();
+
+        // 共用系統就位後「立刻」啟動 early-boot 插件：import() 直接吃預熱好的快取，
+        // 並讓 LCE 後續初始化與 PCM 自身的 registerMod / initialize 平行進行。
+        earlyBootPlugins();
 
         try {
             if (!bcModSdk?.registerMod) { console.error("🐈‍⬛ [PCM] ❌ bcModSdk not available"); return; }
