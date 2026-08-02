@@ -19,7 +19,7 @@
  *
  * ── 核心做法（刻意不用 cloneNode 做假 DOM 疊層） ──────────────────────
  *   1. 監聽 #TextAreaChatLog 的 scroll 事件，計算「距離底部的比例」。
- *   2. 一旦往上捲超過 FREEZE_THRESHOLD（預設 10%），進入「凍結」狀態：
+ *   2. 一旦往上捲超過 FREEZE_THRESHOLD（預設 5%），進入「凍結」狀態：
  *      - 攔截 ChatRoomAppendChat，凍結期間新訊息不會被插入真正的 DOM，
  *        而是先放進記憶體佇列（messageQueue）。
  *      - 畫面上看到的仍是「原生、仍在 DOM 裡」的舊訊息節點，所有原本綁定在
@@ -46,7 +46,7 @@
 	if (window.Liko.__Sys_ChatScrollFreeze__) return;
 
 	const MOD_VER = "1.0";
-	const FREEZE_THRESHOLD = 0.10; // 往上捲超過畫面高度的 10% 就凍結
+	const FREEZE_THRESHOLD = 0.05; // 往上捲超過畫面高度的 5% 就凍結
 	const CHATLOG_ID = "TextAreaChatLog";
 	const BADGE_ID = "chat-scroll-freeze-badge";
 	const SEARCH_BAR_ID = "chat-scroll-freeze-search";
