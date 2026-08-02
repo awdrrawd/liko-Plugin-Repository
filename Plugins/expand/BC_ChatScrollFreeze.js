@@ -46,7 +46,7 @@
 	if (window.Liko.__Sys_ChatScrollFreeze__) return;
 
 	const MOD_VER = "1.1";
-	const FREEZE_THRESHOLD = 0.10; // 往上捲超過畫面高度的 10% 就凍結
+	const FREEZE_THRESHOLD = 0.05; // 往上捲超過畫面高度的 5% 就凍結
 
 	/** 觸控裝置（手機/平板）：自動 focus 搜尋框會把軟鍵盤彈過來，體驗差，故略過。 */
 	const IS_TOUCH =
