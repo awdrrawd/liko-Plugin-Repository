@@ -32,6 +32,9 @@
  *      - 把佇列裡的訊息依序、原樣重新 append（frozen 已為 false，走原本流程，
  *        因此 isPlayerMessage / 分隔線收合等既有邏輯完全沿用不必重寫）。
  *      - 最後捲到真正的最底部。
+ *   4. 使用者「自己發話」也視為結束預覽（要發話＝已看完歷史）：hook ChatRoomSendChat，
+ *      送出當下就解除凍結、flush 佇列並捲到最新。否則自己的訊息會被攔進凍結佇列、
+ *      本地沒 render，畫面上留下「等待送出」的殘影（其實訊息早已送到伺服器）。
  *
  * 為什麼不做「複製一份 DOM 疊上去當假 chat-room-div」：
  *   BC 的訊息 div 在 ChatRoomMessage() 建立當下就直接 addEventListener 綁 click/blur，
@@ -45,7 +48,7 @@
 	//（系統擴充統一以 __Sys_ 開頭；先搶先贏，後到的直接 return 用現成的）。
 	if (window.Liko.__Sys_ChatScrollFreeze__) return;
 
-	const MOD_VER = "1.1";
+	const MOD_VER = "1.2";
 	const FREEZE_THRESHOLD = 0.05; // 往上捲超過畫面高度的 5% 就凍結
 
 	/** 觸控裝置（手機/平板）：自動 focus 搜尋框會把軟鍵盤彈過來，體驗差，故略過。 */
@@ -57,6 +60,92 @@
 	const SEARCH_BAR_ID = "chat-scroll-freeze-search";
 	const HIGHLIGHT_CLASS = "chat-scroll-freeze-highlight";
 	const HIGHLIGHT_CURRENT_CLASS = "chat-scroll-freeze-highlight-current";
+
+	// === i18n ============================================================
+	// 走共用引擎 window.Liko.__Sys_i18n__（見 expand/BC_i18n.js）。這是純 auto 的系統
+	// 擴充、沒有自己的語言選單，故用引擎的 detectLang()。引擎尚未載入時退回本地 EN 底本，
+	// 讓字串永遠有值（badge/搜尋框在凍結後才出現，通常引擎早已就位）。
+	const I18N_NS = "CSF";
+	const STRINGS = {
+		badge: {
+			EN: "↓ {count} new message(s) — tap or scroll to bottom",
+			TW: "↓ {count} 則新訊息，點擊或捲到底查看",
+			CN: "↓ {count} 条新消息，点击或滚到底查看",
+			DE: "↓ {count} neue Nachricht(en) – tippen oder nach unten scrollen",
+			FR: "↓ {count} nouveau(x) message(s) — cliquez ou défilez en bas",
+			RU: "↓ {count} новых сообщений — нажмите или прокрутите вниз",
+			UA: "↓ {count} нових повідомлень — натисніть або прокрутіть донизу",
+		},
+		searchPlaceholder: {
+			EN: "Search messages on screen…",
+			TW: "搜尋目前畫面上的訊息…",
+			CN: "搜索当前画面上的消息…",
+			DE: "Nachrichten auf dem Bildschirm suchen…",
+			FR: "Rechercher les messages à l'écran…",
+			RU: "Поиск сообщений на экране…",
+			UA: "Пошук повідомлень на екрані…",
+		},
+		prevTitle: {
+			EN: "Previous (Shift+Enter)",
+			TW: "上一個 (Shift+Enter)",
+			CN: "上一个 (Shift+Enter)",
+			DE: "Zurück (Umschalt+Enter)",
+			FR: "Précédent (Maj+Entrée)",
+			RU: "Назад (Shift+Enter)",
+			UA: "Назад (Shift+Enter)",
+		},
+		nextTitle: {
+			EN: "Next (Enter)",
+			TW: "下一個 (Enter)",
+			CN: "下一个 (Enter)",
+			DE: "Weiter (Enter)",
+			FR: "Suivant (Entrée)",
+			RU: "Далее (Enter)",
+			UA: "Далі (Enter)",
+		},
+		clearTitle: {
+			EN: "Clear search text",
+			TW: "清除搜尋文字",
+			CN: "清除搜索文字",
+			DE: "Suchtext löschen",
+			FR: "Effacer le texte de recherche",
+			RU: "Очистить текст поиска",
+			UA: "Очистити текст пошуку",
+		},
+		closeTitle: {
+			EN: "Back to latest & unfreeze",
+			TW: "回到最新並解除凍結",
+			CN: "回到最新并解除冻结",
+			DE: "Zurück zum Neuesten & entsperren",
+			FR: "Retour au plus récent et défiger",
+			RU: "К последним и разморозить",
+			UA: "До останніх і розморозити",
+		},
+	};
+
+	let _i18nRegistered = false;
+	function ensureI18nRegistered() {
+		if (_i18nRegistered) return;
+		const eng = window.Liko?.__Sys_i18n__;
+		if (eng && typeof eng.register === "function") {
+			eng.register(I18N_NS, STRINGS);
+			_i18nRegistered = true;
+		}
+	}
+	/** 本地佔位符代入（引擎未就位時的保底，僅支援具名 {name}）。 */
+	function fillVars(str, vars) {
+		if (!vars) return str;
+		return String(str).replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? String(vars[k]) : m));
+	}
+	/** 取字：引擎在就用引擎（含語言 fallback 鏈），否則退回本地 EN 底本。 */
+	function t(key, vars) {
+		ensureI18nRegistered();
+		const eng = window.Liko?.__Sys_i18n__;
+		if (eng && typeof eng.t === "function" && eng.has?.(I18N_NS, key)) {
+			return eng.t(I18N_NS, key, vars);
+		}
+		return fillVars(STRINGS[key]?.EN ?? key, vars);
+	}
 
 	/** @type {boolean} 目前是否處於「預覽舊訊息」的凍結狀態 */
 	let frozen = false;
@@ -91,10 +180,14 @@
 	// === append 攔截狀態 =================================================
 	/** @type {object | null} bcModSdk 註冊回來的 api（走 SDK 路線時） */
 	let sdkApi = null;
-	/** @type {(() => void) | null} SDK hook 的解除函式 */
+	/** @type {(() => void) | null} ChatRoomAppendChat SDK hook 的解除函式 */
 	let removeHook = null;
+	/** @type {(() => void) | null} ChatRoomSendChat SDK hook 的解除函式（自己發話→解凍） */
+	let removeSendHook = null;
 	/** @type {null | ((div: HTMLElement) => void)} fallback 直接覆寫時保存的原函式 */
 	let monkeyOriginal = null;
+	/** @type {null | Function} fallback 直接覆寫 ChatRoomSendChat 時保存的原函式 */
+	let monkeySendOriginal = null;
 	/** 攔截是否已裝好（SDK 或 fallback 其一） */
 	let intercepted = false;
 
@@ -148,6 +241,14 @@
 					if (frozen) { captureWhileFrozen(args[0]); return; }
 					return next(args);
 				});
+				// 自己發話＝已看完歷史 → 送出當下解除凍結、捲到最新，避免自己的訊息卡在
+				// 凍結佇列變成「等待送出」殘影（訊息其實已送到伺服器、只是本地被攔沒 render）。
+				if (typeof window.ChatRoomSendChat === "function") {
+					removeSendHook = sdkApi.hookFunction("ChatRoomSendChat", 0, (args, next) => {
+						exitFreezeToLatest();
+						return next(args);
+					});
+				}
 				intercepted = true;
 				console.log(`🐈‍⬛ [ChatScrollFreeze] ✅ v${MOD_VER} loaded (bcModSdk)`);
 				return true;
@@ -163,6 +264,14 @@
 			if (frozen) { captureWhileFrozen(div); return; }
 			return monkeyOriginal.call(this, div);
 		};
+		// 自己發話→解凍（同上，fallback 也包一層）
+		if (typeof window.ChatRoomSendChat === "function") {
+			monkeySendOriginal = window.ChatRoomSendChat;
+			window.ChatRoomSendChat = function () {
+				exitFreezeToLatest();
+				return monkeySendOriginal.apply(this, arguments);
+			};
+		}
 		intercepted = true;
 		console.log(`🐈‍⬛ [ChatScrollFreeze] ✅ v${MOD_VER} loaded (monkey-patch fallback)`);
 		return true;
@@ -187,13 +296,36 @@
 				border-bottom: 1px solid rgba(255,255,255,0.15);
 				font-size: 14px;
 			}
+			#${SEARCH_BAR_ID} .cs-input-wrap {
+				position: relative;
+				flex: 1;
+				display: flex;
+				align-items: center;
+			}
 			#${SEARCH_BAR_ID} input[type="text"] {
 				flex: 1;
-				padding: 3px 6px;
+				width: 100%;
+				padding: 3px 26px 3px 6px; /* 右側留白給行內的清除 X */
 				border-radius: 4px;
 				border: 1px solid rgba(255,255,255,0.3);
 				background: rgba(255,255,255,0.9);
 				color: #000;
+			}
+			/* 行內清除鍵：貼在輸入框最右側的紅色 X，只清空搜尋文字 */
+			#${SEARCH_BAR_ID} .cs-clear {
+				position: absolute;
+				right: 4px;
+				top: 50%;
+				transform: translateY(-50%);
+				padding: 0 4px;
+				background: transparent;
+				color: #ff5a5a;
+				font-size: 15px;
+				line-height: 1;
+			}
+			#${SEARCH_BAR_ID} .cs-clear:hover {
+				background: transparent;
+				color: #ff2020;
 			}
 			#${SEARCH_BAR_ID} .cs-count {
 				color: #fff;
@@ -254,7 +386,7 @@
 			chatLog.parentElement.style.position ||= "relative";
 			chatLog.parentElement.appendChild(badge);
 		}
-		badge.textContent = `↓ ${count} 則新訊息，點擊或捲到底查看`;
+		badge.textContent = t("badge", { count });
 	}
 
 	function hideBadge() {
@@ -397,11 +529,14 @@
 		const bar = document.createElement("div");
 		bar.id = SEARCH_BAR_ID;
 		bar.innerHTML = `
-			<input type="text" placeholder="搜尋目前畫面上的訊息…" autocomplete="off" />
+			<div class="cs-input-wrap">
+				<input type="text" placeholder="${t("searchPlaceholder")}" autocomplete="off" />
+				<button type="button" class="cs-clear" data-action="clear" title="${t("clearTitle")}">✕</button>
+			</div>
 			<span class="cs-count">0 / 0</span>
-			<button type="button" data-action="prev" title="上一個 (Shift+Enter)">↑</button>
-			<button type="button" data-action="next" title="下一個 (Enter)">↓</button>
-			<button type="button" data-action="clear" title="清除搜尋文字">✕</button>
+			<button type="button" data-action="prev" title="${t("prevTitle")}">↑</button>
+			<button type="button" data-action="next" title="${t("nextTitle")}">↓</button>
+			<button type="button" data-action="close" title="${t("closeTitle")}">✕</button>
 		`;
 
 		chatLog.parentElement.style.position ||= "relative";
@@ -418,12 +553,14 @@
 		const input = bar.querySelector("input");
 		bar.querySelector('[data-action="next"]').addEventListener("click", () => gotoMatch(searchCurrentIndex + 1));
 		bar.querySelector('[data-action="prev"]').addEventListener("click", () => gotoMatch(searchCurrentIndex - 1));
-		// X 只負責清空目前輸入的搜尋文字，不會把整個搜尋框關掉
+		// 行內紅 X：只清空目前輸入的搜尋文字，不關搜尋框、不解除凍結
 		bar.querySelector('[data-action="clear"]').addEventListener("click", () => {
 			input.value = "";
 			performSearch("");
 			input.focus();
 		});
+		// 右端 X（close）：回到最新並解除凍結（等同捲到底）——與「僅清文字」的行內 X 區隔
+		bar.querySelector('[data-action="close"]').addEventListener("click", () => exitFreezeToLatest());
 
 		input.addEventListener("input", () => {
 			clearTimeout(searchDebounceHandle);
@@ -475,6 +612,16 @@
 			if (typeof window.ChatRoomAppendChat === "function") window.ChatRoomAppendChat(div);
 		}
 		chatLog.scrollTop = chatLog.scrollHeight;
+	}
+
+	/**
+	 * 主動結束預覽：解除凍結、flush 佇列並捲到最新。
+	 * 三種來源共用：使用者自己發話（ChatRoomSendChat hook）、按右端 close X、對外 API unfreeze()。
+	 */
+	function exitFreezeToLatest() {
+		if (!frozen) return;
+		frozen = false;
+		flushQueue();
 	}
 
 	function onScroll() {
@@ -550,6 +697,7 @@
 	// 因應「離開/重新進房」導致節點被整個換掉、以及攔截尚未裝好的情況。
 	const poll = setInterval(() => {
 		if (!intercepted) ensureIntercepted();
+		if (!_i18nRegistered) ensureI18nRegistered(); // 引擎可能比本檔晚就位，補註冊
 		if (getChatLog()) ensureBound();
 	}, 1000);
 
@@ -560,9 +708,13 @@
 			else window.removeEventListener("resize", onViewportResize);
 		} catch (e) {}
 		try { removeHook?.(); } catch (e) {}
+		try { removeSendHook?.(); } catch (e) {}
 		// fallback 模式：把直接覆寫還原回去（僅在確定當前掛的就是我們的包裝時）
 		if (monkeyOriginal && window.ChatRoomAppendChat !== monkeyOriginal) {
 			try { window.ChatRoomAppendChat = monkeyOriginal; } catch (e) {}
+		}
+		if (monkeySendOriginal && window.ChatRoomSendChat !== monkeySendOriginal) {
+			try { window.ChatRoomSendChat = monkeySendOriginal; } catch (e) {}
 		}
 	}
 	window.addEventListener("beforeunload", teardown);
@@ -573,7 +725,7 @@
 		/** 目前是否處於凍結預覽 */
 		isFrozen: () => frozen,
 		/** 立刻解除凍結、把佇列插入並捲到底（等同使用者手動捲到底） */
-		unfreeze: () => { if (frozen) { frozen = false; flushQueue(); } },
+		unfreeze: () => exitFreezeToLatest(),
 		/** 凍結中時打開搜尋框（沒凍結則忽略） */
 		openSearch: () => { if (frozen) showSearchBar(); },
 		/** 目前攔截路線：'sdk' | 'monkey' | 'pending' */
