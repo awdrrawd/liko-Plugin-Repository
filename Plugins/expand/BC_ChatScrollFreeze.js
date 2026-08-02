@@ -45,8 +45,13 @@
 	//（系統擴充統一以 __Sys_ 開頭；先搶先贏，後到的直接 return 用現成的）。
 	if (window.Liko.__Sys_ChatScrollFreeze__) return;
 
-	const MOD_VER = "1.0";
+	const MOD_VER = "1.1";
 	const FREEZE_THRESHOLD = 0.10; // 往上捲超過畫面高度的 10% 就凍結
+
+	/** 觸控裝置（手機/平板）：自動 focus 搜尋框會把軟鍵盤彈過來，體驗差，故略過。 */
+	const IS_TOUCH =
+		typeof window !== "undefined" &&
+		(("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0);
 	const CHATLOG_ID = "TextAreaChatLog";
 	const BADGE_ID = "chat-scroll-freeze-badge";
 	const SEARCH_BAR_ID = "chat-scroll-freeze-search";
@@ -71,6 +76,17 @@
 
 	/** 程式化捲動（例如跳到某個搜尋結果）期間，暫停「捲到底=解除凍結」的判斷 */
 	let suppressExitUntil = 0;
+
+	/**
+	 * 手機軟鍵盤彈出/收合、視窗縮放/旋轉會改變 chatLog 的可視高度，隨後噴出一連串
+	 * 「非使用者主動」的 scroll 事件。這段時間（毫秒）內暫停「進入凍結」判斷，
+	 * 避免軟鍵盤把畫面高度縮小 → scrollTop 相對看起來離底部很遠 → 誤判成往上捲、
+	 * 誤觸凍結 → 搜尋框搶焦點把鍵盤彈過去 → 收鍵盤高度復原 → 解除凍結 的反覆抖動。
+	 */
+	let suppressFreezeUntil = 0;
+
+	/** 上一次 onScroll 時的 chatLog 可視高度，用來偵測高度突變（軟鍵盤/縮放/旋轉）。 */
+	let lastClientHeight = 0;
 
 	// === append 攔截狀態 =================================================
 	/** @type {object | null} bcModSdk 註冊回來的 api（走 SDK 路線時） */
@@ -425,7 +441,10 @@
 			}
 		});
 
-		input.focus();
+		// 觸控裝置上自動 focus 會把軟鍵盤彈到搜尋框——使用者往上看歷史往往只是想閱讀，
+		// 並非要搜尋，硬搶焦點體驗很差（也是造成手機端輸入/取消抖動的元兇之一）。
+		// 桌面才自動聚焦，手機留給使用者主動點搜尋框。
+		if (!IS_TOUCH) input.focus();
 	}
 
 	function closeSearchBar() {
@@ -462,7 +481,20 @@
 		const chatLog = getChatLog();
 		if (!chatLog) return;
 
+		// 偵測可視高度突變（手機軟鍵盤彈出/收合、視窗縮放、旋轉）。這類變化會讓
+		// scrollTop 相對 scrollHeight 看起來「離底部很遠」，但並非使用者主動往上捲。
+		const h = chatLog.clientHeight;
+		const heightChanged = h !== lastClientHeight;
+		lastClientHeight = h;
+
 		if (!frozen) {
+			// 高度剛變過、或正處在 viewport 變動的抑制視窗內 → 不進入凍結。
+			// 「未凍結」本身就代表原本在底部附近，維持貼底即可，避免軟鍵盤把最新訊息
+			// 推出畫面後被誤判成往上捲。設定相同 scrollTop 不會再觸發 scroll，不會有迴圈。
+			if (heightChanged || Date.now() < suppressFreezeUntil) {
+				chatLog.scrollTop = chatLog.scrollHeight;
+				return;
+			}
 			if (distanceFromBottomRatio(chatLog) > FREEZE_THRESHOLD) {
 				frozen = true;
 				showSearchBar();
@@ -490,6 +522,26 @@
 		ensureIntercepted();
 	}
 
+	/**
+	 * 手機軟鍵盤彈出/收合最可靠的偵測點是 visualViewport 的 resize（桌面則對應視窗縮放）。
+	 * 觸發後開一個短暫抑制視窗，期間 onScroll 不會進入凍結；同時若目前非凍結（＝原本在
+	 * 底部附近），等版面穩定後重新貼底，把最新訊息留在畫面上。這是根治手機端反覆
+	 * 「輸入→誤凍結→彈搜尋框→解凍」抖動的關鍵。
+	 */
+	function onViewportResize() {
+		suppressFreezeUntil = Date.now() + 600;
+		if (frozen) return; // 使用者正在看歷史，別動它的捲動位置
+		requestAnimationFrame(() => {
+			const el = getChatLog();
+			if (el && !frozen) el.scrollTop = el.scrollHeight;
+		});
+	}
+	if (window.visualViewport) {
+		window.visualViewport.addEventListener("resize", onViewportResize);
+	} else {
+		window.addEventListener("resize", onViewportResize);
+	}
+
 	// ChatRoomAppendChat 是全域函式，登入前就先試著攔一次（BC 核心已就位的話馬上成功；
 	// PCM 載得很快、核心還沒就位時這裡回 false，交給下方輪詢稍後再試）。
 	ensureIntercepted();
@@ -503,6 +555,10 @@
 
 	function teardown() {
 		clearInterval(poll);
+		try {
+			if (window.visualViewport) window.visualViewport.removeEventListener("resize", onViewportResize);
+			else window.removeEventListener("resize", onViewportResize);
+		} catch (e) {}
 		try { removeHook?.(); } catch (e) {}
 		// fallback 模式：把直接覆寫還原回去（僅在確定當前掛的就是我們的包裝時）
 		if (monkeyOriginal && window.ChatRoomAppendChat !== monkeyOriginal) {
