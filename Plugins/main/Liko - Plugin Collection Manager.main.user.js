@@ -1793,7 +1793,7 @@
             // ChatScrollFreeze：PCM 載得快 → 早早裝好「凍結捲動＋搜尋」的攔截，趕在 LCE
             // 較慢的聊天功能（chat-augments 會 ElementScrollToEnd 把畫面拉到底）之前就位。
             // 它走 bcModSdk.hookFunction，與 LCE 等 SDK 插件依 priority 疊合、不受載入順序影響。
-            { rel: "expand/BC_ChatScrollFreeze.js",     ready: () => !!window.Liko?.__Sys_ChatScrollFreeze__ },
+            //{ rel: "expand/BC_ChatScrollFreeze.js",     ready: () => !!window.Liko?.__Sys_ChatScrollFreeze__ },
         ];
         for (const { rel, ready } of rest) {
             if (ready()) continue;
