@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.0";
+    const MOD_VER = "1.6.1";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -73,7 +73,7 @@
         loginNotice: true,
         translateChat: true,       // 手動翻譯（點選訊息出現翻譯按鈕）
         translateSelection: true,
-        autoScroll: true,
+        chatScrollFreeze: false,   // 是否載入並啟用 BC_ChatScrollFreeze（聊天室訊息凍結／搜尋擴充）
         skipStutter: true,
         chatButton: true,          // 聊天室快捷按鈕
         hotkeys: makeDefaultHotkeys()
@@ -178,7 +178,7 @@
             loginNotice: true,
             translateChat: true,
             translateSelection: true,
-            autoScroll: true,
+            chatScrollFreeze: true,
             skipStutter: true,
             chatButton: true,
             hotkeys: makeDefaultHotkeys()
@@ -474,7 +474,6 @@
     // 插入翻譯「之前」呼叫：聊天室本來是否就捲在最底部。
     // 凍結中（使用者往上看歷史）一律回 false，交給 ChatScrollFreeze 決定、MAT 不搶。
     function chatWasAtEnd() {
-        if (!config.autoScroll) return false;
         if (window.Liko.__Sys_ChatScrollFreeze__?.isFrozen?.()) return false;
         const log = document.querySelector('#TextAreaChatLog');
         if (!log) return false;
@@ -1395,7 +1394,7 @@
             this._cb(y, ui('optLoginNotice'), config.loginNotice,        ui('dLoginNotice'), () => { config.loginNotice = !config.loginNotice; saveSettings(); }); y += H;
             this._cb(y, ui('optManual'),      config.translateChat,      ui('dManual'),      () => { config.translateChat = !config.translateChat; if (!config.translateChat) hideClickToolbar(); saveSettings(); }); y += H;
             this._cb(y, ui('optSelection'),   config.translateSelection, ui('dSelection'),   () => { config.translateSelection = !config.translateSelection; if (!config.translateSelection) hideSelectionPopup(); saveSettings(); }); y += H;
-            this._cb(y, ui('optAutoScroll'),  config.autoScroll,         ui('dAutoScroll'),  () => { config.autoScroll = !config.autoScroll; saveSettings(); }); y += H;
+            this._cb(y, ui('optChatScrollFreeze'), config.chatScrollFreeze, ui('dChatScrollFreeze'), () => { config.chatScrollFreeze = !config.chatScrollFreeze; saveSettings(); applyChatScrollFreezeConfig(); }); y += H;
             this._cb(y, ui('optSkipStutter'), config.skipStutter,        ui('dSkipStutter'), () => { config.skipStutter = !config.skipStutter; saveSettings(); }); y += H;
             this._cb(y, ui('optChatButton'),  config.chatButton,         ui('dChatButton'),  () => { config.chatButton = !config.chatButton; saveSettings(); updateChatButton(); }); y += H;
             this._hotkey(y, ui('hkToggle'), 'toggle', ui('dHkToggle')); y += H;
@@ -1712,8 +1711,22 @@
 
     // 聊天室凍結/捲動協調器：讓「使用者往上看歷史時不要被捲走」由這個共用系統統一決定，
     // MAT 不再自帶捲動手段去跟別人搶（見下方 chatWasAtEnd / scrollChatToEndIfWasAtEnd：凍結中一律不捲）。
-    ensureExpandDep('expand/BC_ChatScrollFreeze.js', () => window.Liko.__Sys_ChatScrollFreeze__)
-        .catch(e => console.warn('🐈‍⬛ [MAT] ⚠️ ChatScrollFreeze 載入失敗:', e.message));
+    // 是否載入／啟用由 config.chatScrollFreeze 控制（設定畫面「拓展信息凍結功能」），
+    // 停用時呼叫模組自帶的 teardown() 取消載入，並清掉快取讓之後重新啟用時能再次載入。
+    const CSF_REL = 'expand/BC_ChatScrollFreeze.js';
+    function applyChatScrollFreezeConfig() {
+        if (config.chatScrollFreeze) {
+            ensureExpandDep(CSF_REL, () => window.Liko.__Sys_ChatScrollFreeze__)
+                .catch(e => console.warn('🐈‍⬛ [MAT] ⚠️ ChatScrollFreeze 載入失敗:', e.message));
+        } else {
+            const csf = window.Liko.__Sys_ChatScrollFreeze__;
+            if (csf) {
+                try { csf.teardown?.(); } catch (e) {}
+                delete window.Liko.__Sys_ChatScrollFreeze__;
+            }
+            delete _expandDepPromises[CSF_REL];
+        }
+    }
 
     const MAT_BTN_ID = 'lk-mat-trigger-btn';
     const MAT_MENU_ID = 'lk-mat-quick-menu';
@@ -1972,6 +1985,7 @@
                     setupClickTranslateListener();
                     setupHotkeyListener();
                     setupChatButton();
+                    applyChatScrollFreezeConfig();
                     notifyLoginOnce();
                     if (config.enabled) startObserver();
                 });
