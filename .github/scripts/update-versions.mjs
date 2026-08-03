@@ -1,45 +1,35 @@
-name: Update Plugins.json versions
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
-on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'Plugins/**'          # 插件檔（版本號來源）變動時觸發
-      - 'manifest.json'       # 自己的插件清單變動時觸發
-      - 'external.json'       # 外部插件/Hotfix 清單變動時觸發
-      - 'meta.json'           # updateId / changelog 變動時觸發
-  workflow_dispatch:          # 也可手動跑
+const REPO_RAW_PREFIX = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/';
+const JSON_PATH = 'Plugins.json';
 
-permissions:
-  contents: write             # 允許 bot 推回
+const data = JSON.parse(readFileSync(JSON_PATH, 'utf8'));
+let changed = false;
 
-concurrency:
-  group: update-plugins-version
-  cancel-in-progress: true
+function extractVersion(filePath) {
+  if (!existsSync(filePath)) return null;
+  const src = readFileSync(filePath, 'utf8');
+  // 抓檔頭的 // @version 1.2.3
+  const m = src.match(/^\/\/\s*@version\s+(.+?)\s*$/m);
+  return m ? m[1].trim() : null;
+}
 
-jobs:
-  update:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+for (const p of data.plugins) {
+  const url = p.url || '';
+  if (!url.startsWith(REPO_RAW_PREFIX)) continue;                     // 外部插件：跳過（方案 A）
+  const rel = decodeURIComponent(url.slice(REPO_RAW_PREFIX.length));  // → Plugins/main/Liko - CPB.main.user.js
+  const ver = extractVersion(rel);
+  if (!ver) { console.warn(`⚠️ 找不到版本: ${p.id} -> ${rel}`); continue; }
+  if (p.version !== ver) {
+    console.log(`🔄 ${p.id}: ${p.version ?? '(無)'} -> ${ver}`);
+    p.version = ver;
+    changed = true;
+  }
+}
 
-      # 1. 先用 manifest.json + external.json + meta.json 重新產生 Plugins.json
-      - run: node scripts/build.mjs
-
-      # 2. 再把各插件實際檔案裡的 @version 同步進 Plugins.json
-      #    （順序很重要：一定要在 build.mjs 之後跑，否則版本號會被 manifest 裡的舊值蓋掉）
-      - run: node .github/scripts/update-versions.mjs
-
-      - name: Commit
-        run: |
-          if [[ -n "$(git status --porcelain Plugins.json)" ]]; then
-            git config user.name  "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add Plugins.json
-            git commit -m "chore: auto-build & sync Plugins.json"
-            git push
-          else
-            echo "No changes"
-          fi
+if (changed) {
+  writeFileSync(JSON_PATH, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  console.log('✅ Plugins.json 已更新');
+} else {
+  console.log('ℹ️ 無變更');
+}
