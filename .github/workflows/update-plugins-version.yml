@@ -4,7 +4,10 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'Plugins/**'          # 只在 Plugins 資料夾有變動時觸發
+      - 'Plugins/**'          # 插件檔（版本號來源）變動時觸發
+      - 'manifest.json'       # 自己的插件清單變動時觸發
+      - 'external.json'       # 外部插件/Hotfix 清單變動時觸發
+      - 'meta.json'           # updateId / changelog 變動時觸發
   workflow_dispatch:          # 也可手動跑
 
 permissions:
@@ -21,14 +24,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
+
+      # 1. 先用 manifest.json + external.json + meta.json 重新產生 Plugins.json
+      - run: node scripts/build.mjs
+
+      # 2. 再把各插件實際檔案裡的 @version 同步進 Plugins.json
+      #    （順序很重要：一定要在 build.mjs 之後跑，否則版本號會被 manifest 裡的舊值蓋掉）
       - run: node .github/scripts/update-versions.mjs
+
       - name: Commit
         run: |
           if [[ -n "$(git status --porcelain Plugins.json)" ]]; then
             git config user.name  "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add Plugins.json
-            git commit -m "chore: auto-update plugin versions"
+            git commit -m "chore: auto-build & sync Plugins.json"
             git push
           else
             echo "No changes"
