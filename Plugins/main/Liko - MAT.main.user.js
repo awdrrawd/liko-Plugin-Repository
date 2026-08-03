@@ -1711,21 +1711,18 @@
 
     // 聊天室凍結/捲動協調器：讓「使用者往上看歷史時不要被捲走」由這個共用系統統一決定，
     // MAT 不再自帶捲動手段去跟別人搶（見下方 chatWasAtEnd / scrollChatToEndIfWasAtEnd：凍結中一律不捲）。
-    // 是否載入／啟用由 config.chatScrollFreeze 控制（設定畫面「拓展信息凍結功能」），
-    // 停用時呼叫模組自帶的 teardown() 取消載入，並清掉快取讓之後重新啟用時能再次載入。
+    //
+    // 這個開關只決定「MAT 要不要主動載入」，不決定「要不要移除」。BC_ChatScrollFreeze 是多個 Liko
+    // 插件（MAT / LCE …）共用的同一支系統擴充，載入與否是「任一方要就載」的 OR 關係，去重靠模組
+    // 本體開頭的 `if (window.Liko.__Sys_ChatScrollFreeze__) return;` 守衛。
+    // 【勿再於 else 分支 teardown()／delete 全域】：那會在「自己沒開、但別的插件開著」時，把人家
+    //   已載入的實體一起砍掉（實測過的反例：MAT 沒開、LCE 有開，卻被 MAT 的 else 分支 teardown 掉，
+    //   結果整個沒載入）。停用只代表 MAT 這次不主動載，已載入的維持載入（要移除得重整頁面）。
     const CSF_REL = 'expand/BC_ChatScrollFreeze.js';
     function applyChatScrollFreezeConfig() {
-        if (config.chatScrollFreeze) {
-            ensureExpandDep(CSF_REL, () => window.Liko.__Sys_ChatScrollFreeze__)
-                .catch(e => console.warn('🐈‍⬛ [MAT] ⚠️ ChatScrollFreeze 載入失敗:', e.message));
-        } else {
-            const csf = window.Liko.__Sys_ChatScrollFreeze__;
-            if (csf) {
-                try { csf.teardown?.(); } catch (e) {}
-                delete window.Liko.__Sys_ChatScrollFreeze__;
-            }
-            delete _expandDepPromises[CSF_REL];
-        }
+        if (!config.chatScrollFreeze) return;   // 不主動載入；但不動別人已載入的實體
+        ensureExpandDep(CSF_REL, () => window.Liko.__Sys_ChatScrollFreeze__)
+            .catch(e => console.warn('🐈‍⬛ [MAT] ⚠️ ChatScrollFreeze 載入失敗:', e.message));
     }
 
     const MAT_BTN_ID = 'lk-mat-trigger-btn';
