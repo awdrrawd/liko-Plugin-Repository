@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name           Liko - DrawDetectionTool 
+// @name           Liko - DrawDetectionTool
 // @name:zh        繪圖檢測工具
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
@@ -260,16 +260,16 @@
 	 * null = 這個函式沒有這個概念（例如 DrawText 沒有寬高、DrawImage 沒有顏色參數）。
 	 */
 	const UI_SPEC = {
-		DrawButton:          { x: 0, y: 1, w: 2, h: 3, color: 5 },
-		DrawBackNextButton:  { x: 0, y: 1, w: 2, h: 3, color: 5 },
-		DrawCheckbox:        { x: 0, y: 1, w: 2, h: 3, color: null },
+		DrawButton:          { x: 0, y: 1, w: 2, h: 3, color: 5, text: 4 },
+		DrawBackNextButton:  { x: 0, y: 1, w: 2, h: 3, color: 5, text: 4 },
+		DrawCheckbox:        { x: 0, y: 1, w: 2, h: 3, color: null, text: 4 },
 		DrawRect:            { x: 0, y: 1, w: 2, h: 3, color: 4 },
 		DrawEmptyRect:       { x: 0, y: 1, w: 2, h: 3, color: 4 },
 		DrawProgressBar:     { x: 0, y: 1, w: 2, h: 3, color: 5 },
 		DrawCircle:          { x: 0, y: 1, w: 2, h: null, color: 5 },
-		DrawText:            { x: 1, y: 2, w: null, h: null, color: 3 },
-		DrawTextFit:         { x: 1, y: 2, w: 3, h: null, color: 4 },
-		DrawTextWrap:        { x: 1, y: 2, w: 3, h: 4, color: 5 },
+		DrawText:            { x: 1, y: 2, w: null, h: null, color: 3, text: 0 },
+		DrawTextFit:         { x: 1, y: 2, w: 3, h: null, color: 4, text: 0 },
+		DrawTextWrap:        { x: 1, y: 2, w: 3, h: 4, color: 5, text: 0 },
 		DrawImage:           { x: 1, y: 2, w: null, h: null, color: null },
 		DrawImageResize:     { x: 1, y: 2, w: 3, h: 4, color: null },
 		DrawImageEx:         { x: 2, y: 3, w: null, h: null, color: null },
@@ -295,6 +295,7 @@
 		const o = uiOverrides.get(uiKey(fn, a)); // 先用原始值取 key，再改參數
 		if (!o) return;
 		if (o.color != null && s.color != null) a[s.color] = o.color;
+		if (o.text != null && s.text != null) a[s.text] = o.text;
 		if (o.dx && s.x != null) a[s.x] += o.dx;
 		if (o.dy && s.y != null) a[s.y] += o.dy;
 		if (o.dw && s.w != null) a[s.w] += o.dw;
@@ -371,6 +372,7 @@
 					x: s.x == null ? null : args[s.x], y: s.y == null ? null : args[s.y],
 					w: s.w == null ? null : args[s.w], h: s.h == null ? null : args[s.h],
 					color: s.color == null ? null : args[s.color],
+					text: s.text == null ? null : args[s.text],
 				};
 			}
 			try { applyOverride(name, args); } catch { /* 覆寫失敗不能影響遊戲繪製 */ }
@@ -1262,7 +1264,13 @@
 		width: 92px; cursor: text; font-family: ui-monospace, Consolas, monospace;
 	}
 	input[type=text] { flex: 1; min-width: 0; }
-	input:focus { outline: none; border-color: #6a4ff6; }
+	textarea[data-uitext], textarea[data-otext-full] {
+		width: 100%; flex: 1; min-width: 0; resize: vertical; min-height: 54px;
+		background: #2b2b3d; color: #e8e8f0; border: 1px solid #4a4a66; border-radius: 5px;
+		padding: 5px 7px; font-size: calc(var(--fs) - 1px); cursor: text;
+		font-family: ui-monospace, Consolas, monospace;
+	}
+	input:focus, textarea:focus { outline: none; border-color: #6a4ff6; }
 	button.act:hover { background: #3a3a52; }
 	button.act.pri { background: #4a2fd6; border-color: #6a4ff6; }
 	button.act.pri:hover { background: #5a3ff0; }
@@ -1626,7 +1634,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		h += `<div class="row"><span class="k">X / Y</span><input type="number" data-ox value="${Math.round(o.x)}" style="width:80px"><input type="number" data-oy value="${Math.round(o.y)}" style="width:80px"></div>`;
 		h += `<div class="row"><span class="k">寬 / 高</span><input type="number" data-ow value="${Math.round(o.w)}" style="width:80px"><input type="number" data-oh value="${Math.round(o.h)}" style="width:80px"></div>`;
 		h += `<div class="row"><span class="k">旋轉°</span><input type="range" data-orot min="-180" max="180" value="${o.rot || 0}" style="flex:1"><input type="number" data-orotn value="${o.rot || 0}" style="width:64px"></div>`;
-		h += `<div class="row"><span class="k">文字</span><input type="text" data-otext value="${esc(o.text || "")}"></div>`;
+		h += `<div class="row"><span class="k">文字</span><textarea data-otext-full rows="3">${esc(o.text || "")}</textarea></div>`;
 		h += `<div class="row"><span class="k">字級 / 色</span><input type="number" data-ofs value="${o.fontSize || DEF_FONT}" style="width:70px"><input type="color" data-otcolor value="${normalizeColor(o.textColor) || DEF_TEXTCOLOR}">
 			<label style="${LABEL}"><input type="checkbox" data-oleft ${o.align === "left" ? "checked" : ""}> 靠左</label></div>`;
 		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-ofillon ${o.fill ? "checked" : ""}> 填色</label><input type="color" data-ofill value="${normalizeColor(o.fill) || "#ffd54a"}"></div>`;
@@ -1795,7 +1803,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		const rot = q("[data-orot]"), rotn = q("[data-orotn]");
 		rot?.addEventListener("input", () => { o.rot = Number(rot.value) || 0; if (rotn) rotn.value = o.rot; live(); });
 		rotn?.addEventListener("input", () => { o.rot = Number(rotn.value) || 0; if (rot) rot.value = o.rot; live(); });
-		q("[data-otext]")?.addEventListener("input", (e) => { o.text = e.target.value; live(); renderFootbarName(); });
+		q("[data-otext-full]")?.addEventListener("input", (e) => { o.text = e.target.value; live(); renderFootbarName(); });
 		q("[data-ofs]")?.addEventListener("input", (e) => { o.fontSize = Number(e.target.value) || DEF_FONT; live(); });
 		q("[data-otcolor]")?.addEventListener("input", (e) => { o.textColor = e.target.value; live(); });
 		q("[data-oleft]")?.addEventListener("change", (e) => { o.align = e.target.checked ? "left" : "center"; live(); });
@@ -2386,7 +2394,9 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		h += row("函式", `<span style="color:#8fd0ff">${esc(rec.fn)}()</span>`);
 		h += row("矩形", `L ${rec.rect[0].toFixed(0)}, T ${rec.rect[1].toFixed(0)}`);
 		h += row("尺寸", `${rec.rect[2].toFixed(0)} × ${rec.rect[3].toFixed(0)}`);
-		if (rec.label != null && rec.label !== "") h += row("文字", esc(shortStr(rec.label, 50)));
+		if (rec.label != null && rec.label !== "") {
+			h += `<div class="row"><span class="k">文字</span><span class="v" style="white-space:pre-wrap">${esc(String(rec.label))}</span></div>`;
+		}
 		if (rec.src) h += row("圖片", esc(shortStr(rec.src, 50)));
 		if (rec.tip) h += row("提示", esc(shortStr(rec.tip, 40)));
 		if (rec.color) h += `<div class="row"><span class="k">宣告顏色</span>${swatch(normalizeColor(rec.color) || rec.color)}</div>`;
@@ -2396,8 +2406,8 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		h += renderTexture(rec);
 		h += renderState(rec);
 
-		// 幾何/樣式編輯（尺寸/字級/座標/顏色/旋轉）移到「屬性」頁；這裡只給個入口提示。
-		if (rec.key && rec.spec) h += `<div class="note">要改尺寸/字級/座標/顏色/旋轉 → 切到上方「屬性」頁。</div>`;
+		// 幾何/樣式編輯（尺寸/字級/座標/顏色/旋轉/文字）移到「屬性」頁；這裡只給個入口提示。
+		if (rec.key && rec.spec) h += `<div class="note">要改尺寸/字級/座標/顏色/旋轉${rec.spec.text != null ? "/文字" : ""} → 切到上方「屬性」頁。</div>`;
 		if (rec.isCharacter) h += renderCharacterTools(rec);
 		h += renderStack();
 		return h;
@@ -2578,6 +2588,20 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		selection.editKey = rec.key;
 
 		let h = `<h4>屬性 <span style="color:#777;font-weight:400">（改了立刻生效）</span></h4>`;
+
+		// 文字：任何有登記 text 索引的繪製呼叫（DrawText 系列、DrawButton 等）都能直接改，
+		// 完整顯示、不截斷；輸入的是絕對文字（不像位移用差值），空白清掉表示還原成原文字。
+		if (s.text != null) {
+			const curText = o.text != null ? o.text : (rec.orig.text ?? "");
+			const dirtyText = o.text != null && o.text !== rec.orig.text;
+			h += `<div class="row" style="align-items:flex-start">
+				<span class="k" style="margin-top:6px">文字</span>
+				<textarea data-uitext rows="3"${dirtyText ? ' style="border-color:#ffb75c"' : ""}>${esc(String(curText))}</textarea>
+			</div>`;
+			h += `<div class="note" style="margin-top:0">改的是繪製前傳進去的文字內容，不是資料，畫面每幀重畫；清空欄位可還原成原文字：
+				<span style="color:#777">${esc(shortStr(String(rec.orig.text ?? ""), 60))}</span></div>`;
+		}
+
 		h += numRow("X", "dx", rec.orig.x, o.dx);
 		h += numRow("Y", "dy", rec.orig.y, o.dy);
 		h += numRow(s.w != null && rec.fn === "DrawCircle" ? "半徑" : "寬", "dw", rec.orig.w, o.dw);
@@ -2615,7 +2639,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			<button class="act" data-uiclear ${dirty ? "" : "disabled"}>還原這個</button>
 			${uiOverrides.size ? `<button class="act" data-uiclearall>還原全部 (${uiOverrides.size})</button>` : ""}
 		</div>`;
-		h += `<div class="note">改的是繪製前的參數/變換，不是資料 —— 畫面每幀重畫，所以拖動數字就即時看到位移/變色/旋轉/字級的效果。
+		h += `<div class="note">改的是繪製前的參數/變換，不是資料 —— 畫面每幀重畫，所以拖動數字就即時看到位移/變色/旋轉/字級/文字的效果。
 			比對依據是「函式名 + 原始座標」，換畫面或元件本來就會動的話就會失效（還原鈕仍可清掉）。
 			${rec.fn === "DrawTextFit" ? '<span class="warn">DrawTextFit 會自動縮放字級去塞進固定寬度，改字級多半看不出來，建議改「寬」讓它自己放大。</span>' : ""}
 			${rec.fn === "DrawButton" ? '<span class="warn">滑鼠移上按鈕時 BC 會強制畫成 Cyan，改的顏色要移開滑鼠才看得到。</span>' : ""}</div>`;
@@ -2747,6 +2771,14 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		const key = selection.editKey;
 		if (key) {
 			const rec = selection.hits[selection.index];
+			// 文字：絕對值覆寫（不是差值）。清空 = 移除覆寫、還原成原文字。
+			q("[data-uitext]")?.addEventListener("input", (e) => {
+				const o = overrideFor(key, true);
+				const v = e.target.value;
+				if (v === (rec.orig.text ?? "")) delete o.text;
+				else o.text = v;
+				e.target.style.borderColor = (o.text != null && o.text !== rec.orig.text) ? "#ffb75c" : "";
+			});
 			// 數值欄：顯示的是絕對值，存回去的是跟原始值的差
 			qa("[data-num]").forEach((n) => n.addEventListener("input", () => {
 				const prop = n.dataset.num;
