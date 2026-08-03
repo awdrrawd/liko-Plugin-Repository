@@ -135,7 +135,7 @@
       "en_additionalInfo": "",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MAT.main.user.js",
       "priority": 4,
-      "version": "1.6.2"
+      "version": "1.6.1"
     },
     {
       "id": "Liko-Tool",
@@ -174,7 +174,7 @@
       "en_additionalInfo": "",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Kaomoji.main.user.js",
       "priority": 4,
-      "version": "1.0.3"
+      "version": "1.0.4"
     },
     {
       "id": "Liko-BMM",
@@ -357,6 +357,19 @@
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js",
       "priority": 10,
       "version": "1.1.1"
+    },
+    {
+      "id": "Liko-BTP",
+      "name": "BC翻譯補丁",
+      "icon": "📔",
+      "en_name": "BC-translation-patch",
+      "description": "中文的翻譯補丁，補充上遺漏翻譯",
+      "en_description": "Chinese translation supplement, to fill in the missing translations.",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "url": "https://awdrrawd.github.io/BC-translation-patch/bc-translation-patch.js",
+      "priority": 10,
+      "version": "0.1.0"
     },
     {
       "id": "Liko-DDT",
