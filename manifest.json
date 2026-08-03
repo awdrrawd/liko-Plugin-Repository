@@ -680,6 +680,30 @@
       "version": "1.1.1"
     },
     {
+      "id": "Liko-BTP",
+      "iemoji": "📔",
+      "name": {
+        "cn": "BC翻譯補丁",
+        "en": "BC-translation-patch"
+      },
+      "description": {
+        "cn": "中文的翻譯補丁，補充上遺漏翻譯",
+        "en": "Chinese translation supplement, to fill in the missing translations."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/BC-translation-patch",
+      "tags": ["dev", "tool"],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/BC-translation-patch/bc-translation-patch.js"
+        }
+      ],
+      "priority": 10,
+      "version": "0.1.0"
+    },
+    {
       "id": "Liko-DDT",
       "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/DDT/DDT-icon.png",
       "iemoji": "🖌️",
