@@ -15,6 +15,7 @@
       },
       "author": "Shuang",
       "repository": "https://gitgud.io/yeshuang26/shuangcustomassets",
+      "website": "https://gitgud.io/yeshuang26/shuangcustomassets",
       "tags": ["enhancements"],
       "type": "module",
       "versions": [
@@ -692,6 +693,7 @@
       },
       "author": "莉柯莉絲(Likolisu)",
       "repository": "https://github.com/awdrrawd/BC-translation-patch",
+      "website": "https://github.com/awdrrawd/BC-translation-patch",
       "tags": ["translation", "tool"],
       "type": "eval",
       "versions": [
