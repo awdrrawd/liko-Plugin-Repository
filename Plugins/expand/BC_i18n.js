@@ -37,7 +37,7 @@
     //  優先讀「已持久化」的 BondageClubLanguage —— BC 啟動時 TranslationLanguage 先是
     //  預設 "EN"，稍後才由 TranslationLoad() 覆寫成真正語系，直接信任它會抓到瞬間的 EN。
     //  故：localStorage → TranslationLanguage → 瀏覽器語系 → EN。
-    const SUPPORTED = ['TW', 'CN', 'EN', 'JP', 'KR', 'DE', 'FR', 'RU', 'UA'];
+    const SUPPORTED = ['TW', 'CN', 'EN', 'JA', 'KO', 'DE', 'FR', 'RU', 'UA'];
     function detectLang() {
         let raw = '';
         try { raw = (typeof localStorage !== 'undefined' && localStorage.getItem('BondageClubLanguage')) || ''; } catch (e) {}
@@ -54,6 +54,9 @@
         } else if (code.includes('-')) {
             code = code.split('-')[0];
         }
+        // BC 用國家碼 JP/KR；統一成 ISO 639-1 語言碼 JA/KO（字庫檔名與各插件一致）
+        if (code === 'JP') code = 'JA';
+        else if (code === 'KR') code = 'KO';
         return code || 'EN';
     }
 
