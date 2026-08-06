@@ -3,9 +3,9 @@
 // @name:zh        牽引補丁
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.16
+// @version        0.17
 // @description    Fix some Leash failures
-// @description:zh 修復部分牽引失敗的錯誤
+// @description:zh 修復部分牽引失敗的錯誤，新增雙向牽引防抖機制
 // @author         likolisu
 // @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VERSION = "0.16";
+    const MOD_VERSION = "0.17";
 
     // ============================================
     // Liko.HLF 命名空間 / 開關設定
@@ -34,6 +34,9 @@
     // debug_ban: 測試用，拒絕所有牽引請求 (預設關閉)
     // Console 開啟: Liko.HLF.debug_ban = true
     window.Liko.HLF.debug_ban = window.Liko.HLF.debug_ban ?? false;
+
+    // 防抖持續時間 (ms)：同一對象牽引到同一房間成功後，這段時間內的重複請求會被忽略
+    const LEASH_DEBOUNCE_MS = 10000;
 
     function spaceLabel(space) {
         if (space === "") return "女性";
@@ -68,11 +71,9 @@
     // 問題插件跳過清單 (Skip List)
     // 只要 Beep 的 Message 內含有以下任一 key，
     // 就視為問題插件發出的牽引訊息，直接不處理牽引 (無條件拒絕被牽引)
-    // 未來要增減，直接修改這個陣列即可 (例如 GGC 修好了就把它移除)
+    // 未來要增減，直接修改這個陣列即可
     // ============================================
-    const LEASH_SKIP_MESSAGE_KEYS = [
-        "GGC", // GGC 插件的牽引訊息頻繁且有問題，跳過整個 GGC key（不只 GGC_BEEP_PING，因為 GGC 底下不只這一種訊息）
-    ];
+    const LEASH_SKIP_MESSAGE_KEYS = [];
 
     function isSkippedLeashMessage(data) {
         if (!data?.Message) return false;
@@ -92,6 +93,25 @@
         target: null,
         busy: false,
         cooldownTimer: null,
+
+        // ============================================
+        // LSCG的牽手防抖機制
+        // ============================================
+        debounce: new Map(),
+
+        isDebounced(partnerId, room) {
+            const rec = this.debounce.get(partnerId);
+            if (!rec) return false;
+            if (Date.now() - rec.time > LEASH_DEBOUNCE_MS) {
+                this.debounce.delete(partnerId);
+                return false;
+            }
+            return rec.room === room;
+        },
+
+        setDebounce(partnerId, room) {
+            this.debounce.set(partnerId, { room, time: Date.now() });
+        },
 
         leadsUs(id) {
             if (!ChatRoomCanBeLeashedBy(id, Player)) {
@@ -150,8 +170,30 @@
                     if (this.target !== req) continue;
                     const result = await ServerRoomJoin(req.room);
                     if (this.target === req) {
-                        if (result?.err && result.error?.name !== "ServerInProgressError")
-                            console.warn(`[HLF] 牽引加入失敗: ${result.error?.name}`);
+                        if (result?.err) {
+                            if (result.error?.name !== "ServerInProgressError") {
+                                console.warn(`[HLF] 牽引加入失敗: ${result.error?.name}`);
+                            }
+                        } else {
+                            // 加入成功：記錄本地防抖，並回送確認 Beep 讓對方也記錄防抖
+                            this.setDebounce(req.leader, req.room);
+                            try {
+                                ServerSend("AccountBeep", {
+                                    MemberNumber: req.leader,
+                                    BeepType: "HLF_LeashAck",
+                                    ChatRoomName: req.room,
+                                });
+                                if (window.Liko.HLF.debug_Beep) {
+                                    console.log(
+                                        `%c✅ [牽引成功] 已回送確認 Beep`,
+                                        "color: #00ffaa; font-weight: bold;"
+                                    );
+                                    console.log(`  對象: ${req.leader}，房間: ${req.room}`);
+                                }
+                            } catch (e) {
+                                console.error("[HLF] 傳送牽引確認 Beep 失敗:", e);
+                            }
+                        }
                         this.target = null;
                     }
                 }
@@ -166,7 +208,7 @@
         },
         rejectGender(leader) {
             if (ChatRoomLeashPlayer === leader) {
-                ChatRoomLeashPlayer = null;
+                window.ChatRoomLeashPlayer = null;
                 CharacterRefreshLeash(Player);
             }
         },
@@ -176,6 +218,24 @@
         const data = args[0];
 
         debugLogLeashBeep("in", data);
+
+        // ============================================
+        // 牽引成功確認 Beep：對方跟到房間後回送的通知
+        // 收到後記錄防抖，並直接吞掉，不繼續往下傳遞 (不彈通知)
+        // ============================================
+        if (data.BeepType === "HLF_LeashAck") {
+            if (Number.isInteger(data.MemberNumber) && data.ChatRoomName) {
+                Leash.setDebounce(data.MemberNumber, data.ChatRoomName.trim());
+                if (window.Liko.HLF.debug_Beep) {
+                    console.log(
+                        `%c🤝 [牽引確認] 收到對方回報，記錄防抖`,
+                        "color: #00ffaa; font-weight: bold;"
+                    );
+                    console.log(`  對象: ${data.MemberNumber}，房間: ${data.ChatRoomName}`);
+                }
+            }
+            return;
+        }
 
         if (data.BeepType !== "Leash" || !data.ChatRoomName) {
             return next(args);
@@ -209,6 +269,22 @@
         if (!Number.isInteger(leader) || leader === Player.MemberNumber) {
             return;
         }
+
+        // ============================================
+        // 雙向牽引防抖：10 秒內已成功牽引至同一房間的同一對象，直接擋掉
+        // 避免雙向牽手造成的乒乓循環 (A拉B -> B又把A拉回去)
+        // ============================================
+        if (Leash.isDebounced(leader, room)) {
+            if (window.Liko.HLF.debug_Beep) {
+                console.log(
+                    `%c⏳ [防抖阻擋] 10 秒內已牽引至同一房間，忽略此請求`,
+                    "color: #888800; font-weight: bold;"
+                );
+                console.log(`  對象: ${leader}，房間: ${room}`);
+            }
+            return;
+        }
+
         if (Player.OnlineSharedSettings?.AllowPlayerLeashing === false) {
             return;
         }
