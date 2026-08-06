@@ -252,13 +252,13 @@
             ChatRoomSendLocalStyled("🚫 請加入聊天室後重新上傳圖片", 4000, "#ff4444");
             return;
         }
-        const timeText = { uguu: "3小時", tmpfiles: "60分鐘", cloudflare: "30分鐘", litterbox: "12小時", imgbb: "12小時" }[imageHost] || "12小時";
+        const timeText = { uguu: "3小時", tmpfiles: "60分鐘", cloudflare: "24小時", litterbox: "12小時", imgbb: "12小時" }[imageHost] || "12小時";
         const hostText = { litterbox: "Litterbox", cloudflare: "Cloudflare R2", uguu: "Uguu", imgbb: "ImgBB", tmpfiles: "TmpFiles" }[imageHost] || imageHost;
         try {
             ServerSend("ChatRoomChat", { Content: `(${url})`, Type: "Chat" });
             ChatRoomSendLocalStyled(`✅ 圖片連結已發送\n存放於 ${hostText} | 保存時間 ${timeText}`, 5000, "#50C878");
         } catch (e) {
-            ChatRoomSendLocalStyled("❌ 發送失敗，請重試", 3000, "#ff4444");
+            ChatRoomSendLocalStyled("❌ 發送失敗，請重試，或用/imgweb更換圖床", 3000, "#ff4444");
         }
     }
 
@@ -625,7 +625,7 @@
     // ──────────────────────────────────────────
     function showImgHelp() {
         const hostNames = { litterbox: "Litterbox", uguu: "Uguu", imgbb: "ImgBB", cloudflare: "Cloudflare R2", tmpfiles: "TmpFiles" };
-        const hostTimes = { uguu: "3小時", tmpfiles: "60分鐘", litterbox: "12小時", cloudflare: "30分鐘", imgbb: "12小時" };
+        const hostTimes = { uguu: "3小時", tmpfiles: "60分鐘", litterbox: "12小時", cloudflare: "24小時", imgbb: "12小時" };
         ChatRoomSendLocal(
             `🖼️圖片上傳說明 | Image upload illustrate🖼️\n` +
             `        當前設定(Current): 🌐${hostNames[imageHost] || imageHost} 📌${hostTimes[imageHost] || "12小時"}\n` +
@@ -640,7 +640,7 @@
             `• 可以拖曳圖片上傳 | You can direct drag & drop\n` +
             `• 格式(Format): JPG/PNG/GIF/BMP/WEBP\n` +
             `• 大小(Size): Litterbox(100MB) | Uguu(128MB) | ImgBB(32MB) | TmpFiles(100MB) | Cloudflare(10MB)\n` +
-            `• 時間(Time): Litterbox(12HR) | Uguu(3HR) | ImgBB(12HR) | TmpFiles(1HR) | Cloudflare(30Min)\n` +
+            `• 時間(Time): Litterbox(12HR) | Uguu(3HR) | ImgBB(12HR) | TmpFiles(1HR) | Cloudflare(24HR)\n` +
             `✦建議使用(suggestion) Cloudflare > litterbox > tmpfiles > uguu > imgbb\n` +
             `✦ImgBB使用私人API請珍惜使用，如果過期將不會再更新\n` +
             `  └Use private API. If expired, will not be updated.`
