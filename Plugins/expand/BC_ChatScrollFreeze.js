@@ -1,57 +1,35 @@
 "use strict";
 /**
- * ChatScrollFreeze（+ 內建搜尋）  —— PCM / LCE 共用系統擴充
+ * ChatScrollFreeze（+ 內建搜尋） —— PCM / LCE 共用系統擴充
  * -----------------------------------------------------------------------
- * 解決多個 mod / plugin 同時操作聊天室捲動導致「A 要捲、B 不捲」互搶的問題，
- * 並在「凍結預覽」期間提供一個搜尋框，可在目前畫面已載入的歷史紀錄中搜尋文字。
+ * 解決多個 mod 同時操作聊天室捲動、互搶畫面的問題：使用者往上捲看歷史時進入
+ * 「凍結」——新訊息先進記憶體佇列、不插入 DOM（scrollHeight 不變，別人呼叫
+ * ElementScrollToEnd() 也推不走畫面）；同時提供搜尋框，搜尋目前畫面上的訊息。
  *
- * ── 與其他插件的共存（尤其 LCE） ──────────────────────────────────────
- *   本檔攔截 ChatRoomAppendChat 的方式「優先走 bcModSdk.hookFunction」而不是直接
- *   覆寫 window.ChatRoomAppendChat。原因：
- *     - LCE 等插件也用 bcModSdk 掛聊天室相關鉤子（ChatRoomRun / ChatRoomSendChat…），
- *       而且 LCE 的 chat-augments 會在收訊息後呼叫 ElementScrollToEnd() 把畫面拉到底
- *       —— 正是本檔要擋下的「別人把畫面捲走」情境。
- *     - 若直接覆寫 window.ChatRoomAppendChat，一旦有任何插件透過 SDK 新增/移除鉤子，
- *       SDK 會 d()（重算）並把 window.ChatRoomAppendChat 重設回它的 router，靜默蓋掉
- *       我們的覆寫，凍結就失效了。走 SDK 才能與所有 SDK 插件依 priority 乾淨疊合，
- *       且完全不受載入順序影響（PCM 很快、LCE 較慢也沒差）。
- *   沒有 bcModSdk 的環境（極少數）自動退回直接覆寫，功能不變、只是少了共存保證。
+ * 攔截 ChatRoomAppendChat 優先走 bcModSdk.hookFunction，而非直接覆寫
+ * window.ChatRoomAppendChat：LCE 等插件也用 SDK 掛鉤，直接覆寫的話，SDK 只要
+ * 重新計算鉤子（有插件新增/移除鉤子時）就會把 window.ChatRoomAppendChat 蓋回
+ * 它的 router，靜默蓋掉我們的覆寫，凍結失效。沒有 bcModSdk 的環境才退回直接
+ * 覆寫（monkey-patch），功能相同、只是少了跨插件疊合保證。
  *
- * ── 核心做法（刻意不用 cloneNode 做假 DOM 疊層） ──────────────────────
- *   1. 監聽 #TextAreaChatLog 的 scroll 事件，計算「距離底部的比例」。
- *   2. 一旦往上捲超過 FREEZE_THRESHOLD（預設 5%），進入「凍結」狀態：
- *      - 攔截 ChatRoomAppendChat，凍結期間新訊息不會被插入真正的 DOM，
- *        而是先放進記憶體佇列（messageQueue）。
- *      - 畫面上看到的仍是「原生、仍在 DOM 裡」的舊訊息節點，所有原本綁定在
- *        訊息 div 上的事件（點擊回覆、focus 高亮、popup menu…）完全不受影響。
- *      - 沒有新內容被插入 → scrollHeight 不變 → 別的 mod 呼叫 ElementScrollToEnd()
- *        也不會把畫面推走。
- *      - 同時顯示搜尋框，可搜尋「目前已在畫面上」的歷史內容（索引全程穩定）。
- *   3. 使用者手動捲到「目前畫面的最底部」時，視為結束預覽：
- *      - 關閉搜尋框、清除高亮。
- *      - 把佇列裡的訊息依序、原樣重新 append（frozen 已為 false，走原本流程，
- *        因此 isPlayerMessage / 分隔線收合等既有邏輯完全沿用不必重寫）。
- *      - 最後捲到真正的最底部。
- *   4. 使用者「自己發話」也視為結束預覽（要發話＝已看完歷史）：hook ChatRoomSendChat，
- *      送出當下就解除凍結、flush 佇列並捲到最新。否則自己的訊息會被攔進凍結佇列、
- *      本地沒 render，畫面上留下「等待送出」的殘影（其實訊息早已送到伺服器）。
+ * 凍結期間刻意保留原生 DOM 節點，不用 cloneNode 做假疊層：BC 的訊息 div 在
+ * ChatRoomMessage() 建立當下就直接 addEventListener 綁事件（非事件委派），
+ * clone 不會帶走這些監聽器。沿用真實節點＋佇列緩衝完全沒這問題。
  *
- * 為什麼不做「複製一份 DOM 疊上去當假 chat-room-div」：
- *   BC 的訊息 div 在 ChatRoomMessage() 建立當下就直接 addEventListener 綁 click/blur，
- *   不是靠事件委派。cloneNode(true) 不會複製這些監聽器，快照會失去互動能力。
- *   凍結＋緩衝法直接沿用真實節點，完全沒這問題，搜尋高亮也可直接動真實文字節點。
+ * 結束預覽（解除凍結）有兩種來源：手動捲到目前畫面的最底部；或自己發話
+ * （hook ChatRoomSendChat）——送出當下就視為「已看完歷史」，避免自己的訊息
+ * 卡進凍結佇列、本地沒 render 留下殘影。
  * -----------------------------------------------------------------------
  */
 (function () {
 	window.Liko = window.Liko ?? {};
-	// 防重複載入旗標：檔尾把 API 掛到 window.Liko.__Sys_ChatScrollFreeze__
-	//（系統擴充統一以 __Sys_ 開頭；先搶先贏，後到的直接 return 用現成的）。
+	// 防重複載入：系統擴充統一掛 window.Liko.__Sys_* ，先搶先贏。
 	if (window.Liko.__Sys_ChatScrollFreeze__) return;
 
 	const MOD_VER = "1.2";
 	const FREEZE_THRESHOLD = 0.05; // 往上捲超過畫面高度的 5% 就凍結
 
-	/** 觸控裝置（手機/平板）：自動 focus 搜尋框會把軟鍵盤彈過來，體驗差，故略過。 */
+	/** 觸控裝置自動 focus 搜尋框會彈軟鍵盤，體驗差，故略過自動聚焦。 */
 	const IS_TOUCH =
 		typeof window !== "undefined" &&
 		(("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0);
@@ -61,10 +39,7 @@
 	const HIGHLIGHT_CLASS = "chat-scroll-freeze-highlight";
 	const HIGHLIGHT_CURRENT_CLASS = "chat-scroll-freeze-highlight-current";
 
-	// === i18n ============================================================
-	// 走共用引擎 window.Liko.__Sys_i18n__（見 expand/BC_i18n.js）。這是純 auto 的系統
-	// 擴充、沒有自己的語言選單，故用引擎的 detectLang()。引擎尚未載入時退回本地 EN 底本，
-	// 讓字串永遠有值（badge/搜尋框在凍結後才出現，通常引擎早已就位）。
+	// === i18n：走共用引擎 window.Liko.__Sys_i18n__，未就位時退回本地 EN 底本 ===
 	const I18N_NS = "CSF";
 	const STRINGS = {
 		badge: {
@@ -147,48 +122,36 @@
 		return fillVars(STRINGS[key]?.EN ?? key, vars);
 	}
 
-	/** @type {boolean} 目前是否處於「預覽舊訊息」的凍結狀態 */
+	/** 是否處於「預覽舊訊息」的凍結狀態 */
 	let frozen = false;
-
-	/** @type {HTMLElement[]} 凍結期間被攔截、尚未真正插入 DOM 的訊息節點 */
+	/** 凍結期間被攔截、尚未真正插入 DOM 的訊息節點 */
 	let messageQueue = [];
-
-	/** @type {HTMLElement | null} 目前 hook 住的 chat log 節點（用來偵測節點被整個換掉的情況） */
+	/** 目前 hook 住的 chat log 節點，用來偵測節點被整個換掉的情況 */
 	let boundChatLog = null;
 
-	/** @type {HTMLElement[]} 目前搜尋到的 <mark> 節點，依文件順序排列 */
+	/** 目前搜尋到的 <mark> 節點，依文件順序排列 */
 	let searchMatches = [];
 	let searchCurrentIndex = -1;
-
-	/** 進行中的搜尋輸入 debounce timer */
 	let searchDebounceHandle = null;
 
-	/** 程式化捲動（例如跳到某個搜尋結果）期間，暫停「捲到底=解除凍結」的判斷 */
+	/** 程式化捲動（跳到搜尋結果）期間，暫停「捲到底＝解除凍結」的判斷 */
 	let suppressExitUntil = 0;
 
 	/**
-	 * 手機軟鍵盤彈出/收合、視窗縮放/旋轉會改變 chatLog 的可視高度，隨後噴出一連串
-	 * 「非使用者主動」的 scroll 事件。這段時間（毫秒）內暫停「進入凍結」判斷，
-	 * 避免軟鍵盤把畫面高度縮小 → scrollTop 相對看起來離底部很遠 → 誤判成往上捲、
-	 * 誤觸凍結 → 搜尋框搶焦點把鍵盤彈過去 → 收鍵盤高度復原 → 解除凍結 的反覆抖動。
+	 * 手機軟鍵盤彈出/收合、視窗縮放/旋轉會讓 chatLog 可視高度突變，隨後噴出一串
+	 * 非使用者主動的 scroll 事件；此期間（毫秒）暫停「進入凍結」判斷，避免誤觸凍結
+	 * → 搜尋框搶焦點彈鍵盤 → 收鍵盤又解凍的反覆抖動。
 	 */
 	let suppressFreezeUntil = 0;
-
-	/** 上一次 onScroll 時的 chatLog 可視高度，用來偵測高度突變（軟鍵盤/縮放/旋轉）。 */
+	/** 上一次 onScroll 時的 chatLog 可視高度，用來偵測上述的高度突變 */
 	let lastClientHeight = 0;
 
 	// === append 攔截狀態 =================================================
-	/** @type {object | null} bcModSdk 註冊回來的 api（走 SDK 路線時） */
 	let sdkApi = null;
-	/** @type {(() => void) | null} ChatRoomAppendChat SDK hook 的解除函式 */
 	let removeHook = null;
-	/** @type {(() => void) | null} ChatRoomSendChat SDK hook 的解除函式（自己發話→解凍） */
 	let removeSendHook = null;
-	/** @type {null | ((div: HTMLElement) => void)} fallback 直接覆寫時保存的原函式 */
 	let monkeyOriginal = null;
-	/** @type {null | Function} fallback 直接覆寫 ChatRoomSendChat 時保存的原函式 */
 	let monkeySendOriginal = null;
-	/** 攔截是否已裝好（SDK 或 fallback 其一） */
 	let intercepted = false;
 
 	function getChatLog() {
@@ -196,19 +159,35 @@
 	}
 
 	/**
-	 * 計算目前捲動位置「距離底部」的比例。0 = 在最底部，越大代表越往上捲。
-	 * 與 Element.js 的 ElementGetScrollPercentage 是同一套公式的反向版本。
+	 * 需要時才補一個 `position: relative` 定位錨點，且僅在 computed position
+	 * 確實是 static 時才補。el.style.position 只讀得到行內樣式，讀不到樣式表給的
+	 * position（chat-room-div 可能就是靠樣式表的 absolute + top/left/right/bottom
+	 * 撐滿版面）；用 `||=` 判斷幾乎必為 falsy，會強制寫入行內 relative 蓋掉原本的
+	 * absolute/fixed，使版面跑掉。改用 getComputedStyle 才不會誤蓋。
 	 */
+	function ensureRelativeAnchor(el) {
+		if (!el) return;
+		if (getComputedStyle(el).position === "static") {
+			el.style.position = "relative";
+		}
+	}
+
+	/** 距離底部還有多少像素（正值代表還沒到底）。與 isAtBottom / 比例計算共用。 */
+	function scrollGapPx(el) {
+		return el.scrollHeight - el.scrollTop - el.clientHeight;
+	}
+
+	/** 距離底部的比例：0 = 在最底部，越大代表越往上捲。 */
 	function distanceFromBottomRatio(el) {
 		if (!el || el.scrollHeight <= el.clientHeight) return 0;
-		return 1 - (el.scrollTop + el.clientHeight) / el.scrollHeight;
+		return scrollGapPx(el) / el.scrollHeight;
 	}
 
 	function isAtBottom(el) {
 		if (typeof ElementIsScrolledToEnd === "function") {
 			return ElementIsScrolledToEnd(el);
 		}
-		return el.scrollHeight - el.scrollTop - el.clientHeight <= 1;
+		return scrollGapPx(el) <= 1;
 	}
 
 	/** 凍結期間攔截：放進佇列、更新提示條，不插入 DOM。 */
@@ -218,10 +197,9 @@
 	}
 
 	/**
-	 * 裝好對 ChatRoomAppendChat 的攔截。
-	 * 優先走 bcModSdk（與 LCE 等 SDK 插件乾淨共存、不受載入順序影響），
-	 * 沒有 bcModSdk 才退回直接覆寫。ChatRoomAppendChat 尚未定義時回傳 false，
-	 * 由外層輪詢稍後再試（PCM 載得很快、BC 核心可能還沒就位）。
+	 * 攔截 ChatRoomAppendChat：優先用 bcModSdk（與其他 SDK 插件相容、不受載入
+	 * 順序影響），沒有 SDK 才退回直接覆寫。函式尚未定義時回傳 false，交給外層
+	 * 輪詢稍後再試。
 	 */
 	function ensureIntercepted() {
 		if (intercepted) return true;
@@ -236,13 +214,12 @@
 					version: MOD_VER,
 					repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
 				});
-				// priority 0：讓別的插件（例如染色/嵌入）對訊息的處理都先跑完，我們只在最外層決定「插不插」。
+				// priority 0：讓其他插件先跑完訊息處理，我們只在最外層決定插不插。
 				removeHook = sdkApi.hookFunction("ChatRoomAppendChat", 0, (args, next) => {
 					if (frozen) { captureWhileFrozen(args[0]); return; }
 					return next(args);
 				});
-				// 自己發話＝已看完歷史 → 送出當下解除凍結、捲到最新，避免自己的訊息卡在
-				// 凍結佇列變成「等待送出」殘影（訊息其實已送到伺服器、只是本地被攔沒 render）。
+				// 自己發話＝已看完歷史 → 送出當下解除凍結，避免自己的訊息卡進佇列。
 				if (typeof window.ChatRoomSendChat === "function") {
 					removeSendHook = sdkApi.hookFunction("ChatRoomSendChat", 0, (args, next) => {
 						exitFreezeToLatest();
@@ -264,7 +241,6 @@
 			if (frozen) { captureWhileFrozen(div); return; }
 			return monkeyOriginal.call(this, div);
 		};
-		// 自己發話→解凍（同上，fallback 也包一層）
 		if (typeof window.ChatRoomSendChat === "function") {
 			monkeySendOriginal = window.ChatRoomSendChat;
 			window.ChatRoomSendChat = function () {
@@ -383,7 +359,7 @@
 				const el = getChatLog();
 				if (el) el.scrollTop = el.scrollHeight;
 			});
-			chatLog.parentElement.style.position ||= "relative";
+			ensureRelativeAnchor(chatLog.parentElement);
 			chatLog.parentElement.appendChild(badge);
 		}
 		badge.textContent = t("badge", { count });
@@ -394,8 +370,8 @@
 	}
 
 	// ---------------------------------------------------------------------
-	// 搜尋功能：只在凍結（預覽）期間顯示，操作對象是目前已在畫面上、
-	// 真實存在的訊息 DOM，不影響其事件綁定。
+	// 搜尋功能：只在凍結（預覽）期間顯示，操作對象是目前畫面上真實存在的訊息
+	// DOM，不影響其事件綁定。
 	// ---------------------------------------------------------------------
 
 	function clearHighlights() {
@@ -405,7 +381,6 @@
 		marks.forEach((mark) => {
 			const parent = mark.parentNode;
 			if (!parent) return;
-			// 把 <mark>文字</mark> 還原成純文字節點，恢復原本的 DOM 結構
 			while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
 			parent.removeChild(mark);
 			parent.normalize();
@@ -428,7 +403,6 @@
 			acceptNode(node) {
 				if (!node.nodeValue || !regex.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
 				regex.lastIndex = 0;
-				// 略過 <script>/<style> 等不該處理的節點（保險用，聊天室內基本不會有）
 				const tag = node.parentElement?.tagName;
 				if (tag === "SCRIPT" || tag === "STYLE") return NodeFilter.FILTER_REJECT;
 				return NodeFilter.FILTER_ACCEPT;
@@ -486,7 +460,7 @@
 		const target = searchMatches[searchCurrentIndex];
 		target.classList.add(HIGHLIGHT_CURRENT_CLASS);
 
-		// 這是程式觸發的捲動，不代表使用者要離開預覽狀態，暫時抑制解除凍結判斷
+		// 程式觸發的捲動，不代表使用者要離開預覽，暫時抑制解除凍結判斷
 		suppressExitUntil = Date.now() + 700;
 		target.scrollIntoView({ block: "center", behavior: "smooth" });
 
@@ -507,11 +481,8 @@
 		}
 	}
 
-	/**
-	 * 讓搜尋框緊貼在 TextAreaChatLog 的正上方（而不是 chat-room-div 的最頂端），
-	 * 這樣不管 chat-room-top-menu／struggle bar 目前顯示多高，都不會被蓋住，
-	 * 因為我們是拿 chatLog 相對於其 offsetParent（chat-room-div）的實際偏移量。
-	 */
+	/** 讓搜尋框貼在 chatLog 正上方（用其相對 offsetParent 的偏移量），不管上方
+	 *  選單/struggle bar 目前高度多少都不會被蓋住。 */
 	function repositionSearchBar() {
 		const bar = document.getElementById(SEARCH_BAR_ID);
 		const chatLog = getChatLog();
@@ -539,27 +510,26 @@
 			<button type="button" data-action="close" title="${t("closeTitle")}">✕</button>
 		`;
 
-		chatLog.parentElement.style.position ||= "relative";
+		ensureRelativeAnchor(chatLog.parentElement);
 		chatLog.parentElement.appendChild(bar);
 		repositionSearchBar();
 
 		// 幫聊天室本體讓出空間，避免搜尋框蓋住捲到頂端時的第一則訊息
 		chatLog.style.scrollPaddingTop = `${bar.offsetHeight}px`;
 
-		// chat-room-top-menu／struggle bar 的高度可能因視窗大小或內容而變動，
-		// 開著搜尋框時持續跟著重新定位
+		// 上方選單高度可能隨視窗變化，開著搜尋框時持續重新定位
 		window.addEventListener("resize", repositionSearchBar);
 
 		const input = bar.querySelector("input");
 		bar.querySelector('[data-action="next"]').addEventListener("click", () => gotoMatch(searchCurrentIndex + 1));
 		bar.querySelector('[data-action="prev"]').addEventListener("click", () => gotoMatch(searchCurrentIndex - 1));
-		// 行內紅 X：只清空目前輸入的搜尋文字，不關搜尋框、不解除凍結
+		// 行內紅 X：只清空輸入的搜尋文字，不關搜尋框、不解除凍結
 		bar.querySelector('[data-action="clear"]').addEventListener("click", () => {
 			input.value = "";
 			performSearch("");
 			input.focus();
 		});
-		// 右端 X（close）：回到最新並解除凍結（等同捲到底）——與「僅清文字」的行內 X 區隔
+		// 右端 X（close）：回到最新並解除凍結，與「僅清文字」的行內 X 區隔
 		bar.querySelector('[data-action="close"]').addEventListener("click", () => exitFreezeToLatest());
 
 		input.addEventListener("input", () => {
@@ -573,14 +543,11 @@
 				gotoMatch(searchCurrentIndex + (ev.shiftKey ? -1 : 1));
 			} else if (ev.key === "Escape") {
 				ev.preventDefault();
-				// Esc 保留「整個關閉搜尋框」的行為，跟 X（僅清除文字）做出區隔
-				closeSearchBar();
+				closeSearchBar(); // Esc 整個關閉搜尋框，跟 X（僅清文字）區隔
 			}
 		});
 
-		// 觸控裝置上自動 focus 會把軟鍵盤彈到搜尋框——使用者往上看歷史往往只是想閱讀，
-		// 並非要搜尋，硬搶焦點體驗很差（也是造成手機端輸入/取消抖動的元兇之一）。
-		// 桌面才自動聚焦，手機留給使用者主動點搜尋框。
+		// 手機自動 focus 會彈軟鍵盤、體驗差；桌面才自動聚焦。
 		if (!IS_TOUCH) input.focus();
 	}
 
@@ -596,7 +563,7 @@
 	// 凍結／解除凍結主流程
 	// ---------------------------------------------------------------------
 
-	/** 結束預覽：把佇列中的訊息依序真正插入，並捲到底 */
+	/** 結束預覽：把佇列中的訊息依序真正插入（frozen 已為 false，走正常流程），並捲到底 */
 	function flushQueue() {
 		const chatLog = getChatLog();
 		const queued = messageQueue;
@@ -606,8 +573,6 @@
 
 		if (!chatLog) return;
 
-		// 此時 frozen 已為 false，重新 append 會走正常流程（不再被攔截），
-		// isPlayerMessage / 分隔線收合等既有邏輯完全沿用。
 		for (const div of queued) {
 			if (typeof window.ChatRoomAppendChat === "function") window.ChatRoomAppendChat(div);
 		}
@@ -615,8 +580,8 @@
 	}
 
 	/**
-	 * 主動結束預覽：解除凍結、flush 佇列並捲到最新。
-	 * 三種來源共用：使用者自己發話（ChatRoomSendChat hook）、按右端 close X、對外 API unfreeze()。
+	 * 主動結束預覽（解凍＋flush＋捲到底）。三種來源共用：使用者自己發話
+	 * （ChatRoomSendChat hook）、按右端 close X、對外 API unfreeze()。
 	 */
 	function exitFreezeToLatest() {
 		if (!frozen) return;
@@ -628,16 +593,14 @@
 		const chatLog = getChatLog();
 		if (!chatLog) return;
 
-		// 偵測可視高度突變（手機軟鍵盤彈出/收合、視窗縮放、旋轉）。這類變化會讓
-		// scrollTop 相對 scrollHeight 看起來「離底部很遠」，但並非使用者主動往上捲。
+		// 偵測可視高度突變（軟鍵盤/縮放/旋轉），這類變化不代表使用者主動往上捲。
 		const h = chatLog.clientHeight;
 		const heightChanged = h !== lastClientHeight;
 		lastClientHeight = h;
 
 		if (!frozen) {
-			// 高度剛變過、或正處在 viewport 變動的抑制視窗內 → 不進入凍結。
-			// 「未凍結」本身就代表原本在底部附近，維持貼底即可，避免軟鍵盤把最新訊息
-			// 推出畫面後被誤判成往上捲。設定相同 scrollTop 不會再觸發 scroll，不會有迴圈。
+			// 高度剛變過、或仍在 viewport 抑制視窗內 → 不進凍結，維持貼底即可。
+			// 設定相同 scrollTop 不會再觸發 scroll，不會迴圈。
 			if (heightChanged || Date.now() < suppressFreezeUntil) {
 				chatLog.scrollTop = chatLog.scrollHeight;
 				return;
@@ -669,12 +632,9 @@
 		ensureIntercepted();
 	}
 
-	/**
-	 * 手機軟鍵盤彈出/收合最可靠的偵測點是 visualViewport 的 resize（桌面則對應視窗縮放）。
-	 * 觸發後開一個短暫抑制視窗，期間 onScroll 不會進入凍結；同時若目前非凍結（＝原本在
-	 * 底部附近），等版面穩定後重新貼底，把最新訊息留在畫面上。這是根治手機端反覆
-	 * 「輸入→誤凍結→彈搜尋框→解凍」抖動的關鍵。
-	 */
+	/** visualViewport resize 是偵測手機軟鍵盤彈出/收合最可靠的時機點（桌面則對應
+	 *  視窗縮放）。觸發後開一段抑制視窗讓 onScroll 暫停判斷凍結；若目前非凍結
+	 *  （代表原本在底部附近），版面穩定後重新貼底，避免最新訊息被鍵盤推出畫面。 */
 	function onViewportResize() {
 		suppressFreezeUntil = Date.now() + 600;
 		if (frozen) return; // 使用者正在看歷史，別動它的捲動位置
@@ -689,15 +649,14 @@
 		window.addEventListener("resize", onViewportResize);
 	}
 
-	// ChatRoomAppendChat 是全域函式，登入前就先試著攔一次（BC 核心已就位的話馬上成功；
-	// PCM 載得很快、核心還沒就位時這裡回 false，交給下方輪詢稍後再試）。
+	// 先試著攔一次（BC 核心已就位的話馬上成功），失敗則交給下方輪詢稍後再試。
 	ensureIntercepted();
 
-	// 聊天室 DOM 可能是進房間後才建立，所以先輪詢等待，之後再靠一個輕量的定時檢查
-	// 因應「離開/重新進房」導致節點被整個換掉、以及攔截尚未裝好的情況。
+	// 聊天室 DOM 可能進房間後才建立，輪詢等待；同時因應離開/重進房造成節點被換掉、
+	// 以及攔截尚未裝好的情況。
 	const poll = setInterval(() => {
 		if (!intercepted) ensureIntercepted();
-		if (!_i18nRegistered) ensureI18nRegistered(); // 引擎可能比本檔晚就位，補註冊
+		if (!_i18nRegistered) ensureI18nRegistered(); // 引擎可能比本檔晚就位
 		if (getChatLog()) ensureBound();
 	}, 1000);
 
@@ -709,7 +668,7 @@
 		} catch (e) {}
 		try { removeHook?.(); } catch (e) {}
 		try { removeSendHook?.(); } catch (e) {}
-		// fallback 模式：把直接覆寫還原回去（僅在確定當前掛的就是我們的包裝時）
+		// fallback 模式：還原直接覆寫（僅在確定當前掛的就是我們的包裝時）
 		if (monkeyOriginal && window.ChatRoomAppendChat !== monkeyOriginal) {
 			try { window.ChatRoomAppendChat = monkeyOriginal; } catch (e) {}
 		}
@@ -719,10 +678,9 @@
 	}
 	window.addEventListener("beforeunload", teardown);
 
-	// === 對外 API（掛在 window.Liko.__Sys_ChatScrollFreeze__） ===========
+	// === 對外 API ==========================================================
 	window.Liko.__Sys_ChatScrollFreeze__ = {
 		v: MOD_VER,
-		/** 目前是否處於凍結預覽 */
 		isFrozen: () => frozen,
 		/** 立刻解除凍結、把佇列插入並捲到底（等同使用者手動捲到底） */
 		unfreeze: () => exitFreezeToLatest(),
