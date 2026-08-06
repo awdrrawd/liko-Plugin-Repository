@@ -1,0 +1,153 @@
+# BC_ChatRoomButtons
+
+給 Bondage Club 插件共用的基礎設施：管理聊天室那一排按鈕容器 `#chat-room-buttons` 的**排序**、**收合/展開動畫**、**單排捲動排版**與**關閉底色**。單獨載入即可運作，無外部依賴。
+
+- 掛載點：`window.Liko.__Sys_ChatRoomButtons__`
+- 版本守衛：`V = 4`，已存在且版本 ≥ 本檔就跳過（升級沿用舊 slots / plainIds，不清掉別人登記的順位）。
+
+---
+
+## 一、排序
+
+`#chat-room-buttons` 是 `direction: rtl` 的 CSS Grid，grid 項目遵守 CSS `order`。每個插件替自己的按鈕設定 `order = N`，瀏覽器就照數字排版，不管載入順序、無 race condition。
+
+| order | 相對 BC 原生按鈕（原生視為 0） | rtl 下的視覺位置 |
+|-------|------------------------------|------------------|
+| 正數  | 排在原生按鈕之後              | 偏左             |
+| 0     | 原生按鈕                     | —                |
+| 負數  | 排在原生按鈕之前              | 偏右             |
+
+**數字越大 → 越靠左。** 各插件目前的順位（`sys_CRB`）自行約定，例如 MAT = `2`、DDT = `99`。
+
+### API — `window.Liko.__Sys_ChatRoomButtons__`
+
+| 函式 | 說明 |
+|------|------|
+| `register(id, order, el)` | 記錄某 id 的順位並套用到 `el`，回傳 order |
+| `get(id)` | 查某 id 已宣告的順位（沒有回 `undefined`） |
+| `reapply(id, el)` | BC 重建按鈕列後，把記錄的順位重新套回新按鈕 |
+| `setPlain(id, on=true)` | 關閉／開啟該按鈕的 BC 原生底色（見「四、關閉底色」） |
+
+**自我巡邏**：每 500ms 自動把記住的順位補套回目前仍在文件內的元素。就算插件自己的重繪忘了 `reapply`，只要按鈕還在，順位就不會跑掉；已移除的元素會被清出參照。
+
+---
+
+## 二、收合 / 展開動畫
+
+BC 原生收合鈕是直接對每顆子按鈕切換 `[hidden]`（瞬間消失/出現）。本檔用 `MutationObserver` **只監看** `#chat-room-buttons` 底下子元素的 `hidden` 屬性變化，改寫成：
+
+- 收合：向右滑出 + 淡出，動畫播完才真的隱藏
+- 展開：從右邊滑回原位 + 淡入
+
+不攔截原生點擊邏輯，所以不管是原生按鈕還是其他插件改的可見度，都一視同仁套動畫，且不依賴任何其他插件是否載入。
+
+細節：動畫 200ms／位移 18px（對齊 Kaomoji 面板風格）；尊重 `prefers-reduced-motion`（開啟時維持瞬間切換）；`chat-room-send` 排除在外；用 `WeakMap` 記「元素是否第一次被看到」，過濾插件重建按鈕後的初始同步（第一次出現只記錄狀態、不播動畫），避免切換畫面時誤觸動畫。
+
+Observer 綁在 `document.documentElement`（穩定祖先）而非容器本身，因為容器會隨切換聊天室被 BC 整個重建。只過濾 `attributeFilter: ['hidden']`、不看 `childList`，開銷小。
+
+---
+
+## 三、單排捲動排版（往左長 + 上限約 7 顆）
+
+BC 原生 `#chat-room-buttons` 是**固定 3 欄**的 grid（`chat.css`：`grid-template-columns: repeat(3, min-content)`），所以第 4 顆按鈕就會往上換到第二排。多個插件各加一顆很容易破 3 顆而擠成兩排。
+
+本檔載入時注入一段樣式：
+
+- 把容器改成 **column 流向、只留一列**（`grid-auto-flow: column`），按鈕沿 rtl 方向持續往左排、不換行。
+- 寬度限制在約 **`MAX_VISIBLE = 7`** 顆（`max-width: calc(var(--button-size) * 7 + gap * 8)`），超過的部分溢出並可捲動；捲軸隱藏。
+- **拖曳捲動**：用滑鼠左右拖曳容器即可找超出的按鈕（用事件代理綁在 `document`，容器被 BC 重建也不必重掛）。移動超過 4px 才算拖曳，並吞掉拖曳後那次 `click` 以免誤觸按鈕；觸控/筆走原生滑動。
+
+改 `MAX_VISIBLE` 常數即可調整可視顆數。統一放在協調器（而非各插件）是因為容器是共用的，設一次最乾淨。
+
+> ⚠️ 取捨：`justify-self: end` + rtl 下，初始看到的是**最右邊**那幾顆（含送出鈕）；順位越靠左（order 越大）的越可能被藏在左邊，往右拖曳才看得到。
+
+---
+
+## 四、關閉底色（讓自訂圖示露出）
+
+BC 原生 `.chat-room-button::before` 會鋪滿整顆按鈕並填上 `background-color: var(--button-color)`（`chat.css`），蓋在按鈕內容之上——所以你放進按鈕的 `<img>` 圖示會被這層底色蓋住看不到。
+
+呼叫 `setPlain(id)` 讓該按鈕帶上 `lk-crb-plain` class，本檔的樣式就會把它的 `::before` 底色關掉（`background:none`），露出按鈕自己的圖示。設定會被自我巡邏記住（存在 `plainIds`），BC 重建按鈕後也會自動補回。
+
+```js
+crb.register("myplugin", "99", btn);
+crb.setPlain("myplugin", true);   // 關閉底色，露出 btn 裡的 <img>
+```
+
+> 圖示大小請自己在插件端設定（例如 `img{ width:100%; height:100%; object-fit:contain; }`）；本檔只負責關掉底色，不決定圖示怎麼排。關掉底色後也沒有原生的 hover 上色，需要的話自行加。
+
+---
+
+## 五、如何在自己的插件加一顆按鈕（複製即用）
+
+```js
+// 1) 順位（數字越大越靠左）
+const sys_CRB = "99";
+const BTN_ID  = "lk-myplugin-btn";
+let btnTimer  = null;
+
+// 2) 載入協調器（已存在就跳過；否則依序 fallback 抓回）
+const BASES = window.LikoDevBase ? [window.LikoDevBase] : [
+    "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/",
+    "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/",
+    "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/",
+];
+let depPromise = null;
+function ensureCRB() {
+    if (window.Liko?.__Sys_ChatRoomButtons__) return Promise.resolve();
+    if (depPromise) return depPromise;
+    depPromise = (async () => {
+        for (const base of BASES) {
+            try {
+                const res = await fetch(base + "expand/BC_ChatRoomButtons.js", { cache: "no-store" });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const text = await res.text();
+                if (!text || text.trimStart().startsWith("<")) throw new Error("bad content");
+                const s = document.createElement("script");
+                s.textContent = text;
+                document.head.appendChild(s);
+                return;
+            } catch (e) { /* 換下一個 base */ }
+        }
+    })();
+    return depPromise;
+}
+
+// 3) 建立/補回按鈕（BC 切換畫面會重建按鈕列，所以要定期補）
+function injectButton() {
+    const container = document.getElementById("chat-room-buttons");
+    if (!container) return;
+    let btn = document.getElementById(BTN_ID);
+    const crb = window.Liko?.__Sys_ChatRoomButtons__;
+    if (btn && btn.parentElement === container) {
+        // 首次用 register，之後 reapply
+        if (crb) {
+            crb.get("myplugin") === undefined
+                ? crb.register("myplugin", sys_CRB, btn)
+                : crb.reapply("myplugin", btn);
+            crb.setPlain?.("myplugin", true); // 若用 <img> 圖示，關掉底色才看得到
+        }
+        return;
+    }
+    if (btn) btn.remove();
+    btn = document.createElement("button");
+    btn.id = BTN_ID;
+    btn.type = "button";
+    btn.className = "blank-button button HideOnPopup chat-room-button";
+    btn.setAttribute("role", "menuitem");
+    btn.title = "我的插件";
+    // 例：放自己的圖示（大小自己控）
+    // const img = document.createElement("img"); img.src = "..."; img.style.cssText = "width:100%;height:100%;object-fit:contain"; btn.appendChild(img);
+    btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); /* 你的動作 */ });
+    container.appendChild(btn);
+    crb?.register("myplugin", sys_CRB, btn);
+    crb?.setPlain?.("myplugin", true);
+}
+
+// 4) 啟動（登入、進聊天室後）
+ensureCRB().then(injectButton).catch(() => {});
+injectButton();
+btnTimer = setInterval(injectButton, 200);
+```
+
+要點：`id` 唯一；`className` 帶 `chat-room-button` 才能吃到容器排版；用 `register`/`reapply` 交出順位；靠 200ms 迴圈在 BC 重建按鈕列後補回。動畫是本檔自動處理的，插件端不用管。

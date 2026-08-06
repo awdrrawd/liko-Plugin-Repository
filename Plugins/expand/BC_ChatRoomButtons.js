@@ -3,7 +3,7 @@
  *  BC ChatRoomButtons Order + Collapse Animation (BC_ChatRoomButtons.js)
  * =============================================================================
 BC_ChatRoomButtons.js 說明
-一份給 Bondage Club 插件共用的基礎設施腳本,圍繞著聊天室畫面的 #chat-room-buttons(那一排按鈕的容器)處理兩件事:排序與收合/展開動畫。單獨載入(沒有其他插件配合)就能完整運作,無外部依賴。
+一份給 Bondage Club 插件共用的基礎設施腳本,圍繞著聊天室畫面的 #chat-room-buttons(那一排按鈕的容器)處理四件事:排序、收合/展開動畫、單排捲動排版(改 column 流向讓按鈕往左長、上限約 7 顆、超過的用拖曳捲動找)、關閉底色(讓帶自訂圖示的按鈕露出圖示)。單獨載入(沒有其他插件配合)就能完整運作,無外部依賴。
 
 掛載位置:window.Liko.__Sys_ChatRoomButtons__
 
@@ -52,7 +52,7 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
     global.Liko = global.Liko ?? {};
 
     // 版本守衛：已存在且版本 >= 本檔就跳過；升級時沿用舊的 slots，不清掉別人登記過的順位。
-    const V = 2;
+    const V = 4;
     const cur = global.Liko.__Sys_ChatRoomButtons__;
     if (cur && cur.v >= V) return;
 
@@ -60,18 +60,25 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
     const ANIM_MS = 200; // 對齊 Kaomoji 面板開合的速度與 easing 風格（transition:...200ms ease）
     const SLIDE_PX = 18; // 收合/展開時的水平位移距離
     const HEAL_INTERVAL_MS = 500;
+    const MAX_VISIBLE = 7; // 可視按鈕數上限；超過的部分捲動（拖曳）才看得到
 
     // ---------------------------------------------------------------------------
-    // 排序（相容 v1 API，行為不變）
+    // 排序（相容 v1 API，行為不變）＋ 關閉底色（plain）
     // ---------------------------------------------------------------------------
-    const slots = cur?.slots ?? {}; // id -> order（純數字，供 introspection，向下相容）
-    const els = new Map(); // id -> 目前已知的按鈕元素，供自我巡邏使用
+    const slots = cur?.slots ?? {};              // id -> order（純數字，供 introspection，向下相容）
+    const plainIds = cur?.plainIds ?? new Set(); // 要求關閉 BC 原生 ::before 底色的 id（露出自帶圖示）
+    const els = new Map();                        // id -> 目前已知的按鈕元素，供自我巡邏使用
+
+    function applyPlain(id, el) {
+        if (el) el.classList.toggle('lk-crb-plain', plainIds.has(id));
+    }
 
     function register(id, order, el) {
         slots[id] = order;
         if (el) {
             els.set(id, el);
             el.style.order = String(order);
+            applyPlain(id, el);
         }
         return order;
     }
@@ -84,22 +91,93 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
         if (el && id in slots) {
             els.set(id, el);
             el.style.order = String(slots[id]);
+            applyPlain(id, el);
         }
     }
 
-    // 自我巡邏：定期把記得的順位補套回目前還連接在文件內的元素，不必等插件自己呼叫 reapply。
+    // 關閉/開啟某按鈕的原生底色：關閉後不畫 BC 的 ::before，露出按鈕自己的圖示（如 <img>）。
+    function setPlain(id, on = true) {
+        if (on) plainIds.add(id); else plainIds.delete(id);
+        applyPlain(id, els.get(id));
+    }
+
+    // 自我巡邏：定期把記得的順位/底色設定補套回目前還連接在文件內的元素，不必等插件自己呼叫 reapply。
     // 即使某插件的重繪迴圈掛掉、或這份檔案是唯一成功載入的插件相關腳本，順位依然穩定。
     function healOrders() {
         els.forEach((el, id) => {
             if (el.isConnected && id in slots) {
                 const want = String(slots[id]);
                 if (el.style.order !== want) el.style.order = want;
+                applyPlain(id, el);
             } else if (!el.isConnected) {
                 els.delete(id); // 按鈕已經被移除（插件卸載/BC 重建），清掉過期參照避免累積
             }
         });
     }
     setInterval(healOrders, HEAL_INTERVAL_MS);
+
+    // ---------------------------------------------------------------------------
+    // 單排排版 + 捲動：BC 原生 #chat-room-buttons 是固定 3 欄的 grid（chat.css
+    // grid-template-columns: repeat(3, min-content)），第 4 顆按鈕就會往上換行到第二排。
+    // 多個插件各加一顆後很容易破 3 顆而擠成兩排。這裡改成「單排、往左長」：改用 column 流向、
+    // 只留一列；再把寬度限制在約 MAX_VISIBLE 顆，超過的部分用捲動（滑鼠拖曳／觸控滑動）找。
+    // 綁在共用協調器（而非各插件）是因為容器是共用的，統一在這裡設一次最乾淨。
+    // 寬度算式：MAX_VISIBLE 顆按鈕 + (MAX_VISIBLE-1) 個間距 + 2 個內距 = (MAX_VISIBLE+1) 個 gap 單位
+    //（gap 與 padding 都是 BC 原生的 min(0.4vh,0.2vw)）。
+    function injectLayoutStyle() {
+        if (document.getElementById('lk-crb-layout-style')) return;
+        const style = document.createElement('style');
+        style.id = 'lk-crb-layout-style';
+        style.textContent = [
+            `#${CONTAINER_ID}{`,
+            '  grid-template-columns:unset!important;',
+            '  grid-template-rows:min-content!important;',
+            '  grid-auto-flow:column!important;',
+            '  grid-auto-columns:min-content!important;',
+            `  max-width:calc(var(--button-size) * ${MAX_VISIBLE} + min(0.4vh, 0.2vw) * ${MAX_VISIBLE + 1})!important;`,
+            '  overflow-x:auto!important;',
+            '  overflow-y:visible!important;',
+            '  scrollbar-width:none!important;',       // Firefox：隱藏捲軸
+            '  overscroll-behavior-x:contain!important;',
+            '  cursor:grab!important;',
+            '}',
+            `#${CONTAINER_ID}::-webkit-scrollbar{ display:none!important; }`, // WebKit：隱藏捲軸
+            `#${CONTAINER_ID}.lk-crb-dragging{ cursor:grabbing!important; }`,
+            // 關閉底色：帶 lk-crb-plain 的按鈕不畫 BC 原生的 ::before 底色，露出自己的圖示（如 <img>）
+            `#${CONTAINER_ID} > .lk-crb-plain::before{ background:none!important; }`,
+        ].join('\n');
+        (document.head || document.documentElement).appendChild(style);
+    }
+    injectLayoutStyle();
+
+    // 拖曳捲動：按鈕超過可視上限時，用滑鼠左右拖曳容器來找（觸控裝置走原生滑動，不介入）。
+    // 用事件代理綁在 document（容器會被 BC 重建，代理就不必重新掛勾）。
+    let drag = null;
+    document.addEventListener('pointerdown', (e) => {
+        if (e.pointerType && e.pointerType !== 'mouse') return; // 觸控/筆交給原生捲動
+        const c = e.target.closest && e.target.closest('#' + CONTAINER_ID);
+        if (!c) return;
+        drag = { c, startX: e.clientX, startScroll: c.scrollLeft, moved: false };
+    }, true);
+    document.addEventListener('pointermove', (e) => {
+        if (!drag) return;
+        const dx = e.clientX - drag.startX;
+        if (!drag.moved && Math.abs(dx) > 4) { drag.moved = true; drag.c.classList.add('lk-crb-dragging'); }
+        if (drag.moved) { drag.c.scrollLeft = drag.startScroll - dx; e.preventDefault(); }
+    }, true);
+    function endDrag() {
+        if (!drag) return;
+        const c = drag.c, moved = drag.moved;
+        drag = null;
+        if (!moved) return;
+        c.classList.remove('lk-crb-dragging');
+        // 吞掉拖曳後緊接的那次 click，避免誤觸按鈕
+        const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+        document.addEventListener('click', swallow, { capture: true, once: true });
+        setTimeout(() => document.removeEventListener('click', swallow, true), 50);
+    }
+    document.addEventListener('pointerup', endDrag, true);
+    document.addEventListener('pointercancel', endDrag, true);
 
     // ---------------------------------------------------------------------------
     // 收合 / 展開動畫
@@ -209,8 +287,10 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
     global.Liko.__Sys_ChatRoomButtons__ = {
         v: V,
         slots,
+        plainIds,
         register,
         get,
         reapply,
+        setPlain,
     };
 })(window);
