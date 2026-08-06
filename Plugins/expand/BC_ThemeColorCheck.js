@@ -353,7 +353,9 @@
 
   function _parseHex(color) {
     if (typeof color !== 'string') return null;
-    const match = color.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    // 先頭 # は任意：getThemeColor 等は必ず # 付きで返すが、外部が裸の
+    //  'FFFFFF' を直接丟進來也接受，免得白色被誤判成 null。
+    const match = color.trim().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
     if (!match) return null;
     let hex = match[1].toLowerCase();
     if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
