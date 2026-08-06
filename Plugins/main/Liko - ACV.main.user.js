@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動創建影片
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.0
+// @version      1.5.1
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
 (function () {
     window.Liko = window.Liko ?? {};
     if (window.Liko.ACV) return;
-    const MOD_VER = "1.5.0";
+    const MOD_VER = "1.5.1";
     window.Liko.ACV = MOD_VER;
 
     if (window.LikoVideoPlayerInstance) return;
@@ -225,20 +225,22 @@
         appleMusic: () => ({ id: null }),
     };
 
-    function detectVideoUrl(url) {
-        for (const platform in videoPatterns) {
-            const p = videoPatterns[platform];
-            const m = url.match(p.regex);
-            if (!m) continue;
-            // 用 m[0]（實際比對到的片段）而不是整個傳入字串：
-            // 從純文字裡截出的 token 可能夾帶逗號/句號等尾隨字元，m[0] 天然不含這些
-            const base = { platform, originalUrl: m[0], platformName: PLATFORM_DISPLAY_NAME[platform] || platform };
-            const extractor = idExtractors[platform];
-            const extra = extractor ? extractor(m, url) : { id: m[1] };
-            return { ...base, ...extra };
-        }
-        return null;
-    }
+	function detectVideoUrl(url) {
+	    for (const platform in videoPatterns) {
+	        const p = videoPatterns[platform];
+	        const m = url.match(p.regex);
+	        if (!m) continue;
+	        let originalUrl = m[0];
+	        if (!/^https?:\/\//i.test(originalUrl)) {
+	            originalUrl = `https://${originalUrl.replace(/^\/+/, '')}`;
+	        }
+	        const base = { platform, originalUrl, platformName: PLATFORM_DISPLAY_NAME[platform] || platform };
+	        const extractor = idExtractors[platform];
+	        const extra = extractor ? extractor(m, url) : { id: m[1] };
+	        return { ...base, ...extra };
+	    }
+	    return null;
+	}
 
     // ─────────────────────────────────────────────────────────────
     //  播放器渲染（dispatch table）
