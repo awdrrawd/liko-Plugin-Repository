@@ -3,7 +3,7 @@
 // @name:zh        繪圖檢測工具
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.2.0
+// @version        0.2.1
 // @description    Detects canvas/DOM properties (Ruler), draws editable overlay objects (Pen), and exports/imports layouts (Setting).
 // @description:zh 偵測 canvas & DOM 物件的屬性、疊加可編輯繪圖物件、匯出/匯入版面座標
 // @author         likolisu
@@ -21,8 +21,9 @@
  *                尺寸/字體/座標/顏色/旋轉，移動時原位虛線、新位實線；有網格＋自動貼齊、圖層隱藏/鎖定，
  *                可疊 Sheet.jpg 底圖並調透明度。
  *   📏 Ruler  —— 原本的偵測/檢視/編輯（見下方三層偵測）。
- *   ⚙ Setting —— 匯出/匯入 Pen 物件座標；隱藏氣球（控制台 Liko.BDT.showBalloon() 重新叫出）。
+ *   ⚙ Setting —— 匯出/匯入 Pen 物件座標；隱藏氣球。
  *
+ * 氣球預設隱藏，點聊天室按鈕列（#chat-room-buttons）的 DDT 鈕叫出，再點一下收起。
  * 快捷：F2 = 偵測游標下的物件（推薦，不會碰到滑鼠）。F3 = 凍結這一幀去看繪製清單。ESC 關閉。
  *
  * 三層偵測（Ruler），由粗到細：
@@ -45,7 +46,7 @@
     if (window.Liko.BDT) return;
 
 	const MOD_NAME = "BDT";
-	const MOD_VERSION = "0.2.0";
+	const MOD_VERSION = "0.2.1";
 	window.Liko.BDT = MOD_VERSION; // 佔位，避免重複載入；initialize 尾端會換成完整控制台 API
 	const UI_Z = 2147483000;
 
@@ -1155,7 +1156,7 @@
 	* { box-sizing: border-box; font-family: system-ui, "Segoe UI", "Microsoft JhengHei", sans-serif; }
 	.balloon {
 		position: fixed; z-index: ${UI_Z}; width: 48px; height: 48px; border-radius: 50%;
-		background: linear-gradient(145deg, #7b5cff, #4a2fd6); border: 2px solid #fff;
+		background: #219BBD; border: 2px solid #fff;
 		box-shadow: 0 4px 14px rgba(0,0,0,.4); cursor: grab; overflow: hidden; padding: 0;
 		user-select: none; touch-action: none;
 	}
@@ -1370,6 +1371,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		balloon.title = "點一下展開工具（Pen / Ruler / Setting）；可拖曳搬家";
 		balloon.style.left = "12px";
 		balloon.style.top = "120px";
+		balloon.style.display = "none"; // 預設隱藏；由聊天室按鈕（#chat-room-buttons）叫出
 
 		// poster = 靜止影格（預設顯示）；img = APNG（游標移上去才顯示 → 才看得到動畫）
 		balloonPoster = document.createElement("canvas");
@@ -1528,9 +1530,151 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		if (balloon) balloon.style.display = "none";
 		if (menu) menu.classList.remove("show");
 		menuOpen = false;
+		syncChatButtonState();
 	}
 	function showBalloon() {
 		if (balloon) balloon.style.display = "";
+		syncChatButtonState();
+	}
+
+	// ---------------------------------------------------------------- 聊天室按鈕（#chat-room-buttons）
+	// 點一下叫出氣球、再點一下收起。氣球預設隱藏、不記憶狀態（每次進聊天室都從隱藏開始）。
+	// 順位交給共用協調器 BC_ChatRoomButtons（sys_CRB 數字越大越靠左，見同名 .md）。
+	const sys_CRB = "99";              // #chat-room-buttons 順位設定
+	const DDT_BTN_ID = "lk-ddt-trigger-btn";
+	let ddtBtnTimer = null;
+
+	// 共用系統擴充載入器：已存在就跳過，否則依序 fallback 抓回（與 MAT 同一手法）。
+	const _EXPAND_BASES = (typeof window !== "undefined" && window.LikoDevBase)
+		? [window.LikoDevBase]
+		: [
+			"https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/",
+			"https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/",
+			"https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/",
+		];
+	const _expandDepPromises = {};
+	function ensureExpandDep(rel, ready) {
+		if (ready && ready()) return Promise.resolve();
+		if (_expandDepPromises[rel]) return _expandDepPromises[rel];
+		_expandDepPromises[rel] = (async () => {
+			let lastErr;
+			for (const base of _EXPAND_BASES) {
+				try {
+					const res = await fetch(base + rel, { cache: "no-store" });
+					if (!res.ok) throw new Error("HTTP " + res.status);
+					const text = await res.text();
+					if (!text || text.trimStart().startsWith("<")) throw new Error("bad content");
+					const s = document.createElement("script");
+					s.textContent = text + "\n//# sourceURL=" + rel;
+					document.head.appendChild(s);
+					return;
+				} catch (e) { lastErr = e; console.warn(`🐈‍⬛ [${MOD_NAME}] ⚠️ ` + base + rel + ": " + e.message); }
+			}
+			throw lastErr ?? new Error("all bases failed: " + rel);
+		})();
+		return _expandDepPromises[rel];
+	}
+
+	function balloonVisible() { return !!balloon && balloon.style.display !== "none"; }
+	function toggleBalloonFromButton() { balloonVisible() ? hideBalloon() : showBalloon(); }
+	function syncChatButtonState() {
+		document.getElementById(DDT_BTN_ID)?.classList.toggle("lk-ddt-on", balloonVisible());
+	}
+
+	function injectDdtStyles() {
+		if (document.getElementById("lk-ddt-crb-style")) return;
+		const style = document.createElement("style");
+		style.id = "lk-ddt-crb-style";
+		style.textContent = [
+			`#${DDT_BTN_ID}.chat-room-button{ border-radius:12px !important; overflow:hidden !important; padding:0 !important; position:relative !important; background-color:#219BBD !important; }`,
+			// poster（canvas，靜止影格）與 img（APNG）疊在一起，整顆填滿、維持比例，不做遮罩/上色
+			// 平時只顯示 poster；滑鼠移上去才切成 img 播放動畫，移開就凍結回目前影格
+			`#${DDT_BTN_ID} .lk-ddt-icon, #${DDT_BTN_ID} .lk-ddt-poster{ position:absolute !important; inset:0 !important; width:100% !important; height:100% !important; object-fit:contain !important; display:block !important; pointer-events:none !important; }`,
+			`#${DDT_BTN_ID} .lk-ddt-hidden{ display:none !important; }`,
+			`#${DDT_BTN_ID}.chat-room-button.lk-ddt-on{ box-shadow:0 0 0 2px #ffd54a inset !important; }`,
+		].join("\n");
+		document.head.appendChild(style);
+	}
+
+	function createDdtButton() {
+		const btn = document.createElement("button");
+		btn.id = DDT_BTN_ID;
+		btn.type = "button";
+		btn.className = "blank-button button HideOnPopup chat-room-button";
+		btn.setAttribute("role", "menuitem");
+		btn.setAttribute("tabindex", "0");
+		btn.setAttribute("aria-label", "繪圖檢測工具");
+		btn.title = "點一下叫出／收起 DDT 氣球";
+
+		// poster = 靜止影格（預設顯示）；img = APNG（游標移上去才顯示 → 才看得到動畫）
+		const poster = document.createElement("canvas");
+		poster.className = "lk-ddt-poster";
+		poster.width = 96; poster.height = 96;
+		const img = document.createElement("img");
+		img.className = "lk-ddt-icon lk-ddt-hidden";
+		img.alt = "";
+		img.crossOrigin = "anonymous"; // 讓 poster 能 drawImage 擷取影格而不污染畫布
+		btn.appendChild(poster);
+		btn.appendChild(img);
+
+		function snapshot() {
+			try {
+				const c = poster.getContext("2d");
+				c.clearRect(0, 0, 96, 96);
+				c.drawImage(img, 0, 0, 96, 96);
+			} catch { /* 跨域污染：放棄擷取 */ }
+		}
+		function playIcon() {
+			img.classList.remove("lk-ddt-hidden");
+			poster.classList.add("lk-ddt-hidden");
+		}
+		function freezeIcon() {
+			snapshot();
+			img.classList.add("lk-ddt-hidden");
+			poster.classList.remove("lk-ddt-hidden");
+		}
+		img.addEventListener("load", () => {
+			// 載入後先擷取一張當靜止 poster（此時多半是第一影格）
+			if (img.classList.contains("lk-ddt-hidden")) snapshot();
+		});
+		btn.addEventListener("pointerenter", playIcon);
+		btn.addEventListener("pointerleave", freezeIcon);
+		img.src = ICON.balloon; // 原本的 APNG
+
+		btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); toggleBalloonFromButton(); });
+		return btn;
+	}
+
+	function injectDdtButton() {
+		const container = document.getElementById("chat-room-buttons");
+		if (!container) return;
+		injectDdtStyles();
+		let btn = document.getElementById(DDT_BTN_ID);
+		const crb = window.Liko.__Sys_ChatRoomButtons__;
+		if (btn && btn.parentElement === container) {
+			// 首次見到本 id 用 register，之後 reapply（協調器可能還在非同步載入中）。
+			if (crb) {
+				crb.get("ddt") === undefined ? crb.register("ddt", sys_CRB, btn) : crb.reapply("ddt", btn);
+				crb.setPlain?.("ddt", true); // 關閉 BC 原生底色，讓 PNG 圖示露出
+			}
+			syncChatButtonState();
+			return;
+		}
+		if (btn) btn.remove();
+		btn = createDdtButton();
+		container.appendChild(btn);
+		crb?.register("ddt", sys_CRB, btn);
+		crb?.setPlain?.("ddt", true);
+		syncChatButtonState();
+	}
+
+	function setupChatButton() {
+		if (ddtBtnTimer) return;
+		ensureExpandDep("expand/BC_ChatRoomButtons.js", () => window.Liko.__Sys_ChatRoomButtons__)
+			.then(() => { try { injectDdtButton(); } catch {} })
+			.catch(e => console.warn(`🐈‍⬛ [${MOD_NAME}] ⚠️ ChatRoomButtons 載入失敗（順位改由 BC 預設）: ` + e.message));
+		injectDdtButton();
+		ddtBtnTimer = setInterval(injectDdtButton, 200); // BC 切換畫面會重建按鈕列，定期補回
 	}
 
 	// ---------------------------------------------------------------- Pen 面板
@@ -1846,7 +1990,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		h += `<div class="note">匯出目前 <b>${penObjects.length}</b> 個 Pen 物件（型別/座標/尺寸/字級/顏色/旋轉/隱藏/鎖定）。<span class="warn">匯入會取代目前全部物件。</span></div>`;
 		h += `<h4>氣球</h4>`;
 		h += `<div class="row"><button class="act" data-hide>隱藏氣球</button></div>`;
-		h += `<div class="note">隱藏後，可在瀏覽器控制台輸入 <kbd>Liko.BDT.showBalloon()</kbd> 重新叫出氣球。</div>`;
+		h += `<div class="note">隱藏後，點聊天室按鈕列的 DDT 鈕即可重新叫出氣球。</div>`;
 		bd.innerHTML = h;
 		wireSetPanel();
 	}
@@ -2854,8 +2998,9 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		await waitFor(() => !!window.Player?.AccountName && typeof MainCanvas !== "undefined" && !!MainCanvas);
 		buildUI();
 		installInput();
+		setupChatButton(); // 氣球預設隱藏，靠 #chat-room-buttons 的 DDT 鈕叫出/收起
 
-		// 控制台 API（Setting 隱藏氣球後用 Liko.BDT.showBalloon() 重新叫出）
+		// 控制台 API（氣球平時靠 #chat-room-buttons 的 DDT 鈕叫出/收起；這裡也留手動入口）
 		window.Liko.BDT = {
 			version: MOD_VERSION,
 			showBalloon,
