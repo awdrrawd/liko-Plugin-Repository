@@ -47,7 +47,7 @@ Observer 綁在 `document.documentElement`（穩定祖先）而非容器本身�
 
 > ⚠️ **消費端要點（讓自己的按鈕能被收合）**
 >
-> 1. **同步收合狀態**：原生收合鈕只會在**點擊當下**對「當時存在的」子按鈕切換 `[hidden]`，**不會**自動套到你之後才注入／重建的按鈕。所以要在自己的注入迴圈裡依收合鈕狀態補一次（MAT / Kaomoji 都這樣做）：
+> 1. **同步收合狀態**：原生收合鈕只會在**點擊當下**對「當時存在的」子按鈕切換 `[hidden]`，**不會**自動套到你之後才注入／重建的按鈕。所以要在自己的注入迴圈裡依收合鈕狀態補一次（MAT / Kaomoji / DDT 都這樣做）。**只呼叫協調器的 `register`/`reapply` 不會處理收合**——那只管順位；沒補這一步的按鈕會在每次進聊天室都固定顯示、無視收合狀態：
 >    ```js
 >    const c = document.getElementById("chat-room-buttons-collapse");
 >    btn.hidden = c ? c.getAttribute("aria-expanded") !== "true" : false; // aria-expanded="true" ⟺ 展開

@@ -1580,6 +1580,12 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	function syncChatButtonState() {
 		document.getElementById(DDT_BTN_ID)?.classList.toggle("lk-ddt-on", balloonVisible());
 	}
+	// 跟著原生收合鈕（#chat-room-buttons-collapse）的展開狀態顯示/隱藏：aria-expanded="true" ⟺ 展開。
+	// 每輪注入都要補一次，原生收合鈕只在點擊當下對「當時存在的」按鈕切 hidden，不會套到之後重建的按鈕。
+	function syncChatButtonVisibility(btn) {
+		const c = document.getElementById("chat-room-buttons-collapse");
+		btn.hidden = c ? c.getAttribute("aria-expanded") !== "true" : false;
+	}
 
 	function injectDdtStyles() {
 		if (document.getElementById("lk-ddt-crb-style")) return;
@@ -1658,6 +1664,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 				crb.setPlain?.("ddt", true); // 關閉 BC 原生底色，讓 PNG 圖示露出
 			}
 			syncChatButtonState();
+			syncChatButtonVisibility(btn); // ← 每輪同步，才能跟著原生收合鈕收合/展開
 			return;
 		}
 		if (btn) btn.remove();
@@ -1666,6 +1673,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		crb?.register("ddt", sys_CRB, btn);
 		crb?.setPlain?.("ddt", true);
 		syncChatButtonState();
+		syncChatButtonVisibility(btn);
 	}
 
 	function setupChatButton() {
