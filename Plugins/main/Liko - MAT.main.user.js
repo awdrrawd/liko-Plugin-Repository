@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.1
+// @version      1.6.2
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.1";
+    const MOD_VER = "1.6.2";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -380,6 +380,15 @@
         if (!data || !Array.isArray(data.Dictionary)) return null;
         const e = data.Dictionary.find(x => x && x.Tag === LIKO_MAT_TAG);
         return e ? (e[LIKO_MAT_FIELD] ?? null) : null;
+    }
+
+    // 取出 BC 原生「回覆」功能夾在 Dictionary 裡的 ReplyId（該訊息是回覆哪一則訊息）。
+    // 修正：MAT 送出翻譯廣播（[🌐] ...）時原本沒有把這個 ReplyId 一起帶過去，
+    // 導致翻譯後的那則訊息在畫面上遺失「回覆/引用」的關聯，讀起來像是憑空冒出的訊息。
+    function getReplyIdFromDictionary(dict) {
+        if (!Array.isArray(dict)) return null;
+        const e = dict.find(x => x && x.Tag === 'ReplyId' && x.ReplyId);
+        return e ? e.ReplyId : null;
     }
 
     function isPureUrl(text) {
@@ -1026,9 +1035,13 @@
             if (command === "ChatRoomChat" && data.Type === "Chat") {
                 const t = safeStr(data.Content);
                 if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
+                    const replyId = getReplyIdFromDictionary(data.Dictionary);
                     next(args);
                     smartTranslate(t, config.sendLang).then(r => {
-                        if (r !== null && r !== t) ServerSend("ChatRoomChat", { Content: `[🌐] ${r}`, Type: "Chat" });
+                        if (r === null || r === t) return;
+                        const payload = { Content: `[🌐] ${r}`, Type: "Chat" };
+                        if (replyId) payload.Dictionary = [{ ReplyId: replyId, Tag: "ReplyId" }];
+                        ServerSend("ChatRoomChat", payload);
                     });
                     return;
                 }
@@ -1049,9 +1062,13 @@
             if (command === "ChatRoomChat" && data.Type === "Whisper" && config.sendWhisper) {
                 const t = safeStr(data.Content);
                 if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
+                    const replyId = getReplyIdFromDictionary(data.Dictionary);
                     next(args);
                     smartTranslate(t, config.sendLang).then(r => {
-                        if (r !== null && r !== t) ServerSend("ChatRoomChat", { Content: `[🌐] ${r}`, Type: "Whisper", Target: data.Target, Sender: data.Sender });
+                        if (r === null || r === t) return;
+                        const payload = { Content: `[🌐] ${r}`, Type: "Whisper", Target: data.Target, Sender: data.Sender };
+                        if (replyId) payload.Dictionary = [{ ReplyId: replyId, Tag: "ReplyId" }];
+                        ServerSend("ChatRoomChat", payload);
                     });
                     return;
                 }
@@ -1073,9 +1090,15 @@
             if (!config.enabled || !config.translateSent || !config.sendEmote) return next(args);
             const [t] = args;
             if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
+                // BC 的 ChatRoomMessageGetReplyId() 是讀輸入框的 reply-id 屬性；
+                // 原文送出後 ChatRoomGenerateChatRoomChatMessage 會呼叫 ChatRoomMessageReplyStop()
+                // 把它清掉，所以要先記下來，翻譯版送出前再暫時放回去，讓它照原生流程夾進 Dictionary。
+                const replyId = ChatRoomMessageGetReplyId();
                 next(args);
                 smartTranslate(t, config.sendLang).then(r => {
-                    if (r !== null && r !== t) ChatRoomSendEmote(`[🌐] ${r}`);
+                    if (r === null || r === t) return;
+                    if (replyId) document.getElementById('InputChat')?.setAttribute('reply-id', replyId);
+                    ChatRoomSendEmote(`[🌐] ${r}`);
                 });
                 return;
             }
