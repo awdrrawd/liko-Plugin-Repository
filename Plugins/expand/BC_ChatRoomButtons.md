@@ -45,6 +45,15 @@ BC 原生收合鈕是直接對每顆子按鈕切換 `[hidden]`（瞬間消失/�
 
 Observer 綁在 `document.documentElement`（穩定祖先）而非容器本身，因為容器會隨切換聊天室被 BC 整個重建。只過濾 `attributeFilter: ['hidden']`、不看 `childList`，開銷小。
 
+> ⚠️ **消費端要點（讓自己的按鈕能被收合）**
+>
+> 1. **同步收合狀態**：原生收合鈕只會在**點擊當下**對「當時存在的」子按鈕切換 `[hidden]`，**不會**自動套到你之後才注入／重建的按鈕。所以要在自己的注入迴圈裡依收合鈕狀態補一次（MAT / Kaomoji 都這樣做）：
+>    ```js
+>    const c = document.getElementById("chat-room-buttons-collapse");
+>    btn.hidden = c ? c.getAttribute("aria-expanded") !== "true" : false; // aria-expanded="true" ⟺ 展開
+>    ```
+> 2. **別用 `display:…!important`**：`[hidden]` 是靠優先權很低的 `display:none` 生效，你若在按鈕上寫 `display:flex !important` 之類會直接蓋過它，收合時按鈕就藏不起來（連本檔的收合動畫也救不回）。要置中圖示請改用 `::before` 遮罩，或把規則限定成 `你的選擇器:not([hidden])`（收合動畫期間的顯示交給本檔的 `.lk-crb-anim[hidden]` 規則接手）。
+
 ---
 
 ## 三、單排捲動排版（往左長 + 上限約 7 顆）
@@ -113,6 +122,12 @@ function ensureCRB() {
     return depPromise;
 }
 
+// 讓按鈕跟著原生收合鈕的展開狀態顯示/隱藏（見「二、收合/展開動畫」的消費端要點）
+function syncVisibility(btn) {
+    const c = document.getElementById("chat-room-buttons-collapse");
+    btn.hidden = c ? c.getAttribute("aria-expanded") !== "true" : false;
+}
+
 // 3) 建立/補回按鈕（BC 切換畫面會重建按鈕列，所以要定期補）
 function injectButton() {
     const container = document.getElementById("chat-room-buttons");
@@ -127,6 +142,7 @@ function injectButton() {
                 : crb.reapply("myplugin", btn);
             crb.setPlain?.("myplugin", true); // 若用 <img> 圖示，關掉底色才看得到
         }
+        syncVisibility(btn); // ← 每輪同步，才能跟著收合
         return;
     }
     if (btn) btn.remove();
@@ -142,6 +158,7 @@ function injectButton() {
     container.appendChild(btn);
     crb?.register("myplugin", sys_CRB, btn);
     crb?.setPlain?.("myplugin", true);
+    syncVisibility(btn);
 }
 
 // 4) 啟動（登入、進聊天室後）
@@ -150,4 +167,4 @@ injectButton();
 btnTimer = setInterval(injectButton, 200);
 ```
 
-要點：`id` 唯一；`className` 帶 `chat-room-button` 才能吃到容器排版；用 `register`/`reapply` 交出順位；靠 200ms 迴圈在 BC 重建按鈕列後補回。動畫是本檔自動處理的，插件端不用管。
+要點：`id` 唯一；`className` 帶 `chat-room-button` 才能吃到容器排版；用 `register`/`reapply` 交出順位；靠 200ms 迴圈在 BC 重建按鈕列後補回；每輪呼叫 `syncVisibility()` 才能跟著原生收合。動畫是本檔自動處理的，插件端不用管。

@@ -1,35 +1,243 @@
 // ==UserScript==
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
-// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.3
-// @description  Bondage Club - Likolisu's tool (R121 Compatible)
+// @namespace    https://likolisu.dev/
+// @version      2.0.0
+// @description  Bondage Club - Likolisu's tool (R121 Compatible) + UI Panel + 角色选择器 + Canvas SVG图标 + 拖拽排序 + 主题自定义 + 无视绑缚
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
-// @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
+// @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
 // @grant        none
-// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
+// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
 // @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_toast_system.user.js
+// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_ChatRoomButtons.js
 // @run-at       document-end
-// @downloadURL  https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Tool.main.user.js
-// @updateURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Tool.main.user.js
 // ==/UserScript==
 
-// ── 防重複加載 guard ──────────────────────────────────────────────────────────
+/*
+ * 原作者 (Original Author): Liko (Likolisu)
+ *   脚本原始版本由 Liko 开发，感谢 Liko 提供如此优秀的工具！
+ */
+
+// ── 防重複加载 guard ──────────────────────────────────────────────────────────
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.5.3";
+    const MOD_Version = "2.0.0";
     if (window.Liko.LT) return;
-    window.Liko.LT = MOD_VER;
-    
+    window.Liko.LT = MOD_Version;
     let modApi = null;
 
     const rpBtnX    = 955;
     const rpBtnY    = 855;
     const rpBtnSize = 45;
     const rpIconUrl = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/likorp.png";
+
+    /* ── 工具面板默认锚点（触发按钮已移至 #chat-room-buttons）── */
+    const TOOL_BTN_X = 955;
+    const TOOL_BTN_Y = 555;
+    const STORAGE_TOOL_PANEL = 'likoTool_ui_panel';
+    const STORAGE_TOOL_THEME = 'likoTool_theme';
+    const STORAGE_TOOL_ORDER = 'likoTool_btn_order';
+    let toolPanelEl = null;
+    let toolPanelVisible = false;
+    let _toolDragging = false;
+    let actionGridEl = null;
+    // 手机式导航：页面栈 + 视口/头部引用
+    let phonePages = [];
+    let phoneViewportEl = null;
+    let phoneHeaderEls = null;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SVG 图标库 — 线条风格，stroke=currentColor
+    // ════════════════════════════════════════════════════════════════════════
+    const SVG = {
+        wardrobe:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>',
+        undo:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7"/></svg>',
+        free:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0"/></svg>',
+        lock:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><circle cx="12" cy="16" r="1.5"/></svg>',
+        freetotal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3M6.3 6.3l2.1 2.1M15.6 15.6l2.1 2.1M17.7 6.3l-2.1 2.1M8.4 15.6l-2.1 2.1"/></svg>',
+        unlock:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15 19 4"/><path d="M18 5l2 2"/><path d="M15 8l2 2"/></svg>',
+        password:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+        struggle:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><path d="M12 7v6"/><path d="M8 10l4 1 4-1"/><path d="M10 13l-2 7M14 13l2 7"/></svg>',
+        enhance:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.5 5L19 9.5 13.5 11 12 16l-1.5-5L5 9.5 10.5 8z"/><path d="M19 15v3M20.5 16.5h-3M5 17v2M6 18H4"/></svg>',
+        bcx:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>',
+        settings:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/></svg>',
+        dark:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+        light:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>',
+        grip:      '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/></svg>',
+        close:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+        chevron:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+        rp:        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="22" y1="2" x2="2" y2="22"/></svg>',
+        heightFix: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>',
+        heightLock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="6" rx="1"/><path d="M7 9v3M11 9v3M15 9v3M19 9v3"/></svg>',
+        rpBtn:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><circle cx="8" cy="12" r="1.5"/></svg>',
+        edit:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+        craftEdit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.59a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4"/></svg>',
+        craftClear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.59a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><path d="M4 4l16 16"/></svg>',
+    };
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Canvas 图标渲染 — SVG → Image → MainCanvas.drawImage
+    // ════════════════════════════════════════════════════════════════════════
+    var _canvasIconCache = {};
+    function _makeCanvasSvg(paths, color) {
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="' + (color || '#ffffff') + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
+    }
+    var CANVAS_ICONS = {
+        tool: _makeCanvasSvg('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>'),
+        rp:   _makeCanvasSvg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="22" y1="2" x2="2" y2="22"/>'),
+    };
+    function getCanvasIcon(key) {
+        if (_canvasIconCache[key]) return _canvasIconCache[key];
+        var img = new Image();
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(CANVAS_ICONS[key]);
+        _canvasIconCache[key] = img;
+        return img;
+    }
+    function drawCanvasIconOnButton(key, btnX, btnY, btnW, btnH, iconSize) {
+        var img = getCanvasIcon(key);
+        if (img.complete && img.naturalWidth > 0) {
+            var sz = iconSize || 22;
+            var x = btnX + (btnW - sz) / 2;
+            var y = btnY + (btnH - sz) / 2;
+            try { MainCanvas.drawImage(img, x, y, sz, sz); } catch (e) {}
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 强调色预设
+    // ════════════════════════════════════════════════════════════════════════
+    const ACCENT_PRESETS = [
+        { id: 'purple', name: '紫', accent: '#8b2dc4', accentDark: '#3a1070', accentLight: '#a060e0' },
+        { id: 'blue',   name: '蓝', accent: '#2d6bc4', accentDark: '#103a70', accentLight: '#6090e0' },
+        { id: 'teal',   name: '青', accent: '#1aaa88', accentDark: '#0a6048', accentLight: '#40c8a8' },
+        { id: 'pink',   name: '粉', accent: '#c42d8b', accentDark: '#70103a', accentLight: '#e060a0' },
+        { id: 'orange', name: '橙', accent: '#c47b2d', accentDark: '#704010', accentLight: '#e0a060' },
+        { id: 'red',    name: '红', accent: '#c42d2d', accentDark: '#701010', accentLight: '#e06060' },
+    ];
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 主题系统
+    // ════════════════════════════════════════════════════════════════════════
+    function loadTheme() {
+        try {
+            const s = localStorage.getItem(STORAGE_TOOL_THEME);
+            if (s) {
+                const parsed = JSON.parse(s);
+                if (parsed && parsed.mode && parsed.accentId) return parsed;
+            }
+        } catch (_) {}
+        return { mode: 'dark', accentId: 'purple' };
+    }
+
+    function saveTheme(theme) {
+        try { localStorage.setItem(STORAGE_TOOL_THEME, JSON.stringify(theme)); } catch (_) {}
+    }
+
+    let currentTheme = loadTheme();
+
+    function getAccentPreset() {
+        return ACCENT_PRESETS.find(function(p) { return p.id === currentTheme.accentId; }) || ACCENT_PRESETS[0];
+    }
+
+    function applyTheme() {
+        var preset = getAccentPreset();
+        var isDark = currentTheme.mode !== 'light';
+        var a = preset.accent;
+        var ad = preset.accentDark;
+        var al = preset.accentLight;
+
+        var styleEl = document.getElementById('lt-theme-vars');
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'lt-theme-vars';
+            document.head.appendChild(styleEl);
+        }
+
+        if (isDark) {
+            styleEl.textContent = [
+                '#lt-quick-panel,.lt-panel{',
+                '--lt-bg:rgba(12,16,26,0.98);',
+                '--lt-surface:rgba(255,255,255,0.04);',
+                '--lt-surface-2:rgba(255,255,255,0.07);',
+                '--lt-surface-hover:' + a + '1a;',
+                '--lt-border:rgba(255,255,255,0.07);',
+                '--lt-border-hover:' + a + '4d;',
+                '--lt-text:#dde8f8;',
+                '--lt-text-secondary:#b8c8e0;',
+                '--lt-text-dim:#6a8ab0;',
+                '--lt-text-faint:#4a5a7a;',
+                '--lt-accent:' + a + ';',
+                '--lt-accent-dark:' + ad + ';',
+                '--lt-accent-light:' + al + ';',
+                '--lt-accent-glow:' + a + '40;',
+                '--lt-header-grad:linear-gradient(135deg,' + ad + ' 0%,' + a + ' 100%);',
+                '--lt-shadow:rgba(0,0,0,0.5);',
+                '--lt-scrollbar:' + a + '59;',
+                '--lt-switch-on:' + a + ';',
+                '--lt-switch-glow:' + a + '80;',
+                '}'
+            ].join('');
+        } else {
+            styleEl.textContent = [
+                '#lt-quick-panel,.lt-panel{',
+                '--lt-bg:rgba(248,250,252,0.98);',
+                '--lt-surface:rgba(0,0,0,0.025);',
+                '--lt-surface-2:rgba(0,0,0,0.05);',
+                '--lt-surface-hover:' + a + '14;',
+                '--lt-border:rgba(0,0,0,0.07);',
+                '--lt-border-hover:' + a + '40;',
+                '--lt-text:#2a3a4a;',
+                '--lt-text-secondary:#4a5a6a;',
+                '--lt-text-dim:#7a8a9a;',
+                '--lt-text-faint:#aab4c0;',
+                '--lt-accent:' + a + ';',
+                '--lt-accent-dark:' + ad + ';',
+                '--lt-accent-light:' + al + ';',
+                '--lt-accent-glow:' + a + '33;',
+                '--lt-header-grad:linear-gradient(135deg,' + ad + ' 0%,' + a + ' 100%);',
+                '--lt-shadow:rgba(0,0,0,0.15);',
+                '--lt-scrollbar:' + a + '40;',
+                '--lt-switch-on:' + a + ';',
+                '--lt-switch-glow:' + a + '80;',
+                '}'
+            ].join('');
+        }
+
+        document.querySelectorAll('#lt-quick-panel,.lt-panel').forEach(function(el) {
+            if (currentTheme.mode === 'light') el.classList.add('lt-light');
+            else el.classList.remove('lt-light');
+        });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 按钮顺序系统
+    // ════════════════════════════════════════════════════════════════════════
+    function loadBtnOrder() {
+        try {
+            var s = localStorage.getItem(STORAGE_TOOL_ORDER);
+            if (s) {
+                var order = JSON.parse(s);
+                var validIds = ALL_ACTIONS.map(function(a) { return a.id; });
+                if (Array.isArray(order) && order.length === validIds.length && order.every(function(id) { return validIds.includes(id); })) {
+                    return order;
+                }
+            }
+        } catch (_) {}
+        return ALL_ACTIONS.map(function(a) { return a.id; });
+    }
+
+    function saveBtnOrder(order) {
+        try { localStorage.setItem(STORAGE_TOOL_ORDER, JSON.stringify(order)); } catch (_) {}
+    }
+
+    function getOrderedActions() {
+        var order = loadBtnOrder();
+        return order.map(function(id) {
+            return ALL_ACTIONS.find(function(a) { return a.id === id; });
+        }).filter(Boolean);
+    }
 
     // ──────────────────────────────────────────
     // 雙語言系統
@@ -44,81 +252,105 @@
 
     const LANG = {
         zh: {
-            close:        "關閉",
-            confirm:      "確認",
+            close:        "关闭",
+            confirm:      "确认",
             cancel:       "取消",
-            noPermission: "無權限互動",
-            notInRoom:    "不在房間內",
+            noPermission: "无权限互动",
+            notInRoom:    "不在房间内",
             unknown:      "未知",
             notInChat:    "不在聊天室",
 
-            undoTitle:       "外觀回滾",
-            undoNoRecord:    "沒有外觀變更紀錄",
-            undoChangedAt:   "變更時間",
+            undoTitle:       "外观回滚",
+            undoNoRecord:    "没有外观变更记录",
+            undoChangedAt:   "变更时间",
             undoChangedBy:   "操作者",
-            undoPrev:        "◀ 上一筆",
-            undoNext:        "下一筆 ▶",
-            undoApply:       "套用此狀態",
+            undoPrev:        "上一条",
+            undoNext:        "下一条",
+            undoApply:       "应用此状态",
             undoCount:       "共",
-            undoCountUnit:   "筆紀錄",
-            undoApplyDone:   "外觀已回滾",
-            undoApplySize:   "變更大小",
+            undoCountUnit:   "条记录",
+            undoApplyDone:   "外观已回滚",
+            undoApplySize:   "变更大小",
 
-            freeNoItem:      "沒有束縛物品",
-            freeDone:        "解除束縛",
-            freetotalDone:   "完全解除了所有束縛",
-            unlockNone:      "沒有可移除的鎖",
-            unlockDone:      "移除了所有鎖",
-            lockNone:        "沒有可鎖定的束縛",
-            lockDone:        "個束縛添加了",
-            lockInvalid:     "無效的鎖名稱",
-            lockAvailable:   "可用鎖",
-            lockSpecify:     "請指定目標（例如 /lt fulllock [目標] [鎖名稱]）",
-            wardrobeDone:    "已開啟衣櫃",
-            clipboardFail:   "無法讀取剪貼簿",
-            bcxInvalid:      "無效的 BCX 代碼",
-            bcxDone:         "導入了 BCX 外觀",
-            rpOn:            "RP模式已開啟",
-            rpOff:           "RP模式已關閉",
-            rpBtnShow:       "RP按鈕已顯示",
-            rpBtnHide:       "RP按鈕已隱藏",
-            heightFixOn:     "拉高功能已啟用（趴跪姿自動拉高）",
+            freeNoItem:      "没有束缚物品",
+            freeDone:        "解除束缚",
+            selectAll:       "全选",
+            craftNoItem:     "没有可编辑的束缚物品",
+            craftClearNone:  "没有可清除的订制物品属性",
+            craftClearTitle: "选择要清除订制属性的束缚",
+            craftClearDone:  "清除了订制物品属性",
+            craftEditTitle:  "编辑订制物品属性（批量套用到所选束缚）",
+            craftName:       "物品名称",
+            craftDesc:       "物品描述",
+            craftPrivate:    "设为私有（仅自己可见名称）",
+            craftEditDone:   "个束缚已套用订制属性",
+            craftPickTitle:  "选择要编辑订制属性的束缚",
+            unlockNone:      "没有可移除的锁",
+            unlockTitle:     "选择要解除的锁",
+            unlockDone:      "移除了所选的锁",
+            lockNone:        "没有可锁定的束缚",
+            lockDone:        "个束缚添加了",
+            lockInvalid:     "无效的锁名称",
+            lockAvailable:   "可用锁",
+            lockSpecify:     "请指定目标（例如 /lt fulllock [目标] [锁名称]）",
+            wardrobeDone:    "已开启衣柜",
+            clipboardFail:   "无法读取剪贴板",
+            bcxInvalid:      "无效的 BCX 代码",
+            bcxDone:         "导入了 BCX 外观",
+            rpOn:            "RP模式已开启",
+            rpOff:           "RP模式已关闭",
+            rpBtnShow:       "RP按钮已显示",
+            rpBtnHide:       "RP按钮已隐藏",
+            heightFixOn:     "拉高功能已启用（趴跪姿自动拉高）",
             heightFixOff:    "拉高功能已停用",
-            heightLockOn:    "身高鎖定已啟用（強制身高為標準值）",
-            heightLockOff:   "身高鎖定已停用",
-            sendFail:        "自訂動作發送失敗，可能有插件衝突",
-            cmdFail:         "執行失敗",
+            heightLockOn:    "身高锁定已启用（强制身高为标准值）",
+            heightLockOff:   "身高锁定已停用",
+            fhOn:            "无视绑缚已启用（被绑时仍可使用双手，不解开道具）",
+            fhOff:           "无视绑缚已停用",
+            sendFail:        "自定义动作发送失败，可能有插件冲突",
+            cmdFail:         "执行失败",
             unknownCmd:      "未知指令",
 
-            geTitle:      "選擇增強功能",
-            geItems:      "獲得所有道具",
-            geMoney:      "設置金錢為 999,999",
-            geSkills:     "所有技能升至 10 級",
-            geItemsDone:  "個新物品已添加",
-            geMoneyDone:  "金錢已設置為 999,999",
-            geSkillsDone: "所有技能已升至 10 級",
+            geTitle:      "选择增强功能",
+            geItems:      "获得所有道具",
+            geMoney:      "设置金钱为 999,999",
+            geSkills:     "所有技能升至 10 级",
+            geItemsDone:  "个新物品已添加",
+            geMoneyDone:  "金钱已设置为 999,999",
+            geSkillsDone: "所有技能已升至 10 级",
 
-            freeTitle:    "選擇要移除的束縛",
-            password:     "密碼",
+            freeTitle:    "选择要移除的束缚",
+            password:     "密码",
+
+            settingsTitle:    "设置",
+            settingsTheme:    "主题模式",
+            settingsDark:     "深色",
+            settingsLight:    "浅色",
+            settingsAccent:   "主题色",
+            settingsReset:    "重置全部",
+            settingsResetDone:"设置已重置",
+            settingsOrderReset:"按钮顺序已重置",
 
             helpText:
-                "莉柯莉絲工具 使用說明\n\n" +
-                "/lt help              - 顯示此說明\n" +
-                "/lt free [目標]       - 選擇移除束縛\n" +
-                "/lt freetotal [目標]  - 移除所有束縛\n" +
-                "/lt bcximport [目標]  - 導入 BCX 外觀\n" +
-                "/lt fullunlock [目標] - 移除所有鎖\n" +
-                "/lt fulllock [目標] [鎖名稱] - 添加鎖\n" +
-                "/lt undo [目標]       - 外觀回滾\n" +
-                "/lt rpmode            - 切換 RP 模式\n" +
-                "/lt rpbtn             - 顯示/隱藏 RP 按鈕（狀態會保存）\n" +
-                "/lt heightfix         - 趴跪姿時自動拉高（不影響站立）\n" +
-                "/lt heightlock        - 鎖定身高為標準值（強制，可能影響物品）\n" +
-                "/lt geteverything     - 增強功能\n" +
-                "/lt wardrobe          - 開啟衣櫃\n" +
-                "提示：使用 /lt rpbtn 顯示右下角 🔰 按鈕",
+                "莉柯莉丝工具 使用说明\n\n" +
+                "/lt help              - 显示此说明\n" +
+                "/lt free [目标]       - 选择移除束缚（面板可全选）\n" +
+                "/lt editcraft [目标]  - 批量编辑束缚的订制属性（名称/描述/私有）\n" +
+                "/lt clearcraft [目标] - 清除束缚的所有订制属性\n" +
+                "/lt bcximport [目标]  - 导入 BCX 外观\n" +
+                "/lt fullunlock [目标] - 移除所有锁\n" +
+                "/lt fulllock [目标] [锁名称] - 添加锁\n" +
+                "/lt undo [目标]       - 外观回滚\n" +
+                "/lt rpmode            - 切换 RP 模式\n" +
+                "/lt rpbtn             - 显示/隐藏 RP 按钮\n" +
+                "/lt heightfix         - 趴跪姿时自动拉高\n" +
+                "/lt heightlock        - 锁定身高为标准值\n" +
+                "/lt freehands         - 无视绑缚（被绑时仍可使用双手，不解开道具）\n" +
+                "/lt geteverything     - 增强功能\n" +
+                "/lt wardrobe          - 开启衣柜\n" +
+                "/lt theme             - 打开主题设置",
 
-            loaded: "莉柯莉絲工具 v{v} 載入！使用 /lt help 查看說明",
+            loaded: "莉柯莉丝工具 v{v} 载入！使用 /lt help 查看说明",
         },
         en: {
             close:        "Close",
@@ -133,8 +365,8 @@
             undoNoRecord:    "No appearance change records",
             undoChangedAt:   "Changed at",
             undoChangedBy:   "Changed by",
-            undoPrev:        "◀ Previous",
-            undoNext:        "Next ▶",
+            undoPrev:        "Previous",
+            undoNext:        "Next",
             undoApply:       "Apply this state",
             undoCount:       "",
             undoCountUnit:   "records",
@@ -143,9 +375,20 @@
 
             freeNoItem:      "has no restrained items",
             freeDone:        "removed restraints",
-            freetotalDone:   "fully released all restraints of",
+            selectAll:       "Select All",
+            craftNoItem:     "has no editable restraint items",
+            craftClearNone:  "has no craft properties to clear",
+            craftClearTitle: "Select restraints to clear craft",
+            craftClearDone:  "cleared craft from",
+            craftEditTitle:  "Edit craft (batch-apply to selected restraints)",
+            craftName:       "Item name",
+            craftDesc:       "Item description",
+            craftPrivate:    "Private (only you see the name)",
+            craftEditDone:   "restraints updated with craft",
+            craftPickTitle:  "Select restraints to edit craft",
             unlockNone:      "has no removable locks",
-            unlockDone:      "removed all locks from",
+            unlockTitle:     "Select locks to remove",
+            unlockDone:      "removed selected locks from",
             lockNone:        "has no lockable restraints",
             lockDone:        "restraints locked with",
             lockInvalid:     "Invalid lock name",
@@ -163,6 +406,8 @@
             heightFixOff:    "Height fix disabled",
             heightLockOn:    "Height lock enabled (forces standard height)",
             heightLockOff:   "Height lock disabled",
+            fhOn:            "Free Hands enabled (use hands while restrained, keeps items on)",
+            fhOff:           "Free Hands disabled",
             sendFail:        "Custom action failed, possible plugin conflict",
             cmdFail:         "Command failed",
             unknownCmd:      "Unknown command",
@@ -178,22 +423,33 @@
             freeTitle:    "Select restraints to remove",
             password:     "Password",
 
+            settingsTitle:    "Settings",
+            settingsTheme:    "Theme",
+            settingsDark:     "Dark",
+            settingsLight:    "Light",
+            settingsAccent:   "Accent Color",
+            settingsReset:    "Reset All",
+            settingsResetDone:"Settings reset",
+            settingsOrderReset:"Button order reset",
+
             helpText:
                 "Liko Tool Help\n\n" +
                 "/lt help              - Show this help\n" +
-                "/lt free [target]     - Select restraints to remove\n" +
-                "/lt freetotal [target]- Remove all restraints\n" +
+                "/lt free [target]     - Select restraints to remove (panel has Select All)\n" +
+                "/lt editcraft [target]- Batch-edit restraint craft (name/desc/private)\n" +
+                "/lt clearcraft [target]-Clear all craft on restraints\n" +
                 "/lt bcximport [target]- Import BCX appearance\n" +
                 "/lt fullunlock [target]-Remove all locks\n" +
                 "/lt fulllock [target] [lock] - Add lock\n" +
                 "/lt undo [target]     - Rollback appearance\n" +
                 "/lt rpmode            - Toggle RP mode\n" +
-                "/lt rpbtn             - Show/hide RP button (state is saved)\n" +
+                "/lt rpbtn             - Show/hide RP button\n" +
                 "/lt heightfix         - Auto-raise when kneeling/prone\n" +
                 "/lt heightlock        - Lock height to standard value\n" +
+                "/lt freehands         - Free hands (use hands while restrained, keeps items on)\n" +
                 "/lt geteverything     - Enhancement menu\n" +
                 "/lt wardrobe          - Open wardrobe\n" +
-                "Tip: Use /lt rpbtn to show the bottom-right 🔰 button",
+                "/lt theme             - Open theme settings",
 
             loaded: "Liko Tool v{v} loaded! Use /lt help for help",
         }
@@ -240,16 +496,17 @@
             modApi = bcModSdk.registerMod({
                 name: "Liko - tool",
                 fullName: "Liko's tool",
-                version: MOD_VER,
-                repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
+                version: MOD_Version,
+                repository: '莉柯莉絲的工具包'
             });
+            console.log("🐈‍⬛ [LT] ✅ modApi 初始化完成");
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ 初始化 modApi 失敗:", e.message);
         }
     }
 
     // ──────────────────────────────────────────
-    // 載入 Toast 系統
+    // 载入 Toast 系統
     // ──────────────────────────────────────────
     function loadToastSystem() {
         return new Promise((resolve, reject) => {
@@ -257,26 +514,26 @@
             const script = document.createElement('script');
             script.src = "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_toast_system.user.js";
             script.onload = () => resolve();
-            script.onerror = () => reject(new Error("Toast 載入失敗"));
+            script.onerror = () => reject(new Error("Toast 载入失敗"));
             document.head.appendChild(script);
         });
     }
 
     // ──────────────────────────────────────────
     // ExtensionSettings 存取器
-    // 直接讀寫 Player.ExtensionSettings.LikoTOOL（正確用法）
-    // 注意：只能在指令路徑呼叫，絕對不能在任何 hook 回呼內呼叫
     // ──────────────────────────────────────────
     function getES() {
         if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
         if (!Player.ExtensionSettings.LikoTOOL) {
-            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, RPmode: 0 };
+            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, stealthRp: 0, rpModeLocal: 0, freeHands: 0 };
         }
         const s = Player.ExtensionSettings.LikoTOOL;
-        if (typeof s.heightFix     === 'undefined') s.heightFix     = 0;
-        if (typeof s.heightLock    === 'undefined') s.heightLock    = 0;
-        if (typeof s.rpBtnVisible  === 'undefined') s.rpBtnVisible  = 0;
-        if (typeof s.RPmode        === 'undefined') s.RPmode        = 0;
+        if (typeof s.heightFix        === 'undefined') s.heightFix        = 0;
+        if (typeof s.heightLock       === 'undefined') s.heightLock       = 0;
+        if (typeof s.rpBtnVisible     === 'undefined') s.rpBtnVisible     = 0;
+        if (typeof s.stealthRp        === 'undefined') s.stealthRp        = 0;
+        if (typeof s.rpModeLocal      === 'undefined') s.rpModeLocal      = 0;
+        if (typeof s.freeHands        === 'undefined') s.freeHands        = 0;
         return s;
     }
 
@@ -287,101 +544,52 @@
     }
 
     // ──────────────────────────────────────────
-    // 初始化儲存
+    // 初始化储存
     // ──────────────────────────────────────────
     function initializeStorage() {
         if (!Player.LikoTool) {
             Player.LikoTool = { bypassActivities: false };
         }
-        // 初始化 ExtensionSettings（RPmode 改存於此：私有、不廣播給他人）
-        const s = getES();
-
-        // 一次性遷移 + 清除：RPmode 過去誤存在 OnlineSharedSettings（會廣播給所有人，且沒載入插件也殘留 → 幽靈徽章）。
-        // 現在徽章改由即時握手判定，OnlineSharedSettings.LikoTOOL 已無用途，搬走開啟狀態後清掉以釋放容量。
-        try {
-            const legacy = Player.OnlineSharedSettings?.LikoTOOL;
-            if (legacy) {
-                if (legacy.RPmode === 1 && s.RPmode !== 1) { s.RPmode = 1; saveES(); } // 沿用使用者原本的開啟狀態
-                delete Player.OnlineSharedSettings.LikoTOOL;
-                if (typeof ServerAccountUpdate?.QueueData === 'function') {
-                    ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
-                }
-                console.log("🐈‍⬛ [LT] 🧹 已清除舊的 OnlineSharedSettings.LikoTOOL");
-            }
-        } catch (e) {}
+        if (!Player.OnlineSharedSettings) Player.OnlineSharedSettings = {};
+        if (!Player.OnlineSharedSettings.LikoTOOL) {
+            Player.OnlineSharedSettings.LikoTOOL = { RPmode: 0 };
+        }
+        if (typeof Player.OnlineSharedSettings.LikoTOOL.RPmode === 'undefined') {
+            Player.OnlineSharedSettings.LikoTOOL.RPmode = 0;
+        }
+        getES();
     }
 
     // ──────────────────────────────────────────
-    // RP 模式（自身狀態存於 ExtensionSettings，私有不廣播；他人徽章改由即時握手判定）
+    // RP 模式（支持隐身：stealthRp=1 时状态纯本地，不广播）
+    //  - stealthRp ON  → 自己能看到图标，别人看不到（存 ExtensionSettings）
+    //  - stealthRp OFF → 所有人都能看到图标（存 OnlineSharedSettings 广播）
+    //  - Shift+P 长按 1.5 秒切换 stealthRp
     // ──────────────────────────────────────────
     function getRpMode(character) {
-        // 僅用於自身（他人徽章改由 isRpBadgeVisible + 即時握手旗標判定）。
-        // 純讀取、不初始化結構，可安全在 hook 回呼內呼叫。
-        return Player.ExtensionSettings?.LikoTOOL?.RPmode === 1;
+        if (!character) return false;
+        if (character.IsPlayer && character.IsPlayer()) {
+            return getES().stealthRp === 1
+                ? getES().rpModeLocal === 1
+                : Player.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
+        }
+        return character.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
     }
 
     function setRpMode(enabled) {
-        // 直接寫入並同步 ExtensionSettings（不呼叫 getES，故指令路徑與點擊 hook 路徑皆可安全使用）
-        if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
-        if (!Player.ExtensionSettings.LikoTOOL) Player.ExtensionSettings.LikoTOOL = {};
-        Player.ExtensionSettings.LikoTOOL.RPmode = enabled ? 1 : 0;
-        if (typeof ServerPlayerExtensionSettingsSync === 'function') {
-            ServerPlayerExtensionSettingsSync("LikoTOOL");
+        const s = getES();
+        if (s.stealthRp === 1) {
+            s.rpModeLocal = enabled ? 1 : 0;
+            saveES();
+        } else {
+            if (!Player.OnlineSharedSettings) Player.OnlineSharedSettings = {};
+            if (!Player.OnlineSharedSettings.LikoTOOL) Player.OnlineSharedSettings.LikoTOOL = {};
+            Player.OnlineSharedSettings.LikoTOOL.RPmode = enabled ? 1 : 0;
+            if (typeof ServerAccountUpdate?.QueueData === 'function') {
+                ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+            }
         }
-        sendRpSync(false); // 切換後即時廣播新狀態給全房，更新他人端徽章
-    }
-
-    // ──────────────────────────────────────────
-    // RP 狀態即時握手（Hidden 訊息）
-    // 徽章以「對方此刻 LT 有載入且 RP 開啟」為準，而非持久化的 OnlineSharedSettings
-    // （OnlineSharedSettings 沒載入插件也會殘留 → 幽靈徽章）
-    // ──────────────────────────────────────────
-    const LT_HIDDEN_MSG = "LT_RP_SYNC";
-
-    function sendRpSync(requestReply = false, target = null) {
-        try {
-            // 用伺服器房間狀態判斷，而非 CurrentScreen，避免進房轉場瞬間送出被吞掉
-            if (typeof ServerPlayerIsInChatRoom !== 'function' || !ServerPlayerIsInChatRoom()) return;
-            const msg = {
-                Type: "Hidden",
-                Content: LT_HIDDEN_MSG,
-                Sender: Player.MemberNumber,
-                Dictionary: [{ lt: { rp: getRpMode(Player) ? 1 : 0, replyRequested: requestReply } }]
-            };
-            if (target) msg.Target = target; // 定向（只送給特定成員）
-            ServerSend("ChatRoomChat", msg);
-        } catch (e) {}
-    }
-
-    function parseRpSync(data, deferred = false) {
-        try {
-            if (!data || data.Type !== "Hidden" || data.Content !== LT_HIDDEN_MSG) return;
-            // 搜尋整個 Dictionary，而非寫死 [0]（其它 mod 可能在前面插入條目）
-            const ltData = Array.isArray(data.Dictionary) ? data.Dictionary.find(d => d?.lt)?.lt : data.Dictionary?.lt;
-            if (!ltData) return;
-            const sender = ChatRoomCharacter?.find(c => c.MemberNumber === data.Sender);
-            // 隱藏訊息可能比角色物件建立更早到達 —— 延後到下一個微任務重試一次
-            if (!sender) { if (deferred !== true) queueMicrotask(() => parseRpSync(data, true)); return; }
-            if (sender.IsPlayer && sender.IsPlayer()) return;
-            sender.LTRPmode = ltData.rp === 1; // 即時旗標，徽章繪製只看這個
-            if (ltData.replyRequested) sendRpSync(false, data.Sender); // 定向回覆，回覆不再要求回覆以免迴圈
-        } catch (e) {}
-    }
-
-    // 把 ChatRoomMessage 監聽重綁到目前的 ServerSocket（重連/重複登入會重建 socket）
-    function bindRpSocketListener() {
-        try {
-            if (typeof ServerSocket === 'undefined' || !ServerSocket) return;
-            ServerSocket.off("ChatRoomMessage", parseRpSync);
-            ServerSocket.on("ChatRoomMessage", parseRpSync);
-        } catch (e) {}
-    }
-
-    // 徽章可見性：自己看自身開關（LT 必然已載入）；他人只信任即時握手旗標
-    function isRpBadgeVisible(C) {
-        if (!C) return false;
-        if (C.IsPlayer && C.IsPlayer()) return getRpMode(Player);
-        return C.LTRPmode === true;
+        if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
     }
 
     // ──────────────────────────────────────────
@@ -472,7 +680,7 @@
     function removeHeightHijack(C) {
         if (!C || (!C._ltHeightLocked && !C._ltHeightFixed)) return;
         _ltClearHeightDefine(C);
-        console.log("🐈‍⬛ [LT] 身高還原 → " + C.Name);
+        console.log("🐈‍⬛ [LT] 身高还原 → " + C.Name);
     }
 
     function applyHeightToTarget(C) {
@@ -483,16 +691,16 @@
     }
 
     // ──────────────────────────────────────────
-    // Canvas：繪製 RP 圖標
+    // Canvas：绘制 RP 图标
     // ──────────────────────────────────────────
     function drawRpIcon(C, CharX, CharY, Zoom) {
-        if (!isRpBadgeVisible(C)) return;
+        if (!getRpMode(C)) return;
         const offsetY = (C.IsKneeling && C.IsKneeling()) ? 300 : 40;
         DrawImageResize(rpIconUrl, CharX + 340 * Zoom, CharY + offsetY * Zoom, 45 * Zoom, 50 * Zoom);
     }
 
     // ──────────────────────────────────────────
-    // 工具函數
+    // 工具函数
     // ──────────────────────────────────────────
     function ChatRoomSendLocal(message, sec = 0) {
         if (CurrentScreen !== "ChatRoom") { console.warn("🐈‍⬛ [LT] ❗ " + t('notInChat')); return; }
@@ -504,7 +712,7 @@
                 Timeout: sec
             });
         } catch (e) {
-            console.error("🐈‍⬛ [LT] ❌ 發送本地訊息錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ 发送本地讯息错误:", e.message);
         }
     }
 
@@ -533,7 +741,7 @@
                 Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: message }]
             });
         } catch (e) {
-            console.error("🐈‍⬛ [LT] ❌ 自訂動作發送錯誤:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ 自訂动作发送错误:", e.message);
             ChatRoomSendLocal(t('sendFail'));
         }
     }
@@ -545,130 +753,805 @@
             : true;
     }
 
-    // ──────────────────────────────────────────
-    // UI 樣式注入
-    // ──────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════════════
+    // UI 樣式注入 — v2.1 CSS 变量 + 双主题
+    // ════════════════════════════════════════════════════════════════════════
     function injectLtStyles() {
         if (document.getElementById("lt-styles")) return;
         const s = document.createElement("style");
         s.id = "lt-styles";
         s.textContent = [
-            "@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600&display=swap');",
-            ".lt-panel,.lt-panel*{box-sizing:border-box;font-family:'Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;user-select:none;-webkit-user-select:none;}",
-            ".lt-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);min-width:340px;max-width:600px;max-height:90vh;background:rgba(16,20,32,0.97);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.09);border-radius:20px;z-index:99999;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.65),0 0 0 1px rgba(180,100,220,0.08);color:#d8e6f8;font-size:13px;overflow:hidden;}",
-            ".lt-header{background:linear-gradient(135deg,#4a1280 0%,#9b3dd4 100%);padding:13px 15px;display:flex;align-items:center;justify-content:space-between;cursor:grab;flex-shrink:0;position:relative;overflow:hidden;}",
+            "@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap');",
+
+            // ── Global reset ──
+            ".lt-panel,.lt-panel *,#lt-quick-panel,#lt-quick-panel *{box-sizing:border-box;font-family:'Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;user-select:none;-webkit-user-select:none;}",
+
+            // ═══ 弹窗 Panel ════════════════════════════════════════════════════
+            ".lt-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);min-width:340px;max-width:600px;max-height:90vh;background:var(--lt-bg,rgba(14,18,30,0.98));backdrop-filter:blur(28px) saturate(1.4);-webkit-backdrop-filter:blur(28px) saturate(1.4);border:1px solid var(--lt-border,rgba(255,255,255,0.08));border-radius:18px;z-index:99999;display:flex;flex-direction:column;box-shadow:0 2px 4px rgba(0,0,0,0.2),0 8px 32px rgba(0,0,0,0.4),0 24px 64px var(--lt-shadow,rgba(0,0,0,0.5)),inset 0 1px 0 rgba(255,255,255,0.06),0 0 0 1px var(--lt-accent-glow,transparent);color:var(--lt-text,#d8e6f8);font-size:13px;overflow:hidden;animation:lt-modal-in 0.22s cubic-bezier(0.16,1,0.3,1);}",
+            "@keyframes lt-modal-in{from{opacity:0;transform:translate(-50%,-50%) scale(0.93)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}",
+
+            // ── Modal Header ──
+            ".lt-header{background:var(--lt-header-grad);padding:13px 18px;display:flex;align-items:center;justify-content:space-between;cursor:grab;flex-shrink:0;position:relative;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.15);}",
             ".lt-header:active{cursor:grabbing;}",
-            ".lt-header::before{content:'';position:absolute;top:0;left:-100%;width:40%;height:100%;background:linear-gradient(to right,transparent,rgba(255,255,255,0.1),transparent);animation:lt-shimmer 5s ease-in-out infinite;pointer-events:none;}",
+            ".lt-header::before{content:'';position:absolute;top:0;left:-100%;width:40%;height:100%;background:linear-gradient(to right,transparent,rgba(255,255,255,0.1),transparent);animation:lt-shimmer 6s ease-in-out infinite;pointer-events:none;}",
             "@keyframes lt-shimmer{0%{transform:translateX(0)}100%{transform:translateX(600%)}}",
-            ".lt-title{font-size:14px;font-weight:600;color:#fff;position:relative;z-index:1;letter-spacing:0.02em;}",
-            ".lt-hclose{background:rgba(255,255,255,0.14);border:none;border-radius:7px;color:#fff;width:27px;height:27px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:background 0.18s;position:relative;z-index:1;flex-shrink:0;}",
-            ".lt-hclose:hover{background:rgba(255,255,255,0.26);}",
-            ".lt-content{padding:14px 15px 4px;overflow-y:auto;overflow-x:hidden;flex:1;scrollbar-width:thin;scrollbar-color:rgba(155,61,212,0.6) rgba(255,255,255,0.04);}",
-            ".lt-content::-webkit-scrollbar{width:5px;}",
-            ".lt-content::-webkit-scrollbar-thumb{background:linear-gradient(135deg,#4a1280,#9b3dd4);border-radius:3px;}",
+            ".lt-title{font-size:13px;font-weight:600;color:#fff;position:relative;z-index:1;letter-spacing:0.03em;text-shadow:0 1px 2px rgba(0,0,0,0.2);}",
+            ".lt-hclose{background:rgba(255,255,255,0.1);border:none;border-radius:7px;color:#fff;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.18s cubic-bezier(0.16,1,0.3,1);position:relative;z-index:1;flex-shrink:0;padding:0;box-shadow:inset 0 1px 0 rgba(255,255,255,0.1);}",
+            ".lt-hclose:hover{background:rgba(255,255,255,0.2);box-shadow:inset 0 1px 0 rgba(255,255,255,0.15),0 0 8px rgba(255,255,255,0.08);}",
+            ".lt-hclose:active{transform:scale(0.9);}",
+            ".lt-hclose svg{width:14px;height:14px;}",
+
+            // ── Modal Content ──
+            ".lt-content{padding:16px 18px 8px;overflow-y:auto;overflow-x:hidden;flex:1;scrollbar-width:thin;scrollbar-color:var(--lt-scrollbar,rgba(139,45,196,0.4)) transparent;}",
+            ".lt-content::-webkit-scrollbar{width:4px;}",
+            ".lt-content::-webkit-scrollbar-thumb{background:var(--lt-scrollbar,rgba(139,45,196,0.4));border-radius:2px;}",
+            ".lt-content::-webkit-scrollbar-track{background:transparent;}",
             ".lt-section{margin-bottom:12px;}",
-            ".lt-hr{height:1px;background:rgba(255,255,255,0.06);margin:4px 0 12px;}",
+            ".lt-hr{height:1px;background:var(--lt-border,rgba(255,255,255,0.05));margin:4px 0 12px;}",
+
+            // ── Button List (modal) ──
             ".lt-btn-list{display:flex;flex-direction:column;gap:6px;}",
-            ".lt-list-btn{width:100%;padding:10px 14px;text-align:left;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:#c0ccee;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:all 0.18s;font-family:inherit;}",
-            ".lt-list-btn:hover{background:rgba(155,61,212,0.12);border-color:rgba(155,61,212,0.35);color:#d8b8ff;}",
-            ".lt-list-btn.selected{background:rgba(155,61,212,0.2);border-color:rgba(155,61,212,0.6);color:#e0c8ff;}",
-            ".lt-list-btn .lt-check{font-size:16px;color:rgba(155,61,212,0.4);transition:color 0.18s;}",
-            ".lt-list-btn.selected .lt-check{color:#b070ff;}",
-            ".lt-undo-meta{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 12px;}",
-            ".lt-undo-meta-row{font-size:11px;color:#7a9cc0;margin-bottom:4px;}",
+            ".lt-list-btn{width:100%;padding:11px 14px;text-align:left;background:linear-gradient(180deg,var(--lt-surface,rgba(255,255,255,0.04)),rgba(255,255,255,0.01));border:1px solid var(--lt-border,rgba(255,255,255,0.06));border-radius:10px;color:var(--lt-text-secondary,#b8c8e0);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:all 0.18s cubic-bezier(0.16,1,0.3,1);font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);}",
+            ".lt-list-btn:hover{background:linear-gradient(180deg,var(--lt-surface-hover),var(--lt-surface,rgba(255,255,255,0.02)));border-color:var(--lt-border-hover);color:var(--lt-accent-light);box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 2px 8px var(--lt-accent-glow);}",
+            ".lt-list-btn:active{transform:scale(0.985);}",
+            ".lt-list-btn.selected{background:var(--lt-surface-hover);border-color:var(--lt-border-hover);color:var(--lt-accent-light);box-shadow:inset 0 0 0 1px var(--lt-border-hover);}",
+            ".lt-list-btn .lt-check{font-size:14px;color:var(--lt-accent);opacity:0.2;transition:opacity 0.18s;}",
+            ".lt-list-btn.selected .lt-check{opacity:1;}",
+
+            // ── Undo Meta ──
+            ".lt-undo-meta{background:var(--lt-surface,rgba(255,255,255,0.03));border:1px solid var(--lt-border,rgba(255,255,255,0.05));border-radius:10px;padding:11px 13px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);}",
+            ".lt-undo-meta-row{font-size:11px;color:var(--lt-text-dim,#6a8ab0);margin-bottom:4px;}",
             ".lt-undo-meta-row:last-child{margin-bottom:0;}",
-            ".lt-undo-meta-row span{color:#b0ccf0;font-weight:500;}",
-            ".lt-nav-btn{flex:1;padding:8px 4px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:9px;color:#7a7aaa;font-size:11px;cursor:pointer;transition:all 0.18s;font-family:inherit;}",
-            ".lt-nav-btn:hover:not(:disabled){background:rgba(155,61,212,0.12);border-color:rgba(155,61,212,0.35);color:#c090ff;}",
-            ".lt-nav-btn:disabled{opacity:0.3;cursor:not-allowed;}",
-            ".lt-footer{display:flex;gap:8px;padding:11px 15px;background:rgba(0,0,0,0.18);flex-shrink:0;border-top:1px solid rgba(255,255,255,0.05);}",
-            ".lt-btn{flex:1;padding:9px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit;}",
-            ".lt-btn-primary{background:linear-gradient(135deg,#4a1280,#9b3dd4);color:#fff;}",
-            ".lt-btn-primary:hover{background:linear-gradient(135deg,#5e20a0,#b050e8);box-shadow:0 4px 16px rgba(155,61,212,0.35);transform:translateY(-1px);}",
-            ".lt-btn-secondary{background:rgba(255,255,255,0.06);color:#607898;border:1px solid rgba(255,255,255,0.08);}",
-            ".lt-btn-secondary:hover{background:rgba(255,255,255,0.1);color:#90a8c0;}",
-            ".lt-empty{text-align:center;color:#5a7a9a;font-size:13px;padding:20px 0;}"
+            ".lt-undo-meta-row span{color:var(--lt-accent-light,#a0c0e8);font-weight:500;}",
+
+            // ── Nav Buttons ──
+            ".lt-nav-btn{flex:1;padding:9px 4px;background:linear-gradient(180deg,var(--lt-surface,rgba(255,255,255,0.04)),rgba(255,255,255,0.01));border:1px solid var(--lt-border,rgba(255,255,255,0.06));border-radius:9px;color:var(--lt-text-dim,#6a6a9a);font-size:11px;cursor:pointer;transition:all 0.18s cubic-bezier(0.16,1,0.3,1);font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);}",
+            ".lt-nav-btn svg{width:12px;height:12px;}",
+            ".lt-nav-btn:hover:not(:disabled){background:var(--lt-surface-hover);border-color:var(--lt-border-hover);color:var(--lt-accent-light);box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 2px 6px var(--lt-accent-glow);}",
+            ".lt-nav-btn:disabled{opacity:0.25;cursor:not-allowed;}",
+
+            // ── Footer ──
+            ".lt-footer{display:flex;gap:8px;padding:12px 18px;background:rgba(0,0,0,0.15);flex-shrink:0;border-top:1px solid var(--lt-border,rgba(255,255,255,0.04));box-shadow:inset 0 1px 0 rgba(0,0,0,0.1);}",
+            ".lt-btn{flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.18s cubic-bezier(0.16,1,0.3,1);font-family:inherit;}",
+            ".lt-btn-primary{background:var(--lt-header-grad);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,0.15),0 2px 8px rgba(0,0,0,0.2);}",
+            ".lt-btn-primary:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,0.2),0 4px 16px var(--lt-accent-glow),0 2px 8px rgba(0,0,0,0.2);filter:brightness(1.08);}",
+            ".lt-btn-primary:active{transform:scale(0.97);}",
+            ".lt-btn-secondary{background:linear-gradient(180deg,var(--lt-surface-2,rgba(255,255,255,0.06)),rgba(255,255,255,0.02));color:var(--lt-text-dim,#5a7a9a);border:1px solid var(--lt-border,rgba(255,255,255,0.06));box-shadow:inset 0 1px 0 rgba(255,255,255,0.04);}",
+            ".lt-btn-secondary:hover{background:var(--lt-surface-hover);color:var(--lt-text-secondary);border-color:var(--lt-border-hover);}",
+            ".lt-btn-secondary:active{transform:scale(0.97);}",
+            ".lt-empty{text-align:center;color:var(--lt-text-dim,#4a6a8a);font-size:13px;padding:20px 0;}",
+
+            // ═══ 快捷面板 Quick Panel ═══════════════════════════════════════════
+            "#lt-quick-panel{position:fixed;z-index:99998;width:340px;height:min(88vh,680px);display:flex;flex-direction:column;border-radius:26px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.15),0 12px 32px rgba(0,0,0,0.4),0 28px 72px var(--lt-shadow,rgba(0,0,0,0.5)),inset 0 1px 0 rgba(255,255,255,0.08),0 0 0 1px var(--lt-accent-glow,transparent);background:var(--lt-bg,rgba(14,18,30,0.98));backdrop-filter:blur(28px) saturate(1.4);-webkit-backdrop-filter:blur(28px) saturate(1.4);border:1px solid var(--lt-border,rgba(255,255,255,0.08));opacity:0;transform:scale(0.96) translateY(8px);pointer-events:none;transition:opacity 0.22s ease,transform 0.22s cubic-bezier(0.16,1,0.3,1);}",
+            "#lt-quick-panel.show{opacity:1;transform:scale(1) translateY(0);pointer-events:auto;}",
+            "#lt-quick-panel.lt-light{backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);}",
+            // ── Phone 导航：视口 + 滑动页面 ──
+            "#lt-quick-panel .ltp-viewport{position:relative;flex:1;overflow:hidden;min-height:0;}",
+            "#lt-quick-panel .ltp-page{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--lt-bg,rgba(14,18,30,0.98));transition:transform 0.28s cubic-bezier(0.16,1,0.3,1);will-change:transform;}",
+            "#lt-quick-panel .ltp-page.ltp-enter{transform:translateX(100%);}",
+            "#lt-quick-panel .ltp-page.ltp-leave{transform:translateX(100%);}",
+            "#lt-quick-panel .ltp-home{transform:none!important;}",
+
+            // ── Quick Panel Header ──
+            "#lt-quick-panel .ltq-hdr{background:var(--lt-header-grad);color:#fff;font-size:13px;font-weight:600;padding:8px 12px;cursor:move;display:flex;align-items:center;justify-content:space-between;position:relative;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.15);}",
+            "#lt-quick-panel .ltq-hdr::before{content:'';position:absolute;top:0;left:-100%;width:40%;height:100%;background:linear-gradient(to right,transparent,rgba(255,255,255,0.1),transparent);animation:lt-shimmer 6s ease-in-out infinite;pointer-events:none;}",
+            "#lt-quick-panel .ltq-hdr .ltq-title{pointer-events:none;position:relative;z-index:1;font-size:13px;letter-spacing:0.03em;text-shadow:0 1px 2px rgba(0,0,0,0.2);}",
+            "#lt-quick-panel .ltq-hdr .ltq-hdr-btns{display:flex;align-items:center;gap:2px;position:relative;z-index:1;}",
+            "#lt-quick-panel .ltq-hdr .ltq-icon-btn{cursor:pointer;opacity:0.55;transition:all 0.18s cubic-bezier(0.16,1,0.3,1);background:none;border:none;color:#fff;padding:5px;border-radius:6px;display:flex;align-items:center;justify-content:center;}",
+            "#lt-quick-panel .ltq-hdr .ltq-icon-btn:hover{opacity:1;background:rgba(255,255,255,0.14);box-shadow:inset 0 1px 0 rgba(255,255,255,0.1);}",
+            "#lt-quick-panel .ltq-hdr .ltq-icon-btn:active{transform:scale(0.9);}",
+            "#lt-quick-panel .ltq-hdr .ltq-icon-btn svg{width:16px;height:16px;}",
+            // ── 返回按钮（仅子页面显示）──
+            "#lt-quick-panel .ltq-hdr .ltq-back{cursor:pointer;background:none;border:none;color:#fff;padding:4px 6px;border-radius:6px;display:none;align-items:center;justify-content:center;opacity:0.85;position:relative;z-index:1;margin-right:2px;}",
+            "#lt-quick-panel .ltq-hdr .ltq-back:hover{opacity:1;background:rgba(255,255,255,0.14);}",
+            "#lt-quick-panel .ltq-hdr .ltq-back:active{transform:scale(0.9);}",
+            "#lt-quick-panel .ltq-hdr .ltq-back svg{width:18px;height:18px;}",
+            "#lt-quick-panel.ltp-sub .ltq-hdr .ltq-back{display:flex;}",
+
+            // ── Quick Panel Body ──
+            "#lt-quick-panel .ltq-body{padding:10px;display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--lt-scrollbar,rgba(139,45,196,0.35)) transparent;}",
+            "#lt-quick-panel .ltq-body::-webkit-scrollbar{width:3px;}",
+            "#lt-quick-panel .ltq-body::-webkit-scrollbar-thumb{background:var(--lt-scrollbar,rgba(139,45,196,0.35));border-radius:2px;}",
+
+            // ── Action Grid (2-column, draggable) ──
+            "#lt-quick-panel .ltq-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;}",
+            "#lt-quick-panel .ltq-action{background:linear-gradient(180deg,var(--lt-surface,rgba(255,255,255,0.04)),rgba(255,255,255,0.01));color:var(--lt-text-secondary,#b8c8e0);border:1px solid var(--lt-border,rgba(255,255,255,0.06));border-radius:8px;padding:7px 4px 6px;font-size:10.5px;cursor:pointer;text-align:center;transition:all 0.18s cubic-bezier(0.16,1,0.3,1);display:flex;flex-direction:column;align-items:center;gap:4px;font-family:inherit;font-weight:500;position:relative;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);}",
+            "#lt-quick-panel .ltq-action::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--lt-accent);opacity:0.2;transition:opacity 0.18s;}",
+            "#lt-quick-panel .ltq-action:hover{background:linear-gradient(180deg,var(--lt-surface-hover),var(--lt-surface,rgba(255,255,255,0.02)));border-color:var(--lt-border-hover);color:var(--lt-accent-light);transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 4px 12px var(--lt-accent-glow);}",
+            "#lt-quick-panel .ltq-action:hover::before{opacity:0.6;}",
+            "#lt-quick-panel .ltq-action:active{transform:scale(0.94);}",
+            "#lt-quick-panel .ltq-action .ltq-action-icon{width:18px;height:18px;color:var(--lt-accent);opacity:0.75;transition:all 0.18s;}",
+            "#lt-quick-panel .ltq-action .ltq-action-icon svg{width:100%;height:100%;}",
+            "#lt-quick-panel .ltq-action:hover .ltq-action-icon{opacity:1;transform:scale(1.08);}",
+            "#lt-quick-panel .ltq-action .ltq-label{font-size:10.5px;line-height:1.15;}",
+            "#lt-quick-panel .ltq-action .ltq-grip{position:absolute;top:4px;right:4px;width:12px;height:12px;opacity:0;transition:opacity 0.18s;color:var(--lt-text-faint,#4a5a7a);cursor:grab;}",
+            "#lt-quick-panel .ltq-action .ltq-grip svg{width:100%;height:100%;}",
+            "#lt-quick-panel .ltq-action:hover .ltq-grip{opacity:0.45;}",
+            "#lt-quick-panel .ltq-action .ltq-grip:active{cursor:grabbing;}",
+
+            // ── Drag-over state ──
+            "#lt-quick-panel .ltq-action.ltq-drag-over{border-color:var(--lt-accent);border-style:dashed;background:var(--lt-surface-hover);transform:scale(1.04);box-shadow:0 0 0 2px var(--lt-accent-glow),0 4px 16px var(--lt-accent-glow);}",
+            "#lt-quick-panel .ltq-action.ltq-dragging{opacity:0.25;}",
+
+            // ── Section Label ──
+            "#lt-quick-panel .ltq-section{font-size:10px;font-weight:600;color:var(--lt-text-faint,#5a4a7a);text-transform:uppercase;letter-spacing:0.12em;display:flex;align-items:center;gap:8px;margin:6px 2px 3px;}",
+            "#lt-quick-panel .ltq-section::after{content:'';flex:1;height:1px;background:linear-gradient(to right,var(--lt-border,rgba(255,255,255,0.06)),transparent);}",
+
+            // ── Toggle Row ──
+            "#lt-quick-panel .ltq-toggle{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:linear-gradient(180deg,var(--lt-surface,rgba(255,255,255,0.03)),rgba(255,255,255,0.01));border:1px solid var(--lt-border,rgba(255,255,255,0.05));border-radius:8px;font-size:11.5px;color:var(--lt-text-secondary,#a0b0c8);cursor:pointer;transition:all 0.18s cubic-bezier(0.16,1,0.3,1);font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);}",
+            "#lt-quick-panel .ltq-toggle:hover{background:linear-gradient(180deg,var(--lt-surface-hover),var(--lt-surface,rgba(255,255,255,0.02)));border-color:var(--lt-border-hover);color:var(--lt-accent-light);}",
+            "#lt-quick-panel .ltq-toggle:active{transform:scale(0.98);}",
+            "#lt-quick-panel .ltq-toggle.on{border-color:var(--lt-border-hover);color:var(--lt-accent-light);background:linear-gradient(180deg,var(--lt-surface-hover),var(--lt-surface,rgba(255,255,255,0.01)));box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),inset 2px 0 0 var(--lt-accent);}",
+            "#lt-quick-panel .ltq-toggle-label{display:flex;align-items:center;gap:8px;}",
+            "#lt-quick-panel .ltq-toggle-icon{width:16px;height:16px;color:var(--lt-accent);opacity:0.65;transition:opacity 0.18s;}",
+            "#lt-quick-panel .ltq-toggle-icon svg{width:100%;height:100%;}",
+            "#lt-quick-panel .ltq-toggle.on .ltq-toggle-icon{opacity:1;}",
+
+            // ── Toggle Switch (iOS-style) ──
+            "#lt-quick-panel .ltq-switch{width:36px;height:20px;border-radius:10px;background:var(--lt-surface-2,rgba(255,255,255,0.08));position:relative;transition:background 0.25s ease;flex-shrink:0;box-shadow:inset 0 1px 2px rgba(0,0,0,0.25);}",
+            "#lt-quick-panel .ltq-switch::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:linear-gradient(180deg,#888894,#60606c);transition:all 0.28s cubic-bezier(0.16,1,0.3,1);box-shadow:0 1px 3px rgba(0,0,0,0.35),inset 0 1px 0 rgba(255,255,255,0.15);}",
+            "#lt-quick-panel .ltq-switch.on{background:var(--lt-switch-on,#8b2dc4);box-shadow:inset 0 1px 2px rgba(0,0,0,0.2),0 0 8px var(--lt-switch-glow);}",
+            "#lt-quick-panel .ltq-switch.on::after{left:18px;background:linear-gradient(180deg,#fff,#e8e8f0);box-shadow:0 1px 3px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.3),0 0 8px var(--lt-switch-glow);}",
+
+            // ═══ 设置面板样式 ═══════════════════════════════════════════════════
+            ".lt-settings{display:flex;flex-direction:column;gap:20px;padding:4px 0;}",
+            ".lt-settings-label{font-size:10px;font-weight:600;color:var(--lt-text-dim,#6a8ab0);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:10px;}",
+            ".lt-theme-row{display:flex;gap:10px;}",
+            ".lt-theme-option{flex:1;padding:16px 8px;border-radius:12px;border:2px solid var(--lt-border,rgba(255,255,255,0.08));background:linear-gradient(180deg,var(--lt-surface,rgba(255,255,255,0.03)),rgba(255,255,255,0.01));cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px;transition:all 0.18s cubic-bezier(0.16,1,0.3,1);font-family:inherit;color:var(--lt-text-secondary,#b8c8e0);font-size:12px;font-weight:500;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);}",
+            ".lt-theme-option:hover{border-color:var(--lt-border-hover);background:var(--lt-surface-hover);box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 2px 8px var(--lt-accent-glow);}",
+            ".lt-theme-option.selected{border-color:var(--lt-accent);background:var(--lt-surface-hover);color:var(--lt-accent-light);box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 0 0 1px var(--lt-accent-glow),0 2px 12px var(--lt-accent-glow);}",
+            ".lt-theme-option svg{width:22px;height:22px;}",
+            ".lt-theme-preview{width:100%;height:32px;border-radius:6px;margin-top:3px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.15);}",
+            ".lt-theme-preview.dark{background:linear-gradient(135deg,#0e121e 0%,#2a2040 100%);border:1px solid rgba(255,255,255,0.1);}",
+            ".lt-theme-preview.light{background:linear-gradient(135deg,#f8fafc 0%,#e8ecf0 100%);border:1px solid rgba(0,0,0,0.08);}",
+            ".lt-accent-row{display:flex;gap:12px;flex-wrap:wrap;}",
+            ".lt-accent-swatch{width:34px;height:34px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.18s cubic-bezier(0.16,1,0.3,1);position:relative;box-shadow:0 2px 6px rgba(0,0,0,0.2),inset 0 1px 0 rgba(255,255,255,0.15);}",
+            ".lt-accent-swatch:hover{transform:scale(1.12);box-shadow:0 4px 12px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.2);}",
+            ".lt-accent-swatch.selected{border-color:var(--lt-text,#fff);box-shadow:0 0 0 2px var(--lt-accent),0 4px 12px var(--lt-accent-glow);}",
+            ".lt-accent-swatch.selected::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);}",
+
+            // ═══ Edit button (toggle row) ═════════════════════════════════════
+            "#lt-quick-panel .ltq-edit-btn{width:20px;height:20px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:var(--lt-text-dim);cursor:pointer;opacity:0.5;transition:opacity 0.18s;padding:0;flex-shrink:0;}",
+            "#lt-quick-panel .ltq-edit-btn:hover{opacity:1;color:var(--lt-accent);}",
+            "#lt-quick-panel .ltq-edit-btn svg{width:14px;height:14px;}",
+
+            // ═══ Release Maid word chips ═════════════════════════════════════
+            ".lt-rm-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:7px;font-size:11px;font-weight:500;line-height:1.4;white-space:nowrap;}",
+            ".lt-rm-default{background:var(--lt-surface-2);color:var(--lt-text-dim);border:1px solid var(--lt-border);}",
+            ".lt-rm-custom{background:var(--lt-surface-hover);color:var(--lt-accent-light);border:1px solid var(--lt-border-hover);cursor:default;}",
+            ".lt-rm-tag{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;opacity:0.6;padding:1px 3px;border-radius:3px;background:rgba(255,255,255,0.08);}",
+            ".lt-rm-del{cursor:pointer;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;padding:0 0 0 2px;}",
+            ".lt-rm-del:hover{opacity:1;color:var(--lt-accent);}",
         ].join("\n");
         document.head.appendChild(s);
     }
 
-    // ──────────────────────────────────────────
-    // 通用面板建構器
-    // ──────────────────────────────────────────
-    function createPanel(titleText, contentEl, footerEl) {
+    // ════════════════════════════════════════════════════════════════════════
+    // 所有动作定义（含 SVG 图标）
+    // ════════════════════════════════════════════════════════════════════════
+    const ALL_ACTIONS = [
+        { id: 'wardrobe',  icon: SVG.wardrobe,  label: '衣柜',    title: '打开衣柜', fn: function() { wardrobe(); } },
+        { id: 'undo',      icon: SVG.undo,      label: '回滚',    title: '回滚外观到之前的状态', fn: async function() {
+            const target = await requestCharacter('选择要回滚外观的目标');
+            if (target) undoCommand(getNickname(target));
+        }},
+        { id: 'free',      icon: SVG.free,      label: '解除束缚', title: '选择性移除束缚物品（可全选）', fn: async function() {
+            const target = await requestCharacter('选择要解除束缚的目标');
+            if (target) free(getNickname(target));
+        }},
+        { id: 'editcraft', icon: SVG.craftEdit, label: '编辑订制属性', title: '批量编辑束缚的订制属性（名称/描述/私有）', fn: async function() {
+            const target = await requestCharacter('选择要编辑属性的目标');
+            if (target) editCraftBatch(target);
+        }},
+        { id: 'clearcraft',icon: SVG.craftClear,label: '清除订制属性', title: '清除对象身上所有束缚的订制属性', fn: async function() {
+            const target = await requestCharacter('选择要清除订制属性的目标');
+            if (target) clearAllCraft(target);
+        }},
+        { id: 'lock',      icon: SVG.lock,      label: '上锁',    title: '为束缚添加锁', fn: async function() {
+            const target = await requestCharacter('选择要上锁的目标');
+            if (!target) return;
+            const itemMiscGroup = AssetGroupGet(Player.AssetFamily, "ItemMisc");
+            if (!itemMiscGroup) { ChatRoomSendLocal('无法获取锁类型列表'); return; }
+            const validLocks = itemMiscGroup.Asset.filter(a => a.IsLock).map(a => ({ Name: a.Name, Description: a.Description || a.Name }));
+            if (!validLocks.length) { ChatRoomSendLocal('没有可用的锁类型'); return; }
+            const lockOpts = validLocks.map(l => ({ text: l.Description }));
+            const selectedLock = await requestButtons('选择锁类型', lockOpts, false);
+            if (!selectedLock) return;
+            const lock = validLocks.find(l => l.Description === selectedLock);
+            if (!lock) return;
+            fullLock(getNickname(target) + ' ' + lock.Name);
+        }},
+        { id: 'unlock',    icon: SVG.unlock,    label: '全解锁',  title: '选择要解除的锁（跳过主人/恋人/拓展锁）', fn: async function() {
+            const target = await requestCharacter('选择要解锁的目标');
+            if (target) fullUnlock(getNickname(target));
+        }},
+        { id: 'password',  icon: SVG.password,  label: '锁密码',  title: '查看当前锁的密码', fn: function() { execChatCommand('/infolock'); } },
+        { id: 'struggle',  icon: SVG.struggle,  label: '挣扎',    title: 'LSCG 挣脱指令', fn: function() { execChatCommand('/lscg escape'); } },
+        { id: 'enhance',   icon: SVG.enhance,   label: '增强',    title: '获取道具/金钱/技能', fn: function() { getEverything(); } },
+        { id: 'bcx',       icon: SVG.bcx,       label: 'BCX导入', title: '从剪贴板导入 BCX 外观', fn: async function() {
+            const target = await requestCharacter('选择要导入外观的目标');
+            if (target) bcxImport(getNickname(target));
+        }},
+    ];
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 工具快捷面板 — v2.1 SVG图标 + 拖拽排序 + 主题
+    // ════════════════════════════════════════════════════════════════════════
+    function loadToolPanelPos() {
+        try {
+            const s = localStorage.getItem(STORAGE_TOOL_PANEL);
+            if (s) return JSON.parse(s);
+        } catch (_) {}
+        return { x: TOOL_BTN_X, y: TOOL_BTN_Y + 55 };
+    }
+    function saveToolPanelPos() {
+        try { localStorage.setItem(STORAGE_TOOL_PANEL, JSON.stringify(toolPanelPos)); } catch (_) {}
+    }
+    let toolPanelPos = loadToolPanelPos();
+
+    // 位置钳制：确保手机窗口不超出可视范围
+    function clampToolPanelPos() {
+        if (!toolPanelEl) return;
+        const w = toolPanelEl.offsetWidth || 340;
+        const h = toolPanelEl.offsetHeight || 640;
+        let x = Math.max(4, Math.min(toolPanelPos.x, window.innerWidth  - w - 4));
+        let y = Math.max(4, Math.min(toolPanelPos.y, window.innerHeight - h - 4));
+        toolPanelPos.x = x; toolPanelPos.y = y;
+        toolPanelEl.style.left = x + 'px';
+        toolPanelEl.style.top  = y + 'px';
+    }
+
+    // ── 手机式页面导航 ──────────────────────────────────────────────
+    function updatePhoneHeader() {
+        if (!phoneHeaderEls || !toolPanelEl) return;
+        if (phonePages.length > 0) {
+            toolPanelEl.classList.add('ltp-sub');
+            phoneHeaderEls.title.textContent = phonePages[phonePages.length - 1].title || '';
+            phoneHeaderEls.settings.style.display = 'none';
+        } else {
+            toolPanelEl.classList.remove('ltp-sub');
+            phoneHeaderEls.title.textContent = phoneHeaderEls.homeTitle;
+            phoneHeaderEls.settings.style.display = '';
+        }
+    }
+
+    // 推入一个子页面（内容 + 可选底栏）；返回页面元素，其 .remove() 会以“程序方式”弹出（不触发 onClose）
+    function pushPage(titleText, contentEl, footerEl, onClose) {
+        ensureToolPanel();
+        const page = document.createElement('div');
+        page.className = 'ltp-page ltp-enter';
+        const content = document.createElement('div');
+        content.className = 'lt-content';
+        content.appendChild(contentEl);
+        page.appendChild(content);
+        if (footerEl) {
+            const f = document.createElement('div');
+            f.className = 'lt-footer';
+            f.appendChild(footerEl);
+            page.appendChild(f);
+        }
+        phoneViewportEl.appendChild(page);
+        void page.offsetWidth;                 // 强制 reflow，触发滑入过渡
+        page.classList.remove('ltp-enter');
+        phonePages.push({ el: page, title: titleText, onClose: onClose || null, settled: false });
+        updatePhoneHeader();
+        page.remove = function () { popPage(page, false); };
+        return page;
+    }
+
+    // 弹出页面。invokeOnClose=true 时（返回键 / 关闭）调用其 onClose 以结算等待中的 Promise
+    function popPage(pageEl, invokeOnClose) {
+        const idx = phonePages.findIndex(p => p.el === pageEl);
+        if (idx === -1) return;
+        const entry = phonePages[idx];
+        if (invokeOnClose && !entry.settled && typeof entry.onClose === 'function') {
+            entry.settled = true;
+            try { entry.onClose(); } catch (e) {}
+        }
+        phonePages.splice(idx, 1);
+        pageEl.classList.add('ltp-leave');
+        setTimeout(function () { if (pageEl.parentNode) pageEl.parentNode.removeChild(pageEl); }, 300);
+        updatePhoneHeader();
+    }
+
+    function phoneBack() {
+        if (!phonePages.length) return;
+        popPage(phonePages[phonePages.length - 1].el, true);
+    }
+
+    function popAllPages() {
+        while (phonePages.length) popPage(phonePages[phonePages.length - 1].el, true);
+    }
+
+    function ensureToolPanel() {
+        if (!toolPanelEl) buildToolPanel();
+        if (!toolPanelVisible) showToolPanel();
+    }
+
+    function buildToolPanel() {
+        if (toolPanelEl) return;
         injectLtStyles();
-        const panel = document.createElement("div");
-        panel.className = "lt-panel";
+        applyTheme();
 
-        const header = document.createElement("div");
-        header.className = "lt-header";
-        const title = document.createElement("span");
-        title.className = "lt-title";
-        title.textContent = titleText;
-        const hClose = document.createElement("button");
-        hClose.className = "lt-hclose";
-        hClose.textContent = "✕";
-        hClose.onclick = () => panel.remove();
-        header.appendChild(title);
-        header.appendChild(hClose);
-        panel.appendChild(header);
+        toolPanelEl = document.createElement('div');
+        toolPanelEl.id = 'lt-quick-panel';
+        toolPanelEl.style.left = toolPanelPos.x + 'px';
+        toolPanelEl.style.top  = toolPanelPos.y + 'px';
 
-        let drag = { on: false, sx: 0, sy: 0, px: 0, py: 0 };
-        const onMove = e => {
-            if (!drag.on) return;
-            panel.style.left = (drag.px + e.clientX - drag.sx) + "px";
-            panel.style.top  = (drag.py + e.clientY - drag.sy) + "px";
-        };
-        const onUp = () => { drag.on = false; };
-        document.addEventListener("mousemove", onMove);
-        document.addEventListener("mouseup", onUp);
+        // ── 共用头部（返回 / 标题 / 设置 / 关闭）──
+        const hdr = document.createElement('div');
+        hdr.className = 'ltq-hdr';
 
-        const dragObs = new MutationObserver(() => {
-            if (!document.body.contains(panel)) {
-                document.removeEventListener("mousemove", onMove);
-                document.removeEventListener("mouseup", onUp);
-                dragObs.disconnect();
-            }
+        var backBtn = document.createElement('button');
+        backBtn.className = 'ltq-back';
+        backBtn.title = isZh() ? '返回' : 'Back';
+        backBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+
+        var titleSpan = document.createElement('span');
+        titleSpan.className = 'ltq-title';
+        titleSpan.textContent = isZh() ? '工具箱' : 'Toolbox';
+
+        var hdrBtns = document.createElement('div');
+        hdrBtns.className = 'ltq-hdr-btns';
+
+        var settingsBtn = document.createElement('button');
+        settingsBtn.className = 'ltq-icon-btn';
+        settingsBtn.title = t('settingsTitle');
+        settingsBtn.innerHTML = SVG.settings;
+
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'ltq-icon-btn';
+        closeBtn.title = t('close');
+        closeBtn.innerHTML = SVG.close;
+
+        hdrBtns.appendChild(settingsBtn);
+        hdrBtns.appendChild(closeBtn);
+        hdr.appendChild(backBtn);
+        hdr.appendChild(titleSpan);
+        hdr.appendChild(hdrBtns);
+
+        // ── 视口 + 首页 ──
+        const viewport = document.createElement('div');
+        viewport.className = 'ltp-viewport';
+        const homePage = document.createElement('div');
+        homePage.className = 'ltp-page ltp-home';
+        const body = document.createElement('div');
+        body.className = 'ltq-body';
+        homePage.appendChild(body);
+        viewport.appendChild(homePage);
+
+        phoneViewportEl = viewport;
+        phoneHeaderEls = { back: backBtn, title: titleSpan, settings: settingsBtn, close: closeBtn, homeTitle: (isZh() ? '工具箱' : 'Toolbox') };
+        phonePages = [];
+
+        // ── Action Grid (2-column, draggable) ──
+        actionGridEl = document.createElement('div');
+        actionGridEl.className = 'ltq-grid';
+        body.appendChild(actionGridEl);
+        rebuildActionGrid();
+
+        // ── Toggle Section ──
+        const sectionLabel = document.createElement('div');
+        sectionLabel.className = 'ltq-section';
+        sectionLabel.textContent = isZh() ? '开关' : 'Toggles';
+        body.appendChild(sectionLabel);
+
+        const toggleBtnRefs = {};
+
+        const toggles = [
+            { icon: SVG.rp,        label: isZh() ? 'RP模式'  : 'RP Mode',    title: isZh() ? '开启后屏蔽游戏 Action 消息' : 'Block game Action messages', toggle: 'rp', fn: function() { rpmode(); updateToggleBtns(); } },
+            { icon: SVG.rpBtn,     label: isZh() ? '显示RP按钮' : 'Show RP Btn', title: isZh() ? '在游戏画面显示 RP 切换按钮' : 'Show RP toggle button on canvas', toggle: 'rpBtn', fn: function() { rpbtn(); updateToggleBtns(); } },
+            { icon: SVG.heightFix, label: isZh() ? '拉高'    : 'Height Fix', title: isZh() ? '趴跪姿时自动拉高视角' : 'Auto-raise when kneeling/prone', toggle: 'heightFix', fn: function() { heightFixCommand(); updateToggleBtns(); } },
+            { icon: SVG.heightLock,label: isZh() ? '身高锁'  : 'Height Lock',title: isZh() ? '强制身高为标准值' : 'Force standard height', toggle: 'heightLock', fn: function() { heightLockCommand(); updateToggleBtns(); } },
+            { icon: SVG.free,      label: isZh() ? '无视绑缚' : 'Free Hands', title: isZh() ? '被绑缚时仍可使用双手（不会实际解开道具）' : 'Use hands while restrained (does not remove items)', toggle: 'freeHands', fn: function() { freeHandsCommand(); updateToggleBtns(); } },
+        ];
+
+        toggles.forEach(function(tg) {
+            const row = document.createElement('div');
+            row.className = 'ltq-toggle';
+            row.title = tg.title;
+
+            const labelWrap = document.createElement('div');
+            labelWrap.className = 'ltq-toggle-label';
+            const iconEl = document.createElement('span');
+            iconEl.className = 'ltq-toggle-icon';
+            iconEl.innerHTML = tg.icon;
+            const labelEl = document.createElement('span');
+            labelEl.textContent = tg.label;
+            labelWrap.appendChild(iconEl);
+            labelWrap.appendChild(labelEl);
+
+            const sw = document.createElement('div');
+            sw.className = 'ltq-switch';
+
+            row.appendChild(labelWrap);
+            row.appendChild(sw);
+
+            toggleBtnRefs[tg.toggle] = { sw: sw, row: row };
+            updateToggleState(toggleBtnRefs[tg.toggle], tg.toggle);
+
+            row.addEventListener('click', tg.fn);
+            body.appendChild(row);
         });
-        dragObs.observe(document.body, { childList: true, subtree: true });
 
-        header.addEventListener("mousedown", e => {
-            if (e.target === hClose) return;
-            drag.on = true; drag.sx = e.clientX; drag.sy = e.clientY;
-            const r = panel.getBoundingClientRect();
-            drag.px = r.left; drag.py = r.top;
-            panel.style.transform = "none";
-            panel.style.left = drag.px + "px";
-            panel.style.top  = drag.py + "px";
+        function updateToggleState(ref, key) {
+            var isOn = false;
+            if (key === 'rp') isOn = getRpMode(Player);
+            else if (key === 'rpBtn') isOn = getES().rpBtnVisible === 1;
+            else if (key === 'heightFix') isOn = getES().heightFix === 1;
+            else if (key === 'heightLock') isOn = getES().heightLock === 1;
+            else if (key === 'freeHands') isOn = getES().freeHands === 1;
+            ref.sw.classList.toggle('on', isOn);
+            ref.row.classList.toggle('on', isOn);
+        }
+
+        function updateToggleBtns() {
+            Object.keys(toggleBtnRefs).forEach(function(key) {
+                updateToggleState(toggleBtnRefs[key], key);
+            });
+        }
+        window.__LT_updateToggles = updateToggleBtns;
+
+        // ── Assemble ──
+        toolPanelEl.appendChild(hdr);
+        toolPanelEl.appendChild(viewport);
+        document.body.appendChild(toolPanelEl);
+        clampToolPanelPos();
+
+        // Apply theme class
+        if (currentTheme.mode === 'light') toolPanelEl.classList.add('lt-light');
+
+        // ── Back button ──
+        backBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            phoneBack();
+        });
+
+        // ── Settings button ──
+        settingsBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            openSettingsPanel();
+        });
+
+        // ── Close button ──
+        closeBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            hideToolPanel();
+        });
+
+        // ── Drag logic (panel move) ──
+        let drag = { on: false, dx: 0, dy: 0 };
+
+        hdr.addEventListener('mousedown', function (e) {
+            if (e.target.closest('.ltq-icon-btn') || e.target.closest('.ltq-back')) return;
+            drag.on = true;
+            drag.dx = e.clientX - toolPanelEl.offsetLeft;
+            drag.dy = e.clientY - toolPanelEl.offsetTop;
+            _toolDragging = true;
             e.preventDefault();
         });
 
-        const content = document.createElement("div");
-        content.className = "lt-content";
-        content.appendChild(contentEl);
-        panel.appendChild(content);
+        document.addEventListener('mousemove', function (e) {
+            if (!drag.on) return;
+            toolPanelPos.x = e.clientX - drag.dx;
+            toolPanelPos.y = e.clientY - drag.dy;
+            toolPanelEl.style.left = toolPanelPos.x + 'px';
+            toolPanelEl.style.top  = toolPanelPos.y + 'px';
+        });
 
-        if (footerEl) {
-            const footer = document.createElement("div");
-            footer.className = "lt-footer";
-            footer.appendChild(footerEl);
-            panel.appendChild(footer);
-        }
-
-        const clickOut = e => {
-            if (!panel.contains(e.target)) {
-                panel.remove();
-                document.removeEventListener("mousedown", clickOut);
+        document.addEventListener('mouseup', function () {
+            if (drag.on) {
+                drag.on = false;
+                _toolDragging = false;
+                saveToolPanelPos();
             }
-        };
-        setTimeout(() => document.addEventListener("mousedown", clickOut), 0);
+        });
 
-        document.body.appendChild(panel);
-        return panel;
+        // ── ESC：有子页面则返回，否则关闭 ──
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Escape' || !toolPanelVisible) return;
+            if (phonePages.length) phoneBack();
+            else hideToolPanel();
+        });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 动作网格重建（拖拽排序后调用）
+    // ════════════════════════════════════════════════════════════════════════
+    function rebuildActionGrid() {
+        if (!actionGridEl) return;
+        actionGridEl.innerHTML = '';
+        var dragSrc = null;
+
+        var orderedActions = getOrderedActions();
+        orderedActions.forEach(function(a) {
+            var btn = document.createElement('div');
+            btn.className = 'ltq-action';
+            btn.title = a.title;
+            btn.dataset.id = a.id;
+            btn.draggable = true;
+
+            var iconEl = document.createElement('span');
+            iconEl.className = 'ltq-action-icon';
+            iconEl.innerHTML = a.icon;
+
+            var labelEl = document.createElement('span');
+            labelEl.className = 'ltq-label';
+            labelEl.textContent = a.label;
+
+            var gripEl = document.createElement('span');
+            gripEl.className = 'ltq-grip';
+            gripEl.innerHTML = SVG.grip;
+
+            btn.appendChild(iconEl);
+            btn.appendChild(labelEl);
+            btn.appendChild(gripEl);
+
+            // Click action
+            btn.addEventListener('click', function(e) {
+                if (btn.dataset.dragged === '1') {
+                    btn.dataset.dragged = '';
+                    return;
+                }
+                a.fn();
+            });
+
+            // Drag-and-drop
+            btn.addEventListener('dragstart', function(e) {
+                dragSrc = btn;
+                btn.classList.add('ltq-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', a.id);
+            });
+
+            btn.addEventListener('dragend', function() {
+                btn.classList.remove('ltq-dragging');
+                btn.dataset.dragged = '1';
+                actionGridEl.querySelectorAll('.ltq-drag-over').forEach(function(el) {
+                    el.classList.remove('ltq-drag-over');
+                });
+                setTimeout(function() { btn.dataset.dragged = ''; }, 50);
+            });
+
+            btn.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (btn !== dragSrc) btn.classList.add('ltq-drag-over');
+            });
+
+            btn.addEventListener('dragleave', function() {
+                btn.classList.remove('ltq-drag-over');
+            });
+
+            btn.addEventListener('drop', function(e) {
+                e.preventDefault();
+                btn.classList.remove('ltq-drag-over');
+                if (!dragSrc || dragSrc === btn) return;
+
+                var srcId = dragSrc.dataset.id;
+                var dstId = btn.dataset.id;
+                var order = loadBtnOrder();
+                var srcIdx = order.indexOf(srcId);
+                var dstIdx = order.indexOf(dstId);
+                order.splice(dstIdx, 0, order.splice(srcIdx, 1)[0]);
+                saveBtnOrder(order);
+                rebuildActionGrid();
+            });
+
+            actionGridEl.appendChild(btn);
+        });
+    }
+
+    function showToolPanel() {
+        if (!toolPanelEl) buildToolPanel();
+        toolPanelVisible = true;
+        if (toolPanelEl) {
+            clampToolPanelPos();
+            requestAnimationFrame(function() {
+                toolPanelEl.classList.add('show');
+            });
+        }
+    }
+
+    function hideToolPanel() {
+        toolPanelVisible = false;
+        if (toolPanelEl) toolPanelEl.classList.remove('show');
+        popAllPages(); // 关闭时回到首页，下次打开从主选单开始
+    }
+
+    function toggleToolPanel() {
+        if (toolPanelVisible) hideToolPanel(); else showToolPanel();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 聊天室触发按钮 — 注入到 #chat-room-buttons（顺位 9，参考 BC_ChatRoomButtons）
+    // ════════════════════════════════════════════════════════════════════════
+    const TOOL_CRB_ID = 'likotool';
+    const TOOL_CRB_ORDER = 9;
+    const TOOL_BTN_DOM_ID = 'lt-tool-trigger-btn';
+    const TOOL_BTN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>';
+
+    function injectToolBtnStyle() {
+        if (document.getElementById('lt-tool-btn-style')) return;
+        var st = document.createElement('style');
+        st.id = 'lt-tool-btn-style';
+        st.textContent = [
+            '#' + TOOL_BTN_DOM_ID + '.chat-room-button{border-radius:12px !important;}',
+            // 只在“未收合”时套用 flex 置中；否则 display:flex!important 会盖过 [hidden] 的 display:none，
+            // 导致收合按钮列时本按钮无法隐藏（收合动画期间由 BC_ChatRoomButtons 的 .lk-crb-anim 规则接手）。
+            '#' + TOOL_BTN_DOM_ID + '.chat-room-button:not([hidden]){display:flex !important;align-items:center !important;justify-content:center !important;}',
+            '#' + TOOL_BTN_DOM_ID + '.chat-room-button svg{width:60% !important;height:60% !important;color:#fff !important;stroke:#fff !important;}',
+        ].join('\n');
+        document.head.appendChild(st);
+    }
+
+    // 让按钮的显隐跟随原生「收纳按钮列」的展开状态（参考 MAT / Kaomoji）：
+    // aria-expanded !== "true" 即已收合 → 隐藏本按钮（BC_ChatRoomButtons 会套上收合动画）
+    function syncToolBtnVisibility(btn) {
+        if (!btn) return;
+        var collapseBtn = document.getElementById('chat-room-buttons-collapse');
+        if (!collapseBtn) { btn.hidden = false; return; }
+        btn.hidden = collapseBtn.getAttribute('aria-expanded') !== 'true';
+    }
+
+    function injectToolButton() {
+        if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom') return;
+        var container = document.getElementById('chat-room-buttons');
+        if (!container) return;
+        var crb = window.Liko && window.Liko.__Sys_ChatRoomButtons__;
+        var btn = document.getElementById(TOOL_BTN_DOM_ID);
+        if (btn && btn.parentElement === container) {
+            // BC 可能原地重绘 grid：首次见到本 id 用 register，之后 reapply，把顺位补回。
+            if (crb) (crb.get(TOOL_CRB_ID) === undefined ? crb.register(TOOL_CRB_ID, TOOL_CRB_ORDER, btn) : crb.reapply(TOOL_CRB_ID, btn));
+            syncToolBtnVisibility(btn);
+            return;
+        }
+        if (btn) btn.remove();
+        injectToolBtnStyle();
+        btn = document.createElement('button');
+        btn.id = TOOL_BTN_DOM_ID;
+        btn.type = 'button';
+        btn.className = 'blank-button button HideOnPopup chat-room-button';
+        btn.setAttribute('role', 'menuitem');
+        btn.title = isZh() ? '工具箱' : 'Toolbox';
+        btn.style.backgroundColor = getAccentPreset().accent;
+        btn.innerHTML = TOOL_BTN_SVG;
+        btn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); toggleToolPanel(); });
+        container.appendChild(btn);
+        // 关闭原生底色，露出自带 SVG 图标（参考 BC_ChatRoomButtons.setPlain）
+        if (crb) { crb.register(TOOL_CRB_ID, TOOL_CRB_ORDER, btn); if (typeof crb.setPlain === 'function') crb.setPlain(TOOL_CRB_ID, true); }
+        syncToolBtnVisibility(btn);
+    }
+
+    let _toolBtnInterval = null;
+    function startToolButtonInjector() {
+        if (_toolBtnInterval) return;
+        try { injectToolButton(); } catch (e) {}
+        _toolBtnInterval = setInterval(function () { try { injectToolButton(); } catch (e) {} }, 500);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 设置面板
+    // ════════════════════════════════════════════════════════════════════════
+    function openSettingsPanel() {
+        injectLtStyles();
+        applyTheme();
+
+        var content = document.createElement('div');
+        content.className = 'lt-settings';
+
+        // ── Theme mode ──
+        var themeSection = document.createElement('div');
+        var themeLabel = document.createElement('div');
+        themeLabel.className = 'lt-settings-label';
+        themeLabel.textContent = t('settingsTheme');
+        themeSection.appendChild(themeLabel);
+
+        var themeRow = document.createElement('div');
+        themeRow.className = 'lt-theme-row';
+
+        var darkOption = document.createElement('div');
+        darkOption.className = 'lt-theme-option' + (currentTheme.mode !== 'light' ? ' selected' : '');
+        darkOption.innerHTML = SVG.dark + '<span>' + t('settingsDark') + '</span><div class="lt-theme-preview dark"></div>';
+
+        var lightOption = document.createElement('div');
+        lightOption.className = 'lt-theme-option' + (currentTheme.mode === 'light' ? ' selected' : '');
+        lightOption.innerHTML = SVG.light + '<span>' + t('settingsLight') + '</span><div class="lt-theme-preview light"></div>';
+
+        themeRow.appendChild(darkOption);
+        themeRow.appendChild(lightOption);
+        themeSection.appendChild(themeRow);
+        content.appendChild(themeSection);
+
+        darkOption.addEventListener('click', function() {
+            currentTheme.mode = 'dark';
+            saveTheme(currentTheme);
+            applyTheme();
+            darkOption.classList.add('selected');
+            lightOption.classList.remove('selected');
+        });
+
+        lightOption.addEventListener('click', function() {
+            currentTheme.mode = 'light';
+            saveTheme(currentTheme);
+            applyTheme();
+            lightOption.classList.add('selected');
+            darkOption.classList.remove('selected');
+        });
+
+        // ── Accent color ──
+        var accentSection = document.createElement('div');
+        var accentLabel = document.createElement('div');
+        accentLabel.className = 'lt-settings-label';
+        accentLabel.textContent = t('settingsAccent');
+        accentSection.appendChild(accentLabel);
+
+        var accentRow = document.createElement('div');
+        accentRow.className = 'lt-accent-row';
+
+        ACCENT_PRESETS.forEach(function(preset) {
+            var swatch = document.createElement('div');
+            swatch.className = 'lt-accent-swatch' + (currentTheme.accentId === preset.id ? ' selected' : '');
+            swatch.style.background = preset.accent;
+            swatch.title = preset.name;
+            swatch.addEventListener('click', function() {
+                currentTheme.accentId = preset.id;
+                saveTheme(currentTheme);
+                applyTheme();
+                accentRow.querySelectorAll('.lt-accent-swatch').forEach(function(s) { s.classList.remove('selected'); });
+                swatch.classList.add('selected');
+            });
+            accentRow.appendChild(swatch);
+        });
+
+        accentSection.appendChild(accentRow);
+        content.appendChild(accentSection);
+
+        // ── Reset button ──
+        var footerEl = document.createElement('div');
+        footerEl.style.cssText = 'width:100%;display:flex;gap:8px;';
+        var resetBtn = document.createElement('button');
+        resetBtn.className = 'lt-btn lt-btn-secondary';
+        resetBtn.textContent = t('settingsReset');
+        resetBtn.style.flex = '1';
+        footerEl.appendChild(resetBtn);
+
+        resetBtn.addEventListener('click', function() {
+            // Reset theme
+            currentTheme = { mode: 'dark', accentId: 'purple' };
+            saveTheme(currentTheme);
+            applyTheme();
+            // Reset button order
+            saveBtnOrder(ALL_ACTIONS.map(function(a) { return a.id; }));
+            rebuildActionGrid();
+            // Update UI
+            darkOption.classList.add('selected');
+            lightOption.classList.remove('selected');
+            accentRow.querySelectorAll('.lt-accent-swatch').forEach(function(s) { s.classList.remove('selected'); });
+            accentRow.querySelector('.lt-accent-swatch').classList.add('selected');
+            ChatRoomSendLocal(t('settingsResetDone'));
+            panel.remove();
+        });
+
+        var panel = createPanel(t('settingsTitle'), content, footerEl);
+        panel.style.width = '340px';
+        if (currentTheme.mode === 'light') panel.classList.add('lt-light');
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 通用面板建构器 — 手机式：把内容作为“子页面”推入工具箱窗口
+    //   opts.onClose：当用户以返回键/关闭键离开该页时调用一次（用于结算等待中的 Promise）；
+    //   通过页面自身按钮触发的 panel.remove() 不会调用 onClose（调用方已自行 resolve）。
+    // ════════════════════════════════════════════════════════════════════════
+    function createPanel(titleText, contentEl, footerEl, opts) {
+        injectLtStyles();
+        applyTheme();
+        ensureToolPanel();
+        return pushPage(titleText, contentEl, footerEl, opts && opts.onClose);
     }
 
     // ──────────────────────────────────────────
-    // 通用按鈕選單
+    // 通用按鈕选单
     // ──────────────────────────────────────────
     function requestButtons(promptText, buttons, multiSelect = false) {
         return new Promise(resolve => {
@@ -683,19 +1566,22 @@
             }
 
             let selected = new Set();
+            const itemEls = [];
 
             buttons.forEach(btn => {
                 const el = document.createElement("button");
                 el.className = "lt-list-btn";
                 const textSpan = document.createElement("span");
+                textSpan.style.fontFamily = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color","Android Emoji",sans-serif';
                 textSpan.textContent = btn.text;
                 const check = document.createElement("span");
                 check.className = "lt-check";
-                check.textContent = "●";
+                check.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><circle cx="12" cy="12" r="7"/></svg>';
                 el.appendChild(textSpan);
                 el.appendChild(check);
 
                 if (multiSelect) {
+                    itemEls.push({ el, text: btn.text });
                     el.onclick = () => {
                         if (selected.has(btn.text)) { selected.delete(btn.text); el.classList.remove("selected"); }
                         else { selected.add(btn.text); el.classList.add("selected"); }
@@ -710,6 +1596,16 @@
             if (multiSelect) {
                 footerEl = document.createElement("div");
                 footerEl.style.cssText = "display:flex;gap:8px;width:100%;";
+                const selectAllBtn = document.createElement("button");
+                selectAllBtn.className = "lt-btn lt-btn-secondary";
+                selectAllBtn.textContent = t('selectAll');
+                selectAllBtn.onclick = () => {
+                    const allOn = selected.size === itemEls.length && itemEls.length > 0;
+                    itemEls.forEach(({ el, text }) => {
+                        if (allOn) { selected.delete(text); el.classList.remove("selected"); }
+                        else { selected.add(text); el.classList.add("selected"); }
+                    });
+                };
                 const cancelBtn = document.createElement("button");
                 cancelBtn.className = "lt-btn lt-btn-secondary";
                 cancelBtn.textContent = t('cancel');
@@ -718,37 +1614,73 @@
                 confirmBtn.className = "lt-btn lt-btn-primary";
                 confirmBtn.textContent = t('confirm');
                 confirmBtn.onclick = () => { panel.remove(); resolve([...selected]); };
+                footerEl.appendChild(selectAllBtn);
                 footerEl.appendChild(cancelBtn);
                 footerEl.appendChild(confirmBtn);
             }
 
-            const panel = createPanel(promptText, listEl, footerEl);
-
-            const onKey = e => {
-                if (e.key === "Escape") {
-                    panel.remove();
-                    resolve(multiSelect ? [] : null);
-                }
-            };
-            document.addEventListener("keydown", onKey);
-
-            const keyObs = new MutationObserver(() => {
-                if (!document.body.contains(panel)) {
-                    document.removeEventListener("keydown", onKey);
-                    keyObs.disconnect();
-                }
+            const panel = createPanel(promptText, listEl, footerEl, {
+                onClose: () => resolve(multiSelect ? [] : null)
             });
-            keyObs.observe(document.body, { childList: true, subtree: true });
         });
     }
 
-    // ──────────────────────────────────────────
-    // 安全 hook 包裝
+    /* ── 角色选择器 ── */
+    function requestCharacter(title) {
+        return new Promise(resolve => {
+            const targets = ChatRoomCharacter || [];
+            if (!targets.length) {
+                ChatRoomSendLocal('房间内没有玩家');
+                resolve(null);
+                return;
+            }
+            const listEl = document.createElement("div");
+            listEl.className = "lt-btn-list";
+            targets.forEach(target => {
+                const el = document.createElement("button");
+                el.className = "lt-list-btn";
+                const isMe = target.IsPlayer && target.IsPlayer();
+                const textSpan = document.createElement("span");
+                textSpan.style.fontFamily = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color","Android Emoji",sans-serif';
+                textSpan.textContent = getNickname(target) + ' (#' + target.MemberNumber + ')';
+                el.appendChild(textSpan);
+                if (isMe) {
+                    el.style.borderColor = 'var(--lt-accent)';
+                    el.style.background = 'var(--lt-surface-hover)';
+                }
+                el.onclick = () => { panel.remove(); resolve(target); };
+                listEl.appendChild(el);
+            });
+            const panel = createPanel(title, listEl, null, { onClose: () => resolve(null) });
+        });
+    }
+
+    /* ── 执行聊天命令辅助函数 ── */
+    function execChatCommand(cmd) {
+        try {
+            if (typeof ElementValue === 'function' && typeof ChatRoomSendChat === 'function') {
+                ElementValue('InputChat', cmd);
+                ChatRoomSendChat();
+                return;
+            }
+            const input = document.getElementById('InputChat');
+            if (!input) { ChatRoomSendLocal('找不到聊天输入框'); return; }
+            input.value = cmd;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            const sendBtn = document.getElementById('ChatSend');
+            if (sendBtn) { sendBtn.click(); return; }
+            input.dispatchEvent(new KeyboardEvent('keydown', { key:'Enter', keyCode:13, bubbles:true, cancelable:true }));
+            input.dispatchEvent(new KeyboardEvent('keyup', { key:'Enter', keyCode:13, bubbles:true, cancelable:true }));
+        } catch(e) { ChatRoomSendLocal('执行命令失败: ' + e.message); }
+    }
+
+    // ─────────────────────────────────────────
+    // 安全 hook 包装
     // ──────────────────────────────────────────
     function safeHookFunction(functionName, priority, callback) {
         if (!modApi) return;
         if (typeof window[functionName] === 'undefined') {
-            console.warn("🐈‍⬛ [LT] ⚠️ " + functionName + " 不存在，跳過 hook");
+            console.warn("🐈‍⬛ [LT] ⚠️ " + functionName + " 不存在，跳过 hook");
             return;
         }
         try { modApi.hookFunction(functionName, priority, callback); }
@@ -781,7 +1713,7 @@
     }
 
     // ──────────────────────────────────────────
-    // Undo 外觀預覽面板
+    // Undo 外觀预览面板
     // ──────────────────────────────────────────
     async function openUndoPanel(target) {
         const id = target?.MemberNumber;
@@ -789,11 +1721,12 @@
         if (!history?.length) { ChatRoomSendLocal(getNickname(target) + "：" + t('undoNoRecord')); return; }
 
         injectLtStyles();
+        applyTheme();
         let canvasCharacter = null;
         try {
             canvasCharacter = CharacterCreate(target.AssetFamily, CharacterType.NPC, "LT_UndoPreview");
         } catch (e) {
-            console.error("🐈‍⬛ [LT] ❌ 建立預覽角色失敗:", e.message);
+            console.error("🐈‍⬛ [LT] ❌ 建立预览角色失敗:", e.message);
         }
 
         let currentIndex = history.length - 1;
@@ -801,11 +1734,15 @@
         const topNavEl = document.createElement("div");
         topNavEl.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:10px;";
         const prevBtn = document.createElement("button");
-        prevBtn.className = "lt-nav-btn"; prevBtn.textContent = t('undoPrev'); prevBtn.style.flex = "1";
+        prevBtn.className = "lt-nav-btn";
+        prevBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="M15 18l-6-6 6-6"/></svg>' + t('undoPrev');
+        prevBtn.style.flex = "1";
         const counterEl = document.createElement("div");
-        counterEl.style.cssText = "flex:1;text-align:center;font-size:12px;color:#9b3dd4;font-weight:600;white-space:nowrap;";
+        counterEl.style.cssText = "flex:1;text-align:center;font-size:12px;color:var(--lt-accent);font-weight:600;white-space:nowrap;";
         const nextBtn = document.createElement("button");
-        nextBtn.className = "lt-nav-btn"; nextBtn.textContent = t('undoNext'); nextBtn.style.flex = "1";
+        nextBtn.className = "lt-nav-btn";
+        nextBtn.innerHTML = t('undoNext') + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="M9 18l6-6-6-6"/></svg>';
+        nextBtn.style.flex = "1";
         const metaEl = document.createElement("div");
         metaEl.className = "lt-undo-meta"; metaEl.style.marginBottom = "8px";
         const timeRow = document.createElement("div"); timeRow.className = "lt-undo-meta-row";
@@ -814,7 +1751,7 @@
         topNavEl.appendChild(prevBtn); topNavEl.appendChild(counterEl); topNavEl.appendChild(nextBtn);
 
         const canvasWrap = document.createElement("div");
-        canvasWrap.style.cssText = "width:100%;display:flex;justify-content:center;align-items:center;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;margin-bottom:10px;height:360px;position:relative;";
+        canvasWrap.style.cssText = "width:100%;display:flex;justify-content:center;align-items:center;background:var(--lt-surface);border:1px solid var(--lt-border);border-radius:12px;overflow:hidden;margin-bottom:10px;height:360px;position:relative;";
         const canvas = document.createElement("canvas");
         canvas.width = 500; canvas.height = 1000;
         canvas.style.cssText = "width:220px;height:440px;display:block;";
@@ -844,7 +1781,7 @@
                 canvasCharacter.Appearance = entry.bundle.map(b => ServerBundledItemToAppearanceItem(target.AssetFamily, b));
                 CharacterRefresh(canvasCharacter);
                 DrawCharacter(canvasCharacter, 40, 100, 0.85, false, ctx);
-            } catch (e) { console.error("🐈‍⬛ [LT] ❌ 預覽渲染失敗:", e.message); }
+            } catch (e) { console.error("🐈‍⬛ [LT] ❌ 预览渲染失敗:", e.message); }
         }
 
         const renderInterval = setInterval(renderPreview, 200);
@@ -883,7 +1820,7 @@
             });
             const sizeKb = (Math.abs(JSON.stringify(oldBundle).length - JSON.stringify(entry.bundle).length) / 1024).toFixed(1);
             ChatRoomSendLocal(getNickname(target) + " " + t('undoApplyDone') + "（" + t('undoApplySize') + ": " + sizeKb + "kB）");
-            chatSendCustomAction(getNickname(Player) + " 將 " + getNickname(target) + " 的外觀回滾到 " + new Date(entry.timestamp).toLocaleTimeString() + " 的狀態！");
+            chatSendCustomAction(getNickname(Player) + " 将 " + getNickname(target) + " 的外观回滚到 " + new Date(entry.timestamp).toLocaleTimeString() + " 的状态！");
             undoHistory[id].splice(currentIndex + 1);
             panel.remove();
         };
@@ -897,7 +1834,16 @@
     // ──────────────────────────────────────────
     function setupHooks() {
 
-        // RP 模式：攔截 Action 訊息
+        // 离开聊天室（如前往衣柜）时关闭工具箱
+        safeHookFunction("CommonSetScreen", 10, (args, next) => {
+            const result = next(args);
+            if (typeof CurrentScreen !== 'undefined' && CurrentScreen !== 'ChatRoom' && toolPanelVisible) {
+                hideToolPanel();
+            }
+            return result;
+        });
+
+        // RP 模式：攔截 Action 讯息
         safeHookFunction("ServerSend", 20, (args, next) => {
             if (!getRpMode(Player) || CurrentScreen !== "ChatRoom") return next(args);
             const [messageType, data] = args;
@@ -905,7 +1851,7 @@
             return next(args);
         });
 
-        // 繪製 RP 圖標
+        // 绘制 RP 图标
         safeHookFunction("ChatRoomCharacterViewDrawOverlay", 10, (args, next) => {
             const result = next(args);
             const [C, CharX, CharY, Zoom] = args;
@@ -916,48 +1862,36 @@
             return result;
         });
 
-        // RP 即時握手：自己進房 / 全房重同步時，廣播自身狀態並要求在場者回覆
-        safeHookFunction("ChatRoomSync", 5, (args, next) => { const r = next(args); sendRpSync(true); return r; });
-        // 別人晚於自己進房時，BC 對既有成員觸發的是 ChatRoomSyncMemberJoin —— 對新人定向握手
-        safeHookFunction("ChatRoomSyncMemberJoin", 5, (args, next) => {
-            const r = next(args);
-            try { const d = args[0]; if (d && d.SourceMemberNumber != null && d.SourceMemberNumber !== Player.MemberNumber) sendRpSync(true, d.SourceMemberNumber); } catch (e) {}
-            return r;
-        });
-        // 重連 / 重複登入會重跑 ServerInit 並換掉 ServerSocket，必須重綁監聽，否則從此收不到任何人的狀態
-        safeHookFunction("ServerInit", 1, (args, next) => { const r = next(args); bindRpSocketListener(); return r; });
-
-        // 繪製 RP 按鈕（rpBtnVisible 存於 ExtensionSettings.LikoTOOL）
+        // 绘制 RP 按鈕 + 工具觸发按鈕
         safeHookFunction("DrawProcess", 4, (args, next) => {
             const result = next(args);
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' &&
                 (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
                 if (getES().rpBtnVisible === 1) {
-                    MainCanvas.globalAlpha = 0.75;
-                    DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, "🔰",
+                    DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, '',
                         getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
-                    MainCanvas.globalAlpha = 1.0;
+                    drawCanvasIconOnButton('rp', rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, 24);
                 }
             }
             return result;
         });
 
-        // 點擊 RP 按鈕：消費事件，不往下傳遞
+        // 點擊 RP 按鈕 + 工具觸发按鈕
         safeHookFunction("ChatRoomClick", 4, (args, next) => {
             if (getES().rpBtnVisible === 1 && MouseIn(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize)) {
                 const newRpMode = !getRpMode(Player);
                 setRpMode(newRpMode);
                 if (typeof ChatRoomSendLocalStyled === 'function') {
-                    ChatRoomSendLocalStyled(newRpMode ? "🔰 " + t('rpOn') : "🔰 " + t('rpOff'), 3000);
+                    ChatRoomSendLocalStyled(newRpMode ? t('rpOn') : t('rpOff'), 3000);
                 } else {
                     ChatRoomSendLocal(newRpMode ? t('rpOn') : t('rpOff'));
                 }
-                return; // 消費點擊
+                return;
             }
             return next(args);
         });
 
-        // 身高：開啟對話框時套用
+        // 身高：开启对话框时套用
         safeHookFunction("CharacterSetCurrent", 10, (args, next) => {
             const [C] = args;
             if (heightTargetChar && heightTargetChar !== C) {
@@ -972,7 +1906,7 @@
             return result;
         });
 
-        // 身高：離開對話框時還原
+        // 身高：离开对话框时还原
         safeHookFunction("DialogLeave", 10, (args, next) => {
             if (heightTargetChar) { removeHeightHijack(heightTargetChar); heightTargetChar = null; }
             return next(args);
@@ -1016,17 +1950,6 @@
     // ──────────────────────────────────────────
     // 指令實作
     // ──────────────────────────────────────────
-    function freetotal(args) {
-        const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
-        try {
-            CharacterReleaseTotal(target);
-            ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(getNickname(Player) + " " + t('freetotalDone') + " " + getNickname(target) + "！");
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ freetotal 錯誤:", e.message); }
-        return true;
-    }
-
     async function free(args) {
         const target = getPlayer(args.trim());
         if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
@@ -1035,7 +1958,8 @@
             if (group.Name.startsWith("Item")) {
                 const item = InventoryGet(target, group.Name);
                 if (item) {
-                    const lock     = item.Property?.LockedBy ? "🔒" + item.Property.LockedBy : "";
+                    if (isHeartLock(item)) continue; // AFC 心锁：跳过，不列入可解除清单
+                    const lock     = item.Property?.LockedBy ? "[锁] " + item.Property.LockedBy : "";
                     const password = item.Property?.Password || item.Property?.CombinationNumber || "";
                     const itemName = item.Craft?.Name || item.Asset?.Description || item.Asset?.Name || t('unknown');
                     restraints.push({
@@ -1055,7 +1979,148 @@
             });
             ChatRoomCharacterUpdate(target);
             chatSendCustomAction(getNickname(Player) + " " + t('freeDone') + " " + getNickname(target) + " 的 " + selected.join("、"));
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ free 錯誤:", e.message); }
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ free 错误:", e.message); }
+        return true;
+    }
+
+    // ── Craft 属性：清除 / 批量编辑（只提供 名称 / 描述 / 私有）──
+    // 收集对象身上所有 Item* 组的束缚物品
+    function collectRestraintItems(target) {
+        const items = [];
+        for (const group of AssetGroup) {
+            if (!group.Name.startsWith("Item")) continue;
+            const item = InventoryGet(target, group.Name);
+            if (item) items.push({ item, group: group.Name, groupDesc: group.Description });
+        }
+        return items;
+    }
+
+    async function clearAllCraft(target) {
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return; }
+        // 只列出「确实带有 craft」的束缚，供逐个选或全选
+        const restraints = collectRestraintItems(target)
+            .filter(r => r.item.Craft)
+            .map(r => ({
+                text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ")",
+                group: r.group
+            }));
+        if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('craftClearNone') + "！"); return; }
+        const selected = await requestButtons(t('craftClearTitle') + " — " + getNickname(target), restraints, true);
+        if (!selected.length) return;
+        try {
+            let count = 0;
+            selected.forEach(itemText => {
+                const group = restraints.find(r => r.text === itemText)?.group;
+                if (!group) return;
+                const item = InventoryGet(target, group);
+                if (item?.Craft) { delete item.Craft; count++; }
+            });
+            if (!count) return;
+            ChatRoomCharacterUpdate(target);
+            chatSendCustomAction(getNickname(Player) + " " + t('craftClearDone') + " " + getNickname(target) + "！");
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ clearAllCraft 错误:", e.message); }
+    }
+
+    async function editCraftBatch(target) {
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return; }
+        const restraints = collectRestraintItems(target).map(r => ({
+            text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ")",
+            group: r.group
+        }));
+        if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('craftNoItem') + "！"); return; }
+        const selected = await requestButtons(t('craftPickTitle') + " — " + getNickname(target), restraints, true);
+        if (!selected.length) return;
+        const craft = await requestCraftEdit();
+        if (!craft) return;
+        try {
+            let count = 0;
+            selected.forEach(itemText => {
+                const group = restraints.find(r => r.text === itemText)?.group;
+                if (!group) return;
+                const item = InventoryGet(target, group);
+                if (!item) return;
+                const existing = item.Craft || {};
+                const defaults = {
+                    Color: Array.isArray(item.Color) ? item.Color.join(",") : (typeof item.Color === "string" ? item.Color : ""),
+                    Lock: "",
+                    Effects: {},
+                    Item: item.Asset?.Name ?? "",
+                };
+                item.Craft = Object.assign({}, defaults, existing, {
+                    Name: craft.name,
+                    Description: craft.description,
+                    Private: craft.private,
+                    Item: item.Asset?.Name ?? existing.Item ?? "",
+                    MemberName: Player.Nickname || Player.Name || "",
+                    MemberNumber: Player.MemberNumber,
+                });
+                count++;
+            });
+            if (!count) return;
+            ChatRoomCharacterUpdate(target);
+            chatSendCustomAction(getNickname(Player) + " → " + getNickname(target) + "：" + count + " " + t('craftEditDone') + "「" + craft.name + "」");
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ editCraftBatch 错误:", e.message); }
+    }
+
+    // craft 编辑表单：名称 / 描述 / 私有 → resolve({name, description, private}) 或 null
+    function requestCraftEdit() {
+        return new Promise(resolve => {
+            let done = false;
+            const wrap = document.createElement('div');
+            wrap.className = 'lt-settings';
+
+            const mkLabel = (txt) => { const l = document.createElement('div'); l.className = 'lt-settings-label'; l.textContent = txt; l.style.marginBottom = '4px'; return l; };
+            const inputCss = 'width:100%;background:var(--lt-surface);border:1px solid var(--lt-border);border-radius:8px;padding:6px 10px;color:var(--lt-text);font-size:12px;outline:none;';
+
+            wrap.appendChild(mkLabel(t('craftName')));
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text'; nameInput.maxLength = 100; nameInput.style.cssText = inputCss + 'margin-bottom:12px;';
+            wrap.appendChild(nameInput);
+
+            wrap.appendChild(mkLabel(t('craftDesc')));
+            const descInput = document.createElement('textarea');
+            descInput.rows = 3; descInput.maxLength = 200; descInput.style.cssText = inputCss + 'margin-bottom:12px;resize:vertical;font-family:inherit;';
+            wrap.appendChild(descInput);
+
+            const privRow = document.createElement('label');
+            privRow.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--lt-text);';
+            const privCheck = document.createElement('input');
+            privCheck.type = 'checkbox';
+            const privText = document.createElement('span'); privText.textContent = t('craftPrivate');
+            privRow.appendChild(privCheck); privRow.appendChild(privText);
+            wrap.appendChild(privRow);
+
+            const footerEl = document.createElement('div');
+            footerEl.style.cssText = 'display:flex;gap:8px;width:100%;';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'lt-btn lt-btn-secondary'; cancelBtn.textContent = t('cancel'); cancelBtn.style.flex = '1';
+            cancelBtn.onclick = () => { if (done) return; done = true; panel.remove(); resolve(null); };
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = 'lt-btn lt-btn-primary'; confirmBtn.textContent = t('confirm'); confirmBtn.style.flex = '1';
+            confirmBtn.onclick = () => {
+                if (done) return;
+                const name = nameInput.value.trim();
+                if (!name) { nameInput.focus(); return; }
+                done = true; panel.remove();
+                resolve({ name, description: descInput.value.trim(), private: privCheck.checked });
+            };
+            footerEl.appendChild(cancelBtn); footerEl.appendChild(confirmBtn);
+
+            const panel = createPanel(t('craftEditTitle'), wrap, footerEl, {
+                onClose: () => { if (!done) { done = true; resolve(null); } }
+            });
+            setTimeout(() => { try { nameInput.focus(); } catch (_) {} }, 0);
+        });
+    }
+
+    function clearCraftCommand(args) {
+        const target = getPlayer((args || '').trim());
+        clearAllCraft(target);
+        return true;
+    }
+    function editCraftCommand(args) {
+        const target = getPlayer((args || '').trim());
+        editCraftBatch(target);
         return true;
     }
 
@@ -1090,21 +2155,74 @@
         return true;
     }
 
-    function fullUnlock(args) {
+    // ──────────────────────────────────────────
+    // 隐藏快捷键：长按 Shift + P 1.5 秒，切换 RP 隐身模式
+    //   - stealthRp ON  → 别人看不到你头顶的 RP 图标
+    //   - stealthRp OFF → 别人能看到你头顶的 RP 图标
+    //   - 完全隐晦：UI 上不显示任何入口，只有开发者知道
+    //   - 普通人按不出：必须 Shift + P 同时按住 1.5 秒
+    // ──────────────────────────────────────────
+    (function setupHiddenRpBtnShortcut() {
+        let held = false;
+        let timer = null;
+        const HOLD_MS = 1500;
+        document.addEventListener('keydown', function(e) {
+            if (e.repeat) return;
+            if (e.ctrlKey || e.altKey || e.metaKey) return;
+            if (e.key !== 'P' && e.key !== 'p') return;
+            if (!e.shiftKey) return;
+            if (held) return;
+            held = true;
+            timer = setTimeout(function() {
+                const s = getES();
+                const wasOn = getRpMode(Player);
+                s.stealthRp = s.stealthRp !== 1 ? 1 : 0;
+                saveES();
+                // 如果之前 RP 已开，把状态迁移到新的存储方式
+                if (wasOn) {
+                    setRpMode(false);
+                    setRpMode(true);
+                }
+                ChatRoomSendLocal('[LT] RP 隐身: ' + (s.stealthRp === 1 ? 'ON (别人看不到图标)' : 'OFF (别人能看到图标)'));
+            }, HOLD_MS);
+        });
+        document.addEventListener('keyup', function(e) {
+            if (e.key === 'P' || e.key === 'p' || e.key === 'Shift') {
+                if (timer) { clearTimeout(timer); timer = null; }
+                held = false;
+            }
+        });
+    })();
+
+    async function fullUnlock(args) {
         const target = getPlayer(args.trim());
         if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
+        // 跳过主人锁 / 恋人锁 / AFC 心锁（拓展锁）
+        const skipLocks = ["OwnerPadlock", "OwnerTimerPadlock", "LoversPadlock", "LoversTimerPadlock"];
+        const locks = collectRestraintItems(target)
+            .filter(r => {
+                const lb = r.item.Property?.LockedBy;
+                return lb && !skipLocks.includes(lb) && !isHeartLock(r.item);
+            })
+            .map(r => ({
+                text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ") [" + r.item.Property.LockedBy + "]",
+                group: r.group
+            }));
+        if (!locks.length) { ChatRoomSendLocal(getNickname(target) + " " + t('unlockNone') + "！"); return true; }
+        const selected = await requestButtons(t('unlockTitle') + " — " + getNickname(target), locks, true);
+        if (!selected.length) return true;
         try {
-            const skipLocks = ["OwnerPadlock", "OwnerTimerPadlock", "LoversPadlock", "LoversTimerPadlock"];
             let count = 0;
-            for (const a of target.Appearance) {
-                if (a.Property?.LockedBy && !skipLocks.includes(a.Property.LockedBy)) {
-                    InventoryUnlock(target, a); count++;
-                }
-            }
-            if (!count) { ChatRoomSendLocal(getNickname(target) + " " + t('unlockNone') + "！"); return true; }
+            selected.forEach(txt => {
+                const group = locks.find(l => l.text === txt)?.group;
+                if (!group) return;
+                const item = InventoryGet(target, group);
+                if (item && item.Property?.LockedBy) { InventoryUnlock(target, item); count++; }
+            });
+            if (!count) return true;
             ChatRoomCharacterUpdate(target);
             chatSendCustomAction(getNickname(Player) + " " + t('unlockDone') + " " + getNickname(target) + "！");
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ fullUnlock 錯誤:", e.message); }
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ fullUnlock 错误:", e.message); }
         return true;
     }
 
@@ -1135,13 +2253,13 @@
                     .forEach(skill => SkillChange(Player, skill, 10, 0, true));
                 ChatRoomSendLocal(t('geSkillsDone') + "！");
             }
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ getEverything 錯誤:", e.message); }
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ getEverything 错误:", e.message); }
         return true;
     }
 
     function wardrobe() {
         try { ChatRoomAppearanceLoadCharacter(Player); ChatRoomSendLocal(t('wardrobeDone')); }
-        catch (e) { console.error("🐈‍⬛ [LT] ❌ wardrobe 錯誤:", e.message); }
+        catch (e) { console.error("🐈‍⬛ [LT] ❌ wardrobe 错误:", e.message); }
         return true;
     }
 
@@ -1174,13 +2292,11 @@
             }
             if (!count) { ChatRoomSendLocal(getNickname(target) + " " + t('lockNone') + "！"); return true; }
             ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(getNickname(Player) + " 為 " + getNickname(target) + " 的 " + count + " " + t('lockDone') + " " + lock.Description + "！");
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ fullLock 錯誤:", e.message); }
+            chatSendCustomAction(getNickname(Player) + " 为 " + getNickname(target) + " 的 " + count + " " + t('lockDone') + " " + lock.Description + "！");
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ fullLock 错误:", e.message); }
         return true;
     }
 
-    // heightfix / heightlock 讀寫 Player.ExtensionSettings.LikoTOOL
-    // 只在指令路徑呼叫，不在任何 hook 內呼叫，安全
     function heightFixCommand() {
         const s = getES();
         s.heightFix = s.heightFix !== 1 ? 1 : 0;
@@ -1218,6 +2334,57 @@
         return true;
     }
 
+    function themeCommand() {
+        openSettingsPanel();
+        return true;
+    }
+
+    // ──────────────────────────────────────────
+    // Free Hands 无视绑缚（被绑时仍可使用双手，不解开任何拘束道具）
+    //  - 只在开关开启时临时覆盖 Player 的 CanInteract / IsRestrained /
+    //    CanChangeOwnClothes；关闭时完整还原为原函式。
+    //  - 关闭状态下不留下任何修改，避免被其他工具误判为“未知 MOD”。
+    // ──────────────────────────────────────────
+    let _fhOrig = null;
+    function _fhPatch() {
+        if (_fhOrig || !Player) return;
+        _fhOrig = {
+            CanInteract: Player.CanInteract,
+            IsRestrained: Player.IsRestrained,
+            CanChangeOwnClothes: Player.CanChangeOwnClothes,
+        };
+        Player.CanInteract  = function () { return true;  };
+        Player.IsRestrained = function () { return false; };
+        if (typeof _fhOrig.CanChangeOwnClothes === 'function') Player.CanChangeOwnClothes = function () { return true; };
+    }
+    function _fhUnpatch() {
+        if (!_fhOrig || !Player) { _fhOrig = null; return; }
+        Player.CanInteract  = _fhOrig.CanInteract;
+        Player.IsRestrained = _fhOrig.IsRestrained;
+        if (typeof _fhOrig.CanChangeOwnClothes === 'function') Player.CanChangeOwnClothes = _fhOrig.CanChangeOwnClothes;
+        _fhOrig = null;
+    }
+    // 依据设定套用/还原（初始化与切换时都走这里；关闭=默认→不套用任何 patch）
+    function applyFreeHands() {
+        if (getES().freeHands === 1) _fhPatch(); else _fhUnpatch();
+    }
+
+    function freeHandsCommand() {
+        const s = getES();
+        s.freeHands = s.freeHands !== 1 ? 1 : 0;
+        saveES();
+        applyFreeHands();
+        ChatRoomSendLocal(s.freeHands === 1 ? t('fhOn') : t('fhOff'));
+        return true;
+    }
+
+    // ── AFC 心锁（拓展锁）识别：解除拘束 / 解锁时跳过，避免破坏 AFC 心锁 ──
+    const AFC_HEARTLOCK_NAME = 'Heart Padlock';
+    function isHeartLock(item) {
+        const p = item?.Property;
+        return !!p && (p.Name === AFC_HEARTLOCK_NAME || !!p.HeartLockId);
+    }
+
     // ──────────────────────────────────────────
     // 指令入口
     // ──────────────────────────────────────────
@@ -1230,8 +2397,9 @@
         if (!subCommand || subCommand === "help") { ChatRoomSendLocal(t('helpText')); return true; }
 
         const commands = {
-            freetotal,
             free,
+            clearcraft:    clearCraftCommand,
+            editcraft:     editCraftCommand,
             bcximport:     bcxImport,
             rpmode,
             rpbtn,
@@ -1241,13 +2409,15 @@
             fulllock:      fullLock,
             heightfix:     heightFixCommand,
             heightlock:    heightLockCommand,
+            freehands:     freeHandsCommand,
             undo:          undoCommand,
+            theme:         themeCommand,
         };
 
         if (commands[subCommand]) {
             try { commands[subCommand](commandText); }
             catch (e) {
-                console.error("🐈‍⬛ [LT] ❌ 命令 " + subCommand + " 執行錯誤:", e.message);
+                console.error("🐈‍⬛ [LT] ❌ 命令 " + subCommand + " 执行错误:", e.message);
                 ChatRoomSendLocal(t('cmdFail') + "：/lt " + subCommand);
             }
         } else {
@@ -1260,48 +2430,51 @@
     // 主初始化
     // ──────────────────────────────────────────
     async function initialize() {
-        console.log(`🐈‍⬛ [LT] ✅ v${MOD_VER} loaded`);
+        console.log("🐈‍⬛ [LT] ⌛ 开始初始化插件...");
         await initializeModApi();
         try { await loadToastSystem(); }
-        catch (e) { console.warn("🐈‍⬛ [LT] ❌ Toast system 載入失敗，備用模式運行:", e.message); }
+        catch (e) { console.warn("🐈‍⬛ [LT] ❌ Toast system 载入失敗，備用模式運行:", e.message); }
 
-        //等待玩家登入
+        console.log("🐈‍⬛ [LT] ⌛ 等待玩家登入...");
         await waitFor(() => { try { return typeof Player?.MemberNumber === "number"; } catch { return false; } });
 
         initializeStorage();
+        applyFreeHands();
+        applyTheme();
         setupHooks();
-        bindRpSocketListener();
+        startToolButtonInjector();
 
         const registerCommand = () => {
             CommandCombine([{ Tag: "lt", Description: "Execute Liko Tool command", Action: handleLtCommand }]);
+            console.log("🐈‍⬛ [LT] ✅ /lt 指令注册成功");
         };
         if (typeof CommandCombine === "function") {
             try { registerCommand(); }
-            catch (e) { console.error("🐈‍⬛ [LT] ❌ 註冊命令錯誤:", e.message); }
+            catch (e) { console.error("🐈‍⬛ [LT] ❌ 注册命令错误:", e.message); }
         } else {
             waitFor(() => typeof CommandCombine === "function").then(() => {
                 try { registerCommand(); }
-                catch (e) { console.error("🐈‍⬛ [LT] ❌ 延遲註冊命令錯誤:", e.message); }
+                catch (e) { console.error("🐈‍⬛ [LT] ❌ 延遲注册命令错误:", e.message); }
             });
         }
 
         waitFor(() => CurrentScreen === "ChatRoom").then(() => {
-            ChatRoomSendLocal(t('loaded', { v: MOD_VER }), 30000);
-            // LT 在已於房內時才載入完成（不會再有 ChatRoomSync 觸發），廣播一發並要求在場者回覆
-            sendRpSync(true);
+            ChatRoomSendLocal(t('loaded', { v: MOD_Version }), 30000);
         });
+
+        console.log("🐈‍⬛ [LT] ✅ 插件已载入 (v" + MOD_Version + ")");
     }
 
     // ──────────────────────────────────────────
-    // 卸載清理
+    // 卸载清理
     // ──────────────────────────────────────────
     function setupUnloadHandler() {
         if (modApi && typeof modApi.onUnload === 'function') {
             modApi.onUnload(() => {
                 if (heightTargetChar) { removeHeightHijack(heightTargetChar); heightTargetChar = null; }
-                try { if (typeof ServerSocket !== 'undefined' && ServerSocket) ServerSocket.off("ChatRoomMessage", parseRpSync); } catch (e) {}
+                _fhUnpatch();
                 delete window.__LikoToolLoaded__;
-                console.log("🐈‍⬛ [LT] 🗑️ 插件卸載");
+                console.log("🐈‍⬛ [LT] 🗑️ 插件卸载");
             });
         }
     }
