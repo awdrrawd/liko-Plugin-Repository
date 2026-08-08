@@ -526,6 +526,19 @@
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HLF.user.js",
       "priority": 10,
       "version": "0.17"
+    },
+    {
+      "id": "Fix-EXHO",
+      "icon": "💉",
+      "name": "ECHO LegsOpen 姿勢警告修正",
+      "en_name": " ECHO LegsOpen Pose Warning Fix",
+      "description": "ECHO LegsOpen 姿勢警告修正",
+      "en_description": "ECHO LegsOpen Pose Warning Fix",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/echo-legsopen-posefix.user.js",
+      "priority": 10,
+      "version": "0.1"
     }
   ]
 }
