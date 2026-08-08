@@ -1726,10 +1726,10 @@
         return _expandDepPromises[rel];
     }
 
-    // 共用按鈕順序協調器：不存在才抓；抓好後補跑一次 injectMatButton()，讓順位補上。
-    ensureExpandDep('expand/BC_ChatRoomButtons.js', () => window.Liko.__Sys_ChatRoomButtons__)
-        .then(() => { try { injectMatButton(); } catch (e) {} })
-        .catch(e => console.warn('🐈‍⬛ [MAT] ⚠️ ChatRoomButtons 載入失敗（順位改由 BC 預設）:', e.message));
+    // 共用按鈕順序協調器：儘早開始載入（能力偵測 ?.add）。按鈕規格由 setupChatButton 同步登記，
+    // 不綁在此處的載入 promise 上——協調器早晚/被誰載入都會把已登記的按鈕建/補回。
+    ensureExpandDep('expand/BC_ChatRoomButtons.js', () => window.Liko.__Sys_ChatRoomButtons__?.add)
+        .catch(e => console.warn('🐈‍⬛ [MAT] ⚠️ ChatRoomButtons 載入失敗，按鈕無法加入:', e.message));
 
     // 聊天室凍結/捲動協調器：讓「使用者往上看歷史時不要被捲走」由這個共用系統統一決定，
     // MAT 不再自帶捲動手段去跟別人搶（見下方 chatWasAtEnd / scrollChatToEndIfWasAtEnd：凍結中一律不捲）。
@@ -1749,7 +1749,6 @@
 
     const MAT_BTN_ID = 'lk-mat-trigger-btn';
     const MAT_MENU_ID = 'lk-mat-quick-menu';
-    let chatBtnObserver = null;
 
     // 快速選單開合動畫：向上展開／向下收回，速度與 easing 對齊 BC_ChatRoomButtons 的按鈕動畫。
     const MAT_MENU_SLIDE_PX = 10;
@@ -1896,7 +1895,9 @@
         document.head.appendChild(style);
     }
 
+    // 工廠函式：協調器每次(重)建都會呼叫、回傳全新按鈕（自帶樣式注入；圖示由 ::before mask 繪製）。
     function createMatButton() {
+        injectMatStyles();
         const btn = document.createElement('button');
         btn.id = MAT_BTN_ID;
         btn.type = 'button';
@@ -1909,72 +1910,29 @@
         btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleMatQuickMenu(); });
         return btn;
     }
-    function syncTriggerVisibility(btn) {
-        if (!btn) return;
-        const collapseBtn = document.getElementById("chat-room-buttons-collapse");
-        if (!collapseBtn) {
-            btn.hidden = false;
-            return;
-        }
-        btn.hidden = collapseBtn.getAttribute("aria-expanded") !== "true";
-    }
-    function injectMatButton() {
-        const container = document.getElementById('chat-room-buttons');
-        if (!container) return;
-        let btn = document.getElementById(MAT_BTN_ID);
-        if (!config.chatButton) {
-            if (btn) btn.remove();
+    // 交給協調器中央託管；MAT 用自帶 ::before mask 當圖示，故不需 plain。
+    // config.chatButton 切換：開 → 登記(直接 add 或推進待處理佇列)；關 → remove 並清掉佇列殘留。
+    function applyChatButton() {
+        const L = window.Liko;
+        const crb = L.__Sys_ChatRoomButtons__;
+        if (config.chatButton) {
+            const spec = ["mat", sys_CRB, createMatButton, {}];
+            if (crb?.add) crb.add(...spec);
+            else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
+        } else {
+            crb?.remove?.("mat");
+            const q = L.__CRB_pending__;
+            if (Array.isArray(q)) { const i = q.findIndex(s => s && s[0] === "mat"); if (i >= 0) q.splice(i, 1); }
             hideMatQuickMenu();
-            return;
         }
-
-        injectMatStyles();
-
-        if (btn && btn.parentElement === container) {
-            // 協調器可能還在非同步載入中（罕見）；載好前先不套，載好後這裡會再被叫到。
-            // 首次見到本 id（get 為 undefined）用 register，之後才 reapply。
-            const crb = window.Liko.__Sys_ChatRoomButtons__;
-            if (crb) (crb.get("mat") === undefined ? crb.register("mat", sys_CRB, btn) : crb.reapply("mat", btn));
-            syncTriggerVisibility(btn);
-            return;
-        }
-        if (btn) btn.remove();
-        btn = createMatButton();
-        container.appendChild(btn);
-        window.Liko.__Sys_ChatRoomButtons__?.register("mat", sys_CRB, btn);
-        syncTriggerVisibility(btn);
     }
 
-    function updateChatButton() {
-        injectMatButton();
-        const btn = document.getElementById(MAT_BTN_ID);
-        if (btn) syncTriggerVisibility(btn);
-    }
+    // 設定頁切換 chatButton 時呼叫。
+    function updateChatButton() { applyChatButton(); }
 
-    // 取代原本每 200ms 的輪詢：改用綁在穩定祖先(documentElement)上的 MutationObserver。
-    // #chat-room-buttons 會隨切換聊天室/畫面被 BC 整個重建，容器重建時我們的按鈕會一起被銷毀，
-    // 兩個真正需要反應的事件各自處理，避免忙碌房間被聊天訊息洗版時做無謂工作：
-    //   • childList：只有「按鈕已不在」(容器剛重建)才重新注入；正常收訊息時按鈕還在 → 單次
-    //     getElementById 即短路，不會每則訊息都跑 reapply。
-    //   • aria-expanded：BC 收合鈕切換時同步按鈕顯示（BC 不認得這顆外掛按鈕，需自己跟）。
-    //     用 attributeFilter 過濾，聊天訊息的 childList 不會誤觸這條。
     function setupChatButton() {
-        if (chatBtnObserver) return;
-        injectMatButton();   // 首次直接注入
-        chatBtnObserver = new MutationObserver((records) => {
-            if (!config.chatButton) return;
-            let hasChild = false, hasAttr = false;
-            for (const r of records) {
-                if (r.type === 'attributes') hasAttr = true;
-                else hasChild = true;
-            }
-            if (hasChild && !document.getElementById(MAT_BTN_ID)) { injectMatButton(); return; }
-            if (hasAttr) syncTriggerVisibility(document.getElementById(MAT_BTN_ID));
-        });
-        chatBtnObserver.observe(document.documentElement, {
-            childList: true, subtree: true,
-            attributes: true, attributeFilter: ['aria-expanded'],
-        });
+        // 同步登記按鈕規格（不綁在載入 promise 上）；容器建立/重建、收合同步、順位皆由協調器統一處理。
+        applyChatButton();
     }
 
     // ============================================================
