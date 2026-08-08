@@ -1542,7 +1542,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	// 順位交給共用協調器 BC_ChatRoomButtons（sys_CRB 數字越大越靠左，見同名 .md）。
 	const sys_CRB = "99";              // #chat-room-buttons 順位設定
 	const DDT_BTN_ID = "lk-ddt-trigger-btn";
-	let ddtBtnObserver = null;
+	let ddtChatBtnAdded = false;
 
 	// 共用系統擴充載入器：已存在就跳過，否則依序 fallback 抓回（與 MAT 同一手法）。
 	const _EXPAND_BASES = (typeof window !== "undefined" && window.LikoDevBase)
@@ -1580,13 +1580,6 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	function syncChatButtonState() {
 		document.getElementById(DDT_BTN_ID)?.classList.toggle("lk-ddt-on", balloonVisible());
 	}
-	// 跟著原生收合鈕（#chat-room-buttons-collapse）的展開狀態顯示/隱藏：aria-expanded="true" ⟺ 展開。
-	// 每輪注入都要補一次，原生收合鈕只在點擊當下對「當時存在的」按鈕切 hidden，不會套到之後重建的按鈕。
-	function syncChatButtonVisibility(btn) {
-		const c = document.getElementById("chat-room-buttons-collapse");
-		btn.hidden = c ? c.getAttribute("aria-expanded") !== "true" : false;
-	}
-
 	function injectDdtStyles() {
 		if (document.getElementById("lk-ddt-crb-style")) return;
 		const style = document.createElement("style");
@@ -1602,7 +1595,9 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		document.head.appendChild(style);
 	}
 
+	// 工廠函式：交給協調器 add()，每次(重)建按鈕時被呼叫。自帶樣式注入與初始高亮，回傳即為完整按鈕。
 	function createDdtButton() {
+		injectDdtStyles();
 		const btn = document.createElement("button");
 		btn.id = DDT_BTN_ID;
 		btn.type = "button";
@@ -1648,53 +1643,23 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		img.src = ICON.balloon; // 原本的 APNG
 
 		btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); toggleBalloonFromButton(); });
+		btn.classList.toggle("lk-ddt-on", balloonVisible()); // 重建後即時反映目前氣球開合的高亮狀態
 		return btn;
 	}
 
-	function injectDdtButton() {
-		const container = document.getElementById("chat-room-buttons");
-		if (!container) return;
-		injectDdtStyles();
-		let btn = document.getElementById(DDT_BTN_ID);
-		const crb = window.Liko.__Sys_ChatRoomButtons__;
-		if (btn && btn.parentElement === container) {
-			// 首次見到本 id 用 register，之後 reapply（協調器可能還在非同步載入中）。
-			if (crb) {
-				crb.get("ddt") === undefined ? crb.register("ddt", sys_CRB, btn) : crb.reapply("ddt", btn);
-				crb.setPlain?.("ddt", true); // 關閉 BC 原生底色，讓 PNG 圖示露出
-			}
-			syncChatButtonState();
-			syncChatButtonVisibility(btn); // ← 每輪同步，才能跟著原生收合鈕收合/展開
-			return;
-		}
-		if (btn) btn.remove();
-		btn = createDdtButton();
-		container.appendChild(btn);
-		crb?.register("ddt", sys_CRB, btn);
-		crb?.setPlain?.("ddt", true);
-		syncChatButtonState();
-		syncChatButtonVisibility(btn);
-	}
-
+	// 交給共用協調器 BC_ChatRoomButtons 中央託管：只給「順位 + 工廠函式 + plain」，
+	// 容器建立/重建、收合同步、關閉底色都由協調器統一處理，這裡不再自己注入或掛 observer。
 	function setupChatButton() {
-		if (ddtBtnObserver) return;
-		ensureExpandDep("expand/BC_ChatRoomButtons.js", () => window.Liko.__Sys_ChatRoomButtons__)
-			.then(() => { try { injectDdtButton(); } catch {} })
-			.catch(e => console.warn(`🐈‍⬛ [${MOD_NAME}] ⚠️ ChatRoomButtons 載入失敗（順位改由 BC 預設）: ` + e.message));
-		injectDdtButton();
-		// 取代每 200ms 輪詢：綁在穩定祖先(documentElement)上觀察。BC 切換畫面會整個重建按鈕列、
-		// 我們的按鈕會一起被銷毀；只有「按鈕已不在」才重注入，正常收訊息時按鈕還在 → 單次 getElementById
-		// 即短路，不會每則訊息都跑 reapply。收合鈕 aria-expanded 變化則即時同步顯示（氣球高亮由 show/hideBalloon 自理）。
-		ddtBtnObserver = new MutationObserver((records) => {
-			let hasChild = false, hasAttr = false;
-			for (const r of records) { if (r.type === "attributes") hasAttr = true; else hasChild = true; }
-			if (hasChild && !document.getElementById(DDT_BTN_ID)) { injectDdtButton(); return; }
-			if (hasAttr) { const b = document.getElementById(DDT_BTN_ID); if (b) syncChatButtonVisibility(b); }
-		});
-		ddtBtnObserver.observe(document.documentElement, {
-			childList: true, subtree: true,
-			attributes: true, attributeFilter: ["aria-expanded"],
-		});
+		if (ddtChatBtnAdded) return;
+		ddtChatBtnAdded = true;
+		// 先「同步」交出按鈕規格，不綁在載入 promise 上——協調器已載入就直接 add，否則推進待處理佇列，
+		// 等協調器（無論被誰、何時載入）初始化時自動排空。這樣 DDT 鈕的出現與協調器載入時機完全無關。
+		const spec = ["ddt", sys_CRB, createDdtButton, { plain: true }];
+		if (window.Liko.__Sys_ChatRoomButtons__?.add) window.Liko.__Sys_ChatRoomButtons__.add(...spec);
+		else (window.Liko.__CRB_pending__ = window.Liko.__CRB_pending__ || []).push(spec);
+		// 確保協調器最終會被載入（獨立安裝時）；但按鈕規格已在上面登記好，不依賴這步的時機/成敗。
+		ensureExpandDep("expand/BC_ChatRoomButtons.js", () => window.Liko.__Sys_ChatRoomButtons__?.add)
+			.catch(e => console.warn(`🐈‍⬛ [${MOD_NAME}] ⚠️ ChatRoomButtons 載入失敗，DDT 按鈕無法加入: ` + e.message));
 	}
 
 	// ---------------------------------------------------------------- Pen 面板

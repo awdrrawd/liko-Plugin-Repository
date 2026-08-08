@@ -3,7 +3,9 @@
 給 Bondage Club 插件共用的基礎設施：管理聊天室那一排按鈕容器 `#chat-room-buttons` 的**排序**、**收合/展開動畫**、**單排捲動排版**與**關閉底色**。單獨載入即可運作，無外部依賴。
 
 - 掛載點：`window.Liko.__Sys_ChatRoomButtons__`
-- 版本守衛：`V = 4`，已存在且版本 ≥ 本檔就跳過（升級沿用舊 slots / plainIds，不清掉別人登記的順位）。
+- 版本守衛：`V = 5`，已存在且版本 ≥ 本檔就跳過（升級沿用舊 slots / plainIds，不清掉別人登記的順位）。
+- `V5` 新增中央託管 API `add` / `remove`（見「五」）；`V4` 起的 `register` / `reapply` / `setPlain` 仍相容保留。
+- `V5` 另支援待處理佇列 `window.Liko.__CRB_pending__`：插件在本檔載入前就先 `push([id, order, createFn, opts])`，本檔載入時自動排空——讓按鈕登記與協調器載入時機解耦（見「五」要點）。
 
 ---
 
@@ -23,9 +25,11 @@
 
 | 函式 | 說明 |
 |------|------|
-| `register(id, order, el)` | 記錄某 id 的順位並套用到 `el`，回傳 order |
+| `add(id, order, createFn, opts?)` | **推薦**。交出「順位＋工廠函式」由本檔中央託管：容器建立/重建、收合同步、底色全自動。`opts = { plain?, collapse? }`。見「五」 |
+| `remove(id)` | 移除 `add` 的按鈕與所有登記狀態（停用／熱更新用） |
+| `register(id, order, el)` | 低階：記錄某 id 的順位並套用到 `el`，回傳 order（自行 `append` 時用） |
 | `get(id)` | 查某 id 已宣告的順位（沒有回 `undefined`） |
-| `reapply(id, el)` | BC 重建按鈕列後，把記錄的順位重新套回新按鈕 |
+| `reapply(id, el)` | 低階：BC 重建按鈕列後，把記錄的順位重新套回新按鈕 |
 | `setPlain(id, on=true)` | 關閉／開啟該按鈕的 BC 原生底色（見「四、關閉底色」） |
 
 **自我巡邏**：每 500ms 自動把記住的順位補套回目前仍在文件內的元素。就算插件自己的重繪忘了 `reapply`，只要按鈕還在，順位就不會跑掉；已移除的元素會被清出參照。
@@ -89,13 +93,13 @@ crb.setPlain("myplugin", true);   // 關閉底色，露出 btn 裡的 <img>
 
 ## 五、如何在自己的插件加一顆按鈕（複製即用）
 
-```js
-// 1) 順位（數字越大越靠左）
-const sys_CRB = "99";
-const BTN_ID  = "lk-myplugin-btn";
-let btnObserver = null;
+**推薦用中央託管 `add()`：** 你只給「順位＋一個回傳按鈕的工廠函式」，容器建立/重建、跟隨收合鈕、關閉底色都由本檔統一處理——插件端**不必**自己輪詢、掛 observer、或 append/reapply。
 
-// 2) 載入協調器（已存在就跳過；否則依序 fallback 抓回）
+```js
+const sys_CRB = "99";               // 順位（數字越大越靠左）
+const BTN_ID  = "lk-myplugin-btn";
+
+// 1) 載入協調器（已存在就跳過；能力偵測用 ?.add，舊版協調器會被視為未就緒而抓新版）
 const BASES = window.LikoDevBase ? [window.LikoDevBase] : [
     "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/",
     "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/",
@@ -103,7 +107,7 @@ const BASES = window.LikoDevBase ? [window.LikoDevBase] : [
 ];
 let depPromise = null;
 function ensureCRB() {
-    if (window.Liko?.__Sys_ChatRoomButtons__) return Promise.resolve();
+    if (window.Liko?.__Sys_ChatRoomButtons__?.add) return Promise.resolve();
     if (depPromise) return depPromise;
     depPromise = (async () => {
         for (const base of BASES) {
@@ -114,71 +118,50 @@ function ensureCRB() {
                 if (!text || text.trimStart().startsWith("<")) throw new Error("bad content");
                 const s = document.createElement("script");
                 s.textContent = text;
-                document.head.appendChild(s);
+                document.head.appendChild(s);   // inline script 同步執行，回傳後 add 已可用
                 return;
             } catch (e) { /* 換下一個 base */ }
         }
+        throw new Error("BC_ChatRoomButtons 載入失敗");
     })();
     return depPromise;
 }
 
-// 讓按鈕跟著原生收合鈕的展開狀態顯示/隱藏（見「二、收合/展開動畫」的消費端要點）
-function syncVisibility(btn) {
-    const c = document.getElementById("chat-room-buttons-collapse");
-    btn.hidden = c ? c.getAttribute("aria-expanded") !== "true" : false;
-}
-
-// 3) 建立/補回按鈕（BC 切換畫面會重建按鈕列，由下方 observer 在重建時即時補回）
-function injectButton() {
-    const container = document.getElementById("chat-room-buttons");
-    if (!container) return;
-    let btn = document.getElementById(BTN_ID);
-    const crb = window.Liko?.__Sys_ChatRoomButtons__;
-    if (btn && btn.parentElement === container) {
-        // 首次用 register，之後 reapply
-        if (crb) {
-            crb.get("myplugin") === undefined
-                ? crb.register("myplugin", sys_CRB, btn)
-                : crb.reapply("myplugin", btn);
-            crb.setPlain?.("myplugin", true); // 若用 <img> 圖示，關掉底色才看得到
-        }
-        syncVisibility(btn); // ← 注入時同步；之後由 observer 依 aria-expanded 即時同步
-        return;
-    }
-    if (btn) btn.remove();
-    btn = document.createElement("button");
+// 2) 工廠函式：每次(重)建按鈕都會被呼叫、回傳一顆全新的按鈕（含 icon / click / 自帶 style）。
+//    ⚠️ 每次都要 new 一顆，別回傳同一個快取的元素——容器重建後舊元素已失聯。
+function createButton() {
+    const btn = document.createElement("button");
     btn.id = BTN_ID;
     btn.type = "button";
-    btn.className = "blank-button button HideOnPopup chat-room-button";
+    btn.className = "blank-button button HideOnPopup chat-room-button"; // 要帶 chat-room-button 才吃排版
     btn.setAttribute("role", "menuitem");
     btn.title = "我的插件";
     // 例：放自己的圖示（大小自己控）
     // const img = document.createElement("img"); img.src = "..."; img.style.cssText = "width:100%;height:100%;object-fit:contain"; btn.appendChild(img);
     btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); /* 你的動作 */ });
-    container.appendChild(btn);
-    crb?.register("myplugin", sys_CRB, btn);
-    crb?.setPlain?.("myplugin", true);
-    syncVisibility(btn);
+    return btn;
 }
 
-// 4) 啟動：首次注入 + 綁在穩定祖先(documentElement)上觀察，取代舊版每 200ms 輪詢。
-//    對齊本檔「二、四」的作法：綁穩定祖先，容器怎麼被 BC 重建都不用重新掛勾。
-ensureCRB().then(injectButton).catch(() => {});
-injectButton();
-btnObserver = new MutationObserver((records) => {
-    let hasChild = false, hasAttr = false;
-    for (const r of records) { if (r.type === "attributes") hasAttr = true; else hasChild = true; }
-    // childList：容器被 BC 重建 → 按鈕不在了才重注入。正常收訊息時按鈕還在，單次 getElementById 即短路，
-    //            不會每則訊息都跑 register/reapply（避免忙碌房間空轉）。
-    if (hasChild && !document.getElementById(BTN_ID)) { injectButton(); return; }
-    // aria-expanded：收合鈕切換時即時同步顯隱，不必等下一輪輪詢（過濾屬性，聊天訊息不會誤觸）。
-    if (hasAttr) { const b = document.getElementById(BTN_ID); if (b) syncVisibility(b); }
-});
-btnObserver.observe(document.documentElement, {
-    childList: true, subtree: true,
-    attributes: true, attributeFilter: ["aria-expanded"],
-});
+// 3) 「同步」交出按鈕規格——別綁在載入 promise 上。協調器已載入就直接 add，否則推進待處理佇列，
+//    等協調器（無論被誰、何時載入）初始化時自動排空。這樣按鈕出現與協調器載入時機**完全無關**。
+const L = window.Liko = window.Liko || {};
+const spec = ["myplugin", sys_CRB, createButton, { plain: true }];
+if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(...spec);
+else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
+
+// 4) 確保協調器最終會被載入（獨立安裝時）；但規格已在上面登記好，不依賴這步的時機/成敗。
+ensureCRB().catch(e => console.warn("[myplugin] BC_ChatRoomButtons 載入失敗:", e.message));
 ```
+
+要點：
+
+- **登記與載入解耦（重要）**：一定要**同步**把 spec 交出去（直接 `add` 或推進 `__CRB_pending__`），**不要**寫成 `ensureCRB().then(() => add(...))`。後者把「登記按鈕」綁死在「你自己載入協調器成功」上——若協調器是由別人（PCM）或在不同時機載入，你的 `.then` 沒在對的時間跑，spec 就從沒交出去、按鈕永遠不出現。
+- `add(id, order, createFn, { plain, collapse })`：`createFn` 每次(重)建都會被呼叫；`plain:true` 露出自帶 `<img>`/SVG 圖示；`collapse:false` 則不跟隨收合鈕。停用/熱更新用 `remove(id)`。
+- 用 `<img>`/SVG 當圖示 → 帶 `{ plain: true }`；圖示大小在 `createFn` 內自己設定。
+- **別在按鈕上寫 `display:…!important`**（見「二」消費端要點 2）：會蓋掉 `[hidden]` 讓按鈕收不起來。改用 `::before` 遮罩或 `你的選擇器:not([hidden])`。
+- **獨立安裝也要能載入本檔**：保留 `ensureCRB()`（或用 `@require` 引入本檔）。沒有協調器就沒有按鈕——但有了待處理佇列，載入早晚都不影響按鈕出現。
+
+> 進階（低階 API）：若要完全自己掌控 DOM 生命週期，仍可用 `register(id, order, el)` / `reapply(id, el)` / `setPlain(id)` 自行 `append` 與在 BC 重建後補回（`add` 內部就是用它們＋一個共用 observer 實作的）。多數情況用 `add` 即可，不必碰這層。
 
 要點：`id` 唯一；`className` 帶 `chat-room-button` 才能吃到容器排版；用 `register`/`reapply` 交出順位；靠 **`documentElement` 上的 `MutationObserver`** 在 BC 重建按鈕列後即時補回（childList），並在收合鈕 `aria-expanded` 變化時同步顯隱——取代舊版每 200ms 輪詢：閒置房間零開銷、收合反應即時、忙碌房間靠「按鈕還在就短路」不空轉。動畫是本檔自動處理的，插件端不用管。
 

@@ -52,7 +52,7 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
     global.Liko = global.Liko ?? {};
 
     // 版本守衛：已存在且版本 >= 本檔就跳過；升級時沿用舊的 slots，不清掉別人登記過的順位。
-    const V = 4;
+    const V = 5;
     const cur = global.Liko.__Sys_ChatRoomButtons__;
     if (cur && cur.v >= V) return;
 
@@ -68,6 +68,7 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
     const slots = cur?.slots ?? {};              // id -> order（純數字，供 introspection，向下相容）
     const plainIds = cur?.plainIds ?? new Set(); // 要求關閉 BC 原生 ::before 底色的 id（露出自帶圖示）
     const els = new Map();                        // id -> 目前已知的按鈕元素，供自我巡邏使用
+    const specs = new Map();                      // id -> { order, createFn, opts }（add() 委託中央託管的按鈕）
 
     function applyPlain(id, el) {
         if (el) el.classList.toggle('lk-crb-plain', plainIds.has(id));
@@ -101,6 +102,61 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
         applyPlain(id, els.get(id));
     }
 
+    // ---------------------------------------------------------------------------
+    // 中央託管：插件用 add() 交出「順位 + 工廠函式」，容器建立/重建、收合同步、底色都由本檔統一處理，
+    // 插件不必自己輪詢、掛 observer、或 append/reapply（見下方單一 lifecycleObserver）。
+    // ---------------------------------------------------------------------------
+    function collapseExpanded() {
+        const c = document.getElementById('chat-room-buttons-collapse');
+        return c ? c.getAttribute('aria-expanded') === 'true' : true; // 沒有收合鈕時視為展開
+    }
+    function applyCollapse(id, el) {
+        const spec = specs.get(id);
+        if (!el || !spec || spec.opts.collapse === false) return;
+        el.hidden = !collapseExpanded();
+    }
+
+    // 確保某 id 的按鈕存在且掛好：還在就只補順位/底色/收合；不在（首次或容器被重建）就用工廠重建。
+    function ensureButton(id) {
+        const spec = specs.get(id);
+        if (!spec) return;
+        const container = document.getElementById(CONTAINER_ID);
+        if (!container) return; // 還沒進聊天室；容器出現時 lifecycleObserver / healOrders 會再補
+        let el = els.get(id);
+        if (el && el.isConnected && el.parentElement === container) {
+            register(id, spec.order, el);
+            if (spec.opts.plain) setPlain(id, true);
+            applyCollapse(id, el);
+            return;
+        }
+        if (el && el.parentElement && el.parentElement !== container) { try { el.remove(); } catch (e) {} }
+        el = spec.createFn();
+        if (!el) return;
+        if (!el.id) el.id = id; // 工廠沒設 id 就用註冊 id 保底
+        container.appendChild(el);
+        register(id, spec.order, el);
+        if (spec.opts.plain) setPlain(id, true);
+        applyCollapse(id, el);
+    }
+
+    // 交出按鈕：id 唯一；order 順位（數字越大越靠左）；createFn 每次(重)建都會被呼叫、回傳一顆新按鈕；
+    // opts.plain 關閉原生底色；opts.collapse=false 則不跟隨原生收合鈕。回傳 order。
+    function add(id, order, createFn, opts = {}) {
+        if (typeof createFn !== 'function') return order;
+        specs.set(id, { order, createFn, opts });
+        ensureButton(id);
+        return order;
+    }
+    // 卸載（熱更新/停用用）：移除按鈕與所有登記狀態。
+    function remove(id) {
+        specs.delete(id);
+        const el = els.get(id);
+        if (el) { try { el.remove(); } catch (e) {} }
+        els.delete(id);
+        delete slots[id];
+        plainIds.delete(id);
+    }
+
     // 自我巡邏：定期把記得的順位/底色設定補套回目前還連接在文件內的元素，不必等插件自己呼叫 reapply。
     // 即使某插件的重繪迴圈掛掉、或這份檔案是唯一成功載入的插件相關腳本，順位依然穩定。
     function healOrders() {
@@ -112,6 +168,11 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
             } else if (!el.isConnected) {
                 els.delete(id); // 按鈕已經被移除（插件卸載/BC 重建），清掉過期參照避免累積
             }
+        });
+        // add() 託管的按鈕：元素不見了（容器被重建/被別的腳本移除）就用工廠補回——observer 之外的安全網。
+        specs.forEach((_spec, id) => {
+            const el = els.get(id);
+            if (!el || !el.isConnected) ensureButton(id);
         });
     }
     setInterval(healOrders, HEAL_INTERVAL_MS);
@@ -283,6 +344,26 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
         subtree: true,
     });
 
+    // add() 託管按鈕的單一生命週期 observer（取代各插件自帶的輪詢/observer）：
+    //  childList：容器 #chat-room-buttons 會隨切換聊天室/畫面被 BC 整個重建，重建後把所有託管按鈕補回。
+    //             只有「按鈕不在文件內」才呼叫工廠；正常收訊息時逐一 isConnected 檢查即短路，忙碌房間不空轉。
+    //  aria-expanded：原生收合鈕切換時即時同步所有託管按鈕的顯隱（attributeFilter 過濾，聊天訊息不誤觸）。
+    const lifecycleObserver = new MutationObserver((records) => {
+        let hasChild = false, hasAttr = false;
+        for (const r of records) { if (r.type === 'attributes') hasAttr = true; else hasChild = true; }
+        if (hasChild) {
+            specs.forEach((_spec, id) => {
+                const el = els.get(id);
+                if (!el || !el.isConnected || (el.parentElement && el.parentElement.id !== CONTAINER_ID)) ensureButton(id);
+            });
+        }
+        if (hasAttr) els.forEach((el, id) => applyCollapse(id, el));
+    });
+    lifecycleObserver.observe(document.documentElement, {
+        childList: true, subtree: true,
+        attributes: true, attributeFilter: ['aria-expanded'],
+    });
+
     // ---------------------------------------------------------------------------
     global.Liko.__Sys_ChatRoomButtons__ = {
         v: V,
@@ -292,5 +373,15 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
         get,
         reapply,
         setPlain,
+        add,
+        remove,
     };
+
+    // 排空「在本檔載入前就先登記」的按鈕佇列：插件同步把 [id, order, createFn, opts] 推進
+    // global.Liko.__CRB_pending__（不必等本檔載入），本檔載入時（無論被誰、何時載入）在此排空。
+    // 這讓「登記按鈕」與「載入協調器」完全解耦，load 順序無關。
+    const pendingAdds = global.Liko.__CRB_pending__;
+    if (Array.isArray(pendingAdds)) {
+        while (pendingAdds.length) { try { add(...pendingAdds.shift()); } catch (e) { console.warn('🐈‍⬛ [CRB] pending add 失敗:', e); } }
+    }
 })(window);
