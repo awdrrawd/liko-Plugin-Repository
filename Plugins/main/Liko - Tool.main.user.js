@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.0.2
+// @version      2.0.3
 // @description  Bondage Club - Likolisu's tool (R121 Compatible) + UI Panel + 角色选择器 + Canvas SVG图标 + 拖拽排序 + 主题自定义 + 无视绑缚 + 无视衣物阻挡
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -23,7 +23,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_Version = "2.0.2";
+    const MOD_Version = "2.0.3";
     if (window.Liko.LT) return;
     window.Liko.LT = MOD_Version;
     let modApi = null;
@@ -2368,35 +2368,34 @@
     //  - 拿掉「其他道具 Block 此格子」+「先脱掉些衣服(RemoveClothesForItem)前置条件」两条，
     //    让被服装/道具遮挡的格子仍可直接换装、装拘束，省去先脱再装。
     //  - enclose / 距离 / 主人规则 / 其它前置条件(姿势/贞操/冲突拘束)全部保留。
-    //  - 关闭时完整还原全局函式，不留下任何修改。
+    //  - 透过 modApi.hookFunction 挂钩（不直接改写全局函式），否则会被 ModSDK 判为「未知 MOD」。
+    //    关闭时呼叫 hookFunction 回传的移除器还原，不留下任何修改。
     // ──────────────────────────────────────────
-    let _ibOrig = null;
+    let _ibHooks = null;
     function _ibPatch() {
-        if (_ibOrig) return;
-        if (typeof InventoryGroupIsBlockedForCharacter !== 'function' || typeof InventoryPrerequisiteMessage !== 'function') return;
-        _ibOrig = {
-            gib: InventoryGroupIsBlockedForCharacter,
-            pre: InventoryPrerequisiteMessage,
-        };
-        window.InventoryGroupIsBlockedForCharacter = function (C, GroupName, Activity = false) {
-            const restraints = C.Appearance.filter(i => i.Asset.Group.IsItem());
-            if (Activity && !restraints.some(i => i.Asset.AllowActivityOn.includes(GroupName) || i.Property?.AllowActivityOn?.includes(GroupName)))
-                Activity = false;
-            // 原本此处是 item-Block-item 检查，被无视
-            if (!C.IsPlayer() && C.IsEnclose())
-                return !restraints.some(i => i.Asset.Group.Name == GroupName && InventoryItemHasEffect(i, "Enclose", true));
-            return false;
-        };
-        window.InventoryPrerequisiteMessage = function (C, Prerequisite, asset = null) {
-            const msg = _ibOrig.pre(C, Prerequisite, asset);
-            return msg === "RemoveClothesForItem" ? "" : msg;
-        };
+        if (_ibHooks || !modApi || typeof modApi.hookFunction !== 'function') return;
+        _ibHooks = [
+            modApi.hookFunction('InventoryGroupIsBlockedForCharacter', 10, (args) => {
+                const C = args[0], GroupName = args[1];
+                let Activity = args[2] || false;
+                const restraints = C.Appearance.filter(i => i.Asset.Group.IsItem());
+                if (Activity && !restraints.some(i => i.Asset.AllowActivityOn.includes(GroupName) || i.Property?.AllowActivityOn?.includes(GroupName)))
+                    Activity = false;
+                // 原本此处是 item-Block-item 检查，被无视
+                if (!C.IsPlayer() && C.IsEnclose())
+                    return !restraints.some(i => i.Asset.Group.Name == GroupName && InventoryItemHasEffect(i, "Enclose", true));
+                return false;
+            }),
+            modApi.hookFunction('InventoryPrerequisiteMessage', 10, (args, next) => {
+                const msg = next(args);
+                return msg === "RemoveClothesForItem" ? "" : msg;
+            }),
+        ];
     }
     function _ibUnpatch() {
-        if (!_ibOrig) return;
-        window.InventoryGroupIsBlockedForCharacter = _ibOrig.gib;
-        window.InventoryPrerequisiteMessage = _ibOrig.pre;
-        _ibOrig = null;
+        if (!_ibHooks) return;
+        _ibHooks.forEach(remove => { try { remove(); } catch (e) {} });
+        _ibHooks = null;
     }
     function applyIgnoreBlock() {
         if (getES().ignoreBlock === 1) _ibPatch(); else _ibUnpatch();
