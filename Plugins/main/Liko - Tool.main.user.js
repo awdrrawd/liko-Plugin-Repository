@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.0.0
+// @version      2.0.1
 // @description  Bondage Club - Likolisu's tool (R121 Compatible) + UI Panel + 角色选择器 + Canvas SVG图标 + 拖拽排序 + 主题自定义 + 无视绑缚
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -23,7 +23,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_Version = "2.0.0";
+    const MOD_Version = "2.0.1";
     if (window.Liko.LT) return;
     window.Liko.LT = MOD_Version;
     let modApi = null;
@@ -965,7 +965,6 @@
             const target = await requestCharacter('选择要解锁的目标');
             if (target) fullUnlock(getNickname(target));
         }},
-        { id: 'password',  icon: SVG.password,  label: '锁密码',  title: '查看当前锁的密码', fn: function() { execChatCommand('/infolock'); } },
         { id: 'struggle',  icon: SVG.struggle,  label: '挣扎',    title: 'LSCG 挣脱指令', fn: function() { execChatCommand('/lscg escape'); } },
         { id: 'enhance',   icon: SVG.enhance,   label: '增强',    title: '获取道具/金钱/技能', fn: function() { getEverything(); } },
         { id: 'bcx',       icon: SVG.bcx,       label: 'BCX导入', title: '从剪贴板导入 BCX 外观', fn: async function() {
@@ -1628,7 +1627,7 @@
     /* ── 角色选择器 ── */
     function requestCharacter(title) {
         return new Promise(resolve => {
-            const targets = ChatRoomCharacter || [];
+            const targets = [...(ChatRoomCharacter || [])].sort((a, b) => (b.IsPlayer?.() ? 1 : 0) - (a.IsPlayer?.() ? 1 : 0));
             if (!targets.length) {
                 ChatRoomSendLocal('房间内没有玩家');
                 resolve(null);
@@ -2204,10 +2203,13 @@
                 const lb = r.item.Property?.LockedBy;
                 return lb && !skipLocks.includes(lb) && !isHeartLock(r.item);
             })
-            .map(r => ({
-                text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ") [" + r.item.Property.LockedBy + "]",
-                group: r.group
-            }));
+            .map(r => {
+                const pw = r.item.Property?.Password || r.item.Property?.CombinationNumber || "";
+                return {
+                    text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ") [" + r.item.Property.LockedBy + (pw ? ", " + t('password') + ": " + pw : "") + "]",
+                    group: r.group
+                };
+            });
         if (!locks.length) { ChatRoomSendLocal(getNickname(target) + " " + t('unlockNone') + "！"); return true; }
         const selected = await requestButtons(t('unlockTitle') + " — " + getNickname(target), locks, true);
         if (!selected.length) return true;
