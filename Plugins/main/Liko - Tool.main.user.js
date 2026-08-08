@@ -2365,8 +2365,8 @@
 
     // ──────────────────────────────────────────
     // Ignore Clothing Block 无视衣物阻挡
-    //  - 拿掉「其他道具 Block 此格子」+「先脱掉些衣服(RemoveClothesForItem)前置条件」两条，
-    //    让被服装/道具遮挡的格子仍可直接换装、装拘束，省去先脱再装。
+    //  - 拿掉「其他道具 Block 此格子」+ 衣物遮挡类前置条件（RemoveClothesForItem 一般衣物/外套、
+    //    UnZipSuitForItem 连体衣/外套遮住乳环），让被服装/道具遮挡的格子仍可直接换装、装拘束。
     //  - enclose / 距离 / 主人规则 / 其它前置条件(姿势/贞操/冲突拘束)全部保留。
     //  - 透过 modApi.hookFunction 挂钩（不直接改写全局函式），否则会被 ModSDK 判为「未知 MOD」。
     //    关闭时呼叫 hookFunction 回传的移除器还原，不留下任何修改。
@@ -2388,7 +2388,10 @@
             }),
             modApi.hookFunction('InventoryPrerequisiteMessage', 10, (args, next) => {
                 const msg = next(args);
-                return msg === "RemoveClothesForItem" ? "" : msg;
+                // 衣物遮挡类前置条件全部放行：RemoveClothesForItem（一般衣物/外套遮挡）、
+                // UnZipSuitForItem（连体衣/外套遮住乳环等 ItemNipplesPiercings 项目）。
+                // 其它（姿势/贞操/MustFree*/MustHave* 等结构性条件）保留。
+                return (msg === "RemoveClothesForItem" || msg === "UnZipSuitForItem") ? "" : msg;
             }),
         ];
     }
