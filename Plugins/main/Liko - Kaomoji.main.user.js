@@ -50,10 +50,10 @@
         return _expandDepPromises[rel];
     }
 
-    // 共用按鈕順序協調器：不存在才抓。抓好前，下方 injectNativeButton 的每輪重繪會 no-op（?.），
-    // 載好後某一輪就會用 register 補上順位（見該處 get==undefined 判斷）。
-    ensureExpandDep('expand/BC_ChatRoomButtons.js', () => window.Liko.__Sys_ChatRoomButtons__)
-        .catch(e => console.warn('🐈‍⬛ [Kaomoji] ⚠️ ChatRoomButtons 載入失敗（順位改由 BC 預設）:', e.message));
+    // 共用按鈕順序協調器：儘早開始載入（能力偵測 ?.add）。按鈕規格於下方同步登記，不綁在此處
+    // 的載入 promise 上——協調器早晚/被誰載入都會把已登記的按鈕建/補回（見 __CRB_pending__ 佇列）。
+    ensureExpandDep('expand/BC_ChatRoomButtons.js', () => window.Liko.__Sys_ChatRoomButtons__?.add)
+        .catch(e => console.warn('🐈‍⬛ [Kaomoji] ⚠️ ChatRoomButtons 載入失敗，按鈕無法加入:', e.message));
 
     try {
         window.Liko.Kaomoji = window.Liko.Kaomoji ?? {};
@@ -250,7 +250,6 @@
         let _resizeStart = { y: 0, h: 0 };
         let _dragSrc = null;                  // 表情项拖动排序用（跟面板拖动无关，保留）
         let collectingMode = false;           // 收藏模式开关
-        let _observer = null;                 // MutationObserver 句柄（用于彻底销毁）
         let _destroyed = false;               // 防止热更新时，旧实例仍在等待 bcModSdk 的异步注册在销毁后才完成
 
         // ────────────────────────────────── 存储 ──────────────────────────────────
@@ -1182,7 +1181,9 @@
             return 'url("data:image/svg+xml,' + encodeURIComponent(FACE_MASK_SVG) + '")';
         }
 
+        // 工厂函式：协调器每次(重)建都会呼叫、回传全新按钮（自带样式注入；图示由 ::before mask 绘制）。
         function createNativeButton() {
+            injectStyles();
             var btn = document.createElement('button');
             btn.id = 'lk-kaomoji-trigger-btn';
             btn.type = 'button';
@@ -1239,11 +1240,6 @@
             document.head.appendChild(style);
         }
 
-        function removeNativeButton() {
-            var btn = document.getElementById('lk-kaomoji-trigger-btn');
-            if (btn) btn.remove();
-        }
-
         /**
          * 让原生「收纳/展开按钮列」的折叠状态持久化：
          * 第一次遇到该按钮时套用上次保存的状态（直接复用原生点击逻辑，保证图示与 hidden 状态同步），
@@ -1265,86 +1261,42 @@
             });
         }
 
-        /**
-         * 强制让我们的原生触发按钮的 hidden 状态与 chat-room-buttons-collapse 的展开状态保持一致。
-         * 规则（对照原生折叠按钮的点击逻辑推导）：aria-expanded === "true" 时按钮组处于展开/可见状态。
-         * 每次注入循环都会调用，确保新加载/重建的按钮不会默认展示成"展开"而与实际收纳状态不符。
-         */
-        function syncTriggerVisibility(btn) {
-            var collapseBtn = document.getElementById('chat-room-buttons-collapse');
-            if (!collapseBtn) return;
-            var expanded = collapseBtn.getAttribute('aria-expanded') === 'true';
-            btn.toggleAttribute('hidden', !expanded);
-        }
+        /* 迁移清理：移除旧版折叠功能残留的按钮（一次性） */
+        try {
+            var _oldToggle = document.getElementById('lk-kaomoji-toggle-btn');
+            if (_oldToggle) _oldToggle.remove();
+            var _oldTrigger = document.getElementById('lk-kaomoji-trigger-btn');
+            if (_oldTrigger && _oldTrigger.classList.contains('lk-km-collapsed')) _oldTrigger.remove();
+        } catch (e) {}
 
-        function injectNativeButton() {
-            // 清理旧版折叠功能残留的按钮（迁移用）
-            var oldToggle = document.getElementById('lk-kaomoji-toggle-btn');
-            if (oldToggle) oldToggle.remove();
-            var oldTrigger = document.getElementById('lk-kaomoji-trigger-btn');
-            if (oldTrigger && oldTrigger.classList.contains('lk-km-collapsed')) oldTrigger.remove();
+        /* 交给共用协调器 BC_ChatRoomButtons 中央託管：同步登记 spec（不绑载入时机）——协调器已载入
+           就直接 add，否则推进待处理队列等其初始化排空。容器建立/重建、收合同步、顺位全由协调器处理，
+           本插件不再自己注入或掛 observer。Kaomoji 用自带 ::before mask 当图示，故不需 plain。 */
+        (function registerKaomojiButton() {
+            var spec = ['kaomoji', sys_CRB, createNativeButton, {}];
+            var L = window.Liko = window.Liko || {};
+            if (L.__Sys_ChatRoomButtons__ && L.__Sys_ChatRoomButtons__.add) L.__Sys_ChatRoomButtons__.add.apply(null, spec);
+            else { L.__CRB_pending__ = L.__CRB_pending__ || []; L.__CRB_pending__.push(spec); }
+        })();
 
-            if (!isChatRoom()) {
-                removeNativeButton();
-                return;
-            }
-
-            syncChatButtonsCollapse();
-
-            var container = document.getElementById('chat-room-buttons');
-            if (!container) return;
-            var existing = document.getElementById('lk-kaomoji-trigger-btn');
-            if (existing && existing.parentElement === container) {
-                injectStyles();
-                // BC 可能在原地重繪 grid，順位每輪重新套回，確保被清掉的 style.order 補回来。
-                // 協調器可能仍在非同步載入中（罕見）：首次見到本 id 用 register，之後才 reapply。
-                const crb = window.Liko.__Sys_ChatRoomButtons__;
-                if (crb) (crb.get('kaomoji') === undefined ? crb.register('kaomoji', sys_CRB, existing) : crb.reapply('kaomoji', existing));
-                syncTriggerVisibility(existing);
-                return;
-            }
-            if (existing) existing.remove();
-            injectStyles();
-            var newBtn = createNativeButton();
-            container.appendChild(newBtn);
-            // 用共用協調器宣告順位（order 越小越靠 grid 起點；正數在原生按鈕之後，rtl 下＝偏左）
-            window.Liko.__Sys_ChatRoomButtons__?.register('kaomoji', sys_CRB, newBtn);
-            syncTriggerVisibility(newBtn);
-        }
-
-        /* 立即注入一次（热更新时让新实例第一时间接管按钮） */
-        try { injectNativeButton(); } catch (e) { console.error("🐈‍⬛ [Kaomoji] 注入按钮失败:", e); }
-
-        // 注入改由下方 observer 事件驱动；此定时器只保留面板跟随（面板关闭时 repositionPanel 立即 return，近乎零开销）。
+        /* 此定时器保留两件事：面板跟随（面板关闭时 repositionPanel 立即 return，近乎零开销），以及
+           原生收合钮的折叠状态持久化（syncChatButtonsCollapse 有 dataset 守卫、幂等，负责在收合钮
+           (重)出现时补挂钩并套用上次保存的状态）。按钮本身的注入/收合已由协调器处理，不在这里。 */
         var _injectInterval = setInterval(function () {
             try { repositionPanel(); } catch (e) {}
+            try { syncChatButtonsCollapse(); } catch (e) {}
         }, 200);
-
-        /* 防御按钮被移除/重建：绑在稳定祖先(documentElement)上，容器怎么重建都不用重新挂钩。
-           原本绑在 #chat-room-buttons 容器上，BC 切换画面整个重建容器后旧 observer 就失效，
-           得靠 200ms 轮询补注入；改绑 documentElement 后由 childList 即时捕捉重建。
-           childList：只有「按钮已不在」(容器刚重建)才重注入，正常收讯息时按钮还在 → 单次 getElementById 即短路。
-           aria-expanded：收合钮切换时即时同步按钮显隐。 */
-        setTimeout(function () {
-            _observer = new MutationObserver(function (records) {
-                var hasChild = false, hasAttr = false;
-                for (var i = 0; i < records.length; i++) { if (records[i].type === 'attributes') hasAttr = true; else hasChild = true; }
-                var trigger = document.getElementById('lk-kaomoji-trigger-btn');
-                var placed = trigger && trigger.parentElement && trigger.parentElement.id === 'chat-room-buttons';
-                if (hasChild && !placed) { try { injectNativeButton(); } catch (e) {} return; }
-                if (hasAttr && trigger) { try { syncTriggerVisibility(trigger); } catch (e) {} }
-            });
-            _observer.observe(document.documentElement, {
-                childList: true, subtree: true,
-                attributes: true, attributeFilter: ['aria-expanded'],
-            });
-        }, 0);
 
         /* ── 单实例销毁（供热更新彻底清理旧实例）────────────────────────────── */
         function destroyInstance() {
             _destroyed = true; // 立即标记，防止仍在等待 bcModSdk 的旧实例事后才悄悄完成注册
             try { clearInterval(_injectInterval); } catch (e) {}
-            try { if (_observer) _observer.disconnect(); } catch (e) {}
+            // 从协调器注销本插件的按钮（连同待处理队列残留），避免旧实例的工厂闭包在容器重建时被复用
+            try {
+                if (window.Liko.__Sys_ChatRoomButtons__ && window.Liko.__Sys_ChatRoomButtons__.remove) window.Liko.__Sys_ChatRoomButtons__.remove('kaomoji');
+                var _q = window.Liko.__CRB_pending__;
+                if (Array.isArray(_q)) { var _i = _q.findIndex(function (s) { return s && s[0] === 'kaomoji'; }); if (_i >= 0) _q.splice(_i, 1); }
+            } catch (e) {}
             try {
                 ['lk-kaomoji-trigger-btn', 'lk-kaomoji-toggle-btn', 'lk-kaomoji-panel', 'lk-kaomoji-toast']
                     .forEach(function (id) { var el = document.getElementById(id); if (el) el.remove(); });
@@ -1368,7 +1320,6 @@
                 }
             } catch (e) {}
             _injectInterval = null;
-            _observer = null;
         }
         window.Liko.Kaomoji.Destroy = destroyInstance;
         window.Liko.Kaomoji.Toggle  = togglePanel;
