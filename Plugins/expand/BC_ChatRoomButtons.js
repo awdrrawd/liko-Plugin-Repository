@@ -1,60 +1,14 @@
 /**
- * =============================================================================
- *  BC ChatRoomButtons Order + Collapse Animation (BC_ChatRoomButtons.js)
- * =============================================================================
-BC_ChatRoomButtons.js 說明
-一份給 Bondage Club 插件共用的基礎設施腳本,圍繞著聊天室畫面的 #chat-room-buttons(那一排按鈕的容器)處理四件事:排序、收合/展開動畫、單排捲動排版(改 column 流向讓按鈕往左長、上限約 7 顆、超過的用拖曳捲動找)、關閉底色(讓帶自訂圖示的按鈕露出圖示)。單獨載入(沒有其他插件配合)就能完整運作,無外部依賴。
-
-掛載位置:window.Liko.__Sys_ChatRoomButtons__
-
-一、排序功能
-問題:多個插件都想在 #chat-room-buttons 裡加自己的按鈕,誰先誰後、誰放哪裡容易打架。
-做法:#chat-room-buttons 是 CSS Grid(direction: rtl),grid 項目會遵守 CSS order 屬性。每個插件只要幫自己的按鈕設定 style.order = N,瀏覽器就會照數字排版——不管插件載入順序、不管誰先跑,不會有 race condition。
-BC 原生按鈕沒有設 order → 視為 0
-正數排在原生按鈕之後(rtl 下視覺上偏左)
-負數排在原生按鈕之前
-
-API:
-函式	說明
-register(id, order, el)	記錄某插件的順位並套用到按鈕上,回傳 order
-get(id)	查某插件已宣告的順位(沒有則 undefined)
-reapply(id, el)	BC 重建按鈕列後,把記錄的順位重新套回新按鈕(手動呼叫用)
-
-自我巡邏(self-healing):每 500ms 會自動把記住的順位重新套回目前還在文件內的元素。所以就算某插件自己的重繪邏輯忘了呼叫 reapply,只要按鈕元素還在,順位依然不會跑掉。
-版本相容:用版本號(V = 2)守衛,已存在且版本 ≥ 本檔就跳過;升級時沿用舊的 slots,不會清掉別人已登記的順位。契約刻意極簡凍結,其他插件可以自行內嵌一份精簡版(只有排序)也不會互相打架。
-
-二、收合/展開動畫
-問題:BC 原生的 chat-room-buttons-collapse 按鈕,點下去是直接對每顆子按鈕切換 [hidden],沒有任何過渡效果,是「瞬間消失/出現」。
-做法:不去攔截、取代原生的點擊邏輯(風險高,要處理各種事件),而是用 MutationObserver 純觀察 #chat-room-buttons 底下子元素的 hidden 屬性變化,把「瞬間切換」改寫成:
-收合:向右滑出 + 淡出,動畫播完才真的隱藏
-展開:從右邊滑回原位 + 淡入
-因為只監看屬性本身,不管是原生按鈕、其他插件的可見度同步邏輯改的,都會一視同仁套上動畫——動畫完全不依賴任何其他插件是否成功載入。
-行為細節:
-
-動畫時長 200ms,滑動距離 18px,對齊 Kaomoji 面板開合的速度風格
-尊重 prefers-reduced-motion,開啟時維持原生瞬間切換
-chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
-會過濾「值沒變」的重複觸發,避免動畫播到一半被同狀態重新觸發而頓一下
-
-近期修正(重建誤觸發問題):切換畫面時,有些插件會整批重建自己的按鈕(產生全新的 DOM 元素而非重用舊的),插入後緊接著同步一次 hidden 狀態以符合目前收合/展開狀態——這個「同步」動作本身會被 observer 捕捉,誤判成使用者真的按了收合鈕,導致畫面切換時跳出不該有的滑動動畫。
-
-修法是用 WeakMap(鍵是元素物件本身)判斷「這個按鈕元素是不是第一次被看到」:第一次出現只靜默記錄狀態、不播動畫;因為新建立的元素在 WeakMap 裡必然沒有舊紀錄,天然就能分辨「重建後的初始同步」跟「真正的使用者切換」,不需要另外監聽 childList 或去猜容器何時被整個換掉。
-
-效能考量
-排序巡邏是低頻 interval(500ms),量小
-動畫觀察只過濾 hidden 屬性變化(attributeFilter: ['hidden']),沒有觀察 childList,對整頁 DOM 增刪不敏感,效能開銷小
-綁在 document.documentElement 而非容器本身,是因為容器會隨切換聊天室被 BC 整個重建,綁在穩定的祖先節點上就不必處理重新掛勾的時機問題
- * =============================================================================
+ * BC_ChatRoomButtons.js — 聊天室按鈕列 #chat-room-buttons 的共用協調器
+ * 排序 / 收合動畫 / 單排捲動排版 / 關閉底色 / 中央託管 add()。無外部依賴。
+ * 掛載點 window.Liko.__Sys_ChatRoomButtons__；用法與細節見 BC_ChatRoomButtons.md。
  */
 (function (global) {
     'use strict';
 
     global.Liko = global.Liko ?? {};
-
-    // 版本守衛：已存在且版本 >= 本檔就跳過；升級時沿用舊的 slots，不清掉別人登記過的順位。
-    const V = 5;
-    const cur = global.Liko.__Sys_ChatRoomButtons__;
-    if (cur && cur.v >= V) return;
+    // 多個插件各自 @require 本檔，只初始化一次（先到者勝）。
+    if (global.Liko.__Sys_ChatRoomButtons__) return;
 
     const CONTAINER_ID = 'chat-room-buttons';
     const ANIM_MS = 200; // 對齊 Kaomoji 面板開合的速度與 easing 風格（transition:...200ms ease）
@@ -62,13 +16,11 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
     const HEAL_INTERVAL_MS = 500;
     const MAX_VISIBLE = 7; // 可視按鈕數上限；超過的部分捲動（拖曳）才看得到
 
-    // ---------------------------------------------------------------------------
-    // 排序（相容 v1 API，行為不變）＋ 關閉底色（plain）
-    // ---------------------------------------------------------------------------
-    const slots = cur?.slots ?? {};              // id -> order（純數字，供 introspection，向下相容）
-    const plainIds = cur?.plainIds ?? new Set(); // 要求關閉 BC 原生 ::before 底色的 id（露出自帶圖示）
-    const els = new Map();                        // id -> 目前已知的按鈕元素，供自我巡邏使用
-    const specs = new Map();                      // id -> { order, createFn, opts }（add() 委託中央託管的按鈕）
+    // ── 排序 + 關閉底色（plain）──
+    const slots = {};           // id -> order
+    const plainIds = new Set(); // 要關閉原生 ::before 底色的 id（露出自帶圖示）
+    const els = new Map();      // id -> 目前已知的按鈕元素，供自我巡邏使用
+    const specs = new Map();    // id -> { order, createFn, opts }（add() 託管的按鈕）
 
     function applyPlain(id, el) {
         if (el) el.classList.toggle('lk-crb-plain', plainIds.has(id));
@@ -102,10 +54,7 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
         applyPlain(id, els.get(id));
     }
 
-    // ---------------------------------------------------------------------------
-    // 中央託管：插件用 add() 交出「順位 + 工廠函式」，容器建立/重建、收合同步、底色都由本檔統一處理，
-    // 插件不必自己輪詢、掛 observer、或 append/reapply（見下方單一 lifecycleObserver）。
-    // ---------------------------------------------------------------------------
+    // ── 中央託管：插件用 add() 交出「順位 + 工廠函式」，(重)建/收合同步/底色都由本檔處理 ──
     function collapseExpanded() {
         const c = document.getElementById('chat-room-buttons-collapse');
         return c ? c.getAttribute('aria-expanded') === 'true' : true; // 沒有收合鈕時視為展開
@@ -177,14 +126,8 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
     }
     setInterval(healOrders, HEAL_INTERVAL_MS);
 
-    // ---------------------------------------------------------------------------
-    // 單排排版 + 捲動：BC 原生 #chat-room-buttons 是固定 3 欄的 grid（chat.css
-    // grid-template-columns: repeat(3, min-content)），第 4 顆按鈕就會往上換行到第二排。
-    // 多個插件各加一顆後很容易破 3 顆而擠成兩排。這裡改成「單排、往左長」：改用 column 流向、
-    // 只留一列；再把寬度限制在約 MAX_VISIBLE 顆，超過的部分用捲動（滑鼠拖曳／觸控滑動）找。
-    // 綁在共用協調器（而非各插件）是因為容器是共用的，統一在這裡設一次最乾淨。
-    // 寬度算式：MAX_VISIBLE 顆按鈕 + (MAX_VISIBLE-1) 個間距 + 2 個內距 = (MAX_VISIBLE+1) 個 gap 單位
-    //（gap 與 padding 都是 BC 原生的 min(0.4vh,0.2vw)）。
+    // ── 單排排版 + 捲動：原生是固定 3 欄 grid，改成 column 流向單排往左長，寬度上限 MAX_VISIBLE 顆，
+    //    超過的用拖曳捲動找（見 MD「三」）──
     function injectLayoutStyle() {
         if (document.getElementById('lk-crb-layout-style')) return;
         const style = document.createElement('style');
@@ -311,18 +254,11 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
         if (el.id === 'chat-room-send') return; // 送出按鈕本來就不會被收合
 
         const isHidden = el.hasAttribute('hidden');
-        const firstSight = !lastHidden.has(el); // 這個「按鈕元素物件」是不是第一次被觀察到 hidden 變化
-        if (!firstSight && lastHidden.get(el) === isHidden) return; // 有些插件會用自己的輪詢重複 set 同一個狀態，
-        // 這種「值沒變」的重複觸發要濾掉，不然動畫播到一半又被同一個狀態重新觸發，看起來會頓一下
+        const firstSight = !lastHidden.has(el);
+        if (!firstSight && lastHidden.get(el) === isHidden) return; // 濾掉「值沒變」的重複觸發（插件輪詢重設同狀態）
         lastHidden.set(el, isHidden);
 
-        // 切換畫面時，有些插件會整批重建自己的按鈕（新的 DOM 元素，不是原本那顆），
-        // 插入後緊接著把 hidden 同步成目前面板的收合/展開狀態，這一下 set 也會被上面的
-        // MutationObserver 捕捉到。但這其實不是使用者按收合鈕的「真實切換」，只是重建後
-        // 的初始同步 —— 因為 lastHidden 是用 WeakMap 存、鍵是元素本身，新元素在這裡一定
-        // 是第一次出現（firstSight === true），藉此可以準確分辨兩者，不需要另外監看
-        // childList 或去猜容器何時被整個換掉。第一次出現只記錄狀態，不播動畫；之後才是
-        // 真正的收合/展開觸發。
+        // firstSight（WeakMap 以元素為鍵）＝重建後的初始 hidden 同步，非使用者切換：只記錄不播動畫。
         if (firstSight) return;
 
         if (reduceMotion) return; // 尊重「減少動態效果」偏好，維持原生瞬間切換
@@ -332,9 +268,7 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
         else animateIn(el);
     }
 
-    // 只監看 hidden 屬性變化，不管是誰改的（原生收合鈕、其他插件的可見度同步邏輯…都算）。
-    // 綁在 document 上是刻意的：#chat-room-buttons 本身會隨切換聊天室/畫面被 BC 整個重建，
-    // 若綁在容器上還得處理重新綁定時機；綁在穩定的祖先節點上，容器怎麼重建都不必重新掛勾。
+    // 只監看 hidden 屬性變化（誰改的都算）；綁在穩定的 documentElement，容器重建不必重掛。
     const observer = new MutationObserver((records) => {
         for (const r of records) handleHiddenChange(/** @type {HTMLElement} */ (r.target));
     });
@@ -344,10 +278,8 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
         subtree: true,
     });
 
-    // add() 託管按鈕的單一生命週期 observer（取代各插件自帶的輪詢/observer）：
-    //  childList：容器 #chat-room-buttons 會隨切換聊天室/畫面被 BC 整個重建，重建後把所有託管按鈕補回。
-    //             只有「按鈕不在文件內」才呼叫工廠；正常收訊息時逐一 isConnected 檢查即短路，忙碌房間不空轉。
-    //  aria-expanded：原生收合鈕切換時即時同步所有託管按鈕的顯隱（attributeFilter 過濾，聊天訊息不誤觸）。
+    // add() 託管按鈕的生命週期 observer：childList → 容器重建後補回不在文件內的按鈕；
+    // aria-expanded → 原生收合鈕切換時同步託管按鈕顯隱。
     const lifecycleObserver = new MutationObserver((records) => {
         let hasChild = false, hasAttr = false;
         for (const r of records) { if (r.type === 'attributes') hasAttr = true; else hasChild = true; }
@@ -364,9 +296,8 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
         attributes: true, attributeFilter: ['aria-expanded'],
     });
 
-    // ---------------------------------------------------------------------------
     global.Liko.__Sys_ChatRoomButtons__ = {
-        v: V,
+        v: '3.0',
         slots,
         plainIds,
         register,
@@ -377,9 +308,8 @@ chat-room-send(送出按鈕)排除在動畫之外,本來就不會被收合
         remove,
     };
 
-    // 排空「在本檔載入前就先登記」的按鈕佇列：插件同步把 [id, order, createFn, opts] 推進
-    // global.Liko.__CRB_pending__（不必等本檔載入），本檔載入時（無論被誰、何時載入）在此排空。
-    // 這讓「登記按鈕」與「載入協調器」完全解耦，load 順序無關。
+    // 排空待處理佇列：插件在本檔載入前 push([id, order, createFn, opts]) 到 __CRB_pending__，此處排空。
+    // 讓「登記按鈕」與「載入協調器」的時機完全解耦（見 MD「五」）。
     const pendingAdds = global.Liko.__CRB_pending__;
     if (Array.isArray(pendingAdds)) {
         while (pendingAdds.length) { try { add(...pendingAdds.shift()); } catch (e) { console.warn('🐈‍⬛ [CRB] pending add 失敗:', e); } }
