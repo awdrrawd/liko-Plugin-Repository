@@ -1422,11 +1422,22 @@
         syncToolBtnVisibility(btn);
     }
 
-    let _toolBtnInterval = null;
+    let _toolBtnObserver = null;
     function startToolButtonInjector() {
-        if (_toolBtnInterval) return;
+        if (_toolBtnObserver) return;
         try { injectToolButton(); } catch (e) {}
-        _toolBtnInterval = setInterval(function () { try { injectToolButton(); } catch (e) {} }, 500);
+        // 取代每 500ms 輪詢：綁 documentElement 觀察。injectToolButton 自身已用 CurrentScreen 守衛；
+        // 只有容器重建（按鈕消失）才重注入，收合鈕 aria-expanded 變化即時同步顯示。
+        _toolBtnObserver = new MutationObserver(function (records) {
+            var hasChild = false, hasAttr = false;
+            for (var i = 0; i < records.length; i++) { if (records[i].type === 'attributes') hasAttr = true; else hasChild = true; }
+            if (hasChild && !document.getElementById(TOOL_BTN_DOM_ID)) { try { injectToolButton(); } catch (e) {} return; }
+            if (hasAttr) syncToolBtnVisibility(document.getElementById(TOOL_BTN_DOM_ID));
+        });
+        _toolBtnObserver.observe(document.documentElement, {
+            childList: true, subtree: true,
+            attributes: true, attributeFilter: ['aria-expanded'],
+        });
     }
 
     // ════════════════════════════════════════════════════════════════════════

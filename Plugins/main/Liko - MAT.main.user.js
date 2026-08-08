@@ -49,35 +49,41 @@
         }
     }
 
-    let config = {
-        enabled: true,
-        // ── 基本 ──
-        translateReceived: true,
-        recvLang: null, // 預設依瀏覽器語言決定，見 initializeConfig / detectDefaultRecvLang
-        translateSent: true,
-        sendLang: 'en',
-        // ── 發送分類（動作/互動/悄悄話/私信；一般聊天 Chat 恆受總發送開關管）──
-        sendEmote: true,
-        sendAction: true,
-        sendWhisper: true,
-        sendBeep: true,
-        sendSkipZhVariant: true,   // 發送語言為中文時，內容已是中文則跳過翻譯
-        // ── 接收分類（動作/互動/悄悄話/私信/系統 Local）──
-        recvEmote: true,
-        recvAction: true,
-        recvWhisper: true,
-        recvBeep: true,
-        recvLocal: false,
-        recvSkipZhVariant: true,   // 接收語言為中文時，收到內容為中文則跳過翻譯
-        // ── 其他 ──
-        loginNotice: true,
-        translateChat: true,       // 手動翻譯（點選訊息出現翻譯按鈕）
-        translateSelection: true,
-        chatScrollFreeze: false,   // 是否載入並啟用 BC_ChatScrollFreeze（聊天室訊息凍結／搜尋擴充）
-        skipStutter: true,
-        chatButton: true,          // 聊天室快捷按鈕
-        hotkeys: makeDefaultHotkeys()
-    };
+    // 單一預設來源：頂層初值與 initializeConfig 都取自這裡，避免兩份清單各自漂移。
+    // recvLang 維持 null（需登入後由 detectDefaultRecvLang 計算，見 initializeConfig）。
+    function defaultConfig() {
+        return {
+            enabled: true,
+            // ── 基本 ──
+            translateReceived: true,
+            recvLang: null,
+            translateSent: true,
+            sendLang: 'en',
+            // ── 發送分類（動作/互動/悄悄話/私信；一般聊天 Chat 恆受總發送開關管）──
+            sendEmote: true,
+            sendAction: true,
+            sendWhisper: true,
+            sendBeep: true,
+            sendSkipZhVariant: true,   // 發送語言為中文時，內容已是中文則跳過翻譯
+            // ── 接收分類（動作/互動/悄悄話/私信/系統 Local）──
+            recvEmote: true,
+            recvAction: true,
+            recvWhisper: true,
+            recvBeep: true,
+            recvLocal: false,
+            recvSkipZhVariant: true,   // 接收語言為中文時，收到內容為中文則跳過翻譯
+            // ── 其他 ──
+            loginNotice: true,
+            translateChat: true,       // 手動翻譯（點選訊息出現翻譯按鈕）
+            translateSelection: true,
+            chatScrollFreeze: false,   // 是否載入並啟用 BC_ChatScrollFreeze（聊天室訊息凍結／搜尋擴充）
+            skipStutter: true,
+            chatButton: true,          // 聊天室快捷按鈕
+            hotkeys: makeDefaultHotkeys()
+        };
+    }
+
+    let config = defaultConfig();
 
     // ============================================================
     // 語系偵測（遊戲就緒後才準確）
@@ -167,22 +173,8 @@
     // 設定管理
     // ============================================================
     function initializeConfig() {
-        const defaults = {
-            enabled: true,
-            translateReceived: true,
-            recvLang: detectDefaultRecvLang(),
-            translateSent: true,
-            sendLang: 'en',
-            sendEmote: true, sendAction: true, sendWhisper: true, sendBeep: true, sendSkipZhVariant: true,
-            recvEmote: true, recvAction: true, recvWhisper: true, recvBeep: true, recvLocal: false, recvSkipZhVariant: true,
-            loginNotice: true,
-            translateChat: true,
-            translateSelection: true,
-            chatScrollFreeze: true,
-            skipStutter: true,
-            chatButton: true,
-            hotkeys: makeDefaultHotkeys()
-        };
+        // 同一份 defaultConfig()，僅補上需登入後才能算的 recvLang。
+        const defaults = { ...defaultConfig(), recvLang: detectDefaultRecvLang() };
         if (!config || typeof config !== 'object') config = { ...defaults };
         for (const [key, val] of Object.entries(defaults)) {
             if (config[key] === undefined || config[key] === null) config[key] = val;
@@ -330,11 +322,16 @@
         }
     };
 
+    // 單次請求逾時：某個 fetch 若永久 hang 住，序列佇列會整條卡死、其後訊息全部靜默不翻，
+    // 那是最大批量丟失來源。逾時後 abort 併入下方 transient 路徑重試，不會直接算失敗丟棄。
+    const FETCH_TIMEOUT = 10000;
     async function translateGoogle(text, target, attempt = 0) {
         const MAX_RETRY = 2;
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
         try {
             const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
-            const resp = await fetch(url);
+            const resp = await fetch(url, { signal: ctrl.signal });
 
             if (resp.status === 429) throw new Error('rate_limit');
             if (resp.status === 403) throw new Error('blocked');
@@ -344,8 +341,8 @@
             const translated = data[0]?.map(seg => seg?.[0] || '').join('') || text;
             return { translated, detectedLang: data[2] || null };
         } catch (e) {
-            // fetch 本身失敗（網路斷線、timeout）會是 TypeError
-            const isNetwork = e instanceof TypeError;
+            // fetch 本身失敗（網路斷線、timeout）會是 TypeError；逾時 abort 為 AbortError，一併視為網路暫時性
+            const isNetwork = e instanceof TypeError || e.name === 'AbortError';
             const reason = isNetwork ? 'network' : (e.message || 'unknown');
             // 5xx 伺服器錯誤與網路中斷屬暫時性，退避後重試（600ms、1200ms）
             const transient = isNetwork || /^http_5\d\d$/.test(reason);
@@ -354,6 +351,8 @@
                 return translateGoogle(text, target, attempt + 1);
             }
             return { translated: null, detectedLang: null, error: reason };
+        } finally {
+            clearTimeout(to);
         }
     }
 
@@ -1750,7 +1749,7 @@
 
     const MAT_BTN_ID = 'lk-mat-trigger-btn';
     const MAT_MENU_ID = 'lk-mat-quick-menu';
-    let matBtnTimer = null;
+    let chatBtnObserver = null;
 
     // 快速選單開合動畫：向上展開／向下收回，速度與 easing 對齊 BC_ChatRoomButtons 的按鈕動畫。
     const MAT_MENU_SLIDE_PX = 10;
@@ -1952,10 +1951,30 @@
         if (btn) syncTriggerVisibility(btn);
     }
 
+    // 取代原本每 200ms 的輪詢：改用綁在穩定祖先(documentElement)上的 MutationObserver。
+    // #chat-room-buttons 會隨切換聊天室/畫面被 BC 整個重建，容器重建時我們的按鈕會一起被銷毀，
+    // 兩個真正需要反應的事件各自處理，避免忙碌房間被聊天訊息洗版時做無謂工作：
+    //   • childList：只有「按鈕已不在」(容器剛重建)才重新注入；正常收訊息時按鈕還在 → 單次
+    //     getElementById 即短路，不會每則訊息都跑 reapply。
+    //   • aria-expanded：BC 收合鈕切換時同步按鈕顯示（BC 不認得這顆外掛按鈕，需自己跟）。
+    //     用 attributeFilter 過濾，聊天訊息的 childList 不會誤觸這條。
     function setupChatButton() {
-        if (matBtnTimer) return;
-        injectMatButton();
-        matBtnTimer = setInterval(injectMatButton, 200);
+        if (chatBtnObserver) return;
+        injectMatButton();   // 首次直接注入
+        chatBtnObserver = new MutationObserver((records) => {
+            if (!config.chatButton) return;
+            let hasChild = false, hasAttr = false;
+            for (const r of records) {
+                if (r.type === 'attributes') hasAttr = true;
+                else hasChild = true;
+            }
+            if (hasChild && !document.getElementById(MAT_BTN_ID)) { injectMatButton(); return; }
+            if (hasAttr) syncTriggerVisibility(document.getElementById(MAT_BTN_ID));
+        });
+        chatBtnObserver.observe(document.documentElement, {
+            childList: true, subtree: true,
+            attributes: true, attributeFilter: ['aria-expanded'],
+        });
     }
 
     // ============================================================

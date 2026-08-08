@@ -1542,7 +1542,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	// 順位交給共用協調器 BC_ChatRoomButtons（sys_CRB 數字越大越靠左，見同名 .md）。
 	const sys_CRB = "99";              // #chat-room-buttons 順位設定
 	const DDT_BTN_ID = "lk-ddt-trigger-btn";
-	let ddtBtnTimer = null;
+	let ddtBtnObserver = null;
 
 	// 共用系統擴充載入器：已存在就跳過，否則依序 fallback 抓回（與 MAT 同一手法）。
 	const _EXPAND_BASES = (typeof window !== "undefined" && window.LikoDevBase)
@@ -1677,12 +1677,24 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	}
 
 	function setupChatButton() {
-		if (ddtBtnTimer) return;
+		if (ddtBtnObserver) return;
 		ensureExpandDep("expand/BC_ChatRoomButtons.js", () => window.Liko.__Sys_ChatRoomButtons__)
 			.then(() => { try { injectDdtButton(); } catch {} })
 			.catch(e => console.warn(`🐈‍⬛ [${MOD_NAME}] ⚠️ ChatRoomButtons 載入失敗（順位改由 BC 預設）: ` + e.message));
 		injectDdtButton();
-		ddtBtnTimer = setInterval(injectDdtButton, 200); // BC 切換畫面會重建按鈕列，定期補回
+		// 取代每 200ms 輪詢：綁在穩定祖先(documentElement)上觀察。BC 切換畫面會整個重建按鈕列、
+		// 我們的按鈕會一起被銷毀；只有「按鈕已不在」才重注入，正常收訊息時按鈕還在 → 單次 getElementById
+		// 即短路，不會每則訊息都跑 reapply。收合鈕 aria-expanded 變化則即時同步顯示（氣球高亮由 show/hideBalloon 自理）。
+		ddtBtnObserver = new MutationObserver((records) => {
+			let hasChild = false, hasAttr = false;
+			for (const r of records) { if (r.type === "attributes") hasAttr = true; else hasChild = true; }
+			if (hasChild && !document.getElementById(DDT_BTN_ID)) { injectDdtButton(); return; }
+			if (hasAttr) { const b = document.getElementById(DDT_BTN_ID); if (b) syncChatButtonVisibility(b); }
+		});
+		ddtBtnObserver.observe(document.documentElement, {
+			childList: true, subtree: true,
+			attributes: true, attributeFilter: ["aria-expanded"],
+		});
 	}
 
 	// ---------------------------------------------------------------- Pen 面板

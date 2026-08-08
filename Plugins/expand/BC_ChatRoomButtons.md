@@ -93,7 +93,7 @@ crb.setPlain("myplugin", true);   // 關閉底色，露出 btn 裡的 <img>
 // 1) 順位（數字越大越靠左）
 const sys_CRB = "99";
 const BTN_ID  = "lk-myplugin-btn";
-let btnTimer  = null;
+let btnObserver = null;
 
 // 2) 載入協調器（已存在就跳過；否則依序 fallback 抓回）
 const BASES = window.LikoDevBase ? [window.LikoDevBase] : [
@@ -128,7 +128,7 @@ function syncVisibility(btn) {
     btn.hidden = c ? c.getAttribute("aria-expanded") !== "true" : false;
 }
 
-// 3) 建立/補回按鈕（BC 切換畫面會重建按鈕列，所以要定期補）
+// 3) 建立/補回按鈕（BC 切換畫面會重建按鈕列，由下方 observer 在重建時即時補回）
 function injectButton() {
     const container = document.getElementById("chat-room-buttons");
     if (!container) return;
@@ -142,7 +142,7 @@ function injectButton() {
                 : crb.reapply("myplugin", btn);
             crb.setPlain?.("myplugin", true); // 若用 <img> 圖示，關掉底色才看得到
         }
-        syncVisibility(btn); // ← 每輪同步，才能跟著收合
+        syncVisibility(btn); // ← 注入時同步；之後由 observer 依 aria-expanded 即時同步
         return;
     }
     if (btn) btn.remove();
@@ -161,10 +161,25 @@ function injectButton() {
     syncVisibility(btn);
 }
 
-// 4) 啟動（登入、進聊天室後）
+// 4) 啟動：首次注入 + 綁在穩定祖先(documentElement)上觀察，取代舊版每 200ms 輪詢。
+//    對齊本檔「二、四」的作法：綁穩定祖先，容器怎麼被 BC 重建都不用重新掛勾。
 ensureCRB().then(injectButton).catch(() => {});
 injectButton();
-btnTimer = setInterval(injectButton, 200);
+btnObserver = new MutationObserver((records) => {
+    let hasChild = false, hasAttr = false;
+    for (const r of records) { if (r.type === "attributes") hasAttr = true; else hasChild = true; }
+    // childList：容器被 BC 重建 → 按鈕不在了才重注入。正常收訊息時按鈕還在，單次 getElementById 即短路，
+    //            不會每則訊息都跑 register/reapply（避免忙碌房間空轉）。
+    if (hasChild && !document.getElementById(BTN_ID)) { injectButton(); return; }
+    // aria-expanded：收合鈕切換時即時同步顯隱，不必等下一輪輪詢（過濾屬性，聊天訊息不會誤觸）。
+    if (hasAttr) { const b = document.getElementById(BTN_ID); if (b) syncVisibility(b); }
+});
+btnObserver.observe(document.documentElement, {
+    childList: true, subtree: true,
+    attributes: true, attributeFilter: ["aria-expanded"],
+});
 ```
 
-要點：`id` 唯一；`className` 帶 `chat-room-button` 才能吃到容器排版；用 `register`/`reapply` 交出順位；靠 200ms 迴圈在 BC 重建按鈕列後補回；每輪呼叫 `syncVisibility()` 才能跟著原生收合。動畫是本檔自動處理的，插件端不用管。
+要點：`id` 唯一；`className` 帶 `chat-room-button` 才能吃到容器排版；用 `register`/`reapply` 交出順位；靠 **`documentElement` 上的 `MutationObserver`** 在 BC 重建按鈕列後即時補回（childList），並在收合鈕 `aria-expanded` 變化時同步顯隱——取代舊版每 200ms 輪詢：閒置房間零開銷、收合反應即時、忙碌房間靠「按鈕還在就短路」不空轉。動畫是本檔自動處理的，插件端不用管。
+
+> 💡 為什麼不用 `setInterval` 輪詢：容器 `#chat-room-buttons` 會隨切換聊天室/畫面被 BC 整個重建，把 observer 綁在穩定的 `documentElement` 上（同「二、四」）就不必處理重新掛勾；childList 只在「按鈕真的不見了」時才動作，比每 200ms 無條件跑 `reapply` 更省。

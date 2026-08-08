@@ -1315,24 +1315,29 @@
         /* 立即注入一次（热更新时让新实例第一时间接管按钮） */
         try { injectNativeButton(); } catch (e) { console.error("🐈‍⬛ [Kaomoji] 注入按钮失败:", e); }
 
+        // 注入改由下方 observer 事件驱动；此定时器只保留面板跟随（面板关闭时 repositionPanel 立即 return，近乎零开销）。
         var _injectInterval = setInterval(function () {
-            try { injectNativeButton(); } catch (e) { console.error("🐈‍⬛ [Kaomoji] 注入按钮失败:", e); }
             try { repositionPanel(); } catch (e) {}
         }, 200);
 
-        /* 防御旧脚本/其他脚本覆盖按钮或样式 */
+        /* 防御按钮被移除/重建：绑在稳定祖先(documentElement)上，容器怎么重建都不用重新挂钩。
+           原本绑在 #chat-room-buttons 容器上，BC 切换画面整个重建容器后旧 observer 就失效，
+           得靠 200ms 轮询补注入；改绑 documentElement 后由 childList 即时捕捉重建。
+           childList：只有「按钮已不在」(容器刚重建)才重注入，正常收讯息时按钮还在 → 单次 getElementById 即短路。
+           aria-expanded：收合钮切换时即时同步按钮显隐。 */
         setTimeout(function () {
-            var container = document.getElementById('chat-room-buttons');
-            if (!container) return;
-            _observer = new MutationObserver(function () {
+            _observer = new MutationObserver(function (records) {
+                var hasChild = false, hasAttr = false;
+                for (var i = 0; i < records.length; i++) { if (records[i].type === 'attributes') hasAttr = true; else hasChild = true; }
                 var trigger = document.getElementById('lk-kaomoji-trigger-btn');
-                if (!trigger || trigger.parentElement !== container) {
-                    try { injectNativeButton(); } catch (e) {}
-                } else {
-                    try { injectStyles(); } catch (e) {}
-                }
+                var placed = trigger && trigger.parentElement && trigger.parentElement.id === 'chat-room-buttons';
+                if (hasChild && !placed) { try { injectNativeButton(); } catch (e) {} return; }
+                if (hasAttr && trigger) { try { syncTriggerVisibility(trigger); } catch (e) {} }
             });
-            _observer.observe(container, { childList: true });
+            _observer.observe(document.documentElement, {
+                childList: true, subtree: true,
+                attributes: true, attributeFilter: ['aria-expanded'],
+            });
         }, 0);
 
         /* ── 单实例销毁（供热更新彻底清理旧实例）────────────────────────────── */
