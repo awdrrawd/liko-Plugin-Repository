@@ -1384,30 +1384,10 @@
         document.head.appendChild(st);
     }
 
-    // 让按钮的显隐跟随原生「收纳按钮列」的展开状态（参考 MAT / Kaomoji）：
-    // aria-expanded !== "true" 即已收合 → 隐藏本按钮（BC_ChatRoomButtons 会套上收合动画）
-    function syncToolBtnVisibility(btn) {
-        if (!btn) return;
-        var collapseBtn = document.getElementById('chat-room-buttons-collapse');
-        if (!collapseBtn) { btn.hidden = false; return; }
-        btn.hidden = collapseBtn.getAttribute('aria-expanded') !== 'true';
-    }
-
-    function injectToolButton() {
-        if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom') return;
-        var container = document.getElementById('chat-room-buttons');
-        if (!container) return;
-        var crb = window.Liko && window.Liko.__Sys_ChatRoomButtons__;
-        var btn = document.getElementById(TOOL_BTN_DOM_ID);
-        if (btn && btn.parentElement === container) {
-            // BC 可能原地重绘 grid：首次见到本 id 用 register，之后 reapply，把顺位补回。
-            if (crb) (crb.get(TOOL_CRB_ID) === undefined ? crb.register(TOOL_CRB_ID, TOOL_CRB_ORDER, btn) : crb.reapply(TOOL_CRB_ID, btn));
-            syncToolBtnVisibility(btn);
-            return;
-        }
-        if (btn) btn.remove();
+    // 工厂函式：每次(重)建按钮都会被协调器呼叫、回传一颗全新按钮（自带样式注入）。
+    function createToolButton() {
         injectToolBtnStyle();
-        btn = document.createElement('button');
+        var btn = document.createElement('button');
         btn.id = TOOL_BTN_DOM_ID;
         btn.type = 'button';
         btn.className = 'blank-button button HideOnPopup chat-room-button';
@@ -1416,28 +1396,17 @@
         btn.style.backgroundColor = getAccentPreset().accent;
         btn.innerHTML = TOOL_BTN_SVG;
         btn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); toggleToolPanel(); });
-        container.appendChild(btn);
-        // 关闭原生底色，露出自带 SVG 图标（参考 BC_ChatRoomButtons.setPlain）
-        if (crb) { crb.register(TOOL_CRB_ID, TOOL_CRB_ORDER, btn); if (typeof crb.setPlain === 'function') crb.setPlain(TOOL_CRB_ID, true); }
-        syncToolBtnVisibility(btn);
+        return btn;
     }
 
-    let _toolBtnObserver = null;
     function startToolButtonInjector() {
-        if (_toolBtnObserver) return;
-        try { injectToolButton(); } catch (e) {}
-        // 取代每 500ms 輪詢：綁 documentElement 觀察。injectToolButton 自身已用 CurrentScreen 守衛；
-        // 只有容器重建（按鈕消失）才重注入，收合鈕 aria-expanded 變化即時同步顯示。
-        _toolBtnObserver = new MutationObserver(function (records) {
-            var hasChild = false, hasAttr = false;
-            for (var i = 0; i < records.length; i++) { if (records[i].type === 'attributes') hasAttr = true; else hasChild = true; }
-            if (hasChild && !document.getElementById(TOOL_BTN_DOM_ID)) { try { injectToolButton(); } catch (e) {} return; }
-            if (hasAttr) syncToolBtnVisibility(document.getElementById(TOOL_BTN_DOM_ID));
-        });
-        _toolBtnObserver.observe(document.documentElement, {
-            childList: true, subtree: true,
-            attributes: true, attributeFilter: ['aria-expanded'],
-        });
+        // 交给共用协调器 BC_ChatRoomButtons 中央託管（{plain:true} 关掉原生底色露出 SVG）。
+        // 同步登记 spec，不绑载入时机：协调器已载入就直接 add，否则推进待处理队列等其初始化排空。
+        // 协调器由本脚本的 @require 载入（见档头），standalone 也保证有。
+        var spec = [TOOL_CRB_ID, TOOL_CRB_ORDER, createToolButton, { plain: true }];
+        var L = window.Liko = window.Liko || {};
+        if (L.__Sys_ChatRoomButtons__ && L.__Sys_ChatRoomButtons__.add) L.__Sys_ChatRoomButtons__.add.apply(null, spec);
+        else { L.__CRB_pending__ = L.__CRB_pending__ || []; L.__CRB_pending__.push(spec); }
     }
 
     // ════════════════════════════════════════════════════════════════════════
