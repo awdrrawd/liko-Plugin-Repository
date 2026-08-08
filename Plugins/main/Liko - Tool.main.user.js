@@ -23,7 +23,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_Version = "2.1.2";
+    const MOD_Version = "2.1.3";
     if (window.Liko.LT) return;
     window.Liko.LT = MOD_Version;
     let modApi = null;
@@ -2462,39 +2462,27 @@
 
     // ──────────────────────────────────────────
     // Free Hands 无视绑缚（被绑时仍可使用双手，不解开任何拘束道具）
-    //  - 只在开关开启时临时覆盖 Player 的 CanInteract / IsRestrained /
-    //    CanChangeOwnClothes；关闭时完整还原为原函式。
-    //  - 关闭状态下不留下任何修改，避免被其他工具误判为“未知 MOD”。
+    //  - 透过 ModSDK 挂钩 Player 的实例方法（点路径 "Player.X"，ModSDK 会解析 window.Player.X），
+    //    让修改登记在本 mod 名下 → 不会被其他工具判为「未使用 ModSDK 的未知修改」。
+    //  - 只挂一次；实际启停由 getES().freeHands 决定（关闭时走 next(args) 原逻辑，零副作用）。
+    //  ponytail: 挂钩在 hook 时解析当前 Player 实例；同页内重登录换了 Player 物件需重挂（init 会重跑）。
     // ──────────────────────────────────────────
-    let _fhOrig = null;
-    function _fhPatch() {
-        if (_fhOrig || !Player) return;
-        _fhOrig = {
-            CanInteract: Player.CanInteract,
-            IsRestrained: Player.IsRestrained,
-            CanChangeOwnClothes: Player.CanChangeOwnClothes,
-        };
-        Player.CanInteract  = function () { return true;  };
-        Player.IsRestrained = function () { return false; };
-        if (typeof _fhOrig.CanChangeOwnClothes === 'function') Player.CanChangeOwnClothes = function () { return true; };
+    let _fhHooked = false;
+    function setupFreeHandsHooks() {
+        if (_fhHooked || !modApi || typeof modApi.hookFunction !== 'function' || !Player) return;
+        try {
+            modApi.hookFunction("Player.CanInteract",         2, (args, next) => getES().freeHands === 1 ? true  : next(args));
+            modApi.hookFunction("Player.IsRestrained",        2, (args, next) => getES().freeHands === 1 ? false : next(args));
+            modApi.hookFunction("Player.CanChangeOwnClothes", 2, (args, next) => getES().freeHands === 1 ? true  : next(args));
+            _fhHooked = true;
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ FreeHands hook 失败:", e.message); }
     }
-    function _fhUnpatch() {
-        if (!_fhOrig || !Player) { _fhOrig = null; return; }
-        Player.CanInteract  = _fhOrig.CanInteract;
-        Player.IsRestrained = _fhOrig.IsRestrained;
-        if (typeof _fhOrig.CanChangeOwnClothes === 'function') Player.CanChangeOwnClothes = _fhOrig.CanChangeOwnClothes;
-        _fhOrig = null;
-    }
-    // 依据设定套用/还原（初始化与切换时都走这里；关闭=默认→不套用任何 patch）
-    function applyFreeHands() {
-        if (getES().freeHands === 1) _fhPatch(); else _fhUnpatch();
-    }
+    function applyFreeHands() { setupFreeHandsHooks(); } // 相容旧调用：只负责挂钩，开关状态即时生效
 
     function freeHandsCommand() {
         const s = getES();
         s.freeHands = s.freeHands !== 1 ? 1 : 0;
         saveES();
-        applyFreeHands();
         broadcastShared('FreeHands', s.freeHands === 1); // 徽章广播
         ChatRoomSendLocal(s.freeHands === 1 ? t('fhOn') : t('fhOff'), TOGGLE_MSG_MS);
         if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
@@ -2738,7 +2726,6 @@
         if (modApi && typeof modApi.onUnload === 'function') {
             modApi.onUnload(() => {
                 if (heightTargetChar) { removeHeightHijack(heightTargetChar); heightTargetChar = null; }
-                _fhUnpatch();
                 _ibUnpatch();
                 delete window.__LikoToolLoaded__;
                 console.log("🐈‍⬛ [LT] 🗑️ 插件卸载");
