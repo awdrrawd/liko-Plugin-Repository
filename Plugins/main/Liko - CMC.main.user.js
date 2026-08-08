@@ -229,11 +229,16 @@
         if (!Player?.OnlineSharedSettings) return;
         const cur = getMyCmc();
         const admin = ChatRoomPlayerIsAdmin() ? 1 : 0;
-        Player.OnlineSharedSettings.cmc = {
+        const next = {
             rank, list,
             canPlay: admin || cur.canPlay || 0,
             canEdit: admin || cur.canEdit || 0
         };
+        // 只有真的變了才送：checkAndPlayBCMusic 每 5 秒呼叫一次，若無條件 QueueData
+        //  會每 5 秒把整包 OnlineSharedSettings 寫回帳號一次（即使沒變）→ 背景請求浪費、加重連線負擔。
+        if (cur.rank === next.rank && cur.list === next.list
+            && cur.canPlay === next.canPlay && cur.canEdit === next.canEdit) return;
+        Player.OnlineSharedSettings.cmc = next;
         ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
     }
     function setMyCmcPerms(canPlay, canEdit) {
