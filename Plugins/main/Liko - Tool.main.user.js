@@ -2,8 +2,8 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.0.1
-// @description  Bondage Club - Likolisu's tool (R121 Compatible) + UI Panel + 角色选择器 + Canvas SVG图标 + 拖拽排序 + 主题自定义 + 无视绑缚
+// @version      2.0.2
+// @description  Bondage Club - Likolisu's tool (R121 Compatible) + UI Panel + 角色选择器 + Canvas SVG图标 + 拖拽排序 + 主题自定义 + 无视绑缚 + 无视衣物阻挡
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -23,7 +23,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_Version = "2.0.1";
+    const MOD_Version = "2.0.2";
     if (window.Liko.LT) return;
     window.Liko.LT = MOD_Version;
     let modApi = null;
@@ -75,6 +75,7 @@
         edit:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
         craftEdit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.59a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4"/></svg>',
         craftClear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.59a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><path d="M4 4l16 16"/></svg>',
+        ignoreBlock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/><path d="M3 3l18 18"/></svg>',
     };
 
     // ════════════════════════════════════════════════════════════════════════
@@ -307,6 +308,8 @@
             heightLockOff:   "身高锁定已停用",
             fhOn:            "无视绑缚已启用（被绑时仍可使用双手，不解开道具）",
             fhOff:           "无视绑缚已停用",
+            ibOn:            "无视衣物阻挡已启用（被服装/道具遮挡的格子仍可换装、装拘束）",
+            ibOff:           "无视衣物阻挡已停用",
             sendFail:        "自定义动作发送失败，可能有插件冲突",
             cmdFail:         "执行失败",
             unknownCmd:      "未知指令",
@@ -333,7 +336,7 @@
 
             helpText:
                 "莉柯莉丝工具 使用说明\n\n" +
-                "/lt help              - 显示此说明\n" +
+                "/lt show              - 显示工具面板\n" +
                 "/lt free [目标]       - 选择移除束缚（面板可全选）\n" +
                 "/lt editcraft [目标]  - 批量编辑束缚的订制属性（名称/描述/私有）\n" +
                 "/lt clearcraft [目标] - 清除束缚的所有订制属性\n" +
@@ -346,9 +349,9 @@
                 "/lt heightfix         - 趴跪姿时自动拉高\n" +
                 "/lt heightlock        - 锁定身高为标准值\n" +
                 "/lt freehands         - 无视绑缚（被绑时仍可使用双手，不解开道具）\n" +
+                "/lt ignoreblock       - 无视衣物阻挡（被遮挡的格子仍可换装、装拘束）\n" +
                 "/lt geteverything     - 增强功能\n" +
-                "/lt wardrobe          - 开启衣柜\n" +
-                "/lt theme             - 打开主题设置",
+                "/lt wardrobe          - 开启衣柜",
 
             loaded: "莉柯莉丝工具 v{v} 载入！使用 /lt help 查看说明",
         },
@@ -408,6 +411,8 @@
             heightLockOff:   "Height lock disabled",
             fhOn:            "Free Hands enabled (use hands while restrained, keeps items on)",
             fhOff:           "Free Hands disabled",
+            ibOn:            "Ignore Clothing Block enabled (equip on slots covered by clothing/items)",
+            ibOff:           "Ignore Clothing Block disabled",
             sendFail:        "Custom action failed, possible plugin conflict",
             cmdFail:         "Command failed",
             unknownCmd:      "Unknown command",
@@ -434,7 +439,7 @@
 
             helpText:
                 "Liko Tool Help\n\n" +
-                "/lt help              - Show this help\n" +
+                "/lt show              - Show the tool panel\n" +
                 "/lt free [target]     - Select restraints to remove (panel has Select All)\n" +
                 "/lt editcraft [target]- Batch-edit restraint craft (name/desc/private)\n" +
                 "/lt clearcraft [target]-Clear all craft on restraints\n" +
@@ -447,9 +452,9 @@
                 "/lt heightfix         - Auto-raise when kneeling/prone\n" +
                 "/lt heightlock        - Lock height to standard value\n" +
                 "/lt freehands         - Free hands (use hands while restrained, keeps items on)\n" +
+                "/lt ignoreblock       - Ignore clothing block (equip on covered slots)\n" +
                 "/lt geteverything     - Enhancement menu\n" +
-                "/lt wardrobe          - Open wardrobe\n" +
-                "/lt theme             - Open theme settings",
+                "/lt wardrobe          - Open wardrobe",
 
             loaded: "Liko Tool v{v} loaded! Use /lt help for help",
         }
@@ -525,7 +530,7 @@
     function getES() {
         if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
         if (!Player.ExtensionSettings.LikoTOOL) {
-            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, stealthRp: 0, rpModeLocal: 0, freeHands: 0 };
+            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, stealthRp: 0, rpModeLocal: 0, freeHands: 0, ignoreBlock: 0 };
         }
         const s = Player.ExtensionSettings.LikoTOOL;
         if (typeof s.heightFix        === 'undefined') s.heightFix        = 0;
@@ -534,6 +539,7 @@
         if (typeof s.stealthRp        === 'undefined') s.stealthRp        = 0;
         if (typeof s.rpModeLocal      === 'undefined') s.rpModeLocal      = 0;
         if (typeof s.freeHands        === 'undefined') s.freeHands        = 0;
+        if (typeof s.ignoreBlock      === 'undefined') s.ignoreBlock      = 0;
         return s;
     }
 
@@ -930,22 +936,13 @@
     // 所有动作定义（含 SVG 图标）
     // ════════════════════════════════════════════════════════════════════════
     const ALL_ACTIONS = [
-        { id: 'wardrobe',  icon: SVG.wardrobe,  label: '衣柜',    title: '打开衣柜', fn: function() { wardrobe(); } },
-        { id: 'undo',      icon: SVG.undo,      label: '回滚',    title: '回滚外观到之前的状态', fn: async function() {
-            const target = await requestCharacter('选择要回滚外观的目标');
-            if (target) undoCommand(getNickname(target));
-        }},
         { id: 'free',      icon: SVG.free,      label: '解除束缚', title: '选择性移除束缚物品（可全选）', fn: async function() {
             const target = await requestCharacter('选择要解除束缚的目标');
             if (target) free(getNickname(target));
         }},
-        { id: 'editcraft', icon: SVG.craftEdit, label: '编辑订制属性', title: '批量编辑束缚的订制属性（名称/描述/私有）', fn: async function() {
-            const target = await requestCharacter('选择要编辑属性的目标');
-            if (target) editCraftBatch(target);
-        }},
-        { id: 'clearcraft',icon: SVG.craftClear,label: '清除订制属性', title: '清除对象身上所有束缚的订制属性', fn: async function() {
-            const target = await requestCharacter('选择要清除订制属性的目标');
-            if (target) clearAllCraft(target);
+        { id: 'undo',      icon: SVG.undo,      label: '回滚',    title: '回滚外观到之前的状态', fn: async function() {
+            const target = await requestCharacter('选择要回滚外观的目标');
+            if (target) undoCommand(getNickname(target));
         }},
         { id: 'lock',      icon: SVG.lock,      label: '上锁',    title: '为束缚添加锁', fn: async function() {
             const target = await requestCharacter('选择要上锁的目标');
@@ -961,16 +958,25 @@
             if (!lock) return;
             fullLock(getNickname(target) + ' ' + lock.Name);
         }},
-        { id: 'unlock',    icon: SVG.unlock,    label: '全解锁',  title: '选择要解除的锁（跳过主人/恋人/拓展锁）', fn: async function() {
+        { id: 'unlock',    icon: SVG.unlock,    label: '解锁',  title: '选择要解除的锁（跳过主人/恋人/拓展锁）', fn: async function() {
             const target = await requestCharacter('选择要解锁的目标');
             if (target) fullUnlock(getNickname(target));
         }},
-        { id: 'struggle',  icon: SVG.struggle,  label: '挣扎',    title: 'LSCG 挣脱指令', fn: function() { execChatCommand('/lscg escape'); } },
-        { id: 'enhance',   icon: SVG.enhance,   label: '增强',    title: '获取道具/金钱/技能', fn: function() { getEverything(); } },
+        { id: 'editcraft', icon: SVG.craftEdit, label: '编辑订制属性', title: '批量编辑束缚的订制属性（名称/描述/私有）', fn: async function() {
+            const target = await requestCharacter('选择要编辑属性的目标');
+            if (target) editCraftBatch(target);
+        }},
+        { id: 'clearcraft',icon: SVG.craftClear,label: '清除订制属性', title: '清除对象身上所有束缚的订制属性', fn: async function() {
+            const target = await requestCharacter('选择要清除订制属性的目标');
+            if (target) clearAllCraft(target);
+        }},
+        { id: 'wardrobe',  icon: SVG.wardrobe,  label: '衣柜',    title: '打开衣柜', fn: function() { wardrobe(); } },
         { id: 'bcx',       icon: SVG.bcx,       label: 'BCX导入', title: '从剪贴板导入 BCX 外观', fn: async function() {
             const target = await requestCharacter('选择要导入外观的目标');
             if (target) bcxImport(getNickname(target));
         }},
+        { id: 'struggle',  icon: SVG.struggle,  label: '挣扎',    title: 'LSCG 挣脱指令', fn: function() { execChatCommand('/lscg escape'); } },
+        { id: 'enhance',   icon: SVG.enhance,   label: '增强',    title: '获取道具/金钱/技能', fn: function() { getEverything(); } },
     ];
 
     // ════════════════════════════════════════════════════════════════════════
@@ -1139,10 +1145,11 @@
 
         const toggles = [
             { icon: SVG.rp,        label: isZh() ? 'RP模式'  : 'RP Mode',    title: isZh() ? '开启后屏蔽游戏 Action 消息' : 'Block game Action messages', toggle: 'rp', fn: function() { rpmode(); updateToggleBtns(); } },
-            { icon: SVG.rpBtn,     label: isZh() ? '显示RP按钮' : 'Show RP Btn', title: isZh() ? '在游戏画面显示 RP 切换按钮' : 'Show RP toggle button on canvas', toggle: 'rpBtn', fn: function() { rpbtn(); updateToggleBtns(); } },
+            { icon: SVG.free,      label: isZh() ? '无视绑缚' : 'Free Hands', title: isZh() ? '被绑缚时仍可使用双手（不会实际解开道具）' : 'Use hands while restrained (does not remove items)', toggle: 'freeHands', fn: function() { freeHandsCommand(); updateToggleBtns(); } },
+            { icon: SVG.ignoreBlock,label: isZh() ? '无视衣物阻挡' : 'Ignore Clothing Block', title: isZh() ? '被服装/道具遮挡的格子仍可换装、装拘束（不必先脱）' : 'Equip on slots covered by clothing/items (no need to strip first)', toggle: 'ignoreBlock', fn: function() { ignoreBlockCommand(); updateToggleBtns(); } },
             { icon: SVG.heightFix, label: isZh() ? '拉高'    : 'Height Fix', title: isZh() ? '趴跪姿时自动拉高视角' : 'Auto-raise when kneeling/prone', toggle: 'heightFix', fn: function() { heightFixCommand(); updateToggleBtns(); } },
             { icon: SVG.heightLock,label: isZh() ? '身高锁'  : 'Height Lock',title: isZh() ? '强制身高为标准值' : 'Force standard height', toggle: 'heightLock', fn: function() { heightLockCommand(); updateToggleBtns(); } },
-            { icon: SVG.free,      label: isZh() ? '无视绑缚' : 'Free Hands', title: isZh() ? '被绑缚时仍可使用双手（不会实际解开道具）' : 'Use hands while restrained (does not remove items)', toggle: 'freeHands', fn: function() { freeHandsCommand(); updateToggleBtns(); } },
+            { icon: SVG.rpBtn,     label: isZh() ? '显示RP按钮' : 'Show RP Btn', title: isZh() ? '在游戏画面显示 RP 切换按钮' : 'Show RP toggle button on canvas', toggle: 'rpBtn', fn: function() { rpbtn(); updateToggleBtns(); } },
         ];
 
         toggles.forEach(function(tg) {
@@ -1180,6 +1187,7 @@
             else if (key === 'heightFix') isOn = getES().heightFix === 1;
             else if (key === 'heightLock') isOn = getES().heightLock === 1;
             else if (key === 'freeHands') isOn = getES().freeHands === 1;
+            else if (key === 'ignoreBlock') isOn = getES().ignoreBlock === 1;
             ref.sw.classList.toggle('on', isOn);
             ref.row.classList.toggle('on', isOn);
         }
@@ -2316,11 +2324,6 @@
         return true;
     }
 
-    function themeCommand() {
-        openSettingsPanel();
-        return true;
-    }
-
     // ──────────────────────────────────────────
     // Free Hands 无视绑缚（被绑时仍可使用双手，不解开任何拘束道具）
     //  - 只在开关开启时临时覆盖 Player 的 CanInteract / IsRestrained /
@@ -2360,6 +2363,54 @@
         return true;
     }
 
+    // ──────────────────────────────────────────
+    // Ignore Clothing Block 无视衣物阻挡
+    //  - 拿掉「其他道具 Block 此格子」+「先脱掉些衣服(RemoveClothesForItem)前置条件」两条，
+    //    让被服装/道具遮挡的格子仍可直接换装、装拘束，省去先脱再装。
+    //  - enclose / 距离 / 主人规则 / 其它前置条件(姿势/贞操/冲突拘束)全部保留。
+    //  - 关闭时完整还原全局函式，不留下任何修改。
+    // ──────────────────────────────────────────
+    let _ibOrig = null;
+    function _ibPatch() {
+        if (_ibOrig) return;
+        if (typeof InventoryGroupIsBlockedForCharacter !== 'function' || typeof InventoryPrerequisiteMessage !== 'function') return;
+        _ibOrig = {
+            gib: InventoryGroupIsBlockedForCharacter,
+            pre: InventoryPrerequisiteMessage,
+        };
+        window.InventoryGroupIsBlockedForCharacter = function (C, GroupName, Activity = false) {
+            const restraints = C.Appearance.filter(i => i.Asset.Group.IsItem());
+            if (Activity && !restraints.some(i => i.Asset.AllowActivityOn.includes(GroupName) || i.Property?.AllowActivityOn?.includes(GroupName)))
+                Activity = false;
+            // 原本此处是 item-Block-item 检查，被无视
+            if (!C.IsPlayer() && C.IsEnclose())
+                return !restraints.some(i => i.Asset.Group.Name == GroupName && InventoryItemHasEffect(i, "Enclose", true));
+            return false;
+        };
+        window.InventoryPrerequisiteMessage = function (C, Prerequisite, asset = null) {
+            const msg = _ibOrig.pre(C, Prerequisite, asset);
+            return msg === "RemoveClothesForItem" ? "" : msg;
+        };
+    }
+    function _ibUnpatch() {
+        if (!_ibOrig) return;
+        window.InventoryGroupIsBlockedForCharacter = _ibOrig.gib;
+        window.InventoryPrerequisiteMessage = _ibOrig.pre;
+        _ibOrig = null;
+    }
+    function applyIgnoreBlock() {
+        if (getES().ignoreBlock === 1) _ibPatch(); else _ibUnpatch();
+    }
+
+    function ignoreBlockCommand() {
+        const s = getES();
+        s.ignoreBlock = s.ignoreBlock !== 1 ? 1 : 0;
+        saveES();
+        applyIgnoreBlock();
+        ChatRoomSendLocal(s.ignoreBlock === 1 ? t('ibOn') : t('ibOff'));
+        return true;
+    }
+
     // ── AFC 心锁（拓展锁）识别：解除拘束 / 解锁时跳过，避免破坏 AFC 心锁 ──
     const AFC_HEARTLOCK_NAME = 'Heart Padlock';
     function isHeartLock(item) {
@@ -2379,6 +2430,7 @@
         if (!subCommand || subCommand === "help") { ChatRoomSendLocal(t('helpText')); return true; }
 
         const commands = {
+            show:          showToolPanel,
             free,
             clearcraft:    clearCraftCommand,
             editcraft:     editCraftCommand,
@@ -2392,8 +2444,8 @@
             heightfix:     heightFixCommand,
             heightlock:    heightLockCommand,
             freehands:     freeHandsCommand,
+            ignoreblock:   ignoreBlockCommand,
             undo:          undoCommand,
-            theme:         themeCommand,
         };
 
         if (commands[subCommand]) {
@@ -2422,6 +2474,7 @@
 
         initializeStorage();
         applyFreeHands();
+        applyIgnoreBlock();
         applyTheme();
         setupHooks();
         startToolButtonInjector();
@@ -2455,6 +2508,7 @@
             modApi.onUnload(() => {
                 if (heightTargetChar) { removeHeightHijack(heightTargetChar); heightTargetChar = null; }
                 _fhUnpatch();
+                _ibUnpatch();
                 delete window.__LikoToolLoaded__;
                 console.log("🐈‍⬛ [LT] 🗑️ 插件卸载");
             });
