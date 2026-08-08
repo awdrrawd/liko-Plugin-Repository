@@ -2,8 +2,8 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.0.3
-// @description  Bondage Club - Likolisu's tool (R121 Compatible) + UI Panel + 角色选择器 + Canvas SVG图标 + 拖拽排序 + 主题自定义 + 无视绑缚 + 无视衣物阻挡
+// @version      2.1.0
+// @description  Bondage Club - Likolisu's tool (R121 Compatible) + UI Panel + 角色选择器 + Canvas SVG图标 + 拖拽排序 + 主题自定义 + 无视绑缚 + 无视衣物阻挡 + 勿扰模式 + 说话总是OOC
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -23,7 +23,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_Version = "2.0.3";
+    const MOD_Version = "2.1.2";
     if (window.Liko.LT) return;
     window.Liko.LT = MOD_Version;
     let modApi = null;
@@ -32,6 +32,8 @@
     const rpBtnY    = 855;
     const rpBtnSize = 45;
     const rpIconUrl = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/likorp.png";
+
+    const TOGGLE_MSG_MS = 5000; // 所有开关提示讯息 5 秒后消失
 
     /* ── 工具面板默认锚点（触发按钮已移至 #chat-room-buttons）── */
     const TOOL_BTN_X = 955;
@@ -69,6 +71,8 @@
         close:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
         chevron:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
         rp:        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="22" y1="2" x2="2" y2="22"/></svg>',
+        dnd:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="7.5" y1="12" x2="16.5" y2="12"/></svg>',
+        ooc:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/><path d="M10 8.7c-1 1-1 5.6 0 6.6M14 8.7c1 1 1 5.6 0 6.6"/></svg>',
         heightFix: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>',
         heightLock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="6" rx="1"/><path d="M7 9v3M11 9v3M15 9v3M19 9v3"/></svg>',
         rpBtn:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><circle cx="8" cy="12" r="1.5"/></svg>',
@@ -103,6 +107,45 @@
             var x = btnX + (btnW - sz) / 2;
             var y = btnY + (btnH - sz) / 2;
             try { MainCanvas.drawImage(img, x, y, sz, sz); } catch (e) {}
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 角色头顶状态徽章（画在人物身上，广播状态让别人看得到）— 白色图标 + 彩色圆底
+    // ════════════════════════════════════════════════════════════════════════
+    const BADGE_SVG = {
+        // 勿扰：抓痕
+        dnd:  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="#ffffff" d="m1.35 2.75c-0.44 1.29 2.38 4.7 10.78 13.01 6.25 6.19 12.16 11.25 13.12 11.25 1-0.01 1.75-0.76 1.76-1.76 0-0.96-5.06-6.81-11.25-12.99-6.2-6.19-11.83-11.25-12.53-11.25-0.71-0.01-1.55 0.78-1.88 1.74zm45.1 0.47c-1.39 1.88-1.63 4.98-1.55 20.25l0.09 18.03c29.4 29.45 38.29 37.63 38.72 37.17 0.44-0.46 0.93-11.48 1.11-24.5 0.17-13.02 0.06-24.68-0.25-25.92-0.36-1.43-1.58-2.46-3.32-2.83-1.92-0.41-3.29-0.03-4.53 1.25-1.49 1.53-1.78 3.59-1.75 12.58 0.02 6.2-0.39 10.96-0.97 11.25-0.55 0.27-1.7-0.06-2.54-0.75-1.3-1.05-1.54-4.21-1.5-19.5 0.04-17.27-0.07-18.3-1.96-19.25-1.1-0.55-2.34-0.99-2.75-0.98-0.41 0-1.42 0.44-2.25 0.96-1.2 0.75-1.6 4.29-2 17.73-0.48 15.96-0.6 16.79-2.5 16.79-1.92 0-2.02-0.83-2.5-21.29-0.41-17.45-0.77-21.46-2-22.23-0.83-0.52-2.49-0.96-3.7-0.96-1.21-0.01-2.94 0.98-3.85 2.2zm-14.45 8.78c-1.57 1.57-2 3.34-2.01 8.25-0.01 6.13 0.07 6.34 4.75 10.99 2.62 2.6 5.1 4.74 5.51 4.75 0.41 0 0.75-4.83 0.76-10.74 0-7.93-0.39-11.34-1.5-13-0.83-1.24-2.41-2.25-3.51-2.25-1.1 0-2.9 0.9-4 2zm-2 34.25l0.01 11.25c10.53 10.13 12.8 13.07 12.49 14-0.28 0.83-1.06 1.48-1.75 1.46-0.69-0.02-7.1-5.36-14.25-11.85-7.15-6.5-14.01-12.11-15.25-12.46-1.63-0.47-2.94 0.04-4.75 1.85-1.38 1.37-2.5 2.95-2.5 3.5 0 0.55 3.04 5.4 6.75 10.79 3.71 5.38 10.57 15.29 15.25 22.01l8.5 12.23 42 0.03c2.11-4.31 3.36-7.36 4.14-9.56l1.41-4c-39.18-39.14-50.89-50.5-51.3-50.5-0.41 0-0.75 5.06-0.75 11.25zm54.99 40.5c-0.01 0.96 2.35 4.11 5.25 6.99 2.89 2.88 6.05 5.24 7.01 5.25 1 0.01 1.75-0.74 1.76-1.74 0.01-0.96-2.35-4.11-5.25-6.99-2.89-2.88-6.05-5.24-7.01-5.25-1-0.01-1.75 0.74-1.76 1.74z"/></svg>',
+        // 无视绑缚：麦束
+        free: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="#ffffff" d="m41 8.45c-4.67 0.64-9.51 1.7-10.75 2.36-1.42 0.75-2.25 2.12-2.25 3.69 0 1.38 0.68 2.73 1.5 3 0.82 0.27 6.56 0.49 12.75 0.48 10.5-0.01 11.47 0.15 14.5 2.5l3.25 2.52c-13.56 9.47-18.28 13.19-19.23 14.36-0.95 1.18-1.73 3.49-1.74 5.14-0.01 2.12 2.12 6.06 7.33 13.5l7.34 10.5c-17.98 1.55-23.76 2.34-24.45 2.75-0.69 0.41-1.25 2.1-1.25 3.75q0 3 2 4c1.1 0.55 9.83 1 19.5 1 9.67 0 18.4-0.45 19.5-1 1.28-0.64 1.99-1.98 1.98-3.75-0.02-1.68-2.78-7.03-7.12-13.75-6.68-10.37-6.98-11.08-5.22-12.34 1.02-0.73 6.14-4.11 11.36-7.5 7.37-4.78 9.56-6.72 9.78-8.66 0.17-1.51-1.03-4.48-3.01-7.5-2.28-3.47-5.89-6.76-11.78-10.77-6.69-4.54-9.23-5.73-11.99-5.6-1.92 0.08-7.33 0.68-12 1.32zm41.97 2.08c-2.24 2.46-3.18 4.45-3.1 6.5 0.09 1.95 1.33 4.17 3.63 6.47 2.13 2.13 4.48 3.5 6 3.5 1.38 0 3.74-0.62 5.25-1.38 1.51-0.76 3.31-2.56 4-4 0.69-1.44 1.25-3.52 1.25-4.62 0-1.1-0.5-3.01-1.12-4.25-0.61-1.24-2.07-3.03-3.25-3.98-1.17-0.95-3.77-1.74-5.78-1.75-2.92-0.02-4.3 0.69-6.88 3.51zm-82.42 14.47c-0.3 0.55-0.33 1.45-0.05 2 0.31 0.62 8.33 1 21 1 19.83 0 20.5-0.07 20.5-2 0-1.93-0.67-2-20.45-2-12.6 0-20.66 0.38-21 1zm0 10c-0.3 0.55-0.33 1.45-0.05 2 0.3 0.6 6.67 1 16 1 14.83 0 15.5-0.09 15.5-2 0-1.91-0.67-2-15.45-2-9.27 0-15.67 0.4-16 1zm0 10c-0.3 0.55-0.33 1.45-0.05 2 0.3 0.6 6.67 1 16 1 14.83 0 15.5-0.09 15.5-2 0-1.91-0.67-2-15.45-2-9.27 0-15.67 0.4-16 1zm0 10c-0.3 0.55-0.33 1.45-0.05 2 0.31 0.62 8 1 20 1 18.83 0 19.5-0.07 19.5-2 0-1.93-0.67-2-19.45-2-11.94 0-19.66 0.39-20 1zm34.05 32.25c-2.5 2.89-4.75 5.92-4.99 6.75-0.24 0.83 0.2 2.51 0.97 3.75 0.78 1.24 2.32 2.25 3.42 2.25 1.16 0 5.87-3.75 11.25-8.97l9.25-8.98-15.35-0.05zm40.36-45.94c-3.32 2.33-4.43 3.73-4.14 5.19 0.21 1.1 0.91 2.62 1.53 3.37 0.91 1.08 3.31 1.22 11.65 0.64 5.77-0.4 11.28-1.13 12.25-1.62 1.14-0.58 1.66-1.85 1.5-3.64-0.21-2.27-0.78-2.79-3.25-3-1.65-0.14-5.37-0.48-8.25-0.75-3.78-0.36-5.25-0.92-5.25-2 0-0.83-0.34-1.48-0.75-1.44-0.42 0.03-2.8 1.49-5.29 3.25z"/></svg>',
+    };
+    const BADGE_COLOR = { dnd: '#d03030', free: '#2d8bc4' };
+    var _badgeImgCache = {};
+    function getBadgeImg(key) {
+        if (_badgeImgCache[key]) return _badgeImgCache[key];
+        var img = new Image();
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(BADGE_SVG[key]);
+        _badgeImgCache[key] = img;
+        return img;
+    }
+    // 画一颗徽章：彩色圆底 + 白描边 + 白色图标
+    function drawBadgeDisc(key, x, y, size) {
+        try {
+            const cx = x + size / 2, cy = y + size / 2, r = size / 2;
+            MainCanvas.save();
+            MainCanvas.beginPath();
+            MainCanvas.arc(cx, cy, r, 0, Math.PI * 2);
+            MainCanvas.fillStyle = BADGE_COLOR[key] || '#333';
+            MainCanvas.fill();
+            MainCanvas.lineWidth = Math.max(2, size * 0.07);
+            MainCanvas.strokeStyle = 'rgba(255,255,255,0.9)';
+            MainCanvas.stroke();
+            MainCanvas.restore();
+        } catch (e) {}
+        const img = getBadgeImg(key);
+        if (img.complete && img.naturalWidth > 0) {
+            const pad = size * 0.24;
+            try { MainCanvas.drawImage(img, x + pad, y + pad, size - 2 * pad, size - 2 * pad); } catch (e) {}
         }
     }
 
@@ -308,6 +351,12 @@
             heightLockOff:   "身高锁定已停用",
             fhOn:            "无视绑缚已启用（被绑时仍可使用双手，不解开道具）",
             fhOff:           "无视绑缚已停用",
+            dndOn:           "勿扰模式已启用（除自己外，任何人对你外观的编辑都会立即复原）",
+            dndOff:          "勿扰模式已停用",
+            dndReverted:     "{src} 对 {who} 修改了外观，但很快地复原了",
+            oocOn:           "说话总是OOC 已启用（聊天/密语自动加上括号转为 OOC）",
+            oocOff:          "说话总是OOC 已停用",
+            oocPlaceholder:  "现在讯息为 OOC",
             ibOn:            "无视衣物阻挡已启用（被服装/道具遮挡的格子仍可换装、装拘束）",
             ibOff:           "无视衣物阻挡已停用",
             sendFail:        "自定义动作发送失败，可能有插件冲突",
@@ -348,6 +397,8 @@
                 "/lt rpbtn             - 显示/隐藏 RP 按钮\n" +
                 "/lt heightfix         - 趴跪姿时自动拉高\n" +
                 "/lt heightlock        - 锁定身高为标准值\n" +
+                "/lt ooc               - 说话总是OOC（聊天/密语自动加括号转 OOC）\n" +
+                "/lt dnd               - 勿扰模式（除自己外，他人对你外观的编辑立即复原）\n" +
                 "/lt freehands         - 无视绑缚（被绑时仍可使用双手，不解开道具）\n" +
                 "/lt ignoreblock       - 无视衣物阻挡（被遮挡的格子仍可换装、装拘束）\n" +
                 "/lt geteverything     - 增强功能\n" +
@@ -411,6 +462,12 @@
             heightLockOff:   "Height lock disabled",
             fhOn:            "Free Hands enabled (use hands while restrained, keeps items on)",
             fhOff:           "Free Hands disabled",
+            dndOn:           "Do Not Disturb enabled (anyone but you editing your appearance is instantly reverted)",
+            dndOff:          "Do Not Disturb disabled",
+            dndReverted:     "{src} changed {who}'s appearance, but it was quickly restored",
+            oocOn:           "Always OOC enabled (chat/whisper auto-wrapped in parentheses as OOC)",
+            oocOff:          "Always OOC disabled",
+            oocPlaceholder:  "Messages are OOC now",
             ibOn:            "Ignore Clothing Block enabled (equip on slots covered by clothing/items)",
             ibOff:           "Ignore Clothing Block disabled",
             sendFail:        "Custom action failed, possible plugin conflict",
@@ -451,6 +508,8 @@
                 "/lt rpbtn             - Show/hide RP button\n" +
                 "/lt heightfix         - Auto-raise when kneeling/prone\n" +
                 "/lt heightlock        - Lock height to standard value\n" +
+                "/lt ooc               - Always OOC (auto-wrap chat/whisper in parentheses)\n" +
+                "/lt dnd               - Do Not Disturb (others' edits to your appearance auto-revert)\n" +
                 "/lt freehands         - Free hands (use hands while restrained, keeps items on)\n" +
                 "/lt ignoreblock       - Ignore clothing block (equip on covered slots)\n" +
                 "/lt geteverything     - Enhancement menu\n" +
@@ -530,7 +589,7 @@
     function getES() {
         if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
         if (!Player.ExtensionSettings.LikoTOOL) {
-            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, stealthRp: 0, rpModeLocal: 0, freeHands: 0, ignoreBlock: 0 };
+            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, stealthRp: 0, rpModeLocal: 0, freeHands: 0, ignoreBlock: 0, dnd: 0, alwaysOOC: 0 };
         }
         const s = Player.ExtensionSettings.LikoTOOL;
         if (typeof s.heightFix        === 'undefined') s.heightFix        = 0;
@@ -540,6 +599,8 @@
         if (typeof s.rpModeLocal      === 'undefined') s.rpModeLocal      = 0;
         if (typeof s.freeHands        === 'undefined') s.freeHands        = 0;
         if (typeof s.ignoreBlock      === 'undefined') s.ignoreBlock      = 0;
+        if (typeof s.dnd              === 'undefined') s.dnd              = 0;
+        if (typeof s.alwaysOOC        === 'undefined') s.alwaysOOC        = 0;
         return s;
     }
 
@@ -560,10 +621,14 @@
         if (!Player.OnlineSharedSettings.LikoTOOL) {
             Player.OnlineSharedSettings.LikoTOOL = { RPmode: 0 };
         }
-        if (typeof Player.OnlineSharedSettings.LikoTOOL.RPmode === 'undefined') {
-            Player.OnlineSharedSettings.LikoTOOL.RPmode = 0;
-        }
+        const oss = Player.OnlineSharedSettings.LikoTOOL;
+        if (typeof oss.RPmode    === 'undefined') oss.RPmode    = 0;
+        if (typeof oss.DND       === 'undefined') oss.DND       = 0; // 广播：勿扰徽章
+        if (typeof oss.FreeHands === 'undefined') oss.FreeHands = 0; // 广播：无视绑缚徽章
         getES();
+        // 把本地持久化的开关镜像到广播设定，让重登后徽章状态一致
+        oss.DND       = getES().dnd === 1 ? 1 : 0;
+        oss.FreeHands = getES().freeHands === 1 ? 1 : 0;
     }
 
     // ──────────────────────────────────────────
@@ -596,6 +661,27 @@
             }
         }
         if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
+    }
+
+    // ──────────────────────────────────────────
+    // 勿扰 / 无视绑缚 的广播状态（供徽章读取；本地开关仍存 ExtensionSettings）
+    // ──────────────────────────────────────────
+    function _readShared(character, key, localFn) {
+        if (!character) return false;
+        if (character.IsPlayer && character.IsPlayer()) return localFn();
+        return character.OnlineSharedSettings?.LikoTOOL?.[key] === 1;
+    }
+    function getDndMode(character)  { return _readShared(character, 'DND',       () => getES().dnd === 1); }
+    function getFreeHandsShared(character) { return _readShared(character, 'FreeHands', () => getES().freeHands === 1); }
+
+    // 把某个本地开关镜像到 OnlineSharedSettings 并广播（让别人看得到徽章）
+    function broadcastShared(key, enabled) {
+        if (!Player.OnlineSharedSettings) Player.OnlineSharedSettings = {};
+        if (!Player.OnlineSharedSettings.LikoTOOL) Player.OnlineSharedSettings.LikoTOOL = {};
+        Player.OnlineSharedSettings.LikoTOOL[key] = enabled ? 1 : 0;
+        if (typeof ServerAccountUpdate?.QueueData === 'function') {
+            ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+        }
     }
 
     // ──────────────────────────────────────────
@@ -697,12 +783,23 @@
     }
 
     // ──────────────────────────────────────────
-    // Canvas：绘制 RP 图标
+    // Canvas：绘制头顶状态徽章（从固定高度往下堆叠；只画开启的，顺序 RP > 勿扰 > 无视绑缚）
     // ──────────────────────────────────────────
-    function drawRpIcon(C, CharX, CharY, Zoom) {
-        if (!getRpMode(C)) return;
-        const offsetY = (C.IsKneeling && C.IsKneeling()) ? 300 : 40;
-        DrawImageResize(rpIconUrl, CharX + 340 * Zoom, CharY + offsetY * Zoom, 45 * Zoom, 50 * Zoom);
+    function drawStateBadges(C, CharX, CharY, Zoom) {
+        const keys = [];
+        if (getRpMode(C))         keys.push('rp');
+        if (getDndMode(C))        keys.push('dnd');
+        if (getFreeHandsShared(C)) keys.push('free');
+        if (!keys.length) return;
+        const baseY = (C.IsKneeling && C.IsKneeling()) ? 300 : 40; // 固定锚点：跪姿往下移
+        const x = CharX + 340 * Zoom;
+        const size = 45 * Zoom;
+        const step = 55 * Zoom;
+        keys.forEach((key, i) => {
+            const y = CharY + baseY * Zoom + i * step;
+            if (key === 'rp') DrawImageResize(rpIconUrl, x, y, size, 50 * Zoom); // RP 沿用原本 PNG 徽章
+            else drawBadgeDisc(key, x, y, size);
+        });
     }
 
     // ──────────────────────────────────────────
@@ -1145,10 +1242,12 @@
 
         const toggles = [
             { icon: SVG.rp,        label: isZh() ? 'RP模式'  : 'RP Mode',    title: isZh() ? '开启后屏蔽游戏 Action 消息' : 'Block game Action messages', toggle: 'rp', fn: function() { rpmode(); updateToggleBtns(); } },
+            { icon: SVG.dnd,       label: isZh() ? '勿扰模式' : 'Do Not Disturb', title: isZh() ? '除自己外，任何人对你外观的编辑（换衣/拘束）都会立即复原' : 'Anyone but you editing your appearance is instantly reverted', toggle: 'dnd', fn: function() { dndCommand(); updateToggleBtns(); } },
             { icon: SVG.free,      label: isZh() ? '无视绑缚' : 'Free Hands', title: isZh() ? '被绑缚时仍可使用双手（不会实际解开道具）' : 'Use hands while restrained (does not remove items)', toggle: 'freeHands', fn: function() { freeHandsCommand(); updateToggleBtns(); } },
             { icon: SVG.ignoreBlock,label: isZh() ? '无视衣物阻挡' : 'Ignore Clothing Block', title: isZh() ? '被服装/道具遮挡的格子仍可换装、装拘束（不必先脱）' : 'Equip on slots covered by clothing/items (no need to strip first)', toggle: 'ignoreBlock', fn: function() { ignoreBlockCommand(); updateToggleBtns(); } },
             { icon: SVG.heightFix, label: isZh() ? '拉高'    : 'Height Fix', title: isZh() ? '趴跪姿时自动拉高视角' : 'Auto-raise when kneeling/prone', toggle: 'heightFix', fn: function() { heightFixCommand(); updateToggleBtns(); } },
             { icon: SVG.heightLock,label: isZh() ? '身高锁'  : 'Height Lock',title: isZh() ? '强制身高为标准值' : 'Force standard height', toggle: 'heightLock', fn: function() { heightLockCommand(); updateToggleBtns(); } },
+            { icon: SVG.ooc,       label: isZh() ? '说话总是OOC' : 'Always OOC', title: isZh() ? '聊天/密语时自动加括号转为 OOC（不会被口塞乱码）' : 'Auto-wrap chat/whisper in parentheses as OOC', toggle: 'alwaysOOC', fn: function() { oocCommand(); updateToggleBtns(); } },
             { icon: SVG.rpBtn,     label: isZh() ? '显示RP按钮' : 'Show RP Btn', title: isZh() ? '在游戏画面显示 RP 切换按钮' : 'Show RP toggle button on canvas', toggle: 'rpBtn', fn: function() { rpbtn(); updateToggleBtns(); } },
         ];
 
@@ -1183,11 +1282,13 @@
         function updateToggleState(ref, key) {
             var isOn = false;
             if (key === 'rp') isOn = getRpMode(Player);
+            else if (key === 'dnd') isOn = getES().dnd === 1;
             else if (key === 'rpBtn') isOn = getES().rpBtnVisible === 1;
             else if (key === 'heightFix') isOn = getES().heightFix === 1;
             else if (key === 'heightLock') isOn = getES().heightLock === 1;
             else if (key === 'freeHands') isOn = getES().freeHands === 1;
             else if (key === 'ignoreBlock') isOn = getES().ignoreBlock === 1;
+            else if (key === 'alwaysOOC') isOn = getES().alwaysOOC === 1;
             ref.sw.classList.toggle('on', isOn);
             ref.row.classList.toggle('on', isOn);
         }
@@ -1830,6 +1931,21 @@
             return result;
         });
 
+        // 说话总是 OOC：送出前把输入框内容包成 (...)（略过空 / 指令 / / 动作 * : / 已是 OOC ( ）
+        safeHookFunction("ChatRoomSendChat", 20, (args, next) => {
+            if (getES().alwaysOOC === 1) {
+                const el = document.getElementById("InputChat");
+                if (el && el.value) {
+                    const m = el.value.trim();
+                    const isEmote = m.startsWith("*") || (Player.ChatSettings?.MuStylePoses && m.startsWith(":") && m.length > 3);
+                    if (m && !m.startsWith("/") && !m.startsWith("(") && !isEmote) {
+                        el.value = "(" + m + ")";
+                    }
+                }
+            }
+            return next(args);
+        });
+
         // RP 模式：攔截 Action 讯息
         safeHookFunction("ServerSend", 20, (args, next) => {
             if (!getRpMode(Player) || CurrentScreen !== "ChatRoom") return next(args);
@@ -1838,13 +1954,13 @@
             return next(args);
         });
 
-        // 绘制 RP 图标
+        // 绘制头顶状态徽章
         safeHookFunction("ChatRoomCharacterViewDrawOverlay", 10, (args, next) => {
             const result = next(args);
             const [C, CharX, CharY, Zoom] = args;
             if (C?.MemberNumber && CurrentScreen === "ChatRoom" &&
                 (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
-                drawRpIcon(C, CharX, CharY, Zoom);
+                drawStateBadges(C, CharX, CharY, Zoom);
             }
             return result;
         });
@@ -1852,6 +1968,9 @@
         // 绘制 RP 按鈕 + 工具觸发按鈕
         safeHookFunction("DrawProcess", 4, (args, next) => {
             const result = next(args);
+            if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+                ltRefreshOOCPlaceholder(); // 自愈式同步「现在讯息为 OOC」提示
+            }
             if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom' &&
                 (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
                 if (getES().rpBtnVisible === 1) {
@@ -1869,9 +1988,9 @@
                 const newRpMode = !getRpMode(Player);
                 setRpMode(newRpMode);
                 if (typeof ChatRoomSendLocalStyled === 'function') {
-                    ChatRoomSendLocalStyled(newRpMode ? t('rpOn') : t('rpOff'), 3000);
+                    ChatRoomSendLocalStyled(newRpMode ? t('rpOn') : t('rpOff'), TOGGLE_MSG_MS);
                 } else {
-                    ChatRoomSendLocal(newRpMode ? t('rpOn') : t('rpOff'));
+                    ChatRoomSendLocal(newRpMode ? t('rpOn') : t('rpOff'), TOGGLE_MSG_MS);
                 }
                 return;
             }
@@ -1915,21 +2034,38 @@
         safeHookFunction("ChatRoomCharacterItemUpdate", -10, (args, next) => {
             const result = next(args);
             const [target] = args;
+            dndHandleIncoming(target, Player.MemberNumber); // 自己动的 → 刷新勿扰基准，不会撤销
             saveUndoSnapshot(target, Player.MemberNumber);
             return result;
         });
         safeHookFunction("ChatRoomSyncItem", -10, (args, next) => {
-            const result = next(args);
-            const [data] = args;
-            const target = ChatRoomCharacter?.find(c => c.MemberNumber === data?.Item?.Target);
-            if (target) saveUndoSnapshot(target, data?.Source);
+            _dndInSync = true;
+            let result;
+            try {
+                result = next(args);
+                const [data] = args;
+                const target = ChatRoomCharacter?.find(c => c.MemberNumber === data?.Item?.Target);
+                if (target) { dndHandleIncoming(target, data?.Source); saveUndoSnapshot(target, data?.Source); }
+            } finally { _dndInSync = false; }
             return result;
         });
         safeHookFunction("ChatRoomSyncSingle", -10, (args, next) => {
+            _dndInSync = true;
+            let result;
+            try {
+                result = next(args);
+                const [data] = args;
+                const target = ChatRoomCharacter?.find(c => c.MemberNumber === data?.Character?.MemberNumber);
+                if (target) { dndHandleIncoming(target, data?.SourceMemberNumber); saveUndoSnapshot(target, data?.SourceMemberNumber); }
+            } finally { _dndInSync = false; }
+            return result;
+        });
+
+        // 勿扰：玩家自己同步外观（换衣/自缚等）时更新授权基准；但「他人同步」期间(_dndInSync)不采信，
+        // 否则 CharacterRefresh(Player) 会在攻击处理中触发本函式、把对方状态误存成基准，导致复原失效。
+        safeHookFunction("ServerPlayerAppearanceSync", 10, (args, next) => {
             const result = next(args);
-            const [data] = args;
-            const target = ChatRoomCharacter?.find(c => c.MemberNumber === data?.Character?.MemberNumber);
-            if (target) saveUndoSnapshot(target, data?.SourceMemberNumber);
+            if (getES().dnd === 1 && !_dndInSync) dndCaptureBaseline();
             return result;
         });
     }
@@ -2130,7 +2266,7 @@
     function rpmode() {
         const newRpMode = !getRpMode(Player);
         setRpMode(newRpMode);
-        ChatRoomSendLocal(newRpMode ? t('rpOn') : t('rpOff'));
+        ChatRoomSendLocal(newRpMode ? t('rpOn') : t('rpOff'), TOGGLE_MSG_MS);
         return true;
     }
 
@@ -2138,7 +2274,7 @@
         const s = getES();
         s.rpBtnVisible = s.rpBtnVisible !== 1 ? 1 : 0;
         saveES();
-        ChatRoomSendLocal(s.rpBtnVisible === 1 ? t('rpBtnShow') : t('rpBtnHide'));
+        ChatRoomSendLocal(s.rpBtnVisible === 1 ? t('rpBtnShow') : t('rpBtnHide'), TOGGLE_MSG_MS);
         return true;
     }
 
@@ -2296,7 +2432,7 @@
         } else {
             if (heightTargetChar && s.heightLock !== 1) removeHeightHijack(heightTargetChar);
         }
-        ChatRoomSendLocal(s.heightFix === 1 ? t('heightFixOn') : t('heightFixOff'));
+        ChatRoomSendLocal(s.heightFix === 1 ? t('heightFixOn') : t('heightFixOff'), TOGGLE_MSG_MS);
         return true;
     }
 
@@ -2315,7 +2451,7 @@
                 if (s.heightFix === 1) applyHeightFix(heightTargetChar);
             }
         }
-        ChatRoomSendLocal(s.heightLock === 1 ? t('heightLockOn') : t('heightLockOff'));
+        ChatRoomSendLocal(s.heightLock === 1 ? t('heightLockOn') : t('heightLockOff'), TOGGLE_MSG_MS);
         return true;
     }
 
@@ -2359,7 +2495,93 @@
         s.freeHands = s.freeHands !== 1 ? 1 : 0;
         saveES();
         applyFreeHands();
-        ChatRoomSendLocal(s.freeHands === 1 ? t('fhOn') : t('fhOff'));
+        broadcastShared('FreeHands', s.freeHands === 1); // 徽章广播
+        ChatRoomSendLocal(s.freeHands === 1 ? t('fhOn') : t('fhOff'), TOGGLE_MSG_MS);
+        if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
+        return true;
+    }
+
+    // ──────────────────────────────────────────
+    // 勿扰模式：除自己外，任何人对本玩家外观的编辑（换衣/拘束）都立即复原
+    //  - _dndBaseline 记录「授权状态」：开启时、以及自己/全量同步造成的变更后都会更新。
+    //  - 他人造成的变更 → 载回 baseline 并广播，覆盖对方的修改，同时发一则动作讯息。
+    //  ponytail: 用「变更来源号码」区分自己 vs 他人的启发式；来源为 null（全量同步）视为授权。
+    // ──────────────────────────────────────────
+    let _dndBaseline = null;
+    let _dndLastAnnounce = 0;
+    let _dndInSync = false; // 处理「他人造成的同步」期间为 true，避免把对方的状态误存成基准
+
+    function dndCaptureBaseline() {
+        try { _dndBaseline = ServerAppearanceBundle(Player.Appearance); } catch (e) {}
+    }
+
+    function dndRevert(sourceNumber) {
+        if (!_dndBaseline) { dndCaptureBaseline(); return; }
+        try {
+            ServerAppearanceLoadFromBundle(Player, Player.AssetFamily, _dndBaseline, Player.MemberNumber);
+            CharacterRefresh(Player, false); // Push=false：别再触发 ServerPlayerAppearanceSync（会重入并污染基准）
+            ChatRoomCharacterUpdate(Player); // 手动广播复原后的外观，覆盖对方的修改
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ DND 复原错误:", e.message); return; }
+        const now = Date.now();
+        if (now - _dndLastAnnounce > 3000) { // 节流，避免对方连点洗版
+            _dndLastAnnounce = now;
+            const src = ChatRoomCharacter?.find(c => c.MemberNumber === sourceNumber);
+            chatSendCustomAction(t('dndReverted', { src: getNickname(src || {}), who: getNickname(Player) }));
+        }
+    }
+
+    // 收到「本玩家外观被变更」的同步时调用；target/source 由各 sync hook 解出
+    function dndHandleIncoming(target, sourceNumber) {
+        if (getES().dnd !== 1) return;
+        if (!target || target.MemberNumber !== Player.MemberNumber) return; // 只保护自己
+        if (sourceNumber == null || sourceNumber === Player.MemberNumber) {
+            dndCaptureBaseline(); // 自己的变更或全量同步 → 更新授权基准
+            return;
+        }
+        dndRevert(sourceNumber);
+    }
+
+    function dndCommand() {
+        const s = getES();
+        s.dnd = s.dnd !== 1 ? 1 : 0;
+        saveES();
+        if (s.dnd === 1) dndCaptureBaseline();
+        broadcastShared('DND', s.dnd === 1); // 徽章广播
+        ChatRoomSendLocal(s.dnd === 1 ? t('dndOn') : t('dndOff'), TOGGLE_MSG_MS);
+        if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
+        return true;
+    }
+
+    // ──────────────────────────────────────────
+    // 说话总是 OOC：聊天/密语时自动把讯息包成 (...) 转为 OOC（略过指令 / / 动作 * / 已是 OOC）
+    //  另外把输入框 placeholder（BC 的「对话状态」提示）在启用时前缀「现在讯息为 OOC」。
+    // ──────────────────────────────────────────
+    // 自愈式刷新 placeholder：大多数帧只做一次 startsWith 比对就返回，仅在不一致时才重建。
+    // ponytail: 每帧检查，但已用「状态一致即短路」把成本压到近乎为零。
+    function ltRefreshOOCPlaceholder() {
+        if (CurrentScreen !== "ChatRoom") return;
+        const el = document.getElementById("InputChat");
+        if (!el) return;
+        const on = getES().alwaysOOC === 1;
+        const tag = t('oocPlaceholder');
+        const hasTag = (el.getAttribute("placeholder") || "").startsWith(tag);
+        if (on === hasTag) return; // 已一致，短路
+        // 重建 BC 原生 placeholder（密语目标 / 公开）
+        let base;
+        const tgt = (typeof ChatRoomTargetMemberNumber === 'number' && ChatRoomTargetMemberNumber >= 0)
+            ? ChatRoomCharacter?.find(c => c.MemberNumber === ChatRoomTargetMemberNumber) : null;
+        if (tgt) base = TextGetInScope("Screens/Online/ChatRoom/Text_ChatRoom.csv", "WhisperTo") + " " + CharacterNickname(tgt);
+        else base = TextGetInScope("Screens/Online/ChatRoom/Text_ChatRoom.csv", "PublicChat");
+        el.setAttribute("placeholder", on ? (tag + " · " + base) : base);
+    }
+
+    function oocCommand() {
+        const s = getES();
+        s.alwaysOOC = s.alwaysOOC !== 1 ? 1 : 0;
+        saveES();
+        ltRefreshOOCPlaceholder();
+        ChatRoomSendLocal(s.alwaysOOC === 1 ? t('oocOn') : t('oocOff'), TOGGLE_MSG_MS);
+        if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
         return true;
     }
 
@@ -2409,7 +2631,7 @@
         s.ignoreBlock = s.ignoreBlock !== 1 ? 1 : 0;
         saveES();
         applyIgnoreBlock();
-        ChatRoomSendLocal(s.ignoreBlock === 1 ? t('ibOn') : t('ibOff'));
+        ChatRoomSendLocal(s.ignoreBlock === 1 ? t('ibOn') : t('ibOff'), TOGGLE_MSG_MS);
         return true;
     }
 
@@ -2445,6 +2667,8 @@
             fulllock:      fullLock,
             heightfix:     heightFixCommand,
             heightlock:    heightLockCommand,
+            ooc:           oocCommand,
+            dnd:           dndCommand,
             freehands:     freeHandsCommand,
             ignoreblock:   ignoreBlockCommand,
             undo:          undoCommand,
@@ -2477,6 +2701,11 @@
         initializeStorage();
         applyFreeHands();
         applyIgnoreBlock();
+        if (getES().dnd === 1) dndCaptureBaseline();
+        // 广播持久化的徽章状态（DND / FreeHands），让别人一进房就看得到
+        if (typeof ServerAccountUpdate?.QueueData === 'function') {
+            ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+        }
         applyTheme();
         setupHooks();
         startToolButtonInjector();
