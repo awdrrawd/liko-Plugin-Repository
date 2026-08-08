@@ -23,7 +23,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_Version = "2.1.3";
+    const MOD_Version = "2.1.0";
     if (window.Liko.LT) return;
     window.Liko.LT = MOD_Version;
     let modApi = null;
