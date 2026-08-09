@@ -71,6 +71,24 @@
     };
 
     // ─────────────────────────────────────────────────────────────
+    //  原始檔案類平台（catbox / githubRaw / discordCdn / imgurVideo）
+    //  共用的副檔名清單：影片 + 音訊都涵蓋，讓這些「什麼檔案都能傳」的
+    //  平台不再侷限於少數幾種容器格式
+    // ─────────────────────────────────────────────────────────────
+    const RAW_VIDEO_EXT_LIST = "mp4|webm|mov|m4v|mkv|avi|flv|wmv|3gp|3gpp|ts|m2ts|ogv";
+    const RAW_AUDIO_EXT_LIST = "mp3|wav|flac|m4a|aac|opus|wma|oga|weba";
+    const RAW_MEDIA_EXT_LIST = `${RAW_VIDEO_EXT_LIST}|${RAW_AUDIO_EXT_LIST}`;
+    const RAW_AUDIO_EXT_SET = new Set(RAW_AUDIO_EXT_LIST.split("|"));
+
+    // 依副檔名判斷這個原始檔案該用 <audio> 還是 <video> 播放
+    function classifyRawMediaExt(ext) {
+        return RAW_AUDIO_EXT_SET.has(String(ext).toLowerCase()) ? "audio" : "video";
+    }
+
+    // 哪些平台是「直接檔案連結」型，需要另外判斷 audio/video
+    const RAW_MEDIA_PLATFORMS = new Set(["catbox", "githubRaw", "discordCdn", "imgurVideo"]);
+
+    // ─────────────────────────────────────────────────────────────
     //  影片平台 Patterns
     //  ratio 除了保留原字串（顯示/除錯用），額外預先算好 ratioW/ratioH 數字，
     //  避免每次 buildPlayerHTML 都重新 split + map(Number) 解析字串
@@ -130,11 +148,17 @@
             ratio: "9:16",
         },
         catbox: {
-            regex: /(?:files\.catbox\.moe|litter(?:box)?\.catbox\.moe)\/([a-zA-Z0-9]+\.(?:mp4|webm|mov|m4v|ogg|ogv))/i,
+            regex: new RegExp(
+                `(?:files\\.catbox\\.moe|litter(?:box)?\\.catbox\\.moe)\\/([a-zA-Z0-9]+\\.(?:${RAW_MEDIA_EXT_LIST}))`,
+                "i"
+            ),
             ratio: "auto",
         },
         githubRaw: {
-            regex: /(?:github\.com\/[^\/\s]+\/[^\/\s]+\/raw\/[^\s]+|raw\.githubusercontent\.com\/[^\s]+)\.(mp4|webm|mov|m4v|ogg|ogv)(?:\?[^\s]*)?/i,
+            regex: new RegExp(
+                `(?:github\\.com\\/[^\\/\\s]+\\/[^\\/\\s]+\\/raw\\/[^\\s]+|raw\\.githubusercontent\\.com\\/[^\\s]+)\\.(?:${RAW_MEDIA_EXT_LIST})(?:\\?[^\\s]*)?`,
+                "i"
+            ),
             ratio: "auto",
         },
         streamable: {
@@ -148,11 +172,14 @@
             ratio: "16:9",
         },
         imgurVideo: {
-            regex: /i\.imgur\.com\/([a-zA-Z0-9]+\.(?:mp4|webm|mov|m4v|ogv))/i,
+            regex: new RegExp(`i\\.imgur\\.com\\/([a-zA-Z0-9]+\\.(?:${RAW_MEDIA_EXT_LIST}))`, "i"),
             ratio: "auto",
         },
         discordCdn: {
-            regex: /(?:cdn\.discordapp\.com|media\.discordapp\.net)\/attachments\/[^\s]+\.(?:mp4|webm|mov|m4v|ogg|ogv)(?:\?[^\s]*)?/i,
+            regex: new RegExp(
+                `(?:cdn\\.discordapp\\.com|media\\.discordapp\\.net)\\/attachments\\/[^\\s]+\\.(?:${RAW_MEDIA_EXT_LIST})(?:\\?[^\\s]*)?`,
+                "i"
+            ),
             ratio: "auto",
         },
         pornhub: {
@@ -213,6 +240,12 @@
         return url.split("/").pop().split("?")[0];
     }
 
+    function extFromUrl(url) {
+        const name = fileNameFromUrl(url);
+        const m = name.match(/\.([a-zA-Z0-9]+)$/);
+        return m ? m[1].toLowerCase() : "";
+    }
+
     const idExtractors = {
         twitch: (m) => ({ id: m[1] || m[2], type: m[1] ? "video" : "channel" }),
         bilibiliBangumi: (m) => ({ type: m[1], id: m[2] }),
@@ -237,7 +270,12 @@
 	        const base = { platform, originalUrl, platformName: PLATFORM_DISPLAY_NAME[platform] || platform };
 	        const extractor = idExtractors[platform];
 	        const extra = extractor ? extractor(m, url) : { id: m[1] };
-	        return { ...base, ...extra };
+	        const result = { ...base, ...extra };
+	        // 原始檔案類平台：額外標記 audio/video，播放器渲染與按鈕圖示會依此切換
+	        if (RAW_MEDIA_PLATFORMS.has(platform)) {
+	            result.mediaType = classifyRawMediaExt(extFromUrl(originalUrl));
+	        }
+	        return result;
 	    }
 	    return null;
 	}
@@ -294,7 +332,14 @@
         </div>`;
     }
 
+    // 原始檔案連結：依副檔名判斷是音訊還是影片，分別用 <audio>/<video> 播放
     function renderRawVideo(videoInfo) {
+        if (videoInfo.mediaType === "audio") {
+            return `<audio controls preload="metadata"
+                src="${escapeHtmlAttr(videoInfo.originalUrl)}"
+                style="display:block;width:100%;max-width:${PLAYER_MAX_W}px;margin:0.3em 0;"
+                ></audio>`;
+        }
         return `<video controls preload="metadata"
             src="${escapeHtmlAttr(videoInfo.originalUrl)}"
             style="display:block;width:100%;max-width:${PLAYER_MAX_W}px;max-height:${PLAYER_MAX_H}px;border:none;border-radius:6px;background:#000;margin:0.3em 0;"
@@ -497,10 +542,15 @@
     // 不用 closest(".chat-room-message-content") 去猜——那個 class 在原始碼裡其實只用在
     // 回覆引用的小 span 上，一般訊息容器根本沒有這個 class，用 closest 猜會抓空。
     function createPlayButton(videoInfo, container) {
+        const isAudio = videoInfo.mediaType === "audio";
+        const idleIcon = isAudio ? "🎵" : "🎬";
+        const activeIcon = isAudio ? "🔊" : "📺";
+        const actionLabel = isAudio ? "播放音訊" : "播放";
+
         const btn = document.createElement("span");
         btn.className = "likoVideoButton";
-        btn.textContent = "🎬";
-        btn.title = `播放 ${videoInfo.platformName}`;
+        btn.textContent = idleIcon;
+        btn.title = `${actionLabel} ${videoInfo.platformName}`;
         btn.style.cssText = `
             color:#ff4757;cursor:pointer;font-size:1.2em;
             padding:3px 6px;border-radius:4px;
@@ -530,7 +580,7 @@
                 `;
                 closeBtn.addEventListener("click", () => {
                     playerEl.remove(); playerEl = null;
-                    btn.textContent = "🎬"; btn.style.color = "#ff4757";
+                    btn.textContent = idleIcon; btn.style.color = "#ff4757";
                 });
                 playerEl.appendChild(closeBtn);
 
@@ -538,11 +588,11 @@
                     window.twttr.widgets.load(playerEl);
 
                 container.appendChild(playerEl);
-                btn.textContent = "📺"; btn.style.color = "#2ed573";
+                btn.textContent = activeIcon; btn.style.color = "#2ed573";
             } else {
                 const visible = playerEl.style.display !== "none";
                 playerEl.style.display = visible ? "none" : "block";
-                btn.textContent = visible ? "🎬" : "📺";
+                btn.textContent = visible ? idleIcon : activeIcon;
                 btn.style.color = visible ? "#ff4757" : "#2ed573";
             }
         });
