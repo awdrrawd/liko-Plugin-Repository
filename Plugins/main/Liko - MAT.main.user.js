@@ -674,13 +674,14 @@
         const selW = window.innerWidth * 0.12;
         let left = rect.right + 4;
         if (left + selW > window.innerWidth - 8) left = rect.left - selW - 4;
-        sel.style.cssText = `position:fixed;z-index:99999;left:${Math.max(4,left)}px;top:${Math.max(4,rect.top-4)}px;font-size:1vw;padding:0.2vh 0.3vw;border:1px solid #4CAF50;border-radius:4px;background:#1a1a2e;color:#eee;cursor:pointer;max-height:35vh;min-width:9vw;`;
+        sel.style.cssText = `position:fixed;z-index:99999;left:${Math.max(4,left)}px;top:${Math.max(4,rect.top-4)}px;font-size:1vw;padding:0.2vh 0.3vw;border:1px solid #4CAF50;border-radius:4px;background:#1a1a2e;color:#eee;cursor:pointer;max-height:35vh;min-width:9vw;font-family:"Twemoji Country Flags",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;`;
         langCodes.forEach((code, i) => {
             const opt = document.createElement('option');
             const uiName = isZH() ? langNameZH[i] : langNameEN[i];
             const native = langNameNative[i];
             opt.value = code;
-            opt.textContent = uiName === native ? uiName : `${uiName} / ${native}`;
+            const nm = uiName === native ? uiName : `${uiName} / ${native}`;
+            opt.textContent = langFlags[i] ? `${langFlags[i]} ${nm}` : nm;
             if (code === config.recvLang) opt.selected = true;
             sel.appendChild(opt);
         });
@@ -1133,6 +1134,9 @@
     const langNameEN   = ['Chinese (Traditional)','Chinese (Simplified)','English','Japanese','Korean','German','French','Spanish','Russian','Italian','Portuguese','Polish','Dutch','Turkish','Swedish','Ukrainian','Czech','Hungarian','Romanian','Arabic','Thai','Vietnamese','Indonesian','Malay'];
     const langNameZH   = ['繁體中文','簡體中文','英文','日文','韓文','德文','法文','西班牙文','俄文','義大利文','葡萄牙文','波蘭文','荷蘭文','土耳其文','瑞典文','烏克蘭文','捷克文','匈牙利文','羅馬尼亞文','阿拉伯文','泰文','越南文','印尼文','馬來文'];
     const langNameNative = ['繁體中文','简体中文','English','日本語','한국어','Deutsch','Français','Español','Русский','Italiano','Português','Polski','Nederlands','Türkçe','Svenska','Українська','Čeština','Magyar','Română','العربية','ภาษาไทย','Tiếng Việt','Bahasa Indonesia','Bahasa Melayu'];
+    // 與 langCodes 對齊的國旗 emoji（國旗字元是「國家碼」regional indicator，非語言碼）。
+    // 顯示需白嫖 BC country-flag polyfill 注入的 "Twemoji Country Flags" 字體，見 openMATLangSelect。
+    const langFlags = ['🇹🇼','🇨🇳','🇬🇧','🇯🇵','🇰🇷','🇩🇪','🇫🇷','🇪🇸','🇷🇺','🇮🇹','🇵🇹','🇵🇱','🇳🇱','🇹🇷','🇸🇪','🇺🇦','🇨🇿','🇭🇺','🇷🇴','🇸🇦','🇹🇭','🇻🇳','🇮🇩','🇲🇾'];
     let uiSendIdx = 0;
     let uiRecvIdx = 0;
 
