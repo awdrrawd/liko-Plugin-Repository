@@ -3,7 +3,7 @@
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.4.5
+// @version      2.5.0
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,15 +18,11 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.4.5";
+    const MOD_VER = "2.5.0";
     if (window.Liko.CHE) return;
     window.Liko.CHE = MOD_VER;
 
     let modApi;
-    let currentMessageCount = 0;
-    const AUTO_SAVE_INTERVAL = 5 * 60 * 1000;
-    let autoSaveTimer = null;
-    let lastSaveTime = Date.now();
     let currentMode = localStorage.getItem("chatlogger_mode") || "stopped";
 
     let messageObserver = null;
@@ -168,13 +164,6 @@
                 if (!log) return [];
                 return Array.from(log.querySelectorAll(".ChatMessage, a.beep-link, .chat-room-sep-div"));
             } catch (e) { logError("DOMCache.getMessages", e); return []; }
-        },
-        getMessageCount() {
-            try {
-                const log = this.getChatLog();
-                if (!log) return 0;
-                return log.querySelectorAll(".ChatMessage, a.beep-link").length;
-            } catch (e) { logError("DOMCache.getMessageCount", e); return 0; }
         }
     };
 
@@ -196,25 +185,6 @@
                 if (isNaN(d.getTime())) return dateKey;
                 return `${d.getMonth()+1}/${d.getDate()}`;
             } catch (e) { logError("DateUtils.getDisplayDate", e); return dateKey; }
-        },
-        isToday(dateKey) { try { return dateKey === this.getDateKey(); } catch (e) { return false; } },
-        getDaysAgo(days) {
-            try {
-                const date = new Date();
-                date.setDate(date.getDate() - days);
-                return this.getDateKey(date);
-            } catch (e) { return this.getDateKey(); }
-        },
-        formatTimeForDisplay(date) {
-            if (!date || !(date instanceof Date) || isNaN(date.getTime())) return "—";
-            try {
-                return date.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            } catch (e) {
-                const h = String(date.getHours()).padStart(2,'0');
-                const m = String(date.getMinutes()).padStart(2,'0');
-                const s = String(date.getSeconds()).padStart(2,'0');
-                return `${h}:${m}:${s}`;
-            }
         }
     };
 
@@ -314,15 +284,13 @@
         },
 
         // =====================================================================
-        // 移除跨訊息時間排序，保留插入順序
+        // 時序修復
         //
-        // 原問題：最後的 allMessages.sort() 依時間重排所有訊息，
-        //         破壞了同一天內訊息的 DB 插入（原始出現）順序。
-        //
-        // 修復邏輯：
-        //   1. sortedKeys 升序迭代 → 跨日順序已由此保證
-        //   2. 每日內部訊息以 DB 寫入順序（即聊天室出現順序）直接 push
-        //   3. 不再做任何時間排序，完整保留插入順序
+        // 跨日順序由 sortedKeys 升序迭代保證。每日內部：
+        //   - 若整日訊息都帶擷取時間戳 _ts（v2.5.x 起），以 _ts 穩定排序，
+        //     修正「復原/合併批次帶較早時間戳卻被 append 在尾端」造成的亂序；
+        //     JS sort 穩定 → 同 _ts（同批次）維持原插入順序，不會打散同分鐘訊息。
+        //   - 舊資料缺 _ts 時，維持原 DB 插入順序（不製造新亂序，7 天內自然汰換）。
         // =====================================================================
         async getMessagesForDates(dateKeys) {
             try {
@@ -347,8 +315,12 @@
                     });
 
                     if (data && data.messages) {
-                        // 只附加 _dateStr 供跨日分隔線使用，不做時間排序
-                        allMessages.push(...data.messages.map(msg => ({
+                        let dayMsgs = data.messages;
+                        // 整日都有 _ts 才穩定排序（見上方說明）；否則維持插入順序
+                        if (dayMsgs.length > 1 && dayMsgs.every(m => typeof m._ts === 'number')) {
+                            dayMsgs = dayMsgs.slice().sort((a, b) => a._ts - b._ts);
+                        }
+                        allMessages.push(...dayMsgs.map(msg => ({
                             ...msg,
                             isFromCache: true,
                             _dateStr: dateStr,
@@ -356,8 +328,6 @@
                     }
                 }
 
-                // 不做時間排序：同日訊息維持 DB 插入順序（即原始出現順序），
-                // 跨日順序已由 sortedKeys 升序迭代保證。
                 return allMessages;
             } catch (e) { logError("CacheManager.getMessagesForDates", e); return []; }
         },
@@ -595,34 +565,6 @@
         } catch { return color; }
     }
 
-    function parseDBContent(msg) {
-        const content = (msg.content || "").trim();
-        const name = msg.name || "";
-        if (!content) return { isSkip: true };
-        if (content.startsWith('˅') || msg.type === 'separator') {
-            const roomText = content.startsWith('˅') ? content.substring(1).trim() : content;
-            return { isRoom: true, content: roomText, displayContent: content };
-        }
-        if (name) {
-            if (content.startsWith('*') || content.startsWith('(')) return { isAction: true, displayContent: content };
-            return { isUser: true, userName: name, userMessage: content, displayContent: content };
-        }
-        let cleanContent = content;
-        const timeMatchOld = cleanContent.match(/^(\d{2}:\d{2}:\d{2})/);
-        if (timeMatchOld) cleanContent = cleanContent.substring(timeMatchOld[1].length).trim();
-        if (msg.id && cleanContent.startsWith(msg.id)) cleanContent = cleanContent.substring(msg.id.length).trim();
-        cleanContent = cleanContent.replace(/\d{2}:\d{2}(?::\d{2})?\d+Reply?\s*$/i, '').trim();
-        if (cleanContent.startsWith('˅')) return { isSkip: true };
-        if (cleanContent.startsWith('*') || cleanContent.startsWith('(')) return { isAction: true, displayContent: cleanContent };
-        const colonMatch = cleanContent.match(/^([^:\n]{1,40}):\s*([\s\S]*)$/);
-        if (colonMatch) {
-            const potentialName = colonMatch[1].trim();
-            const looksLikeTime = /^[\d]+$/.test(potentialName) || /[上下]午/.test(potentialName) || /^\d{1,2}$/.test(potentialName);
-            if (!looksLikeTime) return { isUser: true, userName: potentialName, userMessage: colonMatch[2].trim(), displayContent: cleanContent };
-        }
-        return { isNormal: true, displayContent: cleanContent };
-    }
-
     // =====================================================================
     // HTML Template
     //   確保深色/亮色主題切換時，所有訊息文字（包含 [🌐] 翻譯訊息）
@@ -630,7 +572,6 @@
     //   同時移除 .enhanced-color { filter:brightness } 改由 CSS 變數管控。
     // =====================================================================
     async function generateHTMLTemplate(title) {
-        const defaultLang = isZh() ? 'zh' : 'en';
         return `
 <html>
 <head>
@@ -967,12 +908,20 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 visible = hiddenTypes.indexOf(row.dataset.type || 'chat') === -1;
             }
             if (visible && contentTerm) {
-                var content = (row.querySelector('.chat-content') || {textContent:""}).textContent.toLowerCase();
-                visible = content.includes(contentTerm);
+                var content = row.__content;
+                if (content === undefined) {
+                    content = ((row.querySelector('.chat-content') || {}).textContent || "").toLowerCase();
+                    row.__content = content;
+                }
+                visible = content.indexOf(contentTerm) !== -1;
             }
             if (visible && idTerms.length > 0) {
-                var id = ((row.querySelector('.chat-id') || {textContent:""}).textContent || "").toLowerCase();
-                visible = idTerms.some(function(term){ return id.includes(term); });
+                var id = row.__id;
+                if (id === undefined) {
+                    id = ((row.querySelector('.chat-id') || {}).textContent || "").toLowerCase();
+                    row.__id = id;
+                }
+                visible = idTerms.some(function(term){ return id.indexOf(term) !== -1; });
             }
             if (visible && timeRange) {
                 var timeStr = (row.querySelector('.chat-time') || {textContent:""}).textContent || "";
@@ -1008,8 +957,13 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         if (stats) stats.textContent = t("showing")(visibleCount, totalActive);
     }
 
-    document.getElementById('contentSearch').addEventListener('input', applyFilters);
-    document.getElementById('idFilter').addEventListener('input', applyFilters);
+    var filterTimer = null;
+    function scheduleFilters() {
+        if (filterTimer) clearTimeout(filterTimer);
+        filterTimer = setTimeout(applyFilters, 150);
+    }
+    document.getElementById('contentSearch').addEventListener('input', scheduleFilters);
+    document.getElementById('idFilter').addEventListener('input', scheduleFilters);
     document.getElementById('timeRange').addEventListener('change', applyFilters);
     document.getElementById('clearBtn').addEventListener('click', function(){
         document.getElementById('contentSearch').value = '';
@@ -1048,64 +1002,34 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         return "rgba(128,128,128,"+alpha+")";
     }
 
-    function normalizeDOMMsg(el) {
-        try {
-            if (el.classList?.contains("chat-room-sep-div")) {
-                const button = el.querySelector(".chat-room-sep-header");
-                const roomName = button?.dataset?.room || "";
-                const iconDiv = button?.querySelector(".chat-room-sep-image");
-                const iconText = iconDiv ? (iconDiv.querySelector("span")?.innerText || "") : "";
-                const collapseBtn = el.querySelector(".chat-room-sep-collapse");
-                const isExpanded = collapseBtn && collapseBtn.getAttribute("aria-expanded") === "true";
-                const label = `${isExpanded ? "\u25bc" : ">"} ${iconText ? iconText + " - " : ""}${roomName}`.trim();
-                return { type: 'separator', roomName, content: label, expanded: isExpanded };
-            }
-            if (el.matches?.("a.beep-link")) return null;
-            if (!el.dataset) return null;
 
-            const time       = normalizeTime(el.dataset.time || "");
-            const id         = el.dataset.sender || "";
-            const nameButton = el.querySelector(".ChatMessageName");
-            const name       = nameButton ? (nameButton.innerText || nameButton.textContent || "").trim() : "";
-            const direction  = el.classList.contains("ChatMessageWhisper")
-            ? (el.dataset.target ? 'outgoing' : 'incoming') : undefined;
-            const isBceNotif = el.classList.contains("bce-notification") || !!el.querySelector('.bce-beep-link');
-
-            let content = "";
-            if (isBceNotif) {
-                const beepLink = el.querySelector('.bce-beep-link');
-                content = beepLink ? (beepLink.textContent || "").trim() : "";
-            } else {
-                const contentSpan       = el.querySelector(".chat-room-message-content");
-                const originContentSpan = el.querySelector(".chat-room-message-original");
-                if (contentSpan) {
-                    const _clone = contentSpan.cloneNode(true);
-                    _clone.querySelectorAll('[style*="display: none"], [style*="display:none"]').forEach(el => el.remove());
-                    _clone.querySelectorAll('img[src]').forEach(img => {
-                        img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
-                    });
-                    content = (_clone.textContent || "").trim();
-                    if (originContentSpan) content += '\n' + (originContentSpan.textContent || "").trim();
-                } else {
-                    const clone = el.cloneNode(true);
-                    clone.querySelectorAll('.chat-room-message-popup, .chat-room-metadata, .ChatMessageName, .chat-room-message-original').forEach(e => e.remove());
-                    clone.querySelectorAll('img[src]').forEach(img => img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || '')));
-                    content = extractFullTextContent(clone).trim();
-                }
-                const orig = el.getAttribute('bce-original-text');
-                if ((content === '[🌐]' || content.startsWith('[🌐] ')) && orig && !orig.startsWith('[🌐]') && orig.trim())
-                    content = `${orig} [🌐] ${content.replace(/^\[🌐\]\s*/, '')}`;
-            }
-
-            const type      = detectMessageType(el, content);
-            const color     = getLabelColor(el, nameButton);
-            const className = Array.from(el.classList || []).join(" ");
-            if (content.startsWith('˅')) return null;
-            return { time, id, name, content, direction, type, color, className };
-        } catch (e) {
-            logError("normalizeDOMMsg", e);
-            return null;
+    // =====================================================================
+    // 訊息分類：把渲染時才推導的 emote/action/activity/… 標籤，提前到捕捉
+    // 時算好並存進緩存記錄（msg.category），匯出與 HTML 過濾直接讀標籤。
+    // =====================================================================
+    function classifyCategory(msg) {
+        const content = msg.content || "";
+        const isBceNotif = msg.className && msg.className.includes('bce-notification');
+        let rowType = 'chat';
+        if (msg.type === 'whisper') {
+            rowType = 'whisper';
+        } else if (msg.type === 'beep' || msg.type === 'beep_duplicate' || isBceNotif) {
+            rowType = 'beep';
+        } else if (msg.className) {
+            if      (msg.className.includes('ChatMessageEmote'))      rowType = 'emote';
+            else if (msg.className.includes('ChatMessageActivity'))   rowType = 'activity';
+            else if (msg.className.includes('ChatMessageAction'))     rowType = 'action';
+            else if (msg.className.includes('ChatMessageEnterLeave')) rowType = 'enter';
+            else if (msg.className.includes('LocalMessage') || msg.className.includes('NonDialogue')) rowType = 'system';
+            else if (!msg.name && (content.startsWith('*') || content.startsWith('('))) rowType = 'emote';
+        } else if (!msg.name && (content.startsWith('*') || content.startsWith('('))) {
+            rowType = 'emote';
         }
+        if (rowType === 'chat' && msg.name &&
+            (content.includes("好友私聊来自") || content.includes("BEEP"))) {
+            rowType = 'beep';
+        }
+        return rowType;
     }
 
     // =====================================================================
@@ -1122,28 +1046,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             msg.content.length < lastSeparatorRoomName.length + 12) return null;
 
         const adjustedColor = getEnhancedContrastColor(msg.color || "#888", true);
-        const isBceNotif    = msg.className && msg.className.includes('bce-notification');
-
-        let rowType = 'chat';
-        if (msg.type === 'whisper') {
-            rowType = 'whisper';
-        } else if (msg.type === 'beep' || msg.type === 'beep_duplicate' || isBceNotif) {
-            rowType = 'beep';
-        } else if (msg.className) {
-            if      (msg.className.includes('ChatMessageEmote'))      rowType = 'emote';
-            else if (msg.className.includes('ChatMessageActivity'))   rowType = 'activity';
-            else if (msg.className.includes('ChatMessageAction'))     rowType = 'action';
-            else if (msg.className.includes('ChatMessageEnterLeave')) rowType = 'enter';
-            else if (msg.className.includes('LocalMessage') || msg.className.includes('NonDialogue')) rowType = 'system';
-            else if (!msg.name && (msg.content.startsWith('*') || msg.content.startsWith('('))) rowType = 'emote';
-        } else if (!msg.name && (msg.content.startsWith('*') || msg.content.startsWith('('))) {
-            rowType = 'emote';
-        }
-
-        if (rowType === 'chat' && msg.name &&
-            (msg.content.includes("好友私聊来自") || msg.content.includes("BEEP"))) {
-            rowType = 'beep';
-        }
+        // 舊記錄沒有 category 標籤時即時推導，維持向後相容
+        const rowType = msg.category || classifyCategory(msg);
 
         let bgColor = toRGBA(adjustedColor, 0.12);
         let borderColor = adjustedColor;
@@ -1253,7 +1157,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     }
 
     async function generateChatHTML(domMessages, includePrivate) {
-        const normalized = domMessages.map(el => normalizeDOMMsg(el)).filter(Boolean);
+        const normalized = domMessages.map(el => normalizeChatMessageNode(el)).filter(Boolean);
         await generateHTML(normalized, includePrivate, isZh() ? "聊天室記錄" : "Chat Log", "chatlog");
     }
 
@@ -1306,7 +1210,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 const currentMessages = processCurrentMessages();
                 if (currentMessages.length > 0) {
                     await CacheManager.saveToday(currentMessages);
-                    currentMessageCount = 0;
                     window.ChatRoomSendLocalStyled(ui('toastSaved'), 3000, "#00ff00");
                 }
             }
@@ -1367,7 +1270,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 const today = CacheManager._makeKey(DateUtils.getDateKey());
                 if (selected.includes(today)) {
                     const currentMessages = processCurrentMessages();
-                    if (currentMessages.length > 0) { await CacheManager.saveToday(currentMessages); currentMessageCount = 0; }
+                    if (currentMessages.length > 0) { await CacheManager.saveToday(currentMessages); }
                 }
                 resolve({ action: 'export', dates: selected });
             };
@@ -1457,7 +1360,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             }
             chatLog.innerHTML = "";
             if (lastRoomNode) chatLog.appendChild(lastRoomNode);
-            currentMessageCount = 0;
             window.ChatRoomSendLocalStyled(ui('toastCleared'), 3000, "#00ff00");
         } catch (e) {
             logError("clearCache", e);
@@ -1476,8 +1378,10 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 const roomName = button?.dataset?.room || "";
                 const iconDiv = button?.querySelector(".chat-room-sep-image");
                 const iconText = iconDiv ? (iconDiv.querySelector("span")?.innerText || "") : "";
+                const collapseBtn = msg.querySelector(".chat-room-sep-collapse");
+                const expanded = collapseBtn ? collapseBtn.getAttribute("aria-expanded") === "true" : true;
                 const sepText = `˅${iconText ? iconText + " - " : ""}${roomName}`.trim();
-                return { time: new Date().toISOString(), id: "", name: "", content: sepText, msgid: `sep_${roomName}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`, type: "separator", roomName, color: "#8100E7" };
+                return { time: new Date().toISOString(), id: "", name: "", content: sepText, msgid: `sep_${roomName}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`, type: "separator", roomName, color: "#8100E7", expanded, _ts: Date.now() };
             }
             if (msg.matches?.("a.beep-link")) return null;
             if (!msg.dataset) return null;
@@ -1527,7 +1431,10 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
             const messageType = detectMessageType(msg, content);
             const labelColor = getLabelColor(msg, nameButton);
-            return { time: normalizedTime, id: senderId, name: senderName, content, direction, msgid: msgidAttr, type: messageType, color: labelColor, className: Array.from(msg.classList||[]).join(" ") };
+            const className = Array.from(msg.classList||[]).join(" ");
+            const record = { time: normalizedTime, id: senderId, name: senderName, content, direction, msgid: msgidAttr, type: messageType, color: labelColor, className, _ts: Date.now() };
+            record.category = classifyCategory(record);
+            return record;
         } catch (e) {
             logError("normalizeChatMessageNode", e);
             return null;
@@ -1569,9 +1476,18 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         try {
             if (!node || capturedNodes.has(node)) return;
             capturedNodes.add(node);
-            const normalized = normalizeChatMessageNode(node);
-            if (normalized) pendingBuffer.push(normalized);
+            pendingBuffer.push(node);
         } catch (e) { logError("captureNode", e); }
+    }
+
+    // 把緩衝的 DOM 節點在「此刻」正規化（延到 flush 才讀 → 抓得到後補的翻譯 [🌐]）
+    function normalizePending(nodes) {
+        const out = [];
+        for (const n of nodes) {
+            try { const m = normalizeChatMessageNode(n); if (m) out.push(m); }
+            catch (e) { logError("normalizePending", e); }
+        }
+        return out;
     }
 
     function scheduleFlush() {
@@ -1587,16 +1503,16 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         if (flushDebounceTimer) { clearTimeout(flushDebounceTimer); flushDebounceTimer = null; }
         if (flushMaxWaitTimer) { clearTimeout(flushMaxWaitTimer); flushMaxWaitTimer = null; }
         if (isFlushing || pendingBuffer.length === 0 || currentMode !== "cache") return;
-        const toSave = pendingBuffer;
+        const nodes = pendingBuffer;
         pendingBuffer = [];
         isFlushing = true;
         try {
-            await CacheManager.saveForDate(toSave, DateUtils.getDateKey());
-            lastSaveTime = Date.now();
+            const toSave = normalizePending(nodes);
+            if (toSave.length > 0) await CacheManager.saveForDate(toSave, DateUtils.getDateKey());
         } catch (e) {
             logError("flushBuffer", e);
             // 保存失敗，放回緩衝區稍後重試，避免資料遺失
-            pendingBuffer = toSave.concat(pendingBuffer);
+            pendingBuffer = nodes.concat(pendingBuffer);
             scheduleFlush();
         } finally {
             isFlushing = false;
@@ -1615,15 +1531,13 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 const chatLog = DOMCache.getChatLog();
                 if (chatLog && document.contains(chatLog)) {
                     clearInterval(checkChatRoom);
-                    currentMessageCount = DOMCache.getMessageCount();
-                    // 初始化時，把目前畫面上已存在的訊息先標記為已捕捉，
-                    // 避免重複；真正遺漏的舊訊息交給 saveCurrentMessages 全量掃描補齊。
-                    DOMCache.getMessages().forEach(n => capturedNodes.add(n));
+                    // 把畫面上現有訊息先捕捉一次（取代舊的全量重掃補齊舊訊息的職責）
+                    DOMCache.getMessages().forEach(captureNode);
                     messageObserver = new MutationObserver(handleMutations);
                     try {
                         messageObserver.observe(chatLog, { childList: true, subtree: true, attributes: false, characterData: false });
                         observerActive = true;
-                        startAutoSave();
+                        scheduleFlush();
                     } catch (observerError) { logError("initMessageObserver.observe", observerError); cleanupObserver(); }
                 } else if (Date.now() - startTime > maxWait) { clearInterval(checkChatRoom); }
             } catch (e) { logError("initMessageObserver.checkChatRoom", e); }
@@ -1633,7 +1547,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     function handleMutations(mutations) {
         if (!observerActive) return;
         try {
-            let newMessages = 0;
+            let added = 0;
             mutations.forEach(mutation => {
                 if (!mutation.addedNodes || mutation.addedNodes.length === 0) return;
                 mutation.addedNodes.forEach(node => {
@@ -1641,20 +1555,17 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                         if (node.nodeType !== Node.ELEMENT_NODE) return;
                         if (node.matches && (node.matches(".ChatMessage") || node.matches(".chat-room-sep-div"))) {
                             captureNode(node);
-                            newMessages++;
+                            added++;
                         } else if (node.matches && node.matches("a.beep-link")) {
-                            newMessages++;
+                            added++;
                         } else if (node.querySelectorAll) {
                             // 有些訊息可能是包在一個被整批插入的容器裡
-                            node.querySelectorAll(".ChatMessage, .chat-room-sep-div").forEach(sub => { captureNode(sub); newMessages++; });
+                            node.querySelectorAll(".ChatMessage, .chat-room-sep-div").forEach(sub => { captureNode(sub); added++; });
                         }
                     } catch {}
                 });
             });
-            if (newMessages > 0) {
-                currentMessageCount += newMessages;
-                if (currentMode === "cache" && pendingBuffer.length > 0) scheduleFlush();
-            }
+            if (added > 0 && currentMode === "cache") scheduleFlush();
         } catch (e) { logError("handleMutations", e); }
     }
 
@@ -1664,37 +1575,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
     function stopMessageObserver() {
         cleanupObserver();
-        stopAutoSave();
         if (currentMode === "cache" || pendingBuffer.length > 0) flushBuffer();
-    }
-
-    function startAutoSave() {
-        if (autoSaveTimer) clearInterval(autoSaveTimer);
-        autoSaveTimer = setInterval(() => {
-            if (currentMode === "cache") {
-                // 先 flush 緩衝區（即時捕捉到的訊息），再做一次全量重掃當保險，
-                // 撿回任何緩衝區可能漏接、但仍留在 DOM 上的訊息。
-                flushBuffer();
-                if (Date.now() - lastSaveTime >= AUTO_SAVE_INTERVAL) saveCurrentMessages();
-            }
-        }, 60 * 1000);
-    }
-
-    function stopAutoSave() { if (autoSaveTimer) { clearInterval(autoSaveTimer); autoSaveTimer = null; } }
-
-    async function saveCurrentMessages() {
-        if (currentMode !== "cache") return;
-        const messages = processCurrentMessages();
-        if (messages.length > 0) {
-            try {
-                await CacheManager.saveToday(messages);
-                currentMessageCount = 0;
-                lastSaveTime = Date.now();
-            } catch (e) {
-                logError("saveCurrentMessages", e);
-                window.ChatRoomSendLocalStyled(ui('toastAutoFail'), 3000, "#ff0000");
-            }
-        }
     }
 
     // =====================================================================
@@ -1712,7 +1593,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     // =====================================================================
     function saveToLocalStorage(reason) {
         try {
-            const messages = pendingBuffer.length > 0 ? pendingBuffer : processCurrentMessages();
+            const messages = normalizePending(pendingBuffer);
             if (messages.length === 0) return;
             const tempData = { messages, date: DateUtils.getDateKey(), accountPrefix: getAccountPrefix(), timestamp: Date.now(), count: messages.length, reason };
             const storageKey = `che_temp_data_${getAccountPrefix()}`;
@@ -1738,22 +1619,17 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     function setupDataBackup() {
         window.addEventListener('beforeunload', () => {
             if (currentMode === "cache") {
-                flushBuffer();
+                // 先把緩衝寫進 localStorage（此時 pendingBuffer 還在），再嘗試 flush
                 saveToLocalStorage("beforeunload");
+                flushBuffer();
             }
             cleanupObserver();
         });
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                if (observerActive) observerActive = false;
-                if (currentMode === "cache") {
-                    // 分頁只是切到背景，還沒真的關閉，此時非同步的 IndexedDB
-                    // 寫入通常來得及完成，優先用它取代 localStorage 大量寫入。
-                    flushBuffer();
-                    saveToLocalStorage("visibilitychange");
-                }
-            } else {
-                if (messageObserver && !observerActive) observerActive = true;
+            // 切到背景時落地一次；observer 保持運作，背景到達的訊息照樣即時捕捉
+            if (document.hidden && currentMode === "cache") {
+                saveToLocalStorage("visibilitychange");
+                flushBuffer();
             }
         });
     }
@@ -1771,7 +1647,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             if ((tempData.date === currentDate || tempData.date === yesterdayKey) && tempData.messages?.length > 0) {
                 try {
                     await CacheManager.saveForDate(tempData.messages, tempData.date);
-                    currentMessageCount = 0; lastSaveTime = Date.now();
                     window.ChatRoomSendLocalStyled(ui('toastRestore', tempData.messages.length), 4000, "#00ff00");
                 } catch (saveError) {
                     logError("checkTempData.save", saveError);
