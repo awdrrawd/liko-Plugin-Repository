@@ -109,7 +109,7 @@
       "en_additionalInfo": "Includes complete chat logs, timestamps and character info, compatible with sites like Neocities for sharing",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CHE.main.user.js",
       "priority": 4,
-      "version": "2.4.5"
+      "version": "2.5.0"
     },
     {
       "id": "Liko-Image_Uploader",
