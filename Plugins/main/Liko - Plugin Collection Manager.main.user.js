@@ -3,7 +3,7 @@
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.3
+// @version      2.1.4
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.1.3";
+    const MOD_VER = "2.1.4";
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
 
@@ -355,31 +355,18 @@
     const OWN_REPO_RAW_PREFIX   = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/";
     const OWN_REPO_PAGES_PREFIX = "https://awdrrawd.github.io/liko-Plugin-Repository/";
 
+    // 快取只當「網路全掛時的救援」。不再存版本號：Pages 一律優先、push 後自己收斂到最新，
+    // 「版本沒變走 CDN」的優化因為判斷不到 CDN 邊緣是否已追上而無效，已整套移除。
     function getCachedPluginRecord(id) {
         try {
             const c = JSON.parse(localStorage.getItem(PLUGIN_CACHE_PREFIX + id) || 'null');
             if (!c) return null;
-            if (typeof c === 'string') return { time: 0, version: null, code: c };
+            if (typeof c === 'string') return { time: 0, code: c }; // 兼容舊格式（純字串）
             return c;
         } catch(e) { return null; }
     }
-    function getCachedPluginCode(id) {
-        return getCachedPluginRecord(id)?.code ?? null;
-    }
-    function setCachedPluginCode(id, code, version = null) {
-        try { localStorage.setItem(PLUGIN_CACHE_PREFIX + id, JSON.stringify({ time: Date.now(), version: version ?? null, code })); } catch(e) {}
-    }
-    function setCachedPluginVersion(id, version = null) {
-        try {
-            const old = getCachedPluginRecord(id) || {};
-            localStorage.setItem(PLUGIN_CACHE_PREFIX + id, JSON.stringify({ ...old, time: Date.now(), version: version ?? null }));
-        } catch(e) {}
-    }
-    function getPluginVersionKey(plugin) {
-        const v = plugin?.version;
-        if (v === undefined || v === null) return null;
-        const s = String(v).trim();
-        return s && s !== '0' ? s : null; // 缺值/0 視為未版控，一律優先 Pages
+    function setCachedPluginCode(id, code) {
+        try { localStorage.setItem(PLUGIN_CACHE_PREFIX + id, JSON.stringify({ time: Date.now(), code })); } catch(e) {}
     }
 
 
@@ -616,15 +603,16 @@
         return [...new Set(urls.filter(Boolean))];
     }
 
-    function buildFetchUrls(url, preferCdn = false) {
+    function buildFetchUrls(url) {
         if (!url) return [];
-        // 自家 repo 的檔案：Pages 優先（push 後幾乎即時、不易限流）、raw 備援、jsDelivr 保底
-        //（可能有數小時快取延遲）。帶時間戳確保每次都問到 Pages 最新版、不被瀏覽器快取卡住。
+        // 自家 repo 的檔案：Pages 永遠優先。Pages 走 Fastly，push 後幾秒即新、且不像 raw 會 429；
+        // jsDelivr(@main) 有數小時邊緣快取延遲，各 POP 傳播不一致，搶第一會抓到舊版 → 版本飄移。
+        // 所以 jsDelivr/raw 只當 Pages 掛掉時的備援，絕不排在 Pages 前面。帶時間戳避免瀏覽器快取。
         if (url.startsWith(OWN_REPO_RAW_PREFIX)) {
             const rel = url.slice(OWN_REPO_RAW_PREFIX.length);
             const pages = `${OWN_REPO_PAGES_PREFIX}${rel}${rel.includes('?') ? '&' : '?'}timestamp=${Date.now()}`;
             const cdn   = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${rel}`;
-            return preferCdn ? [cdn, pages, url] : [pages, cdn, url];
+            return [pages, cdn, url];
         }
         if (url.startsWith(OWN_REPO_PAGES_PREFIX)) {
             const relWithQuery = url.slice(OWN_REPO_PAGES_PREFIX.length);
@@ -632,7 +620,7 @@
             const pages = `${OWN_REPO_PAGES_PREFIX}${rel}${rel.includes('?') ? '&' : '?'}timestamp=${Date.now()}`;
             const cdn   = `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${rel}`;
             const raw   = `${OWN_REPO_RAW_PREFIX}${rel}`;
-            return preferCdn ? [cdn, pages, raw] : [pages, cdn, raw];
+            return [pages, cdn, raw];
         }
         // 外部作者 repo：無法推導 Pages 鏡像，維持 jsDelivr 優先、raw 備援（避免 EBC 429，見 _DEP_BASES）。
         const cdn = url.replace(/^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/, "https://cdn.jsdelivr.net/gh/$1/$2@$3/$4");
@@ -641,9 +629,9 @@
 
     // Plugins.json 可額外填 mirrorUrl 提供一組獨立備援來源（給無法自動推導 jsDelivr 鏡像的
     // Pages 網址用），接在候選清單後面再試。沒填則行為不變，向後相容。
-    function buildAllFetchUrls(primaryUrl, mirrorUrl, options = {}) {
-        const urls = buildFetchUrls(primaryUrl, !!options.preferCdn);
-        if (mirrorUrl) urls.push(...buildFetchUrls(mirrorUrl, !!options.preferCdn));
+    function buildAllFetchUrls(primaryUrl, mirrorUrl) {
+        const urls = buildFetchUrls(primaryUrl);
+        if (mirrorUrl) urls.push(...buildFetchUrls(mirrorUrl));
         return uniqueUrls(urls);
     }
 
@@ -739,16 +727,14 @@
 
         const rawUrl   = isCustom ? plugin.url : getActivePluginUrl(plugin, source);
         const loadType = getLoadType(plugin);
-        const versionKey = isCustom ? null : getPluginVersionKey(plugin);
         const cachedRecord = getCachedPluginRecord(plugin.id);
-        const preferCdn = !!versionKey && cachedRecord?.version === versionKey;
         const isAltUrl = !isCustom && plugin.altUrl && rawUrl === plugin.altUrl;
         const mirrorUrl = isAltUrl ? (plugin.altMirrorUrl || plugin.mirrorUrl) : plugin.mirrorUrl;
 
         // mod / scr 不進 fetch+eval / localStorage 快取，交給瀏覽器 HTTP cache（模組無法安全地
         // 存純文字重放，scr 本來就讓瀏覽器直接載）。
         if (loadType === 'mod' || loadType === 'scr') {
-            const urls = buildAllFetchUrls(rawUrl, mirrorUrl, { preferCdn });
+            const urls = buildAllFetchUrls(rawUrl, mirrorUrl);
             const ok = loadType === 'mod'
                 ? await tryImportModule(urls, plugin.id)
                 : await tryLoadScriptTag(urls, plugin.id);
@@ -760,11 +746,10 @@
             }
             loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
             hidePluginRetryBtn(plugin.id);
-            setCachedPluginVersion(plugin.id, versionKey);
             return;
         }
 
-        const urls    = buildAllFetchUrls(rawUrl, mirrorUrl, { preferCdn });
+        const urls    = buildAllFetchUrls(rawUrl, mirrorUrl);
         const primary = urls[0];
         const useCache = isJsDelivrUrl(primary) || isOwnPagesUrl(primary);
         const oldCache = useCache ? cachedRecord?.code : null; // 先留著當救援，成功前絕不覆蓋
@@ -775,7 +760,7 @@
                 injectScript(plugin.id, code);
                 loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
                 hidePluginRetryBtn(plugin.id);
-                if (useCache) setCachedPluginCode(plugin.id, code, versionKey); // 注入成功才覆蓋快取
+                if (useCache) setCachedPluginCode(plugin.id, code); // 注入成功才覆蓋快取
                 return;
             } catch(e) {
                 console.warn(`🐈‍⬛ [PCM] ⚠️ ${plugin.name} 新版執行失敗，改用舊版快取：${e.message}`);
@@ -1738,14 +1723,16 @@
 
     // === 初始化 =================================================
 
-    // 系統依賴依序抓（jsDelivr 優先、raw 保底），絕不並行同打兩邊：raw 有嚴格速率限制，
-    // EBC 單一 IP + Loader 啟動的突發請求很容易觸發 429，害 PCM-i18n.js 等抓取失敗、翻譯註冊不上。
+    // 系統依賴依序抓（Pages 優先、jsDelivr 次之、raw 保底），絕不並行同打兩邊。
+    // Pages 走 Fastly：push 後幾秒即新、且不像 raw 會 429；jsDelivr(@main) 邊緣快取數小時、
+    // 各 POP 不一致，搶第一會抓到舊版（BC_ChatRoomButtons 等已更新卻在 EBC 抓到舊的即此故）。
+    // raw 有嚴格速率限制、EBC 單一 IP 啟動突發易觸發 429，只當最後保底。
     // 本地測試時 window.LikoDevBase 只有單一 localhost。
     const _DEP_BASES = (typeof window !== 'undefined' && window.LikoDevBase)
         ? [window.LikoDevBase]
         : [
-            "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/",
             "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/",
+            "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/",
             "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/",
         ];
 
@@ -1821,28 +1808,6 @@
         return saved !== undefined && saved !== false && saved !== "off" && saved !== 0;
     }
 
-    // 預熱：在 _ensureDeps() 這個會 await 網路的步驟「之前」，先對 enabled 的 early-boot mod
-    // 注入 <link rel=modulepreload>，讓瀏覽器現在就開始抓，與 PCM 抓自身系統依賴的時間重疊；
-    // 稍後 earlyBootPlugins() 真正 import() 時直接命中預熱好的連線/快取，縮短登入 UI 首屏。
-    // 純提示、最佳努力：任何失敗都不影響後續的正常載入。crossOrigin 需與 module 的匿名抓取一致。
-    let _warmed = false;
-    function warmEarlyBoot() {
-        if (_warmed) return; _warmed = true;
-        for (const e of EARLY_BOOT) {
-            if (!earlyBootEnabled(e)) continue;
-            try {
-                const href = buildAllFetchUrls(getActivePluginUrl(e, 'local'), e.mirrorUrl, {})[0];
-                if (!href) continue;
-                const link = document.createElement('link');
-                link.rel = e.type === 'mod' ? 'modulepreload' : 'preload';
-                if (e.type !== 'mod') link.as = 'script';
-                link.href = href;
-                link.crossOrigin = 'anonymous';
-                (document.head || document.documentElement).appendChild(link);
-            } catch (err) { /* 預熱失敗無所謂，正常載入照走 */ }
-        }
-    }
-
     function earlyBootPlugins() {
         for (const e of EARLY_BOOT) {
             if (!earlyBootEnabled(e)) continue;
@@ -1853,14 +1818,13 @@
 
     // _ensureDeps runs async before everything else
     (async () => {
-        // 先預熱（不 await），讓 early-boot mod 的下載與 _ensureDeps 的網路抓取平行。
-        warmEarlyBoot();
+        // early-boot 插件（LCE）先於 PCM 系統依賴啟動：LCE 只需要 @require 同步載入的 bcModSdk，
+        // 不依賴 i18n / toast / 顏色 API / 聊天按鈕。所以 import() 立刻發起（自己就會下載 main.js），
+        // 與 _ensureDeps 的網路抓取完全平行 —— LCE 的登入介面不必再等 PCM 那串依賴串行抓完。
+        // 這是消除「原生登入畫面先閃、LCE 才蓋上」延遲的第一步（LCE 端仍需自己盡早注入 overlay）。
+        earlyBootPlugins();
 
         await _ensureDeps();
-
-        // 共用系統就位後「立刻」啟動 early-boot 插件：import() 直接吃預熱好的快取，
-        // 並讓 LCE 後續初始化與 PCM 自身的 registerMod / initialize 平行進行。
-        earlyBootPlugins();
 
         try {
             if (!bcModSdk?.registerMod) { console.error("🐈‍⬛ [PCM] ❌ bcModSdk not available"); return; }
