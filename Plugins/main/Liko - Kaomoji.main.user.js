@@ -307,12 +307,13 @@
         let _destroyed = false;               // 防止热更新时，旧实例仍在等待 bcModSdk 的异步注册在销毁后才完成
 
         // ────────────────────────────────── 存储 ──────────────────────────────────
-        // 全部设定存 Player.ExtensionSettings（跟着帐号走），登入后才由伺服器送达；
-        // 原本七个 localStorage key 合并成这一包，各 load*/save* 改读写记忆体中的 _data。
+        // 收藏/尺寸/自动发送/自动关闭/收合状态存 Player.ExtensionSettings（跟着帐号走），登入后才由伺服器送达，合并成 _data 一包。
+        // 自訂分组(groups)与常用(recent)则只存 localStorage（跟装置走），独立于 DB，不受登入时序影响。
         const ES_KEY = 'Kaomoji';
+        const RECENT_MAX = 30;   // 常用最多保存 30 个
+        // 存 DB（跟帐号走）的项目。自訂分组(groups)与常用(recent)刻意只存 localStorage（跟装置走），
+        // 故不在此列，也不会被 migrateFromLocalStorage 搬进 DB 或删掉。
         const LEGACY_KEYS = [
-            ['groups',    STORAGE_GROUPS],
-            ['recent',    STORAGE_RECENT],
             ['favs',      STORAGE_FAVS],
             ['size',      STORAGE_SIZE],
             ['autoSend',  STORAGE_SEND],
@@ -354,21 +355,44 @@
             _saveTimer = setTimeout(function () { _saveTimer = null; doSave(); }, 600);
         }
 
+        // 自訂分组：只存 localStorage（跟装置走，不跟帐号）。旧版把它存进 DB，这里做一次性搬回。
         function loadGroups() {
-            const g = _data.groups;
-            if (Array.isArray(g)) {
-                // 迁移：过滤掉任何内建/固定标签 id 的残留数据（例如旧版 1.2.0 的"默认"分组），
-                // 只保留真正的自定义分组
-                return g.filter(function (grp) { return grp && grp.id && !RESERVED_GROUP_IDS.has(grp.id); });
+            let raw = null;
+            try { raw = localStorage.getItem(STORAGE_GROUPS); } catch (_) {}
+            let g = null;
+            if (raw !== null) {
+                try { g = JSON.parse(raw); } catch (_) {}
+            } else if (Array.isArray(_data.groups)) {
+                // 旧版资料在 DB → 搬回 localStorage，并从 DB 清掉，避免两边不同步
+                g = _data.groups;
+                try { localStorage.setItem(STORAGE_GROUPS, JSON.stringify(g)); } catch (_) {}
+                delete _data.groups; saveData(true);
+            }
+            // 过滤掉任何内建/固定标签 id 的残留数据（例如旧版的"默认"分组），只保留真正的自定义分组
+            return Array.isArray(g) ? g.filter(function (grp) { return grp && grp.id && !RESERVED_GROUP_IDS.has(grp.id); }) : [];
+        }
+        function saveGroups() {
+            try { localStorage.setItem(STORAGE_GROUPS, JSON.stringify(groups)); } catch (e) { console.warn('🐈‍⬛ [Kaomoji] ❌ 分组储存失败:', e.message); }
+        }
+        // 常用：只存 localStorage，最多 RECENT_MAX 个。旧版存进 DB，这里做一次性搬回。
+        function loadRecent() {
+            let raw = null;
+            try { raw = localStorage.getItem(STORAGE_RECENT); } catch (_) {}
+            if (raw !== null) {
+                try { const r = JSON.parse(raw); if (Array.isArray(r)) return r.slice(0, RECENT_MAX); } catch (_) {}
+                return [];
+            }
+            if (Array.isArray(_data.recent)) {
+                const r = _data.recent.slice(0, RECENT_MAX);
+                try { localStorage.setItem(STORAGE_RECENT, JSON.stringify(r)); } catch (_) {}
+                delete _data.recent; saveData(true);
+                return r;
             }
             return [];
         }
-        // 分组的增删/排序是低频的结构性变更，直接立即落盘，避免 600ms 去抖窗口内页面重载而丢失
-        function saveGroups() { _data.groups = groups; saveData(true); }
-        function loadRecent() {
-            return Array.isArray(_data.recent) ? _data.recent : [];
+        function saveRecent() {
+            try { localStorage.setItem(STORAGE_RECENT, JSON.stringify(recentList.slice(0, RECENT_MAX))); } catch (e) { console.warn('🐈‍⬛ [Kaomoji] ❌ 常用储存失败:', e.message); }
         }
-        function saveRecent() { _data.recent = recentList.slice(0, 12); saveData(); }
         function loadFavs() {
             return new Set(Array.isArray(_data.favs) ? _data.favs : []);
         }
@@ -516,7 +540,7 @@
         function getActiveEmotes() {
             if (activeGroupId === 'all') return getAllBuiltinEmotes();
             if (activeGroupId === 'favorites') return [...favSet];
-            if (activeGroupId === 'recent') return recentList.slice(0, 12);
+            if (activeGroupId === 'recent') return recentList.slice(0, RECENT_MAX);
             var def = DEFAULT_GROUPS.find(function (g) { return g.id === activeGroupId; });
             if (def) return def.emotes;
             var custom = getActiveCustomGroup();
@@ -525,7 +549,7 @@
         function recordRecent(text) {
             recentList = recentList.filter(t => t !== text);
             recentList.unshift(text);
-            if (recentList.length > 12) recentList.length = 12;
+            if (recentList.length > RECENT_MAX) recentList.length = RECENT_MAX;
             saveRecent();
         }
         function toggleFav(text) {
