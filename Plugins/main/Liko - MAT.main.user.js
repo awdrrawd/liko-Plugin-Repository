@@ -1137,6 +1137,8 @@
     // 與 langCodes 對齊的國旗 emoji（國旗字元是「國家碼」regional indicator，非語言碼）。
     // 顯示需白嫖 BC country-flag polyfill 注入的 "Twemoji Country Flags" 字體，見 openMATLangSelect。
     const langFlags = ['🇹🇼','🇨🇳','🇬🇧','🇯🇵','🇰🇷','🇩🇪','🇫🇷','🇪🇸','🇷🇺','🇮🇹','🇵🇹','🇵🇱','🇳🇱','🇹🇷','🇸🇪','🇺🇦','🇨🇿','🇭🇺','🇷🇴','🇸🇦','🇹🇭','🇻🇳','🇮🇩','🇲🇾'];
+    // 語言碼 → 國旗（查無回空字串）。用於聊天室快捷選單的發送/接收翻譯鈕標示「當前目標語言」。
+    const flagOf = (code) => { const i = langCodes.indexOf(code); return i >= 0 ? langFlags[i] : ''; };
     let uiSendIdx = 0;
     let uiRecvIdx = 0;
 
@@ -1785,6 +1787,15 @@
         paint('lk-mat-q-master', config.enabled);
         paint('lk-mat-q-send', config.translateSent);
         paint('lk-mat-q-recv', config.translateReceived);
+        // 發送/接收鈕末端補上「當前目標語言」國旗，一眼看出設定（國旗字體見選單 cssText）。
+        const setLabel = (cls, base, code) => {
+            const b = menu.querySelector('.' + cls);
+            if (!b) return;
+            const f = flagOf(code);
+            b.textContent = f ? `${base} ${f}` : base;
+        };
+        setLabel('lk-mat-q-send', ui('cbtnSend'), config.sendLang);
+        setLabel('lk-mat-q-recv', ui('cbtnRecv'), config.recvLang);
     }
 
     function buildMatQuickMenu() {
@@ -1793,6 +1804,8 @@
         menu = document.createElement('div');
         menu.id = MAT_MENU_ID;
         menu.style.cssText = 'position:fixed;z-index:100000;display:none;flex-direction:column;gap:4px;background:#1a1a2e;border:1px solid #4CAF50;border-radius:8px;padding:6px;box-shadow:0 4px 16px rgba(0,0,0,0.5);min-width:132px;' +
+            // 國旗字體：按鈕 all:unset 會讓 font-family 繼承此選單，白嫖 BC 的 "Twemoji Country Flags"。
+            'font-family:"Twemoji Country Flags",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;' +
             'opacity:0;transform:translateY(' + MAT_MENU_SLIDE_PX + 'px);pointer-events:none;' +
             'transition:opacity ' + MAT_MENU_ANIM_MS + 'ms ease,transform ' + MAT_MENU_ANIM_MS + 'ms ease;';
         const mkBtn = (cls, label, kind) => {
