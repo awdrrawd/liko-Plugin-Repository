@@ -76,7 +76,7 @@
     //  平台不再侷限於少數幾種容器格式
     // ─────────────────────────────────────────────────────────────
     const RAW_VIDEO_EXT_LIST = "mp4|webm|mov|m4v|mkv|avi|flv|wmv|3gp|3gpp|ts|m2ts|ogv";
-    const RAW_AUDIO_EXT_LIST = "mp3|wav|flac|m4a|aac|opus|wma|oga|weba";
+    const RAW_AUDIO_EXT_LIST = "mp3|wav|ogg|flac|m4a|aac|opus|wma|oga|weba";
     const RAW_MEDIA_EXT_LIST = `${RAW_VIDEO_EXT_LIST}|${RAW_AUDIO_EXT_LIST}`;
     const RAW_AUDIO_EXT_SET = new Set(RAW_AUDIO_EXT_LIST.split("|"));
 
