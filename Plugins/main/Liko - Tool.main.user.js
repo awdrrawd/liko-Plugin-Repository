@@ -2593,14 +2593,40 @@
     let _dndLastAnnounce = 0;
     let _dndInSync = false; // 处理「他人造成的同步」期间为 true，避免把对方的状态误存成基准
 
+    // 勿扰放行清单：ECHO「贴贴」(ItemMisc) — 抱入/钻怀时用来固定两人，勿扰不复原它（加/移除都放行）
+    const DND_EXEMPT = { Group: "ItemMisc", Name: "贴贴" };
+    function _dndIsExempt(i) { return i && i.Group === DND_EXEMPT.Group && i.Name === DND_EXEMPT.Name; }
+    // 非放行部分的指纹（依 Group 排序求稳定序），用来判断「除了贴贴之外有没有真的被改动」
+    function _dndFingerprint(bundle) {
+        return JSON.stringify(bundle.filter(i => !_dndIsExempt(i))
+            .slice().sort((a, b) => (a.Group > b.Group ? 1 : a.Group < b.Group ? -1 : 0)));
+    }
+    // 复原用 bundle：非放行部分回到 baseline，贴贴则保留「当前」状态（让 ECHO 抱抱不被撤销）
+    function _dndBuildRevertBundle(currentBundle) {
+        let bundle = _dndBaseline.filter(i => !_dndIsExempt(i));
+        const currExempt = currentBundle.find(_dndIsExempt);
+        if (currExempt) {
+            bundle = bundle.filter(i => i.Group !== DND_EXEMPT.Group); // 让出贴贴所在格子
+            bundle.push(currExempt);
+        }
+        return bundle;
+    }
+
     function dndCaptureBaseline() {
         try { _dndBaseline = ServerAppearanceBundle(Player.Appearance); } catch (e) {}
     }
 
     function dndRevert(sourceNumber) {
         if (!_dndBaseline) { dndCaptureBaseline(); return; }
+        let currentBundle, mergedBundle;
         try {
-            ServerAppearanceLoadFromBundle(Player, Player.AssetFamily, _dndBaseline, Player.MemberNumber);
+            currentBundle = ServerAppearanceBundle(Player.Appearance);
+            mergedBundle  = _dndBuildRevertBundle(currentBundle);
+            // 只有「贴贴」被加/移除 → 没有需要复原的改动，直接放行（不复原、不广播）
+            if (_dndFingerprint(currentBundle) === _dndFingerprint(_dndBaseline)) return;
+        } catch (e) { mergedBundle = _dndBaseline; }
+        try {
+            ServerAppearanceLoadFromBundle(Player, Player.AssetFamily, mergedBundle, Player.MemberNumber);
             CharacterRefresh(Player, false); // Push=false：别再触发 ServerPlayerAppearanceSync（会重入并污染基准）
             ChatRoomCharacterUpdate(Player); // 手动广播复原后的外观，覆盖对方的修改
         } catch (e) { console.error("🐈‍⬛ [LT] ❌ DND 复原错误:", e.message); return; }
