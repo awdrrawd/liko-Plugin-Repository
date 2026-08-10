@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.4
+// @version      1.6.5
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.4";
+    const MOD_VER = "1.6.5";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -65,7 +65,7 @@
             sendWhisper: true,
             sendBeep: true,
             sendSkipZhVariant: true,   // 發送語言為中文時，內容已是中文則跳過翻譯
-            sendHideOriginal: false,   // 隱藏原句、僅送出譯文（Chat/Whisper；翻譯失敗才補送原文）
+            sendHideOriginal: false,   // 隱藏原句、僅送出譯文（Chat/Whisper/Emote/Action；翻譯失敗才補送原文）
             // ── 接收分類（動作/互動/悄悄話/私信/系統 Local）──
             recvEmote: true,
             recvAction: true,
@@ -73,7 +73,7 @@
             recvBeep: true,
             recvLocal: false,
             recvSkipZhVariant: true,   // 接收語言為中文時，收到內容為中文則跳過翻譯
-            recvHideOriginal: false,   // 隱藏原句、僅顯示譯文（Chat/Whisper；翻譯成功才隱藏）
+            recvHideOriginal: false,   // 隱藏原句、僅顯示譯文（Chat/Whisper/Emote/Action；翻譯成功才隱藏）
             // ── 其他 ──
             loginNotice: true,
             translateChat: true,       // 手動翻譯（點選訊息出現翻譯按鈕）
@@ -369,18 +369,22 @@
     const LIKO_MAT_FIELD = 'long';
     const MAT_FLAG_TYPES = ['Chat', 'Emote', 'Whisper', 'Action'];
 
-    // 把旗標推到 Dictionary 末端（不動既有 entry，例如 Action 仍靠 dict[0].Text）
-    function addMATFlag(data) {
+    // 把旗標推到 Dictionary 末端（不動既有 entry，例如 Action 仍靠 dict[0].Text）。
+    // isTranslation=true 代表「這是翻譯廣播本身」（夾 tr:1），供接收端純憑屬性辨識、不依賴會被亂碼吃掉的 [🌐]。
+    function addMATFlag(data, isTranslation) {
         if (!Array.isArray(data.Dictionary)) data.Dictionary = data.Dictionary == null ? [] : [data.Dictionary];
         if (data.Dictionary.some(e => e && e.Tag === LIKO_MAT_TAG)) return;
-        data.Dictionary.push({ Tag: LIKO_MAT_TAG, [LIKO_MAT_FIELD]: config.sendLang });
+        const entry = { Tag: LIKO_MAT_TAG, [LIKO_MAT_FIELD]: config.sendLang };
+        if (isTranslation) entry.tr = 1;
+        data.Dictionary.push(entry);
     }
 
-    // 從收到的訊息讀旗標語言碼；沒有則回 null
+    // 讀旗標；沒有則回 null，有則回 { lang, tr }（tr = 是否為翻譯廣播）
     function readMATFlag(data) {
         if (!data || !Array.isArray(data.Dictionary)) return null;
         const e = data.Dictionary.find(x => x && x.Tag === LIKO_MAT_TAG);
-        return e ? (e[LIKO_MAT_FIELD] ?? null) : null;
+        if (!e) return null;
+        return { lang: e[LIKO_MAT_FIELD] ?? null, tr: !!e.tr };
     }
 
     // 取出 BC 原生「回覆」功能夾在 Dictionary 裡的 ReplyId（該訊息是回覆哪一則訊息）。
@@ -544,7 +548,8 @@
         return null;
     }
 
-    // 節點之後是否已出現同一發送者的 [🌐] 翻譯（對方廣播已到）
+    // 節點之後是否已出現同一發送者的翻譯廣播（對方廣播已到）。
+    // 優先用 mat-broadcast 旗標類別辨識（被堵嘴時 [🌐] 會被亂碼吃掉），[🌐] 文字僅作後備。
     function hasRemoteTranslation(node) {
         let sib = node.nextElementSibling, hops = 0;
         while (sib && hops < 8) {
@@ -552,7 +557,7 @@
                 !sib.classList.contains('mat-translated') &&
                 !sib.classList.contains('mat-manual-translated') &&
                 sib.dataset?.sender === node.dataset?.sender &&
-                sib.textContent.includes('[🌐]')) return true;
+                (sib.classList.contains('mat-broadcast') || sib.textContent.includes('[🌐]'))) return true;
             sib = sib.nextElementSibling; hops++;
         }
         return false;
@@ -587,6 +592,7 @@
         if (node.classList.contains("mat-processed") ||
             node.classList.contains("mat-translated") ||
             node.classList.contains("mat-manual-translated") ||
+            node.classList.contains("mat-broadcast") ||   // 對方翻譯廣播（憑旗標判定，抗亂碼）
             node.textContent.includes(TRANSLATE_MARKER) ||
             node.textContent.includes('[🌐]')) return;
 
@@ -618,9 +624,11 @@
         const translated = await smartTranslate(message, config.recvLang);
         if (translated !== null && translated !== message) {
             createTranslatedDiv(node, translated);
-            // 隱藏原句、僅留譯文：只在確實產生譯文後、且為 Chat/Whisper 時隱藏（失敗/簡繁跳過不隱藏，免訊息消失）
+            // 隱藏原句、僅留譯文：只在確實產生譯文後隱藏（失敗/簡繁跳過不隱藏，免訊息消失）
+            const cl = node.classList;
             if (config.recvHideOriginal &&
-                (node.classList.contains('ChatMessageChat') || node.classList.contains('ChatMessageWhisper'))) {
+                (cl.contains('ChatMessageChat') || cl.contains('ChatMessageWhisper') ||
+                 cl.contains('ChatMessageEmote') || cl.contains('ChatMessageAction'))) {
                 node.style.display = 'none';
             }
         }
@@ -1034,6 +1042,17 @@
         let matBypass = false;
         const sendRaw = (args) => { matBypass = true; try { ServerSend(...args); } finally { matBypass = false; } };
 
+        // 被堵嘴/口吃等：BC 在 ChatRoomGenerateChatRoomChatMessage 內先把 Chat/Whisper 文字轉成亂碼才 ServerSend，
+        // 所以 send hook 拿到的 Content 已是亂碼。這裡在轉換前記下未亂碼原文（掛到回傳物件的非列舉屬性 _matRaw，
+        // 不會被序列化送到伺服器），讓翻譯用正確句子。廣播是直接 ServerSend、不經此函式，故 _matRaw 只在原句上。
+        modApi.hookFunction("ChatRoomGenerateChatRoomChatMessage", 0, (args, next) => {
+            const result = next(args);
+            if (result && (args[0] === "Chat" || args[0] === "Whisper") && typeof args[1] === "string") {
+                try { Object.defineProperty(result, '_matRaw', { value: args[1], enumerable: false, configurable: true }); } catch {}
+            }
+            return result;
+        });
+
         modApi.hookFunction("ServerSend", 10, (args, next) => {
             if (matBypass) return next(args);
             const [command, data] = args;
@@ -1045,19 +1064,22 @@
             //  - 廣播出去的 [🌐] 翻譯本身：也夾旗標標明其語言，接收端可純憑屬性判斷（中文變體就隱藏）。
             if (command === "ChatRoomChat" && MAT_FLAG_TYPES.includes(data.Type)) {
                 const typeOn = { Chat: true, Emote: config.sendEmote, Whisper: config.sendWhisper, Action: config.sendAction };
-                const ot = data.Type === "Action" ? safeStr(data.Dictionary?.[0]?.Text) : safeStr(data.Content);
-                const isBroadcast = ot ? ot.includes('[🌐]') : false;
-                if (ot && typeOn[data.Type] && (isBroadcast || (!isUntranslatable(ot) && !skipZhSend(ot)))) addMATFlag(data);
+                // 原句用未亂碼 _matRaw 判斷（被堵嘴時 Content 已亂碼）；廣播不經 Generate、無 _matRaw，仍看 Content 抓 [🌐]。
+                const raw = typeof data._matRaw === 'string' ? data._matRaw : null;
+                const ot = data.Type === "Action" ? safeStr(data.Dictionary?.[0]?.Text) : (raw || safeStr(data.Content));
+                const isBroadcast = safeStr(data.Content)?.includes('[🌐]') || safeStr(data.Dictionary?.[0]?.Text)?.includes('[🌐]') || false;
+                if (ot && typeOn[data.Type] && (isBroadcast || (!isUntranslatable(ot) && !skipZhSend(ot)))) addMATFlag(data, isBroadcast);
             }
 
             if (command === "ChatRoomChat" && data.Type === "Chat") {
                 const t = safeStr(data.Content);
-                if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
+                const src = (typeof data._matRaw === 'string' && data._matRaw) || t;   // 被堵嘴時用未亂碼原文翻譯
+                if (t && !t.includes('[🌐]') && !skipZhSend(src)) {
                     const replyId = getReplyIdFromDictionary(data.Dictionary);
                     const hide = config.sendHideOriginal;
                     if (!hide) next(args);   // 隱藏原句：先不送原文，等譯文；失敗才補送
-                    smartTranslate(t, config.sendLang).then(r => {
-                        if (r === null || r === t) { if (hide) sendRaw(args); return; }
+                    smartTranslate(src, config.sendLang).then(r => {
+                        if (r === null || r === src) { if (hide) sendRaw(args); return; }
                         const payload = { Content: `[🌐] ${r}`, Type: "Chat" };
                         if (replyId) payload.Dictionary = [{ ReplyId: replyId, Tag: "ReplyId" }];
                         ServerSend("ChatRoomChat", payload);
@@ -1068,24 +1090,27 @@
             if (command === "ChatRoomChat" && data.Type === "Action" && config.sendAction) {
                 const t = safeStr(data.Dictionary?.[0]?.Text);
                 if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
-                    next(args);
+                    const hide = config.sendHideOriginal;
+                    if (!hide) next(args);   // 隱藏原句：先不送原文，等譯文；失敗才補送
                     smartTranslate(t, config.sendLang).then(r => {
-                        if (r !== null && r !== t) ServerSend("ChatRoomChat", {
+                        if (r === null || r === t) { if (hide) sendRaw(args); return; }
+                        ServerSend("ChatRoomChat", {
                             Type: "Action", Content: "CUSTOM_SYSTEM_ACTION",
                             Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: `[🌐] ${r}` }]
                         });
-                    });
+                    }).catch(() => { if (hide) sendRaw(args); });
                     return;
                 }
             }
             if (command === "ChatRoomChat" && data.Type === "Whisper" && config.sendWhisper) {
                 const t = safeStr(data.Content);
-                if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
+                const src = (typeof data._matRaw === 'string' && data._matRaw) || t;   // 被堵嘴時用未亂碼原文翻譯
+                if (t && !t.includes('[🌐]') && !skipZhSend(src)) {
                     const replyId = getReplyIdFromDictionary(data.Dictionary);
                     const hide = config.sendHideOriginal;
                     if (!hide) next(args);   // 隱藏原句：先不送原文，等譯文；失敗才補送
-                    smartTranslate(t, config.sendLang).then(r => {
-                        if (r === null || r === t) { if (hide) sendRaw(args); return; }
+                    smartTranslate(src, config.sendLang).then(r => {
+                        if (r === null || r === src) { if (hide) sendRaw(args); return; }
                         const payload = { Content: `[🌐] ${r}`, Type: "Whisper", Target: data.Target, Sender: data.Sender };
                         if (replyId) payload.Dictionary = [{ ReplyId: replyId, Tag: "ReplyId" }];
                         ServerSend("ChatRoomChat", payload);
@@ -1106,7 +1131,9 @@
             return next(args);
         });
 
+        let emoteBypass = false;
         modApi.hookFunction("ChatRoomSendEmote", 10, (args, next) => {
+            if (emoteBypass) return next(args);   // 隱藏原句失敗補送原文時放行，免重入再翻
             if (!config.enabled || !config.translateSent || !config.sendEmote) return next(args);
             const [t] = args;
             if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
@@ -1114,12 +1141,14 @@
                 // 原文送出後 ChatRoomGenerateChatRoomChatMessage 會呼叫 ChatRoomMessageReplyStop()
                 // 把它清掉，所以要先記下來，翻譯版送出前再暫時放回去，讓它照原生流程夾進 Dictionary。
                 const replyId = ChatRoomMessageGetReplyId();
-                next(args);
+                const hide = config.sendHideOriginal;
+                const sendOrig = () => { emoteBypass = true; try { ChatRoomSendEmote(t); } finally { emoteBypass = false; } };
+                if (!hide) next(args);   // 隱藏原句：先不送原文，等譯文；失敗才補送
                 smartTranslate(t, config.sendLang).then(r => {
-                    if (r === null || r === t) return;
+                    if (r === null || r === t) { if (hide) sendOrig(); return; }
                     if (replyId) document.getElementById('InputChat')?.setAttribute('reply-id', replyId);
                     ChatRoomSendEmote(`[🌐] ${r}`);
-                });
+                }).catch(() => { if (hide) sendOrig(); });
                 return;
             }
             return next(args);
@@ -1136,16 +1165,20 @@
                 const data = args[0];
                 if (!data || typeof data !== 'object') return result;
                 if (data.Sender === Player?.MemberNumber) return result;
-                const lang = readMATFlag(data);
-                if (!lang) return result;
+                const flag = readMATFlag(data);
+                if (!flag) return result;
                 const node = findFlaggedNode(data);
-                // 對方廣播的翻譯（含 [🌐]）夾了語言旗標：若標的是中文變體、我又開了簡繁跳過 →
-                // 直接隱藏，免與原文並列成兩筆（純憑屬性判斷，不必猜內容是不是中文）。
-                if (node && /^zh/i.test(lang) && config.recvSkipZhVariant && /^zh/i.test(config.recvLang)
-                    && node.textContent.includes('[🌐]')) {
-                    node.style.display = 'none';
-                } else if (lang === config.recvLang) {
-                    node?.classList.add('mat-skip');
+                if (!node) return result;
+                if (flag.tr) {
+                    // 這是「翻譯廣播本身」：標記 mat-broadcast，讓 observer 不再翻它（不靠會被亂碼吃掉的 [🌐]）。
+                    node.classList.add('mat-broadcast');
+                    // 中文變體廣播、我又開了簡繁跳過 → 純憑屬性隱藏，免與原文並列成兩筆。
+                    if (flag.lang && /^zh/i.test(flag.lang) && config.recvSkipZhVariant && /^zh/i.test(config.recvLang)) {
+                        node.style.display = 'none';
+                    }
+                } else if (flag.lang === config.recvLang) {
+                    // 這是「原句意圖旗標」：對方會翻成我的語言 → 標 mat-skip，跳過自翻、等對方廣播。
+                    node.classList.add('mat-skip');
                 }
             } catch (e) {
                 console.warn('🐈‍⬛ [MAT] ❌ recv flag hook:', e);

@@ -383,6 +383,53 @@
             settingsResetDone:"设置已重置",
             settingsOrderReset:"按钮顺序已重置",
 
+            // 动作网格 label / title
+            actFree:        "解除束缚",
+            actFreeT:       "选择性移除束缚物品（可全选）",
+            actUndo:        "回滚",
+            actUndoT:       "回滚外观到之前的状态",
+            actLock:        "上锁",
+            actLockT:       "为束缚添加锁",
+            actUnlock:      "解锁",
+            actUnlockT:     "选择要解除的锁（跳过主人/恋人/拓展锁）",
+            actEditCraft:   "编辑订制属性",
+            actEditCraftT:  "批量编辑束缚的订制属性（名称/描述/私有）",
+            actClearCraft:  "清除订制属性",
+            actClearCraftT: "清除对象身上所有束缚的订制属性",
+            actWardrobe:    "衣柜",
+            actWardrobeT:   "打开衣柜",
+            actBcx:         "BCX导入",
+            actBcxT:        "从剪贴板导入 BCX 外观",
+            actStruggle:    "挣扎",
+            actStruggleT:   "LSCG 挣脱指令",
+            actEnhance:     "增强",
+            actEnhanceT:    "获取道具/金钱/技能",
+            // 角色选择器提示
+            pickFree:       "选择要解除束缚的目标",
+            pickUndo:       "选择要回滚外观的目标",
+            pickLock:       "选择要上锁的目标",
+            pickUnlock:     "选择要解锁的目标",
+            pickEditCraft:  "选择要编辑属性的目标",
+            pickClearCraft: "选择要清除订制属性的目标",
+            pickBcx:        "选择要导入外观的目标",
+            // 上锁流程
+            lockTypeTitle:  "选择锁类型",
+            lockTypeFail:   "无法获取锁类型列表",
+            lockTypeNone:   "没有可用的锁类型",
+            lockPrefix:     "[锁]",
+            // 其他 UI 讯息
+            noPlayers:      "房间内没有玩家",
+            noInputBox:     "找不到聊天输入框",
+            execFail:       "执行命令失败",
+            rpBtnTip:       "RP模式切换",
+            stealthLabel:   "RP 隐身",
+            stealthOn:      "开启（别人看不到图标）",
+            stealthOff:     "关闭（别人能看到图标）",
+            // 广播动作讯息
+            actFreeMsg:     "{src} 解除了 {who} 的 {items}",
+            actLockMsg:     "{src} 为 {who} 的 {count} 个束缚上了 {lock}！",
+            actUndoMsg:     "{src} 将 {who} 的外观回滚到 {time} 的状态！",
+
             helpText:
                 "莉柯莉丝工具 使用说明\n\n" +
                 "/lt show              - 显示工具面板\n" +
@@ -493,6 +540,53 @@
             settingsReset:    "Reset All",
             settingsResetDone:"Settings reset",
             settingsOrderReset:"Button order reset",
+
+            // Action grid label / title
+            actFree:        "Unrestrain",
+            actFreeT:       "Selectively remove restraints (Select All available)",
+            actUndo:        "Rollback",
+            actUndoT:       "Roll appearance back to a previous state",
+            actLock:        "Lock",
+            actLockT:       "Add a lock to restraints",
+            actUnlock:      "Unlock",
+            actUnlockT:     "Select locks to remove (skips owner/lover/extension locks)",
+            actEditCraft:   "Edit Craft",
+            actEditCraftT:  "Batch-edit restraint craft (name/description/private)",
+            actClearCraft:  "Clear Craft",
+            actClearCraftT: "Clear all craft properties on the target's restraints",
+            actWardrobe:    "Wardrobe",
+            actWardrobeT:   "Open the wardrobe",
+            actBcx:         "BCX Import",
+            actBcxT:        "Import a BCX appearance from the clipboard",
+            actStruggle:    "Struggle",
+            actStruggleT:   "LSCG escape command",
+            actEnhance:     "Enhance",
+            actEnhanceT:    "Get items / money / skills",
+            // Character picker prompts
+            pickFree:       "Select a target to unrestrain",
+            pickUndo:       "Select a target to roll back",
+            pickLock:       "Select a target to lock",
+            pickUnlock:     "Select a target to unlock",
+            pickEditCraft:  "Select a target to edit craft",
+            pickClearCraft: "Select a target to clear craft",
+            pickBcx:        "Select a target to import appearance",
+            // Lock flow
+            lockTypeTitle:  "Select a lock type",
+            lockTypeFail:   "Cannot get lock type list",
+            lockTypeNone:   "No lock types available",
+            lockPrefix:     "[Lock]",
+            // Other UI messages
+            noPlayers:      "No players in the room",
+            noInputBox:     "Chat input box not found",
+            execFail:       "Failed to run command",
+            rpBtnTip:       "Toggle RP mode",
+            stealthLabel:   "RP Stealth",
+            stealthOn:      "ON (others can't see the icon)",
+            stealthOff:     "OFF (others can see the icon)",
+            // Broadcast action messages
+            actFreeMsg:     "{src} removed {items} from {who}",
+            actLockMsg:     "{src} locked {count} restraint(s) on {who} with {lock}!",
+            actUndoMsg:     "{src} rolled back {who}'s appearance to the {time} state!",
 
             helpText:
                 "Liko Tool Help\n\n" +
@@ -1033,47 +1127,47 @@
     // 所有动作定义（含 SVG 图标）
     // ════════════════════════════════════════════════════════════════════════
     const ALL_ACTIONS = [
-        { id: 'free',      icon: SVG.free,      label: '解除束缚', title: '选择性移除束缚物品（可全选）', fn: async function() {
-            const target = await requestCharacter('选择要解除束缚的目标');
+        { id: 'free',      icon: SVG.free,      label: 'actFree',      title: 'actFreeT', fn: async function() {
+            const target = await requestCharacter(t('pickFree'));
             if (target) free(getNickname(target));
         }},
-        { id: 'undo',      icon: SVG.undo,      label: '回滚',    title: '回滚外观到之前的状态', fn: async function() {
-            const target = await requestCharacter('选择要回滚外观的目标');
+        { id: 'undo',      icon: SVG.undo,      label: 'actUndo',      title: 'actUndoT', fn: async function() {
+            const target = await requestCharacter(t('pickUndo'));
             if (target) undoCommand(getNickname(target));
         }},
-        { id: 'lock',      icon: SVG.lock,      label: '上锁',    title: '为束缚添加锁', fn: async function() {
-            const target = await requestCharacter('选择要上锁的目标');
+        { id: 'lock',      icon: SVG.lock,      label: 'actLock',      title: 'actLockT', fn: async function() {
+            const target = await requestCharacter(t('pickLock'));
             if (!target) return;
             const itemMiscGroup = AssetGroupGet(Player.AssetFamily, "ItemMisc");
-            if (!itemMiscGroup) { ChatRoomSendLocal('无法获取锁类型列表'); return; }
+            if (!itemMiscGroup) { ChatRoomSendLocal(t('lockTypeFail')); return; }
             const validLocks = itemMiscGroup.Asset.filter(a => a.IsLock).map(a => ({ Name: a.Name, Description: a.Description || a.Name }));
-            if (!validLocks.length) { ChatRoomSendLocal('没有可用的锁类型'); return; }
+            if (!validLocks.length) { ChatRoomSendLocal(t('lockTypeNone')); return; }
             const lockOpts = validLocks.map(l => ({ text: l.Description }));
-            const selectedLock = await requestButtons('选择锁类型', lockOpts, false);
+            const selectedLock = await requestButtons(t('lockTypeTitle'), lockOpts, false);
             if (!selectedLock) return;
             const lock = validLocks.find(l => l.Description === selectedLock);
             if (!lock) return;
             fullLock(getNickname(target) + ' ' + lock.Name);
         }},
-        { id: 'unlock',    icon: SVG.unlock,    label: '解锁',  title: '选择要解除的锁（跳过主人/恋人/拓展锁）', fn: async function() {
-            const target = await requestCharacter('选择要解锁的目标');
+        { id: 'unlock',    icon: SVG.unlock,    label: 'actUnlock',    title: 'actUnlockT', fn: async function() {
+            const target = await requestCharacter(t('pickUnlock'));
             if (target) fullUnlock(getNickname(target));
         }},
-        { id: 'editcraft', icon: SVG.craftEdit, label: '编辑订制属性', title: '批量编辑束缚的订制属性（名称/描述/私有）', fn: async function() {
-            const target = await requestCharacter('选择要编辑属性的目标');
+        { id: 'editcraft', icon: SVG.craftEdit, label: 'actEditCraft', title: 'actEditCraftT', fn: async function() {
+            const target = await requestCharacter(t('pickEditCraft'));
             if (target) editCraftBatch(target);
         }},
-        { id: 'clearcraft',icon: SVG.craftClear,label: '清除订制属性', title: '清除对象身上所有束缚的订制属性', fn: async function() {
-            const target = await requestCharacter('选择要清除订制属性的目标');
+        { id: 'clearcraft',icon: SVG.craftClear,label: 'actClearCraft',title: 'actClearCraftT', fn: async function() {
+            const target = await requestCharacter(t('pickClearCraft'));
             if (target) clearAllCraft(target);
         }},
-        { id: 'wardrobe',  icon: SVG.wardrobe,  label: '衣柜',    title: '打开衣柜', fn: function() { wardrobe(); } },
-        { id: 'bcx',       icon: SVG.bcx,       label: 'BCX导入', title: '从剪贴板导入 BCX 外观', fn: async function() {
-            const target = await requestCharacter('选择要导入外观的目标');
+        { id: 'wardrobe',  icon: SVG.wardrobe,  label: 'actWardrobe',  title: 'actWardrobeT', fn: function() { wardrobe(); } },
+        { id: 'bcx',       icon: SVG.bcx,       label: 'actBcx',       title: 'actBcxT', fn: async function() {
+            const target = await requestCharacter(t('pickBcx'));
             if (target) bcxImport(getNickname(target));
         }},
-        { id: 'struggle',  icon: SVG.struggle,  label: '挣扎',    title: 'LSCG 挣脱指令', fn: function() { execChatCommand('/lscg escape'); } },
-        { id: 'enhance',   icon: SVG.enhance,   label: '增强',    title: '获取道具/金钱/技能', fn: function() { getEverything(); } },
+        { id: 'struggle',  icon: SVG.struggle,  label: 'actStruggle',  title: 'actStruggleT', fn: function() { execChatCommand('/lscg escape'); } },
+        { id: 'enhance',   icon: SVG.enhance,   label: 'actEnhance',   title: 'actEnhanceT', fn: function() { getEverything(); } },
     ];
 
     // ════════════════════════════════════════════════════════════════════════
@@ -1375,7 +1469,7 @@
         orderedActions.forEach(function(a) {
             var btn = document.createElement('div');
             btn.className = 'ltq-action';
-            btn.title = a.title;
+            btn.title = t(a.title);
             btn.dataset.id = a.id;
             btn.draggable = true;
 
@@ -1385,7 +1479,7 @@
 
             var labelEl = document.createElement('span');
             labelEl.className = 'ltq-label';
-            labelEl.textContent = a.label;
+            labelEl.textContent = t(a.label);
 
             var gripEl = document.createElement('span');
             gripEl.className = 'ltq-grip';
@@ -1718,7 +1812,7 @@
         return new Promise(resolve => {
             const targets = [...(ChatRoomCharacter || [])].sort((a, b) => (b.IsPlayer?.() ? 1 : 0) - (a.IsPlayer?.() ? 1 : 0));
             if (!targets.length) {
-                ChatRoomSendLocal('房间内没有玩家');
+                ChatRoomSendLocal(t('noPlayers'));
                 resolve(null);
                 return;
             }
@@ -1752,14 +1846,14 @@
                 return;
             }
             const input = document.getElementById('InputChat');
-            if (!input) { ChatRoomSendLocal('找不到聊天输入框'); return; }
+            if (!input) { ChatRoomSendLocal(t('noInputBox')); return; }
             input.value = cmd;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             const sendBtn = document.getElementById('ChatSend');
             if (sendBtn) { sendBtn.click(); return; }
             input.dispatchEvent(new KeyboardEvent('keydown', { key:'Enter', keyCode:13, bubbles:true, cancelable:true }));
             input.dispatchEvent(new KeyboardEvent('keyup', { key:'Enter', keyCode:13, bubbles:true, cancelable:true }));
-        } catch(e) { ChatRoomSendLocal('执行命令失败: ' + e.message); }
+        } catch(e) { ChatRoomSendLocal(t('execFail') + ': ' + e.message); }
     }
 
     // ─────────────────────────────────────────
@@ -1908,7 +2002,7 @@
             });
             const sizeKb = (Math.abs(JSON.stringify(oldBundle).length - JSON.stringify(entry.bundle).length) / 1024).toFixed(1);
             ChatRoomSendLocal(getNickname(target) + " " + t('undoApplyDone') + "（" + t('undoApplySize') + ": " + sizeKb + "kB）");
-            chatSendCustomAction(getNickname(Player) + " 将 " + getNickname(target) + " 的外观回滚到 " + new Date(entry.timestamp).toLocaleTimeString() + " 的状态！");
+            chatSendCustomAction(t('actUndoMsg', { src: getNickname(Player), who: getNickname(target), time: new Date(entry.timestamp).toLocaleTimeString() }));
             undoHistory[id].splice(currentIndex + 1);
             panel.remove();
         };
@@ -1975,7 +2069,7 @@
                 (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
                 if (getES().rpBtnVisible === 1) {
                     DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, '',
-                        getRpMode(Player) ? "Orange" : "Gray", "", "RP模式切換");
+                        getRpMode(Player) ? "Orange" : "Gray", "", t('rpBtnTip'));
                     drawCanvasIconOnButton('rp', rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, 24);
                 }
             }
@@ -2082,7 +2176,7 @@
                 const item = InventoryGet(target, group.Name);
                 if (item) {
                     if (isHeartLock(item)) continue; // AFC 心锁：跳过，不列入可解除清单
-                    const lock     = item.Property?.LockedBy ? "[锁] " + item.Property.LockedBy : "";
+                    const lock     = item.Property?.LockedBy ? t('lockPrefix') + " " + item.Property.LockedBy : "";
                     const password = item.Property?.Password || item.Property?.CombinationNumber || "";
                     const itemName = item.Craft?.Name || item.Asset?.Description || item.Asset?.Name || t('unknown');
                     restraints.push({
@@ -2101,7 +2195,7 @@
                 if (group) InventoryRemove(target, group);
             });
             ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(getNickname(Player) + " " + t('freeDone') + " " + getNickname(target) + " 的 " + selected.join("、"));
+            chatSendCustomAction(t('actFreeMsg', { src: getNickname(Player), who: getNickname(target), items: selected.join(isZh() ? "、" : ", ") }));
         } catch (e) { console.error("🐈‍⬛ [LT] ❌ free 错误:", e.message); }
         return true;
     }
@@ -2306,7 +2400,7 @@
                     setRpMode(false);
                     setRpMode(true);
                 }
-                ChatRoomSendLocal('[LT] RP 隐身: ' + (s.stealthRp === 1 ? 'ON (别人看不到图标)' : 'OFF (别人能看到图标)'));
+                ChatRoomSendLocal(t('stealthLabel') + ': ' + (s.stealthRp === 1 ? t('stealthOn') : t('stealthOff')));
             }, HOLD_MS);
         });
         document.addEventListener('keyup', function(e) {
@@ -2418,7 +2512,7 @@
             }
             if (!count) { ChatRoomSendLocal(getNickname(target) + " " + t('lockNone') + "！"); return true; }
             ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(getNickname(Player) + " 为 " + getNickname(target) + " 的 " + count + " " + t('lockDone') + " " + lock.Description + "！");
+            chatSendCustomAction(t('actLockMsg', { src: getNickname(Player), who: getNickname(target), count: count, lock: lock.Description }));
         } catch (e) { console.error("🐈‍⬛ [LT] ❌ fullLock 错误:", e.message); }
         return true;
     }
