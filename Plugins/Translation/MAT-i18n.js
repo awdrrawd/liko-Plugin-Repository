@@ -584,6 +584,10 @@
             TW: "語言為中文時跳過簡繁翻譯", CN: "语言为中文时跳过简繁翻译", EN: "Skip zh↔zh when lang is Chinese",
             DE: "Zh↔Zh überspringen, wenn Sprache Chinesisch", FR: "Ignorer zh↔zh si langue chinoise", RU: "Пропускать кит.↔кит. при кит. языке", UA: "Пропускати кит.↔кит. за кит. мови"
         },
+        'optHideOrig': {
+            TW: "隱藏原句、僅譯文（Chat/私聊）", CN: "隐藏原句、仅译文（Chat/私聊）", EN: "Hide original, translation only (Chat/Whisper)",
+            DE: "Original ausblenden, nur Übersetzung (Chat/Flüstern)", FR: "Masquer l'original, traduction seule (Chat/Chuchotement)", RU: "Скрыть оригинал, только перевод (Chat/шёпот)", UA: "Сховати оригінал, лише переклад (Chat/шепіт)"
+        },
 
         // ── 其他設定：標籤 ─────────────────────────────────────────────────
         'optLoginNotice': { TW: "登入通知訊息", CN: "登录通知消息", EN: "Login notice", DE: "Login-Hinweis", FR: "Avis de connexion", RU: "Уведомление при входе", UA: "Сповіщення при вході" },
@@ -643,6 +647,8 @@
         'dBeep':     { TW: "翻譯私信（Beep）。", CN: "翻译私信（Beep）。", EN: "Translate beep messages." },
         'dLocal':    { TW: "翻譯系統／本機（Local）訊息，例如系統提示。預設關閉。", CN: "翻译系统／本机（Local）消息，例如系统提示。默认关闭。", EN: "Translate system/local messages (e.g. system notices). Off by default." },
         'dSkipZh':   { TW: "當你的語言設為繁/簡體，且對象內容已是中文（含日、韓例外）時跳過翻譯，避免中翻中。", CN: "当你的语言设为繁/简体，且对象内容已是中文（日、韩例外）时跳过翻译，避免中翻中。", EN: "When your language is Traditional/Simplified Chinese and the text is already Chinese (Japanese/Korean excepted), skip the pointless zh→zh translation." },
+        'dHideOrigSend': { TW: "發送聊天/私聊時不送原句，只送出翻譯結果（仍帶 [🌐] 供對方判斷）；翻譯失敗才補送原文。因翻譯需等待，自己的訊息會略慢幾百毫秒出現。", CN: "发送聊天/私聊时不送原句，只送出翻译结果（仍带 [🌐] 供对方判断）；翻译失败才补送原文。因翻译需等待，自己的消息会略慢几百毫秒出现。", EN: "For Chat/Whisper, don't send the original — send only the translation (still tagged [🌐]); fall back to the original only if translation fails. Your message appears a few hundred ms later due to the async translation." },
+        'dHideOrigRecv': { TW: "接收聊天/私聊並翻譯成功後，隱藏原句、只留譯文。翻譯失敗或簡繁跳過時原句保留。", CN: "接收聊天/私聊并翻译成功后，隐藏原句、只留译文。翻译失败或简繁跳过时原句保留。", EN: "After a Chat/Whisper is received and translated, hide the original and keep only the translation. The original stays if translation fails or is zh-skipped." },
         'dLoginNotice':  { TW: "登入時在聊天室顯示 MAT 初始化通知。", CN: "登录时在聊天室显示 MAT 初始化通知。", EN: "Show the MAT init notice in chat on login." },
         'dManual':       { TW: "點選一則訊息時，出現手動翻譯的小工具列。", CN: "点选一则消息时，出现手动翻译的小工具栏。", EN: "Show a small manual-translate toolbar when you click a message." },
         'dSelection':    { TW: "選取任意文字後，出現翻譯氣泡（總開關關閉時仍可用）。", CN: "选取任意文字后，出现翻译气泡（总开关关闭时仍可用）。", EN: "Show a translate bubble after selecting text (works even when MAT is off)." },

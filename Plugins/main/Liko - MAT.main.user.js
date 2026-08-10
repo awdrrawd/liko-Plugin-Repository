@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.3
+// @version      1.6.4
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.3";
+    const MOD_VER = "1.6.4";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -65,6 +65,7 @@
             sendWhisper: true,
             sendBeep: true,
             sendSkipZhVariant: true,   // 發送語言為中文時，內容已是中文則跳過翻譯
+            sendHideOriginal: false,   // 隱藏原句、僅送出譯文（Chat/Whisper；翻譯失敗才補送原文）
             // ── 接收分類（動作/互動/悄悄話/私信/系統 Local）──
             recvEmote: true,
             recvAction: true,
@@ -72,6 +73,7 @@
             recvBeep: true,
             recvLocal: false,
             recvSkipZhVariant: true,   // 接收語言為中文時，收到內容為中文則跳過翻譯
+            recvHideOriginal: false,   // 隱藏原句、僅顯示譯文（Chat/Whisper；翻譯成功才隱藏）
             // ── 其他 ──
             loginNotice: true,
             translateChat: true,       // 手動翻譯（點選訊息出現翻譯按鈕）
@@ -614,7 +616,14 @@
         // 對方已標記要翻成我的語言（mat-skip）：先等其 [🌐] 廣播，最多 1 秒；沒到（對方翻譯失敗）才自翻
         if (node.classList.contains('mat-skip') && await waitForRemoteTranslation(node)) return;
         const translated = await smartTranslate(message, config.recvLang);
-        if (translated !== null && translated !== message) createTranslatedDiv(node, translated);
+        if (translated !== null && translated !== message) {
+            createTranslatedDiv(node, translated);
+            // 隱藏原句、僅留譯文：只在確實產生譯文後、且為 Chat/Whisper 時隱藏（失敗/簡繁跳過不隱藏，免訊息消失）
+            if (config.recvHideOriginal &&
+                (node.classList.contains('ChatMessageChat') || node.classList.contains('ChatMessageWhisper'))) {
+                node.style.display = 'none';
+            }
+        }
     }
 
     function extractCleanMessage(node) {
@@ -1020,7 +1029,13 @@
         if (!modApi) return;
         const safeStr = (v) => typeof v === 'string' ? v : null;
 
+        // 隱藏原句模式：翻譯失敗時要補送原文，但直接 ServerSend(原data) 會重入本 hook 再翻一次而死循環。
+        // 用同步旗標放行這一次補送（ServerSend→hook 是同步的，補送完立即歸位）。
+        let matBypass = false;
+        const sendRaw = (args) => { matBypass = true; try { ServerSend(...args); } finally { matBypass = false; } };
+
         modApi.hookFunction("ServerSend", 10, (args, next) => {
+            if (matBypass) return next(args);
             const [command, data] = args;
             if (!config.enabled || !config.translateSent) return next(args);
 
@@ -1039,13 +1054,14 @@
                 const t = safeStr(data.Content);
                 if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
                     const replyId = getReplyIdFromDictionary(data.Dictionary);
-                    next(args);
+                    const hide = config.sendHideOriginal;
+                    if (!hide) next(args);   // 隱藏原句：先不送原文，等譯文；失敗才補送
                     smartTranslate(t, config.sendLang).then(r => {
-                        if (r === null || r === t) return;
+                        if (r === null || r === t) { if (hide) sendRaw(args); return; }
                         const payload = { Content: `[🌐] ${r}`, Type: "Chat" };
                         if (replyId) payload.Dictionary = [{ ReplyId: replyId, Tag: "ReplyId" }];
                         ServerSend("ChatRoomChat", payload);
-                    });
+                    }).catch(() => { if (hide) sendRaw(args); });
                     return;
                 }
             }
@@ -1066,13 +1082,14 @@
                 const t = safeStr(data.Content);
                 if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
                     const replyId = getReplyIdFromDictionary(data.Dictionary);
-                    next(args);
+                    const hide = config.sendHideOriginal;
+                    if (!hide) next(args);   // 隱藏原句：先不送原文，等譯文；失敗才補送
                     smartTranslate(t, config.sendLang).then(r => {
-                        if (r === null || r === t) return;
+                        if (r === null || r === t) { if (hide) sendRaw(args); return; }
                         const payload = { Content: `[🌐] ${r}`, Type: "Whisper", Target: data.Target, Sender: data.Sender };
                         if (replyId) payload.Dictionary = [{ ReplyId: replyId, Tag: "ReplyId" }];
                         ServerSend("ChatRoomChat", payload);
-                    });
+                    }).catch(() => { if (hide) sendRaw(args); });
                     return;
                 }
             }
@@ -1412,6 +1429,7 @@
             this._cb(y, ui('optWhisper'), config.sendWhisper,      ui('dWhisper'), () => { config.sendWhisper = !config.sendWhisper; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optBeep'),    config.sendBeep,         ui('dBeep'),    () => { config.sendBeep = !config.sendBeep; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optSkipZh'),  config.sendSkipZhVariant, ui('dSkipZh'), () => { config.sendSkipZhVariant = !config.sendSkipZhVariant; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optHideOrig'), config.sendHideOriginal, ui('dHideOrigSend'), () => { config.sendHideOriginal = !config.sendHideOriginal; saveSettings(); }, dis); y += H;
         },
 
         _runRecv() {
@@ -1424,6 +1442,7 @@
             this._cb(y, ui('optBeep'),    config.recvBeep,         ui('dBeep'),    () => { config.recvBeep = !config.recvBeep; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optLocal'),   config.recvLocal,        ui('dLocal'),   () => { config.recvLocal = !config.recvLocal; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optSkipZh'),  config.recvSkipZhVariant, ui('dSkipZh'), () => { config.recvSkipZhVariant = !config.recvSkipZhVariant; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optHideOrig'), config.recvHideOriginal, ui('dHideOrigRecv'), () => { config.recvHideOriginal = !config.recvHideOriginal; saveSettings(); }, dis); y += H;
         },
 
         _runOther() {
