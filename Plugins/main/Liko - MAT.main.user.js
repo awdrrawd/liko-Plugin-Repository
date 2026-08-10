@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.5
+// @version      1.6.6
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.5";
+    const MOD_VER = "1.6.6";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -439,6 +439,14 @@
     function skipZhSend(text) { return config.sendSkipZhVariant && /^zh/i.test(config.sendLang) && isChineseText(text); }
     function skipZhRecv(text) { return config.recvSkipZhVariant && /^zh/i.test(config.recvLang) && isChineseText(text); }
 
+    // 對方廣播的譯文語言 a 是否「我 (b) 讀得懂」→ 讀得懂就別重翻，直接用對方廣播。
+    // 完全相同或同屬中文變體（繁/簡互通）都算可讀，避免 zh-TW/zh-CN 不同就各自對同句再打一次 API。
+    function langReadable(a, b) {
+        if (!a || !b) return false;
+        if (a === b) return true;
+        return /^zh/i.test(a) && /^zh/i.test(b);
+    }
+
     // 自動翻譯的統一跳過判斷：送出端據此決定要不要夾旗標、接收端據此跳過——兩邊必須一致，
     // 否則「不該翻的句子」被夾了旗標，接收端會空等 1 秒造成爆量塞車。
     function isUntranslatable(text) {
@@ -563,6 +571,22 @@
         return false;
     }
 
+    // 找一則翻譯廣播「對應的原句節點」（同發送者、排在它前面、非廣播/非譯文）。
+    // 用來判斷這則廣播是不是多餘：原句本身已是中文（我讀得懂）才算多餘。
+    function findOriginalNode(broadcastNode) {
+        let sib = broadcastNode.previousElementSibling, hops = 0;
+        while (sib && hops < 8) {
+            if (sib.classList?.contains('ChatMessage') &&
+                !sib.classList.contains('mat-broadcast') &&
+                !sib.classList.contains('mat-translated') &&
+                !sib.classList.contains('mat-manual-translated') &&
+                sib.dataset?.sender === broadcastNode.dataset?.sender &&
+                !sib.textContent.includes('[🌐]')) return sib;
+            sib = sib.previousElementSibling; hops++;
+        }
+        return null;
+    }
+
     // 跳過自翻後，最多等 timeout 毫秒讓對方的 [🌐] 廣播到達；到了回 true（不需自翻）
     async function waitForRemoteTranslation(node, timeout = 1000, step = 150) {
         const start = Date.now();
@@ -661,6 +685,26 @@
 
     function isUserMessage(text) {
         return !['enablelianchat', 'reqroom'].includes(text.toLowerCase());
+    }
+
+    // 隱藏原句模式殘留清理：BC 送悄悄話時會本地回顯原句（ChatRoomSendWhisper 內的 ChatRoomMessage(data)），
+    // 我們攔下真正送出、只送譯文，但那則本地回顯仍留在自己畫面上（灰色待送氣泡）。譯文送出成功後把它藏掉。
+    // 依「自己發送 + 文字相符 + 非 [🌐]」在日誌尾端比對；一般聊天 BC 不本地回顯、找不到即無動作。
+    // ponytail: 純文字比對；被堵嘴時回顯為亂碼，故同時比對亂碼版(t)與原文版(src)，仍可能漏刪 → 已知天花板。
+    function hideOwnOriginalEcho(texts) {
+        const log = document.querySelector('#TextAreaChatLog');
+        if (!log) return;
+        const kids = log.children;
+        for (let i = kids.length - 1, hops = 0; i >= 0 && hops < 8; i--, hops++) {
+            const n = kids[i];
+            if (!(n instanceof HTMLElement) || !n.classList.contains('ChatMessage')) continue;
+            if (n.classList.contains('mat-translated') || n.classList.contains('mat-broadcast') ||
+                n.textContent.includes('[🌐]')) continue;
+            const senderEl = n.querySelector('.chat-room-sender');
+            if (!senderEl || senderEl.textContent != Player?.MemberNumber) continue;  // 只清自己那則回顯
+            const msg = extractCleanMessage(n);
+            if (msg && texts.some(x => x && msg === x)) { n.style.display = 'none'; return; }
+        }
     }
 
     function createTranslatedDiv(originalNode, translatedText) {
@@ -1083,6 +1127,7 @@
                         const payload = { Content: `[🌐] ${r}`, Type: "Chat" };
                         if (replyId) payload.Dictionary = [{ ReplyId: replyId, Tag: "ReplyId" }];
                         ServerSend("ChatRoomChat", payload);
+                        if (hide) hideOwnOriginalEcho([t, src]);
                     }).catch(() => { if (hide) sendRaw(args); });
                     return;
                 }
@@ -1098,6 +1143,7 @@
                             Type: "Action", Content: "CUSTOM_SYSTEM_ACTION",
                             Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: `[🌐] ${r}` }]
                         });
+                        if (hide) hideOwnOriginalEcho([t]);
                     }).catch(() => { if (hide) sendRaw(args); });
                     return;
                 }
@@ -1114,6 +1160,7 @@
                         const payload = { Content: `[🌐] ${r}`, Type: "Whisper", Target: data.Target, Sender: data.Sender };
                         if (replyId) payload.Dictionary = [{ ReplyId: replyId, Tag: "ReplyId" }];
                         ServerSend("ChatRoomChat", payload);
+                        if (hide) hideOwnOriginalEcho([t, src]);
                     }).catch(() => { if (hide) sendRaw(args); });
                     return;
                 }
@@ -1148,6 +1195,7 @@
                     if (r === null || r === t) { if (hide) sendOrig(); return; }
                     if (replyId) document.getElementById('InputChat')?.setAttribute('reply-id', replyId);
                     ChatRoomSendEmote(`[🌐] ${r}`);
+                    if (hide) hideOwnOriginalEcho([t]);
                 }).catch(() => { if (hide) sendOrig(); });
                 return;
             }
@@ -1172,12 +1220,16 @@
                 if (flag.tr) {
                     // 這是「翻譯廣播本身」：標記 mat-broadcast，讓 observer 不再翻它（不靠會被亂碼吃掉的 [🌐]）。
                     node.classList.add('mat-broadcast');
-                    // 中文變體廣播、我又開了簡繁跳過 → 純憑屬性隱藏，免與原文並列成兩筆。
+                    // 中文變體廣播、我又開了簡繁跳過：只有當「原句本身也是中文（我讀得懂）」時，這則
+                    // 譯文才算多餘 → 隱藏，免與原文並列成兩筆。原句非中文（我正靠這則廣播閱讀）或原句
+                    // 已被發送端隱藏（找不到）→ 保留，否則整句會變成沒有譯文。
                     if (flag.lang && /^zh/i.test(flag.lang) && config.recvSkipZhVariant && /^zh/i.test(config.recvLang)) {
-                        node.style.display = 'none';
+                        const orig = findOriginalNode(node);
+                        if (orig && isChineseText(extractCleanMessage(orig))) node.style.display = 'none';
                     }
-                } else if (flag.lang === config.recvLang) {
-                    // 這是「原句意圖旗標」：對方會翻成我的語言 → 標 mat-skip，跳過自翻、等對方廣播。
+                } else if (langReadable(flag.lang, config.recvLang)) {
+                    // 這是「原句意圖旗標」：對方會翻成我讀得懂的語言（含繁簡互通）→ 標 mat-skip，
+                    // 跳過自翻、直接等對方廣播，避免對同一句重打一次 API。
                     node.classList.add('mat-skip');
                 }
             } catch (e) {
@@ -1403,8 +1455,8 @@
             if (desc && MouseIn(CBX, y, HK_KEY_X - CBX - 10, CB_SZ)) this.hoverDesc = desc;
         },
 
-        _tabLabels() { return [ui('tab_basic'), ui('tab_send'), ui('tab_recv'), ui('tab_other')]; },
-        _tabDesc()   { return [ui('descBasic'), ui('descSend'), ui('descRecv'), ui('descOther')][this.tab - 1]; },
+        _tabLabels() { return [ui('tab_basic'), ui('tab_recv'), ui('tab_send'), ui('tab_other')]; },
+        _tabDesc()   { return [ui('descBasic'), ui('descRecv'), ui('descSend'), ui('descOther')][this.tab - 1]; },
 
         run() {
             this.hoverDesc = '';
@@ -1437,7 +1489,7 @@
             DrawEmptyRect(HELP_X, HELP_Y, HELP_W, HELP_H, "#888");
 
             // 中間內容
-            [this._runBasic, this._runSend, this._runRecv, this._runOther][this.tab - 1].call(this);
+            [this._runBasic, this._runRecv, this._runSend, this._runOther][this.tab - 1].call(this);
 
             // 說明文字（hover 優先，否則顯示分頁常駐說明）
             const desc = this.hoverDesc || this._tabDesc();
