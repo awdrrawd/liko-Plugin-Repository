@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.2
+// @version      1.6.3
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.2";
+    const MOD_VER = "1.6.3";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -1024,12 +1024,15 @@
             const [command, data] = args;
             if (!config.enabled || !config.translateSent) return next(args);
 
-            // 夾意圖旗標到原句：只夾「該分類開啟、會被翻譯廣播、非跳過」的句子；
-            // 顏文字/編碼/[🌐]/關閉的分類不夾，免接收端空等 1 秒。
+            // 夾語言旗標（config.sendLang）到 Dictionary：
+            //  - 原句：夾「我會翻成 X 並廣播」意圖旗標，接收端據此跳過重複翻譯（顏文字/編碼/[🌐]/
+            //    關閉的分類不夾，免接收端空等 1 秒）。
+            //  - 廣播出去的 [🌐] 翻譯本身：也夾旗標標明其語言，接收端可純憑屬性判斷（中文變體就隱藏）。
             if (command === "ChatRoomChat" && MAT_FLAG_TYPES.includes(data.Type)) {
                 const typeOn = { Chat: true, Emote: config.sendEmote, Whisper: config.sendWhisper, Action: config.sendAction };
                 const ot = data.Type === "Action" ? safeStr(data.Dictionary?.[0]?.Text) : safeStr(data.Content);
-                if (ot && typeOn[data.Type] && !isUntranslatable(ot) && !skipZhSend(ot)) addMATFlag(data);
+                const isBroadcast = ot ? ot.includes('[🌐]') : false;
+                if (ot && typeOn[data.Type] && (isBroadcast || (!isUntranslatable(ot) && !skipZhSend(ot)))) addMATFlag(data);
             }
 
             if (command === "ChatRoomChat" && data.Type === "Chat") {
@@ -1117,8 +1120,15 @@
                 if (!data || typeof data !== 'object') return result;
                 if (data.Sender === Player?.MemberNumber) return result;
                 const lang = readMATFlag(data);
-                if (lang && lang === config.recvLang) {
-                    findFlaggedNode(data)?.classList.add('mat-skip');
+                if (!lang) return result;
+                const node = findFlaggedNode(data);
+                // 對方廣播的翻譯（含 [🌐]）夾了語言旗標：若標的是中文變體、我又開了簡繁跳過 →
+                // 直接隱藏，免與原文並列成兩筆（純憑屬性判斷，不必猜內容是不是中文）。
+                if (node && /^zh/i.test(lang) && config.recvSkipZhVariant && /^zh/i.test(config.recvLang)
+                    && node.textContent.includes('[🌐]')) {
+                    node.style.display = 'none';
+                } else if (lang === config.recvLang) {
+                    node?.classList.add('mat-skip');
                 }
             } catch (e) {
                 console.warn('🐈‍⬛ [MAT] ❌ recv flag hook:', e);
