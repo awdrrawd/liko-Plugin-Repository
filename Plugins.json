@@ -169,7 +169,7 @@
       "en_additionalInfo": "",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MAT.main.user.js",
       "priority": 4,
-      "version": "1.6.1"
+      "version": "1.6.7"
     },
     {
       "id": "Liko-Tool",
@@ -182,7 +182,7 @@
       "en_additionalInfo": "For detailed usage instructions, please enter /LT or /LT help.",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Tool.main.user.js",
       "priority": 5,
-      "version": "2.1.0"
+      "version": "2.1.1"
     },
     {
       "id": "Liko-ACV",
@@ -431,6 +431,19 @@
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Release%20Maid.main.user.js",
       "priority": 10,
       "version": "1.2"
+    },
+    {
+      "id": "Liko-CUS",
+      "name": "聊天室左右介面交換",
+      "icon": "📱",
+      "en_name": "Chatroom UI Swap",
+      "description": "聊天室左右介面交換：左側聊天訊息、右側人物。手動開關。",
+      "en_description": "Chatroom UI Swap: chat log on the left, characters on the right.",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko-CUL.main.user.js",
+      "priority": 9,
+      "version": "0.1"
     },
     {
       "id": "ECHO-Cloth",
