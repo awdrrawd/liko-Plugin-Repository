@@ -234,7 +234,7 @@
         }
       ],
       "priority": 4,
-      "version": "1.6.1"
+      "version": "1.6.7"
     },
     {
       "id": "Liko-Tool",
@@ -262,7 +262,7 @@
         }
       ],
       "priority": 5,
-      "version": "2.1.0"
+      "version": "2.1.1"
     },
     {
       "id": "Liko-ACV",
@@ -757,6 +757,30 @@
       ],
       "priority": 10,
       "version": "1.2"
+    },
+    {
+      "id": "Liko-CUS",
+      "iemoji": "📱",
+      "name": {
+        "cn": "聊天室左右介面交換",
+        "en": "Chatroom UI Swap"
+      },
+      "description": {
+        "cn": "聊天室左右介面交換：左側聊天訊息、右側人物。手動開關。",
+        "en": "Chatroom UI Swap: chat log on the left, characters on the right."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": ["ui", "mobile"],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko-CUL.main.user.js"
+        }
+      ],
+      "priority": 9,
+      "version": "0.1"
     }
   ]
 }
