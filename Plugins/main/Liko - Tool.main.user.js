@@ -886,11 +886,11 @@
         if (getFreeHandsShared(C)) keys.push('free');
         if (!keys.length) return;
         const baseY = (C.IsKneeling && C.IsKneeling()) ? 300 : 40; // 固定锚点：跪姿往下移
-        const x = CharX + 370 * Zoom;
+        const x = CharX +35+340 * Zoom;
         const size = 45 * Zoom;
         const step = 55 * Zoom;
         keys.forEach((key, i) => {
-            const y = CharY + baseY * Zoom + i * step;
+            const y = CharY +45+ baseY * Zoom + i * step;
             if (key === 'rp') DrawImageResize(rpIconUrl, x, y, size, 50 * Zoom); // RP 沿用原本 PNG 徽章
             else drawBadgeDisc(key, x, y, size);
         });
