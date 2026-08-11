@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.1.0
+// @version      2.1.1
 // @description  Bondage Club - Likolisu's tool (R121 Compatible) + UI Panel + 角色选择器 + Canvas SVG图标 + 拖拽排序 + 主题自定义 + 无视绑缚 + 无视衣物阻挡 + 勿扰模式 + 说话总是OOC
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -23,7 +23,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_Version = "2.1.0";
+    const MOD_Version = "2.1.1";
     if (window.Liko.LT) return;
     window.Liko.LT = MOD_Version;
     let modApi = null;
@@ -886,7 +886,7 @@
         if (getFreeHandsShared(C)) keys.push('free');
         if (!keys.length) return;
         const baseY = (C.IsKneeling && C.IsKneeling()) ? 300 : 40; // 固定锚点：跪姿往下移
-        const x = CharX + 340 * Zoom;
+        const x = CharX + 370 * Zoom;
         const size = 45 * Zoom;
         const step = 55 * Zoom;
         keys.forEach((key, i) => {
