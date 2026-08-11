@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.6
+// @version      1.6.7
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.6";
+    const MOD_VER = "1.6.7";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -396,9 +396,12 @@
         return e ? e.ReplyId : null;
     }
 
+    // 開頭是網址就跳過翻譯（含被半形/全形括號、引號、星號包住的情形，如「（url）」「*url*」）。
+    // 只看「開頭」：網址在前、後面接文字 → 仍算網址訊息，跳過；文字在前、後面才有網址 → 不算，照常翻譯
+    // （網址那段 Google 本就原樣帶過）。玩家要分開翻就自己拆兩則說。
     function isPureUrl(text) {
         if (!text) return false;
-        const trimmed = text.trim().replace(/^[\s\(\[\*]+|[\s\)\]\*]+$/g, '').trim();
+        const trimmed = text.trim().replace(/^[\s()\[\]*<>"'“”‘’（）【】「」『』〈〉《》]+/u, '');
         return /^https?:\/\//i.test(trimmed);
     }
 
