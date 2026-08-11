@@ -63,6 +63,20 @@
   ],
   "plugins": [
     {
+      "id": "HT-QI",
+      "name": "BC 快捷互动插件",
+      "icon": "⚡",
+      "en_name": "BC quick-interaction",
+      "description": "快捷互动插件，提供部位直选、批量执行、动作收藏、连招编排、ECHO動作匯出、自訂動作",
+      "en_description": "quick-interaction plugins offer features such as direct selection of body parts, batch execution, action collection, combo choreography, ECHO action export, and custom actions.",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "url": "https://bondage-studio.github.io/QuickInteraction/assets/main.js",
+      "website": "https://github.com/bondage-studio/QuickInteraction",
+      "priority": 2,
+      "type": "mod"
+    },
+    {
       "id": "Liko-LCE",
       "name": "Liko的俱樂部擴充(測試)",
       "icon": "✨",
