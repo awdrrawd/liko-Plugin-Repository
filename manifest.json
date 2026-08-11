@@ -385,30 +385,6 @@
       "version": "1.0.2"
     },
     {
-      "id": "Liko-PAT_All",
-      "iemoji": "👏",
-      "name": {
-        "cn": "Liko的對大家互動",
-        "en": "Liko's PAT All"
-      },
-      "description": {
-        "cn": "一個對房間內所有人執行互動的緊湊按鈕",
-        "en": "A compact button to perform activity on everyone in room."
-      },
-      "author": "莉柯莉絲(Likolisu)",
-      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
-      "tags": ["chat", "social"],
-      "type": "eval",
-      "versions": [
-        {
-          "distribution": "stable",
-          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20PAT%20All.main.user.js"
-        }
-      ],
-      "priority": 10,
-      "pcmskip": true
-    },
-    {
       "id": "Liko-Prank",
       "iemoji": "🪄",
       "name": {
