@@ -28,6 +28,30 @@
       "pcmskip": true
     },
     {
+      "id": "HT-QI",
+      "iemoji": "⚡",
+      "name": {
+        "cn": "BC 快捷互动插件",
+        "en": "BC quick-interaction"
+      },
+      "description": {
+        "cn": "快捷互动插件，提供部位直选、批量执行、动作收藏、连招编排、ECHO動作匯出、自訂動作",
+        "en": "quick-interaction plugins offer features such as direct selection of body parts, batch execution, action collection, combo choreography, ECHO action export, and custom actions."
+      },
+      "author": "Tao MUSE",
+      "repository": "https://github.com/bondage-studio/QuickInteraction",
+      "website": "https://github.com/bondage-studio/QuickInteraction",
+      "tags": ["chat", "Interaction"],
+      "type": "module",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://bondage-studio.github.io/QuickInteraction/assets/main.js"
+        }
+      ],
+      "priority": 2
+    },
+    {
       "id": "Liko-LCE",
       "iemoji": "✨",
       "name": {
