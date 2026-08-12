@@ -154,6 +154,19 @@
             }, 200);
         });
     }
+    function waitForLogin() {
+        if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(resolve => {
+            const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (window.Player?.MemberNumber === undefined) return;
+                    remove(); resolve();
+                });
+                return result;
+            });
+        });
+    }
 
     initSDK().then(sdk => {
         if (!sdk) return;
@@ -168,7 +181,7 @@
             console.error("🐈‍⬛ [MAT] ❌ failed to load:", e);
             return;
         }
-        waitForGame();
+        waitForLogin().then(waitForGame);
     });
 
     // ============================================================
@@ -2081,7 +2094,6 @@
 
     function waitForGame() {
         const gameReady =
-              typeof Player?.MemberNumber === "number" &&
               typeof CommandCombine === "function" &&
               typeof TranslationLanguage !== "undefined" &&
               typeof PreferenceRegisterExtensionSetting === "function";

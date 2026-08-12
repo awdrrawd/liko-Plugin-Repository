@@ -644,6 +644,19 @@
             check();
         });
     }
+    function waitForLogin() {
+        if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(resolve => {
+            const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (window.Player?.MemberNumber === undefined) return;
+                    remove(); resolve();
+                });
+                return result;
+            });
+        });
+    }
 
     // ──────────────────────────────────────────
     // 初始化 modApi
@@ -655,7 +668,7 @@
                 name: "Liko - tool",
                 fullName: "Liko's tool",
                 version: MOD_Version,
-                repository: '莉柯莉絲的工具包'
+                repository: 'https://github.com/awdrrawd/liko-Plugin-Repository'
             });
             console.log("🐈‍⬛ [LT] ✅ modApi 初始化完成");
         } catch (e) {
@@ -2804,7 +2817,7 @@
         catch (e) { console.warn("🐈‍⬛ [LT] ❌ Toast system 载入失敗，備用模式運行:", e.message); }
 
         console.log("🐈‍⬛ [LT] ⌛ 等待玩家登入...");
-        await waitFor(() => { try { return typeof Player?.MemberNumber === "number"; } catch { return false; } });
+        await waitForLogin();
 
         initializeStorage();
         applyFreeHands();

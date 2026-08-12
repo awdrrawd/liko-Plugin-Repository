@@ -1167,6 +1167,19 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             }
         });
     }
+    function waitForLogin() {
+        if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(resolve => {
+            const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (window.Player?.MemberNumber === undefined) return;
+                    remove(); resolve();
+                });
+                return result;
+            });
+        });
+    }
 
     function cleanup() {
         console.log("🐈‍⬛ [CPB] ⌛ 開始資源清理...");
@@ -1237,6 +1250,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 console.error("🐈‍⬛ [CPB] ❌ modApi 初始化失敗，無法繼續");
                 return;
             }
+            await waitForLogin();
 
             const gameLoaded = await waitForGame();
             if (!gameLoaded) {
@@ -1297,7 +1311,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             startInterfaceMonitoring();
 
             isInitialized = true;
-            console.log(`🐈‍⬛ [CPB] ✅ v${MOD_VER} loaded`;
+            console.log(`🐈‍⬛ [CPB] ✅ v${MOD_VER} loaded`);
         } catch (e) {
             console.error("🐈‍⬛ [CPB] ❌初始化失敗:", e.message);
             cleanup();

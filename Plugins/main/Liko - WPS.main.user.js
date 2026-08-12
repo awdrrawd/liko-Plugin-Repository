@@ -272,6 +272,21 @@
         repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
     });
 
+    async function initialize() {
+        if (typeof Player === "undefined" || Player?.MemberNumber === undefined) {
+            await new Promise(resolve => {
+                const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+                    const result = next(args);
+                    queueMicrotask(() => {
+                        if (typeof Player === "undefined" || Player?.MemberNumber === undefined) return;
+                        remove();
+                        resolve();
+                    });
+                    return result;
+                });
+            });
+        }
+
     modApi.hookFunction("ChatRoomMessage", 0, (args, next) => {
         const data = args[0];
         if (data?.Type === "Hidden" && handleShareMessage(data)) return;
@@ -289,4 +304,6 @@
         enhanceProfilesUI();
     }, 500);
     log(`🐈‍⬛ [WPS] ✅ v${MOD_VER} loaded`);
+    }
+    initialize();
 })();

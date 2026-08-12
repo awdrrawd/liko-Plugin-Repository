@@ -289,6 +289,19 @@
             check();
         });
     }
+    function waitForLogin() {
+        if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(resolve => {
+            const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (window.Player?.MemberNumber === undefined) return;
+                    remove(); resolve();
+                });
+                return result;
+            });
+        });
+    }
 
     // === 主初始化函數 ===
     async function initialize() {
@@ -297,6 +310,7 @@
         try {
             // 初始化 modApi
             modApi = await initializeModApi();
+            await waitForLogin();
 
             // 等待遊戲載入
             const gameLoaded = await waitForGame();

@@ -368,16 +368,28 @@
         }
     });
 
-    // 創建浮動按鈕
-    BCUIDebugger.createFloatingButton();
-
-    // 初始化 hook 系統
-    BCUIDebugger.initializeHooks();
-
     console.log(`🐈‍⬛ [CDT] ✅ v${MOD_VER} loaded`);
-    console.log("使用說明:"+
-    "\n• 點擊右上角 🖌️ 按鈕開關調試模式"+
-    "\n• BCUIDebugger.toggle() - 開關調試模式"+
-    "\n• BCUIDebugger.addElement('按鈕1', 100, 200, 120, 40) - 手動標記元素"+
-    "\n• BCUIDebugger.clear() - 清除所有標記");
+    async function initialize() {
+        if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) {
+            await new Promise(resolve => {
+                const remove = modApi.hookFunction('LoginResponse', 0, (args, next) => {
+                    const result = next(args);
+                    queueMicrotask(() => {
+                        if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) return;
+                        remove();
+                        resolve();
+                    });
+                    return result;
+                });
+            });
+        }
+        BCUIDebugger.createFloatingButton();
+        BCUIDebugger.initializeHooks();
+        console.log("使用說明:"+
+        "\n• 點擊右上角 🖌️ 按鈕開關調試模式"+
+        "\n• BCUIDebugger.toggle() - 開關調試模式"+
+        "\n• BCUIDebugger.addElement('按鈕1', 100, 200, 120, 40) - 手動標記元素"+
+        "\n• BCUIDebugger.clear() - 清除所有標記");
+    }
+    initialize();
 })();

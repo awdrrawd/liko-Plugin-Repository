@@ -519,13 +519,25 @@
         }
     }
 
-    // 初始化
-    createDescElement();
-    hookChatRoomLoad();
-    enablePlugin();
-
     console.log(`🐈‍⬛ [CTB] ✅ v${MOD_VER} loaded`);
-
-    // 監聽頁面卸載事件，自動清理
-    window.addEventListener('beforeunload', destroyPlugin);
+    async function initialize() {
+        if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) {
+            await new Promise(resolve => {
+                const remove = modApi.hookFunction('LoginResponse', 0, (args, next) => {
+                    const result = next(args);
+                    queueMicrotask(() => {
+                        if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) return;
+                        remove();
+                        resolve();
+                    });
+                    return result;
+                });
+            });
+        }
+        createDescElement();
+        hookChatRoomLoad();
+        enablePlugin();
+        window.addEventListener('beforeunload', destroyPlugin);
+    }
+    initialize();
 })();

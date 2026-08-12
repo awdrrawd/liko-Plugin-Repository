@@ -805,8 +805,24 @@
         console.error("❌ ACV init failed:", e.message);
     }
 
-    hookChatRoomLoad();
-    enablePlugin();
-    window.addEventListener("beforeunload", destroyPlugin);
+    async function initialize() {
+        if (typeof Player === "undefined" || Player?.MemberNumber === undefined) {
+            await new Promise(resolve => {
+                const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+                    const result = next(args);
+                    queueMicrotask(() => {
+                        if (typeof Player === "undefined" || Player?.MemberNumber === undefined) return;
+                        remove();
+                        resolve();
+                    });
+                    return result;
+                });
+            });
+        }
+        hookChatRoomLoad();
+        enablePlugin();
+        window.addEventListener("beforeunload", destroyPlugin);
+    }
+    initialize();
 
 })();

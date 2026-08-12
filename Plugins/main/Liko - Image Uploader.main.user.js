@@ -42,6 +42,21 @@
         });
     }
 
+    function waitForLogin() {
+        if (typeof Player !== 'undefined' && Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(resolve => {
+            const removeHook = modApi.hookFunction('LoginResponse', 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) return;
+                    removeHook();
+                    resolve();
+                });
+                return result;
+            });
+        });
+    }
+
     // ──────────────────────────────────────────
     // 載入樣式化訊息系統
     // ──────────────────────────────────────────
@@ -734,7 +749,6 @@
         console.log(`🐈‍⬛ [IMG] ✅ v${MOD_VER} loaded`);
         const ok = await waitForBcModSdk();
         if (!ok) { console.error("🐈‍⬛ [IMG] ❌ bcModSdk 載入失敗"); return; }
-        await loadToastSystem();
         try {
             modApi = bcModSdk.registerMod({
                 name: "Liko - Image Uploader",
@@ -744,7 +758,10 @@
             });
         } catch (e) {
             console.error("🐈‍⬛ [IMG] ❌ 初始化 modApi 失敗:", e.message);
+            return;
         }
+        await waitForLogin();
+        await loadToastSystem();
         loadSettings();
         bindCmdButtonListener();
         CommandCombine([

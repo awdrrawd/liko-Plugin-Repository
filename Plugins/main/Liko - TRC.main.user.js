@@ -1332,12 +1332,30 @@
         if (shockBtn) shockBtn.textContent = T('triggerShock');
     }
 
-    function waitForBC() {
-        if (typeof ChatRoomCharacter === 'undefined' || typeof Player === 'undefined') return setTimeout(waitForBC, 500);
+    function waitForLogin() {
+        if (typeof Player !== 'undefined' && Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(resolve => {
+            const removeHook = modApi.hookFunction('LoginResponse', 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) return;
+                    removeHook();
+                    resolve();
+                });
+                return result;
+            });
+        });
+    }
+
+    async function initialize() {
+        console.log(`🐈‍⬛ [TRC] ✅ v${MOD_VER} loaded`);
+        await waitForLogin();
+        while (typeof ChatRoomCharacter === 'undefined') {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
         buildPanel();
         applyI18n();
-        console.log(`🐈‍⬛ [TRC] ✅ v${MOD_VER} loaded`);
     }
-    waitForBC();
+    initialize();
 
 })();

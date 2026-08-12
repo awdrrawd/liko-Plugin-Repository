@@ -405,6 +405,19 @@
             },200);
         });
     }
+    function waitForLogin(modApi) {
+        if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(resolve => {
+            const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (window.Player?.MemberNumber === undefined) return;
+                    remove(); resolve();
+                });
+                return result;
+            });
+        });
+    }
 
     (async()=>{
         await waitFor(()=>typeof bcModSdk!=="undefined");  // eslint-disable-line
@@ -414,7 +427,8 @@
             name:"Liko - BMM", fullName:"Liko's BC MiniMap", version:MOD_VER,
         });
 
-        await waitFor(()=>typeof Player!=="undefined"&&typeof ChatRoomMapViewTileList!=="undefined");  // eslint-disable-line
+        await waitForLogin(modApi);
+        await waitFor(()=>typeof ChatRoomMapViewTileList!=="undefined");  // eslint-disable-line
 
         createPanel();
         console.log(`🐈‍⬛ [BMM] ✅ v${MOD_VER} loaded`);

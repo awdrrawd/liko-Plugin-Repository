@@ -468,8 +468,6 @@
             panelSize  = loadSize();
             if (panelVisible) { renderTabs(); renderGrid(); }
         }
-        initStorage();
-
         /*
          * 面板锚点：X 与宽度参考 BC 自身对 TextAreaChatLog 的 DOM 处理方式 —— 直接读取其
          * 实时 getBoundingClientRect()，而不是写死像素值，这样不同分辨率/字体大小下都能保持一致。
@@ -1421,6 +1419,21 @@
 
         var modApi = null;
 
+        function waitForLogin() {
+            if (typeof Player !== 'undefined' && Player?.MemberNumber !== undefined) return Promise.resolve();
+            return new Promise(function (resolve) {
+                var removeHook = modApi.hookFunction('LoginResponse', 0, function (args, next) {
+                    var result = next(args);
+                    queueMicrotask(function () {
+                        if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) return;
+                        removeHook();
+                        resolve();
+                    });
+                    return result;
+                });
+            });
+        }
+
         async function initMod() {
             try {
                 await waitForBcModSdk();
@@ -1441,6 +1454,8 @@
                 console.error("🐈‍⬛ [Kaomoji] bcModSdk 注册失败:", e);
                 return;
             }
+            await waitForLogin();
+            await initStorage();
         }
         initMod();
 

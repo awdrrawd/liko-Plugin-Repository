@@ -75,6 +75,19 @@
             check();
         });
     }
+    function waitForLogin() {
+        if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(resolve => {
+            const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (window.Player?.MemberNumber === undefined) return;
+                    remove(); resolve();
+                });
+                return result;
+            });
+        });
+    }
 
     function saveZone() {
         try {
@@ -210,6 +223,7 @@
                 repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
             });
 
+            await waitForLogin();
             loadSavedState();   // 非同步等待 ExtensionSettings，不擋住 hook 註冊
 
             modApi.hookFunction("ChatSearchLoad", 1, (args, next) => {

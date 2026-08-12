@@ -853,6 +853,20 @@
         if (settings.mode === MODE.CLEAN)  return "Orange";
         return "Gray";
     }
+    async function initialize() {
+    if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) {
+        await new Promise(resolve => {
+            const remove = modApi.hookFunction('LoginResponse', 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) return;
+                    remove();
+                    resolve();
+                });
+                return result;
+            });
+        });
+    }
     try {
         modApi.hookFunction("DrawProcess", 10, (args, next) => {
             const result = next(args);
@@ -877,5 +891,7 @@
         startObserver();
     }
     waitForLog();
+    }
+    initialize();
 
 })();

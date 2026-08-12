@@ -158,6 +158,21 @@
     // Hooks
     // ════════════════════════════════════════════════════════════════════════════
 
+    async function initialize() {
+        if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) {
+            await new Promise(resolve => {
+                const removeHook = modApi.hookFunction('LoginResponse', 0, (args, next) => {
+                    const result = next(args);
+                    queueMicrotask(() => {
+                        if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) return;
+                        removeHook();
+                        resolve();
+                    });
+                    return result;
+                });
+            });
+        }
+
     // BC 重算版面時：先套好 canvas 與 ChatRoomDivRect，再讓 BC 定位聊天 DOM。
     modApi.hookFunction('ChatRoomResize', 0, (args, next) => {
         if (cllActive) {
@@ -198,4 +213,6 @@
     });
 
     console.log(`🐈‍⬛ [CLL] Chat Landscape Layout v${MOD_VER} 已載入`);
+    }
+    initialize();
 })();

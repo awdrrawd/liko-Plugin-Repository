@@ -435,9 +435,22 @@
     }
 
     // ------------ 初始化與主邏輯 ------------
+    function waitForLogin() {
+        if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(resolve => {
+            const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (window.Player?.MemberNumber === undefined) return;
+                    remove(); resolve();
+                });
+                return result;
+            });
+        });
+    }
+
     async function initialize() {
         const ready = await waitFor(() =>
-            typeof Player?.MemberNumber === "number" &&
             typeof Player?.ExtensionSettings !== "undefined"
         , 30000);
 
@@ -528,6 +541,7 @@
                 warn("modApi.registerMod 失敗，採用 fallback：", e.message);
             }
         }
+        if (modApi) await waitForLogin();
         await initialize();
     })();
 

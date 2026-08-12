@@ -799,6 +799,19 @@
 		}
 		return true;
 	}
+	function waitForLogin(modApi) {
+		if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+		return new Promise(resolve => {
+			const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+				const result = next(args);
+				queueMicrotask(() => {
+					if (window.Player?.MemberNumber === undefined) return;
+					remove(); resolve();
+				});
+				return result;
+			});
+		});
+	}
 
 	async function initialize() {
 		await waitFor(() => !!window.bcModSdk);
@@ -809,7 +822,7 @@
 			repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
 		});
 
-		await waitFor(() => !!window.Player?.AccountName);
+		await waitForLogin(modApi);
 
 		createOverlay();
 		createBalloon();

@@ -311,6 +311,19 @@
             })();
         });
     }
+    function waitForLogin() {
+        if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(resolve => {
+            const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (window.Player?.MemberNumber === undefined) return;
+                    remove(); resolve();
+                });
+                return result;
+            });
+        });
+    }
 
     function nick(c) {
         try { return (typeof CharacterNickname === 'function') ? CharacterNickname(c) : (c.Nickname || c.Name); }
@@ -659,7 +672,7 @@
         });
 
         await waitFor(() => typeof DrawButton === 'function' && typeof Player !== 'undefined');
-        await waitFor(() => typeof Player !== 'undefined' && Player.MemberNumber);
+        await waitForLogin();
 
         Lang.reset();
         injectHistoryStyle();

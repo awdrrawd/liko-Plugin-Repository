@@ -2037,23 +2037,25 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     // =====================================================================
     // Init
     // =====================================================================
+    function waitForLogin() {
+        if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(resolve => {
+            const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (window.Player?.MemberNumber === undefined) return;
+                    remove(); resolve();
+                });
+                return result;
+            });
+        });
+    }
+
     async function init() {
         try {
             loadCHESettings();
             await loadToastSystem();
             setupDataBackup();
-            const waitForPlayer = setInterval(() => {
-                if (window.Player?.Name) {
-                    clearInterval(waitForPlayer);
-                    console.log(`🐈‍⬛ [CHE] ✅ v${MOD_VER} loaded`);
-                    checkTempData().catch(e => logError("init.checkTempData", e));
-                    CacheManager.cleanOldData().catch(e => logError("init.cleanOldData", e));
-                    addUI();
-                    if (currentMode === "cache") initMessageObserver();
-                    setTimeout(showOnboarding, 800);
-                }
-            }, 1000);
-
             if (typeof bcModSdk !== "undefined" && bcModSdk?.registerMod) {
                 modApi = bcModSdk.registerMod({
                     name: "Liko - CHE",
@@ -2062,6 +2064,14 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                     repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
                 });
             }
+
+            await waitForLogin();
+            console.log(`🐈‍⬛ [CHE] ✅ v${MOD_VER} loaded`);
+            checkTempData().catch(e => logError("init.checkTempData", e));
+            CacheManager.cleanOldData().catch(e => logError("init.cleanOldData", e));
+            addUI();
+            if (currentMode === "cache") initMessageObserver();
+            setTimeout(showOnboarding, 800);
 
             waitForPreference().then(() => {
                 PreferenceRegisterExtensionSetting({

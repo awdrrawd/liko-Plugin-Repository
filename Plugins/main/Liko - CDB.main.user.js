@@ -439,6 +439,19 @@
             check();
         });
     }
+    function waitForLogin() {
+        if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+        return new Promise(function(resolve) {
+            const remove = modApi.hookFunction("LoginResponse", 0, function(args, next) {
+                const result = next(args);
+                queueMicrotask(function() {
+                    if (window.Player?.MemberNumber === undefined) return;
+                    remove(); resolve();
+                });
+                return result;
+            });
+        });
+    }
 
     // ================================
     // 顏色轉換函數
@@ -1971,21 +1984,19 @@
         isInitialized = true;
         safeLog(`🐈‍⬛ [CDB] ⌛ 初始化 v${MOD_VER} ...`);
 
-        waitForGame().then(function(gameLoaded) {
+        initializeModApi().then(function(api) {
+            modApi = api;
+            if (!modApi) throw new Error('ModAPI initialization failed');
+            return waitForLogin();
+        }).then(function() {
+            return waitForGame();
+        }).then(function(gameLoaded) {
             if (!gameLoaded) safeError("🐈‍⬛ [CDB] ⚠️ 遊戲載入失敗，使用簡化模式");
             Lang.reset();
             loadFromOnlineSettings();
-            return initializeModApi();
-        }).then(function(api) {
-            modApi = api;
-            if (modApi) {
-                setupDrawImageHook();
-                setupBCHooks();
-                return loadCustomBackground();
-            } else {
-                safeLog("🐈‍⬛ [CDB] ⚠️ ModAPI 初始化失敗，但 UI 仍可使用");
-                return Promise.resolve();
-            }
+            setupDrawImageHook();
+            setupBCHooks();
+            return loadCustomBackground();
         }).then(function() {
             if (modApi && modApi.onUnload) modApi.onUnload(cleanup);
 

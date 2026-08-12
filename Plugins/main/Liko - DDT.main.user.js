@@ -204,6 +204,19 @@
 			}, interval);
 		});
 	}
+	function waitForLogin() {
+		if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
+		return new Promise(resolve => {
+			const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
+				const result = next(args);
+				queueMicrotask(() => {
+					if (window.Player?.MemberNumber === undefined) return;
+					remove(); resolve();
+				});
+				return result;
+			});
+		});
+	}
 
 	/** 螢幕座標 → BC 的 2000x1000 虛擬座標 */
 	function toVirtual(clientX, clientY) {
@@ -2980,7 +2993,8 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 
 		// Phase 2：等玩家真的登入、資源就緒才掛 UI
 		// 注意：MainCanvas 在 Drawing.js 是用 let 宣告的，不會掛到 window 上，只能用裸識別字讀
-		await waitFor(() => !!window.Player?.AccountName && typeof MainCanvas !== "undefined" && !!MainCanvas);
+		await waitForLogin();
+		await waitFor(() => typeof MainCanvas !== "undefined" && !!MainCanvas);
 		buildUI();
 		installInput();
 		setupChatButton(); // 氣球預設隱藏，靠 #chat-room-buttons 的 DDT 鈕叫出/收起
