@@ -1591,11 +1591,11 @@
         var st = document.createElement('style');
         st.id = 'lt-tool-btn-style';
         st.textContent = [
-            '#' + TOOL_BTN_DOM_ID + '.chat-room-button{border-radius:12px !important;}',
-            // 只在“未收合”时套用 flex 置中；否则 display:flex!important 会盖过 [hidden] 的 display:none，
-            // 导致收合按钮列时本按钮无法隐藏（收合动画期间由 BC_ChatRoomButtons 的 .lk-crb-anim 规则接手）。
-            '#' + TOOL_BTN_DOM_ID + '.chat-room-button:not([hidden]){display:flex !important;align-items:center !important;justify-content:center !important;}',
-            '#' + TOOL_BTN_DOM_ID + '.chat-room-button svg{width:60% !important;height:60% !important;color:#fff !important;stroke:#fff !important;}',
+            // 置中属性必须在 hidden 状态也保留：收合动画会临时将 [hidden] 按钮恢复为 flex。
+            // display 则仍只在未收合时强制，避免覆盖 [hidden] 在动画结束后的 display:none。
+            '#' + TOOL_BTN_DOM_ID + '.chat-room-button{border-radius:12px !important;align-items:center !important;justify-content:center !important;}',
+            '#' + TOOL_BTN_DOM_ID + '.chat-room-button:not([hidden]){display:flex !important;}',
+            '#' + TOOL_BTN_DOM_ID + '.chat-room-button svg{display:block;width:60% !important;height:60% !important;flex:none;color:#fff !important;stroke:#fff !important;}',
         ].join('\n');
         document.head.appendChild(st);
     }
