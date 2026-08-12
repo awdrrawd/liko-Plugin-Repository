@@ -118,9 +118,10 @@ async function initialize() {
         name: 'MyMod', fullName: 'My Mod Full Name', version: '1.0.0',
         repository: 'https://github.com/xxx/xxx',
     });
+    installEarlyHooks(modApi); // 不依賴 Player 的 hook 先掛，避免錯過事件
 
     // Phase 2：等玩家真的登入、遊戲資源就緒後，才做業務邏輯初始化
-    await waitFor(() => !!window.Player?.AccountName);
+    await waitForLogin(modApi);
     // ...這裡才開始掛按鈕、註冊指令、讀寫 ExtensionSettings 等
 }
 initialize().catch(e => console.error('init error', e));
@@ -128,30 +129,27 @@ initialize().catch(e => console.error('init error', e));
 
 **為什麼要拆開：** 如果把「註冊 SDK」也拖到登入之後才做，一旦頁面上有其他插件在你之前就已經 hook 了同一個函式並呼叫 `getOriginalHash`/`patchFunction` 之類的操作，你自己的 mod 卻還沒註冊，可能導致載入順序依賴、或者你自己需要用到的 hook 因為註冊太晚而錯過某次呼叫時機。及早註冊、延後執行，兩者責任分開，就不用擔心「因為登入判斷卡住，導致 SDK 註冊太晚」這種連動出錯。
 
-> **⚠️ Phase 2 一定要用「條件輪詢」觸發，不要綁一次性事件（如 hook `LoginResponse`）。** 一次性事件只在「載入時機早於該事件」時攔得到：單獨安裝（`@run-at document-end`）永遠在登入前載入，所以每次都成功；但透過**載入器**（非同步抓取、載入時機浮動）時，插件可能在**登入完成後**才載入，`LoginResponse` 早已觸發過、不會再來，Phase 2 就永遠不跑 → 按鈕／指令時有時無。用 `await waitFor(() => !!window.Player?.AccountName && …其餘所需全域…)` 這種**條件式**觸發，不論載入早晚、條件成立當下就會執行一次，天生免疫載入時機。若仍想保留 `LoginResponse` hook 做「登出再登入的重載」補強，記得用一個 `done` 旗標和輪詢那條共同去重。
+> **Phase 2 使用「狀態檢查＋事件」觸發。** 載入時先檢查 `Player.MemberNumber`；已有值就直接初始化，否則等待 `LoginResponse`。這同時涵蓋單獨安裝與載入器晚載入，不需要持續輪詢。
 
 ### 2. 判斷「是否已登入」不能只看 `Player` 是否存在
 
 **`Player` 這個全域物件在玩家還沒登入（甚至還在讀取登入畫面）時就已經存在**（是一個空殼物件），所以不能用 `if (window.Player)` 來判斷登入與否，一定會誤判。正確作法是看 `Player` 底下「登入後才會被賦值」的欄位，常見以下幾個都可以當依據：
 
-- `Player.AccountName`
-- `Player.CharacterID`
-- `Player.Name`
 - `Player.MemberNumber`
 
 以上任何一個「未登入時是 `undefined`」都可以拿來判斷。特別提醒 **`Player.MemberNumber`**：未登入時它不是 `0`、不是空字串，而是**貨真價實的 `undefined`**，所以絕對不要寫 `if (Player.MemberNumber === '')` 或用 `!Player.MemberNumber && Player.MemberNumber !== 0` 這種容易誤判 0 號會員的寫法，直接用 `!== undefined` 或直接 `?.` 配合 truthy 判斷即可，例如：
 
 ```js
-await waitFor(() => !!window.Player?.AccountName);
-// 或
-await waitFor(() => window.Player?.MemberNumber !== undefined);
+if (window.Player?.MemberNumber !== undefined) initializeAfterLogin();
+else await waitForLogin(modApi);
 ```
 
-倉庫裡的實際案例（`BC_Custom_Heart_Lock.user.js`）就是用 `!!window.Player?.AccountName` 當作「遊戲資源就緒」條件的一部分：
+統一使用上面的 `!== undefined` 寫法；不要使用 `Player.ID`、`AccountName` 或 truthy 判斷登入。
+
+若登入後還需要等待額外遊戲資源，登入由 `waitForLogin(modApi)` 負責，資源才使用獨立的有限等待：
 
 ```js
 const gameReady = await waitFor(() =>
-    !!window.Player?.AccountName &&
     !!window.AssetFemale3DCG &&
     !!AssetGroupGet?.('Female3DCG', 'ItemMisc')
 );
@@ -671,7 +669,7 @@ setInterval(() => { if (CurrentCharacter) injectAFCDialogs(CurrentCharacter); },
 
 - [ ] Userscript 標頭：若用到 `bcModSdk`，`@grant` 設為 `none`
 - [ ] 載入後立刻 `waitFor(() => !!window.bcModSdk)` 並 `registerMod` 註冊自己（不等登入）
-- [ ] 業務邏輯初始化改用 `waitFor(() => !!window.Player?.AccountName)`（或 `MemberNumber`/`CharacterID`/`Name`）判斷登入完成，且明確意識到 `MemberNumber` 未登入時是 `undefined` 不是空值
+- [ ] 業務邏輯初始化先檢查 `Player.MemberNumber`，未登入才等待 `LoginResponse`；不要用 `AccountName`、`Player.ID` 或持續輪詢判斷登入
 - [ ] 需要偏好設定分頁 → 等 `PreferenceRegisterExtensionSetting` 就緒後才註冊；沒有特殊版面需求就直接沿用 `DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", ...)` 這組返回鍵慣例座標
 - [ ] 需要聊天指令 → `CommandCombine` 前檢查函式已存在，並用 `GetCommands()` 防重複註冊
 - [ ] 需要新增互動動作 → 直接操作原生 `ActivityFemale3DCG`/`ActivityDictionary`，自訂前置條件/邏輯/圖示分別 hook `ActivityCheckPrerequisite`/`ServerSend`/`ElementButton.CreateForActivity`
@@ -684,3 +682,83 @@ setInterval(() => { if (CurrentCharacter) injectAFCDialogs(CurrentCharacter); },
 - [ ] 插件間傳資料：同房間廣播/同步用 `Type: 'Hidden'`；跨房間找特定對象（通常本來就是好友）用 `AccountBeep`（記得把 `BeepType` 設成自己專屬字串，才不會在對方畫面跳出通知；**注意 `AccountBeep` 很可能仍需要雙方互為好友才能送達，自訂 `BeepType` 能否繞過此限制目前不確定**）；如果對象確定不是好友、但彼此已有牽繩關係，才考慮原生 `BeepType: "Leash"` 通道——只要酬載不夾帶 `ChatRoomName` 就不會觸發跳轉房間，風險不高；需要即時問答就用自訂的「發送 Query → 對方判斷 Target 是自己就原地回覆」模式（跟原生 `AccountQuery`/`AccountQueryResult` 是兩回事，別搞混）
 - [ ] 攔截訊息時，先問自己「需不需要阻止/修改原本的處理」：需要 → 用 `hookFunction`（可 `return` 不呼叫 `next()`、可跟其他插件協調 `priority`）；只是想旁聽、不干涉原生處理（例如 `AccountBeep` 收自訂 `BeepType`）→ 直接 `ServerSocket.on` 就好，更輕量也不必依賴 `bcModSdk`
 - [ ] 需要在雙人互動 Dialog 畫面加自訂選項 → 直接把物件塞進 `CurrentCharacter.Dialog` 陣列，記得用自訂標記欄位防止每次重繪重複疊加，並在每次可能重繪的時機重新注入一次
+## 附錄：插件初始化與登入生命週期完整模板
+
+> 新插件與既有插件重構時，統一採用「先註冊 SDK，再確認登入」的兩階段流程。
+
+## 原則
+
+1. 遊戲腳本載入後先等待 `bcModSdk`，可用時立刻 `registerMod()`，不要先等待玩家登入。
+2. SDK 註冊完成後，立即掛載不依賴 `Player` 的 hook，避免錯過後續遊戲事件。
+3. 登入狀態只使用 `Player.MemberNumber !== undefined` 判斷；不混用 `Player.ID`、`AccountName`、`Name` 或 URL。
+4. 載入時若已有 `Player.MemberNumber`，直接初始化。
+5. 尚未登入時，使用 `modApi.hookFunction('LoginResponse', ...)` 等待登入，不要持續輪詢 `Player`。
+6. `LoginResponse` 必須先執行 `next(args)`，再檢查 `Player.MemberNumber`；登入失敗時保留 hook，等待下一次回應。
+7. 只需初始化一次的插件，成功後呼叫 `hookFunction()` 回傳的移除函式。
+8. 需要支援登出、換帳號的插件，保留 hook，並以 `MemberNumber` 做冪等及重新初始化。
+
+`bcModSdk` 沒有獨立的登入事件 API；`LoginResponse` 是 BC 遊戲函式，透過通用的 `hookFunction` 訂閱。Hook 不是輪詢，只有函式實際被呼叫時才執行。
+
+## 一次性登入初始化模板
+
+```js
+function isLoggedIn() {
+    return typeof Player !== 'undefined' && Player?.MemberNumber !== undefined;
+}
+
+function waitForLogin(modApi) {
+    if (isLoggedIn()) return Promise.resolve();
+
+    return new Promise(resolve => {
+        const removeLoginHook = modApi.hookFunction('LoginResponse', 0, (args, next) => {
+            const result = next(args);
+            queueMicrotask(() => {
+                if (!isLoggedIn()) return;
+                removeLoginHook();
+                resolve();
+            });
+            return result;
+        });
+    });
+}
+
+async function bootstrap() {
+    await waitFor(() => !!window.bcModSdk?.registerMod);
+    const modApi = window.bcModSdk.registerMod({
+        name: 'MyMod', fullName: 'My Mod Full Name', version: '1.0.0',
+        repository: 'https://github.com/xxx/xxx',
+    });
+
+    installEarlyHooks(modApi); // 不依賴 Player，先掛載以免錯過事件
+    await waitForLogin(modApi);
+    initializeAfterLogin();
+}
+
+bootstrap().catch(error => console.error('[MyMod] init error:', error));
+```
+
+## 支援換帳號的模板
+
+需要在同一頁面登出、重新登入或切換帳號的插件，不移除 `LoginResponse` hook：
+
+```js
+let initializedMemberNumber;
+
+function initializeCurrentAccount() {
+    if (!isLoggedIn() || initializedMemberNumber === Player.MemberNumber) return;
+    initializedMemberNumber = Player.MemberNumber;
+    initializeAfterLogin();
+}
+
+modApi.hookFunction('LoginResponse', 0, (args, next) => {
+    const result = next(args);
+    queueMicrotask(initializeCurrentAccount);
+    return result;
+});
+
+initializeCurrentAccount(); // 插件可能在登入完成後才由載入器注入
+```
+
+輪詢只應用於沒有可靠事件、且確實會延後建立的其他 BC API；不要再使用 `setInterval` 或 `waitFor(() => Player...)` 判斷登入。
+
+---
