@@ -11,6 +11,7 @@
 // @icon           https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @grant          none
 // @require        https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
+// @require        https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_i18n.js
 // @run-at         document-end
 // ==/UserScript==
 /*
@@ -52,6 +53,12 @@
 
 	// 圖示資源（Images/DDT/，走 jsDelivr 與既有 @require 一致）
 	const ASSET_BASE = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/DDT/";
+	// i18n（共用引擎 BC_i18n）：字庫在 initialize 用 ensure 載入，UI 一律走 T(key, vars)
+	const I18N_URL = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/Translation/DDT-i18n.js";
+	function T(key, vars) {
+		const e = window.Liko?.__Sys_i18n__;
+		return e ? e.t("DDT", key, vars) : key; // 引擎沒載成功就退回 key，至少不會崩
+	}
 	const ICON = {
 		balloon: ASSET_BASE + "DDT-icon.png",    // APNG：游標移上去才播放
 		pen:     ASSET_BASE + "DDT-Pen.svg",
@@ -142,11 +149,12 @@
 
 	/** 各 variant 的建立預設值（繪製頁可即時修改並存本地，避免重複調基本參數） */
 	let VARIANT = {
-		button: { fill: "#ffd54a", border: "#000000", borderW: 3, text: "按鈕", align: "center", fontSize: 40, textColor: "#000000", w: 160, h: 60 },
-		text:   { fill: null,      border: null,      borderW: 0, text: "文字", align: "center", fontSize: 40, textColor: "#000000", w: 160, h: 60 },
-		frame:  { fill: null,      border: "#ff3b6b", borderW: 3, text: "",     align: "center", fontSize: 40, textColor: "#000000", w: 160, h: 60 },
+		button: { fill: "#ffd54a", border: "#000000", borderW: 3, text: "Button", align: "center", fontSize: 40, textColor: "#000000", w: 160, h: 60 },
+		text:   { fill: null,      border: null,      borderW: 0, text: "Text",   align: "center", fontSize: 40, textColor: "#000000", w: 160, h: 60 },
+		frame:  { fill: null,      border: "#ff3b6b", borderW: 3, text: "",       align: "center", fontSize: 40, textColor: "#000000", w: 160, h: 60 },
 	};
-	const VARIANT_LABEL = { button: "按鈕", text: "文字", frame: "純框" };
+	// 物件類型的顯示名稱（走 i18n；未知類型退回「框」）
+	function vlabel(v) { return VARIANT[v] ? T("variant_" + v) : T("box"); }
 	const DEF_FONT = 40, DEF_TEXTCOLOR = "#000000";
 
 	// --- 網格 / 貼齊 ---
@@ -447,8 +455,8 @@
 				depth--;
 				curTop = prevTop;
 				if (rec && rec.isCharacter) charBlitTarget = prevBlit;
-				if (savedFont != null) { try { MainCanvas.font = savedFont; } catch { /* 還原 font */ } }
-				if (rotated) { try { MainCanvas.restore(); } catch { /* 還原 transform */ } }
+				if (savedFont != null) { try { MainCanvas.font = savedFont; } catch {} }
+				if (rotated) { try { MainCanvas.restore(); } catch {} }
 			}
 		});
 	}
@@ -601,7 +609,7 @@
 				rect: [a[1], a[2], 500 * heightRatio * a[3], 1000 * a[3]],
 				isCharacter: true,
 				C, X: a[1], Y: a[2], Zoom: a[3], heightRatio,
-				label: C.Name || C.AccountName || "(角色)",
+				label: C.Name || C.AccountName || T("char_paren"),
 			};
 		});
 
@@ -646,7 +654,7 @@
 		}
 
 		if (typeof window.CommonDrawAppearanceBuild !== "function") {
-			console.warn(`[${MOD_NAME}] 找不到 CommonDrawAppearanceBuild，圖層偵測會停用`);
+			console.warn(`[${MOD_NAME}] CommonDrawAppearanceBuild not found; layer inspection disabled`);
 			return;
 		}
 		modApi.hookFunction("CommonDrawAppearanceBuild", 0, (args, next) => {
@@ -677,7 +685,7 @@
 				cb.drawCanvas = (Img, x, y, alphaMasks, maskLayers) => {
 					try {
 						list.push({ layer: pendingLayer, srcRef: Img, src: "(canvas)", x, y, via: "drawCanvas" });
-					} catch { /* 同上 */ }
+					} catch {}
 					return origCanvas(Img, x, y, alphaMasks, maskLayers);
 				};
 			}
@@ -957,7 +965,7 @@
 	}
 
 	function savePenObjects() {
-		try { localStorage.setItem(LS_PEN, JSON.stringify(penObjects)); } catch { /* 無痛失敗 */ }
+		try { localStorage.setItem(LS_PEN, JSON.stringify(penObjects)); } catch {}
 	}
 
 	function loadPenObjects() {
@@ -968,7 +976,7 @@
 			if (!Array.isArray(arr)) return;
 			penObjects = arr.filter((o) => o && isFinite(o.x)).map(normalizePenObj);
 			penSeq = 1; penObjects.forEach((o) => (o.id = newPenId()));
-		} catch { /* 壞掉的存檔就忽略 */ }
+		} catch {}
 	}
 
 	/** 保存 Pen 工具偏好（網格 / 背景 / 貼齊 / 各類型繪製預設）到本地 */
@@ -979,7 +987,7 @@
 				sheetOn, sheetAlpha, bgOn, bgColor, bgAlpha,
 				variant: VARIANT, drawType,
 			}));
-		} catch { /* 無痛失敗 */ }
+		} catch {}
 	}
 
 	function loadSettings() {
@@ -1006,7 +1014,7 @@
 					if (v && typeof v === "object") Object.assign(VARIANT[k], v);
 				}
 			}
-		} catch { /* 壞掉的設定就忽略 */ }
+		} catch {}
 	}
 
 	/** 進出 Pen 模式（需求 4 的攔截由 window capture 的 penPointerDown 處理） */
@@ -1128,7 +1136,7 @@
 		requestAnimationFrame(() => {
 			const job = recolorPending;
 			recolorPending = null;
-			try { job(); } catch (e) { console.error(`🐈‍⬛ [${MOD_NAME}] 染色失敗`, e); }
+			try { job(); } catch (e) { console.error(`🐈‍⬛ [${MOD_NAME}] recolor failed`, e); }
 		});
 	}
 
@@ -1302,7 +1310,7 @@
 	function setFontSize(px) {
 		curFontSize = Math.max(11, Math.min(22, px));
 		root.style.setProperty("--fs", curFontSize + "px");
-try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無痛失敗 */ }
+try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 	}
 
 	function buildUI() {
@@ -1323,17 +1331,17 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		panel.style.top = "120px";
 		panel.innerHTML = `
 			<div class="hd">
-				<b>📏 Ruler · 偵測</b>
-				<button data-fsdn title="縮小文字">A−</button>
-				<button data-fsup title="放大文字">A+</button>
-				<button data-x title="關閉">✕</button>
+				<b>${T("ruler_title")}</b>
+				<button data-fsdn title="${T("fs_down")}">A−</button>
+				<button data-fsup title="${T("fs_up")}">A+</button>
+				<button data-x title="${T("close")}">✕</button>
 			</div>
 			<div class="tabs">
-				<button data-tab="select" class="on">選取</button>
-				<button data-tab="props">屬性</button>
-				<button data-tab="frame">幀</button>
+				<button data-tab="select" class="on">${T("tab_select")}</button>
+				<button data-tab="props">${T("tab_props")}</button>
+				<button data-tab="frame">${T("tab_frame")}</button>
 			</div>
-			<div class="bd"><div class="empty">按 🎈→📏 或 <kbd>F2</kbd> 偵測游標下的物件</div></div>`;
+			<div class="bd"><div class="empty">${T("hint_detect")}</div></div>`;
 		shadow.appendChild(panel);
 
 		createPenPanel(shadow);
@@ -1381,7 +1389,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	function createBalloon(shadow) {
 		balloon = document.createElement("div");
 		balloon.className = "balloon";
-		balloon.title = "點一下展開工具（Pen / Ruler / Setting）；可拖曳搬家";
+		balloon.title = T("balloon_title");
 		balloon.style.left = "12px";
 		balloon.style.top = "120px";
 		balloon.style.display = "none"; // 預設隱藏；由聊天室按鈕（#chat-room-buttons）叫出
@@ -1412,7 +1420,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			const c = balloonPoster.getContext("2d");
 			c.clearRect(0, 0, 96, 96);
 			c.drawImage(balloonImg, 0, 0, 96, 96);
-		} catch { /* 跨域污染：放棄擷取 */ }
+		} catch {}
 	}
 	function playBalloon() {
 		balloonImg.classList.remove("hidden");
@@ -1429,11 +1437,11 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		menu.className = "menu";
 		// DDT-Hidden 夾在 Ruler 與 Setting 中間；它不是工具面板，是全域顯示切換
 		menu.innerHTML = `
-			<button data-tool="pen" title="Pen — 繪圖工具箱" style="background-image:url('${ICON.pen}')"></button>
-			<button data-tool="ruler" title="Ruler — 偵測 / 檢視 / 編輯" style="background-image:url('${ICON.ruler}')"></button>
-			<button data-hidden class="emoji" title="DDT-Hidden — 全部虛線 / 全部隱藏 / 正常">👁</button>
-			<button data-clean title="DDT-Clean — 清除所有繪製物件與偵測狀態" style="background-image:url('${ICON.clean}')"></button>
-			<button data-tool="setting" title="Setting — 匯出/匯入/隱藏" style="background-image:url('${ICON.setting}')"></button>`;
+			<button data-tool="pen" title="${T("menu_pen")}" style="background-image:url('${ICON.pen}')"></button>
+			<button data-tool="ruler" title="${T("menu_ruler")}" style="background-image:url('${ICON.ruler}')"></button>
+			<button data-hidden class="emoji" title="${T("menu_hidden")}">👁</button>
+			<button data-clean title="${T("menu_clean")}" style="background-image:url('${ICON.clean}')"></button>
+			<button data-tool="setting" title="${T("menu_setting")}" style="background-image:url('${ICON.setting}')"></button>`;
 		shadow.appendChild(menu);
 		menu.querySelectorAll("[data-tool]").forEach((b) =>
 			b.addEventListener("click", () => openTool(b.dataset.tool)));
@@ -1444,7 +1452,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 
 	/** DDT-Clean（選單）：一次清掉所有繪製物件 + 偵測狀態（選取/覆寫/高亮/回放） */
 	function clearAll() {
-		if (penObjects.length && !confirm("清除所有繪製物件與偵測狀態？")) return;
+		if (penObjects.length && !confirm(T("clean_confirm"))) return;
 		clearPenObjects();
 		// 偵測（Ruler）：清掉選取、即時覆寫、回放/凍結、滑鼠高亮
 		clearSelection();
@@ -1464,13 +1472,12 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			b.classList.add("emoji");
 			b.style.backgroundImage = "";
 			b.textContent = "👁";
-			b.title = "DDT-Hidden — 全部虛線 / 全部隱藏 / 正常";
+			b.title = T("menu_hidden");
 		} else {
 			b.classList.remove("emoji");
 			b.textContent = "";
 			b.style.backgroundImage = `url('${globalHide === 1 ? ICON.hidden : ICON.hidden2}')`;
-			b.title = globalHide === 1 ? "DDT-Hidden — 目前：全部虛線（再按=全部隱藏含底圖）"
-				: "DDT-Hidden — 目前：全部隱藏含底圖（再按=正常）";
+			b.title = globalHide === 1 ? T("hidden_state1") : T("hidden_state2");
 		}
 	}
 
@@ -1617,8 +1624,8 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		btn.className = "blank-button button HideOnPopup chat-room-button";
 		btn.setAttribute("role", "menuitem");
 		btn.setAttribute("tabindex", "0");
-		btn.setAttribute("aria-label", "繪圖檢測工具");
-		btn.title = "點一下叫出／收起 DDT 氣球";
+		btn.setAttribute("aria-label", T("chat_btn_label"));
+		btn.title = T("chat_btn_title");
 
 		// poster = 靜止影格（預設顯示）；img = APNG（游標移上去才顯示 → 才看得到動畫）
 		const poster = document.createElement("canvas");
@@ -1636,7 +1643,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 				const c = poster.getContext("2d");
 				c.clearRect(0, 0, 96, 96);
 				c.drawImage(img, 0, 0, 96, 96);
-			} catch { /* 跨域污染：放棄擷取 */ }
+			} catch {}
 		}
 		function playIcon() {
 			img.classList.remove("lk-ddt-hidden");
@@ -1672,7 +1679,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		else (window.Liko.__CRB_pending__ = window.Liko.__CRB_pending__ || []).push(spec);
 		// 確保協調器最終會被載入（獨立安裝時）；但按鈕規格已在上面登記好，不依賴這步的時機/成敗。
 		ensureExpandDep("expand/BC_ChatRoomButtons.js", () => window.Liko.__Sys_ChatRoomButtons__?.add)
-			.catch(e => console.warn(`🐈‍⬛ [${MOD_NAME}] ⚠️ ChatRoomButtons 載入失敗，DDT 按鈕無法加入: ` + e.message));
+			.catch(e => console.warn(`🐈‍⬛ [${MOD_NAME}] ⚠️ ChatRoomButtons failed to load; DDT button not added: ` + e.message));
 	}
 
 	// ---------------------------------------------------------------- Pen 面板
@@ -1685,16 +1692,16 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		penPanel.style.left = "70px"; penPanel.style.top = "120px"; penPanel.style.width = "360px";
 		penPanel.innerHTML = `
 			<div class="hd">
-				<b>🖊 Pen · 繪圖</b>
-				<button data-adsorb class="icobtn" title="自動貼齊（網格＋物件邊/中對齊）" style="background-image:url('${ICON.adsorb}')"></button>
-				<button data-clean class="icobtn" title="清除所有繪製的物件" style="background-image:url('${ICON.clean}')"></button>
-				<button data-x title="關閉">✕</button>
+				<b>${T("pen_title")}</b>
+				<button data-adsorb class="icobtn" title="${T("pen_adsorb")}" style="background-image:url('${ICON.adsorb}')"></button>
+				<button data-clean class="icobtn" title="${T("pen_clean")}" style="background-image:url('${ICON.clean}')"></button>
+				<button data-x title="${T("close")}">✕</button>
 			</div>
 			<div class="tabs">
-				<button data-ptab="layers">圖層</button>
-				<button data-ptab="edit">編輯</button>
-				<button data-ptab="draw">繪製</button>
-				<button data-ptab="bg">背景</button>
+				<button data-ptab="layers">${T("ptab_layers")}</button>
+				<button data-ptab="edit">${T("ptab_edit")}</button>
+				<button data-ptab="draw">${T("ptab_draw")}</button>
+				<button data-ptab="bg">${T("ptab_bg")}</button>
 			</div>
 			<div class="bd"></div>
 			<div class="footbar" data-footbar style="display:none"></div>`;
@@ -1705,7 +1712,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		penLayerPanel.className = "panel";
 		penLayerPanel.style.left = "440px"; penLayerPanel.style.top = "120px"; penLayerPanel.style.width = "230px";
 		penLayerPanel.innerHTML = `
-			<div class="hd"><b>🗂 圖層</b><button data-x title="關閉圖層面板">✕</button></div>
+			<div class="hd"><b>${T("layers_panel_title")}</b><button data-x title="${T("close_layers")}">✕</button></div>
 			<div class="bd"></div>`;
 		shadow.appendChild(penLayerPanel);
 
@@ -1713,7 +1720,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		penPanel.querySelector("[data-adsorb]").addEventListener("click", () => { snapOn = !snapOn; saveSettings(); updatePenHeader(); });
 		penPanel.querySelector("[data-clean]").addEventListener("click", () => {
 			if (!penObjects.length) return;
-			if (confirm("清除所有繪製的物件？")) { clearPenObjects(); renderPenPanel(); }
+			if (confirm(T("pen_clean_confirm"))) { clearPenObjects(); renderPenPanel(); }
 		});
 		penPanel.querySelectorAll("[data-ptab]").forEach((b) => b.addEventListener("click", () => {
 			if (b.dataset.ptab === "layers") { toggleLayerPanel(); return; } // 圖層 = 側邊展開，不切主體
@@ -1770,65 +1777,65 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	// --- 編輯頁：選中物件的全部參數（顯示/鎖定/刪除移到底部工具列）---
 	function renderEditTab() {
 		const o = penSel;
-		if (!o) return `<div class="note">點畫布上的物件、或到「圖層」面板挑一個，即可在這裡編輯它的類型 / 座標 / 尺寸 / 旋轉 / 文字 / 顏色。拖動時原位虛線、新位實線。</div>`;
-		let h = `<div class="row"><span class="k">類型</span><div class="seg" style="flex:1;margin:0">` +
-			["button", "text", "frame"].map((v) => `<button class="act ${o.variant === v ? "on" : ""}" data-ovariant="${v}">${VARIANT_LABEL[v]}</button>`).join("") + `</div></div>`;
+		if (!o) return `<div class="note">${T("edit_hint")}</div>`;
+		let h = `<div class="row"><span class="k">${T("lbl_type")}</span><div class="seg" style="flex:1;margin:0">` +
+			["button", "text", "frame"].map((v) => `<button class="act ${o.variant === v ? "on" : ""}" data-ovariant="${v}">${vlabel(v)}</button>`).join("") + `</div></div>`;
 		h += `<div class="row"><span class="k">X / Y</span><input type="number" data-ox value="${Math.round(o.x)}" style="width:80px"><input type="number" data-oy value="${Math.round(o.y)}" style="width:80px"></div>`;
-		h += `<div class="row"><span class="k">寬 / 高</span><input type="number" data-ow value="${Math.round(o.w)}" style="width:80px"><input type="number" data-oh value="${Math.round(o.h)}" style="width:80px"></div>`;
-		h += `<div class="row"><span class="k">旋轉°</span><input type="range" data-orot min="-180" max="180" value="${o.rot || 0}" style="flex:1"><input type="number" data-orotn value="${o.rot || 0}" style="width:64px"></div>`;
-		h += `<div class="row"><span class="k">文字</span><textarea data-otext-full rows="3">${esc(o.text || "")}</textarea></div>`;
-		h += `<div class="row"><span class="k">字級 / 色</span><input type="number" data-ofs value="${o.fontSize || DEF_FONT}" style="width:70px"><input type="color" data-otcolor value="${normalizeColor(o.textColor) || DEF_TEXTCOLOR}">
-			<label style="${LABEL}"><input type="checkbox" data-oleft ${o.align === "left" ? "checked" : ""}> 靠左</label></div>`;
-		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-ofillon ${o.fill ? "checked" : ""}> 填色</label><input type="color" data-ofill value="${normalizeColor(o.fill) || "#ffd54a"}"></div>`;
-		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-oborderon ${o.border ? "checked" : ""}> 外框</label><input type="color" data-oborder value="${normalizeColor(o.border) || "#000000"}"><input type="number" data-oborderw value="${o.borderW || 3}" style="width:58px"></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_wh")}</span><input type="number" data-ow value="${Math.round(o.w)}" style="width:80px"><input type="number" data-oh value="${Math.round(o.h)}" style="width:80px"></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_rot")}</span><input type="range" data-orot min="-180" max="180" value="${o.rot || 0}" style="flex:1"><input type="number" data-orotn value="${o.rot || 0}" style="width:64px"></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_text")}</span><textarea data-otext-full rows="3">${esc(o.text || "")}</textarea></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_fontcolor")}</span><input type="number" data-ofs value="${o.fontSize || DEF_FONT}" style="width:70px"><input type="color" data-otcolor value="${normalizeColor(o.textColor) || DEF_TEXTCOLOR}">
+			<label style="${LABEL}"><input type="checkbox" data-oleft ${o.align === "left" ? "checked" : ""}> ${T("chk_left")}</label></div>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-ofillon ${o.fill ? "checked" : ""}> ${T("chk_fill")}</label><input type="color" data-ofill value="${normalizeColor(o.fill) || "#ffd54a"}"></div>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-oborderon ${o.border ? "checked" : ""}> ${T("chk_border")}</label><input type="color" data-oborder value="${normalizeColor(o.border) || "#000000"}"><input type="number" data-oborderw value="${o.borderW || 3}" style="width:58px"></div>`;
 		return h;
 	}
 
 	/** Photoshop 式底部工具列：顯示 / 鎖定 / 刪除 選中物件 */
 	function renderFootbar() {
 		const o = penSel;
-		if (!o) return `<span class="fname">未選取物件</span>`;
+		if (!o) return `<span class="fname">${T("footbar_none")}</span>`;
 		const hicon = o.hidden === "full" ? "🚫" : o.hidden === "outline" ? "▨" : "👁";
-		return `<button class="fbtn" data-fhide title="顯示 → 只留外框 → 完全隱藏">${hicon}</button>
-			<button class="fbtn" data-flock title="鎖定 / 解鎖">${o.locked ? "🔒" : "🔓"}</button>
-			<span class="fname">${VARIANT_LABEL[o.variant] || "框"}${o.text ? " · " + esc(shortStr(o.text, 12)) : ""}</span>
-			<button class="fbtn danger" data-fdel title="刪除此物件">🗑</button>`;
+		return `<button class="fbtn" data-fhide title="${T("fhide_title")}">${hicon}</button>
+			<button class="fbtn" data-flock title="${T("flock_title")}">${o.locked ? "🔒" : "🔓"}</button>
+			<span class="fname">${vlabel(o.variant)}${o.text ? " · " + esc(shortStr(o.text, 12)) : ""}</span>
+			<button class="fbtn danger" data-fdel title="${T("fdel_title")}">🗑</button>`;
 	}
 
 	// --- 繪製頁：選類型 + 預先設定該類型的邊線/底色/外框/比例，之後畫的都套用 ---
 	function renderDrawTab() {
 		const v = VARIANT[drawType];
-		const tools = [["button", "按鈕"], ["text", "文字"], ["frame", "純框"]];
+		const tools = ["button", "text", "frame"];
 		let h = `<div class="seg">` +
-			tools.map(([k, l]) => `<button class="act ${drawType === k ? "on" : ""}" data-dtype="${k}">${l}</button>`).join("") + `</div>`;
-		h += `<div class="note">選好類型後在畫布上拖出一個框（點一下 = 用下面的「預設尺寸」）；框裡都能打字。點既有物件會自動變成拖移。下方是「${VARIANT_LABEL[drawType]}」的預設樣式，之後畫的都會套用，不必反覆調整。</div>`;
-		h += `<h4>預設樣式 · ${VARIANT_LABEL[drawType]}</h4>`;
-		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-dfillon ${v.fill ? "checked" : ""}> 底色</label><input type="color" data-dfill value="${normalizeColor(v.fill) || "#ffd54a"}"></div>`;
-		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-dborderon ${v.border ? "checked" : ""}> 外框</label><input type="color" data-dborder value="${normalizeColor(v.border) || "#000000"}"><span class="k" style="width:auto">邊線</span><input type="number" data-dborderw value="${v.borderW || 0}" style="width:56px"></div>`;
-		h += `<div class="row"><span class="k">字級 / 色</span><input type="number" data-dfs value="${v.fontSize || DEF_FONT}" style="width:70px"><input type="color" data-dtcolor value="${normalizeColor(v.textColor) || DEF_TEXTCOLOR}">
-			<label style="${LABEL}"><input type="checkbox" data-dleft ${v.align === "left" ? "checked" : ""}> 靠左</label></div>`;
-		h += `<div class="row"><span class="k">預設文字</span><input type="text" data-dtext value="${esc(v.text || "")}"></div>`;
-		h += `<div class="row"><span class="k">預設尺寸</span><input type="number" data-dw value="${Math.round(v.w) || 160}" style="width:80px"><input type="number" data-dh value="${Math.round(v.h) || 60}" style="width:80px"><span class="k" style="width:auto">寬 × 高</span></div>`;
-		h += `<div class="note">「預設尺寸」= 在畫布上只點一下（不拖曳）時新物件的寬高；拖曳時仍以拉出的大小為準。設定會自動存本地。</div>`;
+			tools.map((k) => `<button class="act ${drawType === k ? "on" : ""}" data-dtype="${k}">${vlabel(k)}</button>`).join("") + `</div>`;
+		h += `<div class="note">${T("draw_hint", { type: vlabel(drawType) })}</div>`;
+		h += `<h4>${T("draw_defaults", { type: vlabel(drawType) })}</h4>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-dfillon ${v.fill ? "checked" : ""}> ${T("chk_fillbg")}</label><input type="color" data-dfill value="${normalizeColor(v.fill) || "#ffd54a"}"></div>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-dborderon ${v.border ? "checked" : ""}> ${T("chk_border")}</label><input type="color" data-dborder value="${normalizeColor(v.border) || "#000000"}"><span class="k" style="width:auto">${T("lbl_edge")}</span><input type="number" data-dborderw value="${v.borderW || 0}" style="width:56px"></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_fontcolor")}</span><input type="number" data-dfs value="${v.fontSize || DEF_FONT}" style="width:70px"><input type="color" data-dtcolor value="${normalizeColor(v.textColor) || DEF_TEXTCOLOR}">
+			<label style="${LABEL}"><input type="checkbox" data-dleft ${v.align === "left" ? "checked" : ""}> ${T("chk_left")}</label></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_deftext")}</span><input type="text" data-dtext value="${esc(v.text || "")}"></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_defsize")}</span><input type="number" data-dw value="${Math.round(v.w) || 160}" style="width:80px"><input type="number" data-dh value="${Math.round(v.h) || 60}" style="width:80px"><span class="k" style="width:auto">${T("lbl_wxh")}</span></div>`;
+		h += `<div class="note">${T("draw_note_defsize")}</div>`;
 		return h;
 	}
 
 	// --- 背景頁：網格粗細/間距/深淺（BAR 每格 5）+ Sheet 底圖 + 純色背景 ---
 	function renderBgTab() {
-		let h = `<h4>網格</h4>`;
-		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-gridon ${gridOn ? "checked" : ""}> 顯示網格</label></div>`;
-		h += `<div class="row"><span class="k">間距</span><input type="range" data-gridsize min="5" max="200" step="5" value="${gridSize}" style="flex:1"><span class="v" style="flex:0 0 auto">${gridSize}</span></div>`;
-		h += `<div class="row"><span class="k">粗細</span><input type="range" data-gridw min="1" max="20" step="1" value="${gridWidth}" style="flex:1"><span class="v" style="flex:0 0 auto">${gridWidth}px</span></div>`;
-		h += `<div class="row"><span class="k">深淺</span><input type="range" data-gridalpha min="0" max="100" step="5" value="${Math.round(gridAlpha * 100)}" style="flex:1"><span class="v" style="flex:0 0 auto">${Math.round(gridAlpha * 100)}%</span></div>`;
+		let h = `<h4>${T("bg_grid")}</h4>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-gridon ${gridOn ? "checked" : ""}> ${T("chk_showgrid")}</label></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_gap")}</span><input type="range" data-gridsize min="5" max="200" step="5" value="${gridSize}" style="flex:1"><span class="v" style="flex:0 0 auto">${gridSize}</span></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_thick")}</span><input type="range" data-gridw min="1" max="20" step="1" value="${gridWidth}" style="flex:1"><span class="v" style="flex:0 0 auto">${gridWidth}px</span></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_shade")}</span><input type="range" data-gridalpha min="0" max="100" step="5" value="${Math.round(gridAlpha * 100)}" style="flex:1"><span class="v" style="flex:0 0 auto">${Math.round(gridAlpha * 100)}%</span></div>`;
 
-		h += `<h4>Sheet.jpg 底圖</h4>`;
-		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-sheeton ${sheetOn ? "checked" : ""}> 覆蓋 Backgrounds/Sheet.jpg</label></div>`;
-		h += `<div class="row"><span class="k">透明度</span><input type="range" data-sheeta min="0" max="100" step="5" value="${Math.round(sheetAlpha * 100)}" style="flex:1"><span class="v" style="flex:0 0 auto">${Math.round(sheetAlpha * 100)}%</span></div>`;
+		h += `<h4>${T("bg_sheet")}</h4>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-sheeton ${sheetOn ? "checked" : ""}> ${T("chk_sheet")}</label></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_opacity")}</span><input type="range" data-sheeta min="0" max="100" step="5" value="${Math.round(sheetAlpha * 100)}" style="flex:1"><span class="v" style="flex:0 0 auto">${Math.round(sheetAlpha * 100)}%</span></div>`;
 
-		h += `<h4>純色背景</h4>`;
-		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-bgon ${bgOn ? "checked" : ""}> 填滿純色</label><input type="color" data-bgcolor value="${normalizeColor(bgColor) || "#3a3a52"}"></div>`;
-		h += `<div class="row"><span class="k">透明度</span><input type="range" data-bga min="0" max="100" step="5" value="${Math.round(bgAlpha * 100)}" style="flex:1"><span class="v" style="flex:0 0 auto">${Math.round(bgAlpha * 100)}%</span></div>`;
-		h += `<div class="note">由下到上疊：純色背景 → Sheet 底圖 → 網格 → 繪製物件，三者可同時開。BAR 每格為 5。</div>`;
+		h += `<h4>${T("bg_solid")}</h4>`;
+		h += `<div class="row"><label style="${LABEL}"><input type="checkbox" data-bgon ${bgOn ? "checked" : ""}> ${T("chk_fillsolid")}</label><input type="color" data-bgcolor value="${normalizeColor(bgColor) || "#3a3a52"}"></div>`;
+		h += `<div class="row"><span class="k">${T("lbl_opacity")}</span><input type="range" data-bga min="0" max="100" step="5" value="${Math.round(bgAlpha * 100)}" style="flex:1"><span class="v" style="flex:0 0 auto">${Math.round(bgAlpha * 100)}%</span></div>`;
+		h += `<div class="note">${T("bg_note")}</div>`;
 		return h;
 	}
 
@@ -1838,20 +1845,20 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		const bd = penLayerPanel.querySelector(".bd");
 		let h = "";
 		if (!penObjects.length) {
-			h += `<div class="note" style="margin-top:0">還沒有物件。到「繪製」頁選類型後在畫布上拖出來。</div>`;
+			h += `<div class="note" style="margin-top:0">${T("layers_empty")}</div>`;
 		} else {
-			h += `<div class="note" style="margin-top:0">👁顯示/外框/隱藏 · 🔒鎖定 · 🗑刪除</div>`;
+			h += `<div class="note" style="margin-top:0">${T("layers_legend")}</div>`;
 			h += `<div class="stack" style="max-height:64vh">`;
 			// 由上而下顯示 = 由最上層（陣列尾）到最底層
 			for (let i = penObjects.length - 1; i >= 0; i--) {
 				const o = penObjects[i];
 				const hicon = o.hidden === "full" ? "🚫" : o.hidden === "outline" ? "▨" : "👁";
 				h += `<div class="objrow ${o === penSel ? "sel" : ""}" data-obj="${i}">
-					<button class="lyr" data-hideobj="${i}" title="顯示 → 只留外框 → 完全隱藏">${hicon}</button>
-					<button class="lyr" data-lockobj="${i}" title="鎖定/解鎖">${o.locked ? "🔒" : "🔓"}</button>
-					<span class="fn">${VARIANT_LABEL[o.variant] || "框"}</span>
+					<button class="lyr" data-hideobj="${i}" title="${T("fhide_title")}">${hicon}</button>
+					<button class="lyr" data-lockobj="${i}" title="${T("lock_title")}">${o.locked ? "🔒" : "🔓"}</button>
+					<span class="fn">${vlabel(o.variant)}</span>
 					<span class="dt">${esc(shortStr(o.text || "", 10))}</span>
-					<button class="del" data-delobj="${i}" title="刪除">🗑</button></div>`;
+					<button class="del" data-delobj="${i}" title="${T("del_title")}">🗑</button></div>`;
 			}
 			h += `</div>`;
 		}
@@ -1961,7 +1968,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		const foot = penPanel && penPanel.querySelector("[data-footbar]");
 		const name = foot && foot.querySelector(".fname");
 		const o = penSel;
-		if (name && o) name.textContent = (VARIANT_LABEL[o.variant] || "框") + (o.text ? " · " + shortStr(o.text, 12) : "");
+		if (name && o) name.textContent = vlabel(o.variant) + (o.text ? " · " + shortStr(o.text, 12) : "");
 	}
 
 	// ---------------------------------------------------------------- Setting 面板
@@ -1971,7 +1978,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		setPanel.className = "panel";
 		setPanel.style.left = "70px"; setPanel.style.top = "120px"; setPanel.style.width = "360px";
 		setPanel.innerHTML = `
-			<div class="hd"><b>⚙ Setting</b><button data-x title="關閉">✕</button></div>
+			<div class="hd"><b>${T("set_title")}</b><button data-x title="${T("close")}">✕</button></div>
 			<div class="bd"></div>`;
 		shadow.appendChild(setPanel);
 		setPanel.querySelector("[data-x]").addEventListener("click", closeTool);
@@ -1980,15 +1987,12 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	function renderSetPanel() {
 		if (!setPanel || !setPanel.classList.contains("show")) return;
 		const bd = setPanel.querySelector(".bd");
-		let h = `<h4>Pen 座標匯出 / 匯入</h4>`;
-		h += `<div class="row"><button class="act pri" data-exportfile>匯出成檔案</button><button class="act" data-export>顯示 JSON</button><button class="act" data-copy>複製</button></div>`;
-		h += `<div class="row"><textarea data-io rows="6" placeholder="按「匯出」把座標填到這裡，或貼上 JSON 後按「匯入」" style="flex:1;width:100%;background:#2b2b3d;color:#e8e8f0;border:1px solid #4a4a66;border-radius:5px;padding:6px;font-family:ui-monospace,Consolas,monospace;font-size:calc(var(--fs) - 2px);resize:vertical"></textarea></div>`;
-		h += `<div class="row"><button class="act" data-import>從上框匯入</button><button class="act" data-importfile>選檔匯入…</button>
+		let h = `<h4>${T("set_h_io")}</h4>`;
+		h += `<div class="row"><button class="act pri" data-exportfile>${T("btn_exportfile")}</button><button class="act" data-export>${T("btn_showjson")}</button><button class="act" data-copy>${T("btn_copy")}</button></div>`;
+		h += `<div class="row"><textarea data-io rows="6" placeholder="${T("io_placeholder")}" style="flex:1;width:100%;background:#2b2b3d;color:#e8e8f0;border:1px solid #4a4a66;border-radius:5px;padding:6px;font-family:ui-monospace,Consolas,monospace;font-size:calc(var(--fs) - 2px);resize:vertical"></textarea></div>`;
+		h += `<div class="row"><button class="act" data-import>${T("btn_import")}</button><button class="act" data-importfile>${T("btn_importfile")}</button>
 			<input type="file" data-file accept="application/json,.json" style="display:none"></div>`;
-		h += `<div class="note">匯出目前 <b>${penObjects.length}</b> 個 Pen 物件（型別/座標/尺寸/字級/顏色/旋轉/隱藏/鎖定）。<span class="warn">匯入會取代目前全部物件。</span></div>`;
-		h += `<h4>氣球</h4>`;
-		h += `<div class="row"><button class="act" data-hide>隱藏氣球</button></div>`;
-		h += `<div class="note">隱藏後，點聊天室按鈕列的 DDT 鈕即可重新叫出氣球。</div>`;
+		h += `<div class="note">${T("set_note_export", { n: penObjects.length })}</div>`;
 		bd.innerHTML = h;
 		wireSetPanel();
 	}
@@ -2012,7 +2016,6 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			rd.onload = () => { io.value = String(rd.result); if (importPenJSON(io.value)) { renderPenPanel(); renderSetPanel(); } };
 			rd.readAsText(f);
 		});
-		q("[data-hide]")?.addEventListener("click", hideBalloon);
 	}
 
 	function exportPenJSON() {
@@ -2023,14 +2026,14 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		try {
 			const data = JSON.parse(text);
 			const arr = Array.isArray(data) ? data : data && data.objects;
-			if (!Array.isArray(arr)) throw new Error("格式不符（找不到 objects 陣列）");
+			if (!Array.isArray(arr)) throw new Error(T("import_bad_format"));
 			penObjects = arr.filter((o) => o && isFinite(o.x) && isFinite(o.y)).map(normalizePenObj);
 			penSeq = 1; penObjects.forEach((o) => (o.id = newPenId()));
 			penSel = null;
 			savePenObjects();
 			return true;
 		} catch (e) {
-			alert("匯入失敗：" + (e && e.message ? e.message : e));
+			alert(T("import_fail", { msg: e && e.message ? e.message : e }));
 			return false;
 		}
 	}
@@ -2045,7 +2048,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			a.href = url; a.download = `DDT-pen-${ts}.json`;
 			document.body.appendChild(a); a.click(); a.remove();
 			setTimeout(() => URL.revokeObjectURL(url), 1000);
-		} catch (e) { alert("匯出檔案失敗：" + (e && e.message ? e.message : e)); }
+		} catch (e) { alert(T("export_fail", { msg: e && e.message ? e.message : e })); }
 	}
 
 	/** 讓元素可拖曳；沒有位移的話當成點擊。onDrag 在拖曳中每次移動呼叫（讓附屬選單跟著跑）。 */
@@ -2402,7 +2405,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			return;
 		}
 		if (!selection) {
-			bd.innerHTML = `<div class="empty">按 🎈→📏 或 <kbd>F2</kbd> 偵測游標下的物件</div>`;
+			bd.innerHTML = `<div class="empty">${T("hint_detect")}</div>`;
 			return;
 		}
 		bd.innerHTML = selection.kind === "canvas" ? renderCanvasInfo() : renderDomInfo();
@@ -2411,13 +2414,13 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 
 	/** 「屬性」頁：只放可即時編輯的幾何/樣式（尺寸、字級、座標、顏色、旋轉），偵測資訊留在「選取」頁 */
 	function renderPropsTab() {
-		if (!selection) return `<div class="empty">先在「選取」頁偵測一個物件，再回這裡改它的尺寸/字級/座標/顏色/旋轉</div>`;
+		if (!selection) return `<div class="empty">${T("props_no_sel")}</div>`;
 		if (selection.kind === "dom") {
 			selection.editKey = null;
-			return `<div class="row"><span class="k">類型</span><span class="v"><span class="tag dom">DOM</span></span></div>` + renderDomEdit(selection.el);
+			return `<div class="row"><span class="k">${T("lbl_type")}</span><span class="v"><span class="tag dom">DOM</span></span></div>` + renderDomEdit(selection.el);
 		}
 		const rec = selection.hits[selection.index];
-		if (!rec) return `<div class="empty">這個位置沒有可編輯的繪製呼叫</div>`;
+		if (!rec) return `<div class="empty">${T("props_no_editable")}</div>`;
 		return renderUiTools(rec);
 	}
 
@@ -2428,24 +2431,21 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		const total = frameTopCount;
 
 		let h = `<div class="row">
-			<button class="act ${frozen ? "pri" : ""}" data-freeze>${frozen ? "◼ 已凍結" : "❚❚ 凍結這一幀"}</button>
-			<span class="dt" style="color:#777">${frozen ? "清單已停住" : "清單每幀更新"} · <kbd>F3</kbd></span>
+			<button class="act ${frozen ? "pri" : ""}" data-freeze>${frozen ? T("frozen_on") : T("frozen_off")}</button>
+			<span class="dt" style="color:#777">${frozen ? T("frozen_status_on") : T("frozen_status_off")} · <kbd>F3</kbd></span>
 		</div>`;
 
-		h += `<h4>逐呼叫回放</h4>`;
+		h += `<h4>${T("h_replay")}</h4>`;
 		h += `<div class="row">
 			<input type="range" data-scrub min="0" max="${Math.max(total, 1)}"
 				value="${scrubLimit < 0 ? total : scrubLimit}" style="flex:1">
 			<span class="v" style="flex:0 0 auto;color:#ffb75c">${scrubLimit < 0 ? total : scrubLimit}/${total}</span>
 		</div>`;
-		h += `<div class="row"><button class="act" data-scrubreset ${scrubLimit < 0 ? "disabled" : ""}>畫回全部</button></div>`;
-		h += `<div class="note">拉滑桿 = 只畫前 N 個頂層繪製呼叫，畫面會停在「畫到一半」的狀態，
-			可以看出每個東西是誰畫的、蓋在誰上面。
-			<span class="warn">這是把「當下這一幀」切斷重畫，不是重播擷取到的舊幀</span> ——
-			靜態畫面兩者等價，會動的畫面（動畫、hover）就不是。</div>`;
+		h += `<div class="row"><button class="act" data-scrubreset ${scrubLimit < 0 ? "disabled" : ""}>${T("btn_drawall")}</button></div>`;
+		h += `<div class="note">${T("replay_note")}</div>`;
 
 		if (!log.length) {
-			return h + `<div class="empty">還沒有繪製資料，等一幀。</div>`;
+			return h + `<div class="empty">${T("frame_empty")}</div>`;
 		}
 
 		// 事件瀏覽器
@@ -2453,12 +2453,12 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		const shown = log.filter((r) => !f || r.fn.toLowerCase().includes(f) ||
 			String(r.label ?? "").toLowerCase().includes(f) || String(r.src ?? "").toLowerCase().includes(f));
 
-		h += `<h4>繪製呼叫（${shown.length}${f ? ` / ${log.length}` : ""}，頂層 ${total}）</h4>`;
-		h += `<div class="row"><input type="text" data-filter value="${esc(frameFilter)}" placeholder="過濾：函式名 / 文字 / 圖檔"></div>`;
+		h += `<h4>${T("h_drawcalls", { count: `${shown.length}${f ? ` / ${log.length}` : ""}`, total })}</h4>`;
+		h += `<div class="row"><input type="text" data-filter value="${esc(frameFilter)}" placeholder="${T("filter_placeholder")}"></div>`;
 		h += `<div class="stack" style="max-height:300px">`;
 		for (const r of shown) {
 			const cut = scrubLimit >= 0 && r.top >= scrubLimit;
-			const desc = r.isCharacter ? (r.C?.Name ?? "角色")
+			const desc = r.isCharacter ? (r.C?.Name ?? T("char_fallback"))
 				: r.label ? shortStr(String(r.label), 16)
 				: r.src ? shortStr(String(r.src).split("/").pop(), 16) : "";
 			h += `<div class="si" data-ev="${r.order}" style="${cut ? "opacity:.35" : ""};padding-left:${6 + r.depth * 12}px">
@@ -2469,9 +2469,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			</div>`;
 		}
 		h += `</div>`;
-		h += `<div class="note">左邊數字是頂層呼叫序號（滑桿就是切在這個數字上）。有縮排的是子呼叫，
-			屬於它上面那個頂層呼叫，跟著父層一起被切掉。灰掉的 = 目前被回放切掉、沒有畫出來。
-			時間含子呼叫。點任一筆可跳到「選取」頁看它的細節。</div>`;
+		h += `<div class="note">${T("frame_note")}</div>`;
 		return h;
 	}
 
@@ -2522,34 +2520,34 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 	function renderCanvasInfo() {
 		const s = selection;
 		const rec = s.hits[s.index];
-		let h = `<div class="row"><span class="k">類型</span><span class="v"><span class="tag canvas">CANVAS</span></span></div>`;
-		h += row("點擊座標", `x: ${s.point.x.toFixed(1)}, y: ${s.point.y.toFixed(1)} <span style="color:#777">(2000×1000)</span>`);
-		h += `<div class="row"><span class="k">實際像素</span>${swatch(s.pixel.hex, s.pixel.alpha != null ? ` <span style="color:#777">a=${s.pixel.alpha}</span>` : "")}</div>`;
-		if (s.pixel.error) h += `<div class="note warn">取色失敗（畫布被跨域圖片污染）：${esc(shortStr(s.pixel.error, 60))}</div>`;
+		let h = `<div class="row"><span class="k">${T("lbl_type")}</span><span class="v"><span class="tag canvas">CANVAS</span></span></div>`;
+		h += row(T("lbl_click_coord"), `x: ${s.point.x.toFixed(1)}, y: ${s.point.y.toFixed(1)} <span style="color:#777">(2000×1000)</span>`);
+		h += `<div class="row"><span class="k">${T("lbl_actual_px")}</span>${swatch(s.pixel.hex, s.pixel.alpha != null ? ` <span style="color:#777">a=${s.pixel.alpha}</span>` : "")}</div>`;
+		if (s.pixel.error) h += `<div class="note warn">${T("pixel_error", { msg: esc(shortStr(s.pixel.error, 60)) })}</div>`;
 
 		if (!rec) {
-			h += `<div class="note">這個位置沒有任何被記錄到的繪製呼叫。可能是直接畫在背景上，或是由未被 hook 的函式繪製的。</div>`;
+			h += `<div class="note">${T("no_record_note")}</div>`;
 			return h;
 		}
 
-		h += `<h4>選中的繪製呼叫</h4>`;
-		h += row("函式", `<span style="color:#8fd0ff">${esc(rec.fn)}()</span>`);
-		h += row("矩形", `L ${rec.rect[0].toFixed(0)}, T ${rec.rect[1].toFixed(0)}`);
-		h += row("尺寸", `${rec.rect[2].toFixed(0)} × ${rec.rect[3].toFixed(0)}`);
+		h += `<h4>${T("h_selected_call")}</h4>`;
+		h += row(T("lbl_fn"), `<span style="color:#8fd0ff">${esc(rec.fn)}()</span>`);
+		h += row(T("lbl_rect"), `L ${rec.rect[0].toFixed(0)}, T ${rec.rect[1].toFixed(0)}`);
+		h += row(T("lbl_size"), `${rec.rect[2].toFixed(0)} × ${rec.rect[3].toFixed(0)}`);
 		if (rec.label != null && rec.label !== "") {
-			h += `<div class="row"><span class="k">文字</span><span class="v" style="white-space:pre-wrap">${esc(String(rec.label))}</span></div>`;
+			h += `<div class="row"><span class="k">${T("lbl_text")}</span><span class="v" style="white-space:pre-wrap">${esc(String(rec.label))}</span></div>`;
 		}
-		if (rec.src) h += row("圖片", esc(shortStr(rec.src, 50)));
-		if (rec.tip) h += row("提示", esc(shortStr(rec.tip, 40)));
-		if (rec.color) h += `<div class="row"><span class="k">宣告顏色</span>${swatch(normalizeColor(rec.color) || rec.color)}</div>`;
-		if (rec.ms != null) h += row("耗時", `${rec.ms.toFixed(3)} ms <span style="color:#777">(含子呼叫)</span>`);
-		if (rec.top != null) h += row("呼叫序號", `${rec.top} <span style="color:#777">(頂層)</span>`);
+		if (rec.src) h += row(T("lbl_image"), esc(shortStr(rec.src, 50)));
+		if (rec.tip) h += row(T("lbl_tip"), esc(shortStr(rec.tip, 40)));
+		if (rec.color) h += `<div class="row"><span class="k">${T("lbl_decl_color")}</span>${swatch(normalizeColor(rec.color) || rec.color)}</div>`;
+		if (rec.ms != null) h += row(T("lbl_time"), `${rec.ms.toFixed(3)} ms <span style="color:#777">${T("suffix_subcalls")}</span>`);
+		if (rec.top != null) h += row(T("lbl_call_order"), `${rec.top} <span style="color:#777">${T("suffix_toplevel")}</span>`);
 
 		h += renderTexture(rec);
 		h += renderState(rec);
 
-		// 幾何/樣式編輯（尺寸/字級/座標/顏色/旋轉/文字）移到「屬性」頁；這裡只給個入口提示。
-		if (rec.key && rec.spec) h += `<div class="note">要改尺寸/字級/座標/顏色/旋轉${rec.spec.text != null ? "/文字" : ""} → 切到上方「屬性」頁。</div>`;
+		// 幾何/樣式編輯移到「屬性」頁；這裡只給個入口提示
+		if (rec.key && rec.spec) h += `<div class="note">${T("props_entry_note", { t: rec.spec.text != null ? T("props_entry_text") : "" })}</div>`;
 		if (rec.isCharacter) h += renderCharacterTools(rec);
 		h += renderStack();
 		return h;
@@ -2557,7 +2555,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 
 	/** 圖層的顯示名稱 */
 	function layerLabel(layer) {
-		if (!layer) return "(未知圖層)";
+		if (!layer) return T("layer_unknown");
 		const g = layer.Asset?.Group?.Name ?? "?";
 		const a = layer.Asset?.Name ?? "?";
 		return layer.Name ? `${g}/${a}/${layer.Name}` : `${g}/${a}`;
@@ -2568,15 +2566,15 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		const hits = hitLayers(rec, selection.point.x, selection.point.y);
 		const all = Array.isArray(C.AppearanceLayers) ? C.AppearanceLayers : [];
 
-		let h = `<h4>圖層（像素級命中）</h4>`;
+		let h = `<h4>${T("h_layers_pixel")}</h4>`;
 		if (!rec.blit) {
-			return h + `<div class="note warn">抓不到角色的貼圖參數，無法換算座標。這通常表示這個畫面用了非標準的角色繪製路徑。</div>`;
+			return h + `<div class="note warn">${T("layer_no_blit")}</div>`;
 		}
 		if (!getLayerDraws(C)) {
-			return h + `<div class="note warn">這個角色沒有圖層繪製紀錄。</div>`;
+			return h + `<div class="note warn">${T("layer_no_record")}</div>`;
 		}
 		if (!hits.length) {
-			h += `<div class="note">游標下沒有任何不透明的圖層（點到的是全透明區域或角色以外的地方）。</div>`;
+			h += `<div class="note">${T("layer_no_hit")}</div>`;
 		}
 
 		// 下拉選單：命中的排前面，其餘依繪製順序由上而下
@@ -2586,10 +2584,10 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 
 		if (hits.length) {
 			const top = hits[0];
-			h += row("最上層", `<span style="color:#8fd0ff">${esc(layerLabel(top.layer))}</span>`);
-			h += row("Priority", `<span style="color:#ffb75c">${esc(top.layer?.Priority ?? "—")}</span> <span style="color:#777">(圖層排序用的 int)</span>`);
-			h += row("該點 alpha", top.alpha < 0 ? "讀不到（跨域）" : `${top.alpha} / 255`);
-			h += row("圖層座標", `${top.at[0]}, ${top.at[1]} <span style="color:#777">(角色畫布)</span>`);
+			h += row(T("lbl_topmost"), `<span style="color:#8fd0ff">${esc(layerLabel(top.layer))}</span>`);
+			h += row("Priority", `<span style="color:#ffb75c">${esc(top.layer?.Priority ?? "—")}</span> <span style="color:#777">${T("suffix_sort_int")}</span>`);
+			h += row(T("lbl_alpha_at"), top.alpha < 0 ? T("alpha_unreadable") : `${top.alpha} / 255`);
+			h += row(T("lbl_layer_coord"), `${top.at[0]}, ${top.at[1]} <span style="color:#777">${T("suffix_char_canvas")}</span>`);
 		}
 
 		if (!ordered.length) return h;
@@ -2597,24 +2595,23 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		let preferred = hits.length ? ordered.indexOf(hits[0].layer) : 0;
 		if (preferred < 0) preferred = 0;
 
-		h += `<h4>單獨染這一層 <span style="color:#777;font-weight:400">（item.Color[ColorIndex]）</span></h4>`;
+		h += `<h4>${T("h_dye_one")}</h4>`;
 		h += `<div class="row"><select data-layer>`;
 		ordered.forEach((L, i) => {
 			const mark = hitLayerSet.has(L) ? "◆ " : "";
 			const colorable = L.AllowColorize !== false;
 			h += `<option value="${i}" ${i === preferred ? "selected" : ""} ${colorable ? "" : "disabled"}>`;
-			h += `${esc(mark + "P" + (L.Priority ?? "?") + " · " + layerLabel(L))}${colorable ? "" : "（不可染色）"}</option>`;
+			h += `${esc(mark + "P" + (L.Priority ?? "?") + " · " + layerLabel(L))}${colorable ? "" : T("not_colorable")}</option>`;
 		});
 		h += `</select></div>`;
 		h += `<div class="row">
-			<span class="k">顏色</span>
+			<span class="k">${T("lbl_color")}</span>
 			<input type="color" data-layercolor value="${layerColorOf(C, ordered[preferred])}">
 			<span class="dt" style="color:#777">ColorIndex: ${esc(ordered[preferred]?.ColorIndex ?? 0)}</span>
 		</div>`;
-		h += `<div class="note">◆ = 游標下實際命中（已排除透明像素）。P 數字就是 layer.Priority，BC 靠它決定誰蓋誰；
-			道具的 <code>Property.OverridePriority</code> 會覆蓋它。單層染色會把 item.Color 攤成陣列再改指定那一格。</div>`;
+		h += `<div class="note">${T("dye_one_note")}</div>`;
 
-		h += `<h4>完整圖層堆疊（${ordered.length}）</h4><div class="stack">`;
+		h += `<h4>${T("h_full_stack", { n: ordered.length })}</h4><div class="stack">`;
 		ordered.forEach((L) => {
 			h += `<div class="si">
 				<span class="pr">P${esc(L.Priority ?? "?")}</span>
@@ -2622,7 +2619,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 				<span class="dt" style="margin-left:auto">${hitLayerSet.has(L) ? "◆" : ""}</span>
 			</div>`;
 		});
-		h += `</div><div class="note">由上而下 = 由最上層到最底層，直接讀 C.AppearanceLayers（BC 已排序好的結果）。</div>`;
+		h += `</div><div class="note">${T("full_stack_note")}</div>`;
 		return h;
 	}
 
@@ -2639,12 +2636,12 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		const groups = hitGroups(rec, selection.point.x, selection.point.y);
 		const app = Array.isArray(C.Appearance) ? C.Appearance : [];
 
-		let h = `<h4>角色</h4>`;
-		h += row("名稱", esc(C.Name || C.AccountName || "?"));
-		h += row("會員編號", esc(C.MemberNumber ?? "—"));
-		h += row("身高比例", (rec.heightRatio ?? 1).toFixed(3));
+		let h = `<h4>${T("h_character")}</h4>`;
+		h += row(T("lbl_name"), esc(C.Name || C.AccountName || "?"));
+		h += row(T("lbl_member"), esc(C.MemberNumber ?? "—"));
+		h += row(T("lbl_height_ratio"), (rec.heightRatio ?? 1).toFixed(3));
 		if (groups.length) {
-			h += row("命中部位", groups.map((g) => `<span style="color:#8fd0ff">${esc(g.group.Name)}</span>`).join(", "));
+			h += row(T("lbl_hit_zone"), groups.map((g) => `<span style="color:#8fd0ff">${esc(g.group.Name)}</span>`).join(", "));
 		}
 
 		h += renderLayerSection(rec);
@@ -2654,26 +2651,25 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		let preferred = app.findIndex((it) => hitNames.includes(it.Asset?.Group?.Name));
 		if (preferred < 0) preferred = 0;
 
-		h += `<h4>整件染色 <span style="color:#777;font-weight:400">（item.Color，所有層一起）</span></h4>`;
-		if (!app.length) return h + `<div class="note">這個角色身上沒有可讀取的 Appearance。</div>`;
+		h += `<h4>${T("h_dye_item")}</h4>`;
+		if (!app.length) return h + `<div class="note">${T("no_appearance")}</div>`;
 
 		h += `<div class="row"><select data-item>`;
 		app.forEach((it, i) => {
 			const g = it.Asset?.Group;
 			const colorable = g?.AllowColorize !== false && colorLayers(it) > 0;
 			const mark = hitNames.includes(g?.Name) ? "◆ " : "";
-			h += `<option value="${i}" ${i === preferred ? "selected" : ""} ${colorable ? "" : "disabled"}>${esc(mark + (g?.Name ?? "?") + " / " + (it.Asset?.Name ?? "?"))}${colorable ? "" : "（不可染色）"}</option>`;
+			h += `<option value="${i}" ${i === preferred ? "selected" : ""} ${colorable ? "" : "disabled"}>${esc(mark + (g?.Name ?? "?") + " / " + (it.Asset?.Name ?? "?"))}${colorable ? "" : T("not_colorable")}</option>`;
 		});
 		h += `</select></div>`;
 		h += `<div class="row">
-			<span class="k">顏色</span>
+			<span class="k">${T("lbl_color")}</span>
 			<input type="color" data-itemcolor value="${currentColorOf(app[preferred])}">
-			<button class="act" data-reset>還原這件</button>
+			<button class="act" data-reset>${T("btn_reset_item")}</button>
 		</div>`;
 		h += `<div class="row"><label style="display:flex;gap:5px;align-items:center;cursor:pointer">
-			<input type="checkbox" data-push ${C.IsPlayer && C.IsPlayer() ? "" : "disabled"}> 同步到伺服器（只對自己有效）</label></div>`;
-		h += `<div class="note">◆ 標記 = 你點到的部位。拖色盤就會即時看到變化。未勾同步時只改本地畫面，
-			重新整理或角色重載就會回復。多層可染色的道具（ColorableLayerCount &gt; 1）會把所有層設成同一色。</div>`;
+			<input type="checkbox" data-push ${C.IsPlayer && C.IsPlayer() ? "" : "disabled"}> ${T("chk_sync_server")}</label></div>`;
+		h += `<div class="note">${T("dye_item_note")}</div>`;
 		return h;
 	}
 
@@ -2689,8 +2685,8 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			try { url = img.toDataURL(); } catch { return ""; } // 跨域汙染就放棄
 		}
 		if (!url) return "";
-		return `<h4>紋理</h4>
-			<div class="row"><span class="k">尺寸</span><span class="v">${img.width} × ${img.height}</span></div>
+		return `<h4>${T("h_texture")}</h4>
+			<div class="row"><span class="k">${T("lbl_size")}</span><span class="v">${img.width} × ${img.height}</span></div>
 			<div class="texbox"><img src="${esc(url)}" alt=""></div>`;
 	}
 
@@ -2700,12 +2696,12 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		if (!s) return "";
 		const t = s.transform;
 		const identity = t && t[0] === 1 && t[1] === 0 && t[2] === 0 && t[3] === 1 && t[4] === 0 && t[5] === 0;
-		let h = `<h4>繪製狀態</h4>`;
+		let h = `<h4>${T("h_draw_state")}</h4>`;
 		h += row("globalAlpha", s.alpha);
-		h += row("合成模式", esc(s.composite));
+		h += row(T("lbl_composite"), esc(s.composite));
 		if (s.filter && s.filter !== "none") h += row("filter", esc(s.filter));
-		if (s.font) h += row("字型", esc(shortStr(s.font, 28)) + ` <span style="color:#777">/ ${esc(s.align)}</span>`);
-		h += row("transform", identity ? `<span style="color:#777">單位矩陣</span>` : t.map((n) => Math.round(n * 100) / 100).join(", "));
+		if (s.font) h += row(T("lbl_font"), esc(shortStr(s.font, 28)) + ` <span style="color:#777">/ ${esc(s.align)}</span>`);
+		h += row("transform", identity ? `<span style="color:#777">${T("identity_matrix")}</span>` : t.map((n) => Math.round(n * 100) / 100).join(", "));
 		return h;
 	}
 
@@ -2717,19 +2713,19 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		return `<div class="row">
 			<span class="k">${esc(label)}</span>
 			<input type="number" data-num="${prop}" value="${Math.round(val * 100) / 100}" step="1"${dirty}>
-			<span class="dt" style="color:#777">原始 ${Math.round(orig)}</span>
+			<span class="dt" style="color:#777">${T("orig_val", { v: Math.round(orig) })}</span>
 		</div>`;
 	}
 
 	function renderUiTools(rec) {
 		if (!rec.key || !rec.spec || !rec.orig) {
-			return `<div class="note">這個繪製呼叫沒有登記可編輯的參數，只能看不能改。</div>`;
+			return `<div class="note">${T("no_editable_note")}</div>`;
 		}
 		const o = uiOverrides.get(rec.key) || {};
 		const s = rec.spec;
 		selection.editKey = rec.key;
 
-		let h = `<h4>屬性 <span style="color:#777;font-weight:400">（改了立刻生效）</span></h4>`;
+		let h = `<h4>${T("h_props")}</h4>`;
 
 		// 文字：任何有登記 text 索引的繪製呼叫（DrawText 系列、DrawButton 等）都能直接改，
 		// 完整顯示、不截斷；輸入的是絕對文字（不像位移用差值），空白清掉表示還原成原文字。
@@ -2737,24 +2733,24 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			const curText = o.text != null ? o.text : (rec.orig.text ?? "");
 			const dirtyText = o.text != null && o.text !== rec.orig.text;
 			h += `<div class="row" style="align-items:flex-start">
-				<span class="k" style="margin-top:6px">文字</span>
+				<span class="k" style="margin-top:6px">${T("lbl_text")}</span>
 				<textarea data-uitext rows="3"${dirtyText ? ' style="border-color:#ffb75c"' : ""}>${esc(String(curText))}</textarea>
 			</div>`;
-			h += `<div class="note" style="margin-top:0">改的是繪製前傳進去的文字內容，不是資料，畫面每幀重畫；清空欄位可還原成原文字：
+			h += `<div class="note" style="margin-top:0">${T("text_note")}
 				<span style="color:#777">${esc(shortStr(String(rec.orig.text ?? ""), 60))}</span></div>`;
 		}
 
 		h += numRow("X", "dx", rec.orig.x, o.dx);
 		h += numRow("Y", "dy", rec.orig.y, o.dy);
-		h += numRow(s.w != null && rec.fn === "DrawCircle" ? "半徑" : "寬", "dw", rec.orig.w, o.dw);
-		h += numRow("高", "dh", rec.orig.h, o.dh);
+		h += numRow(s.w != null && rec.fn === "DrawCircle" ? T("lbl_radius") : T("lbl_w"), "dw", rec.orig.w, o.dw);
+		h += numRow(T("lbl_h"), "dh", rec.orig.h, o.dh);
 
 		if (s.color != null) {
 			const base = normalizeColor(o.color || rec.orig.color) || "#ffffff";
 			h += `<div class="row">
-				<span class="k">顏色</span>
+				<span class="k">${T("lbl_color")}</span>
 				<input type="color" data-uicolor value="${base}">
-				<span class="dt" style="color:#777">原始 ${esc(shortStr(rec.orig.color ?? "—", 12))}</span>
+				<span class="dt" style="color:#777">${T("orig_val", { v: esc(shortStr(rec.orig.color ?? "—", 12)) })}</span>
 			</div>`;
 		}
 
@@ -2763,36 +2759,35 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			const origPx = parseFontPx(rec.state && rec.state.font);
 			const cur = o.fs != null ? o.fs : "";
 			h += `<div class="row">
-				<span class="k">字級</span>
+				<span class="k">${T("lbl_fontsize")}</span>
 				<input type="number" data-fs value="${cur}" placeholder="${origPx || "px"}" step="1">
-				<span class="dt" style="color:#777">原始 ${origPx || "?"}</span>
+				<span class="dt" style="color:#777">${T("orig_val", { v: origPx || "?" })}</span>
 			</div>`;
 		}
 
 		// 旋轉：任何可編輯繪製都能繞中心旋轉（畫面上會即時轉）
 		h += `<div class="row">
-			<span class="k">旋轉°</span>
+			<span class="k">${T("lbl_rot")}</span>
 			<input type="range" data-rot min="-180" max="180" value="${o.rot || 0}" style="flex:1">
 			<input type="number" data-rotn value="${o.rot || 0}" style="width:64px">
 		</div>`;
 
 		const dirty = uiOverrides.has(rec.key);
 		h += `<div class="row" style="margin-top:6px">
-			<button class="act" data-uiclear ${dirty ? "" : "disabled"}>還原這個</button>
-			${uiOverrides.size ? `<button class="act" data-uiclearall>還原全部 (${uiOverrides.size})</button>` : ""}
+			<button class="act" data-uiclear ${dirty ? "" : "disabled"}>${T("btn_reset_this")}</button>
+			${uiOverrides.size ? `<button class="act" data-uiclearall>${T("btn_reset_all", { n: uiOverrides.size })}</button>` : ""}
 		</div>`;
-		h += `<div class="note">改的是繪製前的參數/變換，不是資料 —— 畫面每幀重畫，所以拖動數字就即時看到位移/變色/旋轉/字級/文字的效果。
-			比對依據是「函式名 + 原始座標」，換畫面或元件本來就會動的話就會失效（還原鈕仍可清掉）。
-			${rec.fn === "DrawTextFit" ? '<span class="warn">DrawTextFit 會自動縮放字級去塞進固定寬度，改字級多半看不出來，建議改「寬」讓它自己放大。</span>' : ""}
-			${rec.fn === "DrawButton" ? '<span class="warn">滑鼠移上按鈕時 BC 會強制畫成 Cyan，改的顏色要移開滑鼠才看得到。</span>' : ""}</div>`;
+		h += `<div class="note">${T("ui_note_main")}
+			${rec.fn === "DrawTextFit" ? `<span class="warn">${T("warn_textfit")}</span>` : ""}
+			${rec.fn === "DrawButton" ? `<span class="warn">${T("warn_button")}</span>` : ""}</div>`;
 		return h;
 	}
 
 	function renderStack() {
 		const s = selection;
-		let h = `<h4>這個位置的繪製堆疊（${s.hits.length}）</h4><div class="stack">`;
+		let h = `<h4>${T("h_stack", { n: s.hits.length })}</h4><div class="stack">`;
 		s.hits.forEach((rec, i) => {
-			const desc = rec.isCharacter ? (rec.C?.Name ?? "角色")
+			const desc = rec.isCharacter ? (rec.C?.Name ?? T("char_fallback"))
 				: rec.label ? shortStr(rec.label, 18)
 				: rec.src ? shortStr(String(rec.src).split("/").pop(), 18)
 				: "";
@@ -2803,46 +2798,44 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 				<span class="dt" style="margin-left:auto">${rec.rect[2].toFixed(0)}×${rec.rect[3].toFixed(0)}</span>
 			</div>`;
 		});
-		h += `</div><div class="note">由上而下 = 由最上層到最底層。點任一筆可切換選取。
-			<b>#數字是這一幀的繪製呼叫序號</b> —— 介面元件沒有 priority 之類的 int，
-			純粹「誰後畫誰在上面」，所以序號就是它的 z 序。只有角色圖層才有真正的 Priority。</div>`;
+		h += `</div><div class="note">${T("stack_note")}</div>`;
 		return h;
 	}
 
 	function renderDomInfo() {
 		const el = selection.el;
-		if (!el) return `<div class="empty">抓不到元素</div>`;
+		if (!el) return `<div class="empty">${T("no_element")}</div>`;
 		const r = el.getBoundingClientRect();
 		const cs = getComputedStyle(el);
 		selection.domRect = r;
 
-		let h = `<div class="row"><span class="k">類型</span><span class="v"><span class="tag dom">DOM</span></span></div>`;
-		h += row("標籤", `&lt;${esc(el.tagName.toLowerCase())}&gt;`);
+		let h = `<div class="row"><span class="k">${T("lbl_type")}</span><span class="v"><span class="tag dom">DOM</span></span></div>`;
+		h += row(T("lbl_tag"), `&lt;${esc(el.tagName.toLowerCase())}&gt;`);
 		if (el.id) h += row("id", esc(el.id));
 		if (el.className && typeof el.className === "string") h += row("class", esc(shortStr(el.className, 40)));
-		// BC 的 DOM 元件其實也是照畫布座標擺的，換算成 2000×1000 才能跨解析度對照
+		// BC 的 DOM 元件也是照畫布座標擺的，換算成 2000×1000 才能跨解析度對照
 		const v = clientRectToVirtual(r);
-		h += row("畫布座標", `x: ${v.x.toFixed(1)}, y: ${v.y.toFixed(1)} <span style="color:#777">(2000×1000)</span>`);
-		h += row("畫布尺寸", `${v.w.toFixed(1)} × ${v.h.toFixed(1)}`);
-		h += row("螢幕座標", `L ${r.left.toFixed(1)}, T ${r.top.toFixed(1)} <span style="color:#777">(實際 px)</span>`);
-		h += row("螢幕尺寸", `${r.width.toFixed(1)} × ${r.height.toFixed(1)}`);
+		h += row(T("lbl_canvas_coord"), `x: ${v.x.toFixed(1)}, y: ${v.y.toFixed(1)} <span style="color:#777">(2000×1000)</span>`);
+		h += row(T("lbl_canvas_size"), `${v.w.toFixed(1)} × ${v.h.toFixed(1)}`);
+		h += row(T("lbl_screen_coord"), `L ${r.left.toFixed(1)}, T ${r.top.toFixed(1)} <span style="color:#777">${T("suffix_actual_px")}</span>`);
+		h += row(T("lbl_screen_size"), `${r.width.toFixed(1)} × ${r.height.toFixed(1)}`);
 		h += row("position", esc(cs.position) + " / z-index: " + esc(cs.zIndex));
-		h += `<div class="note">要改位置/尺寸/顏色 → 切到上方「屬性」頁。</div>`;
+		h += `<div class="note">${T("dom_entry_note")}</div>`;
 		return h;
 	}
 
 	/** DOM 的可編輯欄位（位置/尺寸/顏色）；由「屬性」頁呼叫 */
 	function renderDomEdit(el) {
-		if (!el) return `<div class="empty">抓不到元素</div>`;
+		if (!el) return `<div class="empty">${T("no_element")}</div>`;
 		const cs = getComputedStyle(el);
-		let h = `<h4>屬性 <span style="color:#777;font-weight:400">（改了立刻生效）</span></h4>`;
+		let h = `<h4>${T("h_props")}</h4>`;
 		for (const [prop, label] of [["left", "left"], ["top", "top"], ["width", "width"], ["height", "height"]]) {
 			h += `<div class="row">
 				<span class="k">${label}</span>
 				<input type="text" data-css="${prop}" value="${esc(el.style[prop] || cs[prop])}" placeholder="${esc(cs[prop])}">
 			</div>`;
 		}
-		for (const [prop, label] of [["color", "文字"], ["backgroundColor", "背景"], ["borderColor", "邊框"]]) {
+		for (const [prop, label] of [["color", T("lbl_text")], ["backgroundColor", T("lbl_bg")], ["borderColor", T("lbl_border")]]) {
 			const cur = cs[prop === "borderColor" ? "borderTopColor" : prop];
 			h += `<div class="row">
 				<span class="k">${label}</span>
@@ -2850,9 +2843,8 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 				<span class="dt" style="color:#777">${esc(shortStr(cur, 20))}</span>
 			</div>`;
 		}
-		h += `<div class="row" style="margin-top:6px"><button class="act" data-domreset>還原這個元素</button></div>`;
-		h += `<div class="note">直接寫進 element.style（行內樣式），改了馬上看得到。
-			BC 重建該元素或視窗縮放重新排版後就會被蓋掉。位置欄要帶單位，例如 <code>120px</code>。</div>`;
+		h += `<div class="row" style="margin-top:6px"><button class="act" data-domreset>${T("btn_reset_element")}</button></div>`;
+		h += `<div class="note">${T("dom_note")}</div>`;
 		return h;
 	}
 
@@ -2989,6 +2981,13 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			version: MOD_VERSION,
 			repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
 		});
+
+		// i18n：等共用引擎就緒，載入 DDT 字庫（失敗就退回 key，不擋插件啟動）
+		try {
+			await waitFor(() => !!window.Liko?.__Sys_i18n__?.register);
+			await window.Liko.__Sys_i18n__.ensure("DDT", I18N_URL);
+		} catch (e) { console.warn(`🐈‍⬛ [${MOD_NAME}] i18n load failed, using keys`, e); }
+
 		installDrawHooks();
 
 		// Phase 2：等玩家真的登入、資源就緒才掛 UI
