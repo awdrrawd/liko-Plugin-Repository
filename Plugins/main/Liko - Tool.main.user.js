@@ -670,7 +670,6 @@
                 version: MOD_Version,
                 repository: 'https://github.com/awdrrawd/liko-Plugin-Repository'
             });
-            console.log("🐈‍⬛ [LT] ✅ modApi 初始化完成");
         } catch (e) {
             console.error("🐈‍⬛ [LT] ❌ 初始化 modApi 失敗:", e.message);
         }
@@ -2811,12 +2810,10 @@
     // 主初始化
     // ──────────────────────────────────────────
     async function initialize() {
-        console.log("🐈‍⬛ [LT] ⌛ 开始初始化插件...");
         await initializeModApi();
         try { await loadToastSystem(); }
         catch (e) { console.warn("🐈‍⬛ [LT] ❌ Toast system 载入失敗，備用模式運行:", e.message); }
 
-        console.log("🐈‍⬛ [LT] ⌛ 等待玩家登入...");
         await waitForLogin();
 
         initializeStorage();
@@ -2833,7 +2830,6 @@
 
         const registerCommand = () => {
             CommandCombine([{ Tag: "lt", Description: "Execute Liko Tool command", Action: handleLtCommand }]);
-            console.log("🐈‍⬛ [LT] ✅ /lt 指令注册成功");
         };
         if (typeof CommandCombine === "function") {
             try { registerCommand(); }
@@ -2848,8 +2844,7 @@
         waitFor(() => CurrentScreen === "ChatRoom").then(() => {
             ChatRoomSendLocal(t('loaded', { v: MOD_Version }), 30000);
         });
-
-        console.log("🐈‍⬛ [LT] ✅ 插件已载入 (v" + MOD_Version + ")");
+        console.log("🐈‍⬛ [LT] ✅ v${MOD_Version}  loaded");
     }
 
     // ──────────────────────────────────────────

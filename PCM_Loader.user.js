@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name           Liko - Plugin Collection Manager-Loader
-// @name:zh        Liko的插件管理器-L
+// @name:zh        Liko的插件管理器-Loader
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @version        1.2.1
 // @description    Liko's Plugin Collection Manager
@@ -74,7 +74,7 @@
             try {
                 eval(freshCode);
                 setCachedMain(freshCode);
-                console.log("🐈‍⬛ [PCM] ✅ Main script started (latest)");
+                console.log("🐈‍⬛ [PCM] ✅ Main script started");
                 return;
             } catch (evalErr) {
                 console.error(`🐈‍⬛ [PCM] ❌ 新版執行失敗，改用舊版快取：${evalErr.message}`);

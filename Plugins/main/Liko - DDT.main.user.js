@@ -43,11 +43,11 @@
  */
 (function () {
     window.Liko = window.Liko ?? {};
-    if (window.Liko.BDT) return;
+    if (window.Liko.DDT) return;
 
-	const MOD_NAME = "BDT";
+	const MOD_NAME = "DDT";
 	const MOD_VERSION = "0.2.1";
-	window.Liko.BDT = MOD_VERSION; // 佔位，避免重複載入；initialize 尾端會換成完整控制台 API
+	window.Liko.DDT = MOD_VERSION; // 佔位，避免重複載入；initialize 尾端會換成完整控制台 API
 	const UI_Z = 2147483000;
 
 	// 圖示資源（Images/DDT/，走 jsDelivr 與既有 @require 一致）
@@ -3000,7 +3000,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 		setupChatButton(); // 氣球預設隱藏，靠 #chat-room-buttons 的 DDT 鈕叫出/收起
 
 		// 控制台 API（氣球平時靠 #chat-room-buttons 的 DDT 鈕叫出/收起；這裡也留手動入口）
-		window.Liko.BDT = {
+		window.Liko.DDT = {
 			version: MOD_VERSION,
 			showBalloon,
 			hideBalloon,
@@ -3009,7 +3009,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch { /* 無
 			clearPen: () => { clearPenObjects(); renderPenPanel(); },
 		};
 
-		console.log(`🐈‍⬛ [${MOD_NAME}] ✅ v${MOD_VERSION} loaded — 氣球點一下展開 Pen / Ruler / Setting`);
+		console.log(`🐈‍⬛ [${MOD_NAME}] ✅ v${MOD_VERSION} loaded `);
 	}
 
 	initialize().catch((e) => console.error(`🐈‍⬛ [${MOD_NAME}] init error`, e));

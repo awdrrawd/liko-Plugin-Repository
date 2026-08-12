@@ -21,14 +21,14 @@
     // 防止重複載入
     // ════════════════════════════════════════════════════════════════════════════
     window.Liko     = window.Liko     ?? {};
-    window.Liko.CLL = window.Liko.CLL ?? {};
-    if (window.Liko.CLL.version) return;
+    window.Liko.CUS = window.Liko.CUS ?? {};
+    if (window.Liko.CUS.version) return;
 
     const MOD_VER = '0.1';
-    window.Liko.CLL.version = MOD_VER;
+    window.Liko.CUS.version = MOD_VER;
 
     const modApi = bcModSdk.registerMod({
-        name:       'Liko - CLL',
+        name:       'Liko - CUS',
         fullName:   'Chat Landscape Layout',
         version:    MOD_VER,
         repository: 'https://github.com/awdrrawd/liko-Plugin-Repository',
@@ -56,15 +56,15 @@
     //   這樣左右各半，跟 BC 預設一致，只是左右對調。
     // ════════════════════════════════════════════════════════════════════════════
 
-    const LS_KEY      = 'liko_cll_enabled';   // 手動開關持久化
+    const LS_KEY      = 'liko_cus_enabled';   // 手動開關持久化
     const Z_CANVAS    = 0;
     // 開關按鈕：比照 TRC 畫在 canvas 虛擬座標上（0,0，尺寸 45）
     const BTN_X       = 0;
     const BTN_Y       = 0;
     const BTN_SIZE    = 45;
 
-    let cllWanted    = localStorage.getItem(LS_KEY) === '1';
-    let cllActive    = false;
+    let cusWanted    = localStorage.getItem(LS_KEY) === '1';
+    let cusActive    = false;
     let savedDivRect = null;                  // 進入前 ChatRoomDivRect 備份
 
     // ── 工具 ────────────────────────────────────────────────────────────────────
@@ -130,8 +130,8 @@
 
     // ── 套用 / 還原 ──────────────────────────────────────────────────────────────
     function apply() {
-        if (cllActive) return;
-        cllActive = true;
+        if (cusActive) return;
+        cusActive = true;
         if (!savedDivRect && typeof ChatRoomDivRect !== 'undefined')
             savedDivRect = [...ChatRoomDivRect];
         const L = calcLayout();
@@ -140,8 +140,8 @@
         if (typeof ChatRoomResize === 'function') try { ChatRoomResize(false); } catch {}
     }
     function remove() {
-        if (!cllActive) return;
-        cllActive = false;
+        if (!cusActive) return;
+        cusActive = false;
         clearCanvas();
         if (savedDivRect) { setDivRect(savedDivRect); savedDivRect = null; }
         if (typeof ChatRoomResize === 'function') try { ChatRoomResize(false); } catch {}
@@ -149,9 +149,9 @@
 
     // ── 場景同步 ─────────────────────────────────────────────────────────────────
     function syncScene() {
-        const want = cllWanted && isChatRoomPlain();
-        if (want && !cllActive) apply();
-        else if (!want && cllActive) remove();
+        const want = cusWanted && isChatRoomPlain();
+        if (want && !cusActive) apply();
+        else if (!want && cusActive) remove();
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -175,7 +175,7 @@
 
     // BC 重算版面時：先套好 canvas 與 ChatRoomDivRect，再讓 BC 定位聊天 DOM。
     modApi.hookFunction('ChatRoomResize', 0, (args, next) => {
-        if (cllActive) {
+        if (cusActive) {
             const L = calcLayout();
             forceCanvas(L);
             setDivRect(L.divRect);
@@ -191,12 +191,12 @@
     modApi.hookFunction('DrawProcess', 5, (args, next) => {
         next(args);
         syncScene();
-        if (cllActive) forceCanvas(calcLayout());   // BC 每幀會重置 canvas 樣式，需重套
+        if (cusActive) forceCanvas(calcLayout());   // BC 每幀會重置 canvas 樣式，需重套
         // 開關按鈕（比照 TRC：畫在 canvas 虛擬 0,0，尺寸 45）
         if (isChatRoomPlain() && typeof DrawButton === 'function') {
             MainCanvas.globalAlpha = 0.75;
             DrawButton(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE, '⬌',
-                       cllWanted ? 'Pink' : 'Gray', '', '左訊息／右人物 橫版佈局');
+                       cusWanted ? 'Pink' : 'Gray', '', '左訊息／右人物 橫版佈局');
             MainCanvas.globalAlpha = 1.0;
         }
     });
@@ -204,15 +204,15 @@
     // 點擊開關按鈕：命中就切換並吃掉點擊，否則交還 BC。
     modApi.hookFunction('ChatRoomClick', 10, (args, next) => {
         if (isChatRoomPlain() && typeof MouseIn === 'function' && MouseIn(BTN_X, BTN_Y, BTN_SIZE, BTN_SIZE)) {
-            cllWanted = !cllWanted;
-            localStorage.setItem(LS_KEY, cllWanted ? '1' : '0');
+            cusWanted = !cusWanted;
+            localStorage.setItem(LS_KEY, cusWanted ? '1' : '0');
             syncScene();
             return;
         }
         return next(args);
     });
 
-    console.log(`🐈‍⬛ [CLL] Chat Landscape Layout v${MOD_VER} 已載入`);
+    console.log(`🐈‍⬛ [CUS] ✅ v${MOD_VER} loaded`);
     }
     initialize();
 })();
