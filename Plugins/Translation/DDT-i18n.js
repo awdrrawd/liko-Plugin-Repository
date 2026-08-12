@@ -205,6 +205,7 @@
         // ── DOM 資訊 / 編輯 ──────────────────────────────────────────────
         no_element: { TW: "抓不到元素", EN: "Element not found" },
         lbl_tag: { TW: "標籤", EN: "Tag" },
+        lbl_dom_text: { TW: "文字內容", EN: "Text content" },
         lbl_canvas_coord: { TW: "畫布座標", EN: "Canvas coord" },
         lbl_canvas_size: { TW: "畫布尺寸", EN: "Canvas size" },
         lbl_screen_coord: { TW: "螢幕座標", EN: "Screen coord" },

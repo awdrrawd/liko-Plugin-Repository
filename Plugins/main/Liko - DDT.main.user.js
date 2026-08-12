@@ -3,7 +3,7 @@
 // @name:zh        繪圖檢測工具
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.2.1
+// @version        0.3.0
 // @description    Detects canvas/DOM properties (Ruler), draws editable overlay objects (Pen), and exports/imports layouts (Setting).
 // @description:zh 偵測 canvas & DOM 物件的屬性、疊加可編輯繪圖物件、匯出/匯入版面座標
 // @author         likolisu
@@ -47,7 +47,7 @@
     if (window.Liko.DDT) return;
 
 	const MOD_NAME = "DDT";
-	const MOD_VERSION = "0.2.1";
+	const MOD_VERSION = "0.3.0";
 	window.Liko.DDT = MOD_VERSION; // 佔位，避免重複載入；initialize 尾端會換成完整控制台 API
 	const UI_Z = 2147483000;
 
@@ -727,6 +727,11 @@
 	 */
 	function drawPenOverlay() {
 		if (!fxCanvas || !fxCtx) return;
+		// 沒物件、又沒開全域隱藏 → 沒東西可畫，藏起來直接走，別每幀白白 getBoundingClientRect + 寫 style
+		if (!penObjects.length && globalHide === 0) {
+			if (fxCanvas.style.display !== "none") fxCanvas.style.display = "none";
+			return;
+		}
 		let cv = null;
 		try { cv = (typeof MainCanvas !== "undefined" && MainCanvas) ? MainCanvas.canvas : null; } catch { cv = null; }
 		if (!cv) { fxCanvas.style.display = "none"; return; }
@@ -2108,9 +2113,25 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		return path.includes(root);
 	}
 
+	/**
+	 * elementFromPoint 但會鑽進 open shadow DOM。
+	 * AEE 這類 React mod 把整個 UI 掛在 attachShadow({mode:"open"}) 裡，
+	 * document.elementFromPoint 會重定向回 shadow host（只看得到一個外層容器），
+	 * 逐層往 shadowRoot 再點一次才抓得到內層真正的按鈕/元素。closed shadow 讀不到 .shadowRoot，只能到此為止。
+	 */
+	function deepElementFromPoint(x, y) {
+		let el = document.elementFromPoint(x, y);
+		while (el && el.shadowRoot && el !== root) {
+			const inner = el.shadowRoot.elementFromPoint(x, y);
+			if (!inner || inner === el) break;
+			el = inner;
+		}
+		return el;
+	}
+
 	function onMove(e) {
 		if (!picking || isOurUI(e)) return;
-		const el = document.elementFromPoint(e.clientX, e.clientY);
+		const el = deepElementFromPoint(e.clientX, e.clientY);
 		if (el === MainCanvas?.canvas) {
 			domHighlight.style.display = "none";
 			const p = toVirtual(e.clientX, e.clientY);
@@ -2134,7 +2155,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		e.stopImmediatePropagation();
 		swallowUntil = Date.now() + 500; // 吞掉同一次手勢的 mouseup / click
 
-		const el = document.elementFromPoint(e.clientX, e.clientY);
+		const el = deepElementFromPoint(e.clientX, e.clientY);
 		if (el === MainCanvas?.canvas) inspectCanvas(e.clientX, e.clientY);
 		else inspectDom(el, e.clientX, e.clientY);
 		stopPicking(); // 要在 selection 決定之後才收，stopPicking 會依選取類型決定是否保留 DOM 外框
@@ -2175,8 +2196,8 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 			await nextFrames(2);
 		}
 		if (picking) stopPicking();
-		const el = document.elementFromPoint(x, y);
-		if (el === root) return; // 游標在自己的 UI 上，不要偵測自己
+		if (document.elementFromPoint(x, y) === root) return; // 游標在自己 UI 上（先用未穿透版判斷，穿透後就不是 root 了）
+		const el = deepElementFromPoint(x, y);
 		if (el === MainCanvas?.canvas) inspectCanvas(x, y);
 		else inspectDom(el, x, y);
 	}
@@ -2813,6 +2834,13 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		h += row(T("lbl_tag"), `&lt;${esc(el.tagName.toLowerCase())}&gt;`);
 		if (el.id) h += row("id", esc(el.id));
 		if (el.className && typeof el.className === "string") h += row("class", esc(shortStr(el.className, 40)));
+		// AEE 這類 React mod 把語意放在文字/aria-label/data-* 裡（例：data-select-layer="0" · aria-label="裙子"），一併印出
+		const domText = (el.textContent || "").replace(/\s+/g, " ").trim();
+		if (domText) h += row(T("lbl_dom_text"), esc(shortStr(domText, 40)));
+		const aria = el.getAttribute && el.getAttribute("aria-label");
+		if (aria) h += row("aria-label", esc(shortStr(aria, 40)));
+		const dset = el.dataset ? Object.entries(el.dataset) : [];
+		if (dset.length) h += row("data-*", esc(shortStr(dset.map(([k, val]) => `${k}=${val}`).join(" · "), 60)));
 		// BC 的 DOM 元件也是照畫布座標擺的，換算成 2000×1000 才能跨解析度對照
 		const v = clientRectToVirtual(r);
 		h += row(T("lbl_canvas_coord"), `x: ${v.x.toFixed(1)}, y: ${v.y.toFixed(1)} <span style="color:#777">(2000×1000)</span>`);
