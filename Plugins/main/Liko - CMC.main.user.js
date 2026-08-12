@@ -3,7 +3,7 @@
 // @name:zh      Liko的聊天室音樂控制器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.3.1
+// @version      1.3.2
 // @description  Chat Music Controller with playlist sharing and lyrics support
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,11 +18,11 @@
 (function() {
     window.Liko = window.Liko ?? {};
     if (window.Liko.CMC) return;
-    const MOD_VER = "1.3.1";
-    window.Liko.CMC = MOD_VER;
+    const MOD_VER = "1.3.2";
+    const CMC = window.Liko.CMC = { version: MOD_VER };
 
-    const debugMode = false;
-    function log(...args) { if (debugMode || window.CMC_DEBUG) console.log('[CMC]', ...args); }
+    CMC.debug = false;
+    function log(...args) { if (CMC.debug) console.log('[CMC]', ...args); }
     function error(...args) { console.error('[CMC]', ...args); }
 
     const CONSTANTS = {
@@ -46,6 +46,28 @@
         });
     }
 
+    function isLoggedIn() {
+        return typeof Player !== 'undefined' && Player?.MemberNumber !== undefined;
+    }
+
+    function waitForLogin() {
+        if (isLoggedIn()) {
+            return Promise.resolve();
+        }
+
+        return new Promise(resolve => {
+            const removeLoginHook = modApi.hookFunction('LoginResponse', 0, (args, next) => {
+                const result = next(args);
+                queueMicrotask(() => {
+                    if (!isLoggedIn()) return;
+                    removeLoginHook();
+                    resolve();
+                });
+                return result;
+            });
+        });
+    }
+
     const COLORS = {
         primary: '#9370db', light: '#ba55d3', dark: '#1C0230',
         accent: '#A355BB', highlight: '#ee82ee', dim: '#6a5acd'
@@ -53,6 +75,7 @@
 
     let modApi = null;
     let cmcDB = null;
+    let youtubeApiPromise = null;
 
     // currentPlaylist = 當前 (in-memory, cleared on exit)
     // personalPlaylist = 個人 (persisted)
@@ -84,7 +107,9 @@
         // rank: 0=not active, 1=controller, 2+=participant
         myControllerRank: 0,
         controllerCheckInterval: null,
+        navigationInterval: null,
         userListInterval: null,
+        bilibiliMessageHandler: null,
         permissions: new Map(), // memberNumber → {canPlay, canEdit}
 
         currentLyrics: [],
@@ -441,6 +466,14 @@
     async function initIndexedDB() {
         return new Promise((resolve, reject) => {
             const request = indexedDB.open('CMC_Database', 2);
+            let settled = false;
+            const timeoutId = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                reject(new Error('IndexedDB initialization timed out'));
+            }, 10000);
+            request.addEventListener('success', () => { settled = true; clearTimeout(timeoutId); });
+            request.addEventListener('error', () => { settled = true; clearTimeout(timeoutId); });
             request.onerror = () => { error('IndexedDB 打開失敗:', request.error); reject(request.error); };
             request.onsuccess = () => { cmcDB = request.result; log('IndexedDB 初始化成功'); resolve(cmcDB); };
             request.onupgradeneeded = (event) => {
@@ -450,6 +483,12 @@
                 }
                 // Keys: 'cmc_settings', 'personal_playlist', 'history_playlists'
                 // Legacy 'cmc_data' is ignored (no migration needed, playlist is now in-memory only)
+            };
+            request.onblocked = () => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeoutId);
+                reject(new Error('IndexedDB upgrade blocked by another tab'));
             };
         });
     }
@@ -838,6 +877,10 @@
         document.getElementById('cmc-yt-player')?.remove();
     }
     function cleanupBilibiliPlayer() {
+        if (musicPlayer.bilibiliMessageHandler) {
+            window.removeEventListener('message', musicPlayer.bilibiliMessageHandler);
+            musicPlayer.bilibiliMessageHandler = null;
+        }
         musicPlayer.isBilibili = false;
         musicPlayer.biliDuration = 0;
         musicPlayer.biliCurrentTime = 0;
@@ -905,9 +948,56 @@
             }
         }, 50);
     }
+    function ensureYouTubeAPI() {
+        if (window.YT?.Player) return Promise.resolve(window.YT);
+        if (youtubeApiPromise) return youtubeApiPromise;
+
+        youtubeApiPromise = new Promise((resolve, reject) => {
+            let tag = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+            if (!tag) {
+                tag = document.createElement('script');
+                tag.src = 'https://www.youtube.com/iframe_api';
+                document.head.appendChild(tag);
+            }
+
+            const started = Date.now();
+            const timer = setInterval(() => {
+                if (window.YT?.Player) {
+                    clearInterval(timer);
+                    resolve(window.YT);
+                } else if (Date.now() - started >= 10000) {
+                    clearInterval(timer);
+                    reject(new Error('YouTube API initialization timed out'));
+                }
+            }, 100);
+            tag.addEventListener('error', () => {
+                clearInterval(timer);
+                reject(new Error('YouTube API failed to load'));
+            }, { once: true });
+        }).catch(err => {
+            youtubeApiPromise = null;
+            throw err;
+        });
+        return youtubeApiPromise;
+    }
+
     function loadYouTubeTrack(url, onSuccess, onError) {
         const id = getYouTubeID(url);
         if (!id) { if (onError) onError(new Error('無法解析YouTube ID')); return; }
+
+        if (!window.YT?.Player) {
+            musicPlayer.isLoading = true;
+            ensureYouTubeAPI().then(() => {
+                musicPlayer.isLoading = false;
+                loadYouTubeTrack(url, onSuccess, onError);
+            }).catch(err => {
+                musicPlayer.isLoading = false;
+                musicPlayer.isPlaying = false;
+                updatePanelUI();
+                if (onError) onError(err);
+            });
+            return;
+        }
 
         musicPlayer.isLoading = true;
         musicPlayer.isYouTube = true;
@@ -995,6 +1085,7 @@
         // Listen for unofficial postMessage events from Bilibili player
         const biliMsgHandler = (e) => {
             if (!musicPlayer.isBilibili) { window.removeEventListener('message', biliMsgHandler); return; }
+            if (e.origin !== 'https://player.bilibili.com') return;
             try {
                 const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
                 if (!d) return;
@@ -1019,6 +1110,7 @@
                 }
             } catch(ex) {}
         };
+        musicPlayer.bilibiliMessageHandler = biliMsgHandler;
         window.addEventListener('message', biliMsgHandler);
 
         const forceUnlock = setTimeout(() => {
@@ -2291,23 +2383,37 @@
     }
 
     // ============ Hook ============
+    function ensureControllerInterval() {
+        if (musicPlayer.controllerCheckInterval) return;
+        musicPlayer.controllerCheckInterval = setInterval(() => {
+            if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
+                checkAndPlayBCMusic();
+            }
+        }, CONSTANTS.CONTROLLER_CHECK_INTERVAL);
+    }
+
+    function handleRoomLoaded() {
+        if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom' || !ChatRoomData) return;
+        if (!ChatRoomData.Custom) ChatRoomData.Custom = {};
+        musicPlayer.currentRoomName = getCurrentRoomName();
+        ensureControllerInterval();
+        muteBCMusic();
+        onRoomEnter();
+
+        if (!CMC.welcomed) {
+            sendLocalMsg(`CHAT MUSIC CONTROLLER v${MOD_VER} | /cmc show`);
+            CMC.welcomed = true;
+        }
+    }
+
     function hookChatRoom() {
         if (!modApi?.hookFunction) return;
 
         modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
             muteBCMusic();
-            return next(args).then(() => {
-                setTimeout(async () => {
-                    if (ChatRoomData && !ChatRoomData.Custom) ChatRoomData.Custom = {};
-                    musicPlayer.currentRoomName = getCurrentRoomName();
-                    muteBCMusic();
-                    onRoomEnter();
-
-                    if (!window.CMCWelcomed) {
-                        sendLocalMsg(`CHAT MUSIC CONTROLLER v${MOD_VER} | /cmc show`);
-                        window.CMCWelcomed = true;
-                    }
-                }, 1000);
+            return Promise.resolve(next(args)).then(result => {
+                setTimeout(handleRoomLoaded, 250);
+                return result;
             });
         });
 
@@ -2355,7 +2461,7 @@
         // (Avoids depending on BC's internal function names which vary by version)
         const NAV_SCREENS = new Set(["Appearance", "InformationSheet", "ChatAdmin"]);
         let _lastScreen = "";
-        setInterval(() => {
+        musicPlayer.navigationInterval = setInterval(() => {
             const screen = typeof CurrentScreen !== "undefined" ? CurrentScreen : "";
             if (screen === _lastScreen) return;
             _lastScreen = screen;
@@ -2485,8 +2591,8 @@
                 break;
             }
             case "debug":
-                window.CMC_DEBUG = !window.CMC_DEBUG;
-                sendLocalMsg(`調試模式: ${window.CMC_DEBUG ? "開啟" : "關閉"}`);
+                CMC.debug = !CMC.debug;
+                sendLocalMsg(`調試模式: ${CMC.debug ? "開啟" : "關閉"}`);
                 break;
             default:
                 sendLocalMsg("未知指令，使用 /cmc help 查看幫助");
@@ -2495,19 +2601,6 @@
 
     // ============ 初始化 ============
     async function initialize() {
-        // Load YouTube IFrame API
-        if (!window.YT) {
-            await new Promise(resolve => {
-                const tag = document.createElement('script');
-                tag.src = 'https://www.youtube.com/iframe_api';
-                tag.onload = resolve;
-                document.head.appendChild(tag);
-            });
-            await waitFor(() => window.YT && window.YT.Player, 10000);
-        }
-
-        await waitFor(() => typeof Player?.MemberNumber === 'number', 30000);
-
         try {
             await initIndexedDB();
         } catch(e) {
@@ -2523,34 +2616,40 @@
 
         hookChatRoom();
 
-        musicPlayer.controllerCheckInterval = setInterval(() => {
-            if (CurrentScreen === "ChatRoom") {
-                checkAndPlayBCMusic();
-            }
-        }, CONSTANTS.CONTROLLER_CHECK_INTERVAL);
+        ensureControllerInterval();
 
-        window._CMC = musicPlayer;
+        Object.assign(CMC, {
+            ready: true,
+            player: musicPlayer,
+            show: showPanel,
+            hide: hidePanel,
+            cleanup
+        });
+        if (typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom') {
+            setTimeout(handleRoomLoaded, 0);
+        }
         log('初始化完成');
     }
 
     // ============ 啟動 ============
     (async () => {
-        await waitFor(() => typeof bcModSdk !== 'undefined', 30000);
+        const sdkReady = await waitFor(() => typeof bcModSdk !== 'undefined' && !!bcModSdk?.registerMod, 30000);
+        if (!sdkReady) throw new Error('bcModSdk initialization timed out');
 
-        try {
-            modApi = bcModSdk.registerMod({
-                name: "liko - CMC",
-                fullName: "Chat Music Controller",
-                version: MOD_VER,
-                repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
-            });
-            log('ModSDK 注冊成功');
-        } catch(e) {
-            error('ModSDK 注冊失敗:', e);
-        }
+        modApi = bcModSdk.registerMod({
+            name: "liko - CMC",
+            fullName: "Chat Music Controller",
+            version: MOD_VER,
+            repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
+        });
+        console.log(`🐈‍⬛ [CMC] ✅ v${MOD_VER} loaded`);
 
+        await waitForLogin();
         await initialize();
-    })();
+    })().catch(e => {
+        CMC.error = e;
+        error('CMC initialization failed:', e);
+    });
 
     window.addEventListener('beforeunload', cleanup);
 })();
