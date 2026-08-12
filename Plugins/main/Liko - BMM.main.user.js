@@ -2,7 +2,7 @@
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.0
+// @version      1.0.1
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
 (function () {
     window.Liko = window.Liko ?? {};
     if (window.Liko.BMM) return;
-    const MOD_VER = "1.0";
+    const MOD_VER = "1.0.1";
     window.Liko.BMM = MOD_VER;
 
     const HDR_H = 36, FTR_H = 32;
@@ -50,6 +50,11 @@
         return p ? { x: p.X, y: p.Y } : null;
     }
     function inMapMode() { return !!(Player?.MapData?.Pos); }  // eslint-disable-line
+    function canShowMapButton() {
+        return typeof CurrentScreen !== "undefined" && CurrentScreen === "ChatRoom" &&
+            inMapMode() &&
+            (typeof CurrentCharacter === "undefined" || CurrentCharacter === null);
+    }
     function getChars() {
         return (ChatRoomCharacter || [])  // eslint-disable-line
             .filter(c => c?.MapData?.Pos != null)
@@ -416,18 +421,25 @@
 
         modApi.hookFunction("GameRun", 0, (args, next)=>{
             const r=next(args);
-            if (CurrentScreen!=="ChatRoom") return r;  // eslint-disable-line
-            if (!inMapMode()) return r;
+            if (!canShowMapButton()) {
+                if (panelEl && typeof CurrentCharacter !== "undefined" && CurrentCharacter !== null) {
+                    panelEl.classList.add("hidden");
+                }
+                return r;
+            }
             const isOpen = panelEl && !panelEl.classList.contains("hidden");
-            MainCanvas.globalAlpha = 0.65;
-            DrawButton(955, 0, 45, 45, isOpen ? "▼" : "🗺️", isOpen ? "#223322" : "#1a1a2e", "", "MiniMap");
-            MainCanvas.globalAlpha = 1.0;
+            const oldAlpha = MainCanvas.globalAlpha;
+            try {
+                MainCanvas.globalAlpha = 0.65;
+                DrawButton(955, 0, 45, 45, isOpen ? "▼" : "🗺️", isOpen ? "#223322" : "#1a1a2e", "", "MiniMap");
+            } finally {
+                MainCanvas.globalAlpha = oldAlpha;
+            }
             return r;
         });
 
         modApi.hookFunction("ChatRoomClick", 0, (args, next)=>{
-            if (CurrentScreen!=="ChatRoom") return next(args);  // eslint-disable-line
-            if (!inMapMode()) return next(args);
+            if (!canShowMapButton()) return next(args);
             if (MouseIn(955, 0, 45, 45)){ togglePanel(); return; }  // eslint-disable-line
             return next(args);
         });
