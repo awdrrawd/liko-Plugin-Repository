@@ -1,8 +1,7 @@
-// toast-system.js
+// BC_toast_system.user.js — 全域浮動提示（toast）。用法見 README-bc-toast.md
 (function() {
     window.Liko = window.Liko ?? {};
-    // 防重複載入旗標：檔尾把 API 掛到 window.Liko.__Sys_Toast__（系統擴充統一以 __Sys_ 開頭）
-    if (window.Liko.__Sys_Toast__) return;
+    if (window.Liko.__Sys_Toast__) return;   // 防重複載入（先到者勝）
     const MOD_VER = "1.3";
 
     let activeMessages = [];
@@ -77,7 +76,7 @@
     ChatRoomSendLocalStyled._version  = MOD_VER;
     ChatRoomSendLocalStyled._loadTime = Date.now();
 
-    window.Liko.__Sys_Toast__              = ChatRoomSendLocalStyled;   // 系統擴充 API（下方腳本會改名為 __Sys_Toast__）
-    window.ChatRoomSendLocalStyled = ChatRoomSendLocalStyled;   // 相容全域別名（有實際調用端，保留）
+    window.Liko.__Sys_Toast__      = ChatRoomSendLocalStyled;
+    window.ChatRoomSendLocalStyled = ChatRoomSendLocalStyled;   // 相容全域別名（有既有調用端）
     console.log(`🐈‍⬛ [BC toast] ✅ v${MOD_VER} loaded`);
 })();

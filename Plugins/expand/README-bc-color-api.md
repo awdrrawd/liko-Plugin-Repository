@@ -1,12 +1,15 @@
-# BC Color API 使用說明（v2.0）
+# BC Color API 使用說明（v2.2）
 
 BC 的按鈕、文字、面板全部畫在同一張 `<canvas>` 上，不是各自的 DOM 元素，所以沒辦法像
-一般網頁那樣「查元素的 CSS」。這支 API 提供兩條取色路線：
+一般網頁那樣「查元素的 CSS」。這支 API 提供三條取色路線，由上而下能用哪條就用哪條：
 
 | 路線 | 作法 | 準確度 | 相依 |
 |---|---|---|---|
-| **宣告值**（v2.0 新增，預設優先） | hook `DrawRect` / `DrawButton` / `DrawEmptyRect`，直接讀傳進去的顏色參數 | 精確，就是原始色碼 | 需要 `bcModSdk` |
+| **LCE 主題 API**（v2.2 新增，最優先） | 玩家有裝 Liko Club Extensions（LCE）且開啟染色時，直接讀 `window.Liko.LCE.Theme.Main`——LCE 本身就是那個在換色的引擎，這是「正在套用」的主題色 | 最準確，直接是主題色本身 | 需要 LCE 且已開啟染色 |
+| **宣告值**（v2.0 新增） | hook `DrawRect` / `DrawButton` / `DrawEmptyRect`，直接讀傳進去的顏色參數 | 精確，就是原始色碼 | 需要 `bcModSdk` |
 | **像素**（後備） | 從 canvas 上取樣實際渲染的結果 | 受抗鋸齒、疊圖影響 | 無 |
+
+三條路線**由呼叫端無感自動選用**：`getThemeColor()` 會先試 LCE，沒有就退宣告值，再沒有就退像素，最後保底用「上次成功值 / DOM 背景」。呼叫端永遠只要問這支腳本要顏色，不必自己判斷「有沒有裝 LCE / 有沒有 bcModSdk」。
 
 **為什麼要有宣告值路線：** BC 的介面顏色本來就是程式碼裡的一個字串——主題插件換色，
 換的就是 `DrawRect(0, 0, 2000, 1000, "#212121")` 裡的那個 `"#212121"`。與其在螢幕上取樣
@@ -44,7 +47,7 @@ Color.setOverride('#eeeeee', true);
 Color.clearOverrides();
 
 // 6. 目前走的是哪條路線（除錯用）
-Color.getMode();  // -> { hooked: true, armed: true, lastFrameRects: 37 }
+Color.getMode();  // -> { version:'2.2', lceAvailable:false, hooked:true, armed:true, tainted:false, lastFrameRects:37, ... }
 ```
 
 ## 典型用法
@@ -71,6 +74,12 @@ if (themeColor && Liko.__Sys_ColorAPI__.isDark(themeColor)) {
 顏色就是背景色本身」，而且回傳的是真實存在的色碼。
 
 預設取樣邊長也從 4 加大到 8，讓眾數更穩。
+
+## v2.2 的改動：LCE 主題路線（路線 0）
+
+新增最優先的一條路線：**如果玩家裝了 LCE（Liko Club Extensions）並開啟它的染色功能，LCE 本身就是那個在畫面上換色的引擎**，它 `window.Liko.LCE.Theme` 裡的 `Main` 色碼就是「當下實際套用」的主題色。直接讀它，比自己 hook 繪製函式或取樣像素都更直接，也不受「畫面尚未繪製、跨域汙染」等問題影響。
+
+`getThemeColor()` 會先試這條：只有「有裝 LCE 且 `Theme.enabled === true`」時才採用；沒裝、還沒載入好、或裝了但沒開染色，就靜靜落到宣告值 / 像素路線，呼叫端完全無感。`getMode()` 多了 `lceAvailable` 欄位，可看目前是否走這條。
 
 ## 相容性
 

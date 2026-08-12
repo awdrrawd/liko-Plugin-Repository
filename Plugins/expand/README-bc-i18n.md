@@ -65,6 +65,27 @@ Liko.__Sys_i18n__.t('HSC', 'loaded', { v: '1.0' }, hscLang());   // 插件名 + 
 
 中文各寫法歸一：`zh` / `zh-TW` / `zh-Hant` → `TW`；`zh-CN` / `zh-Hans` → `CN`。其餘 `xx-YY` 取前段大寫。
 
+### BC 官方語系與翻譯優先序
+
+**BC 目前官方內建的語系只有 7 種：`TW`、`CN`、`EN`、`DE`、`FR`、`RU`、`UA`**，由全域變數 `TranslationLanguage` 決定（`detectLang()` 也是以它為主要依據之一）。做翻譯時**建議優先照顧這 7 種**——這是實際會有玩家用到的語系。
+
+引擎的 `SUPPORTED` 另外多列了 `JA`、`KO`（超出官方 7 種的擴充語系），代表你**可以**做超過官方的語系；只是要清楚這些不是 BC 原生就會切到的語言，`TranslationLanguage` 不會給你這些值，得靠插件自己的語言選單指定。
+
+若你的插件支援超過官方 7 種的語系，取語言時用「雙／三段判定」最穩，優先序由高到低：
+
+1. **插件自己的語系設定**（使用者在你的選單裡手動選的 `TW`/`JA`/…）—— 最高優先，用 `t()` 的第 4 參 `forceLang` 傳入。
+2. **`TranslationLanguage` 的設定**（＝ `detectLang()` 的結果，跟隨 BC 目前語言）—— 使用者沒手動選（`auto`）時用這個。
+3. **最後退回英文 `EN`**（`_pick()` 內建：任何語言缺字時一律退 `EN`，CJK 之間會先互退再退 `EN`）。
+
+```js
+function myLang() {
+    const sel = CONFIG.lang || 'auto';          // 1) 插件自己的語系設定
+    if (sel !== 'auto') return sel;
+    return Liko.__Sys_i18n__.detectLang();       // 2) 跟隨 TranslationLanguage；缺字時引擎自動 3) 退 EN
+}
+Liko.__Sys_i18n__.t('MYMOD', 'loaded', { v: '1.0' }, myLang());
+```
+
 ---
 
 ## 3. `window.Liko.__Sys_i18n__` API（介面字串）

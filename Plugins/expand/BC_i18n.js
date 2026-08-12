@@ -12,31 +12,17 @@
 // @grant          none
 // ==/UserScript==
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  統一多語引擎：同一份 JS 內含兩個子系統，共用語言偵測 / 佔位符 / 字庫載入。
-//
-//    window.Liko.__Sys_i18n__   介面字串（同步 register + 取字 t(ns,key,vars)）
-//    window.Liko.__Sys_L10N__   聊天訊息在地化（送出英文底本 + Dictionary 標記，接收端依己方語言重寫）
-//
-//  佔位符：具名 {name} 為主，亦相容位置式 {0}{1}（vars 傳陣列時）。
-//  字庫可用「單一合併 JS」或「依語言分檔（.js 自註冊 / .json 純資料）」兩種方式載入。
-//  語言解析鏈：目前語言 →（TW/CN 互退、再退 ZH）→ EN → 表中任一。
-// ─────────────────────────────────────────────────────────────────────────────
+// 統一多語引擎：window.Liko.__Sys_i18n__（介面字串）+ __Sys_L10N__（聊天在地化）。用法見 README-bc-i18n.md
 
 (function () {
     'use strict';
     if (typeof window === 'undefined') return;
     window.Liko = window.Liko ?? {};
 
-    // 防重複載入旗標：檔尾把 API 掛到 window.Liko.__Sys_i18n__ / __Sys_L10N__
-    // （系統擴充統一掛在 window.Liko 底下、以 __Sys_ 開頭，一看即知是系統檔）
-    if (window.Liko.__Sys_i18n__) return;
+    if (window.Liko.__Sys_i18n__) return;   // 防重複載入（先到者勝）
     const ENGINE_VER = '2.0.0';
 
-    // ── 共用：語言偵測 ────────────────────────────────────────────────────────
-    //  優先讀「已持久化」的 BondageClubLanguage —— BC 啟動時 TranslationLanguage 先是
-    //  預設 "EN"，稍後才由 TranslationLoad() 覆寫成真正語系，直接信任它會抓到瞬間的 EN。
-    //  故：localStorage → TranslationLanguage → 瀏覽器語系 → EN。
+    // 語言偵測：localStorage → TranslationLanguage → 瀏覽器語系 → EN（BC 啟動瞬間 TranslationLanguage 尚是預設 "EN"，故 localStorage 優先）
     const SUPPORTED = ['TW', 'CN', 'EN', 'JA', 'KO', 'DE', 'FR', 'RU', 'UA'];
     function detectLang() {
         let raw = '';

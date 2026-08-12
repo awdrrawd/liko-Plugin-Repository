@@ -1,13 +1,29 @@
 {
-  "updateId": "260811",
+  "updateId": "260813",
   "changelog": {
     "cn": [
-      "⭐BC 快捷互动插件 新增",
-      "快捷互动插件，提供部位直选、批量执行、动作收藏、连招编排、ECHO動作匯出、自訂動作"
+      "⭐AEE - 外觀編輯拓展 更新",
+      "新增線上衣櫃容量檢測(180kb)，超出時會禁止保存",
+      "新增在設定頁能看到衣櫃的容量(目前設置180KB)",
+      "修改衣櫃服裝排序功能，現在能使用拖曳方式",
+      "修改衣櫃匯出服裝時，現在能選單一服裝而非整個衣櫃",
+      "⭐小酥的動作拓展 更新",
+      "修改讓互動按紐穩定加載",
+      "新增缺少的翻譯，現在支援遊戲的7國語言",
+      "⭐BC - 快捷互动插件 更新",
+      "修改收藏動作頁面，現在對全員互動"
     ],
     "en": [
-      "⭐BC quick-interaction added",
-      "quick-interaction plugins offer features such as direct selection of body parts, batch execution, action collection, combo choreography, ECHO action export, and custom actions."
+      "⭐AEE Appearance Editor Extension - Update",
+      "Added online wardrobe capacity check (180KB); saving will be blocked when exceeded",
+      "Added wardrobe capacity display in settings page (currently set to 180KB)"
+      "Modified wardrobe outfit sorting feature, now supports drag-and-drop",
+      "Modified wardrobe outfit export feature, now allows selecting a single outfit instead of the entire wardrobe",
+      "⭐XiaoSuActivity - Update",
+      "Added missing translations; now supports all 7 in-game languages",
+      "Modified to stabilize interaction button loading",
+      "⭐BC quick-interaction - Update",
+      "Modified favorite actions page, now supports interaction with all members"
     ]
   }
 }

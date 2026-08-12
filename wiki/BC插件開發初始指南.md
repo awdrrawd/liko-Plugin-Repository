@@ -4,6 +4,27 @@
 
 ---
 
+## 〇、liko 開發者慣例（是「習慣」，不是開發必須）
+
+以下幾點是本倉庫作者（`@author 莉柯莉絲(likolisu)`）自己一致的做法。抄新插件時照著走，風格會跟既有插件一致、也方便一眼辨識；但它們**純粹是慣例，不是 BC 或 `bcModSdk` 的技術要求**——完全不照做，插件照樣能正常運作。
+
+1. **console log 前綴用黑貓 🐈‍⬛。** 所有插件的載入訊息、說明標題都以 `🐈‍⬛` 開頭，格式慣例是 `🐈‍⬛ [縮寫] ✅ v{版本} loaded`。這只是「一眼認出這是同一個作者的作品」的視覺標記，跟功能無關。
+   ```js
+   console.log(`🐈‍⬛ [CHE] ✅ v${MOD_VER} loaded`);
+   ```
+2. **統一掛在 `window.Liko` 底下。** 每支插件開頭先 `window.Liko = window.Liko ?? {}`，再把自己的版本號寫進 `window.Liko.<縮寫>`。這個欄位同時身兼兩個用途——**版本註冊表**（別的插件或自己可查有沒有裝、裝了哪一版）與**重複載入防護**（同一支被載兩次時直接 `return`，不重跑）：
+   ```js
+   window.Liko = window.Liko ?? {};
+   if (window.Liko.CHE) return;   // 已載入過就跳出
+   window.Liko.CHE = MOD_VER;     // 註冊自己的版本號
+   ```
+   共用系統擴充則再進一步用 `window.Liko.__Sys_<name>__` 這個 `__Sys_` 前綴命名（見下一節），跟一般插件在同一個命名空間下區隔開。
+3. **Userscript metadata 的一致寫法。** `@author 莉柯莉絲(likolisu)`、`@namespace`／`@supportURL` 指向本倉庫、`@downloadURL`／`@updateURL` 走 GitHub Pages、`@require` 的 `bcmodsdk.js` 走 jsDelivr CDN。這些是發佈與自動更新流程的約定，換成你自己的倉庫路徑即可。
+
+再次強調：以上都是「跟著抄比較省事、風格統一」的慣例，不是非做不可的技術規範。
+
+---
+
 ## 一、共用系統擴充（`Plugins/expand/`）
 
 這幾支都是「掛在 `window.Liko` 底下、以 `__Sys_` 開頭」的共用小工具，設計上都可被多個插件同時載入而不互相衝突（檔頭都有「已存在就 return」的防重複載入判斷）。
@@ -38,6 +59,8 @@ Liko.__Sys_i18n__.t('MYMOD', 'loaded', { v: '1.0' }, myLang());
 
 `detectLang()` 偵測順序是 `localStorage['BondageClubLanguage']` → `TranslationLanguage` → `navigator.language` → `EN`（優先讀 localStorage 是因為 BC 剛啟動時 `TranslationLanguage` 會先短暫是預設值 `"EN"`，之後才被 `TranslationLoad()` 覆寫成真正語系）。
 
+> **BC 官方語系只有 7 種：`TW` `CN` `EN` `DE` `FR` `RU` `UA`**，由全域變數 `TranslationLanguage` 決定。做翻譯**優先照顧這 7 種**就涵蓋絕大多數玩家。引擎另外多支援 `JA`/`KO`（超出官方的擴充語系）——你**可以**做超過官方的語系，但 `TranslationLanguage` 不會給你這些值，得靠插件自己的語言選單指定。取語言時用「三段判定」最穩：**① 插件自己的語系設定（使用者手動選）→ ② `TranslationLanguage` 的設定（`auto` 時，即 `detectLang()`）→ ③ 最後退回英文 `EN`**（`_pick()` 內建：任何語言缺字一律退 `EN`）。
+
 聊天訊息在地化（`__Sys_L10N__`）用法：
 
 ```js
@@ -48,17 +71,45 @@ L10N.send('MYMOD', 'propose', myName, targetName);
 
 字庫可用「單一合併 JS」或「依語言分檔（`.js`/`.json`）」兩種方式載入，字串一律用**純字串**（不要用函式字串），才能被 JSON 化與正確讀取。細節與跨插件接入範例可參考同目錄下的 `README-bc-i18n.md`。
 
-### 2. `BC_ThemeColorCheck.js` — 介面顏色偵測 API
+> **想在多語介面上顯示萬國旗 emoji（🇹🇼 🇯🇵 🇨🇳…）？指定 `"Twemoji Country Flags"` 字型即可，不必自己載字型。**
+> BC 在 `index.html` 就已載入 `country-flag-emoji-polyfill`，它會在「瀏覽器本身不會畫國旗 emoji」的情況下（最典型是 Windows 上的 Chrome/Edge）自動注入一個**全域** `@font-face`，把 `"Twemoji Country Flags"` 這個字型族註冊到整份文件。所以插件要顯示國旗時，**只要把這個字型名稱加進 `font-family` 就會正常顯示**，不需要自己 `@require` 或另外安裝字型：
+> ```js
+> // DOM 元素
+> el.style.fontFamily = '"Twemoji Country Flags", sans-serif';
+> // 或畫在 canvas 上（DrawText 前設定 context 字型）
+> ctx.font = '36px "Twemoji Country Flags", sans-serif';
+> ```
+> 注意：在「原生就能畫國旗」的平台（多數 macOS／iOS／Android）上，polyfill 判斷後不會注入這個字型，但那些平台本來就會用系統 emoji 正常畫出國旗，所以把這個字型名稱當 fallback 指定在各平台都是安全的。BC 登入畫面的語言下拉（`CSS/login.css`）用的就是同一招。
 
-掛在 `window.Liko.__Sys_ColorAPI__`，只做三件事：
+### 2. `BC_ThemeColorCheck.js` — 介面主題顏色偵測 API（v2.2）
+
+掛在 `window.Liko.__Sys_ColorAPI__`。用途：BC 有淺色/深色兩套介面主題，插件想讓自己畫的按鈕、文字顏色跟著主題自動變化時，用這支工具讀出目前的主題底色來判斷亮暗，而不必猜測或寫死顏色規則。當一般 `<script>` 載入即可，載入後直接呼叫。
 
 ```js
-ColorAPI.getCanvasColor({ x, y, size }) // 讀出 canvas 上某座標實際渲染出來的顏色（取平均像素，預設抓右上角一小塊），回傳 '#rrggbb' 或 null
-ColorAPI.isDark(color, threshold)       // 用 WCAG 相對亮度公式判斷該顏色是亮是暗（threshold 預設 0.5）
-ColorAPI.setOverride(color, isDark)     // 演算法判斷錯誤時，手動覆寫某個顏色的亮暗結論
+const Color = Liko.__Sys_ColorAPI__;
+Color.getThemeColor()               // ★建議用這個：取目前介面主題底色 '#rrggbb'（已自動處理下述三條路線 + 保底）
+Color.getUIColor({ x, y })          // 讀某座標上那個元件「宣告時傳入」的顏色（需 bcModSdk）
+Color.getCanvasColor({ x, y, size })// 讀某區域「實際渲染出來」的顏色（v2.0 起取「眾數」不取平均，避免混入抗鋸齒髒色）
+Color.isDark(color, threshold)      // 用 WCAG 相對亮度判斷亮/暗（threshold 預設 0.5）
+Color.setOverride(color, isDark)    // 演算法判斷錯時，手動覆寫某顏色的亮暗結論
+Color.clearOverrides()
+Color.getMode()                     // 除錯：目前走哪條路線、是否偵測到 LCE 等
 ```
 
-用途：BC 有淺色/深色兩套介面主題，插件想讓自己畫的按鈕、文字顏色跟著主題自動變化時，可以用這支工具讀取實際渲染色來判斷目前是哪種主題，而不必去猜測或寫死顏色規則。用法就是一般 `<script>` 載入即可，載入後直接呼叫。
+**`getThemeColor()` 內部依序試三條取色路線，呼叫端完全無感：**
+
+1. **LCE 主題 API**（v2.2 新增，最準）：玩家裝了 Liko Club Extensions（LCE）並開啟染色時，LCE 本身就是那個在換色的引擎，直接讀它算好的 `window.Liko.LCE.Theme.Main` 主色。沒裝／沒開染色就跳過。
+2. **宣告值**（需 `bcModSdk`）：hook `DrawRect`/`DrawButton`/`DrawEmptyRect` 直接讀傳進去的顏色字串——主題插件換底色換的就是那個字串，比取樣精確。
+3. **像素取樣**（後備，無相依）：從 canvas 上取樣實際渲染結果，取眾數。最後再保底用「上次成功值 → DOM 背景色」，確保呼叫端永遠拿得到色。
+
+典型判斷亮暗：
+
+```js
+const c = Liko.__Sys_ColorAPI__.getThemeColor();
+if (c && Liko.__Sys_ColorAPI__.isDark(c)) { /* 深色主題 */ } else { /* 淺色主題 */ }
+```
+
+細節（三條路線的取捨、跨域汙染保底、閒置自動停 hook）見同目錄 `README-bc-color-api.md`。
 
 ### 3. `BC_toast_system.user.js` — 全域浮動提示訊息
 
@@ -70,9 +121,35 @@ window.Liko.__Sys_Toast__(message, duration = 3000, color = "#ff69b4", x = null,
 window.ChatRoomSendLocalStyled("已儲存設定", 2000, "#00ff00");
 ```
 
-功能是在畫面上浮出一則會自動淡出、可堆疊排列（多則訊息會自動往上疊、消失後自動補位）的提示文字，不需要自己刻 DOM 動畫。`x`/`y` 省略時置中在畫面下方；有指定時走絕對定位、不參與自動排列。
+功能是在畫面上浮出一則會自動淡出、可堆疊排列（多則訊息會自動往上疊、消失後自動補位）的提示文字，不需要自己刻 DOM 動畫。`x`/`y` 省略時置中在畫面下方；有指定時走絕對定位、不參與自動排列。細節見同目錄 `README-bc-toast.md`。
 
-> 這三支加上 `bcModsdk` 都遵循同一套「系統擴充命名規則」：統一掛在 `window.Liko.__Sys_<name>__`，頂部都用「已存在就 `return`」防止重複載入，多個插件重複 `<script>` 引入也不會出錯，晚載入者自動跳過。
+### 4. `BC_ChatRoomButtons.js` — 聊天室按鈕列共用協調器
+
+掛在 `window.Liko.__Sys_ChatRoomButtons__`。BC 聊天室左側那排按鈕容器（`#chat-room-buttons`）原生是**固定 3 欄的 grid**，多個插件各加一顆很容易破 3 顆擠成兩排、也各自處理收合與底色。這支協調器統一接管那排按鈕的**排序、收合/展開動畫、單排捲動排版、關閉原生底色**，讓插件只要「交出一顆按鈕」就好。無外部依賴。
+
+主要用中央託管 `add()`：你給「順位 + 一個工廠函式」，容器建立/重建、跟隨收合鈕、關閉底色全自動：
+
+```js
+const L = window.Liko = window.Liko || {};
+const spec = ["myplugin", 99 /* order：數字越大越靠左 */, createButton, { plain: true }];
+// 協調器已載入就直接 add；否則推進待處理佇列，等它（無論被誰載入）初始化時自動排空
+if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(...spec);
+else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
+
+function createButton() {           // 每次(重)建都會被呼叫，回傳一顆全新按鈕
+    const btn = document.createElement("button");
+    btn.className = "blank-button button HideOnPopup chat-room-button"; // 要帶 chat-room-button 才吃排版
+    btn.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); /* 你的動作 */ });
+    return btn;                     // ⚠️ 每次 new 一顆，別回傳快取元素（容器重建後舊元素已失聯）
+}
+```
+
+兩個關鍵坑（其餘見同目錄 `BC_ChatRoomButtons.md`）：
+
+- **登記與載入要解耦**：務必**同步**把 spec 交出去（直接 `add` 或 push 進 `__CRB_pending__`），**別**寫成 `ensureCRB().then(() => add(...))`——協調器可能由別的插件（如 PCM）載入，你的 `.then` 沒在對的時機跑，按鈕就永遠不出現。
+- **別在按鈕上寫 `display:…!important`**：原生收合是靠低優先權的 `display:none`（`[hidden]`）生效，你用 `!important` 會蓋掉它、按鈕收不起來。要置中圖示改用 `::before` 遮罩或 `你的選擇器:not([hidden])`；露出自帶 `<img>`/SVG 圖示用 `{ plain: true }`（關掉原生底色）。
+
+> 這幾支加上 `bcModsdk` 都遵循同一套「系統擴充命名規則」：統一掛在 `window.Liko.__Sys_<name>__`，頂部都用「已存在就 `return`」防止重複載入，多個插件重複 `<script>` 引入也不會出錯，晚載入者自動跳過。
 
 ---
 
@@ -527,11 +604,11 @@ ServerSocket.on('AccountBeep', (data) => {
 ```
 
 - **適用場合**：目標**不一定在同一間房間**、甚至不一定在線上同一個場景，只要對方帳號在線就能送達（例如戀人系統要跨房間分享房名、遠端控制類插件要通知離線房間的對方）。
-- **關鍵特性**：BC 原生前端（`ServerAccountBeep`）目前只對兩種 `BeepType` 有特殊處理：`BeepType` 是空字串時（一般好友私聊 Beep）會彈出通知並記錄到 Beep 記錄；`BeepType === "Leash"` 時會觸發原生的牽繩跟隨邏輯（見下方獨立說明）。**除了這兩種之外的任何自訂 `BeepType` 字串，原生程式碼完全不會處理，也就不會跳出任何通知**——但這不代表訊息沒有送達，Socket 事件本身還是會確實觸發，只是原生邏輯選擇不理它，插件自己另外掛的 `ServerSocket.on('AccountBeep', ...)` 監聽器一樣收得到完整資料，可以自己判斷 `BeepType` 再處理。
-- **⚠️ 限制（目前認知，之後可能需要修正）**：`AccountBeep` 本身的收發**很可能是需要雙方互為好友關係才能送達**（伺服器端限制，不是單純的前端行為）——**自訂 `BeepType` 能不能繞過這個好友限制，目前不確定，印象中是不行的**，也就是說就算你把 `BeepType` 換成自己專屬的字串讓畫面不跳通知，對方如果沒有加你好友，這則 Beep 本身可能一開始就送不到。這點還需要之後實測/查證再回來修正說明，先當作「預設仍然需要好友關係」來規劃你的插件邏輯比較保險。
+- **關鍵特性**：BC 原生前端（`ServerAccountBeep`）目前只對兩種 `BeepType` 有特殊處理：`BeepType` 是空字串時（一般好友私聊 Beep）會彈出通知並記錄到 Beep 記錄；`BeepType === "Leash"` 時會觸發原生的牽繩跟隨邏輯（見下方獨立說明）。**除了這兩種之外的任何自訂 `BeepType` 字串，原生程式碼完全不會處理，也就不會跳出任何通知**——只要伺服器有把這則 Beep 送達（**即雙方是好友；非好友會被伺服器擋在送達之前**，見第十一節），Socket 事件本身還是會確實觸發，原生邏輯只是選擇不理它，插件自己掛的 `ServerSocket.on('AccountBeep', ...)` 監聽器一樣收得到完整資料，可自行判斷 `BeepType` 再處理。換句話說，自訂 `BeepType` 的作用是「讓對方不跳通知」，**不是**「繞過好友限制」。
+- **⚠️ 好友關係的限制（作者實測確認，詳見第十一節）**：`AccountBeep` **需要雙方互為好友**，非好友由**伺服器端**擋下、完全收不到；**不論一般或自訂 `BeepType` 都繞不過**（換自訂字串只是讓對方不跳通知，不是繞過好友限制）。**這是 BC 的防濫用保護**——避免有人用控制台無節制地向陌生人發送 Beep。客戶端佐證：`/beep` 指令送出前就擋 `!Player.HasOnFriendlist(target)`，`ServerSendBeepMessage()` 的 JSDoc 也註明 `We must be friend with them`。**唯一例外是 `BeepType:"Leash"`**——牽繩機制本來就會對陌生人使用，跨房把對方拉進房間又只能靠 Beep 傳房名，所以伺服器對這個型別單獨放行、可送非好友（見下方獨立說明）。
 - **限制**：只能一對一送給指定 `MemberNumber`，沒有「廣播給整個房間」的概念；且它本質上是走 `ServerSocket` 事件，不是 `ChatRoomMessage`，攔截的地方不一樣，容易忘記。
 
-**兩者怎麼選：** 同房間內要多人同步/廣播 → 用 `Hidden`；要跨房間找特定一個人、且對方通常也是好友關係 → 用 `AccountBeep`（自訂 `BeepType` 讓對方不跳通知）。
+**兩者怎麼選：** 同房間內要多人同步/廣播 → 用 `Hidden`；要跨房間找特定一個人（**對方必須是你的好友**）→ 用 `AccountBeep`（自訂 `BeepType` 讓對方不跳通知；非好友一律送不到）。`Leash` 不列在這個常規選擇裡——它本職是牽繩機制、有前提條件，只在真的有牽繩需求時才用，見下方 3。
 
 ### 3. `BeepType: "Leash"` — 原生牽繩通道（不需要好友關係、也不會跳通知，風險比想像中低）
 
@@ -552,7 +629,9 @@ BC 原生程式碼裡，`ServerAccountBeep` 對 `BeepType === "Leash"` 有一段
 
 **因此實際風險比乍看之下低**：只要送出時確保酬載裡沒有 `ChatRoomName` 這個 key（或明確設成 `undefined`/不存在），原生的跳轉邏輯就完全不會被觸發，不需要額外 hook 攔截什麼流程。真正的前提限制反而是 `ChatRoomLeashPlayer == data.MemberNumber` 這一條——**這個通道只在「自己正被對方牽繩」的狀態下才收得到**，也就是說它並不是任兩個人之間隨時可用的隱藏通道，而是綁定在牽繩關係已經建立的前提上。
 
-**實務上什麼時候才需要走 `Leash` 這條路：** 一般情況下，同房間內傳資料本來就有 `Hidden` 可以用；跨房間需要找的對象，大多數情況下你們本來就已經是好友關係（例如戀人、主奴、常態合作的插件使用者之間），直接用一般 `AccountBeep` + 自訂 `BeepType` 就足夠。只有在「對方確定不是好友、但彼此之間已經有牽繩關係，需要在完全不跳通知的前提下跨房間傳遞資料」這種情境下，才會考慮用 `Leash` 這條原生通道，且只要記得不夾帶 `ChatRoomName` 就不會有意外的跳轉副作用。多數插件用不到，僅在確實有牽繩相關需求時才需要用到這個機制。
+**先釐清定位：`Leash` 的本職是「牽繩」，不是「給非好友的隱藏傳訊管道」。** 它之所以能對陌生人送達，是因為牽繩本來就會用在非好友身上（你牽著對方、要把對方拉進自己的房間），而跨房把對方拉過來需要用 Beep 傳房名，伺服器才對 `Leash` 這個型別開了「不吃好友限制」的特例。所以**正常有牽繩需求時就用它**（送 `ChatRoomName` 觸發跳房把對方拉來）。
+
+**至於「拿 `Leash` 當純隱藏傳訊用」則是少數特殊需求：** 一般傳資料，同房用 `Hidden`、跨房找好友用 `AccountBeep` 就夠了；只有在「對方確定不是好友、但彼此已經有牽繩關係，還想在不跳通知、也不觸發跳房的前提下跨房傳一點資料」這種罕見情境，才會借用這條通道（記得**不要**夾帶 `ChatRoomName`，才不會把對方拉走）。多數插件用不到；沒有牽繩關係時這條路根本收不到（前提是 `ChatRoomLeashPlayer == data.MemberNumber`）。
 
 ### 4. 自訂「Query-Reply」問答模式（一問一答，注意跟原生 `AccountQuery` 是兩回事）
 
@@ -663,6 +742,27 @@ setInterval(() => { if (CurrentCharacter) injectAFCDialogs(CurrentCharacter); },
 
 ---
 
+## 十一、校正、實務限制與存疑
+
+這一節收錄三類東西：初版指南寫下後經實測或翻 BC 原始碼才**校正的觀念**、規劃插件時務必留意的**實務容量限制**，以及目前**仍不確定、建議先保守假設**的疑點。
+
+**已驗證的修正：**
+
+1. **`ActivityFemale3DCGOrdering` 不在 `window` 上，裸寫會 `ReferenceError`。** 早期把自訂 activity 直接 `ActivityFemale3DCGOrdering.push(...)` 是會壞的——BC 把這個全域改成 `let` 宣告，而用戶腳本（即使 `@grant none`）只看得到 `var`／`function`／`window.*` 的全域，`let`／`const` 全域一律抓不到。這曾經讓 Prank 插件的按鈕註冊整段中斷。正解已寫進第三節：**任何要存取的 BC 全域，存取前先 `typeof X !== 'undefined'` 探測**；非必要的（如只影響排序的這個陣列）拿不到就略過，別讓它中斷整段註冊。
+2. **房間更新 `ChatRoomAdmin` 的 `MemberNumber` 要填 `Player.ID`（＝ `0`），不是 `Player.MemberNumber`——已對照 BC 原始碼確認屬實。** BC 自己的聊天室程式碼（`Screens/Online/ChatRoom/ChatRoom.js`）就是 `ServerSend("ChatRoomAdmin", { MemberNumber: Player.ID, ..., Action: "Update" })`，而 `Player.ID` 在 `Scripts/Character.js` 被寫死成 `0`。所以第五節那個「欄位名叫 `MemberNumber`、實際卻要填 `Player.ID`」的特例是真的，不是筆誤——但它**只限這一個指令的這一個 `Action`**，別推廣到其他帶 `MemberNumber` 的原生指令。
+3. **`AccountBeep` 需要雙方互為好友，非好友由伺服器端擋下、完全收不到——作者實測確認，BC 原始碼佐證。** 送出端**不論用一般或自訂 `BeepType`**，只要對方沒加你好友，**伺服器就會攔下、對方收不到任何東西**；這是伺服器端強制，換自訂 `BeepType` 也繞不過。客戶端佐證：`/beep` 指令（`Screens/Online/ChatRoom/CommandsDefault.js`）送出前就擋 `!Player.HasOnFriendlist(target)`、非好友回 `CommandBeepNotFriend` 不送，`ServerSendBeepMessage()`（`Scripts/Server.js`）的 JSDoc 也註明 `We must be friend with them`。**唯一的例外是 `BeepType: "Leash"`**（見第 5 點）——伺服器對這個型別單獨放行，可送非好友。
+   > 理論上「同一間房內」的非好友或許收得到 `AccountBeep`，但同房內本來就能用 `Type: 'Hidden'` 廣播，所以這個可能性**沒有實用價值**：跨房才需要 Beep，而跨房的非好友一律被擋。
+
+**作者自己的觀察（非 BC 原始碼、待進一步驗證）：**
+
+4. **`ExtensionSettings` 經 `AccountUpdate` 同步時，疑似有「單次傳輸容量上限」，作者實測抓到的門檻大約在 `180000` 量級。** ⚠️ 這個數字**不是**來自 BC 原始碼——翻遍客戶端只有 `ServerChatMessageMaxLength = 2000` 這類聊天字數上限，**沒有** ExtensionSettings 的容量常數；`180000` 是**作者自己測出來的推測值，不保證準確、也可能隨官方調整而縮減**。目前觀察到的是**單一插件單次傳輸**的量（一次 `ServerSend("AccountUpdate", { "ExtensionSettings.<key>": ... })` 塞的資料量）。但實務意義仍成立：**大文本插件（大量設定、快照、歷史紀錄）要留意**，資料長到接近某個量時同步可能被截斷或失敗。因應方向——壓縮／只存必要欄位／拆多個 key 分批同步，或把大文本放本地 `localStorage`／`IndexedDB`，`ExtensionSettings` 只放需要跨裝置同步的精簡設定。**別把某個具體數字當安全邊界**，這點務必自行實測確認。
+
+**可用的非好友跨房通道：**
+
+5. **`BeepType: "Leash"` 是伺服器唯一放行給非好友的 `AccountBeep` 型別，也是 BC 自己在用的「不需好友關係」跨房間傳訊通道。** 承第 3 點：除了 Leash，其餘 BeepType 送給非好友都會被伺服器擋下。BC 的 `ChatRoomPingLeashedPlayers()` 會對牽繩清單裡（不一定是好友）的人送 `ServerSend("AccountBeep", { MemberNumber, BeepType:"Leash" })`，且對 `Leash` 分支完全不跳通知、不寫 Beep 記錄。所以「對方確定非好友、但彼此已有牽繩關係」時，走第九節的 `Leash` 通道（只要酬載別夾帶 `ChatRoomName` 就不會觸發跳房）。前提限制是「必須已處於牽繩關係」；牽繩尚未建立時能否單方面送達，保守假設為不能。
+
+---
+
 ## 附錄：起手式檢查清單
 
 寫一支新插件時，可以照這個順序檢查，能避開多數常見的坑：
@@ -675,11 +775,11 @@ setInterval(() => { if (CurrentCharacter) injectAFCDialogs(CurrentCharacter); },
 - [ ] 需要新增互動動作 → 直接操作原生 `ActivityFemale3DCG`/`ActivityDictionary`，自訂前置條件/邏輯/圖示分別 hook `ActivityCheckPrerequisite`/`ServerSend`/`ElementButton.CreateForActivity`
 - [ ] 需要新增道具 → 呼叫原生 `AssetAdd()`；若是鎖具且想要完整自訂解鎖邏輯，評估工作量後再決定要不要走「借殼既有鎖種」的折衷做法，或改走 `Inventory<Group><Name>Load/Click/Draw/Exit` 命名慣例自己刻完整擴充畫面
 - [ ] 需要更新房間設定（`ChatRoomAdmin`, `Action: "Update"`）→ 記得這個指令的 `MemberNumber` 欄位要填 `Player.ID`，這是這個指令的特例，不是通用規則
-- [ ] 需要多語 → 直接掛載共用的 `BC_i18n.js`，插件自己決定語言碼再丟給引擎
+- [ ] 需要多語 → 直接掛載共用的 `BC_i18n.js`，插件自己決定語言碼再丟給引擎；要顯示萬國旗 emoji 就把 `"Twemoji Country Flags"` 加進 `font-family`（BC 已全域註冊，不必自己載字型）
 - [ ] 需要浮動提示 → 直接掛載共用的 `BC_toast_system.user.js`
 - [ ] 需要在 InformationSheet 疊按鈕 → priority 設在 **5~10 之間**即可，不必自行加一堆偵測其他插件子畫面的邏輯；只有在確定跟某個知名插件衝突、且對方有暴露查詢 API 時，才把該偵測當補丁加上去
 - [ ] 任何要疊加在畫面上的東西，思考的是「我這次繪製呼叫排在誰前面/後面」，而不是「我該設定哪個圖層」；若要攔截「道具圖層怎麼被畫出來」，記得 BC 有 WebGL/Canvas2D 兩條路徑，只 hook `DrawImage` 在 WebGL 模式下攔不到
-- [ ] 插件間傳資料：同房間廣播/同步用 `Type: 'Hidden'`；跨房間找特定對象（通常本來就是好友）用 `AccountBeep`（記得把 `BeepType` 設成自己專屬字串，才不會在對方畫面跳出通知；**注意 `AccountBeep` 很可能仍需要雙方互為好友才能送達，自訂 `BeepType` 能否繞過此限制目前不確定**）；如果對象確定不是好友、但彼此已有牽繩關係，才考慮原生 `BeepType: "Leash"` 通道——只要酬載不夾帶 `ChatRoomName` 就不會觸發跳轉房間，風險不高；需要即時問答就用自訂的「發送 Query → 對方判斷 Target 是自己就原地回覆」模式（跟原生 `AccountQuery`/`AccountQueryResult` 是兩回事，別搞混）
+- [ ] 插件間傳資料：同房間廣播/同步用 `Type: 'Hidden'`；跨房間找特定對象（通常本來就是好友）用 `AccountBeep`（記得把 `BeepType` 設成自己專屬字串，才不會在對方畫面跳出通知；**`AccountBeep` 需要雙方互為好友，非好友由伺服器端擋下、收不到——一般或自訂 `BeepType` 都繞不過，唯一例外是 `BeepType:"Leash"`，見第十一節**）；如果對象確定不是好友、但彼此已有牽繩關係，才考慮原生 `BeepType: "Leash"` 通道——只要酬載不夾帶 `ChatRoomName` 就不會觸發跳轉房間，風險不高；需要即時問答就用自訂的「發送 Query → 對方判斷 Target 是自己就原地回覆」模式（跟原生 `AccountQuery`/`AccountQueryResult` 是兩回事，別搞混）
 - [ ] 攔截訊息時，先問自己「需不需要阻止/修改原本的處理」：需要 → 用 `hookFunction`（可 `return` 不呼叫 `next()`、可跟其他插件協調 `priority`）；只是想旁聽、不干涉原生處理（例如 `AccountBeep` 收自訂 `BeepType`）→ 直接 `ServerSocket.on` 就好，更輕量也不必依賴 `bcModSdk`
 - [ ] 需要在雙人互動 Dialog 畫面加自訂選項 → 直接把物件塞進 `CurrentCharacter.Dialog` 陣列，記得用自訂標記欄位防止每次重繪重複疊加，並在每次可能重繪的時機重新注入一次
 ## 附錄：插件初始化與登入生命週期完整模板
