@@ -26,7 +26,7 @@
 
     let modApi;
     let observer = null;
-    const sys_CRB = "2"; //#chat-room-buttons 順位設定
+    const sys_CRB = 2; //#chat-room-buttons 順位設定
 
     // 預設熱鍵；用工廠回傳新物件，避免多處共用同一參考被意外改到。
     // 三個動作各帶 enabled 旗標：總開關預設啟用，接收/發送快捷鍵預設關閉。
