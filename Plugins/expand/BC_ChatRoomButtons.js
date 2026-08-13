@@ -14,7 +14,8 @@
     const ANIM_MS = 200; // 對齊 Kaomoji 面板開合的速度與 easing 風格（transition:...200ms ease）
     const SLIDE_PX = 18; // 收合/展開時的水平位移距離
     const HEAL_INTERVAL_MS = 500;
-    const MAX_VISIBLE = 7; // 可視按鈕數上限；超過的部分捲動（拖曳）才看得到
+    const MAX_VISIBLE_PLUGINS = 5;
+    const FIXED_NATIVE_BUTTONS = 1; // chat-room-send
 
     // ── 排序 + 關閉底色（plain）──
     const slots = {};           // id -> order
@@ -61,7 +62,7 @@
     }
     function applyCollapse(id, el) {
         const spec = specs.get(id);
-        if (!el || !spec || spec.opts.collapse === false) return;
+        if (!el || !spec || spec.collapse === false) return;
         el.hidden = !collapseExpanded();
     }
 
@@ -74,28 +75,89 @@
         let el = els.get(id);
         if (el && el.isConnected && el.parentElement === container) {
             register(id, spec.order, el);
-            if (spec.opts.plain) setPlain(id, true);
+            applyManagedSpec(spec, el);
+            if (spec.plain) setPlain(id, true);
             applyCollapse(id, el);
             return;
         }
         if (el && el.parentElement && el.parentElement !== container) { try { el.remove(); } catch (e) {} }
-        el = spec.createFn();
+        el = spec.createButton ? spec.createButton() : createManagedButton(spec);
         if (!el) return;
         if (!el.id) el.id = id; // 工廠沒設 id 就用註冊 id 保底
         container.appendChild(el);
         register(id, spec.order, el);
-        if (spec.opts.plain) setPlain(id, true);
+        applyManagedSpec(spec, el);
+        if (spec.plain) setPlain(id, true);
         applyCollapse(id, el);
     }
 
     // 交出按鈕：id 唯一；order 順位（數字越大越靠左）；createFn 每次(重)建都會被呼叫、回傳一顆新按鈕；
     // opts.plain 關閉原生底色；opts.collapse=false 則不跟隨原生收合鈕。回傳 order。
-    function add(id, order, createFn, opts = {}) {
-        if (typeof createFn !== 'function') return order;
-        specs.set(id, { order, createFn, opts });
-        ensureButton(id);
-        return order;
+    function add(spec) {
+        if (!spec || typeof spec !== 'object' || !spec.id || (!spec.icon && typeof spec.createButton !== 'function')) throw new TypeError('CRB.add requires { id, order, icon|createButton }');
+        spec = Object.assign({ order: 0, tooltip: spec.id, collapse: true, plain: false, state: {} }, spec);
+        specs.set(spec.id, spec);
+        ensureButton(spec.id);
+        return spec.id;
     }
+
+    function createManagedButton(spec) {
+        const button = document.createElement('button');
+        button.id = spec.buttonId || ('lk-crb-' + spec.id);
+        button.type = 'button';
+        button.className = 'blank-button button HideOnPopup chat-room-button';
+        button.setAttribute('role', 'menuitem');
+        let icon = spec.icon;
+        if (typeof icon === 'function') icon = icon(button);
+        if (icon instanceof Node) button.appendChild(icon);
+        else if (icon && typeof icon === 'object' && icon.src) {
+            const img = document.createElement('img');
+            img.src = icon.src;
+            img.alt = icon.alt || '';
+            if (icon.className) img.className = icon.className;
+            button.appendChild(img);
+        } else if (typeof icon === 'string') button.innerHTML = icon;
+        if (typeof spec.onClick === 'function') button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            spec.onClick(event, button);
+        });
+        return button;
+    }
+
+    function applyManagedSpec(spec, el) {
+        el.classList.add('lk-crb-managed');
+        if (!spec.tooltip && el.title) spec.tooltip = el.title;
+        el.removeAttribute('title');
+        el.dataset.lkCrbId = spec.id;
+        if (spec.className) el.classList.add(...String(spec.className).split(/\s+/).filter(Boolean));
+        applyState(spec.id, spec.state || {});
+    }
+
+    function applyState(id, patch) {
+        const spec = specs.get(id);
+        if (!spec) return;
+        spec.state = Object.assign({}, spec.state || {}, patch || {});
+        const el = els.get(id);
+        if (!el) return;
+        const active = !!spec.state.active;
+        const activeSpec = spec.active || {};
+        el.classList.toggle('lk-crb-active', active);
+        let tooltip = spec.state.tooltip || (active && activeSpec.tooltip) || spec.tooltip || id;
+        if (typeof tooltip === 'function') tooltip = tooltip(active, el);
+        el.setAttribute('aria-label', String(tooltip));
+        el.dataset.lkCrbTooltip = String(tooltip);
+        const values = {
+            '--lk-crb-current-bg': spec.state.background || (active && activeSpec.background) || spec.background,
+            '--lk-crb-current-border': spec.state.border || (active && activeSpec.border),
+            '--lk-crb-current-color': spec.state.color || (active && activeSpec.color),
+            '--lk-crb-current-shadow': spec.state.boxShadow || (active && activeSpec.boxShadow),
+        };
+        Object.entries(values).forEach(([name, value]) => value ? el.style.setProperty(name, value) : el.style.removeProperty(name));
+    }
+
+    function setState(id, patch) { applyState(id, patch); }
+    function setActive(id, active) { applyState(id, { active: !!active }); }
     // 卸載（熱更新/停用用）：移除按鈕與所有登記狀態。
     function remove(id) {
         specs.delete(id);
@@ -138,7 +200,7 @@
             '  grid-template-rows:min-content!important;',
             '  grid-auto-flow:column!important;',
             '  grid-auto-columns:min-content!important;',
-            `  max-width:calc(var(--button-size) * ${MAX_VISIBLE} + min(0.4vh, 0.2vw) * ${MAX_VISIBLE + 1})!important;`,
+            `  max-width:calc(var(--button-size) * ${MAX_VISIBLE_PLUGINS + FIXED_NATIVE_BUTTONS} + min(0.4vh, 0.2vw) * ${MAX_VISIBLE_PLUGINS + FIXED_NATIVE_BUTTONS + 1})!important;`,
             '  overflow-x:auto!important;',
             '  overflow-y:visible!important;',
             '  scrollbar-width:none!important;',       // Firefox：隱藏捲軸
@@ -149,6 +211,9 @@
             `#${CONTAINER_ID}.lk-crb-dragging{ cursor:grabbing!important; }`,
             // 關閉底色：帶 lk-crb-plain 的按鈕不畫 BC 原生的 ::before 底色，露出自己的圖示（如 <img>）
             `#${CONTAINER_ID} > .lk-crb-plain::before{ background:none!important; }`,
+            `#${CONTAINER_ID} > .lk-crb-managed{position:relative!important;background:var(--lk-crb-current-bg)!important;color:var(--lk-crb-current-color)!important;border-color:var(--lk-crb-current-border)!important;box-shadow:var(--lk-crb-current-shadow)!important;}`,
+            '.lk-crb-tooltip{position:fixed;z-index:2147483646;max-width:min(280px,calc(100vw - 16px));padding:6px 9px;border:1px solid rgba(255,255,255,.18);border-radius:7px;background:rgba(18,20,25,.97);color:#f2f3f5;font:600 12px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.45);pointer-events:none;opacity:0;transform:translateY(3px);transition:opacity .12s,transform .12s;}',
+            '.lk-crb-tooltip.show{opacity:1;transform:translateY(0);}',
         ].join('\n');
         (document.head || document.documentElement).appendChild(style);
     }
@@ -161,6 +226,7 @@
         if (e.pointerType && e.pointerType !== 'mouse') return; // 觸控/筆交給原生捲動
         const c = e.target.closest && e.target.closest('#' + CONTAINER_ID);
         if (!c) return;
+        if (e.target.closest('#chat-room-send,#chat-room-buttons-collapse,[data-crb-no-drag]')) return;
         drag = { c, startX: e.clientX, startScroll: c.scrollLeft, moved: false };
     }, true);
     document.addEventListener('pointermove', (e) => {
@@ -296,8 +362,49 @@
         attributes: true, attributeFilter: ['aria-expanded'],
     });
 
+    let tooltipEl = null;
+    function hideTooltip() {
+        if (!tooltipEl) return;
+        tooltipEl.classList.remove('show');
+    }
+    function showTooltip(button) {
+        const text = button && button.dataset.lkCrbTooltip;
+        if (!text) return;
+        if (!tooltipEl) {
+            tooltipEl = document.createElement('div');
+            tooltipEl.className = 'lk-crb-tooltip';
+            document.body.appendChild(tooltipEl);
+        }
+        tooltipEl.textContent = text;
+        tooltipEl.style.left = '-9999px';
+        tooltipEl.style.top = '-9999px';
+        tooltipEl.classList.add('show');
+        const r = button.getBoundingClientRect();
+        const t = tooltipEl.getBoundingClientRect();
+        const margin = 8;
+        let left = r.left + (r.width - t.width) / 2;
+        left = Math.max(margin, Math.min(window.innerWidth - t.width - margin, left));
+        let top = r.top - t.height - margin;
+        if (top < margin) top = Math.min(window.innerHeight - t.height - margin, r.bottom + margin);
+        tooltipEl.style.left = Math.round(left) + 'px';
+        tooltipEl.style.top = Math.round(top) + 'px';
+    }
+    document.addEventListener('pointerover', (e) => {
+        const button = e.target.closest && e.target.closest('#' + CONTAINER_ID + ' > .lk-crb-managed');
+        if (button) showTooltip(button);
+    }, true);
+    document.addEventListener('pointerout', (e) => {
+        const button = e.target.closest && e.target.closest('#' + CONTAINER_ID + ' > .lk-crb-managed');
+        if (button && (!e.relatedTarget || !button.contains(e.relatedTarget))) hideTooltip();
+    }, true);
+    document.addEventListener('focusin', (e) => {
+        const button = e.target.closest && e.target.closest('#' + CONTAINER_ID + ' > .lk-crb-managed');
+        if (button) showTooltip(button);
+    }, true);
+    document.addEventListener('focusout', hideTooltip, true);
+
     global.Liko.__Sys_ChatRoomButtons__ = {
-        v: '3.0',
+        v: '4.0',
         slots,
         plainIds,
         register,
@@ -306,12 +413,14 @@
         setPlain,
         add,
         remove,
+        setState,
+        setActive,
     };
 
-    // 排空待處理佇列：插件在本檔載入前 push([id, order, createFn, opts]) 到 __CRB_pending__，此處排空。
+    // 排空待處理佇列：插件在本檔載入前 push(spec) 到 __CRB_pending__，此處排空。
     // 讓「登記按鈕」與「載入協調器」的時機完全解耦（見 MD「五」）。
     const pendingAdds = global.Liko.__CRB_pending__;
     if (Array.isArray(pendingAdds)) {
-        while (pendingAdds.length) { try { add(...pendingAdds.shift()); } catch (e) { console.warn('🐈‍⬛ [CRB] pending add 失敗:', e); } }
+        while (pendingAdds.length) { try { add(pendingAdds.shift()); } catch (e) { console.warn('🐈‍⬛ [CRB] pending add 失敗:', e); } }
     }
 })(window);

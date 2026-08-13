@@ -125,15 +125,17 @@ window.ChatRoomSendLocalStyled("已儲存設定", 2000, "#00ff00");
 
 ### 4. `BC_ChatRoomButtons.js` — 聊天室按鈕列共用協調器
 
+目前 API 為 v4：使用 `add({ id, order, createButton, tooltip, background, active, plain, collapse })` 註冊按鈕，並以 `setActive(id, on)`／`setState(id, patch)` 更新狀態。CRB 統一負責懸停說明與邊界定位。聊天室固定保留原生送出按鈕，另外顯示 5 顆插件按鈕；送出與收合按鈕不參與拖曳。
+
 掛在 `window.Liko.__Sys_ChatRoomButtons__`。BC 聊天室左側那排按鈕容器（`#chat-room-buttons`）原生是**固定 3 欄的 grid**，多個插件各加一顆很容易破 3 顆擠成兩排、也各自處理收合與底色。這支協調器統一接管那排按鈕的**排序、收合/展開動畫、單排捲動排版、關閉原生底色**，讓插件只要「交出一顆按鈕」就好。無外部依賴。
 
 主要用中央託管 `add()`：你給「順位 + 一個工廠函式」，容器建立/重建、跟隨收合鈕、關閉底色全自動：
 
 ```js
 const L = window.Liko = window.Liko || {};
-const spec = ["myplugin", 99 /* order：數字越大越靠左 */, createButton, { plain: true }];
+const spec = { id: "myplugin", order: 99 /* 數字越大越靠左 */, createButton, tooltip: "開啟插件", plain: true };
 // 協調器已載入就直接 add；否則推進待處理佇列，等它（無論被誰載入）初始化時自動排空
-if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(...spec);
+if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(spec);
 else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
 
 function createButton() {           // 每次(重)建都會被呼叫，回傳一顆全新按鈕

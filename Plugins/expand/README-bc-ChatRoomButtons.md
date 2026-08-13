@@ -1,11 +1,42 @@
 # BC_ChatRoomButtons
 
+## v4 API
+
+CRB v4 統一管理聊天室插件按鈕的排序、圖示、底色、懸停說明、啟用狀態、收合動畫與單排捲動。固定保留原生 `chat-room-send`，另外顯示最多 5 顆插件按鈕；`chat-room-send` 與 `chat-room-buttons-collapse` 不參與拖曳。
+
+```js
+const spec = {
+    id: "myplugin",
+    order: 10,
+    createButton,
+    tooltip: "開啟我的插件",
+    background: "#7040a0",
+    active: {
+        tooltip: "關閉我的插件",
+        border: "#ffffff",
+        boxShadow: "0 0 0 2px #ffffff inset"
+    },
+    plain: true
+};
+
+const L = window.Liko = window.Liko || {};
+if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(spec);
+else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
+
+L.__Sys_ChatRoomButtons__?.setActive("myplugin", panelOpen);
+L.__Sys_ChatRoomButtons__?.setState("myplugin", { tooltip: "新的說明", background: "#505060" });
+```
+
+`createButton` 每次都必須回傳新的 `<button>`。TOOL／DDT 這類 APNG 圖示可在此建立 `<img>`、`<canvas>` 與 hover 播放邏輯；按鈕的 tooltip 與狀態樣式交由 CRB 管理。
+
+CRB 會移除原生 `title` 並建立會自動避開視窗邊緣的共用 tooltip，同時保留 `aria-label`。
+
 給 Bondage Club 插件共用的基礎設施：管理聊天室那一排按鈕容器 `#chat-room-buttons` 的**排序**、**收合/展開動畫**、**單排捲動排版**與**關閉底色**。單獨載入即可運作，無外部依賴。
 
-- 掛載點：`window.Liko.__Sys_ChatRoomButtons__`（`v: '3.0'`）。
+- 掛載點：`window.Liko.__Sys_ChatRoomButtons__`（`v: '4.0'`）。
 - **單一初始化**：多個插件各自 `@require` 本檔，先到者建立協調器、其餘直接 `return` 跳過（不再做版本比較——按鈕注入已統一交給本檔，不會有內嵌的舊版變體競爭）。
 - **主要 API 是中央託管 `add` / `remove`**（見「五」）；`register` / `reapply` / `setPlain` 為低階備用，多數插件用不到。
-- 待處理佇列 `window.Liko.__CRB_pending__`：插件在本檔載入前先 `push([id, order, createFn, opts])`，本檔載入時自動排空——讓按鈕登記與協調器載入時機解耦（見「五」）。
+- 待處理佇列 `window.Liko.__CRB_pending__`：插件在本檔載入前先 `push(spec)`，本檔載入時自動排空。
 
 ---
 
@@ -25,7 +56,7 @@
 
 | 函式 | 說明 |
 |------|------|
-| `add(id, order, createFn, opts?)` | **推薦**。交出「順位＋工廠函式」由本檔中央託管：容器建立/重建、收合同步、底色全自動。`opts = { plain?, collapse? }`。見「五」 |
+| `add(spec)` | 登記 `{ id, order, createButton, tooltip, background, active, plain, collapse }` 並建立按鈕。 |
 | `remove(id)` | 移除 `add` 的按鈕與所有登記狀態（停用／熱更新用） |
 | `register(id, order, el)` | 低階：記錄某 id 的順位並套用到 `el`，回傳 order（自行 `append` 時用） |
 | `get(id)` | 查某 id 已宣告的順位（沒有回 `undefined`） |
@@ -67,10 +98,10 @@ BC 原生 `#chat-room-buttons` 是**固定 3 欄**的 grid（`chat.css`：`grid-
 本檔載入時注入一段樣式：
 
 - 把容器改成 **column 流向、只留一列**（`grid-auto-flow: column`），按鈕沿 rtl 方向持續往左排、不換行。
-- 寬度限制在約 **`MAX_VISIBLE = 7`** 顆（`max-width: calc(var(--button-size) * 7 + gap * 8)`），超過的部分溢出並可捲動；捲軸隱藏。
+- 固定顯示原生送出按鈕，另外最多顯示 **5 顆插件按鈕**；超出的插件按鈕可水平拖曳查看，捲軸隱藏。
 - **拖曳捲動**：用滑鼠左右拖曳容器即可找超出的按鈕（用事件代理綁在 `document`，容器被 BC 重建也不必重掛）。移動超過 4px 才算拖曳，並吞掉拖曳後那次 `click` 以免誤觸按鈕；觸控/筆走原生滑動。
 
-改 `MAX_VISIBLE` 常數即可調整可視顆數。統一放在協調器（而非各插件）是因為容器是共用的，設一次最乾淨。
+改 `MAX_VISIBLE_PLUGINS` 常數即可調整可見的插件按鈕數量；原生送出按鈕不計入此數量。
 
 > ⚠️ 取捨：`justify-self: end` + rtl 下，初始看到的是**最右邊**那幾顆（含送出鈕）；順位越靠左（order 越大）的越可能被藏在左邊，往右拖曳才看得到。
 
@@ -145,8 +176,8 @@ function createButton() {
 // 3) 「同步」交出按鈕規格——別綁在載入 promise 上。協調器已載入就直接 add，否則推進待處理佇列，
 //    等協調器（無論被誰、何時載入）初始化時自動排空。這樣按鈕出現與協調器載入時機**完全無關**。
 const L = window.Liko = window.Liko || {};
-const spec = ["myplugin", sys_CRB, createButton, { plain: true }];
-if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(...spec);
+const spec = { id: "myplugin", order: sys_CRB, createButton, tooltip: "開啟插件", plain: true };
+if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(spec);
 else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
 
 // 4) 確保協調器最終會被載入（獨立安裝時）；但規格已在上面登記好，不依賴這步的時機/成敗。
@@ -156,7 +187,7 @@ ensureCRB().catch(e => console.warn("[myplugin] BC_ChatRoomButtons 載入失敗:
 要點：
 
 - **登記與載入解耦（重要）**：一定要**同步**把 spec 交出去（直接 `add` 或推進 `__CRB_pending__`），**不要**寫成 `ensureCRB().then(() => add(...))`。後者把「登記按鈕」綁死在「你自己載入協調器成功」上——若協調器是由別人（PCM）或在不同時機載入，你的 `.then` 沒在對的時間跑，spec 就從沒交出去、按鈕永遠不出現。
-- `add(id, order, createFn, { plain, collapse })`：`id` 唯一；`createFn` 每次(重)建都會被呼叫，回傳的按鈕 `className` 要帶 `chat-room-button` 才吃得到容器排版；`plain:true` 露出自帶 `<img>`/SVG 圖示；`collapse:false` 則不跟隨收合鈕。停用/熱更新用 `remove(id)`。
+- `add(spec)`：`id` 唯一；`createButton` 每次重建都要回傳新按鈕；`plain:true` 露出自帶 `<img>`／SVG／APNG；`collapse:false` 不跟隨收合鈕。停用或熱更新使用 `remove(id)`。
 - 用 `<img>`/SVG 當圖示 → 帶 `{ plain: true }`；圖示大小在 `createFn` 內自己設定。
 - **別在按鈕上寫 `display:…!important`**（見「二」消費端要點 2）：會蓋掉 `[hidden]` 讓按鈕收不起來。改用 `::before` 遮罩或 `你的選擇器:not([hidden])`。
 - **獨立安裝也要能載入本檔**：保留 `ensureCRB()`（或用 `@require` 引入本檔）。沒有協調器就沒有按鈕——但有了待處理佇列，載入早晚都不影響按鈕出現。

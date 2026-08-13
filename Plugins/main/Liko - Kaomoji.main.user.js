@@ -1355,9 +1355,9 @@
            就直接 add，否则推进待处理队列等其初始化排空。容器建立/重建、收合同步、顺位全由协调器处理，
            本插件不再自己注入或掛 observer。Kaomoji 用自带 ::before mask 当图示，故不需 plain。 */
         (function registerKaomojiButton() {
-            var spec = ['kaomoji', sys_CRB, createNativeButton, {}];
+            var spec = { id: 'kaomoji', order: sys_CRB, createButton: createNativeButton };
             var L = window.Liko = window.Liko || {};
-            if (L.__Sys_ChatRoomButtons__ && L.__Sys_ChatRoomButtons__.add) L.__Sys_ChatRoomButtons__.add.apply(null, spec);
+            if (L.__Sys_ChatRoomButtons__ && L.__Sys_ChatRoomButtons__.add) L.__Sys_ChatRoomButtons__.add(spec);
             else { L.__CRB_pending__ = L.__CRB_pending__ || []; L.__CRB_pending__.push(spec); }
         })();
 
@@ -1377,7 +1377,7 @@
             try {
                 if (window.Liko.__Sys_ChatRoomButtons__ && window.Liko.__Sys_ChatRoomButtons__.remove) window.Liko.__Sys_ChatRoomButtons__.remove('kaomoji');
                 var _q = window.Liko.__CRB_pending__;
-                if (Array.isArray(_q)) { var _i = _q.findIndex(function (s) { return s && s[0] === 'kaomoji'; }); if (_i >= 0) _q.splice(_i, 1); }
+                if (Array.isArray(_q)) { var _i = _q.findIndex(function (s) { return s && s.id === 'kaomoji'; }); if (_i >= 0) _q.splice(_i, 1); }
             } catch (e) {}
             try {
                 ['lk-kaomoji-trigger-btn', 'lk-kaomoji-toggle-btn', 'lk-kaomoji-panel', 'lk-kaomoji-toast']

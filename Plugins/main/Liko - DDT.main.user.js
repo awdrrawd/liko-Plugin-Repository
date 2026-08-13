@@ -1604,6 +1604,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 	function toggleBalloonFromButton() { balloonVisible() ? hideBalloon() : showBalloon(); }
 	function syncChatButtonState() {
 		document.getElementById(DDT_BTN_ID)?.classList.toggle("lk-ddt-on", balloonVisible());
+		window.Liko?.__Sys_ChatRoomButtons__?.setActive?.("ddt", balloonVisible());
 	}
 	function injectDdtStyles() {
 		if (document.getElementById("lk-ddt-crb-style")) return;
@@ -1679,8 +1680,8 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		ddtChatBtnAdded = true;
 		// 先「同步」交出按鈕規格，不綁在載入 promise 上——協調器已載入就直接 add，否則推進待處理佇列，
 		// 等協調器（無論被誰、何時載入）初始化時自動排空。這樣 DDT 鈕的出現與協調器載入時機完全無關。
-		const spec = ["ddt", sys_CRB, createDdtButton, { plain: true }];
-		if (window.Liko.__Sys_ChatRoomButtons__?.add) window.Liko.__Sys_ChatRoomButtons__.add(...spec);
+		const spec = { id: "ddt", order: sys_CRB, createButton: createDdtButton, plain: true, active: { border: "#ffffff", boxShadow: "0 0 0 2px #ffffff inset" } };
+		if (window.Liko.__Sys_ChatRoomButtons__?.add) window.Liko.__Sys_ChatRoomButtons__.add(spec);
 		else (window.Liko.__CRB_pending__ = window.Liko.__CRB_pending__ || []).push(spec);
 		// 確保協調器最終會被載入（獨立安裝時）；但按鈕規格已在上面登記好，不依賴這步的時機/成敗。
 		ensureExpandDep("expand/BC_ChatRoomButtons.js", () => window.Liko.__Sys_ChatRoomButtons__?.add)

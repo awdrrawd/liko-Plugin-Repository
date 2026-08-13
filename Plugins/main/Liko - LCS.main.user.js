@@ -848,9 +848,9 @@
                 return btn;
             };
             // 同步交出 spec：協調器已載入就直接 add，否則推進待處理佇列等它初始化排空。
-            const spec = [CRB_ID, CRB_ORDER, createBtn, { plain: true }];
+            const spec = { id: CRB_ID, order: CRB_ORDER, createButton: createBtn, plain: true };
             const L = (window.Liko = window.Liko || {});
-            if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(...spec);
+            if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(spec);
             else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
         }
 

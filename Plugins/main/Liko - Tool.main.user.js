@@ -1646,9 +1646,9 @@
         // 交给共用协调器 BC_ChatRoomButtons 中央託管（{plain:true} 关掉原生底色露出 SVG）。
         // 同步登记 spec，不绑载入时机：协调器已载入就直接 add，否则推进待处理队列等其初始化排空。
         // 协调器由本脚本的 @require 载入（见档头），standalone 也保证有。
-        var spec = [TOOL_CRB_ID, TOOL_CRB_ORDER, createToolButton, { plain: true }];
+        var spec = { id: TOOL_CRB_ID, order: TOOL_CRB_ORDER, createButton: createToolButton, plain: true };
         var L = window.Liko = window.Liko || {};
-        if (L.__Sys_ChatRoomButtons__ && L.__Sys_ChatRoomButtons__.add) L.__Sys_ChatRoomButtons__.add.apply(null, spec);
+        if (L.__Sys_ChatRoomButtons__ && L.__Sys_ChatRoomButtons__.add) L.__Sys_ChatRoomButtons__.add(spec);
         else { L.__CRB_pending__ = L.__CRB_pending__ || []; L.__CRB_pending__.push(spec); }
     }
 

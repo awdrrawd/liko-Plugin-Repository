@@ -1,26 +1,27 @@
 // ==UserScript==
-// @name         Liko - Image Cache
-// @name:zh-TW   Liko - 圖片快取
-// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6.0
-// @description  Persistent, size-limited image cache for Bondage Club and custom assets.
-// @description:zh-TW 為 Bondage Club 與自訂資產提供有容量上限的持久圖片快取。
-// @author       Likolisu
-// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
-// @grant        none
-// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
-// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_ChatRoomButtons.js
-// @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
-// @run-at       document-start
-// @downloadURL  https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Cache.main.user.js
-// @updateURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Cache.main.user.js
+// @name           Liko - Image Cache
+// @name:zh        Liko - 圖片快取
+// @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
+// @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
+// @version        0.6.4
+// @description    Persistent, size-limited image cache for Bondage Club and custom assets.
+// @description:zh 為 Bondage Club 與自訂資產提供有容量上限的持久圖片快取。
+// @author         Likolisu
+// @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @grant          none
+// @require        https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
+// @require        https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_ChatRoomButtons.js
+// @icon           https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
+// @run-at         document-start
+// @downloadURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Cache.main.user.js
+// @updateURL      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Cache.main.user.js
 // ==/UserScript==
 
 (function () {
-    "use strict";
+    window.Liko = window.Liko ?? {};
+    if (window.Liko.ImageCache) return;
 
-    const VERSION = "0.6.0";
+    const VERSION = "0.6.4";
     const TAG = "[Liko Image Cache]";
     const CACHE_NAME = "liko-image-cache-v1";
     const DB_NAME = "liko-image-cache-meta";
@@ -36,15 +37,15 @@
     const READ_CONCURRENCY = 16;
     const NEGATIVE_TTL = 60 * 60 * 1000;
     const TRANSIENT_NEGATIVE_TTL = 60 * 1000;
+    const MIN_CACHE_BYTES = 1024;
     const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
     const IMAGE_EXT = /\.(?:png|jpe?g|webp|gif|avif|svg)(?:[?#]|$)/i;
     const ASSET_PATH = /\/Assets\/Female3DCG\//i;
+    const BACKGROUND_PATH = /\/Backgrounds?(?:\/|$)/i;
+    const ICON_PATH = /\/Icons?(?:\/|$)/i;
     const CORE_GROUPS = /\/Female3DCG\/(?:Body|BodyUpper|BodyLower|Head|Hair|HairFront|HairBack|Eyes|Eyes2|Eyebrows|Mouth|Nipples|Pussy|Height|Hands|LeftHand|RightHand)(?:\/|$)/i;
-
-    window.Liko = window.Liko ?? {};
-    if (window.Liko.ImageCache) return;
-
     const nativeSrc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "src");
+
     if (!nativeSrc?.get || !nativeSrc?.set || !window.caches || !window.indexedDB) {
         console.warn(`${TAG} Cache Storage or IndexedDB is unavailable.`);
         return;
@@ -52,7 +53,12 @@
 
     const logicalSources = new WeakMap();
     const generations = new WeakMap();
+    const pendingGenerations = new WeakMap();
+    const cacheServedImages = new WeakSet();
     const objectUrls = new WeakMap();
+    const objectUrlFinalizer = typeof FinalizationRegistry === "function"
+        ? new FinalizationRegistry(url => URL.revokeObjectURL(url))
+        : null;
     const activeRequests = new Map();
     const knownEntries = new Map();
     const writeQueue = [];
@@ -69,6 +75,43 @@
     let panelTimer;
     const counters = { hits: 0, misses: 0, stored: 0, fallbacks: 0, suppressed404: 0, servedBytes: 0, downloadedBytes: 0 };
     const recentRequests = [];
+    let uploadCanvas = null;
+
+    function normalizedUploadSource(image) {
+        try {
+            uploadCanvas ??= document.createElement("canvas");
+            if (uploadCanvas.width !== image.naturalWidth) uploadCanvas.width = image.naturalWidth;
+            if (uploadCanvas.height !== image.naturalHeight) uploadCanvas.height = image.naturalHeight;
+            const context = uploadCanvas.getContext("2d");
+            context.clearRect(0, 0, uploadCanvas.width, uploadCanvas.height);
+            context.drawImage(image, 0, 0);
+            return uploadCanvas;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function installTexImageReadinessGuard(ContextType) {
+        const prototype = ContextType?.prototype;
+        const original = prototype?.texImage2D;
+        if (typeof original !== "function" || original.__likoImageCacheGuard) return;
+        function guardedTexImage2D(...args) {
+            const source = args[args.length - 1];
+            if (enabled && source instanceof HTMLImageElement
+                && (pendingGenerations.has(source) || !source.complete || source.naturalWidth <= 0 || source.naturalHeight <= 0)) return;
+            if (enabled && source instanceof HTMLImageElement && cacheServedImages.has(source)) {
+                const normalized = normalizedUploadSource(source);
+                if (!normalized) return;
+                args[args.length - 1] = normalized;
+            }
+            return original.apply(this, args);
+        }
+        Object.defineProperty(guardedTexImage2D, "__likoImageCacheGuard", { value: true });
+        prototype.texImage2D = guardedTexImage2D;
+    }
+
+    installTexImageReadinessGuard(window.WebGLRenderingContext);
+    installTexImageReadinessGuard(window.WebGL2RenderingContext);
 
     function recordRequest(hit) {
         counters[hit ? "hits" : "misses"]++;
@@ -89,7 +132,11 @@
     function shouldHandle(value) {
         if (!enabled || typeof value !== "string" || !value || value.startsWith("blob:") || value.startsWith("data:")) return false;
         const url = absoluteUrl(value);
-        return !!url && IMAGE_EXT.test(url) && (ASSET_PATH.test(url) || /echo-clothing-ext|sugarchain-studio|bondage(projects\.elementfx|-(?:europe|asia))\.com/i.test(url));
+        return !!url && !BACKGROUND_PATH.test(url) && IMAGE_EXT.test(url) && (ASSET_PATH.test(url) || /echo-clothing-ext|sugarchain-studio|bondage(projects\.elementfx|-(?:europe|asia))\.com/i.test(url));
+    }
+
+    function isCacheableSize(url, size) {
+        return size >= MIN_CACHE_BYTES || ICON_PATH.test(url);
     }
 
     function isCore(url) {
@@ -154,6 +201,13 @@
         }
     }
 
+    async function purgeStoredEntries(entries) {
+        if (!entries.length) return;
+        const cache = await caches.open(CACHE_NAME);
+        await Promise.all(entries.map(entry => cache.delete(entry.url)));
+        await withStore("readwrite", store => entries.forEach(entry => store.delete(entry.url)));
+    }
+
     async function cleanup(force = false) {
         if (cleaning) return;
         cleaning = true;
@@ -185,7 +239,7 @@
             const cached = await cache.match(url, { ignoreVary: true });
             if (cached) {
                 const blob = await cached.blob();
-                if (blob.size) {
+                if (blob.size && isCacheableSize(url, blob.size)) {
                     recordRequest(true);
                     counters.servedBytes += blob.size;
                     const entry = knownEntries.get(url);
@@ -193,6 +247,12 @@
                     return blob;
                 }
                 await cache.delete(url);
+                const stale = knownEntries.get(url);
+                if (stale) {
+                    knownEntries.delete(url);
+                    metadataBytes -= stale.size || 0;
+                    withStore("readwrite", store => store.delete(url)).catch(() => {});
+                }
             }
 
             knownEntries.delete(url);
@@ -238,13 +298,19 @@
                     if (!response.ok || response.type === "opaque") throw new Error(`HTTP ${response.status || "opaque"}`);
                     const type = response.headers.get("content-type") || "";
                     if (type && !type.startsWith("image/")) throw new Error(`Unexpected content type: ${type}`);
-                    const blob = await response.clone().blob();
-                    if (!blob.size) throw new Error("Empty image response");
+                    const declaredSize = Number(response.headers.get("content-length"));
+                    let size = Number.isFinite(declaredSize) && declaredSize > 0 ? declaredSize : 0;
+                    if (!size) {
+                        const blob = await response.clone().blob();
+                        size = blob.size;
+                    }
+                    if (!size) throw new Error("Empty image response");
+                    if (!isCacheableSize(url, size)) throw new Error(`Image is smaller than ${MIN_CACHE_BYTES} bytes`);
                     const cache = await caches.open(CACHE_NAME);
                     await cache.put(url, response);
-                    await touch(url, blob.size, isCore(url));
+                    await touch(url, size, isCore(url));
                     counters.stored++;
-                    counters.downloadedBytes += blob.size;
+                    counters.downloadedBytes += size;
                     cleanup(false);
                 } catch (error) {
                     counters.fallbacks++;
@@ -291,14 +357,58 @@
         if (old) {
             URL.revokeObjectURL(old);
             objectUrls.delete(image);
+            objectUrlFinalizer?.unregister(image);
         }
+    }
+
+    function markImagePending(image, generation) {
+        pendingGenerations.set(image, generation);
+        const clear = () => {
+            image.removeEventListener("load", clear, true);
+            image.removeEventListener("error", clear, true);
+            if (pendingGenerations.get(image) === generation) pendingGenerations.delete(image);
+        };
+        image.addEventListener("load", clear, { capture: true, once: true });
+        image.addEventListener("error", clear, { capture: true, once: true });
+    }
+
+    function loadDecodedSource(image, source, logicalSource, generation) {
+        logicalSources.delete(image);
+        return new Promise((resolve, reject) => {
+            const cleanup = () => {
+                image.removeEventListener("load", onLoad);
+                image.removeEventListener("error", onError);
+            };
+            const onLoad = async () => {
+                cleanup();
+                try {
+                    if (typeof image.decode === "function") await image.decode();
+                    if (generations.get(image) !== generation) return resolve(false);
+                    if (!image.naturalWidth || !image.naturalHeight) throw new Error("Decoded image has no pixels");
+                    logicalSources.set(image, logicalSource);
+                    resolve(true);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            const onError = () => {
+                cleanup();
+                reject(new Error("Image decode failed"));
+            };
+            image.addEventListener("load", onLoad, { once: true });
+            image.addEventListener("error", onError, { once: true });
+            markImagePending(image, generation);
+            nativeSrc.set.call(image, source);
+        });
     }
 
     function setImageSource(image, value) {
         const original = String(value ?? "");
         // Native HTMLImageElement.src always reads back as an absolute URL. BC and
         // ECHO rely on that and call new URL(img.src) with no base argument.
-        logicalSources.set(image, absoluteUrl(original) ?? original);
+        const logicalSource = absoluteUrl(original) ?? original;
+        logicalSources.delete(image);
+        cacheServedImages.delete(image);
         const generation = (generations.get(image) || 0) + 1;
         generations.set(image, generation);
         releaseObjectUrl(image);
@@ -312,7 +422,7 @@
         const known = knownEntries.get(url);
         if (known?.negativeUntil > Date.now()) {
             counters.suppressed404++;
-            nativeSrc.set.call(image, TRANSPARENT_PIXEL);
+            loadDecodedSource(image, TRANSPARENT_PIXEL, logicalSource, generation).catch(() => {});
             return;
         } else if (known?.negativeUntil) {
             knownEntries.delete(url);
@@ -327,33 +437,43 @@
             image.addEventListener("error", () => {
                 if (generations.get(image) === generation) classifyFailure(url).catch(() => {});
             }, { once: true });
+            markImagePending(image, generation);
             nativeSrc.set.call(image, original);
             return;
         }
 
         // GLDrawImageCache may reuse this Image before its queued read starts.
         // Keep it backed by valid pixels so texImage2D never receives a 0x0 image.
-        nativeSrc.set.call(image, TRANSPARENT_PIXEL);
+        cacheServedImages.add(image);
+        const placeholderReady = loadDecodedSource(image, TRANSPARENT_PIXEL, logicalSource, generation);
         queueCachedRead(url, async () => {
             if (generations.get(image) !== generation) return;
+            let objectUrl = null;
             try {
+                await placeholderReady;
+                if (generations.get(image) !== generation) return;
                 const blob = await obtain(url);
                 if (generations.get(image) !== generation) return;
-                const objectUrl = URL.createObjectURL(blob);
+                objectUrl = URL.createObjectURL(blob);
                 objectUrls.set(image, objectUrl);
-                await new Promise((resolve, reject) => {
-                    const timer = setTimeout(() => reject(new Error("Cached image decode timeout")), 15000);
-                    image.addEventListener("load", () => { clearTimeout(timer); refreshCharacters(); resolve(); }, { once: true });
-                    image.addEventListener("error", () => { clearTimeout(timer); reject(new Error("Cached image decode failed")); }, { once: true });
-                    nativeSrc.set.call(image, objectUrl);
-                });
+                objectUrlFinalizer?.register(image, objectUrl, image);
+                let timer;
+                const loaded = await Promise.race([
+                    loadDecodedSource(image, objectUrl, logicalSource, generation),
+                    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Cached image decode timeout")), 15000); }),
+                ]).finally(() => clearTimeout(timer));
+                if (!loaded || generations.get(image) !== generation) return;
+                refreshCharacters();
             } catch (error) {
+                if (objectUrl && objectUrls.get(image) === objectUrl) releaseObjectUrl(image);
                 if (generations.get(image) !== generation) return;
                 counters.fallbacks++;
                 recordRequest(false);
+                cacheServedImages.delete(image);
                 image.addEventListener("load", () => queueWrite(url), { once: true });
                 image.addEventListener("error", () => classifyFailure(url).catch(() => {}), { once: true });
                 console.debug(`${TAG} stale cache entry; using native load for ${url}:`, error);
+                markImagePending(image, generation);
                 nativeSrc.set.call(image, original);
             }
         });
@@ -588,10 +708,14 @@
     window.Liko.ImageCache = api;
     setupChatButton();
 
+    let modApi = null;
+    let glDrawGuardInstalled = false;
+
     function registerMod() {
+        if (modApi) return true;
         if (typeof window.bcModSdk?.registerMod !== "function") return false;
         try {
-            window.bcModSdk.registerMod({
+            modApi = window.bcModSdk.registerMod({
                 name: "Liko Image Cache",
                 fullName: "Liko - Image Cache",
                 version: VERSION,
@@ -603,21 +727,46 @@
         return true;
     }
 
-    if (!registerMod()) {
-        let attempts = 0;
-        const timer = setInterval(() => {
-            if (registerMod() || ++attempts >= 120) clearInterval(timer);
-        }, 250);
+    function installGLDrawGuard() {
+        if (glDrawGuardInstalled) return true;
+        if (!modApi || typeof window.GLDrawBingImageToTextureInfo !== "function") return false;
+        try {
+            modApi.hookFunction("GLDrawBingImageToTextureInfo", 100, (args, next) => {
+                const image = args[1];
+                if (!(image instanceof HTMLImageElement) || pendingGenerations.has(image)
+                    || !image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
+                return next(args);
+            });
+            glDrawGuardInstalled = true;
+            return true;
+        } catch (error) {
+            console.warn(`${TAG} GLDraw readiness guard failed:`, error);
+            return false;
+        }
     }
+
+    registerMod();
+    installGLDrawGuard();
+    let guardAttempts = 0;
+    const guardTimer = setInterval(() => {
+        registerMod();
+        if (installGLDrawGuard() || ++guardAttempts >= 240) clearInterval(guardTimer);
+    }, 250);
 
     allMetadata().then(entries => {
         const now = Date.now();
+        const excluded = [];
         for (const entry of entries) {
+            if (BACKGROUND_PATH.test(entry.url) || (!entry.negativeUntil && !isCacheableSize(entry.url, entry.size || 0))) {
+                excluded.push(entry);
+                continue;
+            }
             if (entry.negativeUntil && entry.negativeUntil <= now) continue;
             if (knownEntries.has(entry.url)) continue;
             knownEntries.set(entry.url, entry);
             metadataBytes += entry.size || 0;
         }
+        purgeStoredEntries(excluded).catch(error => console.warn(`${TAG} excluded-entry cleanup failed:`, error));
         cleanup(false);
     }).catch(error => console.warn(`${TAG} metadata initialization failed:`, error));
     console.info(`${TAG} ${VERSION} active. API: Liko.ImageCache`);

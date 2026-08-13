@@ -2063,13 +2063,13 @@
         const L = window.Liko;
         const crb = L.__Sys_ChatRoomButtons__;
         if (config.chatButton) {
-            const spec = ["mat", sys_CRB, createMatButton, {}];
-            if (crb?.add) crb.add(...spec);
+            const spec = { id: "mat", order: sys_CRB, createButton: createMatButton };
+            if (crb?.add) crb.add(spec);
             else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
         } else {
             crb?.remove?.("mat");
             const q = L.__CRB_pending__;
-            if (Array.isArray(q)) { const i = q.findIndex(s => s && s[0] === "mat"); if (i >= 0) q.splice(i, 1); }
+            if (Array.isArray(q)) { const i = q.findIndex(s => s && s.id === "mat"); if (i >= 0) q.splice(i, 1); }
             hideMatQuickMenu();
         }
     }
