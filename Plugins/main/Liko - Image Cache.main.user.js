@@ -683,8 +683,13 @@
     }
 
     function setupChatButton() {
-        const spec = ["liko-image-cache", 4, createChatButton, { plain: true }];
-        if (window.Liko.__Sys_ChatRoomButtons__?.add) window.Liko.__Sys_ChatRoomButtons__.add(...spec);
+        const spec = {
+            id: "liko-image-cache",
+            order: 4,
+            createButton: createChatButton,
+            plain: true,
+        };
+        if (window.Liko.__Sys_ChatRoomButtons__?.add) window.Liko.__Sys_ChatRoomButtons__.add(spec);
         else (window.Liko.__CRB_pending__ = window.Liko.__CRB_pending__ || []).push(spec);
     }
 
