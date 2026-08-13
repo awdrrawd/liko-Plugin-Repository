@@ -1566,7 +1566,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 	// ---------------------------------------------------------------- 聊天室按鈕（#chat-room-buttons）
 	// 點一下叫出氣球、再點一下收起。氣球預設隱藏、不記憶狀態（每次進聊天室都從隱藏開始）。
 	// 順位交給共用協調器 BC_ChatRoomButtons（sys_CRB 數字越大越靠左，見同名 .md）。
-	const sys_CRB = "99";              // #chat-room-buttons 順位設定
+	const sys_CRB = 91;              // #chat-room-buttons 順位設定
 	const DDT_BTN_ID = "lk-ddt-trigger-btn";
 	let ddtChatBtnAdded = false;
 
