@@ -1395,8 +1395,9 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		balloon = document.createElement("div");
 		balloon.className = "balloon";
 		balloon.title = T("balloon_title");
-		balloon.style.left = "12px";
-		balloon.style.top = "120px";
+		// 預設放在視窗右下方約 90% / 90%，並扣除氣球尺寸避免超出畫面。
+		balloon.style.left = Math.max(4, Math.round(window.innerWidth * 0.9 - 48)) + "px";
+		balloon.style.top = Math.max(4, Math.round(window.innerHeight * 0.9 - 48)) + "px";
 		balloon.style.display = "none"; // 預設隱藏；由聊天室按鈕（#chat-room-buttons）叫出
 
 		// poster = 靜止影格（預設顯示）；img = APNG（游標移上去才顯示 → 才看得到動畫）
@@ -1680,7 +1681,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		ddtChatBtnAdded = true;
 		// 先「同步」交出按鈕規格，不綁在載入 promise 上——協調器已載入就直接 add，否則推進待處理佇列，
 		// 等協調器（無論被誰、何時載入）初始化時自動排空。這樣 DDT 鈕的出現與協調器載入時機完全無關。
-		const spec = { id: "ddt", order: sys_CRB, createButton: createDdtButton, plain: true, active: { border: "#ffffff", boxShadow: "0 0 0 2px #ffffff inset" } };
+		const spec = { id: "ddt", order: sys_CRB, createButton: createDdtButton, plain: true, active: { border: "2px solid #ffffff", boxShadow: "0 0 0 2px #ffffff inset" } };
 		if (window.Liko.__Sys_ChatRoomButtons__?.add) window.Liko.__Sys_ChatRoomButtons__.add(spec);
 		else (window.Liko.__CRB_pending__ = window.Liko.__CRB_pending__ || []).push(spec);
 		// 確保協調器最終會被載入（獨立安裝時）；但按鈕規格已在上面登記好，不依賴這步的時機/成敗。

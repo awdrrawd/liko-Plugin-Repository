@@ -142,14 +142,16 @@
         if (!el) return;
         const active = !!spec.state.active;
         const activeSpec = spec.active || {};
+        const border = spec.state.border || (active && activeSpec.border) || spec.border;
         el.classList.toggle('lk-crb-active', active);
+        el.classList.toggle('lk-crb-borderless', border === 'none');
         let tooltip = spec.state.tooltip || (active && activeSpec.tooltip) || spec.tooltip || id;
         if (typeof tooltip === 'function') tooltip = tooltip(active, el);
         el.setAttribute('aria-label', String(tooltip));
         el.dataset.lkCrbTooltip = String(tooltip);
         const values = {
             '--lk-crb-current-bg': spec.state.background || (active && activeSpec.background) || spec.background,
-            '--lk-crb-current-border': spec.state.border || (active && activeSpec.border),
+            '--lk-crb-current-border': border,
             '--lk-crb-current-color': spec.state.color || (active && activeSpec.color),
             '--lk-crb-current-shadow': spec.state.boxShadow || (active && activeSpec.boxShadow),
         };
@@ -211,7 +213,9 @@
             `#${CONTAINER_ID}.lk-crb-dragging{ cursor:grabbing!important; }`,
             // 關閉底色：帶 lk-crb-plain 的按鈕不畫 BC 原生的 ::before 底色，露出自己的圖示（如 <img>）
             `#${CONTAINER_ID} > .lk-crb-plain::before{ background:none!important; }`,
-            `#${CONTAINER_ID} > .lk-crb-managed{position:relative!important;background:var(--lk-crb-current-bg)!important;color:var(--lk-crb-current-color)!important;border-color:var(--lk-crb-current-border)!important;box-shadow:var(--lk-crb-current-shadow)!important;}`,
+            `#${CONTAINER_ID} > .lk-crb-managed{position:relative!important;background:var(--lk-crb-current-bg)!important;color:var(--lk-crb-current-color)!important;border:var(--lk-crb-current-border)!important;box-shadow:var(--lk-crb-current-shadow)!important;}`,
+            `#${CONTAINER_ID} > .lk-crb-managed.lk-crb-borderless{border:none!important;outline:none!important;}`,
+            `#${CONTAINER_ID} > .lk-crb-managed.lk-crb-borderless::after{content:none!important;border:none!important;outline:none!important;box-shadow:none!important;}`,
             '.lk-crb-tooltip{position:fixed;z-index:2147483646;max-width:min(280px,calc(100vw - 16px));padding:6px 9px;border:1px solid rgba(255,255,255,.18);border-radius:7px;background:rgba(18,20,25,.97);color:#f2f3f5;font:600 12px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.45);pointer-events:none;opacity:0;transform:translateY(3px);transition:opacity .12s,transform .12s;}',
             '.lk-crb-tooltip.show{opacity:1;transform:translateY(0);}',
         ].join('\n');
