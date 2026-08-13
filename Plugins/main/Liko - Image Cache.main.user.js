@@ -22,7 +22,7 @@
     if (window.Liko.ImageCache) return;
 
     const VERSION = "0.1.0";
-    const TAG = "[Liko Image Cache]";
+    const TAG = "🐈‍⬛ [ImageCache]";
     const CACHE_NAME = "liko-image-cache-v1";
     const DB_NAME = "liko-image-cache-meta";
     const DB_VERSION = 1;
