@@ -759,30 +759,6 @@
       "version": "1.2"
     },
     {
-      "id": "Liko-LCS",
-      "iemoji": "🧪",
-      "name": {
-        "cn": "程式碼沙盒",
-        "en": "Code Sandbox"
-      },
-      "description": {
-        "cn": "在全域作用域執行測試碼，精準追蹤並還原「這個沙盒自己造成」的副作用；支援多重沙盒、可收合、可切純控制台模式",
-        "en": "Execute test code in the global scope, precisely track and restore side effects caused by the sandbox itself; supports multiple sandboxes, collapsible panels, and toggleable pure console mode."
-      },
-      "author": "莉柯莉絲(Likolisu)",
-      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
-      "tags": ["tool" ,"cheat" ,"fab"],
-      "type": "eval",
-      "versions": [
-        {
-          "distribution": "stable",
-          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20LCS.main.user.js"
-        }
-      ],
-      "priority": 9,
-      "version": "1.0"
-    },
-    {
       "id": "Liko-CUS",
       "iemoji": "📱",
       "name": {
@@ -805,6 +781,54 @@
       ],
       "priority": 9,
       "version": "0.1"
+    },
+    {
+      "id": "Liko-ImageCache",
+      "iemoji": "📦",
+      "name": {
+        "cn": "圖片快取",
+        "en": "Image Cache"
+      },
+      "description": {
+        "cn": "為 Bondage Club 與自訂資產提供有容量上限的持久圖片快取。",
+        "en": "Persistent, size-limited image cache for Bondage Club and custom assets."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": ["ui", "mobile"],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Cache.main.user.js"
+        }
+      ],
+      "priority": 10,
+      "version": "0.1"
+    },
+    {
+      "id": "Liko-LCS",
+      "iemoji": "🧪",
+      "name": {
+        "cn": "程式碼沙盒",
+        "en": "Code Sandbox"
+      },
+      "description": {
+        "cn": "在全域作用域執行測試碼，精準追蹤並還原「這個沙盒自己造成」的副作用；支援多重沙盒、可收合、可切純控制台模式",
+        "en": "Execute test code in the global scope, precisely track and restore side effects caused by the sandbox itself; supports multiple sandboxes, collapsible panels, and toggleable pure console mode."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": ["tool" ,"cheat" ,"fab"],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20LCS.main.user.js"
+        }
+      ],
+      "priority": 10,
+      "version": "1.0"
     }
   ]
 }

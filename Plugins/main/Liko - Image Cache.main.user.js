@@ -3,7 +3,7 @@
 // @name:zh        Liko - 圖片快取
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.6.4
+// @version        0.1.0
 // @description    Persistent, size-limited image cache for Bondage Club and custom assets.
 // @description:zh 為 Bondage Club 與自訂資產提供有容量上限的持久圖片快取。
 // @author         Likolisu
@@ -21,7 +21,7 @@
     window.Liko = window.Liko ?? {};
     if (window.Liko.ImageCache) return;
 
-    const VERSION = "0.6.4";
+    const VERSION = "0.1.0";
     const TAG = "[Liko Image Cache]";
     const CACHE_NAME = "liko-image-cache-v1";
     const DB_NAME = "liko-image-cache-meta";
@@ -54,7 +54,7 @@
     const logicalSources = new WeakMap();
     const generations = new WeakMap();
     const pendingGenerations = new WeakMap();
-    const cacheServedImages = new WeakSet();
+    const handledImages = new WeakSet();
     const objectUrls = new WeakMap();
     const objectUrlFinalizer = typeof FinalizationRegistry === "function"
         ? new FinalizationRegistry(url => URL.revokeObjectURL(url))
@@ -99,7 +99,7 @@
             const source = args[args.length - 1];
             if (enabled && source instanceof HTMLImageElement
                 && (pendingGenerations.has(source) || !source.complete || source.naturalWidth <= 0 || source.naturalHeight <= 0)) return;
-            if (enabled && source instanceof HTMLImageElement && cacheServedImages.has(source)) {
+            if (enabled && source instanceof HTMLImageElement && handledImages.has(source)) {
                 const normalized = normalizedUploadSource(source);
                 if (!normalized) return;
                 args[args.length - 1] = normalized;
@@ -408,7 +408,7 @@
         // ECHO rely on that and call new URL(img.src) with no base argument.
         const logicalSource = absoluteUrl(original) ?? original;
         logicalSources.delete(image);
-        cacheServedImages.delete(image);
+        handledImages.delete(image);
         const generation = (generations.get(image) || 0) + 1;
         generations.set(image, generation);
         releaseObjectUrl(image);
@@ -418,6 +418,7 @@
             return;
         }
 
+        handledImages.add(image);
         const url = absoluteUrl(original);
         const known = knownEntries.get(url);
         if (known?.negativeUntil > Date.now()) {
@@ -444,7 +445,6 @@
 
         // GLDrawImageCache may reuse this Image before its queued read starts.
         // Keep it backed by valid pixels so texImage2D never receives a 0x0 image.
-        cacheServedImages.add(image);
         const placeholderReady = loadDecodedSource(image, TRANSPARENT_PIXEL, logicalSource, generation);
         queueCachedRead(url, async () => {
             if (generations.get(image) !== generation) return;
@@ -469,7 +469,6 @@
                 if (generations.get(image) !== generation) return;
                 counters.fallbacks++;
                 recordRequest(false);
-                cacheServedImages.delete(image);
                 image.addEventListener("load", () => queueWrite(url), { once: true });
                 image.addEventListener("error", () => classifyFailure(url).catch(() => {}), { once: true });
                 console.debug(`${TAG} stale cache entry; using native load for ${url}:`, error);
