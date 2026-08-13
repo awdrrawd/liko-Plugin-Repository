@@ -685,7 +685,7 @@
     function setupChatButton() {
         const spec = {
             id: "liko-image-cache",
-            order: 4,
+            order: 99,
             createButton: createChatButton,
             plain: true,
         };
