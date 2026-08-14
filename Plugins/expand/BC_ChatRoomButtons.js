@@ -18,7 +18,7 @@
     const specs = new Map();
 
     function settings() {
-        const fallback = { order: [], direction: 'rtl', persistent: [], hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS };
+        const fallback = { order: [], persistent: [], hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS };
         if (typeof Player === 'undefined' || !Player) return fallback;
         Player.ExtensionSettings = Player.ExtensionSettings || {};
         const saved = Player.ExtensionSettings[SETTINGS_KEY];
@@ -27,7 +27,6 @@
         if (!Array.isArray(value.order)) value.order = [];
         if (!Array.isArray(value.persistent)) value.persistent = [];
         if (!Array.isArray(value.hidden)) value.hidden = [];
-        if (value.direction !== 'ltr' && value.direction !== 'rtl') value.direction = 'rtl';
         value.visibleCount = Math.max(1, Math.min(10, Math.round(Number(value.visibleCount) || DEFAULT_VISIBLE_PLUGINS)));
         return value;
     }
@@ -101,8 +100,7 @@
             .filter(el => !preferred.includes(buttonKey(el)))
             .sort((a, b) => (slots[buttonKey(a)] || 0) - (slots[buttonKey(b)] || 0))
             .map(buttonKey);
-        const keys = preferred.concat(missing);
-        return settings().direction === 'ltr' ? keys.reverse() : keys;
+        return preferred.concat(missing);
     }
 
     function applyLayout() {
@@ -110,11 +108,16 @@
         if (!container) return;
         container.dir = 'ltr';
         const totalVisible = settings().visibleCount + 1;
-        container.style.setProperty('--lk-crb-max-width', `calc(var(--button-size) * ${totalVisible} + min(.4vh,.2vw) * ${totalVisible + 1})`);
+        const gapCount = Math.max(0, totalVisible - 1);
+        container.style.setProperty('--lk-crb-max-width', `calc(var(--button-size) * ${totalVisible} + min(.4vh,.2vw) * ${gapCount})`);
         const keys = orderedKeys(container);
+        const hasPersistentButton = keys.some(key => settings().persistent.includes(key));
         Array.from(container.children).forEach(el => {
             const key = buttonKey(el);
-            if (el.id === 'chat-room-send') el.style.order = '-10000';
+            if (el.id === 'chat-room-send') {
+                el.style.order = '-10000';
+                setHiddenAnimated(el, !collapseExpanded() && hasPersistentButton);
+            }
             else if (el.id === 'chat-room-buttons-collapse') el.style.order = '10000';
             else if (key) el.style.order = String(keys.indexOf(key));
             applyVisibility(el);
@@ -263,7 +266,7 @@
         const style = document.createElement('style');
         style.id = 'lk-crb-layout-style';
         style.textContent = `
-#${CONTAINER_ID}{grid-template-columns:unset!important;grid-template-rows:min-content!important;grid-auto-flow:column!important;grid-auto-columns:min-content!important;max-width:var(--lk-crb-max-width,calc(var(--button-size) * 6 + min(.4vh,.2vw) * 7))!important;overflow-x:auto!important;overflow-y:visible!important;scrollbar-width:none!important;overscroll-behavior-x:contain!important}
+#${CONTAINER_ID}{grid-template-columns:unset!important;grid-template-rows:min-content!important;grid-auto-flow:column!important;grid-auto-columns:min-content!important;max-width:var(--lk-crb-max-width,calc(var(--button-size) * 6 + min(.4vh,.2vw) * 5))!important;overflow-x:auto!important;overflow-y:visible!important;scrollbar-width:none!important;overscroll-behavior-x:contain!important}
 #${CONTAINER_ID}::-webkit-scrollbar{display:none!important}
 #${CONTAINER_ID}.lk-crb-dragging{cursor:grabbing!important}
 #${CONTAINER_ID}>button:not(#chat-room-send){cursor:grab}
@@ -281,7 +284,7 @@
 #${PANEL_ID}::before{content:"";position:absolute;z-index:3;left:18px;right:18px;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--crb-neon),var(--crb-violet),transparent);box-shadow:0 0 12px var(--crb-neon);pointer-events:none}
 #${PANEL_ID} .lk-crb-head,#${PANEL_ID} .lk-crb-actions{display:flex;align-items:center;gap:10px}
 #${PANEL_ID} .lk-crb-head{position:sticky;top:0;z-index:2;padding:18px 20px;background:linear-gradient(90deg,#19243aed,#111627ed);border-bottom:1px solid #49d9ff2c} #${PANEL_ID} .lk-crb-head b{flex:1;font-size:18px;letter-spacing:.5px;text-shadow:0 0 12px #49d9ff45}
-#${PANEL_ID} .lk-crb-body{padding:14px 18px 18px} #${PANEL_ID} .lk-crb-direction{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:16px}
+#${PANEL_ID} .lk-crb-body{padding:14px 18px 18px} #${PANEL_ID} .lk-crb-count{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:16px}
 #${PANEL_ID} .lk-crb-zone-label{margin:10px 2px 6px;color:#aeb7cc;font-size:14px;font-weight:700} #${PANEL_ID} .lk-crb-zone{min-height:72px;box-sizing:border-box;display:flex;align-content:flex-start;flex-wrap:wrap;gap:10px;padding:8px;border:1px dashed #7683a54d;border-radius:14px;background:#06081045;transition:border-color .15s,background .15s}
 #${PANEL_ID} .lk-crb-zone.lk-crb-zone-over{border-color:var(--crb-neon);background:#49d9ff12;box-shadow:0 0 16px #49d9ff18 inset} #${PANEL_ID} .lk-crb-item{position:relative;width:54px;height:54px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:13px;background:#0b0e16;cursor:grab;overflow:hidden;transition:transform .15s,border-color .15s,opacity .15s,box-shadow .15s}
 #${PANEL_ID} .lk-crb-item:hover{transform:translateY(-2px);border-color:var(--crb-neon);box-shadow:0 0 14px #49d9ff42} #${PANEL_ID} .lk-crb-item.lk-crb-sort-drag{opacity:.35} #${PANEL_ID} .lk-crb-item>*{max-width:100%!important;max-height:100%!important;width:100%!important;height:100%!important;object-fit:contain!important;pointer-events:none!important}
@@ -339,9 +342,9 @@
 
     function panelText() {
         const language = typeof TranslationLanguage === 'string' ? TranslationLanguage.toUpperCase() : 'EN';
-        if (language === 'TW') return { title: '聊天室按鈕設定', close: '關閉', direction: '排列方向', count: '顯示按鈕數量', rtl: '由右至左', ltr: '由左至右', persistent: '常駐功能', visible: '顯示', hidden: '隱藏', reset: '還原預設' };
-        if (language === 'CN') return { title: '聊天室按钮设置', close: '关闭', direction: '排列方向', count: '显示按钮数量', rtl: '由右至左', ltr: '由左至右', persistent: '常驻功能', visible: '显示', hidden: '隐藏', reset: '恢复默认' };
-        return { title: 'Chat Button Settings', close: 'Close', direction: 'Direction', count: 'Visible button count', rtl: 'Right to left', ltr: 'Left to right', persistent: 'Persistent features', visible: 'Visible', hidden: 'Hidden', reset: 'Reset defaults' };
+        if (language === 'TW') return { title: '聊天室按鈕設定', close: '關閉', count: '顯示按鈕數量', persistent: '常駐功能', visible: '顯示', hidden: '隱藏', reset: '還原預設' };
+        if (language === 'CN') return { title: '聊天室按钮设置', close: '关闭', count: '显示按钮数量', persistent: '常驻功能', visible: '显示', hidden: '隐藏', reset: '恢复默认' };
+        return { title: 'Chat Button Settings', close: 'Close', count: 'Visible button count', persistent: 'Persistent features', visible: 'Visible', hidden: 'Hidden', reset: 'Reset defaults' };
     }
 
     function openSettingsPanel() {
@@ -353,7 +356,7 @@
         const panel = document.createElement('section'); panel.id = PANEL_ID; backdrop.appendChild(panel);
 
         const saveDisplayedOrder = keys => {
-            settings().order = settings().direction === 'ltr' ? keys.slice().reverse() : keys.slice();
+            settings().order = keys.slice();
             saveSettings(); applyLayout();
         };
         const render = () => {
@@ -361,11 +364,9 @@
             const keys = orderedKeys(container);
             const sources = new Map(Array.from(container.children).map(el => [buttonKey(el), el]));
             const countOptions = Array.from({ length: 10 }, (_value, index) => `<option value="${index + 1}">${index + 1}</option>`).join('');
-            panel.innerHTML = `<div class="lk-crb-head"><b>${text.title}</b><button class="lk-crb-reset" data-reset aria-label="${text.reset}" title="${text.reset}">↺</button><button class="lk-crb-close" data-close aria-label="${text.close}">×</button></div><div class="lk-crb-body"><div class="lk-crb-zone-label">${text.persistent}</div><div class="lk-crb-zone" data-zone="persistent"></div><label class="lk-crb-direction"><span>${text.direction}</span><select data-direction><option value="rtl">${text.rtl}</option><option value="ltr">${text.ltr}</option></select></label><label class="lk-crb-direction"><span>${text.count}</span><select data-visible-count>${countOptions}</select></label><div class="lk-crb-zone-label">${text.visible}</div><div class="lk-crb-zone" data-zone="visible"></div><div class="lk-crb-zone-label">${text.hidden}</div><div class="lk-crb-zone" data-zone="hidden"></div></div>`;
-            panel.querySelector('[data-direction]').value = settings().direction;
+            panel.innerHTML = `<div class="lk-crb-head"><b>${text.title}</b><button class="lk-crb-reset" data-reset aria-label="${text.reset}" title="${text.reset}">↺</button><button class="lk-crb-close" data-close aria-label="${text.close}">×</button></div><div class="lk-crb-body"><div class="lk-crb-zone-label">${text.persistent}</div><div class="lk-crb-zone" data-zone="persistent"></div><label class="lk-crb-count"><span>${text.count}</span><select data-visible-count>${countOptions}</select></label><div class="lk-crb-zone-label">${text.visible}</div><div class="lk-crb-zone" data-zone="visible"></div><div class="lk-crb-zone-label">${text.hidden}</div><div class="lk-crb-zone" data-zone="hidden"></div></div>`;
             panel.querySelector('[data-visible-count]').value = String(settings().visibleCount);
-            const visualDirection = getComputedStyle(container).direction === 'rtl' ? 'rtl' : 'ltr';
-            panel.querySelectorAll('.lk-crb-zone').forEach(zone => { zone.dir = visualDirection; });
+            panel.querySelectorAll('.lk-crb-zone').forEach(zone => { zone.dir = 'rtl'; });
             keys.forEach(key => {
                 const source = sources.get(key);
                 const persistent = settings().persistent.includes(key);
@@ -376,16 +377,12 @@
                 panel.querySelector(`[data-zone="${persistent ? 'persistent' : hidden ? 'hidden' : 'visible'}"]`).appendChild(item);
             });
             panel.querySelector('[data-close]').onclick = () => backdrop.remove();
-            panel.querySelector('[data-direction]').onchange = event => {
-                settings().direction = event.target.value;
-                saveSettings(); applyLayout(); render();
-            };
             panel.querySelector('[data-visible-count]').onchange = event => {
                 settings().visibleCount = Number(event.target.value) || DEFAULT_VISIBLE_PLUGINS;
                 saveSettings(); applyLayout();
             };
             panel.querySelector('[data-reset]').onclick = () => {
-                Object.assign(settings(), { order: [], direction: 'rtl', persistent: [], hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS });
+                Object.assign(settings(), { order: [], persistent: [], hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS });
                 saveSettings(); applyLayout(); render();
             };
             let draggedKey = null;
