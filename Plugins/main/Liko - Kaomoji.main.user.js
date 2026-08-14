@@ -1366,7 +1366,6 @@
            (重)出现时补挂钩并套用上次保存的状态）。按钮本身的注入/收合已由协调器处理，不在这里。 */
         var _injectInterval = setInterval(function () {
             try { repositionPanel(); } catch (e) {}
-            try { syncChatButtonsCollapse(); } catch (e) {}
         }, 200);
 
         /* ── 单实例销毁（供热更新彻底清理旧实例）────────────────────────────── */
