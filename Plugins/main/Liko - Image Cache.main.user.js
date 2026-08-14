@@ -720,7 +720,7 @@
         if (typeof window.bcModSdk?.registerMod !== "function") return false;
         try {
             modApi = window.bcModSdk.registerMod({
-                name: "Liko Image Cache",
+                name: "Liko - Image Cache",
                 fullName: "Liko - Image Cache",
                 version: VERSION,
                 repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
