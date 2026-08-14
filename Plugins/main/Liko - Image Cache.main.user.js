@@ -629,7 +629,7 @@
             #liko-image-cache-panel input{user-select:auto;-webkit-user-select:auto;accent-color:#25d9ff} #liko-image-cache-panel input[type=number]{width:86px;padding:5px;background:#0d131d;color:#fff;border:1px solid #42cbea66;border-radius:2px}
             #liko-image-cache-panel .lic-actions{display:flex;gap:7px;margin-top:12px} #liko-image-cache-panel .lic-actions button{flex:1;padding:8px 5px;border:1px solid #54ddff66;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);background:linear-gradient(135deg,#236984,#334a82);color:#fff;text-shadow:0 1px 2px #000}
             #liko-image-cache-panel .lic-actions button:hover{filter:brightness(1.2);box-shadow:0 0 12px #32deff55} #liko-image-cache-panel .lic-actions button[data-lic-clear]{background:linear-gradient(135deg,#7d294a,#9d3651);border-color:#ff5c8c88}
-            #liko-image-cache-button{font-size:24px!important} #liko-image-cache-button.lic-open{box-shadow:0 0 0 2px #62d5ff inset!important}`;
+            #liko-image-cache-button{font-size:1em} #liko-image-cache-button.lic-open{box-shadow:0 0 0 2px #62d5ff inset!important}`;
         document.head.appendChild(style);
 
         panel = document.createElement("section");
