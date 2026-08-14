@@ -53,6 +53,8 @@
 
     const visibilityState = new WeakMap();
     const visibilityTimers = new WeakMap();
+    let lastExpandedState;
+    let collapsedLayoutRects = new Map();
 
     function setHiddenAnimated(el, shouldHide) {
         const previous = visibilityState.get(el);
@@ -109,9 +111,43 @@
         return preferred.concat(missing);
     }
 
+    function visibleRects(container) {
+        const rects = new Map();
+        Array.from(container.children).forEach(el => {
+            if (!(el instanceof HTMLElement) || el.hidden) return;
+            const rect = el.getBoundingClientRect();
+            if (rect.width && rect.height) rects.set(el, rect);
+        });
+        return rects;
+    }
+
+    function animateRetainedButtons(fromRects, toRects, collapsing) {
+        if (global.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+        fromRects.forEach((from, el) => {
+            const to = toRects.get(el);
+            if (!to || typeof el.animate !== 'function') return;
+            const dx = to.left - from.left;
+            const dy = to.top - from.top;
+            if (!dx && !dy) return;
+            const frames = collapsing
+                ? [{ transform: 'translate(0,0)' }, { transform: `translate(${dx}px,${dy}px)` }]
+                : [{ transform: `translate(${-dx}px,${-dy}px)` }, { transform: 'translate(0,0)' }];
+            const animation = el.animate(frames, {
+                duration: ANIM_MS + 30,
+                easing: 'cubic-bezier(.2,.8,.2,1)',
+                fill: collapsing ? 'forwards' : 'none',
+            });
+            if (collapsing) setTimeout(() => animation.cancel(), ANIM_MS + 30);
+        });
+    }
+
     function applyLayout() {
         const container = document.getElementById(CONTAINER_ID);
         if (!container) return;
+        const expanded = collapseExpanded();
+        const stateChanged = lastExpandedState !== undefined && lastExpandedState !== expanded;
+        const beforeRects = stateChanged ? visibleRects(container) : null;
+        lastExpandedState = expanded;
         container.dir = 'ltr';
         const totalVisible = settings().visibleCount + 1;
         const gapCount = Math.max(0, totalVisible - 1);
@@ -128,6 +164,27 @@
             else if (key) el.style.order = String(keys.indexOf(key));
             applyVisibility(el);
         });
+        if (!stateChanged) {
+            if (!expanded && !container.querySelector('.lk-crb-animating')) collapsedLayoutRects = visibleRects(container);
+            return;
+        }
+        if (expanded) {
+            animateRetainedButtons(collapsedLayoutRects.size ? collapsedLayoutRects : beforeRects, visibleRects(container), false);
+            return;
+        }
+
+        // Measure the final collapsed layout without waiting for the outgoing
+        // buttons' fade animation, then immediately restore them so they can
+        // finish animating while the retained buttons slide into position.
+        const temporarilyHidden = [];
+        Array.from(container.children).forEach(el => {
+            if (!(el instanceof HTMLElement) || el.hidden || !visibilityState.get(el)) return;
+            temporarilyHidden.push(el); el.hidden = true;
+        });
+        const collapsedRects = visibleRects(container);
+        temporarilyHidden.forEach(el => { el.hidden = false; });
+        collapsedLayoutRects = collapsedRects;
+        animateRetainedButtons(beforeRects, collapsedRects, true);
     }
 
     function register(id, order, el) {
