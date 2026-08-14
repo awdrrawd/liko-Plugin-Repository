@@ -11,6 +11,7 @@
     const CONTAINER_ID = 'chat-room-buttons';
     const SETTINGS_KEY = 'LikoChatRoomButtons';
     const PANEL_ID = 'lk-crb-settings-panel';
+    const ANIM_MS = 200;
     const MAX_VISIBLE_PLUGINS = 5;
     const HEAL_INTERVAL_MS = 500;
     const slots = {};
@@ -47,13 +48,45 @@
         return !button || button.getAttribute('aria-expanded') === 'true';
     }
 
+    const visibilityState = new WeakMap();
+    const visibilityTimers = new WeakMap();
+
+    function setHiddenAnimated(el, shouldHide) {
+        const previous = visibilityState.get(el);
+        visibilityState.set(el, shouldHide);
+        if (previous === undefined) { el.hidden = shouldHide; return; }
+        if (previous === shouldHide) return;
+        const oldTimer = visibilityTimers.get(el);
+        if (oldTimer) clearTimeout(oldTimer);
+        el.hidden = false;
+        el.classList.add('lk-crb-animating');
+        if (shouldHide) {
+            requestAnimationFrame(() => el.classList.add('lk-crb-collapsed'));
+            const timer = setTimeout(() => {
+                if (visibilityState.get(el)) el.hidden = true;
+                el.classList.remove('lk-crb-animating', 'lk-crb-collapsed');
+                visibilityTimers.delete(el);
+            }, ANIM_MS + 30);
+            visibilityTimers.set(el, timer);
+        } else {
+            el.classList.add('lk-crb-collapsed');
+            void el.offsetWidth;
+            requestAnimationFrame(() => el.classList.remove('lk-crb-collapsed'));
+            const timer = setTimeout(() => {
+                el.classList.remove('lk-crb-animating');
+                visibilityTimers.delete(el);
+            }, ANIM_MS + 30);
+            visibilityTimers.set(el, timer);
+        }
+    }
+
     function applyVisibility(el) {
         if (!el || el.id === 'chat-room-send' || el.id === 'chat-room-buttons-collapse') return;
         const key = buttonKey(el);
         const spec = key && specs.get(key);
         const userHidden = key && settings().hidden.includes(key);
         const collapseHidden = (!spec || spec.collapse !== false) && !collapseExpanded();
-        el.hidden = !!(userHidden || collapseHidden);
+        setHiddenAnimated(el, !!(userHidden || collapseHidden));
     }
 
     function orderedKeys(container) {
@@ -61,15 +94,16 @@
         const preferred = settings().order.filter(key => buttons.some(el => buttonKey(el) === key));
         const missing = buttons
             .filter(el => !preferred.includes(buttonKey(el)))
-            .sort((a, b) => (slots[buttonKey(b)] || 0) - (slots[buttonKey(a)] || 0))
+            .sort((a, b) => (slots[buttonKey(a)] || 0) - (slots[buttonKey(b)] || 0))
             .map(buttonKey);
-        return preferred.concat(missing);
+        const keys = preferred.concat(missing);
+        return settings().direction === 'rtl' ? keys.reverse() : keys;
     }
 
     function applyLayout() {
         const container = document.getElementById(CONTAINER_ID);
         if (!container) return;
-        container.dir = settings().direction;
+        container.dir = 'ltr';
         const keys = orderedKeys(container);
         Array.from(container.children).forEach(el => {
             const key = buttonKey(el);
@@ -189,13 +223,21 @@
 #${CONTAINER_ID}>.lk-crb-plain::before{background:none!important}
 #${CONTAINER_ID}>.lk-crb-managed{position:relative!important;background:var(--lk-crb-current-bg)!important;color:var(--lk-crb-current-color)!important;border:var(--lk-crb-current-border)!important;box-shadow:var(--lk-crb-current-shadow)!important}
 #${CONTAINER_ID}>.lk-crb-managed.lk-crb-borderless{border:none!important;outline:none!important}
+#${CONTAINER_ID}>.lk-crb-animating[hidden]{display:flex!important}
+#${CONTAINER_ID}>.lk-crb-animating{transition:opacity ${ANIM_MS}ms ease,transform ${ANIM_MS}ms ease;opacity:1;transform:translateX(0);pointer-events:auto}
+#${CONTAINER_ID}>.lk-crb-animating.lk-crb-collapsed{opacity:0!important;transform:translateX(18px)!important;pointer-events:none}
 .lk-crb-tooltip{position:fixed;z-index:2147483646;padding:6px 9px;border:1px solid #ffffff2e;border-radius:7px;background:#121419f7;color:#f2f3f5;font:600 12px/1.35 sans-serif;pointer-events:none}
-#${PANEL_ID}{position:fixed;z-index:2147483647;right:16px;bottom:76px;width:min(380px,calc(100vw - 32px));max-height:min(620px,calc(100vh - 100px));overflow:auto;box-sizing:border-box;padding:14px;border:1px solid #ffffff35;border-radius:12px;background:#171a22f7;color:#f4f5f7;font:14px/1.4 sans-serif;box-shadow:0 14px 50px #000b}
-#${PANEL_ID} .lk-crb-head,#${PANEL_ID} .lk-crb-row,#${PANEL_ID} .lk-crb-actions{display:flex;align-items:center;gap:8px}
-#${PANEL_ID} .lk-crb-head{margin-bottom:12px} #${PANEL_ID} .lk-crb-head b{flex:1;font-size:17px}
-#${PANEL_ID} .lk-crb-row{padding:7px 0;border-top:1px solid #ffffff18} #${PANEL_ID} .lk-crb-row span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#${PANEL_ID} button,#${PANEL_ID} select{border:1px solid #ffffff30;border-radius:6px;background:#292e3b;color:#fff;padding:5px 8px;cursor:pointer}
-#${PANEL_ID} .lk-crb-actions{margin-top:12px;justify-content:flex-end}
+#${PANEL_ID}-backdrop{position:fixed;inset:0;z-index:2147483646;background:#05070b99;backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px;box-sizing:border-box}
+#${PANEL_ID}{width:min(540px,100%);max-height:min(720px,calc(100vh - 40px));overflow:auto;box-sizing:border-box;padding:0;border:1px solid #8ea4ff45;border-radius:20px;background:linear-gradient(155deg,#202637f7,#11141dfb);color:#f4f5f7;font:14px/1.4 system-ui,sans-serif;box-shadow:0 28px 90px #000d,0 0 0 1px #ffffff0c inset}
+#${PANEL_ID} .lk-crb-head,#${PANEL_ID} .lk-crb-actions{display:flex;align-items:center;gap:10px}
+#${PANEL_ID} .lk-crb-head{position:sticky;top:0;z-index:2;padding:18px 20px;background:#1b2030ed;border-bottom:1px solid #ffffff14} #${PANEL_ID} .lk-crb-head b{flex:1;font-size:18px}
+#${PANEL_ID} .lk-crb-body{padding:16px 20px} #${PANEL_ID} .lk-crb-direction{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+#${PANEL_ID} .lk-crb-list{display:grid;gap:8px} #${PANEL_ID} .lk-crb-row{display:grid;grid-template-columns:34px 44px 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid #ffffff16;border-radius:12px;background:#ffffff08;cursor:grab;transition:border-color .15s,background .15s,transform .15s}
+#${PANEL_ID} .lk-crb-row:hover{border-color:#8298ff72;background:#8298ff12} #${PANEL_ID} .lk-crb-row.lk-crb-sort-drag{opacity:.45} #${PANEL_ID} .lk-crb-row.lk-crb-sort-over{border-color:#91a4ff;transform:translateY(2px)}
+#${PANEL_ID} .lk-crb-grip{font-size:20px;color:#8c96ad;text-align:center} #${PANEL_ID} .lk-crb-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:10px;background:#090b11;overflow:hidden;pointer-events:none} #${PANEL_ID} .lk-crb-icon>*{max-width:100%!important;max-height:100%!important;width:100%!important;height:100%!important;object-fit:contain!important}
+#${PANEL_ID} .lk-crb-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650} #${PANEL_ID} .lk-crb-visible{display:flex;align-items:center;gap:6px;cursor:pointer;color:#b7bfd3}
+#${PANEL_ID} button,#${PANEL_ID} select{border:1px solid #ffffff25;border-radius:8px;background:#2a3145;color:#fff;padding:7px 10px;cursor:pointer} #${PANEL_ID} .lk-crb-close{font-size:20px;line-height:1;padding:5px 9px}
+#${PANEL_ID} .lk-crb-actions{margin-top:16px;justify-content:flex-end}
 `;
         (document.head || document.documentElement).appendChild(style);
     }
@@ -211,31 +253,80 @@
         tooltipEl.style.top = Math.max(8, r.top - t.height - 8) + 'px';
     }
 
+    function copyButtonIcon(source, target) {
+        const canvas = source.querySelector('canvas');
+        if (canvas) {
+            try { const image = new Image(); image.src = canvas.toDataURL(); target.appendChild(image); return; } catch (_error) {}
+        }
+        const clone = source.cloneNode(true);
+        clone.removeAttribute('aria-label'); clone.removeAttribute('role'); clone.tabIndex = -1;
+        clone.style.order = ''; clone.hidden = false; clone.style.pointerEvents = 'none';
+        target.appendChild(clone);
+    }
+
     function openSettingsPanel() {
-        const old = document.getElementById(PANEL_ID);
+        const old = document.getElementById(PANEL_ID + '-backdrop');
         if (old) { old.remove(); return; }
         const container = document.getElementById(CONTAINER_ID);
         if (!container) return;
-        const panel = document.createElement('section'); panel.id = PANEL_ID;
+        const backdrop = document.createElement('div'); backdrop.id = PANEL_ID + '-backdrop';
+        const panel = document.createElement('section'); panel.id = PANEL_ID; backdrop.appendChild(panel);
+
+        const saveDisplayedOrder = keys => {
+            settings().order = settings().direction === 'rtl' ? keys.slice().reverse() : keys.slice();
+            saveSettings(); applyLayout();
+        };
         const render = () => {
             const keys = orderedKeys(container);
-            const names = new Map(Array.from(container.children).map(el => [buttonKey(el), el.dataset.lkCrbTooltip || el.getAttribute('aria-label') || el.title || buttonKey(el)]));
-            panel.innerHTML = `<div class="lk-crb-head"><b>聊天室按鈕設定</b><button data-close aria-label="關閉">×</button></div><label>顯示方向 <select data-direction><option value="rtl">由右至左</option><option value="ltr">由左至右</option></select></label><div data-list></div><div class="lk-crb-actions"><button data-reset>還原</button></div>`;
+            const sources = new Map(Array.from(container.children).map(el => [buttonKey(el), el]));
+            panel.innerHTML = `<div class="lk-crb-head"><b>聊天室按鈕設定</b><button class="lk-crb-close" data-close aria-label="關閉">×</button></div><div class="lk-crb-body"><label class="lk-crb-direction"><span>排列方向</span><select data-direction><option value="rtl">由右至左</option><option value="ltr">由左至右</option></select></label><div class="lk-crb-list" data-list></div><div class="lk-crb-actions"><button data-reset>還原預設</button></div></div>`;
             panel.querySelector('[data-direction]').value = settings().direction;
             const list = panel.querySelector('[data-list]');
-            keys.forEach((key, index) => {
-                const row = document.createElement('div'); row.className = 'lk-crb-row'; row.dataset.key = key;
-                row.innerHTML = `<input type="checkbox" ${settings().hidden.includes(key) ? '' : 'checked'} aria-label="顯示"><span></span><button data-up ${index === 0 ? 'disabled' : ''}>↑</button><button data-down ${index === keys.length - 1 ? 'disabled' : ''}>↓</button>`;
-                row.querySelector('span').textContent = names.get(key) || key;
+            keys.forEach(key => {
+                const source = sources.get(key);
+                const row = document.createElement('div'); row.className = 'lk-crb-row'; row.dataset.key = key; row.draggable = true;
+                row.innerHTML = `<span class="lk-crb-grip" aria-hidden="true">⠿</span><span class="lk-crb-icon"></span><span class="lk-crb-name"></span><label class="lk-crb-visible"><input type="checkbox" ${settings().hidden.includes(key) ? '' : 'checked'}><span>顯示</span></label>`;
+                row.querySelector('.lk-crb-name').textContent = source?.dataset.lkCrbTooltip || source?.getAttribute('aria-label') || source?.title || key;
+                if (source) copyButtonIcon(source, row.querySelector('.lk-crb-icon'));
                 list.appendChild(row);
             });
-            panel.querySelector('[data-close]').onclick = () => panel.remove();
-            panel.querySelector('[data-direction]').onchange = event => { settings().direction = event.target.value; saveSettings(); applyLayout(); };
-            panel.querySelector('[data-reset]').onclick = () => { Object.assign(settings(), { order: [], direction: 'rtl', hidden: [] }); saveSettings(); applyLayout(); render(); };
-            list.onchange = event => { const row = event.target.closest('.lk-crb-row'); if (!row) return; const hidden = settings().hidden; const i = hidden.indexOf(row.dataset.key); if (event.target.checked && i >= 0) hidden.splice(i, 1); else if (!event.target.checked && i < 0) hidden.push(row.dataset.key); saveSettings(); applyLayout(); };
-            list.onclick = event => { const row = event.target.closest('.lk-crb-row'); if (!row || (!event.target.matches('[data-up]') && !event.target.matches('[data-down]'))) return; const order = orderedKeys(container); const from = order.indexOf(row.dataset.key); const to = from + (event.target.matches('[data-up]') ? -1 : 1); if (to < 0 || to >= order.length) return; [order[from], order[to]] = [order[to], order[from]]; settings().order = order; saveSettings(); applyLayout(); render(); };
+            panel.querySelector('[data-close]').onclick = () => backdrop.remove();
+            panel.querySelector('[data-direction]').onchange = event => {
+                settings().direction = event.target.value;
+                saveSettings(); applyLayout(); render();
+            };
+            panel.querySelector('[data-reset]').onclick = () => {
+                Object.assign(settings(), { order: [], direction: 'rtl', hidden: [] });
+                saveSettings(); applyLayout(); render();
+            };
+            list.onchange = event => {
+                const row = event.target.closest('.lk-crb-row'); if (!row) return;
+                const hidden = settings().hidden, index = hidden.indexOf(row.dataset.key);
+                if (event.target.checked && index >= 0) hidden.splice(index, 1);
+                else if (!event.target.checked && index < 0) hidden.push(row.dataset.key);
+                saveSettings(); applyLayout();
+            };
+            let draggedKey = null;
+            list.addEventListener('dragstart', event => {
+                const row = event.target.closest('.lk-crb-row'); if (!row) return;
+                draggedKey = row.dataset.key; row.classList.add('lk-crb-sort-drag');
+                event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', draggedKey);
+            });
+            list.addEventListener('dragover', event => {
+                const row = event.target.closest('.lk-crb-row'); if (!row || row.dataset.key === draggedKey) return;
+                event.preventDefault(); list.querySelectorAll('.lk-crb-sort-over').forEach(el => el.classList.remove('lk-crb-sort-over')); row.classList.add('lk-crb-sort-over');
+            });
+            list.addEventListener('drop', event => {
+                const target = event.target.closest('.lk-crb-row'); if (!target || !draggedKey) return;
+                event.preventDefault();
+                const order = orderedKeys(container), from = order.indexOf(draggedKey), to = order.indexOf(target.dataset.key);
+                if (from >= 0 && to >= 0 && from !== to) { order.splice(from, 1); order.splice(to, 0, draggedKey); saveDisplayedOrder(order); }
+                render();
+            });
+            list.addEventListener('dragend', () => { draggedKey = null; list.querySelectorAll('.lk-crb-sort-drag,.lk-crb-sort-over').forEach(el => el.classList.remove('lk-crb-sort-drag', 'lk-crb-sort-over')); });
         };
-        render(); document.body.appendChild(panel);
+        backdrop.addEventListener('click', event => { if (event.target === backdrop) backdrop.remove(); });
+        render(); document.body.appendChild(backdrop);
     }
 
     let drag = null;
