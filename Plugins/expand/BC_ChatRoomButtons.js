@@ -18,13 +18,14 @@
     const specs = new Map();
 
     function settings() {
-        const fallback = { order: [], direction: 'rtl', hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS };
+        const fallback = { order: [], direction: 'rtl', persistent: [], hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS };
         if (typeof Player === 'undefined' || !Player) return fallback;
         Player.ExtensionSettings = Player.ExtensionSettings || {};
         const saved = Player.ExtensionSettings[SETTINGS_KEY];
         if (!saved || typeof saved !== 'object') Player.ExtensionSettings[SETTINGS_KEY] = fallback;
         const value = Player.ExtensionSettings[SETTINGS_KEY];
         if (!Array.isArray(value.order)) value.order = [];
+        if (!Array.isArray(value.persistent)) value.persistent = [];
         if (!Array.isArray(value.hidden)) value.hidden = [];
         if (value.direction !== 'ltr' && value.direction !== 'rtl') value.direction = 'rtl';
         value.visibleCount = Math.max(1, Math.min(10, Math.round(Number(value.visibleCount) || DEFAULT_VISIBLE_PLUGINS)));
@@ -88,7 +89,8 @@
         const key = buttonKey(el);
         const spec = key && specs.get(key);
         const userHidden = key && settings().hidden.includes(key);
-        const collapseHidden = (!spec || spec.collapse !== false) && !collapseExpanded();
+        const persistent = key && settings().persistent.includes(key);
+        const collapseHidden = (!spec || spec.collapse !== false) && !persistent && !collapseExpanded();
         setHiddenAnimated(el, !!(userHidden || collapseHidden));
     }
 
@@ -284,7 +286,7 @@
 #${PANEL_ID} .lk-crb-zone.lk-crb-zone-over{border-color:var(--crb-neon);background:#49d9ff12;box-shadow:0 0 16px #49d9ff18 inset} #${PANEL_ID} .lk-crb-item{position:relative;width:54px;height:54px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:13px;background:#0b0e16;cursor:grab;overflow:hidden;transition:transform .15s,border-color .15s,opacity .15s,box-shadow .15s}
 #${PANEL_ID} .lk-crb-item:hover{transform:translateY(-2px);border-color:var(--crb-neon);box-shadow:0 0 14px #49d9ff42} #${PANEL_ID} .lk-crb-item.lk-crb-sort-drag{opacity:.35} #${PANEL_ID} .lk-crb-item>*{max-width:100%!important;max-height:100%!important;width:100%!important;height:100%!important;object-fit:contain!important;pointer-events:none!important}
 #${PANEL_ID} .lk-crb-item svg{width:62%!important;height:62%!important;display:block!important} #${PANEL_ID} .lk-crb-emoji{display:grid!important;place-items:center;font-size:28px!important;line-height:1!important}
-#${PANEL_ID} button,#${PANEL_ID} select{border:1px solid #49d9ff42;border-radius:8px;background:linear-gradient(145deg,#27344f,#171d2e);color:#fff;padding:7px 10px;cursor:pointer;user-select:none;-webkit-user-select:none} #${PANEL_ID} button:hover,#${PANEL_ID} select:hover{border-color:var(--crb-neon);box-shadow:0 0 12px #49d9ff25} #${PANEL_ID} .lk-crb-close{font-size:20px;line-height:1;padding:5px 9px}
+#${PANEL_ID} button,#${PANEL_ID} select{border:1px solid #49d9ff42;border-radius:8px;background:linear-gradient(145deg,#27344f,#171d2e);color:#fff;padding:7px 10px;cursor:pointer;user-select:none;-webkit-user-select:none} #${PANEL_ID} button:hover,#${PANEL_ID} select:hover{border-color:var(--crb-neon);box-shadow:0 0 12px #49d9ff25} #${PANEL_ID} .lk-crb-close,#${PANEL_ID} .lk-crb-reset{font-size:20px;line-height:1;padding:5px 9px}
 #${PANEL_ID} select option{background:#171d2e!important;color:#f4f7ff!important} #${PANEL_ID} select option:checked{background:#2468c9!important;color:#fff!important}
 #${PANEL_ID} .lk-crb-actions{margin-top:16px;justify-content:flex-end}
 `;
@@ -337,9 +339,9 @@
 
     function panelText() {
         const language = typeof TranslationLanguage === 'string' ? TranslationLanguage.toUpperCase() : 'EN';
-        if (language === 'TW') return { title: '聊天室按鈕設定', close: '關閉', direction: '排列方向', count: '顯示按鈕數量', rtl: '由右至左', ltr: '由左至右', visible: '顯示', hidden: '隱藏', reset: '還原預設' };
-        if (language === 'CN') return { title: '聊天室按钮设置', close: '关闭', direction: '排列方向', count: '显示按钮数量', rtl: '由右至左', ltr: '由左至右', visible: '显示', hidden: '隐藏', reset: '恢复默认' };
-        return { title: 'Chat Button Settings', close: 'Close', direction: 'Direction', count: 'Visible button count', rtl: 'Right to left', ltr: 'Left to right', visible: 'Visible', hidden: 'Hidden', reset: 'Reset defaults' };
+        if (language === 'TW') return { title: '聊天室按鈕設定', close: '關閉', direction: '排列方向', count: '顯示按鈕數量', rtl: '由右至左', ltr: '由左至右', persistent: '常駐功能', visible: '顯示', hidden: '隱藏', reset: '還原預設' };
+        if (language === 'CN') return { title: '聊天室按钮设置', close: '关闭', direction: '排列方向', count: '显示按钮数量', rtl: '由右至左', ltr: '由左至右', persistent: '常驻功能', visible: '显示', hidden: '隐藏', reset: '恢复默认' };
+        return { title: 'Chat Button Settings', close: 'Close', direction: 'Direction', count: 'Visible button count', rtl: 'Right to left', ltr: 'Left to right', persistent: 'Persistent features', visible: 'Visible', hidden: 'Hidden', reset: 'Reset defaults' };
     }
 
     function openSettingsPanel() {
@@ -359,18 +361,19 @@
             const keys = orderedKeys(container);
             const sources = new Map(Array.from(container.children).map(el => [buttonKey(el), el]));
             const countOptions = Array.from({ length: 10 }, (_value, index) => `<option value="${index + 1}">${index + 1}</option>`).join('');
-            panel.innerHTML = `<div class="lk-crb-head"><b>${text.title}</b><button class="lk-crb-close" data-close aria-label="${text.close}">×</button></div><div class="lk-crb-body"><label class="lk-crb-direction"><span>${text.direction}</span><select data-direction><option value="rtl">${text.rtl}</option><option value="ltr">${text.ltr}</option></select></label><label class="lk-crb-direction"><span>${text.count}</span><select data-visible-count>${countOptions}</select></label><div class="lk-crb-zone-label">${text.visible}</div><div class="lk-crb-zone" data-zone="visible"></div><div class="lk-crb-zone-label">${text.hidden}</div><div class="lk-crb-zone" data-zone="hidden"></div><div class="lk-crb-actions"><button data-reset>${text.reset}</button></div></div>`;
+            panel.innerHTML = `<div class="lk-crb-head"><b>${text.title}</b><button class="lk-crb-reset" data-reset aria-label="${text.reset}" title="${text.reset}">↺</button><button class="lk-crb-close" data-close aria-label="${text.close}">×</button></div><div class="lk-crb-body"><div class="lk-crb-zone-label">${text.persistent}</div><div class="lk-crb-zone" data-zone="persistent"></div><label class="lk-crb-direction"><span>${text.direction}</span><select data-direction><option value="rtl">${text.rtl}</option><option value="ltr">${text.ltr}</option></select></label><label class="lk-crb-direction"><span>${text.count}</span><select data-visible-count>${countOptions}</select></label><div class="lk-crb-zone-label">${text.visible}</div><div class="lk-crb-zone" data-zone="visible"></div><div class="lk-crb-zone-label">${text.hidden}</div><div class="lk-crb-zone" data-zone="hidden"></div></div>`;
             panel.querySelector('[data-direction]').value = settings().direction;
             panel.querySelector('[data-visible-count]').value = String(settings().visibleCount);
             const visualDirection = getComputedStyle(container).direction === 'rtl' ? 'rtl' : 'ltr';
             panel.querySelectorAll('.lk-crb-zone').forEach(zone => { zone.dir = visualDirection; });
             keys.forEach(key => {
                 const source = sources.get(key);
+                const persistent = settings().persistent.includes(key);
                 const hidden = settings().hidden.includes(key);
                 const item = document.createElement('div'); item.className = 'lk-crb-item'; item.dataset.key = key; item.draggable = true;
                 item.title = source?.dataset.lkCrbTooltip || source?.getAttribute('aria-label') || source?.title || key;
                 if (source) copyButtonIcon(source, item);
-                panel.querySelector(`[data-zone="${hidden ? 'hidden' : 'visible'}"]`).appendChild(item);
+                panel.querySelector(`[data-zone="${persistent ? 'persistent' : hidden ? 'hidden' : 'visible'}"]`).appendChild(item);
             });
             panel.querySelector('[data-close]').onclick = () => backdrop.remove();
             panel.querySelector('[data-direction]').onchange = event => {
@@ -382,19 +385,21 @@
                 saveSettings(); applyLayout();
             };
             panel.querySelector('[data-reset]').onclick = () => {
-                Object.assign(settings(), { order: [], direction: 'rtl', hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS });
+                Object.assign(settings(), { order: [], direction: 'rtl', persistent: [], hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS });
                 saveSettings(); applyLayout(); render();
             };
             let draggedKey = null;
             const zones = Array.from(panel.querySelectorAll('.lk-crb-zone'));
             const commitZones = () => {
+                const persistent = Array.from(panel.querySelector('[data-zone="persistent"]').children).map(el => el.dataset.key);
                 const visible = Array.from(panel.querySelector('[data-zone="visible"]').children).map(el => el.dataset.key);
                 const hidden = Array.from(panel.querySelector('[data-zone="hidden"]').children).map(el => el.dataset.key);
-                settings().hidden = hidden; saveDisplayedOrder(visible.concat(hidden));
+                settings().persistent = persistent; settings().hidden = hidden; saveDisplayedOrder(persistent.concat(visible, hidden));
             };
             panel.addEventListener('click', event => {
                 const item = event.target.closest('.lk-crb-item'); if (!item) return;
-                const destination = item.parentElement.dataset.zone === 'visible' ? panel.querySelector('[data-zone="hidden"]') : panel.querySelector('[data-zone="visible"]');
+                const nextZone = { persistent: 'visible', visible: 'hidden', hidden: 'persistent' }[item.parentElement.dataset.zone];
+                const destination = panel.querySelector(`[data-zone="${nextZone}"]`);
                 destination.appendChild(item); commitZones();
             });
             panel.addEventListener('dragstart', event => {
