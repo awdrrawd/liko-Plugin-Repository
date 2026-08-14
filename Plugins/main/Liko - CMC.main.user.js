@@ -2637,7 +2637,7 @@
         if (!sdkReady) throw new Error('bcModSdk initialization timed out');
 
         modApi = bcModSdk.registerMod({
-            name: "liko - CMC",
+            name: "Liko - CMC",
             fullName: "Chat Music Controller",
             version: MOD_VER,
             repository: "https://github.com/awdrrawd/liko-Plugin-Repository"

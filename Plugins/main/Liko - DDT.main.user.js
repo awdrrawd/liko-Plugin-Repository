@@ -2947,7 +2947,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		// Phase 1：SDK 就緒就先註冊，不等登入
 		await waitFor(() => !!window.bcModSdk);
 		modApi = window.bcModSdk.registerMod({
-			name: MOD_NAME,
+			name: "Liko - DDT",
 			fullName: "Draw Detection Tool",
 			version: MOD_VERSION,
 			repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
