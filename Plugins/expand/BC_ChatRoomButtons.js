@@ -12,7 +12,7 @@
     const SETTINGS_KEY = 'LikoChatRoomButtons';
     const PANEL_ID = 'lk-crb-settings-panel';
     const ANIM_MS = 200;
-    const MAX_VISIBLE_PLUGINS = 5;
+    const DEFAULT_VISIBLE_PLUGINS = 5;
     const HEAL_INTERVAL_MS = 500;
     const slots = {};
     const plainIds = new Set();
@@ -20,7 +20,7 @@
     const specs = new Map();
 
     function settings() {
-        const fallback = { order: [], direction: 'rtl', hidden: [] };
+        const fallback = { order: [], direction: 'rtl', hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS };
         if (typeof Player === 'undefined' || !Player) return fallback;
         Player.ExtensionSettings = Player.ExtensionSettings || {};
         const saved = Player.ExtensionSettings[SETTINGS_KEY];
@@ -29,6 +29,7 @@
         if (!Array.isArray(value.order)) value.order = [];
         if (!Array.isArray(value.hidden)) value.hidden = [];
         if (value.direction !== 'ltr' && value.direction !== 'rtl') value.direction = 'rtl';
+        value.visibleCount = Math.max(1, Math.min(10, Math.round(Number(value.visibleCount) || DEFAULT_VISIBLE_PLUGINS)));
         return value;
     }
 
@@ -108,6 +109,8 @@
         const container = document.getElementById(CONTAINER_ID);
         if (!container) return;
         container.dir = 'ltr';
+        const totalVisible = settings().visibleCount + 1;
+        container.style.setProperty('--lk-crb-max-width', `calc(var(--button-size) * ${totalVisible} + min(.4vh,.2vw) * ${totalVisible + 1})`);
         const keys = orderedKeys(container);
         Array.from(container.children).forEach(el => {
             const key = buttonKey(el);
@@ -260,7 +263,7 @@
         const style = document.createElement('style');
         style.id = 'lk-crb-layout-style';
         style.textContent = `
-#${CONTAINER_ID}{grid-template-columns:unset!important;grid-template-rows:min-content!important;grid-auto-flow:column!important;grid-auto-columns:min-content!important;max-width:calc(var(--button-size) * ${MAX_VISIBLE_PLUGINS + 1} + min(.4vh,.2vw) * ${MAX_VISIBLE_PLUGINS + 2})!important;overflow-x:auto!important;overflow-y:visible!important;scrollbar-width:none!important;overscroll-behavior-x:contain!important}
+#${CONTAINER_ID}{grid-template-columns:unset!important;grid-template-rows:min-content!important;grid-auto-flow:column!important;grid-auto-columns:min-content!important;max-width:var(--lk-crb-max-width,calc(var(--button-size) * 6 + min(.4vh,.2vw) * 7))!important;overflow-x:auto!important;overflow-y:visible!important;scrollbar-width:none!important;overscroll-behavior-x:contain!important}
 #${CONTAINER_ID}::-webkit-scrollbar{display:none!important}
 #${CONTAINER_ID}.lk-crb-dragging{cursor:grabbing!important}
 #${CONTAINER_ID}>button:not(#chat-room-send){cursor:grab}
@@ -273,16 +276,17 @@
 #${CONTAINER_ID}>.lk-crb-animating{transition:opacity ${ANIM_MS}ms ease,transform ${ANIM_MS}ms ease;opacity:1;transform:translateX(0);pointer-events:auto}
 #${CONTAINER_ID}>.lk-crb-animating.lk-crb-collapsed{opacity:0!important;transform:translateX(18px)!important;pointer-events:none}
 .lk-crb-tooltip{position:fixed;z-index:2147483646;padding:6px 9px;border:1px solid #ffffff2e;border-radius:7px;background:#121419f7;color:#f2f3f5;font:600 12px/1.35 sans-serif;pointer-events:none}
-#${PANEL_ID}-backdrop{position:fixed;inset:0;z-index:2147483646;background:#05070b99;backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px;box-sizing:border-box}
-#${PANEL_ID}{width:min(450px,100%);max-height:min(560px,calc(100vh - 40px));overflow:auto;box-sizing:border-box;padding:0;border:1px solid #8ea4ff45;border-radius:18px;background:linear-gradient(155deg,#202637f7,#11141dfb);color:#f4f5f7;font:14px/1.4 system-ui,sans-serif;box-shadow:0 28px 90px #000d,0 0 0 1px #ffffff0c inset}
+#${PANEL_ID}-backdrop{position:fixed;inset:0;z-index:2147483646;background:radial-gradient(circle at 50% 40%,#15244ea0,#03050ae8 68%);backdrop-filter:blur(7px);display:grid;place-items:center;padding:20px;box-sizing:border-box;user-select:none;-webkit-user-select:none}
+#${PANEL_ID}{--crb-neon:#49d9ff;--crb-violet:#9d68ff;position:relative;width:min(450px,100%);max-height:min(590px,calc(100vh - 40px));overflow:auto;box-sizing:border-box;padding:0;border:1px solid #49d9ff70;border-radius:16px;background:linear-gradient(145deg,#182033fa,#090d18fc);color:#f4f7ff;font:14px/1.4 system-ui,sans-serif;box-shadow:0 28px 90px #000e,0 0 28px #49d9ff20,0 0 0 1px #9d68ff22 inset}
+#${PANEL_ID}::before{content:"";position:absolute;z-index:3;left:18px;right:18px;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--crb-neon),var(--crb-violet),transparent);box-shadow:0 0 12px var(--crb-neon);pointer-events:none}
 #${PANEL_ID} .lk-crb-head,#${PANEL_ID} .lk-crb-actions{display:flex;align-items:center;gap:10px}
-#${PANEL_ID} .lk-crb-head{position:sticky;top:0;z-index:2;padding:18px 20px;background:#1b2030ed;border-bottom:1px solid #ffffff14} #${PANEL_ID} .lk-crb-head b{flex:1;font-size:18px}
-#${PANEL_ID} .lk-crb-body{padding:14px 18px 18px} #${PANEL_ID} .lk-crb-direction{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:16px}
+#${PANEL_ID} .lk-crb-head{position:sticky;top:0;z-index:2;padding:18px 20px;background:linear-gradient(90deg,#19243aed,#111627ed);border-bottom:1px solid #49d9ff2c} #${PANEL_ID} .lk-crb-head b{flex:1;font-size:18px;letter-spacing:.5px;text-shadow:0 0 12px #49d9ff45}
+#${PANEL_ID} .lk-crb-body{padding:14px 18px 18px} #${PANEL_ID} .lk-crb-direction{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:16px}
 #${PANEL_ID} .lk-crb-zone-label{margin:10px 2px 6px;color:#aeb7cc;font-size:14px;font-weight:700} #${PANEL_ID} .lk-crb-zone{min-height:72px;box-sizing:border-box;display:flex;align-content:flex-start;flex-wrap:wrap;gap:10px;padding:8px;border:1px dashed #7683a54d;border-radius:14px;background:#06081045;transition:border-color .15s,background .15s}
-#${PANEL_ID} .lk-crb-zone.lk-crb-zone-over{border-color:#91a4ff;background:#7d91ff12} #${PANEL_ID} .lk-crb-item{position:relative;width:54px;height:54px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:13px;background:#0b0e16;cursor:grab;overflow:hidden;transition:transform .15s,border-color .15s,opacity .15s}
-#${PANEL_ID} .lk-crb-item:hover{transform:translateY(-2px);border-color:#91a4ff} #${PANEL_ID} .lk-crb-item.lk-crb-sort-drag{opacity:.35} #${PANEL_ID} .lk-crb-item>*{max-width:100%!important;max-height:100%!important;width:100%!important;height:100%!important;object-fit:contain!important;pointer-events:none!important}
+#${PANEL_ID} .lk-crb-zone.lk-crb-zone-over{border-color:var(--crb-neon);background:#49d9ff12;box-shadow:0 0 16px #49d9ff18 inset} #${PANEL_ID} .lk-crb-item{position:relative;width:54px;height:54px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:13px;background:#0b0e16;cursor:grab;overflow:hidden;transition:transform .15s,border-color .15s,opacity .15s,box-shadow .15s}
+#${PANEL_ID} .lk-crb-item:hover{transform:translateY(-2px);border-color:var(--crb-neon);box-shadow:0 0 14px #49d9ff42} #${PANEL_ID} .lk-crb-item.lk-crb-sort-drag{opacity:.35} #${PANEL_ID} .lk-crb-item>*{max-width:100%!important;max-height:100%!important;width:100%!important;height:100%!important;object-fit:contain!important;pointer-events:none!important}
 #${PANEL_ID} .lk-crb-item svg{width:62%!important;height:62%!important;display:block!important} #${PANEL_ID} .lk-crb-emoji{display:grid!important;place-items:center;font-size:28px!important;line-height:1!important}
-#${PANEL_ID} button,#${PANEL_ID} select{border:1px solid #ffffff25;border-radius:8px;background:#2a3145;color:#fff;padding:7px 10px;cursor:pointer} #${PANEL_ID} .lk-crb-close{font-size:20px;line-height:1;padding:5px 9px}
+#${PANEL_ID} button,#${PANEL_ID} select{border:1px solid #49d9ff42;border-radius:8px;background:linear-gradient(145deg,#27344f,#171d2e);color:#fff;padding:7px 10px;cursor:pointer;user-select:none;-webkit-user-select:none} #${PANEL_ID} button:hover,#${PANEL_ID} select:hover{border-color:var(--crb-neon);box-shadow:0 0 12px #49d9ff25} #${PANEL_ID} .lk-crb-close{font-size:20px;line-height:1;padding:5px 9px}
 #${PANEL_ID} .lk-crb-actions{margin-top:16px;justify-content:flex-end}
 `;
         (document.head || document.documentElement).appendChild(style);
@@ -334,9 +338,9 @@
 
     function panelText() {
         const language = typeof TranslationLanguage === 'string' ? TranslationLanguage.toUpperCase() : 'EN';
-        if (language === 'TW') return { title: '聊天室按鈕設定', close: '關閉', direction: '排列方向', rtl: '由右至左', ltr: '由左至右', visible: '顯示', hidden: '隱藏', reset: '還原預設' };
-        if (language === 'CN') return { title: '聊天室按钮设置', close: '关闭', direction: '排列方向', rtl: '由右至左', ltr: '由左至右', visible: '显示', hidden: '隐藏', reset: '恢复默认' };
-        return { title: 'Chat Button Settings', close: 'Close', direction: 'Direction', rtl: 'Right to left', ltr: 'Left to right', visible: 'Visible', hidden: 'Hidden', reset: 'Reset defaults' };
+        if (language === 'TW') return { title: '聊天室按鈕設定', close: '關閉', direction: '排列方向', count: '顯示按鈕數量', rtl: '由右至左', ltr: '由左至右', visible: '顯示', hidden: '隱藏', reset: '還原預設' };
+        if (language === 'CN') return { title: '聊天室按钮设置', close: '关闭', direction: '排列方向', count: '显示按钮数量', rtl: '由右至左', ltr: '由左至右', visible: '显示', hidden: '隐藏', reset: '恢复默认' };
+        return { title: 'Chat Button Settings', close: 'Close', direction: 'Direction', count: 'Visible button count', rtl: 'Right to left', ltr: 'Left to right', visible: 'Visible', hidden: 'Hidden', reset: 'Reset defaults' };
     }
 
     function openSettingsPanel() {
@@ -355,8 +359,10 @@
             const text = panelText();
             const keys = orderedKeys(container);
             const sources = new Map(Array.from(container.children).map(el => [buttonKey(el), el]));
-            panel.innerHTML = `<div class="lk-crb-head"><b>${text.title}</b><button class="lk-crb-close" data-close aria-label="${text.close}">×</button></div><div class="lk-crb-body"><label class="lk-crb-direction"><span>${text.direction}</span><select data-direction><option value="rtl">${text.rtl}</option><option value="ltr">${text.ltr}</option></select></label><div class="lk-crb-zone-label">${text.visible}</div><div class="lk-crb-zone" data-zone="visible"></div><div class="lk-crb-zone-label">${text.hidden}</div><div class="lk-crb-zone" data-zone="hidden"></div><div class="lk-crb-actions"><button data-reset>${text.reset}</button></div></div>`;
+            const countOptions = Array.from({ length: 10 }, (_value, index) => `<option value="${index + 1}">${index + 1}</option>`).join('');
+            panel.innerHTML = `<div class="lk-crb-head"><b>${text.title}</b><button class="lk-crb-close" data-close aria-label="${text.close}">×</button></div><div class="lk-crb-body"><label class="lk-crb-direction"><span>${text.direction}</span><select data-direction><option value="rtl">${text.rtl}</option><option value="ltr">${text.ltr}</option></select></label><label class="lk-crb-direction"><span>${text.count}</span><select data-visible-count>${countOptions}</select></label><div class="lk-crb-zone-label">${text.visible}</div><div class="lk-crb-zone" data-zone="visible"></div><div class="lk-crb-zone-label">${text.hidden}</div><div class="lk-crb-zone" data-zone="hidden"></div><div class="lk-crb-actions"><button data-reset>${text.reset}</button></div></div>`;
             panel.querySelector('[data-direction]').value = settings().direction;
+            panel.querySelector('[data-visible-count]').value = String(settings().visibleCount);
             const visualDirection = getComputedStyle(container).direction === 'rtl' ? 'rtl' : 'ltr';
             panel.querySelectorAll('.lk-crb-zone').forEach(zone => { zone.dir = visualDirection; });
             keys.forEach(key => {
@@ -372,8 +378,12 @@
                 settings().direction = event.target.value;
                 saveSettings(); applyLayout(); render();
             };
+            panel.querySelector('[data-visible-count]').onchange = event => {
+                settings().visibleCount = Number(event.target.value) || DEFAULT_VISIBLE_PLUGINS;
+                saveSettings(); applyLayout();
+            };
             panel.querySelector('[data-reset]').onclick = () => {
-                Object.assign(settings(), { order: [], direction: 'rtl', hidden: [] });
+                Object.assign(settings(), { order: [], direction: 'rtl', hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS });
                 saveSettings(); applyLayout(); render();
             };
             let draggedKey = null;
@@ -435,6 +445,18 @@
     }
     document.addEventListener('pointerup', endDrag, true);
     document.addEventListener('pointercancel', endDrag, true);
+
+    document.addEventListener('wheel', event => {
+        const container = event.target.closest?.('#' + CONTAINER_ID);
+        if (!container || container.scrollWidth <= container.clientWidth) return;
+        let delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+        if (!delta) return;
+        if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) delta *= 24;
+        else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) delta *= container.clientWidth;
+        const direction = getComputedStyle(container).direction === 'rtl' ? -1 : 1;
+        container.scrollBy({ left: delta * direction, behavior: 'auto' });
+        event.preventDefault();
+    }, { capture: true, passive: false });
 
     document.addEventListener('click', event => {
         if (!event.target.closest?.('#chat-room-send')) return;

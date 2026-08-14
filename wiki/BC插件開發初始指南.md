@@ -125,7 +125,7 @@ window.ChatRoomSendLocalStyled("已儲存設定", 2000, "#00ff00");
 
 ### 4. `BC_ChatRoomButtons.js` — 聊天室按鈕列共用協調器
 
-目前 API 為 v5：使用 `add({ id, buttonId, order, icon, tooltip, background, active, collapse, onClick })` 註冊按鈕，並以 `setActive(id, on)`／`setState(id, patch)` 更新狀態。CRB 統一負責建立與重建、排序、收合動畫、底色/外框、懸停說明、顯示/隱藏設定及動圖播放。
+目前 API 為 v5：使用 `add({ id, buttonId, order, icon, tooltip, background, active, collapse, onClick })` 註冊按鈕，並以 `setActive(id, on)`／`setState(id, patch)` 更新狀態。CRB 統一負責建立與重建、排序、收合動畫、底色/外框、懸停說明、顯示/隱藏、可視數量（預設 5 顆插件按鈕，不含送出鈕）及動圖播放。
 
 掛在 `window.Liko.__Sys_ChatRoomButtons__`。插件只交付已完成顏色處理的圖示、按鈕樣式資料與行為；CRB 不修改 SVG fill/stroke 或圖片內容。無外部依賴。
 
