@@ -36,9 +36,8 @@
 
     const ICON_URL = "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/Sandbox/Sandbox-icon.png";
     const CRB_ID = "sandbox";
-    const CRB_ORDER = 8; // 數字越大越靠左（MAT=2 / Tool=9 / DDT=99）
+    const CRB_ORDER = 92;  //按鈕顏色 #22B14C
 
-    // APNG：平時只顯示靜止影格（poster canvas），游標移上去才切到 <img> 播放。
     // host 必須是 position:relative/fixed 且 overflow:hidden。
     function attachIcon(host) {
         const base = "position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;";
@@ -633,7 +632,7 @@
             box.className = "bc-sandbox-box";
             box.style.cssText = `
         position: fixed; width: 600px; max-width: 90vw; max-height: 78vh;
-        background: #1a1a2e; border: 2px solid #4a4a8a; border-radius: 12px;
+        background: #1a1a2e; border: 2px solid #22B14C; border-radius: 12px;
         box-shadow: 0 8px 32px rgba(0,0,0,.8); z-index: 999999; display: flex;
         flex-direction: column; font-family: Consolas, monospace; color: #e0e0e0;
         overflow: hidden;`;
@@ -848,7 +847,7 @@
                 return btn;
             };
             // 同步交出 spec：協調器已載入就直接 add，否則推進待處理佇列等它初始化排空。
-            const spec = { id: CRB_ID, order: CRB_ORDER, createButton: createBtn, plain: true };
+const spec = { id: CRB_ID, order: CRB_ORDER,background:"#22B14C", createButton: createBtn, plain: true };
             const L = (window.Liko = window.Liko || {});
             if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(spec);
             else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
