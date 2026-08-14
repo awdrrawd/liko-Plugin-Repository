@@ -125,31 +125,32 @@ window.ChatRoomSendLocalStyled("已儲存設定", 2000, "#00ff00");
 
 ### 4. `BC_ChatRoomButtons.js` — 聊天室按鈕列共用協調器
 
-目前 API 為 v4：使用 `add({ id, order, createButton, tooltip, background, active, plain, collapse })` 註冊按鈕，並以 `setActive(id, on)`／`setState(id, patch)` 更新狀態。CRB 統一負責懸停說明與邊界定位。聊天室固定保留原生送出按鈕，另外顯示 5 顆插件按鈕；送出與收合按鈕不參與拖曳。
+目前 API 為 v5：使用 `add({ id, buttonId, order, icon, tooltip, background, active, collapse, onClick })` 註冊按鈕，並以 `setActive(id, on)`／`setState(id, patch)` 更新狀態。CRB 統一負責建立與重建、排序、收合動畫、底色/外框、懸停說明、顯示/隱藏設定及動圖播放。
 
-掛在 `window.Liko.__Sys_ChatRoomButtons__`。BC 聊天室左側那排按鈕容器（`#chat-room-buttons`）原生是**固定 3 欄的 grid**，多個插件各加一顆很容易破 3 顆擠成兩排、也各自處理收合與底色。這支協調器統一接管那排按鈕的**排序、收合/展開動畫、單排捲動排版、關閉原生底色**，讓插件只要「交出一顆按鈕」就好。無外部依賴。
+掛在 `window.Liko.__Sys_ChatRoomButtons__`。插件只交付已完成顏色處理的圖示、按鈕樣式資料與行為；CRB 不修改 SVG fill/stroke 或圖片內容。無外部依賴。
 
-主要用中央託管 `add()`：你給「順位 + 一個工廠函式」，容器建立/重建、跟隨收合鈕、關閉底色全自動：
+一般按鈕直接交給 `add()` 建立：
 
 ```js
 const L = window.Liko = window.Liko || {};
-const spec = { id: "myplugin", order: 99 /* 數字越大越靠左 */, createButton, tooltip: "開啟插件", plain: true };
+const spec = {
+    id: "myplugin",
+    buttonId: "myplugin-chat-button",
+    order: 99,
+    icon: { src: ICON_URL, animated: true }, // GIF/APNG/WebP；靜態圖片不用 animated
+    tooltip: "開啟插件",
+    background: "#455a64",
+    onClick: openMyPlugin,
+};
 // 協調器已載入就直接 add；否則推進待處理佇列，等它（無論被誰載入）初始化時自動排空
 if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(spec);
 else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
-
-function createButton() {           // 每次(重)建都會被呼叫，回傳一顆全新按鈕
-    const btn = document.createElement("button");
-    btn.className = "blank-button button HideOnPopup chat-room-button"; // 要帶 chat-room-button 才吃排版
-    btn.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); /* 你的動作 */ });
-    return btn;                     // ⚠️ 每次 new 一顆，別回傳快取元素（容器重建後舊元素已失聯）
-}
 ```
 
 兩個關鍵坑（其餘見同目錄 `BC_ChatRoomButtons.md`）：
 
 - **登記與載入要解耦**：務必**同步**把 spec 交出去（直接 `add` 或 push 進 `__CRB_pending__`），**別**寫成 `ensureCRB().then(() => add(...))`——協調器可能由別的插件（如 PCM）載入，你的 `.then` 沒在對的時機跑，按鈕就永遠不出現。
-- **別在按鈕上寫 `display:…!important`**：原生收合是靠低優先權的 `display:none`（`[hidden]`）生效，你用 `!important` 會蓋掉它、按鈕收不起來。要置中圖示改用 `::before` 遮罩或 `你的選擇器:not([hidden])`；露出自帶 `<img>`/SVG 圖示用 `{ plain: true }`（關掉原生底色）。
+- **圖示由插件先處理完成**：CRB 不染色。動圖可提供 `{ src, animated: true, poster? }`；沒有 `poster` 時會嘗試擷取影格，跨來源沒有 CORS 時應自行提供 poster。特殊 DOM 才使用 `createButton`，每次呼叫都要回傳新元素。
 
 > 這幾支加上 `bcModsdk` 都遵循同一套「系統擴充命名規則」：統一掛在 `window.Liko.__Sys_<name>__`，頂部都用「已存在就 `return`」防止重複載入，多個插件重複 `<script>` 引入也不會出錯，晚載入者自動跳過。
 

@@ -136,6 +136,48 @@
         els.get(id)?.classList.toggle('lk-crb-plain', on);
     }
 
+    function appendRasterIcon(button, icon) {
+        const animated = icon.animated === true || icon.animated === 'auto' && /\.(apng|gif|webp)(?:[?#]|$)/i.test(icon.src);
+        if (!animated) {
+            const image = document.createElement('img');
+            image.src = icon.src; image.alt = icon.alt || ''; image.className = 'lk-crb-icon-layer ' + (icon.className || '');
+            button.appendChild(image); return;
+        }
+        const motionAllowed = !global.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        const image = document.createElement('img');
+        image.alt = icon.alt || ''; image.className = 'lk-crb-icon-layer lk-crb-animated ' + (icon.className || '');
+        if (icon.crossOrigin !== false) image.crossOrigin = icon.crossOrigin || 'anonymous';
+        let poster;
+        if (icon.poster) {
+            poster = document.createElement('img'); poster.src = icon.poster; poster.alt = ''; poster.dataset.lkCrbPoster = '1';
+        } else {
+            poster = document.createElement('canvas'); poster.width = 96; poster.height = 96; poster.dataset.lkCrbPoster = '1';
+        }
+        poster.className = 'lk-crb-icon-layer lk-crb-poster';
+        const snapshot = () => {
+            if (!(poster instanceof HTMLCanvasElement)) return true;
+            try { const context = poster.getContext('2d'); context.clearRect(0, 0, 96, 96); context.drawImage(image, 0, 0, 96, 96); return true; } catch (_error) { return false; }
+        };
+        let playing = false;
+        const stop = () => {
+            playing = false;
+            if (!snapshot()) { image.classList.remove('lk-crb-icon-hidden'); poster.classList.add('lk-crb-icon-hidden'); return; }
+            image.classList.add('lk-crb-icon-hidden'); poster.classList.remove('lk-crb-icon-hidden');
+            image.removeAttribute('src');
+        };
+        const play = () => {
+            if (!motionAllowed) return;
+            playing = true; image.classList.remove('lk-crb-icon-hidden'); poster.classList.add('lk-crb-icon-hidden');
+            if (!image.getAttribute('src')) image.src = icon.src;
+        };
+        image.addEventListener('load', () => { if (!playing) stop(); });
+        button.addEventListener('pointerenter', play);
+        button.addEventListener('pointerleave', stop);
+        image.classList.add('lk-crb-icon-hidden');
+        button.append(poster, image);
+        image.src = icon.src;
+    }
+
     function createManagedButton(spec) {
         const button = document.createElement('button');
         button.id = spec.buttonId || ('lk-crb-' + spec.id);
@@ -144,11 +186,8 @@
         button.setAttribute('role', 'menuitem');
         let icon = typeof spec.icon === 'function' ? spec.icon(button) : spec.icon;
         if (icon instanceof Node) button.appendChild(icon);
-        else if (icon && typeof icon === 'object' && icon.src) {
-            const img = document.createElement('img');
-            img.src = icon.src; img.alt = icon.alt || ''; img.className = icon.className || '';
-            button.appendChild(img);
-        } else if (typeof icon === 'string') button.innerHTML = icon;
+        else if (icon && typeof icon === 'object' && icon.src) appendRasterIcon(button, icon);
+        else if (typeof icon === 'string') button.innerHTML = icon;
         if (typeof spec.onClick === 'function') button.addEventListener('click', event => {
             event.preventDefault(); event.stopPropagation(); spec.onClick(event, button);
         });
@@ -229,6 +268,7 @@
 #${CONTAINER_ID}>.lk-crb-managed{position:relative!important;overflow:hidden!important;border-radius:12px!important;background:var(--lk-crb-current-bg)!important;color:var(--lk-crb-current-color)!important;border:var(--lk-crb-current-border)!important;box-shadow:var(--lk-crb-current-shadow)!important}
 #${CONTAINER_ID}>.lk-crb-managed.lk-crb-borderless{border:none!important;outline:none!important}
 #${CONTAINER_ID}>.lk-crb-managed>svg{position:absolute!important;z-index:2!important;inset:19%!important;width:62%!important;height:62%!important;display:block!important;pointer-events:none!important}
+#${CONTAINER_ID}>.lk-crb-managed>.lk-crb-icon-layer{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;display:block!important;object-fit:contain!important;pointer-events:none!important} #${CONTAINER_ID}>.lk-crb-managed>.lk-crb-icon-hidden{display:none!important}
 #${CONTAINER_ID}>.lk-crb-animating[hidden]{display:flex!important}
 #${CONTAINER_ID}>.lk-crb-animating{transition:opacity ${ANIM_MS}ms ease,transform ${ANIM_MS}ms ease;opacity:1;transform:translateX(0);pointer-events:auto}
 #${CONTAINER_ID}>.lk-crb-animating.lk-crb-collapsed{opacity:0!important;transform:translateX(18px)!important;pointer-events:none}
@@ -265,7 +305,11 @@
         target.style.backgroundColor = sourceStyle.backgroundColor;
         target.style.color = sourceStyle.color;
         target.style.boxShadow = sourceStyle.boxShadow;
-        const imageSource = source.querySelector('img');
+        const posterCanvas = source.querySelector('canvas[data-lk-crb-poster]');
+        if (posterCanvas) {
+            try { const image = new Image(); image.src = posterCanvas.toDataURL(); target.appendChild(image); return; } catch (_error) {}
+        }
+        const imageSource = source.querySelector('img[data-lk-crb-poster], img:not(.lk-crb-animated)');
         if (imageSource) {
             const image = imageSource.cloneNode(true);
             image.hidden = false; image.className = ''; image.style.cssText = 'display:block!important;width:100%!important;height:100%!important;object-fit:contain!important';
@@ -383,7 +427,11 @@
     function endDrag() {
         if (!drag) return;
         const { container, moved } = drag; drag = null; container.classList.remove('lk-crb-dragging');
-        if (moved) document.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); }, { capture: true, once: true });
+        if (moved) {
+            const swallow = event => { event.preventDefault(); event.stopPropagation(); };
+            document.addEventListener('click', swallow, { capture: true, once: true });
+            setTimeout(() => document.removeEventListener('click', swallow, true), 100);
+        }
     }
     document.addEventListener('pointerup', endDrag, true);
     document.addEventListener('pointercancel', endDrag, true);
@@ -393,7 +441,10 @@
         event.preventDefault(); event.stopImmediatePropagation(); openSettingsPanel();
     }, true);
     document.addEventListener('pointerover', event => { const b = event.target.closest?.(`#${CONTAINER_ID}>.lk-crb-managed`); if (b) showTooltip(b); }, true);
-    document.addEventListener('pointerout', event => { if (event.target.closest?.(`#${CONTAINER_ID}>.lk-crb-managed`)) hideTooltip(); }, true);
+    document.addEventListener('pointerout', event => {
+        const button = event.target.closest?.(`#${CONTAINER_ID}>.lk-crb-managed`);
+        if (button && (!event.relatedTarget || !button.contains(event.relatedTarget))) hideTooltip();
+    }, true);
 
     const observer = new MutationObserver(() => {
         specs.forEach((_spec, id) => ensureButton(id));

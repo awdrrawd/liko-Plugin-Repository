@@ -1607,81 +1607,22 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		document.getElementById(DDT_BTN_ID)?.classList.toggle("lk-ddt-on", balloonVisible());
 		window.Liko?.__Sys_ChatRoomButtons__?.setActive?.("ddt", balloonVisible());
 	}
-	function injectDdtStyles() {
-		if (document.getElementById("lk-ddt-crb-style")) return;
-		const style = document.createElement("style");
-		style.id = "lk-ddt-crb-style";
-		style.textContent = [
-			`#${DDT_BTN_ID}.chat-room-button{ border-radius:12px !important; overflow:hidden !important; padding:0 !important; position:relative !important; background-color:#219BBD !important; }`,
-			// poster（canvas，靜止影格）與 img（APNG）疊在一起，整顆填滿、維持比例，不做遮罩/上色
-			// 平時只顯示 poster；滑鼠移上去才切成 img 播放動畫，移開就凍結回目前影格
-			`#${DDT_BTN_ID} .lk-ddt-icon, #${DDT_BTN_ID} .lk-ddt-poster{ position:absolute !important; inset:0 !important; width:100% !important; height:100% !important; object-fit:contain !important; display:block !important; pointer-events:none !important; }`,
-			`#${DDT_BTN_ID} .lk-ddt-hidden{ display:none !important; }`,
-			`#${DDT_BTN_ID}.chat-room-button.lk-ddt-on{ box-shadow:0 0 0 2px #ffd54a inset !important; }`,
-		].join("\n");
-		document.head.appendChild(style);
-	}
-
-	// 工廠函式：交給協調器 add()，每次(重)建按鈕時被呼叫。自帶樣式注入與初始高亮，回傳即為完整按鈕。
-	function createDdtButton() {
-		injectDdtStyles();
-		const btn = document.createElement("button");
-		btn.id = DDT_BTN_ID;
-		btn.type = "button";
-		btn.className = "blank-button button HideOnPopup chat-room-button";
-		btn.setAttribute("role", "menuitem");
-		btn.setAttribute("tabindex", "0");
-		btn.setAttribute("aria-label", T("chat_btn_label"));
-		btn.title = T("chat_btn_title");
-
-		// poster = 靜止影格（預設顯示）；img = APNG（游標移上去才顯示 → 才看得到動畫）
-		const poster = document.createElement("canvas");
-		poster.className = "lk-ddt-poster";
-		poster.width = 96; poster.height = 96;
-		const img = document.createElement("img");
-		img.className = "lk-ddt-icon lk-ddt-hidden";
-		img.alt = "";
-		img.crossOrigin = "anonymous"; // 讓 poster 能 drawImage 擷取影格而不污染畫布
-		btn.appendChild(poster);
-		btn.appendChild(img);
-
-		function snapshot() {
-			try {
-				const c = poster.getContext("2d");
-				c.clearRect(0, 0, 96, 96);
-				c.drawImage(img, 0, 0, 96, 96);
-			} catch {}
-		}
-		function playIcon() {
-			img.classList.remove("lk-ddt-hidden");
-			poster.classList.add("lk-ddt-hidden");
-		}
-		function freezeIcon() {
-			snapshot();
-			img.classList.add("lk-ddt-hidden");
-			poster.classList.remove("lk-ddt-hidden");
-		}
-		img.addEventListener("load", () => {
-			// 載入後先擷取一張當靜止 poster（此時多半是第一影格）
-			if (img.classList.contains("lk-ddt-hidden")) snapshot();
-		});
-		btn.addEventListener("pointerenter", playIcon);
-		btn.addEventListener("pointerleave", freezeIcon);
-		img.src = ICON.balloon; // 原本的 APNG
-
-		btn.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); toggleBalloonFromButton(); });
-		btn.classList.toggle("lk-ddt-on", balloonVisible()); // 重建後即時反映目前氣球開合的高亮狀態
-		return btn;
-	}
-
-	// 交給共用協調器 BC_ChatRoomButtons 中央託管：只給「順位 + 工廠函式 + plain」，
-	// 容器建立/重建、收合同步、關閉底色都由協調器統一處理，這裡不再自己注入或掛 observer。
 	function setupChatButton() {
 		if (ddtChatBtnAdded) return;
 		ddtChatBtnAdded = true;
 		// 先「同步」交出按鈕規格，不綁在載入 promise 上——協調器已載入就直接 add，否則推進待處理佇列，
 		// 等協調器（無論被誰、何時載入）初始化時自動排空。這樣 DDT 鈕的出現與協調器載入時機完全無關。
-		const spec = { id: "ddt", order: sys_CRB, createButton: createDdtButton, plain: true, active: { border: "2px solid #ffffff", boxShadow: "0 0 0 2px #ffffff inset" } };
+		const spec = {
+			id: "ddt",
+			buttonId: DDT_BTN_ID,
+			order: sys_CRB,
+			icon: { src: ICON.balloon, animated: true },
+			tooltip: T("chat_btn_title"),
+			background: "#219BBD",
+			state: { active: balloonVisible() },
+			active: { border: "2px solid #ffffff", boxShadow: "0 0 0 2px #ffffff inset" },
+			onClick: toggleBalloonFromButton
+		};
 		if (window.Liko.__Sys_ChatRoomButtons__?.add) window.Liko.__Sys_ChatRoomButtons__.add(spec);
 		else (window.Liko.__CRB_pending__ = window.Liko.__CRB_pending__ || []).push(spec);
 		// 確保協調器最終會被載入（獨立安裝時）；但按鈕規格已在上面登記好，不依賴這步的時機/成敗。

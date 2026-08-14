@@ -1583,70 +1583,22 @@
     const TOOL_CRB_ID = 'likotool';
     const TOOL_CRB_ORDER = 9;
     const TOOL_BTN_DOM_ID = 'lt-tool-trigger-btn';
-    // 动图（APNG）：平时只显示静止 poster，游标移上去才播放，参考 DDT 的作法（见 DDT createDdtButton）。
+    // APNG 的懸停播放與靜止 poster 由 CRB 統一處理。
     const TOOL_ICON_URL = 'https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/Tool/Tool-icon.png';
-
-    function injectToolBtnStyle() {
-        if (document.getElementById('lt-tool-btn-style')) return;
-        var st = document.createElement('style');
-        st.id = 'lt-tool-btn-style';
-        st.textContent = [
-            // 置中属性必须在 hidden 状态也保留：收合动画会临时将 [hidden] 按钮恢复为 flex。
-            // display 则仍只在未收合时强制，避免覆盖 [hidden] 在动画结束后的 display:none。
-            '#' + TOOL_BTN_DOM_ID + '.chat-room-button{border-radius:12px !important;overflow:hidden !important;padding:0 !important;position:relative !important;align-items:center !important;justify-content:center !important;}',
-            '#' + TOOL_BTN_DOM_ID + '.chat-room-button:not([hidden]){display:flex !important;}',
-            // poster（canvas，静止影格）与 img（APNG）叠在一起、整颗填满、维持比例；平时只显示 poster，移上去才切 img 播放。
-            '#' + TOOL_BTN_DOM_ID + ' .lt-tool-icon, #' + TOOL_BTN_DOM_ID + ' .lt-tool-poster{position:absolute !important;inset:0 !important;width:100% !important;height:100% !important;object-fit:contain !important;display:block !important;pointer-events:none !important;}',
-            '#' + TOOL_BTN_DOM_ID + ' .lt-tool-hidden{display:none !important;}',
-        ].join('\n');
-        document.head.appendChild(st);
-    }
-
-    // 工厂函式：每次(重)建按钮都会被协调器呼叫、回传一颗全新按钮（自带样式注入）。
-    function createToolButton() {
-        injectToolBtnStyle();
-        var btn = document.createElement('button');
-        btn.id = TOOL_BTN_DOM_ID;
-        btn.type = 'button';
-        btn.className = 'blank-button button HideOnPopup chat-room-button';
-        btn.setAttribute('role', 'menuitem');
-        btn.title = isZh() ? '工具箱' : 'Toolbox';
-        btn.style.backgroundColor = getAccentPreset().accent;
-
-        // poster = 静止影格（预设显示）；img = APNG（游标移上去才显示 → 才看得到动画）。
-        var poster = document.createElement('canvas');
-        poster.className = 'lt-tool-poster';
-        poster.width = 96; poster.height = 96;
-        var img = document.createElement('img');
-        img.className = 'lt-tool-icon lt-tool-hidden';
-        img.alt = '';
-        img.crossOrigin = 'anonymous'; // 让 poster 能 drawImage 撷取影格而不污染画布
-        btn.appendChild(poster);
-        btn.appendChild(img);
-
-        function snapshot() {
-            try {
-                var c = poster.getContext('2d');
-                c.clearRect(0, 0, 96, 96);
-                c.drawImage(img, 0, 0, 96, 96);
-            } catch (e) {}
-        }
-        function playIcon() { img.classList.remove('lt-tool-hidden'); poster.classList.add('lt-tool-hidden'); }
-        function freezeIcon() { snapshot(); img.classList.add('lt-tool-hidden'); poster.classList.remove('lt-tool-hidden'); }
-        img.addEventListener('load', function () { if (img.classList.contains('lt-tool-hidden')) snapshot(); });
-        btn.addEventListener('pointerenter', playIcon);
-        btn.addEventListener('pointerleave', freezeIcon);
-        img.src = TOOL_ICON_URL;
-
-        btn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); toggleToolPanel(); });
-        return btn;
-    }
 
     function startToolButtonInjector() {
         // 交给共用协调器 BC_ChatRoomButtons 中央託管（{plain:true} 关掉原生底色露出 SVG）。
         // 同步登记 spec，不绑载入时机：协调器已载入就直接 add，否则推进待处理队列等其初始化排空。
         // 协调器由本脚本的 @require 载入（见档头），standalone 也保证有。
-        var spec = { id: TOOL_CRB_ID, order: TOOL_CRB_ORDER, createButton: createToolButton, plain: true, background: '#7B2CBF' };
+        var spec = {
+            id: TOOL_CRB_ID,
+            buttonId: TOOL_BTN_DOM_ID,
+            order: TOOL_CRB_ORDER,
+            icon: { src: TOOL_ICON_URL, animated: true },
+            tooltip: isZh() ? '工具箱' : 'Toolbox',
+            background: getAccentPreset().accent,
+            onClick: toggleToolPanel
+        };
         var L = window.Liko = window.Liko || {};
         if (L.__Sys_ChatRoomButtons__ && L.__Sys_ChatRoomButtons__.add) L.__Sys_ChatRoomButtons__.add(spec);
         else { L.__CRB_pending__ = L.__CRB_pending__ || []; L.__CRB_pending__.push(spec); }
