@@ -58,7 +58,13 @@
         const previous = visibilityState.get(el);
         visibilityState.set(el, shouldHide);
         if (previous === undefined) { el.hidden = shouldHide; return; }
-        if (previous === shouldHide) return;
+        if (previous === shouldHide) {
+            // The game's native collapse handler may overwrite `hidden` after our
+            // aria-expanded observer runs. Heal that external change even when
+            // our own visibility state did not change.
+            if (!el.classList.contains('lk-crb-animating') && el.hidden !== shouldHide) el.hidden = shouldHide;
+            return;
+        }
         const oldTimer = visibilityTimers.get(el);
         if (oldTimer) clearTimeout(oldTimer);
         el.hidden = false;
@@ -473,7 +479,7 @@
         specs.forEach((_spec, id) => ensureButton(id));
         applyLayout();
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded'] });
+    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded', 'hidden'] });
     setInterval(() => { specs.forEach((_spec, id) => ensureButton(id)); applyLayout(); }, HEAL_INTERVAL_MS);
     injectStyle();
 
