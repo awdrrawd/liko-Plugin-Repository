@@ -3,8 +3,6 @@
  * Owns insertion, colour/state, collapse, scrolling, ordering and visibility.
  */
 (function (global) {
-    'use strict';
-
     global.Liko = global.Liko || {};
     if (global.Liko.__Sys_ChatRoomButtons__) return;
 
@@ -477,7 +475,7 @@
     injectStyle();
 
     global.Liko.__Sys_ChatRoomButtons__ = {
-        v: '5.0', slots, plainIds, register, get, reapply, setPlain, add, remove,
+        Version: '1.0', slots, plainIds, register, get, reapply, setPlain, add, remove,
         setState: applyState, setActive: (id, active) => applyState(id, { active: !!active }),
         openSettings: openSettingsPanel, applyLayout,
     };
