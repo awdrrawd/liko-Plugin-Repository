@@ -169,7 +169,7 @@
         const values = {
             '--lk-crb-current-bg': spec.state.background || (active && activeSpec.background) || spec.background,
             '--lk-crb-current-border': border,
-            '--lk-crb-current-color': spec.state.color || (active && activeSpec.color),
+            '--lk-crb-current-color': spec.state.color || (active && activeSpec.color) || spec.color,
             '--lk-crb-current-shadow': spec.state.boxShadow || (active && activeSpec.boxShadow),
         };
         Object.entries(values).forEach(([name, value]) => value ? el.style.setProperty(name, value) : el.style.removeProperty(name));
@@ -223,19 +223,19 @@
 #${CONTAINER_ID}>.lk-crb-plain::before{background:none!important}
 #${CONTAINER_ID}>.lk-crb-managed{position:relative!important;background:var(--lk-crb-current-bg)!important;color:var(--lk-crb-current-color)!important;border:var(--lk-crb-current-border)!important;box-shadow:var(--lk-crb-current-shadow)!important}
 #${CONTAINER_ID}>.lk-crb-managed.lk-crb-borderless{border:none!important;outline:none!important}
+#${CONTAINER_ID}>.lk-crb-managed>svg{width:62%!important;height:62%!important;display:block!important;pointer-events:none!important} #${CONTAINER_ID}>.lk-crb-managed>svg *{fill:currentColor!important}
 #${CONTAINER_ID}>.lk-crb-animating[hidden]{display:flex!important}
 #${CONTAINER_ID}>.lk-crb-animating{transition:opacity ${ANIM_MS}ms ease,transform ${ANIM_MS}ms ease;opacity:1;transform:translateX(0);pointer-events:auto}
 #${CONTAINER_ID}>.lk-crb-animating.lk-crb-collapsed{opacity:0!important;transform:translateX(18px)!important;pointer-events:none}
 .lk-crb-tooltip{position:fixed;z-index:2147483646;padding:6px 9px;border:1px solid #ffffff2e;border-radius:7px;background:#121419f7;color:#f2f3f5;font:600 12px/1.35 sans-serif;pointer-events:none}
 #${PANEL_ID}-backdrop{position:fixed;inset:0;z-index:2147483646;background:#05070b99;backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px;box-sizing:border-box}
-#${PANEL_ID}{width:min(540px,100%);max-height:min(720px,calc(100vh - 40px));overflow:auto;box-sizing:border-box;padding:0;border:1px solid #8ea4ff45;border-radius:20px;background:linear-gradient(155deg,#202637f7,#11141dfb);color:#f4f5f7;font:14px/1.4 system-ui,sans-serif;box-shadow:0 28px 90px #000d,0 0 0 1px #ffffff0c inset}
+#${PANEL_ID}{width:min(430px,100%);max-height:min(560px,calc(100vh - 40px));overflow:auto;box-sizing:border-box;padding:0;border:1px solid #8ea4ff45;border-radius:18px;background:linear-gradient(155deg,#202637f7,#11141dfb);color:#f4f5f7;font:14px/1.4 system-ui,sans-serif;box-shadow:0 28px 90px #000d,0 0 0 1px #ffffff0c inset}
 #${PANEL_ID} .lk-crb-head,#${PANEL_ID} .lk-crb-actions{display:flex;align-items:center;gap:10px}
 #${PANEL_ID} .lk-crb-head{position:sticky;top:0;z-index:2;padding:18px 20px;background:#1b2030ed;border-bottom:1px solid #ffffff14} #${PANEL_ID} .lk-crb-head b{flex:1;font-size:18px}
-#${PANEL_ID} .lk-crb-body{padding:16px 20px} #${PANEL_ID} .lk-crb-direction{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-#${PANEL_ID} .lk-crb-list{display:grid;gap:8px} #${PANEL_ID} .lk-crb-row{display:grid;grid-template-columns:34px 44px 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid #ffffff16;border-radius:12px;background:#ffffff08;cursor:grab;transition:border-color .15s,background .15s,transform .15s}
-#${PANEL_ID} .lk-crb-row:hover{border-color:#8298ff72;background:#8298ff12} #${PANEL_ID} .lk-crb-row.lk-crb-sort-drag{opacity:.45} #${PANEL_ID} .lk-crb-row.lk-crb-sort-over{border-color:#91a4ff;transform:translateY(2px)}
-#${PANEL_ID} .lk-crb-grip{font-size:20px;color:#8c96ad;text-align:center} #${PANEL_ID} .lk-crb-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:10px;background:#090b11;overflow:hidden;pointer-events:none} #${PANEL_ID} .lk-crb-icon>*{max-width:100%!important;max-height:100%!important;width:100%!important;height:100%!important;object-fit:contain!important}
-#${PANEL_ID} .lk-crb-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650} #${PANEL_ID} .lk-crb-visible{display:flex;align-items:center;gap:6px;cursor:pointer;color:#b7bfd3}
+#${PANEL_ID} .lk-crb-body{padding:14px 18px 18px} #${PANEL_ID} .lk-crb-direction{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+#${PANEL_ID} .lk-crb-zone-label{margin:10px 2px 6px;color:#aeb7cc;font-size:12px;font-weight:700} #${PANEL_ID} .lk-crb-zone{min-height:72px;display:flex;align-content:flex-start;flex-wrap:wrap;gap:10px;padding:12px;border:1px dashed #7683a54d;border-radius:14px;background:#06081045;transition:border-color .15s,background .15s}
+#${PANEL_ID} .lk-crb-zone.lk-crb-zone-over{border-color:#91a4ff;background:#7d91ff12} #${PANEL_ID} .lk-crb-item{position:relative;width:54px;height:54px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:13px;background:#0b0e16;cursor:grab;overflow:hidden;transition:transform .15s,border-color .15s,opacity .15s}
+#${PANEL_ID} .lk-crb-item:hover{transform:translateY(-2px);border-color:#91a4ff} #${PANEL_ID} .lk-crb-item.lk-crb-sort-drag{opacity:.35} #${PANEL_ID} .lk-crb-item>*{max-width:100%!important;max-height:100%!important;width:100%!important;height:100%!important;object-fit:contain!important;pointer-events:none!important}
 #${PANEL_ID} button,#${PANEL_ID} select{border:1px solid #ffffff25;border-radius:8px;background:#2a3145;color:#fff;padding:7px 10px;cursor:pointer} #${PANEL_ID} .lk-crb-close{font-size:20px;line-height:1;padding:5px 9px}
 #${PANEL_ID} .lk-crb-actions{margin-top:16px;justify-content:flex-end}
 `;
@@ -254,13 +254,20 @@
     }
 
     function copyButtonIcon(source, target) {
+        const sourceStyle = getComputedStyle(source);
+        target.style.background = sourceStyle.background;
+        target.style.backgroundColor = sourceStyle.backgroundColor;
+        target.style.color = sourceStyle.color;
+        target.style.boxShadow = sourceStyle.boxShadow;
         const canvas = source.querySelector('canvas');
         if (canvas) {
             try { const image = new Image(); image.src = canvas.toDataURL(); target.appendChild(image); return; } catch (_error) {}
         }
         const clone = source.cloneNode(true);
+        const computed = sourceStyle;
         clone.removeAttribute('aria-label'); clone.removeAttribute('role'); clone.tabIndex = -1;
-        clone.style.order = ''; clone.hidden = false; clone.style.pointerEvents = 'none';
+        clone.style.cssText += `;order:;display:flex;align-items:center;justify-content:center;width:100%;height:100%;margin:0;padding:0;pointer-events:none;background:${computed.background};background-color:${computed.backgroundColor};color:${computed.color};border:${computed.border};border-radius:${computed.borderRadius};box-shadow:${computed.boxShadow}`;
+        clone.hidden = false;
         target.appendChild(clone);
     }
 
@@ -279,16 +286,15 @@
         const render = () => {
             const keys = orderedKeys(container);
             const sources = new Map(Array.from(container.children).map(el => [buttonKey(el), el]));
-            panel.innerHTML = `<div class="lk-crb-head"><b>聊天室按鈕設定</b><button class="lk-crb-close" data-close aria-label="關閉">×</button></div><div class="lk-crb-body"><label class="lk-crb-direction"><span>排列方向</span><select data-direction><option value="rtl">由右至左</option><option value="ltr">由左至右</option></select></label><div class="lk-crb-list" data-list></div><div class="lk-crb-actions"><button data-reset>還原預設</button></div></div>`;
+            panel.innerHTML = `<div class="lk-crb-head"><b>聊天室按鈕設定</b><button class="lk-crb-close" data-close aria-label="關閉">×</button></div><div class="lk-crb-body"><label class="lk-crb-direction"><span>排列方向</span><select data-direction><option value="rtl">由右至左</option><option value="ltr">由左至右</option></select></label><div class="lk-crb-zone-label">顯示</div><div class="lk-crb-zone" data-zone="visible"></div><div class="lk-crb-zone-label">隱藏</div><div class="lk-crb-zone" data-zone="hidden"></div><div class="lk-crb-actions"><button data-reset>還原預設</button></div></div>`;
             panel.querySelector('[data-direction]').value = settings().direction;
-            const list = panel.querySelector('[data-list]');
             keys.forEach(key => {
                 const source = sources.get(key);
-                const row = document.createElement('div'); row.className = 'lk-crb-row'; row.dataset.key = key; row.draggable = true;
-                row.innerHTML = `<span class="lk-crb-grip" aria-hidden="true">⠿</span><span class="lk-crb-icon"></span><span class="lk-crb-name"></span><label class="lk-crb-visible"><input type="checkbox" ${settings().hidden.includes(key) ? '' : 'checked'}><span>顯示</span></label>`;
-                row.querySelector('.lk-crb-name').textContent = source?.dataset.lkCrbTooltip || source?.getAttribute('aria-label') || source?.title || key;
-                if (source) copyButtonIcon(source, row.querySelector('.lk-crb-icon'));
-                list.appendChild(row);
+                const hidden = settings().hidden.includes(key);
+                const item = document.createElement('div'); item.className = 'lk-crb-item'; item.dataset.key = key; item.draggable = true;
+                item.title = source?.dataset.lkCrbTooltip || source?.getAttribute('aria-label') || source?.title || key;
+                if (source) copyButtonIcon(source, item);
+                panel.querySelector(`[data-zone="${hidden ? 'hidden' : 'visible'}"]`).appendChild(item);
             });
             panel.querySelector('[data-close]').onclick = () => backdrop.remove();
             panel.querySelector('[data-direction]').onchange = event => {
@@ -299,31 +305,35 @@
                 Object.assign(settings(), { order: [], direction: 'rtl', hidden: [] });
                 saveSettings(); applyLayout(); render();
             };
-            list.onchange = event => {
-                const row = event.target.closest('.lk-crb-row'); if (!row) return;
-                const hidden = settings().hidden, index = hidden.indexOf(row.dataset.key);
-                if (event.target.checked && index >= 0) hidden.splice(index, 1);
-                else if (!event.target.checked && index < 0) hidden.push(row.dataset.key);
-                saveSettings(); applyLayout();
-            };
             let draggedKey = null;
-            list.addEventListener('dragstart', event => {
-                const row = event.target.closest('.lk-crb-row'); if (!row) return;
-                draggedKey = row.dataset.key; row.classList.add('lk-crb-sort-drag');
+            const zones = Array.from(panel.querySelectorAll('.lk-crb-zone'));
+            const commitZones = () => {
+                const visible = Array.from(panel.querySelector('[data-zone="visible"]').children).map(el => el.dataset.key);
+                const hidden = Array.from(panel.querySelector('[data-zone="hidden"]').children).map(el => el.dataset.key);
+                settings().hidden = hidden; saveDisplayedOrder(visible.concat(hidden));
+            };
+            panel.addEventListener('click', event => {
+                const item = event.target.closest('.lk-crb-item'); if (!item) return;
+                const destination = item.parentElement.dataset.zone === 'visible' ? panel.querySelector('[data-zone="hidden"]') : panel.querySelector('[data-zone="visible"]');
+                destination.appendChild(item); commitZones();
+            });
+            panel.addEventListener('dragstart', event => {
+                const item = event.target.closest('.lk-crb-item'); if (!item) return;
+                draggedKey = item.dataset.key; item.classList.add('lk-crb-sort-drag');
                 event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', draggedKey);
             });
-            list.addEventListener('dragover', event => {
-                const row = event.target.closest('.lk-crb-row'); if (!row || row.dataset.key === draggedKey) return;
-                event.preventDefault(); list.querySelectorAll('.lk-crb-sort-over').forEach(el => el.classList.remove('lk-crb-sort-over')); row.classList.add('lk-crb-sort-over');
+            zones.forEach(zone => {
+                zone.addEventListener('dragover', event => {
+                    event.preventDefault(); zone.classList.add('lk-crb-zone-over');
+                    const item = event.target.closest('.lk-crb-item');
+                    const dragged = panel.querySelector(`.lk-crb-item[data-key="${CSS.escape(draggedKey || '')}"]`);
+                    if (dragged && item && item !== dragged) zone.insertBefore(dragged, item);
+                    else if (dragged && !item) zone.appendChild(dragged);
+                });
+                zone.addEventListener('dragleave', event => { if (!zone.contains(event.relatedTarget)) zone.classList.remove('lk-crb-zone-over'); });
+                zone.addEventListener('drop', event => { event.preventDefault(); zone.classList.remove('lk-crb-zone-over'); commitZones(); });
             });
-            list.addEventListener('drop', event => {
-                const target = event.target.closest('.lk-crb-row'); if (!target || !draggedKey) return;
-                event.preventDefault();
-                const order = orderedKeys(container), from = order.indexOf(draggedKey), to = order.indexOf(target.dataset.key);
-                if (from >= 0 && to >= 0 && from !== to) { order.splice(from, 1); order.splice(to, 0, draggedKey); saveDisplayedOrder(order); }
-                render();
-            });
-            list.addEventListener('dragend', () => { draggedKey = null; list.querySelectorAll('.lk-crb-sort-drag,.lk-crb-sort-over').forEach(el => el.classList.remove('lk-crb-sort-drag', 'lk-crb-sort-over')); });
+            panel.addEventListener('dragend', () => { if (draggedKey) commitZones(); draggedKey = null; panel.querySelectorAll('.lk-crb-sort-drag,.lk-crb-zone-over').forEach(el => el.classList.remove('lk-crb-sort-drag', 'lk-crb-zone-over')); });
         };
         backdrop.addEventListener('click', event => { if (event.target === backdrop) backdrop.remove(); });
         render(); document.body.appendChild(backdrop);

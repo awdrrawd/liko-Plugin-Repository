@@ -1259,68 +1259,7 @@
         });
 
         /* ── 原生聊天框按钮注入（与 chat-room-send 并排）────────────────────── */
-        function getMaskSvgUrl() {
-            return 'url("data:image/svg+xml,' + encodeURIComponent(FACE_MASK_SVG) + '")';
-        }
-
-        // 工厂函式：协调器每次(重)建都会呼叫、回传全新按钮（自带样式注入；图示由 ::before mask 绘制）。
-        function createNativeButton() {
-            injectStyles();
-            var btn = document.createElement('button');
-            btn.id = 'lk-kaomoji-trigger-btn';
-            btn.type = 'button';
-            btn.className = 'blank-button button HideOnPopup chat-room-button';
-            btn.setAttribute('role', 'menuitem');
-            btn.setAttribute('tabindex', '0');
-            btn.setAttribute('aria-label', t('triggerLabel'));
-            btn.title = t('triggerLabel');
-            btn.addEventListener('click', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                togglePanel();
-            });
-            return btn;
-        }
-
-        /*
-         * 样式内容是静态的（仅依赖不变的 FACE_MASK_SVG），因此只需要在样式表首次不存在时创建一次，
-         * 避免每次轮询（200ms）都重建 <style> 节点、触发不必要的样式重算。
-         */
-        function injectStyles() {
-            if (document.getElementById('lk-kaomoji-style')) return;
-            var style = document.createElement('style');
-            style.id = 'lk-kaomoji-style';
-            style.textContent = [
-                '#lk-kaomoji-trigger-btn.chat-room-button{',
-                '  background-color:rgba(139,45,196,0.85) !important;',
-                '  border-radius:12px !important;',
-                '  position:relative !important;',
-                '  overflow:hidden !important;',
-                '}',
-                '#lk-kaomoji-trigger-btn.chat-room-button::before{',
-                '  content:"" !important;',
-                '  position:absolute !important;',
-                '  top:0 !important; left:0 !important;',
-                '  width:100% !important; height:100% !important;',
-                '  background-color:#ffffff !important;',
-                '  mask-position:center center !important;',
-                '  mask-size:60% 60% !important;',
-                '  mask-repeat:no-repeat !important;',
-                '  -webkit-mask-position:center center !important;',
-                '  -webkit-mask-size:60% 60% !important;',
-                '  -webkit-mask-repeat:no-repeat !important;',
-                '  mask-image:' + getMaskSvgUrl() + ' !important;',
-                '  -webkit-mask-image:' + getMaskSvgUrl() + ' !important;',
-                '}',
-                '#lk-kaomoji-trigger-btn.chat-room-button:hover{',
-                '  background-color:rgba(160,96,224,0.95) !important;',
-                '}',
-                '#lk-kaomoji-trigger-btn.chat-room-button:active{',
-                '  background-color:rgba(120,30,180,0.95) !important;',
-                '}',
-            ].join('\n');
-            document.head.appendChild(style);
-        }
+        // 只交付圖示、顏色與行為資料；按鈕 DOM 與染色由 CRB 統一建立。
 
         /**
          * 让原生「收纳/展开按钮列」的折叠状态持久化：
@@ -1355,7 +1294,16 @@
            就直接 add，否则推进待处理队列等其初始化排空。容器建立/重建、收合同步、顺位全由协调器处理，
            本插件不再自己注入或掛 observer。Kaomoji 用自带 ::before mask 当图示，故不需 plain。 */
         (function registerKaomojiButton() {
-            var spec = { id: 'kaomoji', order: sys_CRB, createButton: createNativeButton };
+            var spec = {
+                id: 'kaomoji',
+                buttonId: 'lk-kaomoji-trigger-btn',
+                order: sys_CRB,
+                icon: FACE_MASK_SVG,
+                tooltip: t('triggerLabel'),
+                background: 'rgba(139,45,196,0.85)',
+                color: '#ffffff',
+                onClick: togglePanel
+            };
             var L = window.Liko = window.Liko || {};
             if (L.__Sys_ChatRoomButtons__ && L.__Sys_ChatRoomButtons__.add) L.__Sys_ChatRoomButtons__.add(spec);
             else { L.__CRB_pending__ = L.__CRB_pending__ || []; L.__CRB_pending__.push(spec); }

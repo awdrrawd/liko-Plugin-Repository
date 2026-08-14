@@ -2006,64 +2006,22 @@
         hideMatQuickMenu();
     });
 
-    // 圖示用 CSS mask 上色（白色勾勒在綠底上），不受 SVG 自身 #000 填色與深色主題影響——
-    // 與 Kaomoji 同一手法，已驗證可在 BC 環境正常顯示（避免黑圖貼在深色按鈕上看不見）。
-    function injectMatStyles() {
-        if (document.getElementById('lk-mat-style')) return;
-        const maskUrl = `url("${MAT_ICON_URI}")`;
-        const style = document.createElement('style');
-        style.id = 'lk-mat-style';
-        style.textContent = [
-            '#' + MAT_BTN_ID + '.chat-room-button{',
-            '  background-color:rgba(76,175,80,0.9) !important;',
-            '  border-radius:12px !important;',
-            '  position:relative !important;',
-            '  overflow:hidden !important;',
-            '}',
-            '#' + MAT_BTN_ID + '.chat-room-button::before{',
-            '  content:"" !important;',
-            '  position:absolute !important;',
-            '  top:0 !important; left:0 !important;',
-            '  width:100% !important; height:100% !important;',
-            '  background-color:#ffffff !important;',
-            '  mask-position:center center !important;',
-            '  mask-size:62% 62% !important;',
-            '  mask-repeat:no-repeat !important;',
-            '  -webkit-mask-position:center center !important;',
-            '  -webkit-mask-size:62% 62% !important;',
-            '  -webkit-mask-repeat:no-repeat !important;',
-            '  mask-image:' + maskUrl + ' !important;',
-            '  -webkit-mask-image:' + maskUrl + ' !important;',
-            '}',
-            '#' + MAT_BTN_ID + '.chat-room-button:hover{',
-            '  background-color:rgba(102,187,106,0.95) !important;',
-            '}',
-        ].join('\n');
-        document.head.appendChild(style);
-    }
-
-    // 工廠函式：協調器每次(重)建都會呼叫、回傳全新按鈕（自帶樣式注入；圖示由 ::before mask 繪製）。
-    function createMatButton() {
-        injectMatStyles();
-        const btn = document.createElement('button');
-        btn.id = MAT_BTN_ID;
-        btn.type = 'button';
-        btn.className = 'blank-button button HideOnPopup chat-room-button';
-        btn.setAttribute('role', 'menuitem');
-        btn.setAttribute('tabindex', '0');
-        btn.setAttribute('aria-label', ui('prefButton'));
-        btn.title = ui('prefButton');
-        // 圖示由 injectMatStyles 的 ::before mask 繪製，這裡不放 <img>
-        btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleMatQuickMenu(); });
-        return btn;
-    }
-    // 交給協調器中央託管；MAT 用自帶 ::before mask 當圖示，故不需 plain。
+    // 只交付圖示、顏色與行為資料；按鈕 DOM 與染色由 CRB 統一建立。
     // config.chatButton 切換：開 → 登記(直接 add 或推進待處理佇列)；關 → remove 並清掉佇列殘留。
     function applyChatButton() {
         const L = window.Liko;
         const crb = L.__Sys_ChatRoomButtons__;
         if (config.chatButton) {
-            const spec = { id: "mat", order: sys_CRB, createButton: createMatButton };
+            const spec = {
+                id: "mat",
+                buttonId: MAT_BTN_ID,
+                order: sys_CRB,
+                icon: MAT_ICON_SVG,
+                tooltip: ui('prefButton'),
+                background: 'rgba(76,175,80,0.9)',
+                color: '#ffffff',
+                onClick: toggleMatQuickMenu,
+            };
             if (crb?.add) crb.add(spec);
             else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
         } else {
