@@ -148,7 +148,11 @@
             const img = document.createElement('img');
             img.src = icon.src; img.alt = icon.alt || ''; img.className = icon.className || '';
             button.appendChild(img);
-        } else if (typeof icon === 'string') button.innerHTML = icon;
+        } else if (typeof icon === 'string') {
+            if (spec.id === 'mat') icon = icon.replace(/fill:\s*#000000/gi, 'fill:currentColor');
+            if (spec.id === 'kaomoji') icon = icon.replace('<svg ', '<svg fill="currentColor" ');
+            button.innerHTML = icon;
+        }
         if (typeof spec.onClick === 'function') button.addEventListener('click', event => {
             event.preventDefault(); event.stopPropagation(); spec.onClick(event, button);
         });
@@ -226,9 +230,9 @@
 #${CONTAINER_ID}.lk-crb-dragging{cursor:grabbing!important}
 #${CONTAINER_ID}>button:not(#chat-room-send){cursor:grab}
 #${CONTAINER_ID}>.lk-crb-plain::before{background:none!important}
-#${CONTAINER_ID}>.lk-crb-managed{position:relative!important;background:var(--lk-crb-current-bg)!important;color:var(--lk-crb-current-color)!important;border:var(--lk-crb-current-border)!important;box-shadow:var(--lk-crb-current-shadow)!important}
+#${CONTAINER_ID}>.lk-crb-managed{position:relative!important;overflow:hidden!important;border-radius:12px!important;background:var(--lk-crb-current-bg)!important;color:var(--lk-crb-current-color)!important;border:var(--lk-crb-current-border)!important;box-shadow:var(--lk-crb-current-shadow)!important}
 #${CONTAINER_ID}>.lk-crb-managed.lk-crb-borderless{border:none!important;outline:none!important}
-#${CONTAINER_ID}>.lk-crb-managed>svg{position:absolute!important;z-index:2!important;inset:19%!important;width:62%!important;height:62%!important;display:block!important;pointer-events:none!important} #${CONTAINER_ID}>.lk-crb-managed>svg *{fill:currentColor!important}
+#${CONTAINER_ID}>.lk-crb-managed>svg{position:absolute!important;z-index:2!important;inset:19%!important;width:62%!important;height:62%!important;display:block!important;pointer-events:none!important}
 #${CONTAINER_ID}>.lk-crb-animating[hidden]{display:flex!important}
 #${CONTAINER_ID}>.lk-crb-animating{transition:opacity ${ANIM_MS}ms ease,transform ${ANIM_MS}ms ease;opacity:1;transform:translateX(0);pointer-events:auto}
 #${CONTAINER_ID}>.lk-crb-animating.lk-crb-collapsed{opacity:0!important;transform:translateX(18px)!important;pointer-events:none}
@@ -241,7 +245,7 @@
 #${PANEL_ID} .lk-crb-zone-label{margin:10px 2px 6px;color:#aeb7cc;font-size:14px;font-weight:700} #${PANEL_ID} .lk-crb-zone{min-height:72px;display:flex;align-content:flex-start;flex-wrap:wrap;gap:10px;padding:12px;border:1px dashed #7683a54d;border-radius:14px;background:#06081045;transition:border-color .15s,background .15s}
 #${PANEL_ID} .lk-crb-zone.lk-crb-zone-over{border-color:#91a4ff;background:#7d91ff12} #${PANEL_ID} .lk-crb-item{position:relative;width:54px;height:54px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:13px;background:#0b0e16;cursor:grab;overflow:hidden;transition:transform .15s,border-color .15s,opacity .15s}
 #${PANEL_ID} .lk-crb-item:hover{transform:translateY(-2px);border-color:#91a4ff} #${PANEL_ID} .lk-crb-item.lk-crb-sort-drag{opacity:.35} #${PANEL_ID} .lk-crb-item>*{max-width:100%!important;max-height:100%!important;width:100%!important;height:100%!important;object-fit:contain!important;pointer-events:none!important}
-#${PANEL_ID} .lk-crb-item svg{width:62%!important;height:62%!important;display:block!important;fill:currentColor!important} #${PANEL_ID} .lk-crb-item svg *{fill:currentColor!important} #${PANEL_ID} .lk-crb-emoji{display:grid!important;place-items:center;font-size:28px!important;line-height:1!important}
+#${PANEL_ID} .lk-crb-item svg{width:62%!important;height:62%!important;display:block!important} #${PANEL_ID} .lk-crb-emoji{display:grid!important;place-items:center;font-size:28px!important;line-height:1!important}
 #${PANEL_ID} button,#${PANEL_ID} select{border:1px solid #ffffff25;border-radius:8px;background:#2a3145;color:#fff;padding:7px 10px;cursor:pointer} #${PANEL_ID} .lk-crb-close{font-size:20px;line-height:1;padding:5px 9px}
 #${PANEL_ID} .lk-crb-actions{margin-top:16px;justify-content:flex-end}
 `;
