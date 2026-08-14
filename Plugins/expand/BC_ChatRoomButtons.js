@@ -40,7 +40,11 @@
     }
 
     function buttonKey(el) {
-        return el && (el.dataset.lkCrbId || el.id);
+        if (!el) return '';
+        if (el.dataset.lkCrbId || el.id || el.dataset.lkCrbNativeKey) return el.dataset.lkCrbId || el.id || el.dataset.lkCrbNativeKey;
+        const hint = el.getAttribute('aria-label') || el.title || Array.from(el.classList).join('-') || el.tagName.toLowerCase();
+        el.dataset.lkCrbNativeKey = 'native-' + String(hint).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-|-$/g, '');
+        return el.dataset.lkCrbNativeKey;
     }
 
     function collapseExpanded() {
@@ -90,14 +94,14 @@
     }
 
     function orderedKeys(container) {
-        const buttons = Array.from(container.children).filter(el => el.matches && el.matches('button') && el.id !== 'chat-room-send' && el.id !== 'chat-room-buttons-collapse');
+        const buttons = Array.from(container.children).filter(el => el instanceof HTMLElement && el.id !== 'chat-room-send' && el.id !== 'chat-room-buttons-collapse');
         const preferred = settings().order.filter(key => buttons.some(el => buttonKey(el) === key));
         const missing = buttons
             .filter(el => !preferred.includes(buttonKey(el)))
             .sort((a, b) => (slots[buttonKey(a)] || 0) - (slots[buttonKey(b)] || 0))
             .map(buttonKey);
         const keys = preferred.concat(missing);
-        return settings().direction === 'rtl' ? keys.reverse() : keys;
+        return settings().direction === 'ltr' ? keys.reverse() : keys;
     }
 
     function applyLayout() {
@@ -229,13 +233,14 @@
 #${CONTAINER_ID}>.lk-crb-animating.lk-crb-collapsed{opacity:0!important;transform:translateX(18px)!important;pointer-events:none}
 .lk-crb-tooltip{position:fixed;z-index:2147483646;padding:6px 9px;border:1px solid #ffffff2e;border-radius:7px;background:#121419f7;color:#f2f3f5;font:600 12px/1.35 sans-serif;pointer-events:none}
 #${PANEL_ID}-backdrop{position:fixed;inset:0;z-index:2147483646;background:#05070b99;backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px;box-sizing:border-box}
-#${PANEL_ID}{width:min(430px,100%);max-height:min(560px,calc(100vh - 40px));overflow:auto;box-sizing:border-box;padding:0;border:1px solid #8ea4ff45;border-radius:18px;background:linear-gradient(155deg,#202637f7,#11141dfb);color:#f4f5f7;font:14px/1.4 system-ui,sans-serif;box-shadow:0 28px 90px #000d,0 0 0 1px #ffffff0c inset}
+#${PANEL_ID}{width:min(450px,100%);max-height:min(560px,calc(100vh - 40px));overflow:auto;box-sizing:border-box;padding:0;border:1px solid #8ea4ff45;border-radius:18px;background:linear-gradient(155deg,#202637f7,#11141dfb);color:#f4f5f7;font:14px/1.4 system-ui,sans-serif;box-shadow:0 28px 90px #000d,0 0 0 1px #ffffff0c inset}
 #${PANEL_ID} .lk-crb-head,#${PANEL_ID} .lk-crb-actions{display:flex;align-items:center;gap:10px}
 #${PANEL_ID} .lk-crb-head{position:sticky;top:0;z-index:2;padding:18px 20px;background:#1b2030ed;border-bottom:1px solid #ffffff14} #${PANEL_ID} .lk-crb-head b{flex:1;font-size:18px}
 #${PANEL_ID} .lk-crb-body{padding:14px 18px 18px} #${PANEL_ID} .lk-crb-direction{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 #${PANEL_ID} .lk-crb-zone-label{margin:10px 2px 6px;color:#aeb7cc;font-size:12px;font-weight:700} #${PANEL_ID} .lk-crb-zone{min-height:72px;display:flex;align-content:flex-start;flex-wrap:wrap;gap:10px;padding:12px;border:1px dashed #7683a54d;border-radius:14px;background:#06081045;transition:border-color .15s,background .15s}
 #${PANEL_ID} .lk-crb-zone.lk-crb-zone-over{border-color:#91a4ff;background:#7d91ff12} #${PANEL_ID} .lk-crb-item{position:relative;width:54px;height:54px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:13px;background:#0b0e16;cursor:grab;overflow:hidden;transition:transform .15s,border-color .15s,opacity .15s}
 #${PANEL_ID} .lk-crb-item:hover{transform:translateY(-2px);border-color:#91a4ff} #${PANEL_ID} .lk-crb-item.lk-crb-sort-drag{opacity:.35} #${PANEL_ID} .lk-crb-item>*{max-width:100%!important;max-height:100%!important;width:100%!important;height:100%!important;object-fit:contain!important;pointer-events:none!important}
+#${PANEL_ID} .lk-crb-item svg{width:62%!important;height:62%!important;display:block!important;fill:currentColor!important} #${PANEL_ID} .lk-crb-item svg *{fill:currentColor!important} #${PANEL_ID} .lk-crb-emoji{display:grid!important;place-items:center;font-size:28px!important;line-height:1!important}
 #${PANEL_ID} button,#${PANEL_ID} select{border:1px solid #ffffff25;border-radius:8px;background:#2a3145;color:#fff;padding:7px 10px;cursor:pointer} #${PANEL_ID} .lk-crb-close{font-size:20px;line-height:1;padding:5px 9px}
 #${PANEL_ID} .lk-crb-actions{margin-top:16px;justify-content:flex-end}
 `;
@@ -259,16 +264,27 @@
         target.style.backgroundColor = sourceStyle.backgroundColor;
         target.style.color = sourceStyle.color;
         target.style.boxShadow = sourceStyle.boxShadow;
+        const imageSource = source.querySelector('img');
+        if (imageSource) {
+            const image = imageSource.cloneNode(true);
+            image.hidden = false; image.className = ''; image.style.cssText = 'display:block!important;width:100%!important;height:100%!important;object-fit:contain!important';
+            target.appendChild(image); return;
+        }
+        const svgSource = source.querySelector('svg');
+        if (svgSource) { target.appendChild(svgSource.cloneNode(true)); return; }
         const canvas = source.querySelector('canvas');
         if (canvas) {
             try { const image = new Image(); image.src = canvas.toDataURL(); target.appendChild(image); return; } catch (_error) {}
         }
-        const clone = source.cloneNode(true);
-        const computed = sourceStyle;
-        clone.removeAttribute('aria-label'); clone.removeAttribute('role'); clone.tabIndex = -1;
-        clone.style.cssText += `;order:;display:flex;align-items:center;justify-content:center;width:100%;height:100%;margin:0;padding:0;pointer-events:none;background:${computed.background};background-color:${computed.backgroundColor};color:${computed.color};border:${computed.border};border-radius:${computed.borderRadius};box-shadow:${computed.boxShadow}`;
-        clone.hidden = false;
-        target.appendChild(clone);
+        const text = source.textContent.trim();
+        if (text) {
+            const emoji = document.createElement('span'); emoji.className = 'lk-crb-emoji'; emoji.textContent = text;
+            target.appendChild(emoji); return;
+        }
+        const pseudo = getComputedStyle(source, '::before');
+        const preview = document.createElement('span');
+        preview.style.cssText = `display:block!important;width:100%!important;height:100%!important;background:${pseudo.background};background-color:${pseudo.backgroundColor};background-image:${pseudo.backgroundImage};background-position:${pseudo.backgroundPosition};background-size:${pseudo.backgroundSize};background-repeat:${pseudo.backgroundRepeat};mask-image:${pseudo.maskImage};mask-position:${pseudo.maskPosition};mask-size:${pseudo.maskSize};mask-repeat:${pseudo.maskRepeat};-webkit-mask-image:${pseudo.webkitMaskImage};-webkit-mask-position:${pseudo.webkitMaskPosition};-webkit-mask-size:${pseudo.webkitMaskSize};-webkit-mask-repeat:${pseudo.webkitMaskRepeat};color:${pseudo.color}`;
+        target.appendChild(preview);
     }
 
     function openSettingsPanel() {
@@ -280,7 +296,7 @@
         const panel = document.createElement('section'); panel.id = PANEL_ID; backdrop.appendChild(panel);
 
         const saveDisplayedOrder = keys => {
-            settings().order = settings().direction === 'rtl' ? keys.slice().reverse() : keys.slice();
+            settings().order = settings().direction === 'ltr' ? keys.slice().reverse() : keys.slice();
             saveSettings(); applyLayout();
         };
         const render = () => {
@@ -342,7 +358,7 @@
     let drag = null;
     document.addEventListener('pointerdown', event => {
         if (event.pointerType && event.pointerType !== 'mouse') return;
-        const button = event.target.closest?.(`#${CONTAINER_ID}>button`);
+        const button = event.target.closest?.(`#${CONTAINER_ID}>*`);
         if (!button || button.id === 'chat-room-send' || button.dataset.crbNoDrag !== undefined) return;
         const container = button.parentElement;
         drag = { container, startX: event.clientX, startScroll: container.scrollLeft, moved: false };
