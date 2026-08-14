@@ -148,11 +148,7 @@
             const img = document.createElement('img');
             img.src = icon.src; img.alt = icon.alt || ''; img.className = icon.className || '';
             button.appendChild(img);
-        } else if (typeof icon === 'string') {
-            if (spec.id === 'mat') icon = icon.replace(/fill:\s*#000000/gi, 'fill:currentColor');
-            if (spec.id === 'kaomoji') icon = icon.replace('<svg ', '<svg fill="currentColor" ');
-            button.innerHTML = icon;
-        }
+        } else if (typeof icon === 'string') button.innerHTML = icon;
         if (typeof spec.onClick === 'function') button.addEventListener('click', event => {
             event.preventDefault(); event.stopPropagation(); spec.onClick(event, button);
         });
@@ -242,7 +238,7 @@
 #${PANEL_ID} .lk-crb-head,#${PANEL_ID} .lk-crb-actions{display:flex;align-items:center;gap:10px}
 #${PANEL_ID} .lk-crb-head{position:sticky;top:0;z-index:2;padding:18px 20px;background:#1b2030ed;border-bottom:1px solid #ffffff14} #${PANEL_ID} .lk-crb-head b{flex:1;font-size:18px}
 #${PANEL_ID} .lk-crb-body{padding:14px 18px 18px} #${PANEL_ID} .lk-crb-direction{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:16px}
-#${PANEL_ID} .lk-crb-zone-label{margin:10px 2px 6px;color:#aeb7cc;font-size:14px;font-weight:700} #${PANEL_ID} .lk-crb-zone{min-height:72px;display:flex;align-content:flex-start;flex-wrap:wrap;gap:10px;padding:12px;border:1px dashed #7683a54d;border-radius:14px;background:#06081045;transition:border-color .15s,background .15s}
+#${PANEL_ID} .lk-crb-zone-label{margin:10px 2px 6px;color:#aeb7cc;font-size:14px;font-weight:700} #${PANEL_ID} .lk-crb-zone{min-height:72px;box-sizing:border-box;display:flex;align-content:flex-start;flex-wrap:wrap;gap:10px;padding:8px;border:1px dashed #7683a54d;border-radius:14px;background:#06081045;transition:border-color .15s,background .15s}
 #${PANEL_ID} .lk-crb-zone.lk-crb-zone-over{border-color:#91a4ff;background:#7d91ff12} #${PANEL_ID} .lk-crb-item{position:relative;width:54px;height:54px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:13px;background:#0b0e16;cursor:grab;overflow:hidden;transition:transform .15s,border-color .15s,opacity .15s}
 #${PANEL_ID} .lk-crb-item:hover{transform:translateY(-2px);border-color:#91a4ff} #${PANEL_ID} .lk-crb-item.lk-crb-sort-drag{opacity:.35} #${PANEL_ID} .lk-crb-item>*{max-width:100%!important;max-height:100%!important;width:100%!important;height:100%!important;object-fit:contain!important;pointer-events:none!important}
 #${PANEL_ID} .lk-crb-item svg{width:62%!important;height:62%!important;display:block!important} #${PANEL_ID} .lk-crb-emoji{display:grid!important;place-items:center;font-size:28px!important;line-height:1!important}
@@ -317,7 +313,8 @@
             const sources = new Map(Array.from(container.children).map(el => [buttonKey(el), el]));
             panel.innerHTML = `<div class="lk-crb-head"><b>${text.title}</b><button class="lk-crb-close" data-close aria-label="${text.close}">×</button></div><div class="lk-crb-body"><label class="lk-crb-direction"><span>${text.direction}</span><select data-direction><option value="rtl">${text.rtl}</option><option value="ltr">${text.ltr}</option></select></label><div class="lk-crb-zone-label">${text.visible}</div><div class="lk-crb-zone" data-zone="visible"></div><div class="lk-crb-zone-label">${text.hidden}</div><div class="lk-crb-zone" data-zone="hidden"></div><div class="lk-crb-actions"><button data-reset>${text.reset}</button></div></div>`;
             panel.querySelector('[data-direction]').value = settings().direction;
-            panel.querySelectorAll('.lk-crb-zone').forEach(zone => { zone.dir = settings().direction; });
+            const visualDirection = getComputedStyle(container).direction === 'rtl' ? 'rtl' : 'ltr';
+            panel.querySelectorAll('.lk-crb-zone').forEach(zone => { zone.dir = visualDirection; });
             keys.forEach(key => {
                 const source = sources.get(key);
                 const hidden = settings().hidden.includes(key);

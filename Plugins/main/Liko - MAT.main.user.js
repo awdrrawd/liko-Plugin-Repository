@@ -2016,7 +2016,7 @@
                 id: "mat",
                 buttonId: MAT_BTN_ID,
                 order: sys_CRB,
-                icon: MAT_ICON_SVG,
+                icon: MAT_ICON_SVG.replace(/fill:\s*#000000/gi, 'fill:currentColor'),
                 tooltip: ui('prefButton'),
                 background: 'rgba(76,175,80,0.9)',
                 color: '#ffffff',

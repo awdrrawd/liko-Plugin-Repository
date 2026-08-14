@@ -1298,7 +1298,7 @@
                 id: 'kaomoji',
                 buttonId: 'lk-kaomoji-trigger-btn',
                 order: sys_CRB,
-                icon: FACE_MASK_SVG,
+                icon: FACE_MASK_SVG.replace('<svg ', '<svg fill="currentColor" '),
                 tooltip: t('triggerLabel'),
                 background: 'rgba(139,45,196,0.85)',
                 color: '#ffffff',
