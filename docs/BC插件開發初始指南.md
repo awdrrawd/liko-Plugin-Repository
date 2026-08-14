@@ -235,6 +235,42 @@ const gameReady = await waitFor(() =>
 );
 ```
 
+### 3. `ExtensionSettings` 必須逐插件鍵更新
+
+`Player.ExtensionSettings` 是伺服器在登入時下發的全帳號插件設定集合。資料出現在這個物件中，不代表插件需要在初始化時把它全部回傳來「驗證」；它們本來就是伺服器已儲存的資料。
+
+**禁止把整個 `Player.ExtensionSettings` 放進 `AccountUpdate`：**
+
+```js
+// 錯誤：會把所有插件的資料擠進同一則請求
+ServerAccountUpdate.QueueData({
+    ExtensionSettings: Player.ExtensionSettings,
+});
+```
+
+整包寫入會同時帶上其他插件的資料，可能覆蓋其他插件的新變更，也容易在多個大型插件並存時超過 `AccountUpdate` 約 180K 的單則請求上限。不論是初始化、正常存檔、資料遷移或刪除舊設定，都不應使用整包寫入。
+
+正確做法是只更新自己擁有的鍵，再呼叫 BC 提供的逐鍵同步 API：
+
+```js
+const EXTENSION_KEY = 'MyPlugin';
+const serializedSettings = JSON.stringify(mySettings);
+
+Player.ExtensionSettings ??= {};
+Player.ExtensionSettings[EXTENSION_KEY] = serializedSettings;
+ServerPlayerExtensionSettingsSync(EXTENSION_KEY);
+```
+
+這會送出類似 `{ "ExtensionSettings.MyPlugin": serializedSettings }` 的 dot-notation 單鍵更新，不會重送其他插件的資料。
+
+開發時請同時遵守以下規則：
+
+- 登入後只讀取伺服器下發的設定；不要因初始化或插件註冊而重送全部 `ExtensionSettings`。
+- 只有實際發生變更的插件鍵才同步。資料遷移也只同步遷移後的目標鍵。
+- 若要檢查 180K 上限，只計算實際即將送出的 `ExtensionSettings.<key>` 請求，不可用整個 `Player.ExtensionSettings` 的總大小扣除本插件額度。
+- 單一插件鍵本身超過 180K 時，由該插件自行壓縮、縮減、分鍵或更換儲存方式；其他插件或載入器不應在傳輸層代為切割。
+- 刪除設定時也不要為了 `$unset` 而回傳整包。若當前 BC API 無法逐鍵刪除，可將自己的鍵設為 `null`、空值或有版本的預設結構後逐鍵同步。
+
 ---
 
 ## 四、常用 BC 原生 API 使用方式

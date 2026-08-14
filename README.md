@@ -16,6 +16,9 @@
 You can continue reading the README below, or visit the interactive website for improved browsing and plugin navigation.  
 [👉 點此前往 · Click to visit it](https://awdrrawd.github.io/liko-Plugin-Repository/)  
 
+開發插件前，請閱讀 [`docs/BC插件開發初始指南.md`](docs/BC插件開發初始指南.md)。
+Before developing a plugin, read the [BC plugin development guide](docs/BC插件開發初始指南.md).
+
 ---
 
 ## 📦 安裝方式 · Installation
