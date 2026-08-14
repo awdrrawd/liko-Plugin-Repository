@@ -70,6 +70,16 @@
         return (t && !t.startsWith("MISSING TEXT IN")) ? t : "";
     }
 
+    // Matches BC ActivityBuildChatTag. ItemPenis and ItemGlans are dictionary
+    // aliases only; activity lookup and FocusAssetGroup keep the physical group.
+    function activityTextGroup(group, character) {
+        const hasPenis = character && typeof character.HasPenis === "function" && character.HasPenis();
+        if (!hasPenis) return group;
+        if (group === "ItemVulva") return "ItemPenis";
+        if (group === "ItemVulvaPiercings") return "ItemGlans";
+        return group;
+    }
+
     // 部位顯示名（跟隨玩家語言）
     function partLabel(group) {
         return (typeof AssetGroupGet === "function" && AssetGroupGet(FAMILY, group)?.Description) || group;
@@ -273,8 +283,11 @@
     function makeActivityPacket(target, group, name) {
         // group=部位原名, name=動作原名（皆已是遊戲 value），直接組封包
         const needsItem = /Item|LSCG_Eat|LSCG_Chew/i.test(name);
+        const targetChar = ChatRoomCharacter.find(c => c.MemberNumber === target);
+        if (!targetChar) return null;
+        const textGroup = activityTextGroup(group, targetChar);
         const packet = {
-            Content: `ChatOther-${group}-${name}`,
+            Content: `ChatOther-${textGroup}-${name}`,
             Type: "Activity",
             Dictionary: [
                 { "SourceCharacter": Player.MemberNumber },
@@ -293,8 +306,6 @@
         }
 
         if (needsItem && (name.includes("LSCG_Eat") || name.includes("LSCG_Chew"))) {
-            const targetChar = ChatRoomCharacter.find(c => c.MemberNumber === target);
-            if (!targetChar) return null;
             const targetHandItem = InventoryGet(targetChar, "ItemHandheld");
             if (targetHandItem?.Asset) {
                 const activityAsset = { "Tag": "ActivityAsset", AssetName: targetHandItem.Asset.Name, GroupName: "ItemHandheld" };
