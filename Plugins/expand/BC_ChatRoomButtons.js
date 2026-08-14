@@ -53,19 +53,10 @@
 
     const visibilityState = new WeakMap();
     const visibilityTimers = new WeakMap();
-    let layoutTransitionPending = false;
 
     function setHiddenAnimated(el, shouldHide) {
         const previous = visibilityState.get(el);
         visibilityState.set(el, shouldHide);
-        if (layoutTransitionPending) {
-            const oldTimer = visibilityTimers.get(el);
-            if (oldTimer) clearTimeout(oldTimer);
-            visibilityTimers.delete(el);
-            el.classList.remove('lk-crb-animating', 'lk-crb-collapsed');
-            el.hidden = shouldHide;
-            return;
-        }
         if (previous === undefined) { el.hidden = shouldHide; return; }
         if (previous === shouldHide) {
             // The game's native collapse handler may overwrite `hidden` after our
@@ -96,75 +87,6 @@
             }, ANIM_MS + 30);
             visibilityTimers.set(el, timer);
         }
-    }
-
-    function visibleButtonRects(container) {
-        const result = new Map();
-        Array.from(container.children).forEach(el => {
-            if (!(el instanceof HTMLElement) || el.hidden) return;
-            const rect = el.getBoundingClientRect();
-            if (rect.width && rect.height) result.set(el, rect);
-        });
-        return result;
-    }
-
-    function animateButtonLayout(before, after) {
-        if (global.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-        const afterRects = Array.from(after.values());
-        const anchor = afterRects.reduce((best, rect) => !best || rect.right > best.right ? rect : best, null)
-            || document.getElementById('chat-room-buttons-collapse')?.getBoundingClientRect();
-
-        before.forEach((oldRect, el) => {
-            const newRect = after.get(el);
-            if (newRect) {
-                const dx = oldRect.left - newRect.left;
-                const dy = oldRect.top - newRect.top;
-                if ((dx || dy) && typeof el.animate === 'function') {
-                    el.animate([
-                        { transform: `translate(${dx}px,${dy}px)` },
-                        { transform: 'translate(0,0)' },
-                    ], { duration: ANIM_MS + 80, easing: 'cubic-bezier(.2,.8,.2,1)' });
-                }
-                return;
-            }
-            if (!anchor) return;
-            const clone = el.cloneNode(true);
-            const computed = getComputedStyle(el);
-            clone.removeAttribute('id'); clone.hidden = false; clone.classList.add('lk-crb-flight');
-            clone.style.cssText += `;position:fixed!important;z-index:2147483645!important;left:${oldRect.left}px!important;top:${oldRect.top}px!important;width:${oldRect.width}px!important;height:${oldRect.height}px!important;margin:0!important;pointer-events:none!important;background:${computed.background}!important;border:${computed.border}!important;border-radius:${computed.borderRadius}!important;color:${computed.color}!important;box-shadow:${computed.boxShadow}!important`;
-            document.body.appendChild(clone);
-            const dx = anchor.left + anchor.width / 2 - (oldRect.left + oldRect.width / 2);
-            const dy = anchor.top + anchor.height / 2 - (oldRect.top + oldRect.height / 2);
-            const animation = clone.animate([
-                { transform: 'translate(0,0) scale(1)', opacity: 1 },
-                { transform: `translate(${dx}px,${dy}px) scale(.28)`, opacity: 0 },
-            ], { duration: ANIM_MS + 80, easing: 'cubic-bezier(.4,0,.2,1)' });
-            animation.onfinish = animation.oncancel = () => clone.remove();
-        });
-
-        if (!anchor) return;
-        after.forEach((newRect, el) => {
-            if (before.has(el) || typeof el.animate !== 'function') return;
-            const dx = anchor.left + anchor.width / 2 - (newRect.left + newRect.width / 2);
-            const dy = anchor.top + anchor.height / 2 - (newRect.top + newRect.height / 2);
-            el.animate([
-                { transform: `translate(${dx}px,${dy}px) scale(.28)`, opacity: 0 },
-                { transform: 'translate(0,0) scale(1)', opacity: 1 },
-            ], { duration: ANIM_MS + 80, easing: 'cubic-bezier(.2,.8,.2,1)' });
-        });
-    }
-
-    function prepareCollapseTransition() {
-        const container = document.getElementById(CONTAINER_ID);
-        if (!container) return;
-        const before = visibleButtonRects(container);
-        layoutTransitionPending = true;
-        setTimeout(() => {
-            applyLayout();
-            const after = visibleButtonRects(container);
-            layoutTransitionPending = false;
-            animateButtonLayout(before, after);
-        }, 0);
     }
 
     function applyVisibility(el) {
@@ -359,7 +281,6 @@
 #${CONTAINER_ID}>.lk-crb-managed.lk-crb-borderless{border:none!important;outline:none!important}
 #${CONTAINER_ID}>.lk-crb-managed>svg{position:absolute!important;z-index:2!important;inset:19%!important;width:62%!important;height:62%!important;display:block!important;pointer-events:none!important}
 #${CONTAINER_ID}>.lk-crb-managed>.lk-crb-icon-layer{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;display:block!important;object-fit:contain!important;pointer-events:none!important} #${CONTAINER_ID}>.lk-crb-managed>.lk-crb-icon-hidden{display:none!important}
-.lk-crb-flight{overflow:hidden!important}.lk-crb-flight>svg{position:absolute!important;z-index:2!important;inset:19%!important;width:62%!important;height:62%!important;display:block!important;pointer-events:none!important}.lk-crb-flight>.lk-crb-icon-layer{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;display:block!important;object-fit:contain!important;pointer-events:none!important}.lk-crb-flight>.lk-crb-icon-hidden{display:none!important}
 #${CONTAINER_ID}>.lk-crb-animating[hidden]{display:flex!important}
 #${CONTAINER_ID}>.lk-crb-animating{transition:opacity ${ANIM_MS}ms ease,transform ${ANIM_MS}ms ease;opacity:1;transform:translateX(0);pointer-events:auto}
 #${CONTAINER_ID}>.lk-crb-animating.lk-crb-collapsed{opacity:0!important;transform:translateX(18px)!important;pointer-events:none}
@@ -543,10 +464,6 @@
         container.scrollBy({ left: delta * direction, behavior: 'auto' });
         event.preventDefault();
     }, { capture: true, passive: false });
-
-    document.addEventListener('click', event => {
-        if (event.target.closest?.('#chat-room-buttons-collapse')) prepareCollapseTransition();
-    }, true);
 
     document.addEventListener('click', event => {
         if (!event.target.closest?.('#chat-room-send')) return;
