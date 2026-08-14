@@ -203,6 +203,7 @@
     function add(input) {
         if (!input || typeof input !== 'object' || !input.id || (!input.icon && typeof input.createButton !== 'function')) throw new TypeError('CRB.add requires { id, order, icon|createButton }');
         const spec = Object.assign({ order: 0, tooltip: input.id, collapse: true, plain: false, state: {} }, input);
+        if (input.icon && input.plain === undefined) spec.plain = true;
         specs.set(spec.id, spec);
         ensureButton(spec.id);
         return spec.id;
@@ -227,7 +228,7 @@
 #${CONTAINER_ID}>.lk-crb-plain::before{background:none!important}
 #${CONTAINER_ID}>.lk-crb-managed{position:relative!important;background:var(--lk-crb-current-bg)!important;color:var(--lk-crb-current-color)!important;border:var(--lk-crb-current-border)!important;box-shadow:var(--lk-crb-current-shadow)!important}
 #${CONTAINER_ID}>.lk-crb-managed.lk-crb-borderless{border:none!important;outline:none!important}
-#${CONTAINER_ID}>.lk-crb-managed>svg{width:62%!important;height:62%!important;display:block!important;pointer-events:none!important} #${CONTAINER_ID}>.lk-crb-managed>svg *{fill:currentColor!important}
+#${CONTAINER_ID}>.lk-crb-managed>svg{position:absolute!important;z-index:2!important;inset:19%!important;width:62%!important;height:62%!important;display:block!important;pointer-events:none!important} #${CONTAINER_ID}>.lk-crb-managed>svg *{fill:currentColor!important}
 #${CONTAINER_ID}>.lk-crb-animating[hidden]{display:flex!important}
 #${CONTAINER_ID}>.lk-crb-animating{transition:opacity ${ANIM_MS}ms ease,transform ${ANIM_MS}ms ease;opacity:1;transform:translateX(0);pointer-events:auto}
 #${CONTAINER_ID}>.lk-crb-animating.lk-crb-collapsed{opacity:0!important;transform:translateX(18px)!important;pointer-events:none}
@@ -236,8 +237,8 @@
 #${PANEL_ID}{width:min(450px,100%);max-height:min(560px,calc(100vh - 40px));overflow:auto;box-sizing:border-box;padding:0;border:1px solid #8ea4ff45;border-radius:18px;background:linear-gradient(155deg,#202637f7,#11141dfb);color:#f4f5f7;font:14px/1.4 system-ui,sans-serif;box-shadow:0 28px 90px #000d,0 0 0 1px #ffffff0c inset}
 #${PANEL_ID} .lk-crb-head,#${PANEL_ID} .lk-crb-actions{display:flex;align-items:center;gap:10px}
 #${PANEL_ID} .lk-crb-head{position:sticky;top:0;z-index:2;padding:18px 20px;background:#1b2030ed;border-bottom:1px solid #ffffff14} #${PANEL_ID} .lk-crb-head b{flex:1;font-size:18px}
-#${PANEL_ID} .lk-crb-body{padding:14px 18px 18px} #${PANEL_ID} .lk-crb-direction{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-#${PANEL_ID} .lk-crb-zone-label{margin:10px 2px 6px;color:#aeb7cc;font-size:12px;font-weight:700} #${PANEL_ID} .lk-crb-zone{min-height:72px;display:flex;align-content:flex-start;flex-wrap:wrap;gap:10px;padding:12px;border:1px dashed #7683a54d;border-radius:14px;background:#06081045;transition:border-color .15s,background .15s}
+#${PANEL_ID} .lk-crb-body{padding:14px 18px 18px} #${PANEL_ID} .lk-crb-direction{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:16px}
+#${PANEL_ID} .lk-crb-zone-label{margin:10px 2px 6px;color:#aeb7cc;font-size:14px;font-weight:700} #${PANEL_ID} .lk-crb-zone{min-height:72px;display:flex;align-content:flex-start;flex-wrap:wrap;gap:10px;padding:12px;border:1px dashed #7683a54d;border-radius:14px;background:#06081045;transition:border-color .15s,background .15s}
 #${PANEL_ID} .lk-crb-zone.lk-crb-zone-over{border-color:#91a4ff;background:#7d91ff12} #${PANEL_ID} .lk-crb-item{position:relative;width:54px;height:54px;display:grid;place-items:center;border:1px solid #ffffff20;border-radius:13px;background:#0b0e16;cursor:grab;overflow:hidden;transition:transform .15s,border-color .15s,opacity .15s}
 #${PANEL_ID} .lk-crb-item:hover{transform:translateY(-2px);border-color:#91a4ff} #${PANEL_ID} .lk-crb-item.lk-crb-sort-drag{opacity:.35} #${PANEL_ID} .lk-crb-item>*{max-width:100%!important;max-height:100%!important;width:100%!important;height:100%!important;object-fit:contain!important;pointer-events:none!important}
 #${PANEL_ID} .lk-crb-item svg{width:62%!important;height:62%!important;display:block!important;fill:currentColor!important} #${PANEL_ID} .lk-crb-item svg *{fill:currentColor!important} #${PANEL_ID} .lk-crb-emoji{display:grid!important;place-items:center;font-size:28px!important;line-height:1!important}
@@ -287,6 +288,13 @@
         target.appendChild(preview);
     }
 
+    function panelText() {
+        const language = typeof TranslationLanguage === 'string' ? TranslationLanguage.toUpperCase() : 'EN';
+        if (language === 'TW') return { title: '聊天室按鈕設定', close: '關閉', direction: '排列方向', rtl: '由右至左', ltr: '由左至右', visible: '顯示', hidden: '隱藏', reset: '還原預設' };
+        if (language === 'CN') return { title: '聊天室按钮设置', close: '关闭', direction: '排列方向', rtl: '由右至左', ltr: '由左至右', visible: '显示', hidden: '隐藏', reset: '恢复默认' };
+        return { title: 'Chat Button Settings', close: 'Close', direction: 'Direction', rtl: 'Right to left', ltr: 'Left to right', visible: 'Visible', hidden: 'Hidden', reset: 'Reset defaults' };
+    }
+
     function openSettingsPanel() {
         const old = document.getElementById(PANEL_ID + '-backdrop');
         if (old) { old.remove(); return; }
@@ -300,10 +308,12 @@
             saveSettings(); applyLayout();
         };
         const render = () => {
+            const text = panelText();
             const keys = orderedKeys(container);
             const sources = new Map(Array.from(container.children).map(el => [buttonKey(el), el]));
-            panel.innerHTML = `<div class="lk-crb-head"><b>聊天室按鈕設定</b><button class="lk-crb-close" data-close aria-label="關閉">×</button></div><div class="lk-crb-body"><label class="lk-crb-direction"><span>排列方向</span><select data-direction><option value="rtl">由右至左</option><option value="ltr">由左至右</option></select></label><div class="lk-crb-zone-label">顯示</div><div class="lk-crb-zone" data-zone="visible"></div><div class="lk-crb-zone-label">隱藏</div><div class="lk-crb-zone" data-zone="hidden"></div><div class="lk-crb-actions"><button data-reset>還原預設</button></div></div>`;
+            panel.innerHTML = `<div class="lk-crb-head"><b>${text.title}</b><button class="lk-crb-close" data-close aria-label="${text.close}">×</button></div><div class="lk-crb-body"><label class="lk-crb-direction"><span>${text.direction}</span><select data-direction><option value="rtl">${text.rtl}</option><option value="ltr">${text.ltr}</option></select></label><div class="lk-crb-zone-label">${text.visible}</div><div class="lk-crb-zone" data-zone="visible"></div><div class="lk-crb-zone-label">${text.hidden}</div><div class="lk-crb-zone" data-zone="hidden"></div><div class="lk-crb-actions"><button data-reset>${text.reset}</button></div></div>`;
             panel.querySelector('[data-direction]').value = settings().direction;
+            panel.querySelectorAll('.lk-crb-zone').forEach(zone => { zone.dir = settings().direction; });
             keys.forEach(key => {
                 const source = sources.get(key);
                 const hidden = settings().hidden.includes(key);
