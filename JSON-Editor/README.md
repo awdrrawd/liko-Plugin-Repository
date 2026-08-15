@@ -18,6 +18,7 @@ node dev/serve-local.mjs
 - `https://github.com/awdrrawd/liko-Plugin-Repository/`
 - `https://github.com/awdrrawd/liko-Plugin-Repository/tree/main`
 - 其他儲存庫、分支或子目錄的同類網址
+- GitHub 或 GitLab 的單一 `manifest.json` blob 網址
 
 也能以網址參數指定：
 
@@ -31,6 +32,7 @@ http://localhost:5175/JSON-Editor/index.html?repo=https://github.com/awdrrawd/li
 
 - 表單輸出一律透過 `JSON.stringify` 產生，不會有漏逗號或引號未跳脫的問題。
 - `external.json` 與 `manifest.json` 可直接拖曳左側插件卡片調整輸出順序。
+- Manifest 的名稱與說明同時相容純字串及 `{cn, en}`，版本來源支援 `stable`、`beta`、`dev`。
 - 下載前檢查各格式的必要欄位。
 - JSON 預覽可供進階修改，解析失敗時不能套用。
 - 表單只修改已知欄位，原始資料中的其他欄位會原樣保留。

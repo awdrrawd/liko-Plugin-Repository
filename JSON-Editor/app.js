@@ -13,7 +13,8 @@ const manifestFields = [
   ['description.cn','中文說明','textarea'],['description.en','英文說明','textarea'],
   ['additionalInfo.cn','中文補充','textarea'],['additionalInfo.en','英文補充','textarea'],
   ['author','作者'],['repository','儲存庫 URL','url'],['website','網站 URL','url'],['tags','標籤（逗號分隔）','csv'],
-  ['type','載入類型','select:module,script,eval'],['priority','優先順序','number'],['version','顯示版本'],['pcmskip','不加入 PCM','checkbox']
+  ['type','載入類型','select:module,script,eval'],['priority','優先順序','number'],['version','顯示版本'],
+  ['discord','Discord 網址','url'],['noCacheBusting','停用快取破壞參數','checkbox'],['pcmskip','不加入 PCM','checkbox']
 ];
 
 const $ = s => document.querySelector(s);
@@ -41,8 +42,26 @@ function githubRawBase(input){
   const subpath=treeAt>=0?parts.slice(treeAt+2).join('/'):'';
   return `https://raw.githubusercontent.com/${owner}/${repo.replace(/\.git$/,'')}/${branch}${subpath?'/'+subpath:''}`;
 }
+function directJsonSource(input){
+  let value=input.trim();if(!/^https?:\/\//i.test(value))value='https://'+value;
+  const url=new URL(value), parts=url.pathname.split('/').filter(Boolean);
+  if(!url.pathname.toLowerCase().endsWith('.json'))return null;
+  if(['github.com','www.github.com'].includes(url.hostname)){
+    const blobAt=parts.indexOf('blob');if(blobAt<2||!parts[blobAt+1])throw new Error('GitHub JSON 網址缺少 blob/分支');
+    url.hostname='raw.githubusercontent.com';url.pathname=`/${parts[0]}/${parts[1]}/${parts[blobAt+1]}/${parts.slice(blobAt+2).join('/')}`;
+  }else if(url.hostname==='gitlab.com'){
+    url.pathname=url.pathname.replace('/-/blob/','/-/raw/');
+  }
+  url.search='';url.hash='';return url.href;
+}
 async function loadRepo(){
   const repoUrl=$('#repositoryUrl').value;
+  const direct=directJsonSource(repoUrl);
+  if(direct){
+    const res=await fetch(direct,{cache:'no-store'});if(!res.ok)throw new Error(`JSON: HTTP ${res.status}`);const data=await res.json();
+    const file=Array.isArray(data.addons)?'manifest.json':Array.isArray(data.plugins)?'external.json':data.changelog?'meta.json':null;
+    if(!file)throw new Error('無法辨識這份 JSON 的格式');state.data[file]=data;state.current=file;state.selected=0;state.dirty.delete(file);localStorage.setItem('liko-json-repo',repoUrl);render();toast(`已直接載入 ${file}`);return;
+  }
   const base=githubRawBase(repoUrl);
   const loaded={};
   for(const f of FILES){const res=await fetch(`${base}/${f}`,{cache:'no-store'});if(!res.ok)throw new Error(`${f}: HTTP ${res.status}`);loaded[f]=await res.json();}
@@ -75,18 +94,19 @@ function renderForm(item){
   if(!item){$('#entryForm').innerHTML='<div class="empty">按「新增項目」開始編輯</div>';return;}
   const fields=state.current==='external.json'?externalFields:manifestFields;
   $('#entryForm').innerHTML=`<div class="form-head"><h2>${escapeHtml(entryLabel(item))}</h2><button type="button" id="deleteEntry" class="danger">刪除項目</button></div><div class="fields">${fields.map(f=>fieldHtml(item,...f)).join('')}${state.current==='manifest.json'?versionsHtml(item):''}</div>`;
-  $('#entryForm').querySelectorAll('[data-path]').forEach(el=>{el.oninput=()=>{let v=el.type==='checkbox'?el.checked:el.value;if(el.dataset.kind==='number')v=v===''?'':Number(v);if(el.dataset.kind==='csv')v=v.split(',').map(s=>s.trim()).filter(Boolean);if(el.dataset.kind==='lines')v=v.split('\n').map(s=>s.trim()).filter(Boolean);set(item,el.dataset.path,v);markDirty();};});
+  $('#entryForm').querySelectorAll('[data-path]').forEach(el=>{el.oninput=()=>{let v=el.type==='checkbox'?el.checked:el.value;if(el.dataset.kind==='number')v=v===''?'':Number(v);if(el.dataset.kind==='csv')v=v.split(',').map(s=>s.trim()).filter(Boolean);if(el.dataset.kind==='lines')v=v.split('\n').map(s=>s.trim()).filter(Boolean);const [root,lang]=el.dataset.path.split('.');if(state.current==='manifest.json'&&lang&&typeof item[root]==='string')item[root]={en:item[root]};set(item,el.dataset.path,v);markDirty();};});
   $('#deleteEntry').onclick=()=>{if(confirm(`確定刪除「${entryLabel(item)}」？`)){entries().splice(state.selected,1);state.selected=Math.max(0,state.selected-1);markDirty();renderList();}};
   bindVersions(item);
 }
 function fieldHtml(item,path,label,type='text',required=false){
-  const v=get(item,path), wide=['textarea','lines'].includes(type), req=required?' required':'';
+  const [root,lang]=path.split('.');
+  const v=state.current==='manifest.json'&&lang&&typeof item[root]==='string'?(lang==='en'?item[root]:''):get(item,path), wide=['textarea','lines'].includes(type), req=required?' required':'';
   if(type==='checkbox')return`<div class="field check wide"><input id="f-${path}" data-path="${path}" type="checkbox" ${v?'checked':''}><label for="f-${path}">${label}</label></div>`;
   if(type.startsWith('select:'))return`<div class="field"><label>${label}</label><select data-path="${path}">${type.slice(7).split(',').map(x=>`<option ${v===x?'selected':''}>${x}</option>`).join('')}</select></div>`;
   const shown=type==='csv'?(v||[]).join(', '):type==='lines'?(v||[]).join('\n'):(v??'');
   return`<div class="field ${wide?'wide':''}"><label>${label}${required?' *':''}</label>${wide?`<textarea data-path="${path}" data-kind="${type}"${req}>${escapeHtml(shown)}</textarea>`:`<input data-path="${path}" data-kind="${type}" type="${['url','number'].includes(type)?type:'text'}" value="${escapeHtml(shown)}"${req}>`}</div>`;
 }
-function versionsHtml(item){const vs=item.versions||[];return`<div class="field wide array-box"><label>版本來源 *</label><div id="versions">${vs.map((v,i)=>`<div class="array-row"><select data-version="${i}" data-key="distribution"><option ${v.distribution==='stable'?'selected':''}>stable</option><option ${v.distribution==='beta'?'selected':''}>beta</option></select><input data-version="${i}" data-key="source" type="url" value="${escapeHtml(v.source||'')}" placeholder="來源 URL"><button type="button" class="danger mini" data-remove-version="${i}">×</button></div>`).join('')}</div><button type="button" id="addVersion" class="mini">＋ 新增來源</button></div>`;}
+function versionsHtml(item){const vs=item.versions||[];return`<div class="field wide array-box"><label>版本來源 *</label><div id="versions">${vs.map((v,i)=>`<div class="array-row"><select data-version="${i}" data-key="distribution">${['stable','beta','dev'].map(x=>`<option ${v.distribution===x?'selected':''}>${x}</option>`).join('')}</select><input data-version="${i}" data-key="source" type="url" value="${escapeHtml(v.source||'')}" placeholder="來源 URL"><button type="button" class="danger mini" data-remove-version="${i}">×</button></div>`).join('')}</div><button type="button" id="addVersion" class="mini">＋ 新增來源</button></div>`;}
 function bindVersions(item){
   document.querySelectorAll('[data-version]').forEach(el=>el.oninput=()=>{item.versions[Number(el.dataset.version)][el.dataset.key]=el.value;markDirty();});
   document.querySelectorAll('[data-remove-version]').forEach(b=>b.onclick=()=>{item.versions.splice(Number(b.dataset.removeVersion),1);markDirty();renderForm(item);});
@@ -98,7 +118,7 @@ function renderMeta(){
   $('#updateId').oninput=e=>{d.updateId=e.target.value;markDirty();};
   for(const lang of ['cn','en'])$(`#${lang}Log`).oninput=e=>{d.changelog[lang]=e.target.value.split('\n').map(x=>x.trim()).filter(Boolean);markDirty();};
 }
-function validate(f,d){const errors=[];if(f==='external.json'){if(!Array.isArray(d.plugins))errors.push('plugins 必須是陣列');else d.plugins.forEach((x,i)=>{if(!x.id)errors.push(`第 ${i+1} 項缺少 id`);if(!x.url)errors.push(`${x.id||`第 ${i+1} 項`} 缺少 url`);});}else if(f==='manifest.json'){if(!Array.isArray(d.addons))errors.push('addons 必須是陣列');else d.addons.forEach((x,i)=>{const n=x.id||`第 ${i+1} 項`;if(!x.id)errors.push(`${n} 缺少 id`);if(!x.name?.cn||!x.name?.en)errors.push(`${n} 缺少中／英文名稱`);if(!Array.isArray(x.versions)||!x.versions.length||x.versions.some(v=>!v.source))errors.push(`${n} 缺少有效版本來源`);});}else{if(!d.updateId)errors.push('缺少 updateId');if(!Array.isArray(d.changelog?.cn)||!Array.isArray(d.changelog?.en))errors.push('changelog.cn/en 必須是陣列');}return errors;}
+function validate(f,d){const errors=[],hasText=v=>typeof v==='string'?!!v.trim():!!(v?.en||v?.cn);if(f==='external.json'){if(!Array.isArray(d.plugins))errors.push('plugins 必須是陣列');else d.plugins.forEach((x,i)=>{if(!x.id)errors.push(`第 ${i+1} 項缺少 id`);if(!x.url)errors.push(`${x.id||`第 ${i+1} 項`} 缺少 url`);});}else if(f==='manifest.json'){if(!Array.isArray(d.addons))errors.push('addons 必須是陣列');else d.addons.forEach((x,i)=>{const n=x.id||`第 ${i+1} 項`;if(!x.id)errors.push(`${n} 缺少 id`);if(!hasText(x.name))errors.push(`${n} 缺少名稱`);if(!Array.isArray(x.versions)||!x.versions.length||x.versions.some(v=>!v.source))errors.push(`${n} 缺少有效版本來源`);});}else{if(!d.updateId)errors.push('缺少 updateId');if(!Array.isArray(d.changelog?.cn)||!Array.isArray(d.changelog?.en))errors.push('changelog.cn/en 必須是陣列');}return errors;}
 function download(f,d){const errors=validate(f,d);if(errors.length&&!confirm(`發現 ${errors.length} 個問題：\n\n${errors.slice(0,8).join('\n')}\n\n仍要下載嗎？`))return;const blob=new Blob([JSON.stringify(d,null,2)+'\n'],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=f;a.click();URL.revokeObjectURL(a.href);state.dirty.delete(f);renderTabs();updateStatus();toast(`已下載 ${f}`);}
 function showPreview(){const f=state.current;$('#dialogTitle').textContent=`${f} · JSON 預覽與進階編輯`;$('#jsonPreview').value=JSON.stringify(state.data[f],null,2);checkPreview();$('#jsonDialog').showModal();}
 function checkPreview(){try{const d=JSON.parse($('#jsonPreview').value);const es=validate(state.current,d);$('#previewValidation').textContent=es.length?`JSON 正確，但有 ${es.length} 個欄位問題`:'✓ JSON 與必要欄位正確';return d;}catch(e){$('#previewValidation').textContent='JSON 錯誤：'+e.message;return null;}}
