@@ -4,6 +4,11 @@ A standalone, no-install web tool for safely editing `external.json`, `manifest.
 
 這是一個不需要安裝套件的獨立網頁工具,用表單安全維護 `external.json`、`manifest.json` 與 `meta.json`,不必手動處理逗號與括號。
 
+**Open it online 直接線上開啟:** https://awdrrawd.github.io/liko-Plugin-Repository/JSON-Editor/index.html
+
+> **Note 請注意**: Editing here does **not** change any file in the repository directly. Every change stays in your browser until you click "Download this file" / "Download all" to export the updated JSON — you then submit those downloaded files as a pull request (or upload them) yourself.
+> 在這裡編輯**不會**直接修改儲存庫中的檔案。所有變更都只存在瀏覽器裡,必須按「下載此檔」／「下載全部」把更新後的 JSON 匯出,再自行以 Pull Request(或上傳)方式提交那些下載下來的檔案。
+
 ## Tabs 分頁
 
 The tool has four tabs, shown in order: `meta`, `manifest`, `external`, `FUSAM` (meta is shown by default).
@@ -37,15 +42,23 @@ The tool has four tabs, shown in order: `meta`, `manifest`, `external`, `FUSAM` 
 
 ## Getting started 使用方式
 
-Start the existing local server from the repository root:
+By default, the tool loads the three JSON files directly from `https://github.com/awdrrawd/liko-Plugin-Repository/tree/main` — no need to copy files first, and no local setup required if you're using the online version linked above.
 
-建議從儲存庫根目錄啟動既有的本機伺服器:
+工具預設會直接從 `https://github.com/awdrrawd/liko-Plugin-Repository/tree/main` 讀取三個 JSON 檔,不需要先複製檔案;如果使用上方的線上版本,也完全不需要本機環境。
+
+### Running locally instead 改為在本機執行
+
+If you'd rather run it locally, start the existing local server from the repository root:
+
+若想在本機執行,建議從儲存庫根目錄啟動既有的本機伺服器:
 
 ```powershell
 node dev/serve-local.mjs
 ```
 
-Then open <http://localhost:5175/JSON-Editor/index.html>. By default, the tool loads the three JSON files directly from `https://github.com/awdrrawd/liko-Plugin-Repository/tree/main` — no need to copy files first.
+Then open <http://localhost:5175/JSON-Editor/index.html>.
+
+再開啟 <http://localhost:5175/JSON-Editor/index.html>。
 
 再開啟 <http://localhost:5175/JSON-Editor/index.html>。工具預設會直接從 `https://github.com/awdrrawd/liko-Plugin-Repository/tree/main` 讀取三個 JSON 檔,不需要先複製檔案。
 
