@@ -1,0 +1,75 @@
+/* Blue-violet theme and layout fixes kept separate from the compact base stylesheet. */
+:root {
+  --bg: #0d1018;
+  --panel: #151925;
+  --panel2: #1d2332;
+  --line: #30394c;
+  --text: #f4f6ff;
+  --muted: #9ca8c2;
+  --green: #8ba7ff;
+  --green2: #9b7cf7;
+  --danger: #ff7f8d;
+}
+
+body {
+  background:
+    radial-gradient(circle at 78% -8%, rgba(118, 86, 224, .22), transparent 32rem),
+    radial-gradient(circle at 15% 5%, rgba(62, 121, 224, .15), transparent 28rem),
+    var(--bg);
+}
+
+/* .layout has an author-level display rule, so explicitly restore hidden behavior. */
+[hidden] { display: none !important; }
+
+.primary,
+#addEntry {
+  color: #0b1020;
+  background: linear-gradient(135deg, #91b4ff, #a58aff);
+  border-color: #9ca6ff;
+}
+
+nav button.active {
+  color: #f7f8ff;
+  background: linear-gradient(135deg, #426fd4, #7959cf);
+  border-color: #9b8aef;
+}
+
+.entry-button.active {
+  border-color: #8ba7ff;
+  background: rgba(105, 126, 221, .14);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #8c86ee;
+  box-shadow: 0 0 0 3px rgba(124, 111, 229, .18);
+}
+
+#metaEditor {
+  min-height: min(680px, 72vh);
+  padding: clamp(18px, 2.5vw, 32px);
+}
+
+#metaEditor .fields {
+  grid-template-rows: auto minmax(440px, 1fr);
+  height: 100%;
+}
+
+#metaEditor .field:not(.wide) {
+  min-height: 440px;
+}
+
+#metaEditor textarea {
+  min-height: 410px;
+  height: 100%;
+  line-height: 1.65;
+  padding: 14px;
+}
+
+@media (max-width: 800px) {
+  #metaEditor { min-height: auto; }
+  #metaEditor .fields { grid-template-rows: auto; }
+  #metaEditor .field:not(.wide),
+  #metaEditor textarea { min-height: 300px; }
+}
