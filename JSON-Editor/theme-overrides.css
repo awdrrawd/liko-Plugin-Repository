@@ -39,6 +39,30 @@ nav button.active {
   background: rgba(105, 126, 221, .14);
 }
 
+.reorder-hint {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 2px 4px 10px;
+}
+
+.entry-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: grab;
+  transition: opacity .15s, transform .15s, border-color .15s;
+}
+
+.entry-button:active { cursor: grabbing; }
+.entry-button.dragging { opacity: .35; }
+.entry-button.drop-before { box-shadow: 0 -3px 0 #9b8aff; }
+.entry-button.drop-after { box-shadow: 0 3px 0 #9b8aff; }
+.drag-handle { color: #8fa0c8; font-size: 20px; line-height: 1; flex: none; }
+.entry-copy { min-width: 0; }
+.entry-copy strong,
+.entry-copy small { display: block; }
+
 input:focus,
 textarea:focus,
 select:focus {

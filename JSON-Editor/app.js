@@ -61,8 +61,14 @@ function entryLabel(x){return x.id||get(x,'name.en')||x.en_name||get(x,'name.cn'
 function renderList(){
   const q=$('#search').value.trim().toLowerCase(), list=entries();
   const indices=list.map((x,i)=>i).filter(i=>JSON.stringify(list[i]).toLowerCase().includes(q));
-  $('#entryList').innerHTML=indices.length?indices.map(i=>`<button type="button" class="entry-button ${i===state.selected?'active':''}" data-i="${i}"><strong>${escapeHtml(entryLabel(list[i]))}</strong><small>${escapeHtml(list[i].id||'無 ID')}</small></button>`).join(''):'<div class="empty">沒有符合的項目</div>';
-  $('#entryList').querySelectorAll('button').forEach(b=>b.onclick=()=>{state.selected=Number(b.dataset.i);renderList();});
+  $('#entryList').innerHTML=indices.length?`<div class="reorder-hint">拖曳卡片可調整插件順序</div>`+indices.map(i=>`<button type="button" draggable="true" class="entry-button ${i===state.selected?'active':''}" data-i="${i}"><span class="drag-handle" aria-hidden="true">⠿</span><span class="entry-copy"><strong>${escapeHtml(entryLabel(list[i]))}</strong><small>${escapeHtml(list[i].id||'無 ID')}</small></span></button>`).join(''):'<div class="empty">沒有符合的項目</div>';
+  $('#entryList').querySelectorAll('.entry-button').forEach(b=>{
+    b.onclick=()=>{state.selected=Number(b.dataset.i);renderList();};
+    b.ondragstart=e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',b.dataset.i);b.classList.add('dragging');};
+    b.ondragend=()=>$('#entryList').querySelectorAll('.entry-button').forEach(x=>x.classList.remove('dragging','drop-before','drop-after'));
+    b.ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect='move';const after=e.clientY>b.getBoundingClientRect().top+b.offsetHeight/2;$('#entryList').querySelectorAll('.entry-button').forEach(x=>x.classList.remove('drop-before','drop-after'));b.classList.add(after?'drop-after':'drop-before');};
+    b.ondrop=e=>{e.preventDefault();const source=Number(e.dataTransfer.getData('text/plain')),target=Number(b.dataset.i),after=b.classList.contains('drop-after');if(!Number.isInteger(source)||source===target)return;const selectedItem=list[state.selected],moved=list[source];let insert=target+(after?1:0);list.splice(source,1);if(source<insert)insert--;list.splice(insert,0,moved);state.selected=list.indexOf(selectedItem);markDirty();renderList();};
+  });
   renderForm(list[state.selected]);
 }
 function renderForm(item){

@@ -30,6 +30,7 @@ http://localhost:5175/JSON-Editor/index.html?repo=https://github.com/awdrrawd/li
 ## 安全設計
 
 - 表單輸出一律透過 `JSON.stringify` 產生，不會有漏逗號或引號未跳脫的問題。
+- `external.json` 與 `manifest.json` 可直接拖曳左側插件卡片調整輸出順序。
 - 下載前檢查各格式的必要欄位。
 - JSON 預覽可供進階修改，解析失敗時不能套用。
 - 表單只修改已知欄位，原始資料中的其他欄位會原樣保留。
