@@ -1,8 +1,8 @@
 # Liko JSON Editor 　Liko JSON 編輯器
 
-A standalone, no-install web tool for safely editing `external.json`, `manifest.json`, and `meta.json` through forms — no more hand-editing commas and brackets.
+A standalone, no-install web tool for safely editing `external.json`, `manifest.json`, `meta.json`, and `Translation-Tool/sites.json` through forms — no more hand-editing commas and brackets.
 
-這是一個不需要安裝套件的獨立網頁工具,用表單安全維護 `external.json`、`manifest.json` 與 `meta.json`,不必手動處理逗號與括號。
+這是一個不需要安裝套件的獨立網頁工具,用表單安全維護 `external.json`、`manifest.json`、`meta.json` 與 `Translation-Tool/sites.json`,不必手動處理逗號與括號。
 
 **Open it online 直接線上開啟:** https://awdrrawd.github.io/liko-Plugin-Repository/JSON-Editor/index.html
 
@@ -11,15 +11,16 @@ A standalone, no-install web tool for safely editing `external.json`, `manifest.
 
 ## Tabs 分頁
 
-The tool has four tabs, shown in order: `meta`, `manifest`, `external`, `FUSAM` (meta is shown by default).
+The tool has five tabs, shown in order: `meta`, `manifest`, `external`, `sites`, `FUSAM` (meta is shown by default).
 
-工具共有四個分頁,依序為 `meta`、`manifest`、`external`、`FUSAM`(預設顯示 meta)。
+工具共有五個分頁,依序為 `meta`、`manifest`、`external`、`sites`、`FUSAM`(預設顯示 meta)。
 
 | Tab 分頁 | English | 中文說明 |
 | --- | --- | --- |
 | `meta` | Edit the update ID and the Chinese/English changelog entries for this release. | 編輯本次更新的 updateId,以及中文／英文的更新內容(changelog)。 |
 | `manifest` | Edit your own repository's `manifest.json` — plugin/addon entries with bilingual name, description, tags, version sources, etc. | 編輯自己儲存庫的 `manifest.json`——插件項目的雙語名稱、說明、標籤、版本來源等。 |
 | `external` | Edit `external.json` — external plugin entries with bilingual name/description, stable and beta URLs, priority, etc. | 編輯 `external.json`——外部插件項目,含雙語名稱／說明、正式版與測試版網址、優先順序等。 |
+| `sites` | Edit `Translation-Tool/sites.json` — translation site IDs, names, URLs, enabled state, order, and default site. | 編輯 `Translation-Tool/sites.json`——翻譯站點 ID、名稱、網址、啟用狀態、順序及預設站點。 |
 | `FUSAM` | A separate pink-themed workspace for editing the **FUSAM** addon loader's `manifest.json`. See below for details. | 獨立的桃粉色工作區,用於編輯 **FUSAM** 插件載入器的 `manifest.json`,詳見下方說明。 |
 
 ## FUSAM support FUSAM 支援

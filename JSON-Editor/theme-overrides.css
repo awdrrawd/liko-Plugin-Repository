@@ -114,6 +114,8 @@ nav button[data-file="fusam.json"].active {
 .entry-copy strong,
 .entry-copy small { display: block; }
 
+.site-config { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 22px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: rgba(139, 167, 255, .05); }
+
 input:focus,
 textarea:focus,
 select:focus {
@@ -147,4 +149,5 @@ select:focus {
   #metaEditor .fields { grid-template-rows: auto; }
   #metaEditor .field:not(.wide),
   #metaEditor textarea { min-height: 300px; }
+  .site-config { grid-template-columns: 1fr; }
 }

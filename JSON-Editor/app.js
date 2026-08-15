@@ -1,6 +1,6 @@
-const FILES = ['meta.json', 'manifest.json', 'external.json', 'fusam.json'];
-const REPO_FILES = ['meta.json', 'manifest.json', 'external.json'];
-const FILE_LABELS = {'meta.json':'meta','manifest.json':'manifest','external.json':'external','fusam.json':'FUSAM'};
+const FILES = ['meta.json', 'manifest.json', 'external.json', 'sites.json', 'fusam.json'];
+const REPO_FILES = ['meta.json', 'manifest.json', 'external.json', 'sites.json'];
+const FILE_LABELS = {'meta.json':'meta','manifest.json':'manifest','external.json':'external','sites.json':'sites','fusam.json':'FUSAM'};
 const FUSAM_URL = 'https://gitlab.com/Sidiousious/bc-addon-loader/-/raw/main/manifest.json?ref_type=heads';
 const state = { current: 'meta.json', selected: 0, data: {}, dirty: new Set() };
 
@@ -19,6 +19,7 @@ const manifestFields = [
   ['type','載入類型','select:module,script,eval'],['priority','優先順序','number'],['version','顯示版本'],
   ['discord','Discord 網址','url'],['noCacheBusting','停用快取破壞參數','checkbox'],['pcmskip','不加入 PCM','checkbox']
 ];
+const siteFields = [['id','ID','text',true],['name','顯示名稱','text',true],['url','翻譯資料夾網址','url',true],['order','排序','number'],['enabled','啟用','checkbox']];
 
 const $ = s => document.querySelector(s);
 const clone = x => JSON.parse(JSON.stringify(x));
@@ -28,7 +29,7 @@ function cleanup(o){for(const k of Object.keys(o)){if(o[k]&&typeof o[k]==='objec
 function escapeHtml(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function toast(msg){const e=$('#toast');e.textContent=msg;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),2200);}
 function markDirty(){state.dirty.add(state.current);renderTabs();updateStatus();}
-function updateStatus(){const d=state.data[state.current];const n=d?.plugins?.length??d?.addons?.length;$('#fileStatus').textContent=(state.dirty.has(state.current)?'● 尚未下載':'✓ 已載入')+(n!=null?` · ${n} 項`:'');}
+function updateStatus(){const d=state.data[state.current];const n=d?.plugins?.length??d?.addons?.length??d?.sites?.length;$('#fileStatus').textContent=(state.dirty.has(state.current)?'● 尚未下載':'✓ 已載入')+(n!=null?` · ${n} 項`:'');}
 
 function githubRawBase(input){
   let value=input.trim();
@@ -65,12 +66,12 @@ async function loadRepo(){
   const direct=directJsonSource(repoUrl);
   if(direct){
     const res=await fetch(direct,{cache:'no-store'});if(!res.ok)throw new Error(`JSON: HTTP ${res.status}`);const data=await res.json();
-    const file=Array.isArray(data.addons)?'fusam.json':Array.isArray(data.plugins)?'external.json':data.changelog?'meta.json':null;
+    const file=Array.isArray(data.addons)?'fusam.json':Array.isArray(data.plugins)?'external.json':Array.isArray(data.sites)?'sites.json':data.changelog?'meta.json':null;
     if(!file)throw new Error('無法辨識這份 JSON 的格式');state.data[file]=data;state.current=file;state.selected=0;state.dirty.delete(file);render();toast(`已直接載入 ${FILE_LABELS[file]}`);return;
   }
   const base=githubRawBase(repoUrl);
   const loaded={};
-  for(const f of REPO_FILES){const res=await fetch(`${base}/${f}`,{cache:'no-store'});if(!res.ok)throw new Error(`${f}: HTTP ${res.status}`);loaded[f]=await res.json();}
+  for(const f of REPO_FILES){const path=f==='sites.json'?'Translation-Tool/sites.json':f,res=await fetch(`${base}/${path}`,{cache:'no-store'});if(!res.ok)throw new Error(`${path}: HTTP ${res.status}`);loaded[f]=await res.json();}
   state.data={...state.data,...loaded};state.dirty.clear();state.selected=0;localStorage.setItem('liko-json-repo',repoUrl);render();toast('已直接載入 GitHub 儲存庫資料');
 }
 async function loadFusam(){
@@ -78,16 +79,16 @@ async function loadFusam(){
   const res=await fetch(directJsonSource(FUSAM_URL),{cache:'no-store'});if(!res.ok)throw new Error(`FUSAM: HTTP ${res.status}`);const data=await res.json();
   if(!Array.isArray(data.addons))throw new Error('FUSAM manifest 缺少 addons 陣列');state.data['fusam.json']=data;state.selected=0;render();toast(`已自動載入 FUSAM · ${data.addons.length} 項`);
 }
-function defaultData(f){if(f==='external.json')return{_comment:'PCM-only entries NOT published to the FUSAM manifest.',plugins:[]};if(f==='manifest.json'||f==='fusam.json')return{version:'1',addons:[]};return{updateId:new Date().toISOString().slice(2,10).replaceAll('-',''),changelog:{cn:[],en:[]}};}
+function defaultData(f){if(f==='external.json')return{_comment:'PCM-only entries NOT published to the FUSAM manifest.',plugins:[]};if(f==='manifest.json'||f==='fusam.json')return{version:'1',addons:[]};if(f==='sites.json')return{version:1,defaultSite:'',sites:[]};return{updateId:new Date().toISOString().slice(2,10).replaceAll('-',''),changelog:{cn:[],en:[]}};}
 const isManifest=()=>state.current==='manifest.json'||state.current==='fusam.json';
-async function init(){FILES.forEach(f=>state.data[f]=defaultData(f));const queryRepo=new URLSearchParams(location.search).get('repo'),savedRepo=localStorage.getItem('liko-json-repo')||'',safeSaved=/\.json(?:[?#]|$)/i.test(savedRepo)?'':savedRepo;$('#repositoryUrl').value=queryRepo||safeSaved||$('#repositoryUrl').value;renderTabs();render();try{await loadRepo();state.current='meta.json';render();}catch(e){state.current='meta.json';render();toast('載入失敗：'+e.message);}}
+async function init(){FILES.forEach(f=>state.data[f]=defaultData(f));const queryRepo=new URLSearchParams(location.search).get('repo'),savedRepo=localStorage.getItem('liko-json-repo')||'',safeSaved=/\.json(?:[?#]|$)/i.test(savedRepo)?'':savedRepo;$('#repositoryUrl').value=queryRepo||safeSaved||$('#repositoryUrl').value;renderTabs();render();try{await loadRepo();render();}catch(e){render();toast('載入失敗：'+e.message);}}
 
 function renderTabs(){
   $('#tabs').innerHTML=FILES.map(f=>`<button data-file="${f}" class="${f===state.current?'active':''}">${state.dirty.has(f)?'● ':''}${FILE_LABELS[f]}</button>`).join('');
   $('#tabs').querySelectorAll('button').forEach(b=>b.onclick=async()=>{state.current=b.dataset.file;state.selected=0;$('#search').value='';render();if(state.current==='fusam.json')try{await loadFusam();}catch(e){toast('FUSAM 載入失敗：'+e.message);}});
 }
 function render(){document.body.dataset.workspace=state.current==='fusam.json'?'fusam':'default';renderTabs();$('#fileTitle').textContent=FILE_LABELS[state.current];const meta=state.current==='meta.json';$('#metaEditor').hidden=!meta;$('#listEditor').hidden=meta;$('#addEntry').hidden=meta;$('#search').hidden=meta;if(meta)renderMeta();else renderList();updateStatus();}
-function entries(){const d=state.data[state.current];return state.current==='external.json'?d.plugins:d.addons;}
+function entries(){const d=state.data[state.current];return state.current==='external.json'?d.plugins:state.current==='sites.json'?d.sites:d.addons;}
 function entryLabel(x){return x.id||get(x,'name.en')||x.en_name||get(x,'name.cn')||x.name||'未命名項目';}
 function renderList(){
   const q=$('#search').value.trim().toLowerCase(), list=entries();
@@ -104,12 +105,15 @@ function renderList(){
 }
 function renderForm(item){
   if(!item){$('#entryForm').innerHTML='<div class="empty">按「新增項目」開始編輯</div>';return;}
-  const fields=state.current==='external.json'?externalFields:manifestFields;
-  $('#entryForm').innerHTML=`<div class="form-head"><h2>${escapeHtml(entryLabel(item))}</h2><button type="button" id="deleteEntry" class="danger">刪除項目</button></div><div class="fields">${fields.map(f=>fieldHtml(item,...f)).join('')}${isManifest()?versionsHtml(item):''}</div>`;
+  const fields=state.current==='external.json'?externalFields:state.current==='sites.json'?siteFields:manifestFields;
+  const siteConfig=state.current==='sites.json'?siteConfigHtml():'';
+  $('#entryForm').innerHTML=`${siteConfig}<div class="form-head"><h2>${escapeHtml(entryLabel(item))}</h2><button type="button" id="deleteEntry" class="danger">刪除項目</button></div><div class="fields">${fields.map(f=>fieldHtml(item,...f)).join('')}${isManifest()?versionsHtml(item):''}</div>`;
   $('#entryForm').querySelectorAll('[data-path]').forEach(el=>{el.oninput=()=>{let v=el.type==='checkbox'?el.checked:el.value;if(el.dataset.kind==='number')v=v===''?'':Number(v);if(el.dataset.kind==='csv')v=v.split(',').map(s=>s.trim()).filter(Boolean);if(el.dataset.kind==='lines')v=v.split('\n').map(s=>s.trim()).filter(Boolean);const [root,lang]=el.dataset.path.split('.');if(isManifest()&&lang&&typeof item[root]==='string')item[root]={en:item[root]};set(item,el.dataset.path,v);markDirty();};});
   $('#deleteEntry').onclick=()=>{if(confirm(`確定刪除「${entryLabel(item)}」？`)){entries().splice(state.selected,1);state.selected=Math.max(0,state.selected-1);markDirty();renderList();}};
+  $('#entryForm').querySelectorAll('[data-root-path]').forEach(el=>el.oninput=()=>{state.data['sites.json'][el.dataset.rootPath]=el.dataset.kind==='number'?Number(el.value):el.value;markDirty();});
   bindVersions(item);
 }
+function siteConfigHtml(){const d=state.data['sites.json'];return`<div class="site-config"><div class="field"><label>檔案版本</label><input data-root-path="version" data-kind="number" type="number" value="${escapeHtml(d.version??1)}"></div><div class="field"><label>預設站點</label><select data-root-path="defaultSite"><option value="">未指定</option>${(d.sites||[]).map(s=>`<option value="${escapeHtml(s.id)}" ${d.defaultSite===s.id?'selected':''}>${escapeHtml(s.name||s.id)}</option>`).join('')}</select></div></div>`;}
 function fieldHtml(item,path,label,type='text',required=false){
   const [root,lang]=path.split('.');
   const v=isManifest()&&lang&&typeof item[root]==='string'?(lang==='en'?item[root]:''):get(item,path), wide=['textarea','lines'].includes(type), req=required?' required':'';
@@ -130,7 +134,7 @@ function renderMeta(){
   $('#updateId').oninput=e=>{d.updateId=e.target.value;markDirty();};
   for(const lang of ['cn','en'])$(`#${lang}Log`).oninput=e=>{d.changelog[lang]=e.target.value.split('\n').map(x=>x.trim()).filter(Boolean);markDirty();};
 }
-function validate(f,d){const errors=[],hasText=v=>typeof v==='string'?!!v.trim():!!(v?.en||v?.cn);if(f==='external.json'){if(!Array.isArray(d.plugins))errors.push('plugins 必須是陣列');else d.plugins.forEach((x,i)=>{if(!x.id)errors.push(`第 ${i+1} 項缺少 id`);if(!x.url)errors.push(`${x.id||`第 ${i+1} 項`} 缺少 url`);});}else if(f==='manifest.json'||f==='fusam.json'){if(!Array.isArray(d.addons))errors.push('addons 必須是陣列');else d.addons.forEach((x,i)=>{const n=x.id||`第 ${i+1} 項`;if(!x.id)errors.push(`${n} 缺少 id`);if(!hasText(x.name))errors.push(`${n} 缺少名稱`);if(!Array.isArray(x.versions)||!x.versions.length||x.versions.some(v=>!v.source))errors.push(`${n} 缺少有效版本來源`);});}else{if(!d.updateId)errors.push('缺少 updateId');if(!Array.isArray(d.changelog?.cn)||!Array.isArray(d.changelog?.en))errors.push('changelog.cn/en 必須是陣列');}return errors;}
+function validate(f,d){const errors=[],hasText=v=>typeof v==='string'?!!v.trim():!!(v?.en||v?.cn);if(f==='external.json'){if(!Array.isArray(d.plugins))errors.push('plugins 必須是陣列');else d.plugins.forEach((x,i)=>{if(!x.id)errors.push(`第 ${i+1} 項缺少 id`);if(!x.url)errors.push(`${x.id||`第 ${i+1} 項`} 缺少 url`);});}else if(f==='manifest.json'||f==='fusam.json'){if(!Array.isArray(d.addons))errors.push('addons 必須是陣列');else d.addons.forEach((x,i)=>{const n=x.id||`第 ${i+1} 項`;if(!x.id)errors.push(`${n} 缺少 id`);if(!hasText(x.name))errors.push(`${n} 缺少名稱`);if(!Array.isArray(x.versions)||!x.versions.length||x.versions.some(v=>!v.source))errors.push(`${n} 缺少有效版本來源`);});}else if(f==='sites.json'){if(!Array.isArray(d.sites))errors.push('sites 必須是陣列');else d.sites.forEach((x,i)=>{const n=x.id||`第 ${i+1} 項`;if(!x.id)errors.push(`${n} 缺少 id`);if(!x.name)errors.push(`${n} 缺少名稱`);if(!x.url)errors.push(`${n} 缺少網址`);});if(d.defaultSite&&!d.sites?.some(x=>x.id===d.defaultSite))errors.push('defaultSite 不在 sites 清單中');}else{if(!d.updateId)errors.push('缺少 updateId');if(!Array.isArray(d.changelog?.cn)||!Array.isArray(d.changelog?.en))errors.push('changelog.cn/en 必須是陣列');}return errors;}
 function download(f,d){const errors=validate(f,d),outputName=f==='fusam.json'?'FUSAM-manifest.json':f;if(errors.length&&!confirm(`發現 ${errors.length} 個問題：\n\n${errors.slice(0,8).join('\n')}\n\n仍要下載嗎？`))return;const blob=new Blob([JSON.stringify(d,null,2)+'\n'],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=outputName;a.click();URL.revokeObjectURL(a.href);state.dirty.delete(f);renderTabs();updateStatus();toast(`已下載 ${outputName}`);}
 function showPreview(){const f=state.current;$('#dialogTitle').textContent=`${f} · JSON 預覽與進階編輯`;$('#jsonPreview').value=JSON.stringify(state.data[f],null,2);checkPreview();$('#jsonDialog').showModal();}
 function checkPreview(){try{const d=JSON.parse($('#jsonPreview').value);const es=validate(state.current,d);$('#previewValidation').textContent=es.length?`JSON 正確，但有 ${es.length} 個欄位問題`:'✓ JSON 與必要欄位正確';return d;}catch(e){$('#previewValidation').textContent='JSON 錯誤：'+e.message;return null;}}
@@ -138,7 +142,7 @@ function checkPreview(){try{const d=JSON.parse($('#jsonPreview').value);const es
 $('#loadRepo').onclick=()=>loadRepo().catch(e=>toast('載入失敗：'+e.message));
 $('#fileInput').onchange=async e=>{for(const file of e.target.files){const target=file.name==='FUSAM-manifest.json'?'fusam.json':file.name;if(!FILES.includes(target)){toast(`略過未知檔名：${file.name}`);continue;}try{state.data[target]=JSON.parse(await file.text());state.dirty.add(target);}catch(err){alert(`${file.name} 無法解析：${err.message}`);}}render();e.target.value='';};
 $('#search').oninput=renderList;
-$('#addEntry').onclick=()=>{const x=state.current==='external.json'?{id:'new-plugin',name:'',en_name:'',description:'',en_description:'',url:'',priority:10}:{id:'new-addon',name:{cn:'',en:''},description:{cn:'',en:''},author:'',repository:'',tags:[],type:'eval',versions:[{distribution:'stable',source:''}],priority:10};entries().push(x);state.selected=entries().length-1;markDirty();renderList();};
+$('#addEntry').onclick=()=>{const x=state.current==='external.json'?{id:'new-plugin',name:'',en_name:'',description:'',en_description:'',url:'',priority:10}:state.current==='sites.json'?{id:'new-site',name:'New Translation',url:'',enabled:true,order:10}:{id:'new-addon',name:{cn:'',en:''},description:{cn:'',en:''},author:'',repository:'',tags:[],type:'eval',versions:[{distribution:'stable',source:''}],priority:10};entries().push(x);state.selected=entries().length-1;markDirty();renderList();};
 $('#saveFile').onclick=()=>download(state.current,state.data[state.current]);
 $('#saveAll').onclick=()=>FILES.forEach((f,i)=>setTimeout(()=>download(f,state.data[f]),i*180));
 $('#formatPreview').onclick=showPreview;$('#closeDialog').onclick=()=>$('#jsonDialog').close();$('#jsonPreview').oninput=checkPreview;
