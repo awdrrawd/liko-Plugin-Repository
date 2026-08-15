@@ -18,6 +18,45 @@ body {
     var(--bg);
 }
 
+body[data-workspace="fusam"] {
+  --bg: #180e17;
+  --panel: #21141f;
+  --panel2: #2b1928;
+  --line: #503047;
+  --muted: #c2a2b6;
+  --green: #ff9fca;
+  --green2: #ee79ad;
+  background:
+    radial-gradient(circle at 78% -8%, rgba(239, 92, 164, .25), transparent 34rem),
+    radial-gradient(circle at 12% 8%, rgba(255, 143, 191, .14), transparent 28rem),
+    var(--bg);
+}
+
+body[data-workspace="fusam"] .primary,
+body[data-workspace="fusam"] #addEntry {
+  color: #2a0b1a;
+  border-color: #ff9dca;
+  background: linear-gradient(135deg, #ffafd2, #ee79ad);
+}
+
+body[data-workspace="fusam"] nav button.active {
+  color: #2a0b1a;
+  border-color: #ff9dca;
+  background: linear-gradient(135deg, #ff9fc9, #ee79ad);
+}
+
+body[data-workspace="fusam"] .entry-button.active {
+  border-color: #ff9fc9;
+  background: rgba(238, 121, 173, .14);
+}
+
+body[data-workspace="fusam"] input:focus,
+body[data-workspace="fusam"] textarea:focus,
+body[data-workspace="fusam"] select:focus {
+  border-color: #ee79ad;
+  box-shadow: 0 0 0 3px rgba(238, 121, 173, .18);
+}
+
 /* .layout has an author-level display rule, so explicitly restore hidden behavior. */
 [hidden] { display: none !important; }
 
@@ -32,6 +71,18 @@ nav button.active {
   color: #f7f8ff;
   background: linear-gradient(135deg, #426fd4, #7959cf);
   border-color: #9b8aef;
+}
+
+nav button[data-file="fusam.json"] {
+  color: #ff9fca;
+  border-color: #8b4569;
+  background: rgba(113, 43, 82, .18);
+}
+
+nav button[data-file="fusam.json"].active {
+  color: #2a0b1a;
+  border-color: #ff9dca;
+  background: linear-gradient(135deg, #ff9fc9, #ee79ad);
 }
 
 .entry-button.active {

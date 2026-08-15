@@ -2,6 +2,10 @@
 
 這是一個不需要安裝套件的獨立網頁工具，分別處理 `external.json`、`manifest.json` 與 `meta.json` 的資料結構。
 
+分頁依序為 `meta`、`manifest`、`external`、`FUSAM`，預設顯示 meta。FUSAM 是獨立的桃粉色工作區，切換時整體介面會改用桃粉色系；從外部網址載入的 manifest 不會覆蓋本地 manifest 資料。
+
+切換至 FUSAM 時會自動從 `https://gitlab.com/Sidiousious/bc-addon-loader/-/raw/main/manifest.json?ref_type=heads` 載入最新資料，不需要手動輸入網址。若 FUSAM 有尚未下載的修改，工具會保留內容而不自動覆蓋。
+
 ## 使用方式
 
 建議從儲存庫根目錄啟動既有的本機伺服器：
@@ -19,6 +23,8 @@ node dev/serve-local.mjs
 - `https://github.com/awdrrawd/liko-Plugin-Repository/tree/main`
 - 其他儲存庫、分支或子目錄的同類網址
 - GitHub 或 GitLab 的單一 `manifest.json` blob 網址
+
+GitLab 的 blob／raw 網址會自動改用具備瀏覽器跨來源支援的 GitLab API 端點。
 
 也能以網址參數指定：
 
