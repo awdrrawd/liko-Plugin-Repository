@@ -665,7 +665,7 @@
         if (!sdkOk) { err("bcModSdk 載入失敗，停止"); return; }
 
         modApi = bcModSdk.registerMod({
-            name: "Liko-CRA",
+            name: "Liko - CRA",
             fullName: "Liko - ChatRoom Assistant",
             version: MOD_VER,
             repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
