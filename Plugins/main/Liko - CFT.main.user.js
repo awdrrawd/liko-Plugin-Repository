@@ -25,7 +25,7 @@
     const BtnX = 955, BtnY = 900, BtnSize = 45;
 
     modApi = bcModSdk.registerMod({
-        name: "Liko's CFT",
+        name: "Liko - CFT",
         fullName: "Liko's Chat Filter Tool",
         version: MOD_VER,
         repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
