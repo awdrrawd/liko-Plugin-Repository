@@ -20,20 +20,13 @@ Append an item to `sites`:
 }
 ```
 
-- `id`: unique stable identifier; use it in `defaultSite` to make this entry the default.
-  `id`:唯一且固定的識別碼;在 `defaultSite` 中使用它可將此項目設為預設。
-
-- `name`: label shown in the shortcut selector.
-  `name`:顯示在捷徑選單中的標籤名稱。
-
-- `url`: GitHub translation folder or file URL.
-  `url`:GitHub 上翻譯資料夾或檔案的網址。
-
-- `enabled`: set to `false` to hide an entry without deleting it.
-  `enabled`:設為 `false` 可隱藏該項目而不刪除它。
-
-- `order`: lower numbers appear first.
-  `order`:數字越小,排序越前面。
+| Field 欄位 | English | 中文說明 |
+| --- | --- | --- |
+| `id` | Unique stable identifier; use it in `defaultSite` to make this entry the default. | 唯一且固定的識別碼;在 `defaultSite` 中使用它可將此項目設為預設。 |
+| `name` | Label shown in the shortcut selector. | 顯示在捷徑選單中的標籤名稱。 |
+| `url` | GitHub translation folder or file URL. | GitHub 上翻譯資料夾或檔案的網址。 |
+| `enabled` | Set to `false` to hide an entry without deleting it. | 設為 `false` 可隱藏該項目而不刪除它。 |
+| `order` | Lower numbers appear first. | 數字越小,排序越前面。 |
 
 The published page is expected at:
 
