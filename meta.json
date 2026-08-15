@@ -1,29 +1,33 @@
 {
-  "updateId": "260813",
+  "updateId": "260815",
   "changelog": {
     "cn": [
       "⭐AEE - 外觀編輯拓展 更新",
-      "新增線上衣櫃容量檢測(180kb)，超出時會禁止保存",
-      "新增在設定頁能看到衣櫃的容量(目前設置180KB)",
-      "修改衣櫃服裝排序功能，現在能使用拖曳方式",
-      "修改衣櫃匯出服裝時，現在能選單一服裝而非整個衣櫃",
+      "調整服裝試穿功能現在在更衣狀態額外做一個按鈕控制停用",
+      "新增拘束試穿功能(在設定頁與服裝試穿同一個總按鈕)",
+      "新增隱藏預覽顯示角色的按鈕，仍保持替換髮型的預覽效果",
+      "新增隱藏興奮條與其他ICON功能(與LCE、HHA功能一致，不衝突)",
+      "新增自由繪圖顯示繪圖邊界",
+      "新增自由繪圖能匯入圖片(測試功能)",
       "⭐小酥的動作拓展 更新",
-      "修改讓互動按紐穩定加載",
-      "新增缺少的翻譯，現在支援遊戲的7國語言",
-      "⭐BC - 快捷互动插件 更新",
-      "修改收藏動作頁面，現在對全員互動"
+      "修復隱藏或顯示kaomoji的功能(/xsa kaomoji show|hide)",
+      "⭐其他更動",
+      "替換了信息發送按鈕的功能(右下角)",
+      "能常駐、隱藏、排序按鈕，並自定義按鈕數量"
     ],
     "en": [
-      "⭐AEE Appearance Editor Extension - Update",
-      "Added online wardrobe capacity check (180KB); saving will be blocked when exceeded",
-      "Added wardrobe capacity display in settings page (currently set to 180KB)",
-      "Modified wardrobe outfit sorting feature, now supports drag-and-drop",
-      "Modified wardrobe outfit export feature, now allows selecting a single outfit instead of the entire wardrobe",
-      "⭐XiaoSuActivity - Update",
-      "Added missing translations; now supports all 7 in-game languages",
-      "Modified to stabilize interaction button loading",
-      "⭐BC quick-interaction - Update",
-      "Modified favorite actions page, now supports interaction with all members"
+      "⭐ AEE - Appearance editing extension Update",
+      "Adjusted the outfit try-on feature; it now has an additional toggle button in the dressing state to disable the function.",
+      "Added a restraint try-on feature (shares the same master toggle as outfit try-on in the settings page).",
+      "Added a button to hide the character preview while still maintaining the hairstyle replacement preview effect.",
+      "Added a function to hide the arousal meter and other icons (consistent with LCE and HHA features, no conflicts).",
+      "Added a feature to display drawing boundaries in Free Draw.",
+      "Added image import support for Free Draw (experimental).",
+      "⭐ XS - XiaoSuActivity Update",
+      "Fixed the kaomoji hide/show function (/xsa kaomoji show|hide).",
+      "⭐ Other Changes",
+      "Replaced the function of the message send button.",
+      "Now supports permanently displaying, hiding, and reordering buttons, with customizable button count."
     ]
   }
 }
