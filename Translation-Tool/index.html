@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Translation Studio</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(20, 28, 50, .86);
+      --panel-2: #18213a;
+      --line: #2a385d;
+      --text: #e8ecf8;
+      --muted: #93a2c8;
+      --accent: #8b7cf6;
+      --accent-2: #52d6c7;
+      --warn: #ffbd69;
+      --danger: #ff7285;
+      --ok: #70dfa3;
+      --shadow: 0 24px 70px rgba(0, 0, 0, .28);
+    }
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--bg); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font: 14px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 12% 0%, rgba(139,124,246,.18), transparent 31rem),
+        radial-gradient(circle at 88% 8%, rgba(82,214,199,.12), transparent 27rem),
+        var(--bg);
+    }
+    button, input, select, textarea { font: inherit; }
+    button, select, input { min-height: 40px; }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--text);
+      background: var(--panel-2);
+      cursor: pointer;
+      padding: 0 14px;
+      transition: border-color .15s, transform .15s, background .15s;
+    }
+    button:hover { border-color: var(--accent); background: #202b4a; }
+    button:active { transform: translateY(1px); }
+    button.primary { border-color: transparent; background: linear-gradient(135deg, var(--accent), #7060e8); font-weight: 700; }
+    button.primary:hover { background: linear-gradient(135deg, #9a8df8, #7868ec); }
+    button:disabled { cursor: wait; opacity: .55; }
+    input, select {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--text);
+      background: #0f172c;
+      padding: 0 12px;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(139,124,246,.14); }
+    .shell { width: min(1500px, calc(100% - 32px)); margin: 0 auto; padding: 38px 0 60px; }
+    header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+    .eyebrow { color: var(--accent-2); font-size: 12px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 5px 0 4px; font-size: clamp(27px, 4vw, 43px); line-height: 1.1; letter-spacing: -.035em; }
+    .subtitle { margin: 0; color: var(--muted); }
+    .ui-language { display: grid; gap: 5px; min-width: 170px; }
+    .ui-language label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .card { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(16px); }
+    .loader { padding: 16px; display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+    .url-row { display: grid; grid-template-columns: minmax(200px, 1fr) auto minmax(150px, 210px); gap: 10px; }
+    #repoUrl { width: 100%; }
+    .hint { margin: 10px 2px 0; color: var(--muted); font-size: 12px; }
+    .status { height: 40px; align-self: start; display: flex; align-items: center; justify-content: flex-end; color: var(--muted); min-width: 180px; }
+    .status.ok { color: var(--ok); }
+    .status.error { color: var(--danger); }
+    .workspace { margin-top: 18px; overflow: hidden; }
+    .toolbar { padding: 16px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+    .field { display: grid; gap: 5px; }
+    .field label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .field.grow { flex: 1 1 240px; }
+    #search { width: 100%; }
+    .lang-select { min-width: 150px; }
+    .toolbar-actions { display: flex; gap: 8px; margin-left: auto; }
+    .summary { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); }
+    .metric { min-height: 46px; padding: 9px 14px; border-right: 1px solid var(--line); display: flex; align-items: baseline; gap: 8px; }
+    .metric:last-child { border-right: 0; }
+    .metric strong { font-size: 18px; line-height: 1.2; }
+    .metric span { color: var(--muted); font-size: 12px; }
+    .progress { height: 4px; background: #0e162a; }
+    .progress > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .25s; }
+    .table-head, .entry { display: grid; grid-template-columns: minmax(170px, .55fr) minmax(260px, 1fr) minmax(260px, 1fr) 54px; }
+    .table-head { position: sticky; top: 0; z-index: 2; color: var(--muted); background: #111a30; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .table-head > div { padding: 10px 14px; }
+    #entries { max-height: min(68vh, 830px); overflow: auto; }
+    .entry { border-bottom: 1px solid rgba(42,56,93,.72); align-items: stretch; }
+    .entry:last-child { border-bottom: 0; }
+    .entry:hover { background: rgba(139,124,246,.035); }
+    .cell { padding: 12px 14px; border-right: 1px solid rgba(42,56,93,.58); min-width: 0; }
+    .key { color: #c7d1ec; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+    .key small { display: block; margin-top: 6px; color: var(--danger); font-family: inherit; }
+    textarea { width: 100%; min-height: 72px; resize: vertical; border: 1px solid transparent; border-radius: 8px; color: var(--text); background: transparent; padding: 8px; outline: none; line-height: 1.45; }
+    textarea.source { color: #bdc7df; }
+    textarea.target { background: rgba(8,14,29,.55); border-color: rgba(42,56,93,.7); }
+    textarea.invalid { border-color: var(--danger); background: rgba(255,114,133,.055); }
+    .state { display: grid; place-items: center; color: var(--muted); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px rgba(112,223,163,.1); }
+    .dot.missing { background: var(--warn); box-shadow: 0 0 0 4px rgba(255,189,105,.1); }
+    .dot.same { background: #7da8ff; box-shadow: 0 0 0 4px rgba(125,168,255,.1); }
+    .dot.invalid { background: var(--danger); box-shadow: 0 0 0 4px rgba(255,114,133,.1); }
+    .empty { padding: 70px 24px; text-align: center; color: var(--muted); }
+    .empty strong { display: block; color: var(--text); font-size: 18px; margin-bottom: 5px; }
+    .pager { min-height: 54px; padding: 8px 14px; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); }
+    .pager-actions { display: flex; align-items: center; gap: 8px; }
+    .pager button { min-height: 34px; padding: 0 11px; }
+    .pager button:disabled { cursor: default; opacity: .35; }
+    .new-lang { display: flex; gap: 6px; }
+    #newLang { width: 72px; text-transform: uppercase; }
+    .field-title { min-height: 18px; display: flex; align-items: center; gap: 6px; }
+    .help-btn { width: 20px; min-height: 20px; height: 20px; padding: 0; border-radius: 50%; color: var(--accent-2); font-size: 11px; font-weight: 900; }
+    dialog { width: min(760px, calc(100% - 24px)); max-height: min(82vh, 760px); border: 1px solid var(--line); border-radius: 18px; color: var(--text); background: #111a30; box-shadow: var(--shadow); padding: 0; }
+    dialog::backdrop { background: rgba(3, 7, 18, .72); backdrop-filter: blur(5px); }
+    .dialog-head { position: sticky; top: 0; z-index: 1; padding: 18px 20px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; background: #111a30; }
+    .dialog-head h2 { margin: 0; font-size: 21px; }
+    .dialog-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .dialog-close { min-height: 34px; }
+    .lang-help-body { padding: 18px 20px 22px; }
+    .lang-help-body h3 { margin: 0 0 10px; font-size: 13px; color: var(--accent-2); }
+    .lang-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 20px; }
+    .lang-code { padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: #0d1529; }
+    .lang-code b { display: inline-block; min-width: 30px; color: #cfc7ff; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .lang-code.recommended { border-color: rgba(82,214,199,.38); background: rgba(82,214,199,.055); }
+    @media (max-width: 900px) {
+      .shell { width: min(100% - 20px, 1500px); padding-top: 22px; }
+      header { align-items: flex-start; flex-direction: column; }
+      .loader { grid-template-columns: 1fr; }
+      .status { justify-content: flex-start; min-width: 0; }
+      .url-row { grid-template-columns: 1fr auto; }
+      .url-row #repoUrl { grid-column: 1 / -1; }
+      .url-row #projectSelect { grid-column: 1 / -1; }
+      .summary { grid-template-columns: repeat(2, 1fr); }
+      .metric:nth-child(2) { border-right: 0; }
+      .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .table-head { display: none; }
+      .entry { grid-template-columns: 1fr; padding: 12px; }
+      .cell { border: 0; padding: 6px; }
+      .cell::before { content: attr(data-label); display: block; margin-bottom: 4px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+      .state { display: none; }
+      #entries { max-height: none; }
+      .pager { position: sticky; bottom: 0; background: #111a30; }
+      .lang-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <div class="eyebrow">Liko localization toolkit</div>
+        <h1>Translation Studio</h1>
+        <p class="subtitle" data-ui="subtitle">從 GitHub 載入字庫、逐鍵比對並匯出可提交的單語言 JSON。</p>
+      </div>
+      <div class="ui-language"><label for="uiLanguage" data-ui="interfaceLanguage">介面語言</label><select id="uiLanguage"></select></div>
+    </header>
+
+    <section class="card loader">
+      <div>
+        <div class="url-row">
+          <input id="repoUrl" aria-label="GitHub 檔案或資料夾網址" value="https://github.com/awdrrawd/BC-FCM/tree/main/Translation">
+          <button id="loadBtn" class="primary" data-ui="loadUrl">載入網址</button>
+          <select id="projectSelect" aria-label="預設插件庫">
+            <option value="">…</option>
+          </select>
+        </div>
+        <p class="hint" data-ui="urlHint">支援 GitHub tree、blob、raw 及 GitHub Pages 網址；資料只在瀏覽器內處理。</p>
+      </div>
+      <div id="status" class="status" data-ui="notLoaded">尚未載入</div>
+    </section>
+
+    <section class="card workspace">
+      <div class="toolbar">
+        <div class="field">
+          <label for="sourceLang" data-ui="sourceLanguage">來源語言</label>
+          <select id="sourceLang" class="lang-select"></select>
+        </div>
+        <div class="field">
+          <label for="targetLang" data-ui="targetLanguage">目標語言</label>
+          <select id="targetLang" class="lang-select"></select>
+        </div>
+        <div class="field">
+          <div class="field-title"><label for="newLang" data-ui="createLanguage">建立新語言</label><button id="languageHelp" class="help-btn" type="button" aria-label="查看語言代碼">?</button></div>
+          <div class="new-lang">
+            <input id="newLang" maxlength="8" placeholder="ES" list="languageCodes">
+            <button id="addLangBtn" data-ui="add">新增</button>
+          </div>
+          <datalist id="languageCodes"></datalist>
+        </div>
+        <div class="field grow">
+          <label for="search" data-ui="searchFilter">搜尋與篩選</label>
+          <input id="search" placeholder="搜尋 key 或文本…" data-ui-placeholder="searchPlaceholder">
+        </div>
+        <div class="field">
+          <label for="filter" data-ui="show">顯示</label>
+          <select id="filter">
+            <option value="all" data-ui="all">全部</option>
+            <option value="missing" data-ui="blankMissing">空白未翻譯</option>
+            <option value="same" data-ui="possiblyMissing">疑似未翻譯（與來源相同）</option>
+            <option value="invalid" data-ui="placeholderIssues">佔位符問題</option>
+            <option value="done" data-ui="completed">已完成</option>
+          </select>
+        </div>
+        <div class="toolbar-actions">
+          <button id="exportBtn" class="primary" data-ui="exportJson">匯出 JSON</button>
+        </div>
+      </div>
+
+      <div class="summary">
+        <div class="metric"><strong id="totalCount">0</strong><span data-ui="sourceStrings">來源字串</span></div>
+        <div class="metric"><strong id="doneCount">0</strong><span data-ui="translated">已翻譯</span></div>
+        <div class="metric"><strong id="missingCount">0</strong><span data-ui="untranslated">尚未翻譯</span></div>
+        <div class="metric"><strong id="issueCount">0</strong><span data-ui="placeholderIssues">佔位符問題</span></div>
+      </div>
+      <div class="progress"><i id="progressBar"></i></div>
+      <div class="table-head"><div>Key</div><div id="sourceHead" data-ui="source">來源</div><div id="targetHead" data-ui="target">目標</div><div data-ui="status">狀態</div></div>
+      <div id="entries"><div class="empty"><strong data-ui="startLoading">載入遠端字庫開始</strong><span data-ui="startLoadingHint">請選擇預設插件庫或輸入 GitHub 網址。</span></div></div>
+      <div class="pager">
+        <span id="pageInfo">第 0 / 0 頁</span>
+        <div class="pager-actions">
+          <label for="pageSize" data-ui="perPage">每頁</label>
+          <select id="pageSize"><option>40</option><option selected>60</option><option>100</option></select>
+          <button id="prevPage" data-ui="previous">上一頁</button>
+          <button id="nextPage" data-ui="next">下一頁</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="languageDialog">
+    <div class="dialog-head">
+      <div><h2 data-ui="languageCodes">語言代碼對照</h2><p data-ui="languageCodeHint">這裡使用的是字庫語言代碼，不是電話國碼。點選項目即可帶入。</p></div>
+      <button id="closeLanguageHelp" class="dialog-close" type="button" data-ui="close">關閉</button>
+    </div>
+    <div class="lang-help-body">
+      <h3 data-ui="recommendedLanguages">建議各插件優先統一支援</h3>
+      <div id="recommendedLanguages" class="lang-grid"></div>
+      <h3 data-ui="otherLanguages">其他常用語言</h3>
+      <div id="otherLanguages" class="lang-grid"></div>
+    </div>
+  </dialog>
+
+  <script>
+    'use strict';
+
+    const SITES_CONFIG_URL = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Translation-Tool/sites.json';
+    const RECOMMENDED_LANGS = new Set(['TW', 'CN', 'JA', 'KO', 'DE', 'FR', 'ES', 'PT', 'RU', 'UA', 'VI']);
+    const LANGUAGE_CATALOG = [
+      ['EN','English'], ['TW','繁體中文'], ['CN','简体中文'], ['JA','日本語'], ['KO','한국어'],
+      ['DE','Deutsch'], ['FR','Français'], ['ES','Español'], ['PT','Português'], ['RU','Русский'],
+      ['UA','Українська'], ['VI','Tiếng Việt'], ['IT','Italiano'], ['NL','Nederlands'], ['PL','Polski'],
+      ['CS','Čeština'], ['SK','Slovenčina'], ['HU','Magyar'], ['RO','Română'], ['BG','Български'],
+      ['EL','Ελληνικά'], ['TR','Türkçe'], ['AR','العربية'], ['HE','עברית'], ['FA','فارسی'],
+      ['HI','हिन्दी'], ['BN','বাংলা'], ['TH','ไทย'], ['ID','Bahasa Indonesia'], ['MS','Bahasa Melayu'],
+      ['TL','Filipino'], ['SV','Svenska'], ['NO','Norsk'], ['DA','Dansk'], ['FI','Suomi'],
+      ['ET','Eesti'], ['LV','Latviešu'], ['LT','Lietuvių'], ['SL','Slovenščina'], ['HR','Hrvatski'],
+      ['SR','Српски'], ['CA','Català'], ['EU','Euskara'], ['GL','Galego']
+    ];
+    const UI_STRINGS = {
+      EN: { interfaceLanguage:'Interface language',subtitle:'Load dictionaries from GitHub, compare entries and export submission-ready JSON.',loadUrl:'Load URL',urlHint:'Supports GitHub tree, blob, raw and Pages URLs; all data stays in your browser.',notLoaded:'Not loaded',sourceLanguage:'Source language',targetLanguage:'Target language',createLanguage:'Create language',add:'Add',searchFilter:'Search & filter',searchPlaceholder:'Search key or text…',show:'Show',all:'All',blankMissing:'Blank translations',possiblyMissing:'Possibly untranslated (same as source)',placeholderIssues:'Placeholder issues',completed:'Completed',exportJson:'Export JSON',sourceStrings:'source strings',translated:'translated',untranslated:'untranslated',source:'Source',target:'Target',status:'Status',startLoading:'Load a remote dictionary to begin',startLoadingHint:'Choose a preset repository or enter a GitHub URL.',perPage:'Per page',previous:'Previous',next:'Next',languageCodes:'Language codes',languageCodeHint:'These are dictionary language codes, not calling codes. Click one to insert it.',close:'Close',recommendedLanguages:'Recommended for consistent plugin support',otherLanguages:'Other common languages',loadingGithub:'Reading GitHub…',loadingFiles:'Downloading {count} dictionaries…',loaded:'Loaded {keys} entries in {langs} languages',loadedSkipped:'Loaded {keys} entries in {langs} languages ({failed} skipped)',createdLanguage:'Created {code}; ready for translation',noMatches:'No matching entries',adjustFilters:'Adjust the search or filter.',pageInfo:'Page {page} / {pages} · {count} entries',zeroEntries:'0 entries',shouldKeep:'Keep: {tokens}',noPlaceholder:'no placeholders',nothingToExport:'There is no translation data to export',exported:'Exported {file}' },
+      TW: { interfaceLanguage:'介面語言',subtitle:'從 GitHub 載入字庫、逐鍵比對並匯出可提交的單語言 JSON。',loadUrl:'載入網址',urlHint:'支援 GitHub tree、blob、raw 及 GitHub Pages 網址；資料只在瀏覽器內處理。',notLoaded:'尚未載入',sourceLanguage:'來源語言',targetLanguage:'目標語言',createLanguage:'建立新語言',add:'新增',searchFilter:'搜尋與篩選',searchPlaceholder:'搜尋 key 或文本…',show:'顯示',all:'全部',blankMissing:'空白未翻譯',possiblyMissing:'疑似未翻譯（與來源相同）',placeholderIssues:'佔位符問題',completed:'已完成',exportJson:'匯出 JSON',sourceStrings:'來源字串',translated:'已翻譯',untranslated:'尚未翻譯',source:'來源',target:'目標',status:'狀態',startLoading:'載入遠端字庫開始',startLoadingHint:'請選擇預設插件庫或輸入 GitHub 網址。',perPage:'每頁',previous:'上一頁',next:'下一頁',languageCodes:'語言代碼對照',languageCodeHint:'這裡使用的是字庫語言代碼，不是電話國碼。點選項目即可帶入。',close:'關閉',recommendedLanguages:'建議各插件優先統一支援',otherLanguages:'其他常用語言',loadingGithub:'正在讀取 GitHub…',loadingFiles:'正在下載 {count} 個文本…',loaded:'已載入 {keys} 筆、{langs} 種語言',loadedSkipped:'已載入 {keys} 筆、{langs} 種語言（{failed} 檔略過）',createdLanguage:'已建立 {code} 翻譯欄；可開始填寫',noMatches:'沒有符合條件的項目',adjustFilters:'請調整搜尋或篩選條件。',pageInfo:'第 {page} / {pages} 頁 · {count} 筆',zeroEntries:'0 筆',shouldKeep:'應保留：{tokens}',noPlaceholder:'無佔位符',nothingToExport:'沒有可匯出的翻譯資料',exported:'已匯出 {file}' },
+      CN: { interfaceLanguage:'界面语言',subtitle:'从 GitHub 加载词库、逐项比较并导出可提交的单语言 JSON。',loadUrl:'加载网址',urlHint:'支持 GitHub tree、blob、raw 和 Pages 网址；数据仅在浏览器中处理。',notLoaded:'尚未加载',sourceLanguage:'源语言',targetLanguage:'目标语言',createLanguage:'新建语言',add:'添加',searchFilter:'搜索与筛选',searchPlaceholder:'搜索 key 或文本…',show:'显示',all:'全部',blankMissing:'空白未翻译',possiblyMissing:'疑似未翻译（与源文相同）',placeholderIssues:'占位符问题',completed:'已完成',exportJson:'导出 JSON',sourceStrings:'源字符串',translated:'已翻译',untranslated:'未翻译',source:'源文',target:'译文',status:'状态',startLoading:'加载远程词库以开始',startLoadingHint:'请选择预设插件库或输入 GitHub 网址。',perPage:'每页',previous:'上一页',next:'下一页',languageCodes:'语言代码',languageCodeHint:'这里使用词库语言代码，而非电话区号。点击即可填入。',close:'关闭',recommendedLanguages:'建议各插件优先统一支持',otherLanguages:'其他常用语言',loadingGithub:'正在读取 GitHub…',loadingFiles:'正在下载 {count} 个文本…',loaded:'已加载 {keys} 项、{langs} 种语言',loadedSkipped:'已加载 {keys} 项、{langs} 种语言（跳过 {failed} 个文件）',createdLanguage:'已创建 {code} 翻译栏',noMatches:'没有符合条件的项目',adjustFilters:'请调整搜索或筛选条件。',pageInfo:'第 {page} / {pages} 页 · {count} 项',zeroEntries:'0 项',shouldKeep:'应保留：{tokens}',noPlaceholder:'无占位符',nothingToExport:'没有可导出的翻译数据',exported:'已导出 {file}' },
+      JA: { interfaceLanguage:'表示言語',subtitle:'GitHubから辞書を読み込み、比較して提出用JSONを書き出します。',loadUrl:'URLを読み込む',urlHint:'GitHub tree・blob・raw・Pages URLに対応。データはブラウザ内で処理されます。',notLoaded:'未読み込み',sourceLanguage:'原文言語',targetLanguage:'翻訳言語',createLanguage:'新しい言語',add:'追加',searchFilter:'検索と絞り込み',searchPlaceholder:'キーまたは文を検索…',show:'表示',all:'すべて',blankMissing:'未翻訳（空欄）',possiblyMissing:'未翻訳の可能性（原文と同じ）',placeholderIssues:'プレースホルダー問題',completed:'完了',exportJson:'JSONを書き出す',sourceStrings:'原文',translated:'翻訳済み',untranslated:'未翻訳',source:'原文',target:'翻訳',status:'状態',startLoading:'リモート辞書を読み込んで開始',startLoadingHint:'プリセットを選ぶかGitHub URLを入力してください。',perPage:'表示件数',previous:'前へ',next:'次へ',languageCodes:'言語コード',languageCodeHint:'電話番号ではなく辞書用言語コードです。クリックで入力できます。',close:'閉じる',recommendedLanguages:'プラグイン共通の推奨言語',otherLanguages:'その他の言語',loadingGithub:'GitHubを読み込み中…',loadingFiles:'{count}個の辞書をダウンロード中…',loaded:'{keys}件・{langs}言語を読み込みました',loadedSkipped:'{keys}件・{langs}言語（{failed}ファイルをスキップ）',createdLanguage:'{code}の翻訳欄を作成しました',noMatches:'該当項目がありません',adjustFilters:'検索または絞り込みを変更してください。',pageInfo:'{page} / {pages}ページ · {count}件',zeroEntries:'0件',shouldKeep:'保持必須：{tokens}',noPlaceholder:'なし',nothingToExport:'書き出す翻訳データがありません',exported:'{file}を書き出しました' },
+      KO: { interfaceLanguage:'인터페이스 언어',subtitle:'GitHub에서 사전을 불러와 비교하고 제출용 JSON으로 내보냅니다.',loadUrl:'URL 불러오기',urlHint:'GitHub tree, blob, raw, Pages URL 지원. 데이터는 브라우저에서만 처리됩니다.',notLoaded:'불러오지 않음',sourceLanguage:'원문 언어',targetLanguage:'번역 언어',createLanguage:'새 언어',add:'추가',searchFilter:'검색 및 필터',searchPlaceholder:'키 또는 텍스트 검색…',show:'표시',all:'전체',blankMissing:'빈 번역',possiblyMissing:'미번역 의심(원문과 동일)',placeholderIssues:'자리표시자 문제',completed:'완료',exportJson:'JSON 내보내기',sourceStrings:'원문',translated:'번역됨',untranslated:'미번역',source:'원문',target:'번역',status:'상태',startLoading:'원격 사전을 불러와 시작하세요',startLoadingHint:'기본 저장소를 선택하거나 GitHub URL을 입력하세요.',perPage:'페이지당',previous:'이전',next:'다음',languageCodes:'언어 코드',languageCodeHint:'전화 국가번호가 아닌 사전 언어 코드입니다. 클릭하면 입력됩니다.',close:'닫기',recommendedLanguages:'플러그인 공통 권장 언어',otherLanguages:'기타 언어',loadingGithub:'GitHub 읽는 중…',loadingFiles:'사전 {count}개 다운로드 중…',loaded:'{keys}개 항목, {langs}개 언어 로드됨',loadedSkipped:'{keys}개 항목, {langs}개 언어 ({failed}개 건너뜀)',createdLanguage:'{code} 번역 열을 만들었습니다',noMatches:'일치하는 항목이 없습니다',adjustFilters:'검색 또는 필터를 조정하세요.',pageInfo:'{page} / {pages} 페이지 · {count}개',zeroEntries:'0개',shouldKeep:'유지 필요: {tokens}',noPlaceholder:'없음',nothingToExport:'내보낼 번역 데이터가 없습니다',exported:'{file} 내보냄' },
+      DE: { interfaceLanguage:'Oberflächensprache',subtitle:'Wörterbücher von GitHub laden, vergleichen und als JSON exportieren.',loadUrl:'URL laden',urlHint:'Unterstützt GitHub tree, blob, raw und Pages; Daten bleiben im Browser.',notLoaded:'Nicht geladen',sourceLanguage:'Ausgangssprache',targetLanguage:'Zielsprache',createLanguage:'Neue Sprache',add:'Hinzufügen',searchFilter:'Suchen & filtern',searchPlaceholder:'Key oder Text suchen…',show:'Anzeigen',all:'Alle',blankMissing:'Leere Übersetzungen',possiblyMissing:'Möglicherweise unübersetzt',placeholderIssues:'Platzhalterfehler',completed:'Fertig',exportJson:'JSON exportieren',sourceStrings:'Quelltexte',translated:'übersetzt',untranslated:'offen',source:'Quelle',target:'Übersetzung',status:'Status',startLoading:'Remote-Wörterbuch laden',startLoadingHint:'Repository wählen oder GitHub-URL eingeben.',perPage:'Pro Seite',previous:'Zurück',next:'Weiter',languageCodes:'Sprachcodes',languageCodeHint:'Dies sind Sprachcodes, keine Telefonvorwahlen. Anklicken zum Einfügen.',close:'Schließen',recommendedLanguages:'Empfohlene gemeinsame Sprachen',otherLanguages:'Weitere Sprachen',loadingGithub:'GitHub wird gelesen…',loadingFiles:'{count} Wörterbücher werden geladen…',loaded:'{keys} Einträge in {langs} Sprachen geladen',loadedSkipped:'{keys} Einträge, {langs} Sprachen ({failed} übersprungen)',createdLanguage:'Spalte {code} erstellt',noMatches:'Keine passenden Einträge',adjustFilters:'Suche oder Filter anpassen.',pageInfo:'Seite {page} / {pages} · {count} Einträge',zeroEntries:'0 Einträge',shouldKeep:'Beibehalten: {tokens}',noPlaceholder:'keine',nothingToExport:'Keine Übersetzungsdaten zum Exportieren',exported:'{file} exportiert' },
+      FR: { interfaceLanguage:"Langue de l’interface",subtitle:'Chargez les dictionnaires GitHub, comparez-les et exportez un JSON prêt à envoyer.',loadUrl:'Charger l’URL',urlHint:'Compatible GitHub tree, blob, raw et Pages ; les données restent dans le navigateur.',notLoaded:'Non chargé',sourceLanguage:'Langue source',targetLanguage:'Langue cible',createLanguage:'Nouvelle langue',add:'Ajouter',searchFilter:'Rechercher et filtrer',searchPlaceholder:'Rechercher une clé ou un texte…',show:'Afficher',all:'Tout',blankMissing:'Traductions vides',possiblyMissing:'Peut-être non traduit',placeholderIssues:'Problèmes de variables',completed:'Terminé',exportJson:'Exporter JSON',sourceStrings:'textes source',translated:'traduits',untranslated:'non traduits',source:'Source',target:'Traduction',status:'État',startLoading:'Chargez un dictionnaire distant',startLoadingHint:'Choisissez un dépôt ou saisissez une URL GitHub.',perPage:'Par page',previous:'Précédent',next:'Suivant',languageCodes:'Codes de langue',languageCodeHint:'Ce sont des codes de langue, pas des indicatifs téléphoniques. Cliquez pour insérer.',close:'Fermer',recommendedLanguages:'Langues communes recommandées',otherLanguages:'Autres langues',loadingGithub:'Lecture de GitHub…',loadingFiles:'Téléchargement de {count} dictionnaires…',loaded:'{keys} entrées et {langs} langues chargées',loadedSkipped:'{keys} entrées, {langs} langues ({failed} ignorés)',createdLanguage:'Colonne {code} créée',noMatches:'Aucune entrée correspondante',adjustFilters:'Modifiez la recherche ou le filtre.',pageInfo:'Page {page} / {pages} · {count} entrées',zeroEntries:'0 entrée',shouldKeep:'À conserver : {tokens}',noPlaceholder:'aucune variable',nothingToExport:'Aucune traduction à exporter',exported:'{file} exporté' },
+      ES: { interfaceLanguage:'Idioma de la interfaz',subtitle:'Carga diccionarios de GitHub, compáralos y exporta JSON listo para enviar.',loadUrl:'Cargar URL',urlHint:'Admite GitHub tree, blob, raw y Pages; los datos permanecen en el navegador.',notLoaded:'Sin cargar',sourceLanguage:'Idioma de origen',targetLanguage:'Idioma de destino',createLanguage:'Nuevo idioma',add:'Añadir',searchFilter:'Buscar y filtrar',searchPlaceholder:'Buscar clave o texto…',show:'Mostrar',all:'Todo',blankMissing:'Traducciones vacías',possiblyMissing:'Posible texto sin traducir',placeholderIssues:'Problemas de marcadores',completed:'Completado',exportJson:'Exportar JSON',sourceStrings:'textos de origen',translated:'traducidos',untranslated:'sin traducir',source:'Origen',target:'Traducción',status:'Estado',startLoading:'Carga un diccionario remoto',startLoadingHint:'Elige un repositorio o introduce una URL de GitHub.',perPage:'Por página',previous:'Anterior',next:'Siguiente',languageCodes:'Códigos de idioma',languageCodeHint:'Son códigos de idioma, no prefijos telefónicos. Haz clic para insertarlos.',close:'Cerrar',recommendedLanguages:'Idiomas comunes recomendados',otherLanguages:'Otros idiomas',loadingGithub:'Leyendo GitHub…',loadingFiles:'Descargando {count} diccionarios…',loaded:'{keys} entradas y {langs} idiomas cargados',loadedSkipped:'{keys} entradas, {langs} idiomas ({failed} omitidos)',createdLanguage:'Columna {code} creada',noMatches:'No hay entradas coincidentes',adjustFilters:'Ajusta la búsqueda o el filtro.',pageInfo:'Página {page} / {pages} · {count} entradas',zeroEntries:'0 entradas',shouldKeep:'Debe conservar: {tokens}',noPlaceholder:'ninguno',nothingToExport:'No hay traducciones para exportar',exported:'{file} exportado' },
+      PT: { interfaceLanguage:'Idioma da interface',subtitle:'Carregue dicionários do GitHub, compare e exporte JSON pronto para envio.',loadUrl:'Carregar URL',urlHint:'Compatível com GitHub tree, blob, raw e Pages; os dados ficam no navegador.',notLoaded:'Não carregado',sourceLanguage:'Idioma de origem',targetLanguage:'Idioma de destino',createLanguage:'Novo idioma',add:'Adicionar',searchFilter:'Pesquisar e filtrar',searchPlaceholder:'Pesquisar chave ou texto…',show:'Mostrar',all:'Tudo',blankMissing:'Traduções vazias',possiblyMissing:'Possivelmente não traduzido',placeholderIssues:'Problemas de marcadores',completed:'Concluído',exportJson:'Exportar JSON',sourceStrings:'textos de origem',translated:'traduzidos',untranslated:'não traduzidos',source:'Origem',target:'Tradução',status:'Estado',startLoading:'Carregue um dicionário remoto',startLoadingHint:'Escolha um repositório ou insira uma URL do GitHub.',perPage:'Por página',previous:'Anterior',next:'Seguinte',languageCodes:'Códigos de idioma',languageCodeHint:'São códigos de idioma, não códigos telefônicos. Clique para inserir.',close:'Fechar',recommendedLanguages:'Idiomas comuns recomendados',otherLanguages:'Outros idiomas',loadingGithub:'Lendo GitHub…',loadingFiles:'Baixando {count} dicionários…',loaded:'{keys} entradas e {langs} idiomas carregados',loadedSkipped:'{keys} entradas, {langs} idiomas ({failed} ignorados)',createdLanguage:'Coluna {code} criada',noMatches:'Nenhuma entrada correspondente',adjustFilters:'Ajuste a pesquisa ou o filtro.',pageInfo:'Página {page} / {pages} · {count} entradas',zeroEntries:'0 entradas',shouldKeep:'Manter: {tokens}',noPlaceholder:'nenhum',nothingToExport:'Não há traduções para exportar',exported:'{file} exportado' },
+      RU: { interfaceLanguage:'Язык интерфейса',subtitle:'Загрузка словарей с GitHub, сравнение и экспорт JSON для отправки.',loadUrl:'Загрузить URL',urlHint:'Поддерживаются GitHub tree, blob, raw и Pages; данные остаются в браузере.',notLoaded:'Не загружено',sourceLanguage:'Исходный язык',targetLanguage:'Целевой язык',createLanguage:'Новый язык',add:'Добавить',searchFilter:'Поиск и фильтр',searchPlaceholder:'Поиск ключа или текста…',show:'Показать',all:'Все',blankMissing:'Пустые переводы',possiblyMissing:'Возможно не переведено',placeholderIssues:'Ошибки плейсхолдеров',completed:'Готово',exportJson:'Экспорт JSON',sourceStrings:'исходных строк',translated:'переведено',untranslated:'не переведено',source:'Источник',target:'Перевод',status:'Статус',startLoading:'Загрузите удалённый словарь',startLoadingHint:'Выберите репозиторий или введите URL GitHub.',perPage:'На странице',previous:'Назад',next:'Далее',languageCodes:'Коды языков',languageCodeHint:'Это коды языков, а не телефонные коды. Нажмите для вставки.',close:'Закрыть',recommendedLanguages:'Рекомендуемые общие языки',otherLanguages:'Другие языки',loadingGithub:'Чтение GitHub…',loadingFiles:'Загрузка словарей: {count}…',loaded:'Загружено {keys} строк на {langs} языках',loadedSkipped:'{keys} строк, {langs} языков (пропущено: {failed})',createdLanguage:'Создан столбец {code}',noMatches:'Совпадений нет',adjustFilters:'Измените поиск или фильтр.',pageInfo:'Страница {page} / {pages} · {count}',zeroEntries:'0 строк',shouldKeep:'Сохранить: {tokens}',noPlaceholder:'нет',nothingToExport:'Нет данных для экспорта',exported:'Экспортирован {file}' },
+      UA: { interfaceLanguage:'Мова інтерфейсу',subtitle:'Завантажуйте словники з GitHub, порівнюйте та експортуйте JSON.',loadUrl:'Завантажити URL',urlHint:'Підтримуються GitHub tree, blob, raw і Pages; дані лишаються у браузері.',notLoaded:'Не завантажено',sourceLanguage:'Вихідна мова',targetLanguage:'Цільова мова',createLanguage:'Нова мова',add:'Додати',searchFilter:'Пошук і фільтр',searchPlaceholder:'Пошук ключа або тексту…',show:'Показати',all:'Усі',blankMissing:'Порожні переклади',possiblyMissing:'Можливо не перекладено',placeholderIssues:'Помилки заповнювачів',completed:'Готово',exportJson:'Експорт JSON',sourceStrings:'вихідних рядків',translated:'перекладено',untranslated:'не перекладено',source:'Джерело',target:'Переклад',status:'Стан',startLoading:'Завантажте віддалений словник',startLoadingHint:'Виберіть репозиторій або введіть URL GitHub.',perPage:'На сторінці',previous:'Назад',next:'Далі',languageCodes:'Коди мов',languageCodeHint:'Це коди мов, а не телефонні коди. Натисніть, щоб вставити.',close:'Закрити',recommendedLanguages:'Рекомендовані спільні мови',otherLanguages:'Інші мови',loadingGithub:'Читання GitHub…',loadingFiles:'Завантаження словників: {count}…',loaded:'Завантажено {keys} рядків, мов: {langs}',loadedSkipped:'{keys} рядків, мов: {langs} (пропущено {failed})',createdLanguage:'Створено стовпець {code}',noMatches:'Збігів немає',adjustFilters:'Змініть пошук або фільтр.',pageInfo:'Сторінка {page} / {pages} · {count}',zeroEntries:'0 рядків',shouldKeep:'Зберегти: {tokens}',noPlaceholder:'немає',nothingToExport:'Немає даних для експорту',exported:'Експортовано {file}' },
+      VI: { interfaceLanguage:'Ngôn ngữ giao diện',subtitle:'Tải từ điển từ GitHub, so sánh và xuất JSON để gửi.',loadUrl:'Tải URL',urlHint:'Hỗ trợ GitHub tree, blob, raw và Pages; dữ liệu chỉ được xử lý trong trình duyệt.',notLoaded:'Chưa tải',sourceLanguage:'Ngôn ngữ nguồn',targetLanguage:'Ngôn ngữ đích',createLanguage:'Tạo ngôn ngữ',add:'Thêm',searchFilter:'Tìm kiếm và lọc',searchPlaceholder:'Tìm key hoặc văn bản…',show:'Hiển thị',all:'Tất cả',blankMissing:'Bản dịch trống',possiblyMissing:'Có thể chưa dịch',placeholderIssues:'Lỗi biến giữ chỗ',completed:'Hoàn tất',exportJson:'Xuất JSON',sourceStrings:'chuỗi nguồn',translated:'đã dịch',untranslated:'chưa dịch',source:'Nguồn',target:'Bản dịch',status:'Trạng thái',startLoading:'Tải từ điển từ xa để bắt đầu',startLoadingHint:'Chọn kho có sẵn hoặc nhập URL GitHub.',perPage:'Mỗi trang',previous:'Trước',next:'Sau',languageCodes:'Mã ngôn ngữ',languageCodeHint:'Đây là mã ngôn ngữ, không phải mã điện thoại. Nhấp để điền.',close:'Đóng',recommendedLanguages:'Ngôn ngữ chung được đề xuất',otherLanguages:'Ngôn ngữ khác',loadingGithub:'Đang đọc GitHub…',loadingFiles:'Đang tải {count} từ điển…',loaded:'Đã tải {keys} mục, {langs} ngôn ngữ',loadedSkipped:'{keys} mục, {langs} ngôn ngữ (bỏ qua {failed})',createdLanguage:'Đã tạo cột {code}',noMatches:'Không có mục phù hợp',adjustFilters:'Hãy chỉnh tìm kiếm hoặc bộ lọc.',pageInfo:'Trang {page} / {pages} · {count} mục',zeroEntries:'0 mục',shouldKeep:'Cần giữ: {tokens}',noPlaceholder:'không có',nothingToExport:'Không có dữ liệu để xuất',exported:'Đã xuất {file}' }
+    };
+    const LANG_NAMES = Object.fromEntries(LANGUAGE_CATALOG.map(([code, name]) => [code, `${code} · ${name}`]));
+    const LANG_ORDER = new Map(LANGUAGE_CATALOG.map(([code], index) => [code, index]));
+    const state = { namespace: 'FCM', files: [], data: {}, dirty: new Set(), page: 1 };
+    const $ = id => document.getElementById(id);
+    const els = {
+      repoUrl: $('repoUrl'), loadBtn: $('loadBtn'), projectSelect: $('projectSelect'), status: $('status'),
+      sourceLang: $('sourceLang'), targetLang: $('targetLang'), newLang: $('newLang'), addLangBtn: $('addLangBtn'),
+      search: $('search'), filter: $('filter'), exportBtn: $('exportBtn'), entries: $('entries'),
+      total: $('totalCount'), done: $('doneCount'), missing: $('missingCount'), issues: $('issueCount'),
+      progress: $('progressBar'), sourceHead: $('sourceHead'), targetHead: $('targetHead'),
+      pageInfo: $('pageInfo'), pageSize: $('pageSize'), prevPage: $('prevPage'), nextPage: $('nextPage')
+    };
+    let currentUiLanguage = 'EN';
+
+    function tr(key, vars = {}) {
+      let value = UI_STRINGS[currentUiLanguage]?.[key] ?? UI_STRINGS.EN[key] ?? key;
+      for (const [name, replacement] of Object.entries(vars)) value = value.split(`{${name}}`).join(String(replacement));
+      return value;
+    }
+
+    function detectUiLanguage() {
+      try {
+        const saved = localStorage.getItem('translationStudio.uiLanguage');
+        if (UI_STRINGS[saved]) return saved;
+      } catch (_) {}
+      const raw = String(navigator.language || 'en').toLowerCase();
+      if (raw.startsWith('zh')) return raw.includes('cn') || raw.includes('hans') ? 'CN' : 'TW';
+      const map = { en:'EN', ja:'JA', ko:'KO', de:'DE', fr:'FR', es:'ES', pt:'PT', ru:'RU', uk:'UA', vi:'VI' };
+      return map[raw.split('-')[0]] || 'EN';
+    }
+
+    function applyUiLanguage(code, save = true) {
+      currentUiLanguage = UI_STRINGS[code] ? code : 'EN';
+      document.documentElement.lang = currentUiLanguage === 'TW' ? 'zh-Hant' : currentUiLanguage === 'CN' ? 'zh-Hans' : currentUiLanguage.toLowerCase();
+      document.querySelectorAll('[data-ui]').forEach(element => { element.textContent = tr(element.dataset.ui); });
+      document.querySelectorAll('[data-ui-placeholder]').forEach(element => { element.placeholder = tr(element.dataset.uiPlaceholder); });
+      $('languageHelp').setAttribute('aria-label', tr('languageCodes'));
+      document.title = 'Translation Studio';
+      $('uiLanguage').value = currentUiLanguage;
+      if (els.status.dataset.statusKey) {
+        let vars = {};
+        try { vars = JSON.parse(els.status.dataset.statusVars || '{}'); } catch (_) {}
+        els.status.textContent = tr(els.status.dataset.statusKey, vars);
+      }
+      if (save) try { localStorage.setItem('translationStudio.uiLanguage', currentUiLanguage); } catch (_) {}
+      if (Object.keys(state.data).length) render();
+    }
+
+    function initializeUiLanguages() {
+      const names = { EN:'English', TW:'繁體中文', CN:'简体中文', JA:'日本語', KO:'한국어', DE:'Deutsch', FR:'Français', ES:'Español', PT:'Português', RU:'Русский', UA:'Українська', VI:'Tiếng Việt' };
+      $('uiLanguage').innerHTML = Object.keys(UI_STRINGS).map(code => `<option value="${code}">${names[code]}</option>`).join('');
+      applyUiLanguage(detectUiLanguage(), false);
+    }
+
+    function setStatus(message, kind = '') {
+      delete els.status.dataset.statusKey;
+      delete els.status.dataset.statusVars;
+      els.status.textContent = message;
+      els.status.className = `status ${kind}`.trim();
+    }
+
+    function setStatusKey(key, vars = {}, kind = '') {
+      els.status.dataset.statusKey = key;
+      els.status.dataset.statusVars = JSON.stringify(vars);
+      els.status.textContent = tr(key, vars);
+      els.status.className = `status ${kind}`.trim();
+    }
+
+    function parseGitHubUrl(input) {
+      const url = new URL(input.trim());
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (url.hostname === 'github.com' && parts.length >= 2) {
+        const [owner, repo, mode, ref = 'main', ...rest] = parts;
+        if (mode === 'tree') return { type: 'folder', owner, repo, ref, path: rest.join('/') };
+        if (mode === 'blob') return { type: 'file', owner, repo, ref, path: rest.join('/') };
+        return { type: 'folder', owner, repo, ref: 'main', path: '' };
+      }
+      if (url.hostname === 'raw.githubusercontent.com' && parts.length >= 4) {
+        const [owner, repo, ref, ...rest] = parts;
+        return { type: 'file', owner, repo, ref, path: rest.join('/'), raw: url.href };
+      }
+      if (url.hostname.endsWith('.github.io') && parts.length >= 2) {
+        const owner = url.hostname.slice(0, -'.github.io'.length);
+        const [repo, ...rest] = parts;
+        const path = rest.join('/');
+        return { type: /\.(?:js|json)$/i.test(path) ? 'file' : 'folder', owner, repo, ref: 'main', path };
+      }
+      throw new Error('請輸入有效的 GitHub tree、blob、raw 或 Pages 網址');
+    }
+
+    function rawUrl(item) {
+      return item.raw || `https://raw.githubusercontent.com/${item.owner}/${item.repo}/${item.ref}/${item.path}`;
+    }
+
+    async function listFiles(source) {
+      if (source.type === 'file') return [{ name: source.path.split('/').pop(), download_url: rawUrl(source), path: source.path }];
+      const endpoint = `https://api.github.com/repos/${source.owner}/${source.repo}/contents/${encodePath(source.path)}?ref=${encodeURIComponent(source.ref)}`;
+      const response = await fetch(endpoint, { headers: { Accept: 'application/vnd.github+json' } });
+      if (!response.ok) throw new Error(response.status === 403 ? 'GitHub API 暫時達到請求上限' : `無法讀取資料夾（HTTP ${response.status}）`);
+      const items = await response.json();
+      if (!Array.isArray(items)) throw new Error('網址不是 GitHub 資料夾');
+      return items.filter(item => item.type === 'file' && /\.(?:js|json)$/i.test(item.name) && !/^(?:index|translator)\./i.test(item.name));
+    }
+
+    function encodePath(path) { return path.split('/').filter(Boolean).map(encodeURIComponent).join('/'); }
+
+    async function loadFromUrl(input = els.repoUrl.value) {
+      els.loadBtn.disabled = true;
+      setStatusKey('loadingGithub');
+      try {
+        const source = parseGitHubUrl(input);
+        state.namespace = source.repo.replace(/^BC-/i, '') || 'Translation';
+        const files = await listFiles(source);
+        if (!files.length) throw new Error('找不到可讀取的 .js 或 .json 文本');
+        setStatusKey('loadingFiles', { count: files.length });
+        const settled = await Promise.allSettled(files.map(async file => {
+          const response = await fetch(file.download_url || rawUrl({ ...source, type: 'file', path: file.path }));
+          if (!response.ok) throw new Error(`${file.name}: HTTP ${response.status}`);
+          return parseTranslationFile(file.name, await response.text());
+        }));
+        const parsed = settled.filter(x => x.status === 'fulfilled').map(x => x.value).filter(Boolean);
+        const failed = settled.length - parsed.length;
+        if (!parsed.length) throw new Error('找到了檔案，但無法辨識其中的 BC_i18n 字庫');
+        state.data = {};
+        state.files = files;
+        state.dirty.clear();
+        for (const result of parsed) {
+          state.namespace = result.namespace || state.namespace;
+          for (const [key, langs] of Object.entries(result.entries)) {
+            state.data[key] = Object.assign(state.data[key] || {}, langs);
+          }
+        }
+        populateLanguages();
+        render();
+        const langs = getLanguages();
+        setStatusKey(failed ? 'loadedSkipped' : 'loaded', { keys: Object.keys(state.data).length, langs: langs.length, failed }, 'ok');
+      } catch (error) {
+        setStatus(error.message || String(error), 'error');
+      } finally {
+        els.loadBtn.disabled = false;
+      }
+    }
+
+    function parseTranslationFile(name, text) {
+      if (/\.json$/i.test(name)) {
+        const obj = JSON.parse(text);
+        const code = languageFromName(name);
+        const entries = {};
+        for (const [key, value] of Object.entries(obj)) entries[key] = typeof value === 'object' ? value : { [code]: String(value ?? '') };
+        return { namespace: state.namespace, entries };
+      }
+      const code = languageFromName(name);
+      const variables = collectObjectVariables(text);
+
+      // Compact language packs build UI/MSG or T from flat V/M dictionaries.
+      if (variables.V && variables.UI) Object.assign(variables.UI, wrapFlatLanguage(variables.V, code));
+      if (variables.M && variables.MSG) Object.assign(variables.MSG, wrapFlatLanguage(variables.M, code));
+
+      const calls = [];
+      const registerPattern = /\.register\s*\(/g;
+      let match;
+      while ((match = registerPattern.exec(text))) {
+        const open = text.indexOf('(', match.index);
+        const args = readDelimited(text, open, '(', ')');
+        registerPattern.lastIndex = args.end + 1;
+        const comma = findTopLevelComma(args.content);
+        if (comma < 0) continue;
+        const namespace = parseStringLiteral(args.content.slice(0, comma).trim()) || state.namespace;
+        const valueSource = args.content.slice(comma + 1).trim();
+        let entries = null;
+        let group = namespace;
+        if (valueSource.startsWith('{')) entries = parseRestrictedObject(readDelimited(valueSource, 0, '{', '}').raw);
+        else {
+          const identifier = valueSource.match(/^([A-Za-z_$][\w$]*)/);
+          if (identifier && variables[identifier[1]]) {
+            entries = variables[identifier[1]];
+            group = identifier[1];
+          }
+        }
+        if (entries && Object.keys(entries).length) calls.push({ namespace, group, entries });
+      }
+
+      // FCM-style compact packs register a generated T variable; V is its source.
+      if (!calls.length && variables.V) calls.push({ namespace: state.namespace, group: state.namespace, entries: wrapFlatLanguage(variables.V, code) });
+
+      // LCE uses an ES-module default export instead of BC_i18n.register().
+      if (!calls.length) {
+        const exportMatch = /\bexport\s+default\s*\{/g.exec(text);
+        if (exportMatch) {
+          const start = text.indexOf('{', exportMatch.index);
+          const flat = parseRestrictedObject(readDelimited(text, start, '{', '}').raw);
+          calls.push({ namespace: state.namespace, group: state.namespace, entries: wrapFlatLanguage(flat, code) });
+        }
+      }
+      if (!calls.length) return null;
+
+      const merged = {};
+      const multiGroup = new Set(calls.map(call => call.group)).size > 1;
+      for (const call of calls) {
+        for (const [key, langs] of Object.entries(call.entries)) {
+          const outputKey = multiGroup ? `${call.group}/${key}` : key;
+          merged[outputKey] = Object.assign(merged[outputKey] || {}, langs);
+        }
+      }
+      return { namespace: calls[0].namespace || state.namespace, entries: merged };
+    }
+
+    function collectObjectVariables(text) {
+      const variables = {};
+      const declaration = /\b(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*\{/g;
+      let match;
+      while ((match = declaration.exec(text))) {
+        const start = text.indexOf('{', match.index);
+        try {
+          const object = readDelimited(text, start, '{', '}');
+          variables[match[1]] = parseRestrictedObject(object.raw);
+          declaration.lastIndex = object.end + 1;
+        } catch (_) { /* Ignore non-dictionary objects. */ }
+      }
+      const assignment = /Object\.assign\s*\(\s*([A-Za-z_$][\w$]*)\s*,\s*\{/g;
+      while ((match = assignment.exec(text))) {
+        const start = text.indexOf('{', match.index);
+        try {
+          const object = readDelimited(text, start, '{', '}');
+          Object.assign(variables[match[1]] || (variables[match[1]] = {}), parseRestrictedObject(object.raw));
+          assignment.lastIndex = object.end + 1;
+        } catch (_) { /* Ignore dynamic assignments. */ }
+      }
+      return variables;
+    }
+
+    function wrapFlatLanguage(flat, code) {
+      const entries = {};
+      for (const [key, value] of Object.entries(flat || {})) if (typeof value === 'string') entries[key] = { [code]: value };
+      return entries;
+    }
+
+    function parseRestrictedObject(text) {
+      let i = 0;
+      const skip = () => {
+        while (i < text.length) {
+          if (/\s/.test(text[i])) { i++; continue; }
+          if (text[i] === '/' && text[i + 1] === '/') { i += 2; while (i < text.length && text[i] !== '\n') i++; continue; }
+          if (text[i] === '/' && text[i + 1] === '*') { i += 2; while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++; i += 2; continue; }
+          break;
+        }
+      };
+      const parseValue = () => {
+        skip();
+        if (text[i] === '"' || text[i] === "'") return readJsString(text, () => i, value => { i = value; });
+        if (text[i] === '{') return parseObject();
+        if (text[i] === '[') return parseArray();
+        const primitive = text.slice(i).match(/^(true|false|null|-?\d+(?:\.\d+)?)/);
+        if (!primitive) throw new Error('字庫包含不支援的動態值');
+        i += primitive[0].length;
+        return primitive[1] === 'true' ? true : primitive[1] === 'false' ? false : primitive[1] === 'null' ? null : Number(primitive[1]);
+      };
+      const parseKey = () => {
+        skip();
+        if (text[i] === '"' || text[i] === "'") return readJsString(text, () => i, value => { i = value; });
+        const key = text.slice(i).match(/^[A-Za-z_$][\w$]*/);
+        if (!key) throw new Error('無法解析字庫 key');
+        i += key[0].length;
+        return key[0];
+      };
+      const parseObject = () => {
+        const output = {};
+        i++; skip();
+        while (i < text.length && text[i] !== '}') {
+          const key = parseKey(); skip();
+          if (text[i++] !== ':') throw new Error(`字庫 key「${key}」後缺少冒號`);
+          output[key] = parseValue(); skip();
+          if (text[i] === ',') { i++; skip(); }
+          else if (text[i] !== '}') throw new Error(`字庫 key「${key}」後結構不正確`);
+        }
+        if (text[i++] !== '}') throw new Error('字庫物件缺少結尾');
+        return output;
+      };
+      const parseArray = () => {
+        const output = [];
+        i++; skip();
+        while (i < text.length && text[i] !== ']') {
+          output.push(parseValue()); skip();
+          if (text[i] === ',') { i++; skip(); }
+          else if (text[i] !== ']') throw new Error('字庫陣列結構不正確');
+        }
+        if (text[i++] !== ']') throw new Error('字庫陣列缺少結尾');
+        return output;
+      };
+      skip();
+      if (text[i] !== '{') throw new Error('找不到字庫物件');
+      return parseObject();
+    }
+
+    function readJsString(text, getIndex, setIndex) {
+      let i = getIndex();
+      const quote = text[i++];
+      let output = '';
+      const escapes = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', v: '\v', 0: '\0' };
+      while (i < text.length) {
+        const ch = text[i++];
+        if (ch === quote) { setIndex(i); return output; }
+        if (ch !== '\\') { output += ch; continue; }
+        const next = text[i++];
+        if (next === '\n') continue;
+        if (next === '\r') { if (text[i] === '\n') i++; continue; }
+        if (next === 'x') {
+          const hex = text.slice(i, i + 2);
+          if (!/^[0-9a-f]{2}$/i.test(hex)) throw new Error('無效的 \\x 跳脫字元');
+          output += String.fromCharCode(parseInt(hex, 16)); i += 2; continue;
+        }
+        if (next === 'u') {
+          const hex = text.slice(i, i + 4);
+          if (!/^[0-9a-f]{4}$/i.test(hex)) throw new Error('無效的 \\u 跳脫字元');
+          output += String.fromCharCode(parseInt(hex, 16)); i += 4; continue;
+        }
+        output += Object.prototype.hasOwnProperty.call(escapes, next) ? escapes[next] : next;
+      }
+      throw new Error('字庫文字缺少結尾引號');
+    }
+
+    function readDelimited(text, start, openChar, closeChar) {
+      let depth = 0, quote = '', escape = false;
+      for (let i = start; i < text.length; i++) {
+        const ch = text[i];
+        if (quote) {
+          if (escape) escape = false;
+          else if (ch === '\\') escape = true;
+          else if (ch === quote) quote = '';
+          continue;
+        }
+        if (ch === '"' || ch === "'") { quote = ch; continue; }
+        if (ch === openChar) depth++;
+        if (ch === closeChar && --depth === 0) return { raw: text.slice(start, i + 1), content: text.slice(start + 1, i), end: i };
+      }
+      throw new Error('字庫物件結構不完整');
+    }
+
+    function findTopLevelComma(text) {
+      let quote = '', escape = false, round = 0, curly = 0, square = 0;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (quote) {
+          if (escape) escape = false;
+          else if (ch === '\\') escape = true;
+          else if (ch === quote) quote = '';
+          continue;
+        }
+        if (ch === '"' || ch === "'") quote = ch;
+        else if (ch === '(') round++;
+        else if (ch === ')') round--;
+        else if (ch === '{') curly++;
+        else if (ch === '}') curly--;
+        else if (ch === '[') square++;
+        else if (ch === ']') square--;
+        else if (ch === ',' && round === 0 && curly === 0 && square === 0) return i;
+      }
+      return -1;
+    }
+
+    function parseStringLiteral(value) {
+      const match = value.match(/^(['"])([\s\S]*)\1$/);
+      return match ? match[2] : '';
+    }
+
+    function removeTrailingCommas(text) {
+      let result = '', quote = '', escape = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (quote) {
+          result += ch;
+          if (escape) escape = false;
+          else if (ch === '\\') escape = true;
+          else if (ch === quote) quote = '';
+          continue;
+        }
+        if (ch === '"') { quote = ch; result += ch; continue; }
+        if (ch === ',') {
+          let j = i + 1;
+          while (/\s/.test(text[j] || '')) j++;
+          if (text[j] === '}' || text[j] === ']') continue;
+        }
+        result += ch;
+      }
+      return result;
+    }
+
+    function languageFromName(name) {
+      const match = name.toUpperCase().match(/(?:^|[._-])(TW|CN|EN|JA|JP|KO|KR|DE|FR|ES|RU|UA|VI)(?:[._-]|$)/);
+      return match ? match[1].replace('JP', 'JA').replace('KR', 'KO') : 'NEW';
+    }
+
+    function getLanguages() {
+      const found = new Set();
+      for (const langs of Object.values(state.data)) Object.keys(langs).forEach(lang => found.add(lang.toUpperCase()));
+      return [...found].sort((a, b) => (LANG_ORDER.get(a) ?? 999) - (LANG_ORDER.get(b) ?? 999) || a.localeCompare(b));
+    }
+
+    function populateLanguages(preferredTarget) {
+      const languages = getLanguages();
+      const oldSource = els.sourceLang.value;
+      const oldTarget = preferredTarget || els.targetLang.value;
+      const options = languages.map(code => `<option value="${escapeHtml(code)}">${escapeHtml(LANG_NAMES[code] || code)}</option>`).join('');
+      els.sourceLang.innerHTML = options;
+      els.targetLang.innerHTML = options;
+      els.sourceLang.value = languages.includes(oldSource) ? oldSource : (languages.includes('EN') ? 'EN' : languages[0] || '');
+      els.targetLang.value = languages.includes(oldTarget) ? oldTarget : (languages.includes('TW') ? 'TW' : languages.find(x => x !== els.sourceLang.value) || languages[0] || '');
+    }
+
+    function addLanguage() {
+      const code = els.newLang.value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+      if (!code) return;
+      for (const langs of Object.values(state.data)) if (!(code in langs)) langs[code] = '';
+      els.newLang.value = '';
+      populateLanguages(code);
+      render();
+      setStatusKey('createdLanguage', { code }, 'ok');
+    }
+
+    function placeholders(value) {
+      return [...String(value || '').matchAll(/\{([^{}]+)\}/g)].map(match => match[1]).sort();
+    }
+
+    function issueFor(source, target) {
+      if (!target.trim()) return '';
+      const a = placeholders(source), b = placeholders(target);
+      return JSON.stringify(a) === JSON.stringify(b) ? '' : tr('shouldKeep', { tokens: a.length ? a.map(x => `{${x}}`).join(' ') : tr('noPlaceholder') });
+    }
+
+    function render() {
+      const sourceLang = els.sourceLang.value;
+      const targetLang = els.targetLang.value;
+      const query = els.search.value.trim().toLocaleLowerCase();
+      const mode = els.filter.value;
+      const matched = [];
+      let done = 0, missing = 0, issues = 0;
+      const allEntries = Object.entries(state.data);
+      for (const [key, langs] of allEntries) {
+        const source = String(langs[sourceLang] ?? '');
+        const target = String(langs[targetLang] ?? '');
+        const issue = issueFor(source, target);
+        if (target.trim()) done++; else missing++;
+        if (issue) issues++;
+        const same = sourceLang !== targetLang && !!source.trim() && source === target;
+        const status = issue ? 'invalid' : (!target.trim() ? 'missing' : (same ? 'same' : 'done'));
+        if (mode !== 'all' && status !== mode) continue;
+        if (query && !`${key}\n${source}\n${target}`.toLocaleLowerCase().includes(query)) continue;
+        matched.push([key, source, target, issue, status]);
+      }
+      const pageSize = Number(els.pageSize.value) || 60;
+      const pages = Math.max(1, Math.ceil(matched.length / pageSize));
+      state.page = Math.min(Math.max(1, state.page), pages);
+      const start = (state.page - 1) * pageSize;
+      const rows = matched.slice(start, start + pageSize).map(args => entryHtml(...args));
+      els.total.textContent = allEntries.length;
+      els.done.textContent = done;
+      els.missing.textContent = missing;
+      els.issues.textContent = issues;
+      els.progress.style.width = `${allEntries.length ? (done / allEntries.length) * 100 : 0}%`;
+      els.sourceHead.textContent = sourceLang ? `${tr('source')} · ${sourceLang}` : tr('source');
+      els.targetHead.textContent = targetLang ? `${tr('target')} · ${targetLang}` : tr('target');
+      els.entries.innerHTML = rows.length ? rows.join('') : `<div class="empty"><strong>${escapeHtml(tr('noMatches'))}</strong>${escapeHtml(tr('adjustFilters'))}</div>`;
+      els.pageInfo.textContent = matched.length ? tr('pageInfo', { page: state.page, pages, count: matched.length }) : tr('zeroEntries');
+      els.prevPage.disabled = state.page <= 1;
+      els.nextPage.disabled = state.page >= pages;
+      els.entries.querySelectorAll('textarea.target').forEach(textarea => textarea.addEventListener('input', onTranslationInput));
+    }
+
+    function entryHtml(key, source, target, issue, status) {
+      return `<article class="entry" data-key="${escapeHtml(key)}">
+        <div class="cell key" data-label="Key">${escapeHtml(key)}${issue ? `<small>${escapeHtml(issue)}</small>` : ''}</div>
+        <div class="cell" data-label="${escapeHtml(tr('source'))}"><textarea class="source" readonly>${escapeHtml(source)}</textarea></div>
+        <div class="cell" data-label="${escapeHtml(tr('target'))}"><textarea class="target ${issue ? 'invalid' : ''}" spellcheck="false">${escapeHtml(target)}</textarea></div>
+        <div class="cell state"><i class="dot ${status}"></i></div>
+      </article>`;
+    }
+
+    function onTranslationInput(event) {
+      const article = event.target.closest('.entry');
+      const key = article.dataset.key;
+      const lang = els.targetLang.value;
+      state.data[key][lang] = event.target.value;
+      state.dirty.add(`${lang}:${key}`);
+      const issue = issueFor(state.data[key][els.sourceLang.value] || '', event.target.value);
+      event.target.classList.toggle('invalid', !!issue);
+      const dot = article.querySelector('.dot');
+      const source = String(state.data[key][els.sourceLang.value] || '');
+      const same = els.sourceLang.value !== lang && !!source.trim() && source === event.target.value;
+      dot.className = `dot ${issue ? 'invalid' : (!event.target.value.trim() ? 'missing' : (same ? 'missing' : 'done'))}`;
+      const oldIssue = article.querySelector('.key small');
+      if (oldIssue) oldIssue.remove();
+      if (issue) article.querySelector('.key').insertAdjacentHTML('beforeend', `<small>${escapeHtml(issue)}</small>`);
+      updateMetrics();
+    }
+
+    function updateMetrics() {
+      const sourceLang = els.sourceLang.value, targetLang = els.targetLang.value;
+      let done = 0, issues = 0;
+      const entries = Object.values(state.data);
+      for (const langs of entries) {
+        const target = String(langs[targetLang] ?? '');
+        if (target.trim()) done++;
+        if (issueFor(String(langs[sourceLang] ?? ''), target)) issues++;
+      }
+      els.done.textContent = done;
+      els.missing.textContent = entries.length - done;
+      els.issues.textContent = issues;
+      els.progress.style.width = `${entries.length ? done / entries.length * 100 : 0}%`;
+    }
+
+    function exportJson() {
+      const lang = els.targetLang.value;
+      if (!lang || !Object.keys(state.data).length) return setStatusKey('nothingToExport', {}, 'error');
+      const output = {};
+      for (const [key, langs] of Object.entries(state.data)) output[key] = String(langs[lang] ?? '');
+      const blob = new Blob([JSON.stringify(output, null, 2) + '\n'], { type: 'application/json;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${state.namespace}-i18n.${lang}.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      setStatusKey('exported', { file: link.download }, 'ok');
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+    }
+
+    function renderLanguageHelp() {
+      const card = ([code, name]) => `<button class="lang-code ${RECOMMENDED_LANGS.has(code) ? 'recommended' : ''}" type="button" data-lang="${code}"><b>${code}</b>${name}</button>`;
+      $('recommendedLanguages').innerHTML = LANGUAGE_CATALOG.filter(item => RECOMMENDED_LANGS.has(item[0])).map(card).join('');
+      $('otherLanguages').innerHTML = LANGUAGE_CATALOG.filter(item => item[0] !== 'EN' && !RECOMMENDED_LANGS.has(item[0])).map(card).join('');
+      $('languageCodes').innerHTML = LANGUAGE_CATALOG.filter(item => item[0] !== 'EN').map(([code, name]) => `<option value="${code}">${name}</option>`).join('');
+      document.querySelectorAll('[data-lang]').forEach(button => button.addEventListener('click', () => {
+        els.newLang.value = button.dataset.lang;
+        $('languageDialog').close();
+        els.newLang.focus();
+      }));
+    }
+
+    async function initializeProjectSites() {
+      els.projectSelect.disabled = true;
+      const urls = location.pathname.includes('/Translation-Tool/')
+        ? [new URL('sites.json', location.href).href, SITES_CONFIG_URL]
+        : [SITES_CONFIG_URL];
+      let config = null;
+      let lastError = null;
+      for (const url of urls) {
+        try {
+          const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`, { cache: 'no-store' });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          config = await response.json();
+          break;
+        } catch (error) { lastError = error; }
+      }
+      const sites = Array.isArray(config?.sites) ? config.sites
+        .filter(site => site && site.enabled !== false && typeof site.name === 'string' && typeof site.url === 'string')
+        .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name)) : [];
+      if (!sites.length) {
+        els.projectSelect.innerHTML = '<option value="">—</option>';
+        els.projectSelect.title = `sites.json: ${lastError?.message || 'no enabled sites'}`;
+        console.warn('[Translation Studio] Unable to load preset sites:', lastError);
+        return '';
+      }
+      els.projectSelect.innerHTML = sites.map(site => `<option value="${escapeHtml(site.url)}">${escapeHtml(site.name)}</option>`).join('');
+      els.projectSelect.disabled = false;
+      const selected = sites.find(site => site.id === config.defaultSite) || sites[0];
+      els.projectSelect.value = selected.url;
+      els.repoUrl.value = selected.url;
+      return selected.url;
+    }
+
+    els.loadBtn.addEventListener('click', () => loadFromUrl());
+    els.projectSelect.addEventListener('change', () => { els.repoUrl.value = els.projectSelect.value; loadFromUrl(els.projectSelect.value); });
+    els.repoUrl.addEventListener('keydown', event => { if (event.key === 'Enter') loadFromUrl(); });
+    const resetAndRender = () => { state.page = 1; render(); };
+    let searchTimer;
+    els.sourceLang.addEventListener('change', resetAndRender);
+    els.targetLang.addEventListener('change', resetAndRender);
+    els.search.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(resetAndRender, 120); });
+    els.filter.addEventListener('change', resetAndRender);
+    els.pageSize.addEventListener('change', resetAndRender);
+    els.prevPage.addEventListener('click', () => { state.page--; render(); els.entries.scrollTop = 0; });
+    els.nextPage.addEventListener('click', () => { state.page++; render(); els.entries.scrollTop = 0; });
+    els.addLangBtn.addEventListener('click', addLanguage);
+    els.newLang.addEventListener('keydown', event => { if (event.key === 'Enter') addLanguage(); });
+    els.exportBtn.addEventListener('click', exportJson);
+    $('uiLanguage').addEventListener('change', event => applyUiLanguage(event.target.value));
+    $('languageHelp').addEventListener('click', () => $('languageDialog').showModal());
+    $('closeLanguageHelp').addEventListener('click', () => $('languageDialog').close());
+    $('languageDialog').addEventListener('click', event => { if (event.target === $('languageDialog')) $('languageDialog').close(); });
+
+    initializeUiLanguages();
+    renderLanguageHelp();
+    initializeProjectSites().then(url => { if (url) loadFromUrl(url); });
+  </script>
+</body>
+</html>

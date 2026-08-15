@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "defaultSite": "fcm",
+  "sites": [
+    {
+      "id": "fcm",
+      "name": "FCM Translation",
+      "url": "https://github.com/awdrrawd/BC-FCM/tree/main/Translation",
+      "enabled": true,
+      "order": 10
+    },
+    {
+      "id": "afc",
+      "name": "AFC Translation",
+      "url": "https://github.com/awdrrawd/BC-AFC/tree/main/Translation",
+      "enabled": true,
+      "order": 20
+    },
+    {
+      "id": "hsc",
+      "name": "HSC Translation",
+      "url": "https://github.com/awdrrawd/BC-HSC/tree/main/Translation",
+      "enabled": true,
+      "order": 30
+    },
+    {
+      "id": "lce",
+      "name": "LCE Translation",
+      "url": "https://github.com/awdrrawd/BC-LCE/tree/main/Translation",
+      "enabled": true,
+      "order": 40
+    },
+    {
+      "id": "QiAct",
+      "name": "QuickInteraction Translation",
+      "url": "https://github.com/bondage-studio/QuickInteraction/tree/main/Translation",
+      "enabled": true,
+      "order": 90
+    }
+  ]
+}
