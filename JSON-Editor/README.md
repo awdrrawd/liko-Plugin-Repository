@@ -10,9 +10,22 @@
 node dev/serve-local.mjs
 ```
 
-再開啟 <http://localhost:5175/JSON-Editor/index.html>。工具會自動讀取儲存庫目前的三個 JSON 檔案。
+再開啟 <http://localhost:5175/JSON-Editor/index.html>。工具預設會直接從
+`https://github.com/awdrrawd/liko-Plugin-Repository/tree/main` 讀取三個 JSON，不需要先複製檔案。
 
-也可以直接雙擊 `index.html`；此時瀏覽器通常不允許自動讀取旁邊的檔案，請按「匯入 JSON」選取三個檔案。編輯完成後按「下載此檔」或「下載全部」，再將下載的檔案覆蓋回儲存庫即可。
+「GitHub 儲存庫網址」接受以下格式：
+
+- `https://github.com/awdrrawd/liko-Plugin-Repository/`
+- `https://github.com/awdrrawd/liko-Plugin-Repository/tree/main`
+- 其他儲存庫、分支或子目錄的同類網址
+
+也能以網址參數指定：
+
+```text
+http://localhost:5175/JSON-Editor/index.html?repo=https://github.com/awdrrawd/liko-Plugin-Repository/tree/main
+```
+
+也可以直接雙擊 `index.html`；只要能連上網路，一樣可以直接讀取 GitHub。若網路或瀏覽器政策阻擋，再使用「匯入 JSON」選取三個檔案。編輯完成後按「下載此檔」或「下載全部」，再將下載的檔案上傳到儲存庫即可。
 
 ## 安全設計
 

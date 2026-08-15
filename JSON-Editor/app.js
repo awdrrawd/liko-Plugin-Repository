@@ -26,13 +26,30 @@ function toast(msg){const e=$('#toast');e.textContent=msg;e.classList.add('show'
 function markDirty(){state.dirty.add(state.current);renderTabs();updateStatus();}
 function updateStatus(){const d=state.data[state.current];const n=d?.plugins?.length??d?.addons?.length;$('#fileStatus').textContent=(state.dirty.has(state.current)?'● 尚未下載':'✓ 已載入')+(n!=null?` · ${n} 項`:'');}
 
+function githubRawBase(input){
+  let value=input.trim();
+  if(!value)throw new Error('請輸入 GitHub 儲存庫網址');
+  if(!/^https?:\/\//i.test(value))value='https://'+value;
+  const url=new URL(value), parts=url.pathname.split('/').filter(Boolean);
+  if(url.hostname==='raw.githubusercontent.com'){
+    if(parts.length<3)throw new Error('Raw GitHub 網址格式不完整');
+    return `https://raw.githubusercontent.com/${parts[0]}/${parts[1]}/${parts[2]}/${parts.slice(3).join('/')}`.replace(/\/$/,'');
+  }
+  if(!['github.com','www.github.com'].includes(url.hostname)||parts.length<2)throw new Error('請使用 github.com 儲存庫網址');
+  const [owner,repo]=parts, treeAt=parts.indexOf('tree');
+  const branch=treeAt>=0&&parts[treeAt+1]?parts[treeAt+1]:'main';
+  const subpath=treeAt>=0?parts.slice(treeAt+2).join('/'):'';
+  return `https://raw.githubusercontent.com/${owner}/${repo.replace(/\.git$/,'')}/${branch}${subpath?'/'+subpath:''}`;
+}
 async function loadRepo(){
+  const repoUrl=$('#repositoryUrl').value;
+  const base=githubRawBase(repoUrl);
   const loaded={};
-  for(const f of FILES){const res=await fetch('../'+f,{cache:'no-store'});if(!res.ok)throw new Error(`${f}: HTTP ${res.status}`);loaded[f]=await res.json();}
-  state.data=loaded;state.dirty.clear();state.selected=0;render();toast('已載入儲存庫目前資料');
+  for(const f of FILES){const res=await fetch(`${base}/${f}`,{cache:'no-store'});if(!res.ok)throw new Error(`${f}: HTTP ${res.status}`);loaded[f]=await res.json();}
+  state.data=loaded;state.dirty.clear();state.selected=0;localStorage.setItem('liko-json-repo',repoUrl);render();toast('已直接載入 GitHub 儲存庫資料');
 }
 function defaultData(f){if(f==='external.json')return{_comment:'PCM-only entries NOT published to the FUSAM manifest.',plugins:[]};if(f==='manifest.json')return{version:'1',addons:[]};return{updateId:new Date().toISOString().slice(2,10).replaceAll('-',''),changelog:{cn:[],en:[]}};}
-async function init(){FILES.forEach(f=>state.data[f]=defaultData(f));renderTabs();try{await loadRepo();}catch{render();toast('請匯入 JSON，或透過本機伺服器開啟以自動載入');}}
+async function init(){FILES.forEach(f=>state.data[f]=defaultData(f));const queryRepo=new URLSearchParams(location.search).get('repo');$('#repositoryUrl').value=queryRepo||localStorage.getItem('liko-json-repo')||$('#repositoryUrl').value;renderTabs();try{await loadRepo();}catch(e){render();toast('GitHub 載入失敗：'+e.message);}}
 
 function renderTabs(){
   $('#tabs').innerHTML=FILES.map(f=>`<button data-file="${f}" class="${f===state.current?'active':''}">${state.dirty.has(f)?'● ':''}${f}</button>`).join('');

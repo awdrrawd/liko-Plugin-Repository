@@ -1,0 +1,10 @@
+.repo-loader { width: min(620px, 48vw); }
+.repo-loader > label { display: block; color: var(--muted); font-size: 12px; margin: 0 0 6px; }
+.repo-loader input { min-width: 380px; flex: 1; }
+.repo-loader .compact { justify-content: flex-end; margin-top: 9px; }
+
+@media (max-width: 800px) {
+  .repo-loader { width: 100%; }
+  .repo-loader input { min-width: 0; }
+  .repo-loader .compact { justify-content: flex-start; }
+}
