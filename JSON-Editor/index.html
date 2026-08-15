@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Liko JSON 編輯器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div>
+      <p class="eyebrow">LIKO REPOSITORY TOOL</p>
+      <h1>JSON 編輯器</h1>
+      <p class="subtitle">用表單安全維護 external、manifest 與 meta，不必手動處理逗號。</p>
+    </div>
+    <div class="header-actions">
+      <button id="loadRepo" class="secondary">載入儲存庫目前資料</button>
+      <label class="button secondary">匯入 JSON<input id="fileInput" type="file" accept=".json,application/json" multiple></label>
+      <button id="saveAll" class="primary">下載全部</button>
+    </div>
+  </header>
+
+  <main>
+    <nav id="tabs" aria-label="檔案切換"></nav>
+    <section class="toolbar">
+      <div>
+        <strong id="fileTitle"></strong>
+        <span id="fileStatus" class="status"></span>
+      </div>
+      <div class="toolbar-actions">
+        <input id="search" type="search" placeholder="搜尋 ID、名稱…">
+        <button id="addEntry">＋ 新增項目</button>
+        <button id="formatPreview" class="secondary">JSON 預覽</button>
+        <button id="saveFile" class="primary">下載此檔</button>
+      </div>
+    </section>
+
+    <section id="metaEditor" hidden></section>
+    <section id="listEditor" class="layout">
+      <aside id="entryList"></aside>
+      <form id="entryForm" autocomplete="off"></form>
+    </section>
+  </main>
+
+  <dialog id="jsonDialog">
+    <div class="dialog-head"><strong id="dialogTitle">JSON 預覽</strong><button id="closeDialog" aria-label="關閉">×</button></div>
+    <textarea id="jsonPreview" spellcheck="false"></textarea>
+    <div class="dialog-actions"><span id="previewValidation"></span><button id="applyPreview">套用 JSON</button></div>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
