@@ -2,7 +2,7 @@
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.0.2
+// @version      1.0.3
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,13 +17,14 @@
 (function () {
     window.Liko = window.Liko ?? {};
     if (window.Liko.BMM) return;
-    const MOD_VER = "1.0.2";
+    const MOD_VER = "1.0.3";
     window.Liko.BMM = MOD_VER;
 
     const HDR_H = 36, FTR_H = 32;
     const MAP_W = 40, MAP_H = 40, OBJ_START = 100, VIEW_RANGE = 10;
     const LOCAL_SIZE = 300;
     const FULL_SIZE  = 500;
+    const COMPLETE_SIZE = 640; // "完整"模式：直接繪製遊戲貼圖，畫布給大一點比較看得清楚
 
     // ── 配色表（由 BMM 染色設定器匯出）───────────────────────────────────────
     const TILE_COLORS = {
@@ -130,7 +131,33 @@
             name: (typeof CharacterNickname === "function" ? CharacterNickname(c) : null) || c.Name || "?",  // eslint-disable-line
             isPlayer: typeof c.IsPlayer === "function" ? c.IsPlayer() : false,
             color: c.LabelColor || "#ff8844",
+            raw: c, // 保留原始 Character 物件，"完整"模式判斷 AssetName/OccupiedStyle 時會用到
         }));
+    }
+    function getCharAtPos(chars, x, y) {
+        for (const c of chars) if (c.x === x && c.y === y) return c.raw;
+        return null;
+    }
+
+    // 依遊戲的規則決定該格物件實際要畫的貼圖檔名（BuildImageName／OccupiedStyle／IsVisible／穿戴中隱藏）
+    // 回傳 null 代表這格不畫任何物件貼圖
+    function resolveObjectImageName(obj, x, y, chars) {
+        if (!obj || obj.Style === "Blank") return null;
+        if (typeof obj.IsVisible === "function") {
+            try { if (!obj.IsVisible()) return null; } catch { /* 忽略例外，照樣嘗試繪製 */ }
+        }
+        let imageName = obj.Style;
+        if (obj.AssetName != null || obj.OccupiedStyle != null) {
+            const char = getCharAtPos(chars, x, y);
+            if (char != null && obj.AssetName != null && obj.AssetGroup != null &&
+                typeof InventoryIsWorn === "function" && InventoryIsWorn(char, obj.AssetGroup, obj.AssetName)) {  // eslint-disable-line
+                return null; // 該角色已穿戴對應道具，畫面上由角色本身呈現，不重複畫底圖
+            }
+            if (char != null && obj.OccupiedStyle != null) imageName = obj.OccupiedStyle;
+        } else if (typeof obj.BuildImageName === "function") {
+            try { imageName = obj.BuildImageName(x, y); } catch { imageName = obj.Style; }
+        }
+        return imageName;
     }
     let _tlCache = null, _olCache = null, _lastMapData = null;
 
@@ -148,6 +175,95 @@
         return _olCache;
     }
 
+    // 從遊戲引擎抓取已快取的圖片物件（沿用 ChatRoomMapViewDrawGrid 用的同一支函式）
+    function getGameImage(path) {
+        return (typeof DrawGetImage === "function") ? DrawGetImage(path) : null;  // eslint-disable-line
+    }
+
+    // ── "完整"模式：直接抓取遊戲貼圖繪製整張 40×40 地圖縮圖 ──────────────────────
+    function drawFullMapReal(ctx, W, H) {
+        const md = getMapData();
+        const chars = getChars();
+
+        if (!md?.Tiles) {
+            ctx.fillStyle = "#1a1a2e"; ctx.fillRect(0, 0, W, H);
+            ctx.fillStyle = "rgba(255,60,60,0.5)";
+            ctx.font = "13px monospace";
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText("目前不在地圖房間內", W/2, H/2);
+            ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+            _charCache = [];
+            return;
+        }
+
+        if (typeof DrawGetImage !== "function") {  // eslint-disable-line
+            ctx.fillStyle = "#1a1a2e"; ctx.fillRect(0, 0, W, H);
+            ctx.fillStyle = "rgba(255,200,60,0.8)";
+            ctx.font = "12px monospace";
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText("找不到遊戲繪圖函式 DrawGetImage，無法使用「完整」模式", W/2, H/2);
+            ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+            _charCache = [];
+            return;
+        }
+
+        const tl = getTL(), ol = getOL();
+        const ts = Math.min(Math.floor(W/MAP_W), Math.floor(H/MAP_H));
+        const ox = Math.floor((W - ts*MAP_W)/2), oy = Math.floor((H - ts*MAP_H)/2);
+        ctx.fillStyle = "#1a1a2e"; ctx.fillRect(0, 0, W, H);
+
+        // 底層 Tile 貼圖
+        for (let y = 0; y < MAP_H; y++)
+            for (let x = 0; x < MAP_W; x++) {
+                const tile = tl[md.Tiles.charCodeAt(y*MAP_W+x)];
+                if (!tile) continue;
+                const img = getGameImage("Screens/Online/ChatRoom/MapTile/" + tile.Type + "/" + tile.Style + ".png");
+                if (img && img.complete && img.naturalWidth > 0) {
+                    ctx.drawImage(img, ox+x*ts, oy+y*ts, ts, ts);
+                } else {
+                    // 圖片尚未載入完成時先用灰塊佔位，下次重繪（每 500ms）會補上
+                    ctx.fillStyle = "#333"; ctx.fillRect(ox+x*ts, oy+y*ts, ts, ts);
+                }
+            }
+
+        // 物件貼圖（含 Top/Left/Width/Height 偏移，讓超出格子的家具、樹木等維持原比例）
+        if (md.Objects)
+            for (let y = 0; y < MAP_H; y++)
+                for (let x = 0; x < MAP_W; x++) {
+                    const id = md.Objects.charCodeAt(y*MAP_W+x);
+                    if (id <= OBJ_START) continue;
+                    const obj = ol[id];
+                    const imageName = resolveObjectImageName(obj, x, y, chars);
+                    if (!imageName) continue;
+                    const img = getGameImage("Screens/Online/ChatRoom/MapObject/" + obj.Type + "/" + imageName + ".png");
+                    if (!img || !img.complete || img.naturalWidth === 0) continue;
+                    const ow = ts * (obj.Width  == null ? 1 : obj.Width);
+                    const oh = ts * (obj.Height == null ? 1 : obj.Height);
+                    const dx = ox + x*ts + (obj.Left == null ? 0 : ts*obj.Left);
+                    const dy = oy + y*ts + (obj.Top  == null ? 0 : ts*obj.Top);
+                    ctx.drawImage(img, dx, dy, ow, oh);
+                }
+
+        // 人物：維持簡易圓點呈現（不畫角色貼圖）
+        _charCache = [];
+        for (const c of chars) {
+            const sx = ox+c.x*ts+ts/2, sy = oy+c.y*ts+ts/2;
+            const r = Math.max(3, Math.floor(ts*.4));
+            ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2);
+            ctx.fillStyle = c.isPlayer ? "#ff3c3c" : c.color;
+            ctx.fill(); ctx.strokeStyle="#000"; ctx.lineWidth=1; ctx.stroke();
+            _charCache.push({ ...c, sx, sy, r });
+            if (c.isPlayer) {
+                const fs = Math.max(10, ts*1.5);
+                ctx.font = `bold ${fs}px monospace`;
+                ctx.fillStyle = "#ff3c3c";
+                ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+                ctx.fillText("▼", sx, sy - r - 1);
+                ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+            }
+        }
+    }
+
     // ── 繪圖 ──────────────────────────────────────────────────────────────────
     function drawMap(ctx, W, H) {
         const md = getMapData();
@@ -161,6 +277,11 @@
             ctx.fillText("目前不在地圖房間內", W/2, H/2);
             ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
             _charCache = [];
+            return;
+        }
+
+        if (mapMode === "complete") {
+            drawFullMapReal(ctx, W, H);
             return;
         }
 
@@ -362,14 +483,23 @@
         bLocal.className = "mm-btn active"; bLocal.textContent = "局部";
         const bFull  = document.createElement("button");
         bFull.className  = "mm-btn"; bFull.textContent = "全圖";
+        const bComplete = document.createElement("button");
+        bComplete.className = "mm-btn"; bComplete.textContent = "完整";
         const bClose = document.createElement("button");
         bClose.className = "mm-btn"; bClose.textContent = "✕";
 
+        function sizeForMode(m) {
+            if (m === "full") return FULL_SIZE;
+            if (m === "complete") return COMPLETE_SIZE;
+            return LOCAL_SIZE;
+        }
+
         function setMode(m) {
             mapMode = m;
-            bLocal.className = "mm-btn" + (m==="local"?" active":"");
-            bFull.className  = "mm-btn" + (m==="full" ?" active":"");
-            const size = m === "full" ? FULL_SIZE : LOCAL_SIZE;
+            bLocal.className    = "mm-btn" + (m==="local"    ? " active" : "");
+            bFull.className     = "mm-btn" + (m==="full"     ? " active" : "");
+            bComplete.className = "mm-btn" + (m==="complete" ? " active" : "");
+            const size = sizeForMode(m);
             cvEl.width  = size;
             cvEl.height = size;
             cvEl.style.width  = size + "px";
@@ -379,11 +509,12 @@
             panelEl.style.setProperty("overflow", "visible",                      "important"); // ← 新增
             panelEl.style.setProperty("max-height", "none",                       "important"); // ← 新增
         }
-        bLocal.onclick = () => setMode("local");
-        bFull.onclick  = () => setMode("full");
-        bClose.onclick = () => panelEl.classList.add("hidden");
+        bLocal.onclick    = () => setMode("local");
+        bFull.onclick     = () => setMode("full");
+        bComplete.onclick = () => setMode("complete");
+        bClose.onclick    = () => panelEl.classList.add("hidden");
 
-        btns.append(bLocal, bFull, bClose);
+        btns.append(bLocal, bFull, bComplete, bClose);
         hdr.append(title, btns);
 
         // Canvas
@@ -446,7 +577,7 @@
 
         // 顯示後強制套用正確尺寸
         if (!panelEl.classList.contains("hidden")) {
-            const size = mapMode === "full" ? FULL_SIZE : LOCAL_SIZE;
+            const size = mapMode === "full" ? FULL_SIZE : mapMode === "complete" ? COMPLETE_SIZE : LOCAL_SIZE;
             panelEl.style.setProperty("width",    size + "px",                    "important");
             panelEl.style.setProperty("height",   (HDR_H + size + FTR_H) + "px", "important");
             panelEl.style.setProperty("overflow", "visible",                      "important");
