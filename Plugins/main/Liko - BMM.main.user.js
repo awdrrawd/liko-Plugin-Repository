@@ -2,7 +2,7 @@
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.0.1
+// @version      1.0.2
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
 (function () {
     window.Liko = window.Liko ?? {};
     if (window.Liko.BMM) return;
-    const MOD_VER = "1.0.1";
+    const MOD_VER = "1.0.2";
     window.Liko.BMM = MOD_VER;
 
     const HDR_H = 36, FTR_H = 32;
@@ -25,18 +25,85 @@
     const LOCAL_SIZE = 300;
     const FULL_SIZE  = 500;
 
+    // ── 配色表（由 BMM 染色設定器匯出）───────────────────────────────────────
     const TILE_COLORS = {
-        Floor:"#c8b89a", FloorExterior:"#7a9e6e",
-        Wall:"#3a3a4a", Water:"#4488bb", default:"#555566",
+        Floor: "#999999",
+        FloorExterior: "#cee8bf",
+        Wall: "#523319",
+        Water: "#3c7cdd",
+        default: "#707070",
     };
-    const OBJ_COLORS = {
-        FloorDecoration:"#e8d4a0", FloorDecorationThemed:"#d4b0c0",
-        FloorDecorationParty:"#f0c040", FloorDecorationCamping:"#88cc66",
-        FloorDecorationExpanding:"#cc9966", FloorDecorationAnimal:"#ffcc88",
-        FloorItem:"#cc6666", FloorObstacle:"#888899",
-        WallDecoration:"#bb9966", WallPath:"#88aadd",
-        Banners:"#dd6666", default:"#999999",
+
+    const OBJECT_STYLES = {
+        FloorDecoration:          { mode:"fill",       fill:"#ffcfa8", border:"#a08a5f" },
+        FloorDecorationThemed:    { mode:"fill",       fill:"#becbfe", border:"#a08a5f" },
+        FloorDecorationParty:     { mode:"fill",       fill:"#f8945d", border:"#a08a5f" },
+        FloorDecorationCamping:   { mode:"fill",       fill:"#db9757", border:"#a08a5f" },
+        FloorDecorationExpanding: { mode:"fill",       fill:"#ffb3e3", border:"#ad528c" },
+        FloorDecorationAnimal:    { mode:"fillBorder", fill:"#ffce5c", border:"#a08a5f" },
+        FloorItem:                { mode:"fill",       fill:"#c8b074", border:"#a08a5f" },
+        FloorObstacle:            { mode:"fill",       fill:"#4f4f4f", border:"#000000" },
+        FloorNumber:              { mode:"fillBorder", fill:"#e8e8e8", border:"#000000" },
+        FloorLetter:              { mode:"fillBorder", fill:"#e8e8e8", border:"#000000" },
+        FloorIcon:                { mode:"star",       fill:"#e6e6e6", border:"#000000" },
+        WallDecoration:           { mode:"outline",    fill:"#6b4a2f", border:"#000000" },
+        Banners:                  { mode:"outline",    fill:"#6b4a2f", border:"#000000" },
+        WallPath:                 { mode:"fillBorder", fill:"#86daf9", border:"#000000" },
     };
+
+    // Style 優先於 Type：入口／出口／鑰匙都是 FloorDecoration 底下的特殊款式，改用星星圖示
+    const STYLE_OVERRIDES = [
+        { match:"EntryFlag", matchType:"exact",  mode:"star", fill:"#00d115", border:"#000000" }, // 入口
+        { match:"ExitFlag",  matchType:"exact",  mode:"star", fill:"#ff352e", border:"#000000" }, // 出口
+        { match:"Key",       matchType:"prefix", mode:"star", fill:"#f6fa00", border:"#000000" }, // 鑰匙 Key*
+    ];
+
+    function starPath(ctx, cx, cy, outerR, innerRatio, points, rotation) {
+        ctx.beginPath();
+        for (let i = 0; i < points*2; i++) {
+            const r = (i % 2 === 0) ? outerR : outerR*innerRatio;
+            const a = rotation + i*Math.PI/points;
+            const px = cx + Math.cos(a)*r, py = cy + Math.sin(a)*r;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+    }
+
+    // 依 vis（getObjectVisual 回傳的樣式設定）把物件畫在 (x,y,w,h) 這個方格內
+    function drawStyled(ctx, x, y, w, h, vis) {
+        if (!vis) return;
+        if (vis.mode === "outline") {
+            ctx.strokeStyle = vis.border || "#ffffff"; ctx.lineWidth = 1.5;
+            ctx.strokeRect(x+0.75, y+0.75, w-1.5, h-1.5);
+            return;
+        }
+        if (vis.mode === "star") {
+            const cx = x+w/2, cy = y+h/2, r = Math.min(w,h)/2*0.92;
+            starPath(ctx, cx, cy, r, 0.45, 5, -Math.PI/2);
+            ctx.fillStyle = vis.fill || "#ffd700";
+            ctx.fill();
+            if (vis.border) {
+                ctx.strokeStyle = vis.border; ctx.lineWidth = Math.max(1, r*0.12);
+                ctx.stroke();
+            }
+            return;
+        }
+        ctx.fillStyle = vis.fill || "#999999";
+        ctx.fillRect(x, y, w, h);
+        if (vis.mode === "fillBorder" && vis.border) {
+            ctx.strokeStyle = vis.border; ctx.lineWidth = 1;
+            ctx.strokeRect(x+0.5, y+0.5, w-1, h-1);
+        }
+    }
+
+    function getObjectVisual(obj) {
+        const style = obj.Style || "";
+        for (const o of STYLE_OVERRIDES) {
+            const hit = o.matchType === "prefix" ? style.indexOf(o.match) === 0 : style === o.match;
+            if (hit) return o;
+        }
+        return OBJECT_STYLES[obj.Type] || { mode:"fill", fill:"#999999" };
+    }
 
     let panelEl = null, cvEl = null;
     let fPos, fCnt, fHover;
@@ -119,8 +186,8 @@
                         if (id <= OBJ_START) continue;
                         const obj = ol[id]; if (!obj||obj.Style==="Blank") continue;
                         const pad = Math.max(0, Math.floor(ts*.15));
-                        ctx.fillStyle = OBJ_COLORS[obj.Type]||OBJ_COLORS.default;
-                        ctx.fillRect(ox+x*ts+pad, oy+y*ts+pad, ts-pad*2, ts-pad*2);
+                        const vis = getObjectVisual(obj);
+                        drawStyled(ctx, ox+x*ts+pad, oy+y*ts+pad, ts-pad*2, ts-pad*2, vis);
                     }
 
             _charCache = [];
@@ -166,18 +233,10 @@
                         if (id > OBJ_START) {
                             const obj = ol[id];
                             if (obj && obj.Style !== "Blank") {
-                                const col = OBJ_COLORS[obj.Type]||OBJ_COLORS.default;
+                                // 一律用方形／星形等非圓形樣式繪製，避免和圓形的玩家標記混淆
+                                const vis = getObjectVisual(obj);
                                 const pad = Math.max(1, Math.floor(ts*.14));
-                                if (obj.Type === "WallPath") {
-                                    ctx.fillStyle=col; ctx.fillRect(sx+pad,sy+pad,ts-pad*2,ts-pad*2);
-                                    ctx.strokeStyle="#4466aa"; ctx.lineWidth=1.5;
-                                    ctx.strokeRect(sx+pad+.75,sy+pad+.75,ts-pad*2-1.5,ts-pad*2-1.5);
-                                } else if (obj.Type === "FloorObstacle") {
-                                    ctx.beginPath(); ctx.arc(sx+ts/2,sy+ts/2,ts/2-pad,0,Math.PI*2);
-                                    ctx.fillStyle=col; ctx.fill();
-                                } else {
-                                    ctx.fillStyle=col; ctx.fillRect(sx+pad,sy+pad,ts-pad*2,ts-pad*2);
-                                }
+                                drawStyled(ctx, sx+pad, sy+pad, ts-pad*2, ts-pad*2, vis);
                             }
                         }
                     }
@@ -433,9 +492,23 @@
         createPanel();
         console.log(`🐈‍⬛ [BMM] ✅ v${MOD_VER} loaded`);
 
+        // 按鈕顯示狀態需要連續幾幀都判定一致才會真正切換，避免遊戲內部狀態
+        // 短暫變動（例如 CurrentCharacter 瞬間變化）造成按鈕忽隱忽現的高速閃爍。
+        // 注意：BC 每一幀都會把整個畫布清空重畫，所以「判定通過後」仍必須每幀畫一次
+        // 按鈕，否則按鈕反而會因為沒被畫出而消失、造成更嚴重的閃爍。
+        const BTN_STABLE_FRAMES = 3;
+        let _btnShowStreak = 0, _btnHideStreak = 0, _btnShouldShow = false;
+
         modApi.hookFunction("GameRun", 0, (args, next)=>{
             const r=next(args);
-            if (!canShowMapButton()) {
+
+            const raw = canShowMapButton();
+            if (raw) { _btnShowStreak++; _btnHideStreak = 0; }
+            else     { _btnHideStreak++; _btnShowStreak = 0; }
+            if (_btnShowStreak >= BTN_STABLE_FRAMES) _btnShouldShow = true;
+            if (_btnHideStreak >= BTN_STABLE_FRAMES) _btnShouldShow = false;
+
+            if (!_btnShouldShow) {
                 if (panelEl && typeof CurrentCharacter !== "undefined" && CurrentCharacter !== null) {
                     panelEl.classList.add("hidden");
                 }
