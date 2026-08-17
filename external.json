@@ -85,8 +85,13 @@
       "en_additionalInfo": "",
       "url": "https://galia-bc.github.io/galia.github.io/club-gaming/club-gaming.js",
       "mirrorUrl": "https://raw.githubusercontent.com/galia-bc/galia.github.io/main/club-gaming/club-gaming.js",
-      "altUrl": "https://galia-bc.github.io/galia.github.io/club-gaming/beta/club-gaming.js",
-      "altMirrorUrl": "https://raw.githubusercontent.com/galia-bc/galia.github.io/main/club-gaming/beta/club-gaming.js",
+      "altUrl": "https://heitaoplay.github.io/galia.github.io/club-gaming/club-gaming.js",
+      "altMirrorUrl": "https://raw.githubusercontent.com/heitaoplay/galia.github.io/refs/heads/i18n/club-gaming/club-gaming.js",
+      "triLabels": [
+        "OFF",
+        "EN",
+        "ZH"
+      ],
       "website": "https://galia-bc.github.io/galia.github.io",
       "priority": 4
     },
