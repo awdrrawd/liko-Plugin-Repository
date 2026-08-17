@@ -1,33 +1,311 @@
 # Bondage Club 插件開發初始指南
 
-整理自 `liko-Plugin-Repository` 內的共用系統擴充（`Plugins/expand/`）與各插件實作，作為新插件開發時的起手式參考，避開常見的坑。
+> 本文是專為 [BondageClub](https://gitgud.io/BondageProjects/Bondage-College) 撰寫的插件開發筆記，整理自 `liko-Plugin-Repository` 內的共用系統擴充（`Plugins/expand/`）與各插件實作，作為新插件開發時的起手式參考，避開常見的坑。
+
+## 目錄
+
+- [〇、作者習慣（是「習慣」，不是開發必須）](#〇作者習慣是習慣不是開發必須)
+- [一、`bcModSdk`（Bondage Club Mod SDK）](#一bcmodsdkbondage-club-mod-sdk)
+- [二、插件的載入與初始化守則](#二插件的載入與初始化守則)
+- [三、共用系統擴充（`Plugins/expand/`）](#三共用系統擴充pluginsexpand)
+- [四、常用 BC 原生 API 使用方式](#四常用-bc-原生-api-使用方式)
+- [五、更新聊天室設定（`ChatRoomAdmin`）— 注意 `Player.ID` 陷阱](#五更新聊天室設定chatroomadmin-注意-playerid-陷阱)
+- [六、在 InformationSheet（角色資訊卡）上繪製按鈕的注意事項](#六在-informationsheet角色資訊卡上繪製按鈕的注意事項)
+- [七、BC 的人物繪製機制](#七bc-的人物繪製機制背景人物都是圖層-0靠繪製順序決定疊放)
+- [八、聊天室訊息的資料結構](#八聊天室訊息chatroomchatchatroommessage的資料結構)
+- [九、插件間「隱藏資訊」傳遞手法：`Hidden` vs `Beep`（含 `Leash`），以及 Query 模式](#九插件間隱藏資訊傳遞手法hidden-vs-beep含-leash以及-query-模式)
+- [十、在雙人互動「Dialog」畫面裡插入自訂選項](#十在雙人互動dialog畫面裡插入自訂選項)
+- [十一、調用官方圖片 — 盡量使用相對路徑，不要寫死完整網址](#十一調用官方圖片-盡量使用相對路徑不要寫死完整網址)
+- [十二、校正、實務限制與存疑](#十二校正實務限制與存疑)
+- [附錄：起手式檢查清單](#附錄起手式檢查清單)
+- [附錄：相關倉庫與鏡像](#附錄相關倉庫與鏡像)
+
+> 錨點連結依 GitHub 的標題轉換規則產生，不同 Markdown 檢視器（VSCode、Obsidian…）規則可能略有差異；若點了跳不過去，直接用 Ctrl+F 搜標題文字即可。
 
 ---
 
-## 〇、liko 開發者慣例（是「習慣」，不是開發必須）
+## 〇、作者習慣（是「習慣」，不是開發必須）
 
 以下幾點是本倉庫作者（`@author 莉柯莉絲(likolisu)`）自己一致的做法。抄新插件時照著走，風格會跟既有插件一致、也方便一眼辨識；但它們**純粹是慣例，不是 BC 或 `bcModSdk` 的技術要求**——完全不照做，插件照樣能正常運作。
 
-1. **console log 前綴用黑貓 🐈‍⬛。** 所有插件的載入訊息、說明標題都以 `🐈‍⬛` 開頭，格式慣例是 `🐈‍⬛ [縮寫] ✅ v{版本} loaded`。這只是「一眼認出這是同一個作者的作品」的視覺標記，跟功能無關。
+1. **Userscript metadata 的一致寫法。** BC 目前有三台伺服器，`@match`／`@include` 要涵蓋這三個網域，插件才會在每一台伺服器上都生效：
+
+   ```js
+   // @match        https://www.bondageprojects.elementfx.com/*
+   // @match        https://www.bondage-asia.com/*
+   // @match        https://www.bondage-europe.com/*
+   ```
+
+   這樣寫比較「標準」——三個網域各自明寫一行，但要記得同時維護三行；本倉庫更常用的做法是改用 `@include` 搭配一個正則式，一行涵蓋三台伺服器：
+
+   ```js
+   // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+   ```
+
+   除此之外，本倉庫插件的 metadata 還有幾個一致寫法：
+   - `@author 莉柯莉絲(likolisu)`、`@namespace`／`@supportURL` 指向本倉庫、`@downloadURL`／`@updateURL` 走 GitHub Pages。
+   - `@icon` 統一走 jsDelivr CDN 上的圖示：
+     ```js
+     // @icon           https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
+     ```
+   - 需要 `bcModSdk` 的插件，`@require` 直接指到本倉庫發布的 vendored 版本：
+     ```js
+     // @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
+     ```
+     （記得同時把 `@grant` 設為 `none`，原因見下方第一節。）
+
+   這些是發佈與自動更新流程的約定，換成你自己的倉庫路徑即可。
+
+2. **統一掛在 `window.Liko` 底下，並在插件開頭做防重複啟用處理。** 每支插件開頭先 `window.Liko = window.Liko ?? {}`，再把自己的版本號寫進 `window.Liko.<縮寫>`。這個欄位同時身兼兩個用途——**版本註冊表**（別的插件或自己可查有沒有裝、裝了哪一版）與**重複載入防護**（同一支被載兩次時直接 `return`，不重跑）。
+
+   本倉庫大多插件都仰賴向 `bcModSdk` 註冊 mod（見第一節），同一支插件被重複載入（例如手滑裝了兩次、或載入器重複注入）會導致 `registerMod` 重複註冊而直接出錯，比一般插件的重複載入問題更需要小心處理。實務上的做法是**先在開頭寫入一個版本佔位值**，讓「已載入」判斷立刻生效、擋掉後續分身；**等整支腳本真正跑完、確定初始化沒有中途失敗，才在最後把 `window.Liko.<縮寫>` 覆寫成完整格式**（例如帶上正式版本號）。這樣至少能確保開發測試階段重新整理、重複載入時拿到的版本標記，反映的是「這次真的跑完整支腳本」的結果，而不是載入到一半就被防重複判斷擋下的半成品狀態：
+
+   ```js
+   window.Liko = window.Liko ?? {};
+   if (window.Liko.CHE) return;      // 已載入過就跳出
+   window.Liko.CHE = 'loading';      // 先寫入版本佔位，擋掉後續重複載入
+   // ...整支插件的初始化邏輯...
+   window.Liko.CHE = MOD_VER;        // 確定跑完後，才覆寫成正式版本號
+   ```
+
+   共用系統擴充則再進一步用 `window.Liko.__Sys_<name>__` 這個 `__Sys_` 前綴命名（見第三節），跟一般插件在同一個命名空間下區隔開。
+
+3. **console log 前綴用黑貓 🐈‍⬛。** 所有插件的載入訊息、說明標題都以 `🐈‍⬛` 開頭，格式慣例是 `🐈‍⬛ [縮寫] ✅ v{版本} loaded`。這只是「一眼認出這是同一個作者的作品」的視覺標記，跟功能無關。
    ```js
    console.log(`🐈‍⬛ [CHE] ✅ v${MOD_VER} loaded`);
    ```
-2. **統一掛在 `window.Liko` 底下。** 每支插件開頭先 `window.Liko = window.Liko ?? {}`，再把自己的版本號寫進 `window.Liko.<縮寫>`。這個欄位同時身兼兩個用途——**版本註冊表**（別的插件或自己可查有沒有裝、裝了哪一版）與**重複載入防護**（同一支被載兩次時直接 `return`，不重跑）：
-   ```js
-   window.Liko = window.Liko ?? {};
-   if (window.Liko.CHE) return;   // 已載入過就跳出
-   window.Liko.CHE = MOD_VER;     // 註冊自己的版本號
-   ```
-   共用系統擴充則再進一步用 `window.Liko.__Sys_<name>__` 這個 `__Sys_` 前綴命名（見下一節），跟一般插件在同一個命名空間下區隔開。
-3. **Userscript metadata 的一致寫法。** `@author 莉柯莉絲(likolisu)`、`@namespace`／`@supportURL` 指向本倉庫、`@downloadURL`／`@updateURL` 走 GitHub Pages、`@require` 的 `bcmodsdk.js` 走 jsDelivr CDN。這些是發佈與自動更新流程的約定，換成你自己的倉庫路徑即可。
+
+4. **在重要節點適度暴露公開 API，方便其他插件呼叫。** 如果你的插件掌握了其他插件可能用得到的狀態或能力（例如「目前是不是在我的子畫面裡」、「某個資料現在能不能用」、「某個判斷的結果」），與其讓別人只能用私有變數名稱去猜、或做一堆脆弱的 DOM／字串偵測，不如比照本文第六節提到的 `window.bcx?.inBcxSubscreen?.()`，或第三節那幾支 `window.Liko.__Sys_*__` 系列共用工具，主動掛一個命名清楚、型別穩定的公開函式或物件出來讓別人查。這不是規範，也不代表每個插件都得刻意設計一整套 API——只是在生態圈裡，**主動暴露一個小小的查詢介面，往往比讓其他插件事後用各種奇怪方式偵測你、繞過你，對雙方都省事。**
+
+5. **保持程式碼品質與結構，而不只是「能跑就好」。**
+   - **高度重複的邏輯應該合併，而不是為了微小差異一直開新函式。** 好幾個地方在做幾乎一樣的事、只有少數幾個值不同時，優先把共同邏輯抽成一個函式、用參數處理差異，靠「呼叫＋帶參數」取得最終結果；不要因為某個功能只差一點點，就整段複製貼上再開一支新函式。
+   - **一個函式該只做一件事，不要硬塞成一個什麼都做的大函式。** 職責越單一，越好測試、越好重用，也越方便在別的地方單獨呼叫其中一小段邏輯；一個函式做的事情太多、太雜，通常代表它該被拆開。
+   - **程式碼要寫得紮實，不是「能跑就好」。** 能動不代表結構合理；隨手拼湊、耦合鬆散、邏輯散落各處的寫法，短期看不出問題，但插件持續迭代下去會變成很難維護、很難排錯的隱患，日後改一個小地方都得提心吊膽會不會牽一髮動全身。
+   - **通用變數盡量宣告在檔案頂端，不要夾在函式附近東一個西一個。** 只給函式自己內部調度用的區域變數例外，可以留在函式裡；但只要是**跨函式共用、或需要開發者之後手動調整的設定值**（例如按鈕座標、顏色、閾值），都應該集中放在容易找到的地方，必要時在旁邊加註解說明用途——尤其是「這個數字之後可能要改」的那種值，更需要放在顯眼、好改的位置，而不是埋在某個函式中間。
+   - **會重複用到的值，寫成一個變數集中處理，不要到處各寫一份。** 例如按鈕尺寸、座標這類會在多個地方用到、理論上應該保持一致的數字，抽成一個共用變數，之後要調整只要改一處、全部跟著變動；但如果這些值本來就**不該連動**（例如兩個外觀相似、但其實各自獨立、以後可能分別調整的按鈕），就該分開各自宣告，不要為了圖方便硬湊成同一個變數。
+   - **連續性的物件盡量用陣列、迴圈處理，不要手動一個一個算值。** 像是一排按鈕的座標、一組選項的清單，只要有規律可循，就用陣列存資料、搭配迴圈產生／繪製，而不是每個都手動算好座標寫死；之後要整體調整（例如全部往右移、改變間距），也只需要改迴圈或那組共用參數，不必逐一修改每一顆。
+   - **因應多語系，文字盡量用佔位符處理，內文集中另外編輯。** 顯示文字建議走本文第三節提到的 `BC_i18n.js` 這類機制，程式邏輯裡放的是 key／佔位符，實際顯示的文字集中寫在字庫檔案裡，方便之後要翻譯時不必逐一在程式碼裡翻找、替換。就算完全不打算做多語，把文字集中管理一樣有好處：之後發現錯字、想調整用詞，可以在同一個地方一次改完，不用在整支程式碼裡到處找散落各處的字串。
 
 再次強調：以上都是「跟著抄比較省事、風格統一」的慣例，不是非做不可的技術規範。
 
 ---
 
-## 一、共用系統擴充（`Plugins/expand/`）
+## 一、`bcModSdk`（Bondage Club Mod SDK）
+
+`bcModSdk` 提供的核心價值是**安全地 hook 遊戲內部函式**：多個插件同時修改同一個 BC 函式時，透過它協調彼此的執行順序與修改內容，不會互相蓋掉對方。嚴格來說沒有「非用不可」的技術限制——插件也可以完全不透過它、自己直接改寫或監聽原生函式——但實務上還是建議儘量註冊：**不註冊就直接 hook 原生函式，其他裝了 `bcModSdk`、或本身就依賴它偵測環境的插件／使用者，會在 console 或提示訊息裡看到類似 `Unknown mod not using ModSDK` 的警告。** 這雖然不影響插件本身的功能運作，但公開發布作品時容易讓其他玩家或插件作者對你的插件產生不必要的疑慮。如果不想跳出這種警告、卻又不想付出註冊 `bcModSdk` 的成本，實務上就只剩下改走**輪詢**（`setInterval` 定時檢查狀態變化）這條路，穩定性與即時性通常都比不上直接 hook。
+
+`bcModsdk.js` 是 [bondage-club-mod-sdk](https://github.com/Jomshir98/bondage-club-mod-sdk) 的 vendored（內嵌）版本，掛在 `window.bcModSdk`。它是插件與 BC 原生函式之間的「中介層」，主要提供：
+
+```js
+bcModSdk.registerMod(info, options)   // 註冊一個 mod，取得該 mod 專屬的 modApi
+modApi.hookFunction(name, priority, hook) // 攔截函式：hook(args, next) 形式，可在呼叫原函式前後動手腳
+modApi.patchFunction(name, patches)   // 用字串替換方式改寫函式原始碼片段
+modApi.callOriginal(name, args)       // 直接呼叫「原始未被任何 mod 修改」的版本
+modApi.unload()                       // 卸載這個 mod 的所有 hook/patch
+```
+
+`registerMod` 至少需要 `name`（唯一識別字串）、`fullName`、`version`；`hookFunction` 依 `priority` 數字決定多個插件對同一函式的執行順序（數字越大越晚被呼叫到、越接近最外層）。
+
+**⚠️ 有註冊 `bcModSdk` 不代表所有 hook 就不會被判定為「未註冊」。** `bcModSdk` 判斷的不是「這支插件有沒有呼叫過 `registerMod()`」，而是「這次 hook 是不是真的透過已註冊的 `modApi.hookFunction`／`patchFunction` 做的」。就算你的插件確實呼叫過 `registerMod()` 拿到了 `modApi`，卻圖方便另外用原生方式直接覆寫／monkey-patch 某個函式（沒有走 `modApi.hookFunction`），這個 hook 在其他已註冊、也在用 `bcModSdk` 監控環境的插件眼中，一樣會被判定成「來路不明」，跳出跟完全沒註冊時一樣的警告。換句話說：**只要你的插件會 hook BC 的原生函式，這個動作本身就得走已註冊的 `modApi`，光是「有 `registerMod` 過」還不夠。**
+
+**開發階段可以用 `allowReplace: true` 做熱註冊／熱移除。** `registerMod` 的第二個參數（`options`）可以帶 `allowReplace: true`，允許同一個 `name` 重複呼叫 `registerMod` 時直接取代掉舊的註冊，而不是丟錯：
+
+```js
+const modApi = bcModSdk.registerMod(
+    { name: 'MyMod', fullName: 'My Mod Full Name', version: '1.0.0' },
+    { allowReplace: true }
+);
+```
+
+這在開發期間搭配 Tampermonkey／Violentmonkey 反覆重新整理、重新載入腳本時特別好用——不用每次都手動整頁刷新清掉舊的註冊，也不會因為「這個 `name` 已經註冊過」而噴錯中斷。**正式發布版本不建議濫用**：`allowReplace` 主要是拿來解決開發期間反覆熱重載的問題，正常的單次載入不需要這個保護，濫用反而可能掩蓋「同名插件真的被重複載入」這種原本該被發現的錯誤。
+
+**⚠️ 重要：使用 `bcModsdk` 時，Userscript 標頭的 `@grant` 必須是 `none`。**
+
+```js
+// ==UserScript==
+// ...
+// @grant        none
+// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
+// ==/UserScript==
+```
+
+原因：`bcModSdk` 內部用 `eval` / `new Function` 動態重組函式原始碼來實作 `hookFunction`/`patchFunction`（把原函式字串抓出來改寫後再 `eval` 回函式），並直接讀寫 `window.bcModSdk`、`window.Player` 等全域物件。只要 `@grant` 不是 `none`，Tampermonkey/Greasemonkey 就會把 script 放進「沙盒環境」執行，此時 `window` 不是頁面真正的 `window`，`eval` 出來的函式也抓不到 BC 的原生函式與變數，會直接壞掉或整段報錯。所以只要一支插件會用到 `bcModSdk`（或它 `@require` 了 `bcmodsdk.js`），該插件全篇的 `@grant` 就只能設 `none`，不能同時 grant 其他 API。
+
+---
+
+## 二、插件的載入與初始化守則
+
+### 1. 先註冊 SDK，登入後才初始化業務邏輯
+
+`registerMod` 這個動作本身不需要等玩家登入，越早做越好；反而是「登入判定」才需要延後。常見寫法（拆成兩個 Phase）：
+
+```js
+async function initialize() {
+    // Phase 1：先確保 bcModSdk 就緒並註冊自己（不等登入）
+    await waitFor(() => !!window.bcModSdk);
+    const modApi = window.bcModSdk.registerMod({
+        name: 'MyMod', fullName: 'My Mod Full Name', version: '1.0.0',
+        repository: 'https://github.com/xxx/xxx',
+    });
+    installEarlyHooks(modApi); // 不依賴 Player 的 hook 先掛，避免錯過事件
+
+    // Phase 2：等玩家真的登入、遊戲資源就緒後，才做業務邏輯初始化
+    await waitForLogin(modApi);
+    // ...這裡才開始掛按鈕、註冊指令、讀寫 ExtensionSettings 等
+}
+initialize().catch(e => console.error('init error', e));
+```
+
+**為什麼要拆開：** 如果把「註冊 SDK」也拖到登入之後才做，一旦頁面上有其他插件在你之前就已經 hook 了同一個函式並呼叫 `getOriginalHash`/`patchFunction` 之類的操作，你自己的 mod 卻還沒註冊，可能導致載入順序依賴、或者你自己需要用到的 hook 因為註冊太晚而錯過某次呼叫時機。及早註冊、延後執行，兩者責任分開，就不用擔心「因為登入判斷卡住，導致 SDK 註冊太晚」這種連動出錯。
+
+> **Phase 2 使用「狀態檢查＋事件」觸發。** 載入時先檢查 `Player.MemberNumber`；已有值就直接初始化，否則等待 `LoginResponse`。這同時涵蓋單獨安裝與載入器晚載入，不需要持續輪詢。
+
+### 2. 判斷「是否已登入」不能只看 `Player` 是否存在
+
+**`Player` 這個全域物件在玩家還沒登入（甚至還在讀取登入畫面）時就已經存在**（是一個空殼物件），所以不能用 `if (window.Player)` 來判斷登入與否，一定會誤判。正確作法是看 `Player` 底下「登入後才會被賦值」的欄位，常見以下幾個都可以當依據：
+
+- `Player.MemberNumber`
+
+以上任何一個「未登入時是 `undefined`」都可以拿來判斷。特別提醒 **`Player.MemberNumber`**：未登入時它不是 `0`、不是空字串，而是**貨真價實的 `undefined`**，所以絕對不要寫 `if (Player.MemberNumber === '')` 或用 `!Player.MemberNumber && Player.MemberNumber !== 0` 這種容易誤判 0 號會員的寫法，直接用 `!== undefined` 或直接 `?.` 配合 truthy 判斷即可，例如：
+
+```js
+if (window.Player?.MemberNumber !== undefined) initializeAfterLogin();
+else await waitForLogin(modApi);
+```
+
+統一使用上面的 `!== undefined` 寫法；不要使用 `Player.ID`、`AccountName` 或 truthy 判斷登入。
+
+若登入後還需要等待額外遊戲資源，登入由 `waitForLogin(modApi)` 負責，資源才使用獨立的有限等待：
+
+```js
+const gameReady = await waitFor(() =>
+    !!window.AssetFemale3DCG &&
+    !!AssetGroupGet?.('Female3DCG', 'ItemMisc')
+);
+```
+
+### 3. `ExtensionSettings` 必須逐插件鍵更新
+
+`Player.ExtensionSettings` 是伺服器在登入時下發的全帳號插件設定集合。資料出現在這個物件中，不代表插件需要在初始化時把它全部回傳來「驗證」；它們本來就是伺服器已儲存的資料。
+
+**禁止把整個 `Player.ExtensionSettings` 放進 `AccountUpdate`：**
+
+```js
+// 錯誤：會把所有插件的資料擠進同一則請求
+ServerAccountUpdate.QueueData({
+    ExtensionSettings: Player.ExtensionSettings,
+});
+```
+
+整包寫入會同時帶上其他插件的資料，可能覆蓋其他插件的新變更，也容易在多個大型插件並存時超過 `AccountUpdate` 約 180K 的單則請求上限。不論是初始化、正常存檔、資料遷移或刪除舊設定，都不應使用整包寫入。
+
+正確做法是只更新自己擁有的鍵，再呼叫 BC 提供的逐鍵同步 API：
+
+```js
+const EXTENSION_KEY = 'MyPlugin';
+const serializedSettings = JSON.stringify(mySettings);
+
+Player.ExtensionSettings ??= {};
+Player.ExtensionSettings[EXTENSION_KEY] = serializedSettings;
+ServerPlayerExtensionSettingsSync(EXTENSION_KEY);
+```
+
+這會送出類似 `{ "ExtensionSettings.MyPlugin": serializedSettings }` 的 dot-notation 單鍵更新，不會重送其他插件的資料。
+
+開發時請同時遵守以下規則：
+
+- 登入後只讀取伺服器下發的設定；不要因初始化或插件註冊而重送全部 `ExtensionSettings`。
+- 只有實際發生變更的插件鍵才同步。資料遷移也只同步遷移後的目標鍵。
+- 若要檢查 180K 上限，只計算實際即將送出的 `ExtensionSettings.<key>` 請求，不可用整個 `Player.ExtensionSettings` 的總大小扣除本插件額度。
+- 單一插件鍵本身超過 180K 時，由該插件自行壓縮、縮減、分鍵或更換儲存方式；其他插件或載入器不應在傳輸層代為切割。
+- 刪除設定時也不要為了 `$unset` 而回傳整包。若當前 BC API 無法逐鍵刪除，可將自己的鍵設為 `null`、空值或有版本的預設結構後逐鍵同步。
+
+### 4. 完整登入生命週期範本
+
+本節第 1、2 點是「先註冊 SDK、再判斷登入」這個原則的精簡版；下面是統一整理過、新插件與既有插件重構時都可以直接套用的完整流程與模板：
+
+**原則：**
+
+1. 遊戲腳本載入後先等待 `bcModSdk`，可用時立刻 `registerMod()`，不要先等待玩家登入。
+2. SDK 註冊完成後，立即掛載不依賴 `Player` 的 hook，避免錯過後續遊戲事件。
+3. 登入狀態只使用 `Player.MemberNumber !== undefined` 判斷；不混用 `Player.ID`、`AccountName`、`Name` 或 URL。
+4. 載入時若已有 `Player.MemberNumber`，直接初始化。
+5. 尚未登入時，使用 `modApi.hookFunction('LoginResponse', ...)` 等待登入，不要持續輪詢 `Player`。
+6. `LoginResponse` 必須先執行 `next(args)`，再檢查 `Player.MemberNumber`；登入失敗時保留 hook，等待下一次回應。
+7. 只需初始化一次的插件，成功後呼叫 `hookFunction()` 回傳的移除函式。
+8. 需要支援登出、換帳號的插件，保留 hook，並以 `MemberNumber` 做冪等及重新初始化。
+
+`bcModSdk` 沒有獨立的登入事件 API；`LoginResponse` 是 BC 遊戲函式，透過通用的 `hookFunction` 訂閱。Hook 不是輪詢，只有函式實際被呼叫時才執行。
+
+**一次性登入初始化模板：**
+
+```js
+function isLoggedIn() {
+    return typeof Player !== 'undefined' && Player?.MemberNumber !== undefined;
+}
+
+function waitForLogin(modApi) {
+    if (isLoggedIn()) return Promise.resolve();
+
+    return new Promise(resolve => {
+        const removeLoginHook = modApi.hookFunction('LoginResponse', 0, (args, next) => {
+            const result = next(args);
+            queueMicrotask(() => {
+                if (!isLoggedIn()) return;
+                removeLoginHook();
+                resolve();
+            });
+            return result;
+        });
+    });
+}
+
+async function bootstrap() {
+    await waitFor(() => !!window.bcModSdk?.registerMod);
+    const modApi = window.bcModSdk.registerMod({
+        name: 'MyMod', fullName: 'My Mod Full Name', version: '1.0.0',
+        repository: 'https://github.com/xxx/xxx',
+    });
+
+    installEarlyHooks(modApi); // 不依賴 Player，先掛載以免錯過事件
+    await waitForLogin(modApi);
+    initializeAfterLogin();
+}
+
+bootstrap().catch(error => console.error('[MyMod] init error:', error));
+```
+
+**支援換帳號的模板：**
+
+需要在同一頁面登出、重新登入或切換帳號的插件，不移除 `LoginResponse` hook：
+
+```js
+let initializedMemberNumber;
+
+function initializeCurrentAccount() {
+    if (!isLoggedIn() || initializedMemberNumber === Player.MemberNumber) return;
+    initializedMemberNumber = Player.MemberNumber;
+    initializeAfterLogin();
+}
+
+modApi.hookFunction('LoginResponse', 0, (args, next) => {
+    const result = next(args);
+    queueMicrotask(initializeCurrentAccount);
+    return result;
+});
+
+initializeCurrentAccount(); // 插件可能在登入完成後才由載入器注入
+```
+
+輪詢只應用於沒有可靠事件、且確實會延後建立的其他 BC API；不要再使用 `setInterval` 或 `waitFor(() => Player...)` 判斷登入。
+
+---
+
+## 三、共用系統擴充（`Plugins/expand/`）
 
 這幾支都是「掛在 `window.Liko` 底下、以 `__Sys_` 開頭」的共用小工具，設計上都可被多個插件同時載入而不互相衝突（檔頭都有「已存在就 return」的防重複載入判斷）。
+
+> ⚠️ 引用這些共用工具時，**不需要在自己的插件裡特別寫死它們的版本號**。如果真的想寫，務必先實際核對當下倉庫內該工具檔案頂端寫的版本號是否與這裡描述的一致，也順便確認工具本身目前的實際行為有沒有跟這份文件的描述出現落差——工具持續在更新，文件不保證每次都同步。
 
 ### 1. `BC_i18n.js` — 多語翻譯引擎
 
@@ -153,123 +431,6 @@ else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
 - **圖示由插件先處理完成**：CRB 不染色。動圖可提供 `{ src, animated: true, poster? }`；沒有 `poster` 時會嘗試擷取影格，跨來源沒有 CORS 時應自行提供 poster。特殊 DOM 才使用 `createButton`，每次呼叫都要回傳新元素。
 
 > 這幾支加上 `bcModsdk` 都遵循同一套「系統擴充命名規則」：統一掛在 `window.Liko.__Sys_<name>__`，頂部都用「已存在就 `return`」防止重複載入，多個插件重複 `<script>` 引入也不會出錯，晚載入者自動跳過。
-
----
-
-## 二、`bcModSdk`（Bondage Club Mod SDK）
-
-`bcModsdk.js` 是 [bondage-club-mod-sdk](https://github.com/Jomshir98/bondage-club-mod-sdk) 的 vendored（內嵌）版本，掛在 `window.bcModSdk`。它是插件與 BC 原生函式之間的「中介層」，讓多個插件可以**安全地同時 hook 同一個 BC 函式**而不會互相蓋掉對方的修改，主要提供：
-
-```js
-bcModSdk.registerMod(info, options)   // 註冊一個 mod，取得該 mod 專屬的 modApi
-modApi.hookFunction(name, priority, hook) // 攔截函式：hook(args, next) 形式，可在呼叫原函式前後動手腳
-modApi.patchFunction(name, patches)   // 用字串替換方式改寫函式原始碼片段
-modApi.callOriginal(name, args)       // 直接呼叫「原始未被任何 mod 修改」的版本
-modApi.unload()                       // 卸載這個 mod 的所有 hook/patch
-```
-
-`registerMod` 至少需要 `name`（唯一識別字串）、`fullName`、`version`；`hookFunction` 依 `priority` 數字決定多個插件對同一函式的執行順序（數字越大越晚被呼叫到、越接近最外層）。
-
-**⚠️ 重要：使用 `bcModsdk` 時，Userscript 標頭的 `@grant` 必須是 `none`。**
-
-```js
-// ==UserScript==
-// ...
-// @grant        none
-// @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
-// ==/UserScript==
-```
-
-原因：`bcModSdk` 內部用 `eval` / `new Function` 動態重組函式原始碼來實作 `hookFunction`/`patchFunction`（把原函式字串抓出來改寫後再 `eval` 回函式），並直接讀寫 `window.bcModSdk`、`window.Player` 等全域物件。只要 `@grant` 不是 `none`，Tampermonkey/Greasemonkey 就會把 script 放進「沙盒環境」執行，此時 `window` 不是頁面真正的 `window`，`eval` 出來的函式也抓不到 BC 的原生函式與變數，會直接壞掉或整段報錯。所以只要一支插件會用到 `bcModSdk`（或它 `@require` 了 `bcmodsdk.js`），該插件全篇的 `@grant` 就只能設 `none`，不能同時 grant 其他 API。
-
----
-
-## 三、插件的載入與初始化守則
-
-### 1. 先註冊 SDK，登入後才初始化業務邏輯
-
-`registerMod` 這個動作本身不需要等玩家登入，越早做越好；反而是「登入判定」才需要延後。常見寫法（拆成兩個 Phase）：
-
-```js
-async function initialize() {
-    // Phase 1：先確保 bcModSdk 就緒並註冊自己（不等登入）
-    await waitFor(() => !!window.bcModSdk);
-    const modApi = window.bcModSdk.registerMod({
-        name: 'MyMod', fullName: 'My Mod Full Name', version: '1.0.0',
-        repository: 'https://github.com/xxx/xxx',
-    });
-    installEarlyHooks(modApi); // 不依賴 Player 的 hook 先掛，避免錯過事件
-
-    // Phase 2：等玩家真的登入、遊戲資源就緒後，才做業務邏輯初始化
-    await waitForLogin(modApi);
-    // ...這裡才開始掛按鈕、註冊指令、讀寫 ExtensionSettings 等
-}
-initialize().catch(e => console.error('init error', e));
-```
-
-**為什麼要拆開：** 如果把「註冊 SDK」也拖到登入之後才做，一旦頁面上有其他插件在你之前就已經 hook 了同一個函式並呼叫 `getOriginalHash`/`patchFunction` 之類的操作，你自己的 mod 卻還沒註冊，可能導致載入順序依賴、或者你自己需要用到的 hook 因為註冊太晚而錯過某次呼叫時機。及早註冊、延後執行，兩者責任分開，就不用擔心「因為登入判斷卡住，導致 SDK 註冊太晚」這種連動出錯。
-
-> **Phase 2 使用「狀態檢查＋事件」觸發。** 載入時先檢查 `Player.MemberNumber`；已有值就直接初始化，否則等待 `LoginResponse`。這同時涵蓋單獨安裝與載入器晚載入，不需要持續輪詢。
-
-### 2. 判斷「是否已登入」不能只看 `Player` 是否存在
-
-**`Player` 這個全域物件在玩家還沒登入（甚至還在讀取登入畫面）時就已經存在**（是一個空殼物件），所以不能用 `if (window.Player)` 來判斷登入與否，一定會誤判。正確作法是看 `Player` 底下「登入後才會被賦值」的欄位，常見以下幾個都可以當依據：
-
-- `Player.MemberNumber`
-
-以上任何一個「未登入時是 `undefined`」都可以拿來判斷。特別提醒 **`Player.MemberNumber`**：未登入時它不是 `0`、不是空字串，而是**貨真價實的 `undefined`**，所以絕對不要寫 `if (Player.MemberNumber === '')` 或用 `!Player.MemberNumber && Player.MemberNumber !== 0` 這種容易誤判 0 號會員的寫法，直接用 `!== undefined` 或直接 `?.` 配合 truthy 判斷即可，例如：
-
-```js
-if (window.Player?.MemberNumber !== undefined) initializeAfterLogin();
-else await waitForLogin(modApi);
-```
-
-統一使用上面的 `!== undefined` 寫法；不要使用 `Player.ID`、`AccountName` 或 truthy 判斷登入。
-
-若登入後還需要等待額外遊戲資源，登入由 `waitForLogin(modApi)` 負責，資源才使用獨立的有限等待：
-
-```js
-const gameReady = await waitFor(() =>
-    !!window.AssetFemale3DCG &&
-    !!AssetGroupGet?.('Female3DCG', 'ItemMisc')
-);
-```
-
-### 3. `ExtensionSettings` 必須逐插件鍵更新
-
-`Player.ExtensionSettings` 是伺服器在登入時下發的全帳號插件設定集合。資料出現在這個物件中，不代表插件需要在初始化時把它全部回傳來「驗證」；它們本來就是伺服器已儲存的資料。
-
-**禁止把整個 `Player.ExtensionSettings` 放進 `AccountUpdate`：**
-
-```js
-// 錯誤：會把所有插件的資料擠進同一則請求
-ServerAccountUpdate.QueueData({
-    ExtensionSettings: Player.ExtensionSettings,
-});
-```
-
-整包寫入會同時帶上其他插件的資料，可能覆蓋其他插件的新變更，也容易在多個大型插件並存時超過 `AccountUpdate` 約 180K 的單則請求上限。不論是初始化、正常存檔、資料遷移或刪除舊設定，都不應使用整包寫入。
-
-正確做法是只更新自己擁有的鍵，再呼叫 BC 提供的逐鍵同步 API：
-
-```js
-const EXTENSION_KEY = 'MyPlugin';
-const serializedSettings = JSON.stringify(mySettings);
-
-Player.ExtensionSettings ??= {};
-Player.ExtensionSettings[EXTENSION_KEY] = serializedSettings;
-ServerPlayerExtensionSettingsSync(EXTENSION_KEY);
-```
-
-這會送出類似 `{ "ExtensionSettings.MyPlugin": serializedSettings }` 的 dot-notation 單鍵更新，不會重送其他插件的資料。
-
-開發時請同時遵守以下規則：
-
-- 登入後只讀取伺服器下發的設定；不要因初始化或插件註冊而重送全部 `ExtensionSettings`。
-- 只有實際發生變更的插件鍵才同步。資料遷移也只同步遷移後的目標鍵。
-- 若要檢查 180K 上限，只計算實際即將送出的 `ExtensionSettings.<key>` 請求，不可用整個 `Player.ExtensionSettings` 的總大小扣除本插件額度。
-- 單一插件鍵本身超過 180K 時，由該插件自行壓縮、縮減、分鍵或更換儲存方式；其他插件或載入器不應在傳輸層代為切割。
-- 刪除設定時也不要為了 `$unset` 而回傳整包。若當前 BC API 無法逐鍵刪除，可將自己的鍵設為 `null`、空值或有版本的預設結構後逐鍵同步。
 
 ---
 
@@ -491,7 +652,7 @@ window.InventoryItemMiscMyLockNameExit = function () { /* 離開畫面時清理 
 
 ## 五、更新聊天室設定（`ChatRoomAdmin`）— 注意 `Player.ID` 陷阱
 
-這不是通用的初始化守則，而是**這一個特定原生指令的特例**：想更新房間本身的設定（例如背景圖、音樂網址、密碼、人數上限等），走的是 `ServerSend('ChatRoomAdmin', { ..., Action: 'Update' })`。倉庫內 `Liko - CMC.main.user.js` 更新房間音樂網址的實際寫法：
+這不是通用的初始化守則，而是**這一個特定原生指令的特例**：想更新房間本身的設定（例如背景圖、音樂網址、密碼、人數上限等），走的是 `ServerSend('ChatRoomAdmin', { ..., Action: 'Update' })`。這裡的 `MemberNumber` 要填 `Player.ID` 這個寫法，是對照 BC 官方原始碼 [`ChatAdmin.js`](https://www.bondageprojects.elementfx.com/R130/BondageClub/Screens/Online/ChatAdmin/ChatAdmin.js)（`Screens/Online/ChatAdmin/ChatAdmin.js`）內 `ServerSend("ChatRoomAdmin", { MemberNumber: Player.ID, ..., Action: "Update" })` 的寫法實作、確認過的，不是憑欄位名稱猜的。倉庫內 `Liko - CMC.main.user.js` 更新房間音樂網址的實際寫法：
 
 ```js
 function updateRoomMusicURL(url) {
@@ -511,7 +672,7 @@ function updateRoomMusicURL(url) {
 
 三個重點：
 
-1. **`ChatRoomAdmin` 的 `MemberNumber` 欄位在做房間更新（`Action: "Update"`）時，實際要填的是 `Player.ID`，不是 `Player.MemberNumber`**——即使欄位名稱看起來像帳號會員編號。這只是這一個指令、這一個 `Action` 的特例，不代表所有帶 `MemberNumber` 欄位的原生指令都這樣，前面第三節提過的「`Player.ID` 恆為 `0`、`Player.MemberNumber` 才是帳號編號」的區分，在這裡剛好是「原生指令欄位期望值跟欄位名稱對不上」的一個具體案例。
+1. **`ChatRoomAdmin` 的 `MemberNumber` 欄位在做房間更新（`Action: "Update"`）時，實際要填的是 `Player.ID`（＝ `0`），不是 `Player.MemberNumber`**——即使欄位名稱看起來像帳號會員編號，`Player.ID` 在 `Scripts/Character.js` 裡被寫死成 `0`。這只是這一個指令、這一個 `Action` 的特例，不代表所有帶 `MemberNumber` 欄位的原生指令都這樣，前面第二節提過的「`Player.ID` 恆為 `0`、`Player.MemberNumber` 才是帳號編號」的區分，在這裡剛好是「原生指令欄位期望值跟欄位名稱對不上」的一個具體案例。
 2. **修改房間設定前，記得先確認自己有權限**（`ChatRoomPlayerIsAdmin()`），並且要先修改本地的 `ChatRoomData`（例如 `ChatRoomData.Custom.MusicURL = url`），再透過 `ChatRoomGetSettings(ChatRoomData)` 把整包房間資料轉成伺服器期待的格式送出——不是只送單一改動欄位。
 3. 遇到任何「同名欄位、不同指令期望值不同」的情況，最保險的做法一樣是：**在倉庫或其他已知能動的插件裡找一個實際案例照抄欄位怎麼填，而不是憑欄位名稱去猜。**
 
@@ -643,8 +804,8 @@ ServerSocket.on('AccountBeep', (data) => {
 ```
 
 - **適用場合**：目標**不一定在同一間房間**、甚至不一定在線上同一個場景，只要對方帳號在線就能送達（例如戀人系統要跨房間分享房名、遠端控制類插件要通知離線房間的對方）。
-- **關鍵特性**：BC 原生前端（`ServerAccountBeep`）目前只對兩種 `BeepType` 有特殊處理：`BeepType` 是空字串時（一般好友私聊 Beep）會彈出通知並記錄到 Beep 記錄；`BeepType === "Leash"` 時會觸發原生的牽繩跟隨邏輯（見下方獨立說明）。**除了這兩種之外的任何自訂 `BeepType` 字串，原生程式碼完全不會處理，也就不會跳出任何通知**——只要伺服器有把這則 Beep 送達（**即雙方是好友；非好友會被伺服器擋在送達之前**，見第十一節），Socket 事件本身還是會確實觸發，原生邏輯只是選擇不理它，插件自己掛的 `ServerSocket.on('AccountBeep', ...)` 監聽器一樣收得到完整資料，可自行判斷 `BeepType` 再處理。換句話說，自訂 `BeepType` 的作用是「讓對方不跳通知」，**不是**「繞過好友限制」。
-- **⚠️ 好友關係的限制（作者實測確認，詳見第十一節）**：`AccountBeep` **需要雙方互為好友**，非好友由**伺服器端**擋下、完全收不到；**不論一般或自訂 `BeepType` 都繞不過**（換自訂字串只是讓對方不跳通知，不是繞過好友限制）。**這是 BC 的防濫用保護**——避免有人用控制台無節制地向陌生人發送 Beep。客戶端佐證：`/beep` 指令送出前就擋 `!Player.HasOnFriendlist(target)`，`ServerSendBeepMessage()` 的 JSDoc 也註明 `We must be friend with them`。**唯一例外是 `BeepType:"Leash"`**——牽繩機制本來就會對陌生人使用，跨房把對方拉進房間又只能靠 Beep 傳房名，所以伺服器對這個型別單獨放行、可送非好友（見下方獨立說明）。
+- **關鍵特性**：BC 原生前端（`ServerAccountBeep`）目前只對兩種 `BeepType` 有特殊處理：`BeepType` 是空字串時（一般好友私聊 Beep）會彈出通知並記錄到 Beep 記錄；`BeepType === "Leash"` 時會觸發原生的牽繩跟隨邏輯（見下方獨立說明）。**除了這兩種之外的任何自訂 `BeepType` 字串，原生程式碼完全不會處理，也就不會跳出任何通知**——只要伺服器有把這則 Beep 送達（**即雙方是好友；非好友會被伺服器擋在送達之前，見下方說明**），Socket 事件本身還是會確實觸發，原生邏輯只是選擇不理它，插件自己掛的 `ServerSocket.on('AccountBeep', ...)` 監聽器一樣收得到完整資料，可自行判斷 `BeepType` 再處理。換句話說，自訂 `BeepType` 的作用是「讓對方不跳通知」，**不是**「繞過好友限制」。
+- **⚠️ 好友關係的限制（已對照 BC 原始碼與客戶端行為確認）**：`AccountBeep` **需要雙方互為好友**，非好友由**伺服器端**擋下、完全收不到；**不論一般或自訂 `BeepType` 都繞不過**（換自訂字串只是讓對方不跳通知，不是繞過好友限制）。除非遊戲另外開了新通道，否則目前**非好友只有 `Leash` 這個 `BeepType` 能收到 `AccountBeep`**。**這是 BC 的防濫用保護**——避免有人用控制台無節制地向陌生人發送 Beep。客戶端佐證：`/beep` 指令送出前就擋 `!Player.HasOnFriendlist(target)`，`ServerSendBeepMessage()` 的 JSDoc 也註明 `We must be friend with them`。**唯一例外是 `BeepType:"Leash"`**——牽繩機制本來就會對陌生人使用，跨房把對方拉進房間又只能靠 Beep 傳房名，所以伺服器對這個型別單獨放行、可送非好友（見下方獨立說明）。
 - **限制**：只能一對一送給指定 `MemberNumber`，沒有「廣播給整個房間」的概念；且它本質上是走 `ServerSocket` 事件，不是 `ChatRoomMessage`，攔截的地方不一樣，容易忘記。
 
 **兩者怎麼選：** 同房間內要多人同步/廣播 → 用 `Hidden`；要跨房間找特定一個人（**對方必須是你的好友**）→ 用 `AccountBeep`（自訂 `BeepType` 讓對方不跳通知；非好友一律送不到）。`Leash` 不列在這個常規選擇裡——它本職是牽繩機制、有前提條件，只在真的有牽繩需求時才用，見下方 3。
@@ -781,24 +942,40 @@ setInterval(() => { if (CurrentCharacter) injectAFCDialogs(CurrentCharacter); },
 
 ---
 
-## 十一、校正、實務限制與存疑
+## 十一、調用官方圖片 — 盡量使用相對路徑，不要寫死完整網址
 
-這一節收錄三類東西：初版指南寫下後經實測或翻 BC 原始碼才**校正的觀念**、規劃插件時務必留意的**實務容量限制**，以及目前**仍不確定、建議先保守假設**的疑點。
+BC 圖片資源（`Icons/`、`Backgrounds/`、`Assets/` 之類）在原生程式碼裡到處都是用像 `Icons/Exit.png` 這種**相對路徑**引用，不會自己拼上 `https://www.bondageprojects.elementfx.com/R130/BondageClub/` 這種完整網域。插件如果要顯示官方既有的圖片（例如借用原生 icon 當自己按鈕的圖示），一樣直接寫相對路徑就好：
+
+```js
+DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", T.back);
+```
+
+不需要、也不應該寫死成：
+
+```js
+// ❌ 不要這樣寫
+DrawButton(1815, 75, 90, 90, "", "White", "https://www.bondageprojects.elementfx.com/R130/BondageClub/Icons/Exit.png", T.back);
+```
+
+**這點非常重要，因為 BC 目前有三台伺服器**（見〇節）：玩家實際連線的網域可能是 `bondageprojects.elementfx.com`、`bondage-asia.com`、或 `bondage-europe.com` 其中一個。BC 自己畫圖片時，靠的是瀏覽器目前所在頁面的網域自動組出完整路徑；如果插件把圖片路徑寫死成某一台伺服器的完整網址，會導致**連到其他兩台伺服器的玩家讀取不到那張圖**（路徑指去了錯的網域，甚至可能因為跨域政策直接被瀏覽器擋下）。只有在圖片**不是** BC 官方資源、而是插件自己另外部署的圖床（例如放在 jsDelivr、GitHub Pages）時，才需要、也才應該寫完整網址；只要圖片本來就存在於 BC 官方伺服器上，一律用相對路徑，讓瀏覽器自己接在目前的網域後面。
+
+---
+
+## 十二、校正、實務限制與存疑
+
+這一節收錄兩類東西：初版指南寫下後經實測或翻 BC 原始碼才**校正的觀念**，以及目前**仍不確定、建議先保守假設**的疑點。`AccountBeep` 需要好友關係、`BeepType: "Leash"` 是唯一例外這兩件事，已經確認無誤、也沒什麼爭議，因此直接寫進第九節的正文；`ChatRoomAdmin` 的 `Player.ID` 特例也已經對照 BC 官方原始碼確認並附上連結，直接寫進第五節正文——這兩處都不再放在這裡當「待驗證」看待。
 
 **已驗證的修正：**
 
-1. **`ActivityFemale3DCGOrdering` 不在 `window` 上，裸寫會 `ReferenceError`。** 早期把自訂 activity 直接 `ActivityFemale3DCGOrdering.push(...)` 是會壞的——BC 把這個全域改成 `let` 宣告，而用戶腳本（即使 `@grant none`）只看得到 `var`／`function`／`window.*` 的全域，`let`／`const` 全域一律抓不到。這曾經讓 Prank 插件的按鈕註冊整段中斷。正解已寫進第三節：**任何要存取的 BC 全域，存取前先 `typeof X !== 'undefined'` 探測**；非必要的（如只影響排序的這個陣列）拿不到就略過，別讓它中斷整段註冊。
-2. **房間更新 `ChatRoomAdmin` 的 `MemberNumber` 要填 `Player.ID`（＝ `0`），不是 `Player.MemberNumber`——已對照 BC 原始碼確認屬實。** BC 自己的聊天室程式碼（`Screens/Online/ChatRoom/ChatRoom.js`）就是 `ServerSend("ChatRoomAdmin", { MemberNumber: Player.ID, ..., Action: "Update" })`，而 `Player.ID` 在 `Scripts/Character.js` 被寫死成 `0`。所以第五節那個「欄位名叫 `MemberNumber`、實際卻要填 `Player.ID`」的特例是真的，不是筆誤——但它**只限這一個指令的這一個 `Action`**，別推廣到其他帶 `MemberNumber` 的原生指令。
-3. **`AccountBeep` 需要雙方互為好友，非好友由伺服器端擋下、完全收不到——作者實測確認，BC 原始碼佐證。** 送出端**不論用一般或自訂 `BeepType`**，只要對方沒加你好友，**伺服器就會攔下、對方收不到任何東西**；這是伺服器端強制，換自訂 `BeepType` 也繞不過。客戶端佐證：`/beep` 指令（`Screens/Online/ChatRoom/CommandsDefault.js`）送出前就擋 `!Player.HasOnFriendlist(target)`、非好友回 `CommandBeepNotFriend` 不送，`ServerSendBeepMessage()`（`Scripts/Server.js`）的 JSDoc 也註明 `We must be friend with them`。**唯一的例外是 `BeepType: "Leash"`**（見第 5 點）——伺服器對這個型別單獨放行，可送非好友。
-   > 理論上「同一間房內」的非好友或許收得到 `AccountBeep`，但同房內本來就能用 `Type: 'Hidden'` 廣播，所以這個可能性**沒有實用價值**：跨房才需要 Beep，而跨房的非好友一律被擋。
+1. **`ActivityFemale3DCGOrdering` 不在 `window` 上，裸寫會 `ReferenceError`。** 早期把自訂 activity 直接 `ActivityFemale3DCGOrdering.push(...)` 是會壞的——BC 把這個全域改成 `let` 宣告，而用戶腳本（即使 `@grant none`）只看得到 `var`／`function`／`window.*` 的全域，`let`／`const` 全域一律抓不到。這曾經讓 Prank 插件的按鈕註冊整段中斷。正解已寫進第四節：**任何要存取的 BC 全域，存取前先 `typeof X !== 'undefined'` 探測**；非必要的（如只影響排序的這個陣列）拿不到就略過，別讓它中斷整段註冊。
 
 **作者自己的觀察（非 BC 原始碼、待進一步驗證）：**
 
-4. **`ExtensionSettings` 經 `AccountUpdate` 同步時，疑似有「單次傳輸容量上限」，作者實測抓到的門檻大約在 `180000` 量級。** ⚠️ 這個數字**不是**來自 BC 原始碼——翻遍客戶端只有 `ServerChatMessageMaxLength = 2000` 這類聊天字數上限，**沒有** ExtensionSettings 的容量常數；`180000` 是**作者自己測出來的推測值，不保證準確、也可能隨官方調整而縮減**。目前觀察到的是**單一插件單次傳輸**的量（一次 `ServerSend("AccountUpdate", { "ExtensionSettings.<key>": ... })` 塞的資料量）。但實務意義仍成立：**大文本插件（大量設定、快照、歷史紀錄）要留意**，資料長到接近某個量時同步可能被截斷或失敗。因應方向——壓縮／只存必要欄位／拆多個 key 分批同步，或把大文本放本地 `localStorage`／`IndexedDB`，`ExtensionSettings` 只放需要跨裝置同步的精簡設定。**別把某個具體數字當安全邊界**，這點務必自行實測確認。
+2. **`ExtensionSettings` 經 `AccountUpdate` 同步時，疑似有「單次傳輸容量上限」，作者實測抓到的門檻大約在 `180000` 量級。** ⚠️ 這個數字**不是**來自 BC 原始碼——翻遍客戶端只有 `ServerChatMessageMaxLength = 2000` 這類聊天字數上限，**沒有** ExtensionSettings 的容量常數；`180000` 是**作者自己測出來的推測值，不保證準確、也可能隨官方調整而縮減**。目前觀察到的是**單一插件單次傳輸**的量（一次 `ServerSend("AccountUpdate", { "ExtensionSettings.<key>": ... })` 塞的資料量）。
 
-**可用的非好友跨房通道：**
+   方向是對的——**要留意大文本插件（大量設定、快照、歷史紀錄）**，資料長到接近某個量時同步可能被截斷或失敗——但比起自己盤算「180K 還剩多少配額」，有一個更乾淨、更保險的做法可以參考：[`BC-LCE` 對 `AccountUpdate` 的攔截策略](https://github.com/awdrrawd/BC-LCE/blob/main/docs/extension-settings-account-update.md)。LCE 在 `ServerSend` 真正送出前攔截 `AccountUpdate`：只要偵測到訊息帶有**頂層整包的 `ExtensionSettings` 欄位**（而不是 dot-notation 的 `ExtensionSettings.<key>`），就直接把它整個移除；如果移除後這則訊息就變空了，乾脆連這則請求都取消。它**不去猜測「現在是不是登入初始化階段」，也不檢查大小、不嘗試拆批重送**——因為整包 `ExtensionSettings` 本來就不該被寫回，不管在哪個時機點都一樣，登入時下發的資料本來就已經存在伺服器上。
 
-5. **`BeepType: "Leash"` 是伺服器唯一放行給非好友的 `AccountBeep` 型別，也是 BC 自己在用的「不需好友關係」跨房間傳訊通道。** 承第 3 點：除了 Leash，其餘 BeepType 送給非好友都會被伺服器擋下。BC 的 `ChatRoomPingLeashedPlayers()` 會對牽繩清單裡（不一定是好友）的人送 `ServerSend("AccountBeep", { MemberNumber, BeepType:"Leash" })`，且對 `Leash` 分支完全不跳通知、不寫 Beep 記錄。所以「對方確定非好友、但彼此已有牽繩關係」時，走第九節的 `Leash` 通道（只要酬載別夾帶 `ChatRoomName` 就不會觸發跳房）。前提限制是「必須已處於牽繩關係」；牽繩尚未建立時能否單方面送達，保守假設為不能。
+   LCE 舊版其實試過另一條路：只在整包超過 180K 時才動手，把裡面每個插件鍵拆成多則 dot-notation 請求自動重送。後來拿掉了，理由包括：登入資料本來就不必重送、LCE 沒辦法判斷哪些鍵真的有變更所以不該代替其他插件重送、單一大鍵本身也可能超過上限讓自動分批治標不治本。**對插件作者的實務啟示是一樣的**：與其計算配額，不如直接守住「永遠只送出自己真正變更、確定歸屬自己的單一鍵，不要有任何『整包回傳』或『幫其他插件補送』的邏輯路徑」這條底線；如果自己那一個鍵本身就大到有疑慮，才需要處理壓縮／拆鍵／搬去 `localStorage`／`IndexedDB` 這些手段。**別把 `180000` 這個具體數字當安全邊界**，這點務必自行實測確認。
 
 ---
 
@@ -818,86 +995,28 @@ setInterval(() => { if (CurrentCharacter) injectAFCDialogs(CurrentCharacter); },
 - [ ] 需要浮動提示 → 直接掛載共用的 `BC_toast_system.user.js`
 - [ ] 需要在 InformationSheet 疊按鈕 → priority 設在 **5~10 之間**即可，不必自行加一堆偵測其他插件子畫面的邏輯；只有在確定跟某個知名插件衝突、且對方有暴露查詢 API 時，才把該偵測當補丁加上去
 - [ ] 任何要疊加在畫面上的東西，思考的是「我這次繪製呼叫排在誰前面/後面」，而不是「我該設定哪個圖層」；若要攔截「道具圖層怎麼被畫出來」，記得 BC 有 WebGL/Canvas2D 兩條路徑，只 hook `DrawImage` 在 WebGL 模式下攔不到
-- [ ] 插件間傳資料：同房間廣播/同步用 `Type: 'Hidden'`；跨房間找特定對象（通常本來就是好友）用 `AccountBeep`（記得把 `BeepType` 設成自己專屬字串，才不會在對方畫面跳出通知；**`AccountBeep` 需要雙方互為好友，非好友由伺服器端擋下、收不到——一般或自訂 `BeepType` 都繞不過，唯一例外是 `BeepType:"Leash"`，見第十一節**）；如果對象確定不是好友、但彼此已有牽繩關係，才考慮原生 `BeepType: "Leash"` 通道——只要酬載不夾帶 `ChatRoomName` 就不會觸發跳轉房間，風險不高；需要即時問答就用自訂的「發送 Query → 對方判斷 Target 是自己就原地回覆」模式（跟原生 `AccountQuery`/`AccountQueryResult` 是兩回事，別搞混）
+- [ ] 插件間傳資料：同房間廣播/同步用 `Type: 'Hidden'`；跨房間找特定對象（通常本來就是好友）用 `AccountBeep`（記得把 `BeepType` 設成自己專屬字串，才不會在對方畫面跳出通知；**`AccountBeep` 需要雙方互為好友，非好友由伺服器端擋下、收不到——一般或自訂 `BeepType` 都繞不過，唯一例外是 `BeepType:"Leash"`，見第九節**）；如果對象確定不是好友、但彼此已有牽繩關係，才考慮原生 `BeepType: "Leash"` 通道——只要酬載不夾帶 `ChatRoomName` 就不會觸發跳轉房間，風險不高；需要即時問答就用自訂的「發送 Query → 對方判斷 Target 是自己就原地回覆」模式（跟原生 `AccountQuery`/`AccountQueryResult` 是兩回事，別搞混）
 - [ ] 攔截訊息時，先問自己「需不需要阻止/修改原本的處理」：需要 → 用 `hookFunction`（可 `return` 不呼叫 `next()`、可跟其他插件協調 `priority`）；只是想旁聽、不干涉原生處理（例如 `AccountBeep` 收自訂 `BeepType`）→ 直接 `ServerSocket.on` 就好，更輕量也不必依賴 `bcModSdk`
 - [ ] 需要在雙人互動 Dialog 畫面加自訂選項 → 直接把物件塞進 `CurrentCharacter.Dialog` 陣列，記得用自訂標記欄位防止每次重繪重複疊加，並在每次可能重繪的時機重新注入一次
-## 附錄：插件初始化與登入生命週期完整模板
-
-> 新插件與既有插件重構時，統一採用「先註冊 SDK，再確認登入」的兩階段流程。
-
-## 原則
-
-1. 遊戲腳本載入後先等待 `bcModSdk`，可用時立刻 `registerMod()`，不要先等待玩家登入。
-2. SDK 註冊完成後，立即掛載不依賴 `Player` 的 hook，避免錯過後續遊戲事件。
-3. 登入狀態只使用 `Player.MemberNumber !== undefined` 判斷；不混用 `Player.ID`、`AccountName`、`Name` 或 URL。
-4. 載入時若已有 `Player.MemberNumber`，直接初始化。
-5. 尚未登入時，使用 `modApi.hookFunction('LoginResponse', ...)` 等待登入，不要持續輪詢 `Player`。
-6. `LoginResponse` 必須先執行 `next(args)`，再檢查 `Player.MemberNumber`；登入失敗時保留 hook，等待下一次回應。
-7. 只需初始化一次的插件，成功後呼叫 `hookFunction()` 回傳的移除函式。
-8. 需要支援登出、換帳號的插件，保留 hook，並以 `MemberNumber` 做冪等及重新初始化。
-
-`bcModSdk` 沒有獨立的登入事件 API；`LoginResponse` 是 BC 遊戲函式，透過通用的 `hookFunction` 訂閱。Hook 不是輪詢，只有函式實際被呼叫時才執行。
-
-## 一次性登入初始化模板
-
-```js
-function isLoggedIn() {
-    return typeof Player !== 'undefined' && Player?.MemberNumber !== undefined;
-}
-
-function waitForLogin(modApi) {
-    if (isLoggedIn()) return Promise.resolve();
-
-    return new Promise(resolve => {
-        const removeLoginHook = modApi.hookFunction('LoginResponse', 0, (args, next) => {
-            const result = next(args);
-            queueMicrotask(() => {
-                if (!isLoggedIn()) return;
-                removeLoginHook();
-                resolve();
-            });
-            return result;
-        });
-    });
-}
-
-async function bootstrap() {
-    await waitFor(() => !!window.bcModSdk?.registerMod);
-    const modApi = window.bcModSdk.registerMod({
-        name: 'MyMod', fullName: 'My Mod Full Name', version: '1.0.0',
-        repository: 'https://github.com/xxx/xxx',
-    });
-
-    installEarlyHooks(modApi); // 不依賴 Player，先掛載以免錯過事件
-    await waitForLogin(modApi);
-    initializeAfterLogin();
-}
-
-bootstrap().catch(error => console.error('[MyMod] init error:', error));
-```
-
-## 支援換帳號的模板
-
-需要在同一頁面登出、重新登入或切換帳號的插件，不移除 `LoginResponse` hook：
-
-```js
-let initializedMemberNumber;
-
-function initializeCurrentAccount() {
-    if (!isLoggedIn() || initializedMemberNumber === Player.MemberNumber) return;
-    initializedMemberNumber = Player.MemberNumber;
-    initializeAfterLogin();
-}
-
-modApi.hookFunction('LoginResponse', 0, (args, next) => {
-    const result = next(args);
-    queueMicrotask(initializeCurrentAccount);
-    return result;
-});
-
-initializeCurrentAccount(); // 插件可能在登入完成後才由載入器注入
-```
-
-輪詢只應用於沒有可靠事件、且確實會延後建立的其他 BC API；不要再使用 `setInterval` 或 `waitFor(() => Player...)` 判斷登入。
 
 ---
+
+## 附錄：相關倉庫與鏡像
+
+查資料時常常需要翻 BC 本體或其他知名插件的原始碼，這裡先列出常用的倉庫網址，省得每次都要繞路自己爬網站找。
+
+**BC 本體、ECHO 的純程式碼鏡像站**：[Bondage-College-Mirror](https://github.com/awdrrawd/Bondage-College-Mirror)
+- 本體：[`bondageclub` 分支](https://github.com/awdrrawd/Bondage-College-Mirror/tree/bondageclub)
+- ECHO 動作：[`echo-activity-ext` 分支](https://github.com/awdrrawd/Bondage-College-Mirror/tree/echo-activity-ext)
+- ECHO 服裝：[`echo-clothing-ext` 分支](https://github.com/awdrrawd/Bondage-College-Mirror/tree/echo-clothing-ext)
+
+**其他知名插件（供交叉比對原生做法時參考）：**
+- BCX：[Jomshir98/bondage-club-extended](https://github.com/Jomshir98/bondage-club-extended)
+- LSCG：[littlesera/LSCG](https://github.com/littlesera/LSCG)
+- DOGS：[FurryZoi/Devious-Obligate-Great-Stuff](https://github.com/FurryZoi/Devious-Obligate-Great-Stuff)
+- WCE：[KittenApps/WCE](https://github.com/KittenApps/WCE)
+
+**作者（liko）名下的其他大型插件：**
+- BC-AEE：[awdrrawd/BC-AEE](https://github.com/awdrrawd/BC-AEE)
+- BC-LCE：[awdrrawd/BC-LCE](https://github.com/awdrrawd/BC-LCE)（本文第十一節提到的 `AccountUpdate` 攔截策略即出自此倉庫）
+- BC-FCM、BC-AFC、BC-HSC（AFC 即第十節範例引用的「Abundantia Florum Chromatica」戀人系統插件）
