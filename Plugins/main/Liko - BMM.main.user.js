@@ -2,7 +2,7 @@
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.3.1
+// @version      1.3.2
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -28,7 +28,7 @@
         if (window.Liko) window.Liko.BMM = null;
     };
     if (window.Liko.BMM) return;
-    const MOD_VER = "1.3.1";
+    const MOD_VER = "1.3.2";
     window.Liko.BMM = MOD_VER;
 
     // ── i18n 多語言系統 ─────────────────────────────────────────────────────
@@ -54,8 +54,9 @@
             save_fail: "保存失败：",
             ov_title: "已保存的地图",
             ov_empty: "暂无保存的地图（进入地图房间后点「保存」即可）",
-            ov_editor: "编辑器", ov_delete: "删除",
+            ov_editor: "编辑器", ov_load: "载入", ov_delete: "删除",
             ov_del_confirm: "删除「{name}」？",
+            ov_load_confirm: "确定将「{name}」载入当前房间？这将覆盖现有地图并对所有成员生效，不可撤销。",
             export_none: "没有已保存的地图",
             people_hdr: "👥 房间内 {n} 人",
             ftr_click_tip: "点击查看房间内所有人",
@@ -84,8 +85,9 @@
             save_fail: "儲存失敗：",
             ov_title: "已儲存的地圖",
             ov_empty: "暫無儲存的地圖（進入地圖房間後點「儲存」即可）",
-            ov_editor: "編輯器", ov_delete: "刪除",
+            ov_editor: "編輯器", ov_load: "載入", ov_delete: "刪除",
             ov_del_confirm: "刪除「{name}」？",
+            ov_load_confirm: "確定將「{name}」載入當前房間？這將覆蓋現有地圖並對所有成員生效，不可撤銷。",
             export_none: "沒有已儲存的地圖",
             people_hdr: "👥 房間內 {n} 人",
             ftr_click_tip: "點擊查看房間內所有人",
@@ -114,8 +116,9 @@
             save_fail: "Save failed: ",
             ov_title: "Saved Maps",
             ov_empty: "No saved maps yet (enter a map room and click \"Save\")",
-            ov_editor: "Editor", ov_delete: "Delete",
+            ov_editor: "Editor", ov_load: "Load", ov_delete: "Delete",
             ov_del_confirm: 'Delete "{name}"?',
+            ov_load_confirm: 'Load "{name}" into current room? This will overwrite the existing map for all members and cannot be undone.',
             export_none: "No saved maps to export",
             people_hdr: "👤 {n} people in room",
             ftr_click_tip: "Click to see everyone in room",
@@ -1331,9 +1334,13 @@
             const row = document.createElement("div"); row.className = "row";
             const meta = document.createElement("div"); meta.className = "meta"; meta.textContent = m.name + "  ·  " + new Date(m.savedAt).toLocaleString();
             const acts = document.createElement("div"); acts.className = "acts";
-            const bOpen = document.createElement("button"); bOpen.className = "mm-btn"; bOpen.type = "button"; bOpen.textContent = t("ov_editor"); bOpen.onclick = () => openEditorWith(m);
+            const bOpen = document.createElement("button"); bOpen.className = "mm-btn"; bOpen.type = "button"; bOpen.textContent = t("ov_editor"); bOpen.onclick = () => { openEditorWith(m); if (_bmmxLoadOv) { _bmmxLoadOv.remove(); _bmmxLoadOv = null; } };
+            const bLoad = document.createElement("button"); bLoad.className = "mm-btn"; bLoad.type = "button"; bLoad.textContent = t("ov_load"); bLoad.onclick = () => {
+                if (!confirm(t("ov_load_confirm", { name: m.name }))) return;
+                bmmxDoImport(bmmxMapToStr(m), m);
+            };
             const bDel = document.createElement("button"); bDel.className = "mm-btn"; bDel.type = "button"; bDel.textContent = t("ov_delete"); bDel.onclick = async () => { if (confirm(t("ov_del_confirm", { name: m.name }))) { await bmmxDel(m.id); refreshLoadOverlay(ov); } };
-            acts.append(bOpen, bDel); row.append(meta, acts); list.appendChild(row);
+            acts.append(bOpen, bLoad, bDel); row.append(meta, acts); list.appendChild(row);
         });
     }
     async function exportAllMaps() {
