@@ -428,19 +428,6 @@
       "version": "0.1"
     },
     {
-      "id": "Liko-ImageCache",
-      "name": "圖片快取",
-      "icon": "📦",
-      "en_name": "Image Cache",
-      "description": "為 Bondage Club 與自訂資產提供有容量上限的持久圖片快取。",
-      "en_description": "Persistent, size-limited image cache for Bondage Club and custom assets.",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
-      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Cache.main.user.js",
-      "priority": 10,
-      "version": "0.1"
-    },
-    {
       "id": "Liko-LCS",
       "name": "程式碼沙盒",
       "icon": "🧪",
