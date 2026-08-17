@@ -1758,14 +1758,15 @@
     }
 
     async function _loadDep(rel) { _injectCode(await _fetchDep(rel)); }
-    async function _loadCrbFromRaw() {
+    // BC_ChatRoomButtons.js 開發先告一段落
+    /*async function _loadCrbFromRaw() {
         const url = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/expand/BC_ChatRoomButtons.js';
         const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
         if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
         _injectCode(text);
-    }
+    }*/
 
     async function _ensureDeps() {
         // bcmodsdk must exist before registerMod — must be first
@@ -1784,14 +1785,11 @@
         const rest = [
             { rel: "expand/BC_toast_system.user.js",   ready: () => !!window.Liko?.__Sys_Toast__ },
             { rel: "expand/BC_ThemeColorCheck.js",      ready: () => !!window.Liko?.__Sys_ColorAPI__ },
-            // ChatScrollFreeze：PCM 載得快 → 早早裝好「凍結捲動＋搜尋」的攔截，趕在 LCE
-            // 較慢的聊天功能（chat-augments 會 ElementScrollToEnd 把畫面拉到底）之前就位。
-            // 它走 bcModSdk.hookFunction，與 LCE 等 SDK 插件依 priority 疊合、不受載入順序影響。
-            //{ rel: "expand/BC_ChatScrollFreeze.js",     ready: () => !!window.Liko?.__Sys_ChatScrollFreeze__ },
+            { rel: "expand/BC_ChatRoomButtons.js",      ready: () => !!window.Liko?.__Sys_ChatRoomButtons__ },
         ];
-        if (!window.Liko?.__Sys_ChatRoomButtons__) {
+        /*if (!window.Liko?.__Sys_ChatRoomButtons__) {
             await _loadCrbFromRaw().catch(e => console.warn('🐈‍⬛ [PCM] ⚠️ RAW BC_ChatRoomButtons.js:', e.message));
-        }
+        }*/
         for (const { rel, ready } of rest) {
             if (ready()) continue;
             await _loadDep(rel).catch(e => console.warn(`🐈‍⬛ [PCM] ⚠️ ${rel}:`, e.message));
