@@ -2,7 +2,7 @@
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1.0
+// @version      1.3.1
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,11 +16,142 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
+    // 热重载/重复注入时清理上一实例的全局监听，避免重复 message/focus 监听导致重复确认框
+    window.__bmmUnload = function () {
+        try {
+            if (window.__bmmOnMsg) window.removeEventListener("message", window.__bmmOnMsg);
+            if (window.__bmmFocusHandler) window.removeEventListener("focus", window.__bmmFocusHandler);
+            if (window.__bmmVisHandler) document.removeEventListener("visibilitychange", window.__bmmVisHandler);
+        } catch (e) {}
+        window.__bmmOnMsg = null; window.__bmmFocusHandler = null; window.__bmmVisHandler = null;
+        window.__bmmClipLinked = false;
+        if (window.Liko) window.Liko.BMM = null;
+    };
     if (window.Liko.BMM) return;
-    const MOD_VER = "1.1.0";
+    const MOD_VER = "1.3.1";
     window.Liko.BMM = MOD_VER;
 
-    const HDR_H = 36, FTR_H = 32;
+    // ── i18n 多語言系統 ─────────────────────────────────────────────────────
+    const BMM_I18N = {
+        CN: {
+            hdr_dblclick: "双击切换配色主题",
+            key_bronze: "铜钥匙", key_silver: "银钥匙", key_gold: "金钥匙",
+            btn_local: "局部", btn_full: "全图", btn_complete: "完整",
+            tb_edit: "编辑", tb_save: "保存", tb_load: "载入", tb_export: "导出", tb_import: "导入",
+            alert_no_map: "当前不在地图房间，无法获取地图",
+            map_copied: "地图已复制到剪贴板，回游戏聊天框粘贴 /mappaste <串> 即可铺设",
+            clip_import_title: "导入地图",
+            clip_import_body: "即将用检测到的地图覆盖当前房间地图，并对所有房间成员生效。此操作不可撤销。",
+            clip_import_from_editor: "来源：地图编辑器",
+            clip_import_from_clipboard: "来源：系统剪贴板",
+            clip_import_confirm: "确认导入",
+            clip_import_cancel: "取消",
+            clip_import_done: "地图已导入并广播到房间",
+            clip_import_fail: "导入失败：{reason}",
+            clip_import_empty: "未检测到有效的地图数据",
+            alert_no_save: "当前不在地图房间，无法保存",
+            save_prompt: "保存地图名称：",
+            save_fail: "保存失败：",
+            ov_title: "已保存的地图",
+            ov_empty: "暂无保存的地图（进入地图房间后点「保存」即可）",
+            ov_editor: "编辑器", ov_delete: "删除",
+            ov_del_confirm: "删除「{name}」？",
+            export_none: "没有已保存的地图",
+            people_hdr: "👥 房间内 {n} 人",
+            ftr_click_tip: "点击查看房间内所有人",
+            not_in_room: "当前不在地图房间内",
+            no_drawimage: "找不到游戏绘图函数 DrawGetImage，无法使用「完整」模式",
+            offline_name: "MiniMap",
+        },
+        TW: {
+            hdr_dblclick: "雙擊切換配色主題",
+            key_bronze: "銅鑰匙", key_silver: "銀鑰匙", key_gold: "金鑰匙",
+            btn_local: "局部", btn_full: "全圖", btn_complete: "完整",
+            tb_edit: "編輯", tb_save: "儲存", tb_load: "載入", tb_export: "匯出", tb_import: "匯入",
+            alert_no_map: "目前不在地圖房間，無法取得地圖",
+            map_copied: "地圖已複製到剪貼簿，回遊戲聊天框貼上 /mappaste <串> 即可鋪設",
+            clip_import_title: "匯入地圖",
+            clip_import_body: "即將用偵測到的地圖覆蓋目前房間地圖，並對所有房間成員生效。此操作不可撤銷。",
+            clip_import_from_editor: "來源：地圖編輯器",
+            clip_import_from_clipboard: "來源：系統剪貼簿",
+            clip_import_confirm: "確認匯入",
+            clip_import_cancel: "取消",
+            clip_import_done: "地圖已匯入並廣播到房間",
+            clip_import_fail: "匯入失敗：{reason}",
+            clip_import_empty: "未偵測到有效的地圖資料",
+            alert_no_save: "目前不在地圖房間，無法儲存",
+            save_prompt: "儲存地圖名稱：",
+            save_fail: "儲存失敗：",
+            ov_title: "已儲存的地圖",
+            ov_empty: "暫無儲存的地圖（進入地圖房間後點「儲存」即可）",
+            ov_editor: "編輯器", ov_delete: "刪除",
+            ov_del_confirm: "刪除「{name}」？",
+            export_none: "沒有已儲存的地圖",
+            people_hdr: "👥 房間內 {n} 人",
+            ftr_click_tip: "點擊查看房間內所有人",
+            not_in_room: "目前不在地圖房間內",
+            no_drawimage: "找不到遊戲繪圖函式 DrawGetImage，無法使用「完整」模式",
+            offline_name: "MiniMap",
+        },
+        EN: {
+            hdr_dblclick: "Double-click to switch color theme",
+            key_bronze: "Bronze Key", key_silver: "Silver Key", key_gold: "Gold Key",
+            btn_local: "Local", btn_full: "Full", btn_complete: "Complete",
+            tb_edit: "Edit", tb_save: "Save", tb_load: "Load", tb_export: "Export", tb_import: "Import",
+            alert_no_map: "Not in a map room, cannot get map data",
+            map_copied: "Map copied to clipboard. Paste /mappaste <string> into the game chat to lay it down",
+            clip_import_title: "Import Map",
+            clip_import_body: "This will overwrite the current room map with the detected map, affecting all room members. This cannot be undone.",
+            clip_import_from_editor: "Source: Map Editor",
+            clip_import_from_clipboard: "Source: System Clipboard",
+            clip_import_confirm: "Confirm Import",
+            clip_import_cancel: "Cancel",
+            clip_import_done: "Map imported and broadcast to the room",
+            clip_import_fail: "Import failed: {reason}",
+            clip_import_empty: "No valid map data detected",
+            alert_no_save: "Not in a map room, cannot save",
+            save_prompt: "Save map name:",
+            save_fail: "Save failed: ",
+            ov_title: "Saved Maps",
+            ov_empty: "No saved maps yet (enter a map room and click \"Save\")",
+            ov_editor: "Editor", ov_delete: "Delete",
+            ov_del_confirm: 'Delete "{name}"?',
+            export_none: "No saved maps to export",
+            people_hdr: "👤 {n} people in room",
+            ftr_click_tip: "Click to see everyone in room",
+            not_in_room: "Not currently in a map room",
+            no_drawimage: "DrawGetImage not found, \"Complete\" mode unavailable",
+            offline_name: "MiniMap",
+        },
+    };
+    // 偵測 BC 語言設定；回退鏈：CN→TW→EN
+    function _bmmLang() {
+        try {
+            const lang = typeof TranslationLanguage !== "undefined" ? TranslationLanguage : "";
+            if (/^zh(-cn)?$/i.test(lang) || lang === "CN") return "CN";
+            if (/^zh(-tw)?$/i.test(lang) || lang === "TW" || lang === "ZH") return "TW";
+            if (/^en/i.test(lang) || lang === "EN") return "EN";
+        } catch(e) {}
+        // 回退：若 TranslationLanguage 不可用，嘗試從玩家偏好推斷
+        try {
+            if (typeof Preferences !== "undefined" && Preferences.Language) {
+                const pl = Preferences.Language;
+                if (pl === "CN" || pl === "zh-CN") return "CN";
+                if (pl === "TW" || pl === "zh-TW") return "ZH"; // BC 用 ZH 代表繁中
+                if (pl === "EN" || pl === "en") return "EN";
+            }
+        } catch(e) {}
+        return "TW"; // 預設繁中（與原版一致）
+    }
+    let _bmmCurrentLang = _bmmLang();
+    const _bmmDict = BMM_I18N[_bmmCurrentLang] || BMM_I18N.TW;
+    function t(key, vars) {
+        let s = _bmmDict[key] || BMM_I18N.TW[key] || BMM_I18N.EN[key] || key;
+        if (vars) for (const [k,v] of Object.entries(vars)) s = s.replace(new RegExp('\\{'+k+'\\}','g'), v);
+        return s;
+    }
+
+    const HDR_H = 36, FTR_H = 58, TOOLBAR_H = 30;
     const MAP_W = 40, MAP_H = 40, OBJ_START = 100, VIEW_RANGE = 10;
     const LOCAL_SIZE = 300;
     const FULL_SIZE  = 500;
@@ -227,7 +358,7 @@
                 ChatRoomMapViewTeleport(Player, { X: x, Y: y });  // eslint-disable-line
                 return;
             } catch (e) {
-                console.warn("[BMM] 管理員瞬移失敗，改用本地移動", e);
+                console.warn("[BMM] Admin teleport failed, using local move", e);
             }
         }
         Player.MapData.Pos.X = x;  // eslint-disable-line
@@ -285,7 +416,7 @@
 
     // ── "完整"模式：直接抓取遊戲貼圖繪製整張 40×40 地圖縮圖 ──────────────────────
     function drawFullMapReal(ctx, W, H) {
-        const md = getMapData();
+        const md = getRenderMap();
         const chars = getChars();
 
         if (!md?.Tiles) {
@@ -293,7 +424,7 @@
             ctx.fillStyle = "rgba(255,60,60,0.5)";
             ctx.font = "13px monospace";
             ctx.textAlign = "center"; ctx.textBaseline = "middle";
-            ctx.fillText("目前不在地圖房間內", W/2, H/2);
+            ctx.fillText(t("not_in_room"), W/2, H/2);
             ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
             _charCache = [];
             return;
@@ -304,7 +435,7 @@
             ctx.fillStyle = "rgba(255,200,60,0.8)";
             ctx.font = "12px monospace";
             ctx.textAlign = "center"; ctx.textBaseline = "middle";
-            ctx.fillText("找不到遊戲繪圖函式 DrawGetImage，無法使用「完整」模式", W/2, H/2);
+            ctx.fillText(t("no_drawimage"), W/2, H/2);
             ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
             _charCache = [];
             return;
@@ -372,7 +503,7 @@
 
     // ── 繪圖 ──────────────────────────────────────────────────────────────────
     function drawMap(ctx, W, H) {
-        const md = getMapData();
+        const md = getRenderMap();
         const pp = getPlayerPos();
 
         if (!md?.Tiles || !pp) {
@@ -380,7 +511,7 @@
             ctx.fillStyle = "rgba(255,60,60,0.5)";
             ctx.font = "13px monospace";
             ctx.textAlign = "center"; ctx.textBaseline = "middle";
-            ctx.fillText("目前不在地圖房間內", W/2, H/2);
+            ctx.fillText(t("not_in_room"), W/2, H/2);
             ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
             _charCache = [];
             return;
@@ -535,20 +666,29 @@
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0 10px;
+          padding: 0 8px 0 10px;
           height: 36px;
           min-height: 36px;
+          max-height: 36px;
           cursor: move;
           background: rgba(var(--mm-rgb),0.08);
           border-bottom: 1px solid rgba(var(--mm-rgb),0.2);
           border-radius: 8px 8px 0 0;
+          gap: 6px;
+          overflow: hidden;
         }
         .mm-title {
           color: rgb(var(--mm-rgb));
           font-size: 11px;
           font-weight: bold;
-          letter-spacing: 1px;
+          letter-spacing: 0.5px;
           cursor: pointer;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          flex-shrink: 1;
+          min-width: 0;
+          max-width: 120px;
         }
         #bc-minimap-canvas {
           display: block;
@@ -556,22 +696,32 @@
         }
         #bc-minimap-ftr {
           display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0 10px;
-          height: 32px;
-          min-height: 32px;
+          flex-direction: column;
+          padding: 0;
+          min-height: 58px;
           border-top: 1px solid rgba(var(--mm-rgb),0.15);
-          font-size: 13px;
+          font-size: 12px;
           color: rgb(var(--mm-rgb));
           background: rgba(0,0,0,0.3);
           border-radius: 0 0 8px 8px;
           margin-top: auto;
+          overflow: hidden;
         }
-        #bc-minimap-ftr span { flex: 1; }
-        #bc-minimap-ftr span:first-child { text-align: left; }
-        #bc-minimap-ftr span:nth-child(2) { text-align: center; }
-        #bc-minimap-ftr span:last-child  { text-align: right; }
+        /* 底部坐标/人数行 */
+        #bc-minimap-ftr > .mm-ftr-info {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 3px 10px;
+          height: 26px;
+          min-height: 26px;
+          gap: 6px;
+          flex-shrink: 0;
+        }
+        #bc-minimap-ftr .mm-ftr-info span { flex: 1; }
+        #bc-minimap-ftr .mm-ftr-info span:first-child { text-align: left; }
+        #bc-minimap-ftr .mm-ftr-info span:nth-child(2) { text-align: center; }
+        #bc-minimap-ftr .mm-ftr-info span:last-child  { text-align: right; }
         #bc-minimap-ftr .mm-hover-char { color: #ff8888; }
         #bc-minimap-ftr .mm-hover-tile { color: rgb(var(--mm-rgb)); }
         #bc-minimap-ftr .mm-hover-tile.mm-footer-btn {
@@ -581,18 +731,76 @@
         .mm-btn {
           background: transparent;
           border: 1px solid rgba(var(--mm-rgb),0.3);
-          border-radius: 3px;
+          border-radius: 4px;
           color: #668866;
-          font-size: 9px;
-          padding: 2px 6px;
+          font-size: 10px;
+          padding: 3px 7px;
           cursor: pointer;
           font-family: monospace;
+          white-space: nowrap;
+          line-height: 1.2;
+          text-align: center;
+          min-width: 28px;
+          flex-shrink: 0;
+          transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
+        }
+        .mm-btn:hover {
+          background: rgba(var(--mm-rgb),0.1);
+          border-color: rgba(var(--mm-rgb),0.5);
+          color: #99bb99;
         }
         .mm-btn.active {
           background: rgba(var(--mm-rgb),0.2);
           border-color: rgba(var(--mm-rgb),0.6);
           color: rgb(var(--mm-rgb));
         }
+        #bc-minimap-toolbar {
+          display: flex;
+          gap: 5px;
+          align-items: center;
+          justify-content: center;
+          padding: 4px 10px;
+          height: 32px;
+          min-height: 32px;
+          border-bottom: 1px solid rgba(var(--mm-rgb),0.15);
+          background: rgba(var(--mm-rgb),0.06);
+          flex-shrink: 0;
+          width: 100%;
+          box-sizing: border-box;
+          overflow: hidden;
+        }
+        #bc-minimap-toolbar .mm-btn { font-size: 10px; padding: 3px 8px; }
+        #bc-minimap-load-ov {
+          position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+          z-index: 100000; width: 440px; max-height: 70vh; overflow: auto;
+          background: rgba(10,10,25,0.98); border: 1.5px solid rgba(var(--mm-rgb),0.5);
+          border-radius: 10px; box-shadow: 0 0 30px rgba(var(--mm-rgb),0.15);
+          font-family: monospace; color: #cfe; padding: 16px;
+        }
+        #bc-minimap-load-ov h3 { margin: 0 0 12px; color: rgb(var(--mm-rgb)); font-size: 14px; }
+        #bc-minimap-load-ov .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,0.08); gap: 10px; }
+        #bc-minimap-load-ov .meta { font-size: 11px; color: #9bd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        #bc-minimap-load-ov .acts { display: flex; gap: 6px; }
+        #bc-minimap-load-ov .mm-btn { font-size: 10px; }
+        #bc-minimap-load-ov .close { position: absolute; top: 8px; right: 14px; cursor: pointer; color: #f88; font-size: 18px; line-height: 1; }
+        #bc-minimap-load-ov .empty { color: #789; font-size: 12px; padding: 14px; text-align: center; }
+        #bc-minimap-import-ov {
+          position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+          z-index: 100001; width: 420px; max-width: 92vw; box-sizing: border-box;
+          background: rgba(10,10,25,0.98); border: 1.5px solid rgba(255,120,120,0.6);
+          border-radius: 10px; box-shadow: 0 0 30px rgba(255,80,80,0.2);
+          font-family: monospace; color: #cfe; padding: 18px;
+        }
+        #bc-minimap-import-ov h3 { margin: 0 0 10px; color: #ff9a9a; font-size: 15px; }
+        #bc-minimap-import-ov .warn { font-size: 12px; line-height: 1.6; color: #f3c9c9; background: rgba(255,80,80,0.08); border: 1px solid rgba(255,120,120,0.25); border-radius: 6px; padding: 10px; margin-bottom: 10px; }
+        #bc-minimap-import-ov .src { font-size: 11px; color: #9bd; margin-bottom: 14px; }
+        #bc-minimap-import-ov .acts { display: flex; gap: 10px; justify-content: flex-end; }
+        #bc-minimap-import-ov .mm-btn { font-size: 12px; padding: 6px 14px; }
+        #bc-minimap-import-ov .mm-btn.ok { border-color: rgba(120,220,140,0.6); color: #9be0a8; }
+        #bc-minimap-import-ov .mm-btn.ok:hover { background: rgba(120,220,140,0.15); }
+        #bc-minimap-import-ov .close { position: absolute; top: 8px; right: 14px; cursor: pointer; color: #f88; font-size: 18px; line-height: 1; }
+        #bmmx-toast { position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%); z-index: 100002; background: rgba(10,10,25,0.95); border: 1px solid rgba(var(--mm-rgb),0.5); color: #cfe; font-family: monospace; font-size: 12px; padding: 8px 14px; border-radius: 8px; box-shadow: 0 0 20px rgba(var(--mm-rgb),0.15); opacity: 0; transition: opacity .25s; pointer-events: none; max-width: 90vw; }
+        #bmmx-toast.show { opacity: 1; }
         .mm-key {
           display: block;
           color: #555555;
@@ -649,8 +857,8 @@
         hdr.id = "bc-minimap-hdr";
         const title = document.createElement("span");
         title.className = "mm-title";
-        title.textContent = `🗺️ ${ChatRoomData?.Name ?? "MiniMap"}`;
-        title.title = "雙擊切換配色主題";
+        title.textContent = `🗺️ ${ChatRoomData?.Name ?? t("offline_name")}`;
+        title.title = t("hdr_dblclick");
         title.addEventListener("dblclick", () => {
             panelEl.classList.toggle("mm-theme-purple");
             // 重新套用目前 footer 顯示內容的按鈕狀態（顏色/可否點擊會隨主題改變）
@@ -668,7 +876,7 @@
         const keyGold   = document.createElement("span");
         keyBronze.className = keySilver.className = keyGold.className = "mm-key";
         keyBronze.innerHTML = keySilver.innerHTML = keyGold.innerHTML = KEY_SVG;
-        keyBronze.title = "銅鑰匙"; keySilver.title = "銀鑰匙"; keyGold.title = "金鑰匙";
+        keyBronze.title = t("key_bronze"); keySilver.title = t("key_silver"); keyGold.title = t("key_gold");
         keysWrap.append(keyBronze, keySilver, keyGold);
 
         function refreshKeyIndicators() {
@@ -686,11 +894,11 @@
         const btns = document.createElement("div");
         btns.style.cssText = "display:flex;gap:4px;";
         const bLocal = document.createElement("button");
-        bLocal.className = "mm-btn active"; bLocal.textContent = "局部";
+        bLocal.className = "mm-btn active"; bLocal.textContent = t("btn_local");
         const bFull  = document.createElement("button");
-        bFull.className  = "mm-btn"; bFull.textContent = "全圖";
+        bFull.className  = "mm-btn"; bFull.textContent = t("btn_full");
         const bComplete = document.createElement("button");
-        bComplete.className = "mm-btn"; bComplete.textContent = "完整";
+        bComplete.className = "mm-btn"; bComplete.textContent = t("btn_complete");
         const bClose = document.createElement("button");
         bClose.className = "mm-btn"; bClose.textContent = "✕";
 
@@ -711,7 +919,7 @@
             cvEl.style.width  = size + "px";
             cvEl.style.height = size + "px";
             panelEl.style.setProperty("width",    size + "px",                    "important");
-            panelEl.style.setProperty("height",   (HDR_H + size + FTR_H) + "px", "important");
+            panelEl.style.setProperty("height",   (HDR_H + size + TOOLBAR_H + FTR_H) + "px", "important");
             panelEl.style.setProperty("overflow", "visible",                      "important"); // ← 新增
             panelEl.style.setProperty("max-height", "none",                       "important"); // ← 新增
         }
@@ -730,17 +938,40 @@
         cvEl.style.width  = LOCAL_SIZE + "px";
         cvEl.style.height = LOCAL_SIZE + "px";
 
-        // Footer
+        // ── 擴充工具列（編輯 / 儲存 / 載入 / 匯出 / 匯入）──
+        const toolbarEl = document.createElement("div");
+        toolbarEl.id = "bc-minimap-toolbar";
+        const mkBtn = (label, fn) => {
+            const b = document.createElement("button");
+            b.className = "mm-btn"; b.type = "button"; b.textContent = label;
+            b.onclick = fn; return b;
+        };
+        const bEdit = mkBtn(t("tb_edit"), () => { const md = getMapData(); if (!md) { alert(t("alert_no_map")); return; } openEditorWith(md); });
+        const bSave = mkBtn(t("tb_save"), () => saveCurrentMap());
+        const bLoad = mkBtn(t("tb_load"), () => showLoadOverlay());
+        const bExp  = mkBtn(t("tb_export"), () => exportAllMaps());
+        const bImp  = mkBtn(t("tb_import"), () => importMaps());
+        toolbarEl.append(bEdit, bSave, bLoad, bExp, bImp);
+        bmmxSaveBtn = bSave; bmmxExpBtn = bExp; bmmxImpBtn = bImp;
+
+        // Footer（两行布局：上行工具栏，下行坐标+人数）
         const ftr = document.createElement("div");
         ftr.id = "bc-minimap-ftr";
+        // 坐标/人数信息行
+        const ftrInfo = document.createElement("div");
+        ftrInfo.className = "mm-ftr-info";
         fPos   = document.createElement("span");
         fHover = document.createElement("span");
         fCnt   = document.createElement("span");
         fCnt.classList.add("mm-clickable");
-        fCnt.title = "點擊查看房間內所有人";
-        ftr.append(fPos, fHover, fCnt);
+        fCnt.title = t("ftr_click_tip");
+        ftrInfo.append(fPos, fHover, fCnt);
+        ftr.append(ftrInfo);
 
         panelEl.append(hdr, cvEl, ftr);
+
+    // 工具列插入到 Footer 最前面（Footer 是 column 布局，工具栏在上行）
+    if (toolbarEl) ftr.prepend(toolbarEl);
         document.body.appendChild(panelEl);
 
         // 人員清單側邊面板（附加在主面板內，隨主面板一起拖曳、隨主面板顯示/隱藏而顯示/隱藏）
@@ -755,7 +986,7 @@
             peoplePanelEl.innerHTML = "";
             const header = document.createElement("div");
             header.id = "bc-minimap-people-hdr";
-            header.textContent = `👤 房間內 ${chars.length} 人`;
+            header.textContent = t("people_hdr", { n: chars.length });
             peoplePanelEl.append(header);
             for (const c of chars) {
                 const row = document.createElement("div");
@@ -805,7 +1036,21 @@
         function redrawNow() {
             if (panelEl.classList.contains("hidden")) return;
             drawMap(ctx, cvEl.width, cvEl.height);
+            if (_linkedEdit) { // 联动中徽标
+                const W = cvEl.width;
+                ctx.save();
+                ctx.font = "bold 10px monospace";
+                ctx.textAlign = "right"; ctx.textBaseline = "top";
+                const txt = "● " + t("tb_edit");
+                const w = ctx.measureText(txt).width + 10;
+                ctx.fillStyle = "rgba(20,180,120,0.85)";
+                ctx.fillRect(W - w - 4, 4, w, 16);
+                ctx.fillStyle = "#fff";
+                ctx.fillText(txt, W - 8, 6);
+                ctx.restore();
+            }
         }
+        _bmmRedraw = redrawNow;   // 暴露给外部（stopLink / bmmxDoImport）
 
         // 統一設定 footer(fHover) 的文字與樣式：
         // mode = "character" 顯示紅色（懸停角色）；"selection" 顯示主題色（選取格子，紫色主題下且有選取時會變成可點擊按鈕）；"empty" 清空
@@ -875,6 +1120,258 @@
         }, 500);
     }
 
+    // ── 擴充功能：地圖儲存 / 載入 / 匯出 / 匯入 + 跳轉線上編輯器 ─────────────────────────
+    let bmmxSaveBtn = null, bmmxExpBtn = null, bmmxImpBtn = null;
+    // ── 编辑器实时联动状态 ──
+    let _editorWin = null;        // 编辑器窗口引用（window.open 返回）
+    let _linkedEdit = false;      // 是否处于联动态
+    let _livePreview = null;      // 编辑器实时回传的地图（覆盖渲染源）
+    let _editorPoll = null;       // 编辑器存活检测定时器
+    let _bmmRedraw = null;        // createPanel 内 redrawNow 的外部引用（解决闭包作用域）
+    const BMMX_EDITOR_URL = "https://heitaoplay.github.io/bc-room-map-editor/";
+    const BMMX_LZ_URL = "https://cdn.jsdelivr.net/gh/heitaoplay/bc-room-map-editor@main/src/LZString.js";
+    const BMMX_DB = "bmmx_maps", BMMX_STORE = "maps";
+
+    // 把 mappaste 串解回 {Type,Tiles,Objects,Fog}（编辑器 MapLib.decode 产出的同格式）
+    function bmmxDecode(str) {
+        if (!window.LZString) return null;
+        try { return JSON.parse(window.LZString.decompressFromBase64(str)); } catch (e) { return null; }
+    }
+    // 联动态下绘制用的地图源：优先用编辑器实时预览
+    function getRenderMap() { return (_linkedEdit && _livePreview) ? _livePreview : getMapData(); }
+    function stopLink() {
+        _linkedEdit = false; _livePreview = null; _editorWin = null;
+        if (_editorPoll) { clearInterval(_editorPoll); _editorPoll = null; }
+        try { if (_bmmRedraw) _bmmRedraw(); } catch (e) {}
+    }
+
+    // ── 剪贴板自动检测 + 地图导入（确认回执，防误覆盖）──
+    let _pendingImport = null;       // 编辑器「应用到游戏」回传、待确认导入的地图串
+    let _lastPromptedTiles = null;   // 已弹确认框的地图 Tiles 签名，避免重复打扰
+    let _clipChecking = false;       // 防 focus/visibility 并发重入
+    let _importOv = null;            // 当前导入确认框
+
+    // 校验字符串是否为有效地图（mappaste 压缩串或原始 JSON），返回解析对象或 null
+    function bmmxIsValidMap(str) {
+        if (!str || typeof str !== "string" || str.length < 20) return null;
+        const s = str.trim();
+        const dec = bmmxDecode(s);
+        if (dec && dec.Tiles && typeof dec.Tiles === "string" && dec.Tiles.length >= 100) return dec;
+        try { const o = JSON.parse(s); if (o && o.Tiles && typeof o.Tiles === "string" && o.Tiles.length >= 100) return o; } catch (e) {}
+        return null;
+    }
+    // 与当前房间地图是否不同（相同则已应用/无需导入）
+    function bmmxMapDiffers(map) {
+        const cur = getMapData();
+        return !(cur && cur.Tiles && cur.Tiles === map.Tiles);
+    }
+    function _bmmxToast(msg) {
+        let el = document.getElementById("bmmx-toast");
+        if (!el) { el = document.createElement("div"); el.id = "bmmx-toast"; document.body.appendChild(el); }
+        el.textContent = msg; el.classList.add("show");
+        clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2600);
+    }
+    // 返回 BMM（焦点/可见）时自动检测：优先编辑器回传串，其次系统剪贴板
+    async function bmmxCheckImportOnReturn() {
+        if (_clipChecking) return;
+        _clipChecking = true;
+        try {
+            if (typeof ChatRoomData === "undefined" || !ChatRoomData) return;
+            await bmmxEnsureLZ();
+            // 1) 编辑器回传（可靠，无需剪贴板权限）
+            if (_pendingImport) {
+                const str = _pendingImport; _pendingImport = null;
+                const map = bmmxIsValidMap(str);
+                if (map && bmmxMapDiffers(map) && map.Tiles !== _lastPromptedTiles) { bmmxPromptImport(str, "editor"); return; }
+            }
+            // 2) 系统剪贴板检测（用户从聊天/别处复制了地图串）
+            try {
+                if (navigator.clipboard && navigator.clipboard.readText) {
+                    const txt = (await navigator.clipboard.readText()).trim();
+                    const map = bmmxIsValidMap(txt);
+                    if (map && bmmxMapDiffers(map) && map.Tiles !== _lastPromptedTiles) { bmmxPromptImport(txt, "clipboard"); return; }
+                }
+            } catch (e) { /* 剪贴板读权限被拒，静默忽略 */ }
+        } finally { _clipChecking = false; }
+    }
+    // 弹出确认框：明确告知将覆盖现有地图，确认后才执行
+    function bmmxPromptImport(str, source) {
+        const map = bmmxIsValidMap(str);
+        if (!map) { alert(t("clip_import_fail", { reason: t("clip_import_empty") })); return; }
+        _lastPromptedTiles = map.Tiles;
+        if (_importOv) _importOv.remove();
+        const ov = document.createElement("div"); ov.id = "bc-minimap-import-ov";
+        const srcLabel = source === "editor" ? t("clip_import_from_editor") : t("clip_import_from_clipboard");
+        ov.innerHTML =
+            '<span class="close">✕</span>' +
+            '<h3>' + t("clip_import_title") + '</h3>' +
+            '<div class="warn">⚠️ ' + t("clip_import_body") + '</div>' +
+            '<div class="src">🔗 ' + srcLabel + '</div>' +
+            '<div class="acts">' +
+                '<button class="mm-btn ok" type="button" id="bmmx-imp-ok">' + t("clip_import_confirm") + '</button>' +
+                '<button class="mm-btn no" type="button" id="bmmx-imp-no">' + t("clip_import_cancel") + '</button>' +
+            '</div>';
+        document.body.appendChild(ov);
+        const close = () => { if (_importOv) { _importOv.remove(); _importOv = null; } };
+        ov.querySelector(".close").onclick = close;
+        ov.querySelector("#bmmx-imp-no").onclick = close;
+        ov.querySelector("#bmmx-imp-ok").onclick = () => { close(); bmmxDoImport(str, map); };
+        _importOv = ov;
+    }
+    // 确认后：写入房间地图并广播（等价于手动 /mappaste <串>）
+    function bmmxDoImport(str, map) {
+        try {
+            const payload = { Type: map.Type, Tiles: map.Tiles, Objects: map.Objects, Fog: map.Fog };
+            if (typeof ChatRoomData !== "undefined" && ChatRoomData) ChatRoomData.MapData = payload; // 本地即时反馈（与 BC 原生 MapPaste 一致）
+            if (typeof ServerSend === "function") ServerSend("ChatRoomMapData", payload);
+            if (_bmmRedraw) _bmmRedraw();
+            _bmmxToast(t("clip_import_done"));
+        } catch (e) { alert(t("clip_import_fail", { reason: (e && e.message) || String(e) })); }
+    }
+
+    function bmmxOpenDB() {
+        return new Promise((res, rej) => {
+            const r = indexedDB.open(BMMX_DB, 1);
+            r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains(BMMX_STORE)) r.result.createObjectStore(BMMX_STORE, { keyPath: "id" }); };
+            r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+        });
+    }
+    function bmmxStore(db, mode) { return db.transaction(BMMX_STORE, mode).objectStore(BMMX_STORE); }
+    function bmmxPut(rec) { return bmmxOpenDB().then(db => new Promise((res, rej) => { const r = bmmxStore(db, "readwrite").put(rec); r.onsuccess = () => res(); r.onerror = () => rej(r.error); })); }
+    function bmmxAll() { return bmmxOpenDB().then(db => new Promise((res, rej) => { const r = bmmxStore(db, "readonly").getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); })); }
+    function bmmxDel(id) { return bmmxOpenDB().then(db => new Promise((res, rej) => { const r = bmmxStore(db, "readwrite").delete(id); r.onsuccess = () => res(); r.onerror = () => rej(r.error); })); }
+
+    function bmmxEnsureLZ() {
+        if (window.LZString) return Promise.resolve(true);
+        return new Promise(res => {
+            const s = document.createElement("script"); s.src = BMMX_LZ_URL;
+            s.onload = () => res(!!window.LZString); s.onerror = () => res(false);
+            document.head.appendChild(s);
+        });
+    }
+    function bmmxMapToStr(md) {
+        const payload = { Type: md.Type, Tiles: md.Tiles, Objects: md.Objects, Fog: md.Fog };
+        return window.LZString ? window.LZString.compressToBase64(JSON.stringify(payload)) : JSON.stringify(payload);
+    }
+    async function openEditorWith(md) {
+        await bmmxEnsureLZ();
+        const str = bmmxMapToStr(md);
+        // 已联动中再次点击 → 把游戏当前地图重新推给编辑器
+        if (_editorWin && !_editorWin.closed) {
+            _editorWin.postMessage({ source: "bmm", type: "load", map: str }, "*");
+            _editorWin.focus();
+            return;
+        }
+        const w = window.open(BMMX_EDITOR_URL + "?from=bmm", "_blank");
+        if (!w) { // 弹窗被拦截，降级为复制串
+            try { if (navigator.clipboard) await navigator.clipboard.writeText(str).catch(() => {}); } catch (e) {}
+            alert(t("map_copied"));
+            return;
+        }
+        _editorWin = w;
+        const onMsg = (e) => {
+            window.__bmmOnMsg = onMsg;
+            const d = e.data || {};
+            if (d.source !== "bmm-editor") return;
+            if (_editorWin && e.source !== _editorWin) return; // 仅接受来自该编辑器标签页的消息
+            if (d.type === "ready") {
+                _editorWin.postMessage({ source: "bmm", type: "load", map: str }, "*");
+            } else if (d.type === "live") {
+                const dec = bmmxDecode(d.map);
+                if (dec && dec.Tiles) { _linkedEdit = true; _livePreview = dec; try { if (_bmmRedraw) _bmmRedraw(); } catch (e2) {} }
+            } else if (d.type === "export") {
+                _pendingImport = d.map || null;
+                try { if (navigator.clipboard) navigator.clipboard.writeText(d.map).catch(() => {}); } catch (e3) {}
+                // 不在此弹窗；玩家返回 BMM（焦点）时自动检测并弹确认框
+                setTimeout(() => bmmxCheckImportOnReturn().catch(() => {}), 200);
+            } else if (d.type === "pong") {
+                // 编辑器存活确认
+            }
+        };
+        window.addEventListener("message", onMsg);
+        // 编辑器存活检测：关闭后自动回退游戏地图
+        _editorPoll = setInterval(() => {
+            if (_editorWin && _editorWin.closed) {
+                window.removeEventListener("message", onMsg);
+                stopLink();
+            }
+        }, 1000);
+        // 兜底：2s 后若编辑器仍未发 ready（可能已加载完），直接推一次地图
+        setTimeout(() => {
+            if (_editorWin && !_editorWin.closed) _editorWin.postMessage({ source: "bmm", type: "load", map: str }, "*");
+        }, 2000);
+    }
+    async function saveCurrentMap() {
+        const md = getMapData();
+        if (!md || !md.Tiles) { alert(t("alert_no_save")); return; }
+        const room = (ChatRoomData && ChatRoomData.Name) || "map";
+        const def = room + " " + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+        const name = (window.prompt(t("save_prompt"), def) || "").trim();
+        if (!name) return;
+        const rec = { id: "m_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7), name, savedAt: Date.now(), Type: md.Type, Tiles: md.Tiles, Objects: md.Objects, Fog: md.Fog };
+        try { await bmmxPut(rec); flashBtn(bmmxSaveBtn); } catch (e) { alert(t("save_fail") + e); }
+    }
+    let _bmmxLoadOv = null;
+    function showLoadOverlay() {
+        if (_bmmxLoadOv) { _bmmxLoadOv.remove(); _bmmxLoadOv = null; }
+        const ov = document.createElement("div"); ov.id = "bc-minimap-load-ov";
+        ov.innerHTML = '<span class="close">✕</span><h3>' + t("ov_title") + '</h3><div class="list"></div>';
+        document.body.appendChild(ov);
+        ov.querySelector(".close").onclick = () => { ov.remove(); _bmmxLoadOv = null; };
+        _bmmxLoadOv = ov;
+        refreshLoadOverlay(ov);
+    }
+    async function refreshLoadOverlay(ov) {
+        ov = ov || _bmmxLoadOv; if (!ov) return;
+        const list = ov.querySelector(".list");
+        let maps = []; try { maps = await bmmxAll(); } catch (e) { maps = []; }
+        if (!maps.length) { list.innerHTML = '<div class="empty">' + t("ov_empty") + '</div>'; return; }
+        list.innerHTML = "";
+        maps.sort((a, b) => b.savedAt - a.savedAt).forEach(m => {
+            const row = document.createElement("div"); row.className = "row";
+            const meta = document.createElement("div"); meta.className = "meta"; meta.textContent = m.name + "  ·  " + new Date(m.savedAt).toLocaleString();
+            const acts = document.createElement("div"); acts.className = "acts";
+            const bOpen = document.createElement("button"); bOpen.className = "mm-btn"; bOpen.type = "button"; bOpen.textContent = t("ov_editor"); bOpen.onclick = () => openEditorWith(m);
+            const bDel = document.createElement("button"); bDel.className = "mm-btn"; bDel.type = "button"; bDel.textContent = t("ov_delete"); bDel.onclick = async () => { if (confirm(t("ov_del_confirm", { name: m.name }))) { await bmmxDel(m.id); refreshLoadOverlay(ov); } };
+            acts.append(bOpen, bDel); row.append(meta, acts); list.appendChild(row);
+        });
+    }
+    async function exportAllMaps() {
+        let maps = []; try { maps = await bmmxAll(); } catch (e) { maps = []; }
+        if (!maps.length) { alert(t("export_none")); return; }
+        const blob = new Blob([JSON.stringify(maps, null, 0)], { type: "application/json" });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+        a.download = "bmm-maps-" + new Date().toISOString().slice(0, 10) + ".json"; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        flashBtn(bmmxExpBtn);
+    }
+    function importMaps() {
+        const inp = document.createElement("input"); inp.type = "file"; inp.multiple = true; inp.accept = ".json,.bcroom,.txt";
+        inp.onchange = async () => {
+            const files = Array.prototype.slice.call(inp.files); let n = 0;
+            for (const f of files) {
+                try {
+                    const text = (await f.text()).trim(); if (!text) continue;
+                    let data; try { data = JSON.parse(text); } catch (e) { continue; }
+                    const arr = Array.isArray(data) ? data : (data && data.Tiles ? [data] : []);
+                    for (const m of arr) {
+                        if (m && m.Tiles) {
+                            const rec = { id: m.id || ("imp_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7)), name: m.name || f.name, savedAt: m.savedAt || Date.now(), Type: m.Type, Tiles: m.Tiles, Objects: m.Objects, Fog: m.Fog };
+                            await bmmxPut(rec); n++;
+                        }
+                    }
+                } catch (e) { console.warn("[BMMX] import fail", f.name, e); }
+            }
+            flashBtn(bmmxImpBtn);
+            if (_bmmxLoadOv) refreshLoadOverlay(_bmmxLoadOv);
+        };
+        inp.click();
+    }
+    function flashBtn(b) {
+        if (!b) return; const old = b.textContent; b.classList.add("active");
+        setTimeout(() => { b.textContent = old; b.classList.remove("active"); }, 900);
+    }
+
     function togglePanel() {
         if (!panelEl) createPanel();
         panelEl.classList.toggle("hidden");
@@ -883,7 +1380,7 @@
         if (!panelEl.classList.contains("hidden")) {
             const size = mapMode === "full" ? FULL_SIZE : mapMode === "complete" ? COMPLETE_SIZE : LOCAL_SIZE;
             panelEl.style.setProperty("width",    size + "px",                    "important");
-            panelEl.style.setProperty("height",   (HDR_H + size + FTR_H) + "px", "important");
+            panelEl.style.setProperty("height",   (HDR_H + size + TOOLBAR_H + FTR_H) + "px", "important");
             panelEl.style.setProperty("overflow", "visible",                      "important");
             panelEl.style.setProperty("max-height", "none",                       "important");
         }
@@ -916,15 +1413,48 @@
     (async()=>{
         await waitFor(()=>typeof bcModSdk!=="undefined");  // eslint-disable-line
 
-        const modApi=bcModSdk.registerMod({
-            repository: "https://github.com/awdrrawd/liko-Plugin-Repository",  // eslint-disable-line
-            name:"Liko - BMM", fullName:"Liko's BC MiniMap", version:MOD_VER,
-        });
+        let modApi;
+        try {
+            modApi=bcModSdk.registerMod({
+                repository: "https://github.com/awdrrawd/liko-Plugin-Repository",  // eslint-disable-line
+                name:"Liko - BMM", fullName:"Liko's BC MiniMap", version:MOD_VER,
+            }, { allowReplace: true });
+        } catch(e) {
+            // Mod already registered from previous injection — continue with shim so panel/hooks still set up
+            console.warn("[BMM] registerMod already loaded, re-initializing panel:", e.message);
+            modApi = { hookFunction: () => ((args,next)=>next(args)), unload: ()=>{} };
+        }
 
         await waitForLogin(modApi);
         await waitFor(()=>typeof ChatRoomMapViewTileList!=="undefined");  // eslint-disable-line
 
+        // 剪贴板自动检测 + 地图导入：返回 BMM 焦点时自动检测（编辑器回传 / 系统剪贴板）
+        if (!window.__bmmClipLinked) {
+            window.__bmmClipLinked = true;
+            window.__bmmFocusHandler = () => { bmmxCheckImportOnReturn().catch(() => {}); };
+            window.__bmmVisHandler = () => { if (!document.hidden) bmmxCheckImportOnReturn().catch(() => {}); };
+            window.addEventListener("focus", window.__bmmFocusHandler);
+            document.addEventListener("visibilitychange", window.__bmmVisHandler);
+        }
+
+        // Remove stale panel before recreating (handles re-injection)
+        const oldPanel = document.getElementById("bc-minimap-root");
+        if (oldPanel) oldPanel.remove();
+
         createPanel();
+        // Apply initial panel sizing (toolbar is inside footer, no separate positioning needed)
+        const _p = document.getElementById("bc-minimap-root");
+        const _cv = document.getElementById("bc-minimap-canvas");
+        if (_cv && _p) {
+            const size = mapMode === "full" ? FULL_SIZE : mapMode === "complete" ? COMPLETE_SIZE : LOCAL_SIZE;
+            _cv.style.width = size + "px";
+            _cv.style.height = size + "px";
+            _cv.width = size; _cv.height = size;
+            _p.style.setProperty("width", size + "px", "important");
+            _p.style.setProperty("height", (HDR_H + size + TOOLBAR_H + FTR_H) + "px", "important");
+            _p.style.setProperty("overflow", "visible", "important");
+            _p.style.setProperty("max-height", "none", "important");
+        }
         console.log(`🐈‍⬛ [BMM] ✅ v${MOD_VER} loaded`);
 
         // 按鈕顯示狀態需要連續幾幀都判定一致才會真正切換，避免遊戲內部狀態
