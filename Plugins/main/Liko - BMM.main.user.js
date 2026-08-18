@@ -2,7 +2,7 @@
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.3.2
+// @version 2.0.0
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -28,7 +28,7 @@
         if (window.Liko) window.Liko.BMM = null;
     };
     if (window.Liko.BMM) return;
-    const MOD_VER = "1.3.2";
+    const MOD_VER = "2.0.0";
     window.Liko.BMM = MOD_VER;
 
     // ── i18n 多語言系統 ─────────────────────────────────────────────────────
@@ -58,7 +58,7 @@
             ov_del_confirm: "删除「{name}」？",
             ov_load_confirm: "确定将「{name}」载入当前房间？这将覆盖现有地图并对所有成员生效，不可撤销。",
             export_none: "没有已保存的地图",
-            people_hdr: "👥 房间内 {n} 人",
+            people_hdr: "房间内 {n} 人",
             ftr_click_tip: "点击查看房间内所有人",
             not_in_room: "当前不在地图房间内",
             no_drawimage: "找不到游戏绘图函数 DrawGetImage，无法使用「完整」模式",
@@ -89,7 +89,7 @@
             ov_del_confirm: "刪除「{name}」？",
             ov_load_confirm: "確定將「{name}」載入當前房間？這將覆蓋現有地圖並對所有成員生效，不可撤銷。",
             export_none: "沒有已儲存的地圖",
-            people_hdr: "👥 房間內 {n} 人",
+            people_hdr: "房間內 {n} 人",
             ftr_click_tip: "點擊查看房間內所有人",
             not_in_room: "目前不在地圖房間內",
             no_drawimage: "找不到遊戲繪圖函式 DrawGetImage，無法使用「完整」模式",
@@ -120,7 +120,7 @@
             ov_del_confirm: 'Delete "{name}"?',
             ov_load_confirm: 'Load "{name}" into current room? This will overwrite the existing map for all members and cannot be undone.',
             export_none: "No saved maps to export",
-            people_hdr: "👤 {n} people in room",
+            people_hdr: "{n} people in room",
             ftr_click_tip: "Click to see everyone in room",
             not_in_room: "Not currently in a map room",
             no_drawimage: "DrawGetImage not found, \"Complete\" mode unavailable",
@@ -573,20 +573,25 @@
             drawSelectedTileMarker(ctx, W, H);
 
         } else {
-            const cells = VIEW_RANGE*2+1;
-            const ts = Math.floor(Math.min(W, H) / cells);
-            const ox = Math.floor((W - ts*cells)/2), oy = Math.floor((H - ts*cells)/2);
-            _mapTransform = { mode: "local", ts, ox, oy, originX: pp.x - VIEW_RANGE, originY: pp.y - VIEW_RANGE };
+            // ── 局部模式：边缘自适应视口 ──
+            // 玩家在地图边缘时，收缩可视范围到有效地图区内并重新居中，避免大片黑色空白
+            const idealX0 = pp.x - VIEW_RANGE, idealX1 = pp.x + VIEW_RANGE + 1;
+            const idealY0 = pp.y - VIEW_RANGE, idealY1 = pp.y + VIEW_RANGE + 1;
+            // 钳位到有效地图范围
+            const vx0 = Math.max(0, idealX0), vx1 = Math.min(MAP_W, idealX1);
+            const vy0 = Math.max(0, idealY0), vy1 = Math.min(MAP_H, idealY1);
+            const vw = vx1 - vx0, vh = vy1 - vy0;   // 实际可见格数（≤21）
+            const ts = Math.floor(Math.min(W / vw, H / vh));
+            // 居中偏移：把实际可见区域画在画布中央
+            const gridW = ts * vw, gridH = ts * vh;
+            const ox = Math.floor((W - gridW) / 2), oy = Math.floor((H - gridH) / 2);
+            _mapTransform = { mode: "local", ts, ox, oy, originX: vx0, originY: vy0 };
             ctx.fillStyle = "#1a1a2e"; ctx.fillRect(0, 0, W, H);
 
-            for (let dy = -VIEW_RANGE; dy <= VIEW_RANGE; dy++)
-                for (let dx = -VIEW_RANGE; dx <= VIEW_RANGE; dx++) {
-                    const mx = pp.x+dx, my = pp.y+dy;
-                    const sx = ox+(dx+VIEW_RANGE)*ts, sy = oy+(dy+VIEW_RANGE)*ts;
-                    if (mx<0||mx>=MAP_W||my<0||my>=MAP_H) {
-                        ctx.fillStyle="#0d0d1a"; ctx.fillRect(sx,sy,ts,ts); continue;
-                    }
-                    const idx = my*MAP_W+mx;
+            for (let my = vy0; my < vy1; my++)
+                for (let mx = vx0; mx < vx1; mx++) {
+                    const sx = ox + (mx - vx0) * ts, sy = oy + (my - vy0) * ts;
+                    const idx = my * MAP_W + mx;
                     const tile = tl[md.Tiles.charCodeAt(idx)];
                     ctx.fillStyle = tile ? (TILE_COLORS[tile.Type]||TILE_COLORS.default) : "#1a1a2e";
                     ctx.fillRect(sx, sy, ts, ts);
@@ -598,7 +603,6 @@
                         if (id > OBJ_START) {
                             const obj = ol[id];
                             if (obj && obj.Style !== "Blank") {
-                                // 一律用方形／星形等非圓形樣式繪製，避免和圓形的玩家標記混淆
                                 const vis = getObjectVisual(obj);
                                 const pad = Math.max(1, Math.floor(ts*.14));
                                 drawStyled(ctx, sx+pad, sy+pad, ts-pad*2, ts-pad*2, vis, obj);
@@ -610,9 +614,8 @@
             _charCache = [];
             for (const c of chars) {
                 if (c.isPlayer) continue;
-                const ddx = c.x-pp.x, ddy = c.y-pp.y;
-                if (Math.abs(ddx)>VIEW_RANGE||Math.abs(ddy)>VIEW_RANGE) continue;
-                const sx = ox+(ddx+VIEW_RANGE)*ts+ts/2, sy = oy+(ddy+VIEW_RANGE)*ts+ts/2;
+                if (c.x < vx0 || c.x >= vx1 || c.y < vy0 || c.y >= vy1) continue;
+                const sx = ox+(c.x-vx0)*ts+ts/2, sy = oy+(c.y-vy0)*ts+ts/2;
                 const r = Math.max(4, Math.floor(ts*.3));
                 ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI*2);
                 ctx.fillStyle=c.color; ctx.fill();
@@ -620,13 +623,15 @@
                 _charCache.push({ ...c, sx, sy, r });
             }
 
-            // 玩家（中心，紅色）
-            const cx = ox+VIEW_RANGE*ts+ts/2, cy = oy+VIEW_RANGE*ts+ts/2;
-            const pr = Math.max(5, Math.floor(ts*.35));
-            ctx.beginPath(); ctx.arc(cx, cy, pr+3, 0, Math.PI*2);
-            ctx.fillStyle="rgba(255,60,60,0.2)"; ctx.fill();
-            ctx.beginPath(); ctx.arc(cx, cy, pr, 0, Math.PI*2);
-            ctx.fillStyle="#ff3c3c"; ctx.fill();
+            // 玩家位置（在可见区域内则画中心标记）
+            if (pp.x >= vx0 && pp.x < vx1 && pp.y >= vy0 && pp.y < vy1) {
+                const cx = ox+(pp.x-vx0)*ts+ts/2, cy = oy+(pp.y-vy0)*ts+ts/2;
+                const pr = Math.max(5, Math.floor(ts*.35));
+                ctx.beginPath(); ctx.arc(cx, cy, pr+3, 0, Math.PI*2);
+                ctx.fillStyle="rgba(255,60,60,0.2)"; ctx.fill();
+                ctx.beginPath(); ctx.arc(cx, cy, pr, 0, Math.PI*2);
+                ctx.fillStyle="#ff3c3c"; ctx.fill();
+            }
             ctx.strokeStyle="#660000"; ctx.lineWidth=1.5; ctx.stroke();
             // 讓局部模式的玩家自己也能被"人員清單"面板懸停高亮
             const selfChar = chars.find(c => c.isPlayer);
@@ -642,6 +647,7 @@
         if (panelEl) return;
 
         // 注入 style
+        
         if (!document.getElementById("bc-minimap-style")) {
             const s = document.createElement("style");
             s.id = "bc-minimap-style";
@@ -774,35 +780,86 @@
         }
         #bc-minimap-toolbar .mm-btn { font-size: 10px; padding: 3px 8px; }
         #bc-minimap-load-ov {
-          position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
-          z-index: 100000; width: 440px; max-height: 70vh; overflow: auto;
-          background: rgba(10,10,25,0.98); border: 1.5px solid rgba(var(--mm-rgb),0.5);
-          border-radius: 10px; box-shadow: 0 0 30px rgba(var(--mm-rgb),0.15);
-          font-family: monospace; color: #cfe; padding: 16px;
+          position: fixed !important; top: 50% !important; left: 50% !important;
+          transform: translate(-50%,-50%) !important;
+          z-index: 2147483647 !important; width: 440px; max-height: 70vh; overflow-y: auto;
+          background: rgba(248,242,228,0.98) !important;
+          border: 3px double #8b6914 !important;
+          border-radius: 8px !important;
+          box-shadow: 6px 12px 40px rgba(0,0,0,0.5), inset 0 0 20px rgba(139,105,20,0.08) !important;
+          color: #2d1f14 !important; font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
+          padding: 16px 18px !important;
+          border-radius: 10px;
+          animation: bmmFadeIn 0.25s ease-out !important;
         }
-        #bc-minimap-load-ov h3 { margin: 0 0 12px; color: rgb(var(--mm-rgb)); font-size: 14px; }
-        #bc-minimap-load-ov .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,0.08); gap: 10px; }
-        #bc-minimap-load-ov .meta { font-size: 11px; color: #9bd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-        #bc-minimap-load-ov .acts { display: flex; gap: 6px; }
-        #bc-minimap-load-ov .mm-btn { font-size: 10px; }
-        #bc-minimap-load-ov .close { position: absolute; top: 8px; right: 14px; cursor: pointer; color: #f88; font-size: 18px; line-height: 1; }
-        #bc-minimap-load-ov .empty { color: #789; font-size: 12px; padding: 14px; text-align: center; }
+        #bc-minimap-load-ov h3 {
+          margin: 0 0 10px 0; font-size: 14px; font-weight: 700;
+          color: #2d1f14; text-align: center; border-bottom: 1px solid #c0a860; padding-bottom: 8px;
+        }
+        #bc-minimap-load-ov .close {
+          position: absolute; top: 8px; right: 10px; cursor: pointer;
+          color: #a0522d; font-size: 18px; line-height: 1; padding: 4px;
+        }
+        #bc-minimap-load-ov .close:hover { color: #000; }
+        #bc-minimap-load-ov .list { display: flex; flex-direction: column; gap: 6px; }
+        #bc-minimap-load-ov .row {
+          display: flex; justify-content: space-between; align-items: center;
+          padding: 8px 10px; background: rgba(255,255,255,0.5);
+          border: 1px solid #c0a860; border-radius: 4px;
+          transition: all 0.2s ease !important;
+        }
+        #bc-minimap-load-ov .row:hover {
+          background: rgba(255,255,255,0.85) !important;
+          border-color: #8b6914 !important;
+          transform: translateX(2px);
+          box-shadow: 0 2px 6px rgba(139,105,20,0.12) !important;
+        }
+        #bc-minimap-load-ov .meta {
+          font-size: 11px; color: #5c3a1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;
+        }
+        #bc-minimap-load-ov .acts { display: flex; gap: 4px; flex-shrink: 0; }
+        #bc-minimap-load-ov .acts .mm-btn {
+          background: linear-gradient(180deg, #f5eddE, #e8dcc8) !important;
+          border: 1px solid #a08050 !important; border-bottom-width: 2px;
+          color: #2d1f14 !important; font-size: 10px !important; font-weight: 700 !important;
+          padding: 3px 8px !important; cursor: pointer; border-radius: 3px;
+        }
+        #bc-minimap-load-ov .acts .mm-btn:hover {
+          background: linear-gradient(180deg, #fff8e8, #f0e0c8) !important;
+          transform: translateY(-1px);
+        }
+        #bc-minimap-load-ov .empty {
+          text-align: center; padding: 20px; color: #8b7355; font-style: italic; font-size: 12px;
+        }
+        /* ── 导入弹窗（纸质地图风格）── */
         #bc-minimap-import-ov {
-          position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
-          z-index: 100001; width: 420px; max-width: 92vw; box-sizing: border-box;
-          background: rgba(10,10,25,0.98); border: 1.5px solid rgba(255,120,120,0.6);
-          border-radius: 10px; box-shadow: 0 0 30px rgba(255,80,80,0.2);
-          font-family: monospace; color: #cfe; padding: 18px;
+          position: fixed !important; top: 50% !important; left: 50% !important;
+          transform: translate(-50%,-50%) !important;
+          z-index: 2147483647 !important; width: 420px; max-width: 92vw; box-sizing: border-box !important;
+          background: rgba(248,242,228,0.98) !important;
+          border: 3px double #8b6914 !important;
+          border-radius: 8px !important;
+          box-shadow: 6px 12px 40px rgba(0,0,0,0.5), inset 0 0 20px rgba(139,105,20,0.08) !important;
+          font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
+          color: #2d1f14 !important; padding: 18px !important;
+          animation: bmmFadeIn 0.25s ease-out !important;
         }
-        #bc-minimap-import-ov h3 { margin: 0 0 10px; color: #ff9a9a; font-size: 15px; }
-        #bc-minimap-import-ov .warn { font-size: 12px; line-height: 1.6; color: #f3c9c9; background: rgba(255,80,80,0.08); border: 1px solid rgba(255,120,120,0.25); border-radius: 6px; padding: 10px; margin-bottom: 10px; }
-        #bc-minimap-import-ov .src { font-size: 11px; color: #9bd; margin-bottom: 14px; }
-        #bc-minimap-import-ov .acts { display: flex; gap: 10px; justify-content: flex-end; }
-        #bc-minimap-import-ov .mm-btn { font-size: 12px; padding: 6px 14px; }
-        #bc-minimap-import-ov .mm-btn.ok { border-color: rgba(120,220,140,0.6); color: #9be0a8; }
-        #bc-minimap-import-ov .mm-btn.ok:hover { background: rgba(120,220,140,0.15); }
-        #bc-minimap-import-ov .close { position: absolute; top: 8px; right: 14px; cursor: pointer; color: #f88; font-size: 18px; line-height: 1; }
-        #bmmx-toast { position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%); z-index: 100002; background: rgba(10,10,25,0.95); border: 1px solid rgba(var(--mm-rgb),0.5); color: #cfe; font-family: monospace; font-size: 12px; padding: 8px 14px; border-radius: 8px; box-shadow: 0 0 20px rgba(var(--mm-rgb),0.15); opacity: 0; transition: opacity .25s; pointer-events: none; max-width: 90vw; }
+        #bc-minimap-import-ov h3 { margin: 0 0 10px !important; color: #2d1f14 !important; font-size: 15px !important; font-weight: 700; border-bottom: 1px solid #c0a860; padding-bottom: 8px; }
+        #bc-minimap-import-ov .warn { font-size: 12px !important; line-height: 1.6; color: #8b0000 !important; background: rgba(255,220,200,0.5) !important; border: 1px solid #c0a060 !important; border-radius: 6px !important; padding: 10px !important; margin-bottom: 10px !important; }
+        #bc-minimap-import-ov .src { font-size: 11px !important; color: #5c3a1e !important; margin-bottom: 14px !important; }
+        #bc-minimap-import-ov .acts { display: flex !important; gap: 10px !important; justify-content: flex-end !important; }
+        #bc-minimap-import-ov .mm-btn {
+          background: linear-gradient(180deg, #f5eddE, #e8dcc8) !important;
+          border: 1px solid #a08050 !important; border-bottom-width: 2px !important;
+          color: #2d1f14 !important; font-size: 12px !important; font-weight: 700 !important;
+          padding: 6px 14px !important; border-radius: 3px !important;
+          transition: all 0.2s ease !important;
+        }
+        #bc-minimap-import-ov .mm-btn.ok { background: linear-gradient(180deg, #d4956a, #b87a50) !important; color: #fff !important; border-color: #8b6914 !important; text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important; }
+        #bc-minimap-import-ov .mm-btn.ok:hover { background: linear-gradient(180deg, #e0a878, #c99060) !important; transform: translateY(-1px) !important; }
+        #bc-minimap-import-ov .close { position: absolute !important; top: 8px !important; right: 10px !important; cursor: pointer !important; color: #a0522d !important; font-size: 18px !important; line-height: 1 !important; padding: 4px !important; transition: color 0.2s !important; }
+        #bc-minimap-import-ov .close:hover { color: #000 !important; }
+        #bmmx-toast { position: fixed !important; left: 50% !important; bottom: 80px !important; transform: translateX(-50%) !important; z-index: 2147483647 !important; background: rgba(248,242,228,0.96) !important; border: 2px solid #8b6914 !important; color: #2d1f14 !important; font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important; font-size: 12px !important; padding: 8px 16px !important; border-radius: 6px !important; box-shadow: 0 4px 16px rgba(0,0,0,0.25) !important; opacity: 0; transition: opacity .25s ease !important; pointer-events: none !important; max-width: 90vw !important; }
         #bmmx-toast.show { opacity: 1; }
         .mm-key {
           display: block;
@@ -812,7 +869,6 @@
         }
         #bc-minimap-ftr span.mm-clickable {
           cursor: pointer;
-          text-decoration: underline dotted;
         }
         #bc-minimap-people {
           position: absolute;
@@ -820,36 +876,272 @@
           left: calc(100% + 8px);
           width: 220px;
           max-height: 100%;
-          overflow-y: auto;
-          background: rgba(10,10,25,0.97);
-          border: 1.5px solid rgba(var(--mm-rgb),0.45);
-          border-radius: 8px;
-          box-shadow: 0 0 20px rgba(var(--mm-rgb),0.12);
-          font-family: monospace;
-          font-size: 12px;
-          color: #cccccc;
+          overflow-y: auto !important;
+          scrollbar-width: none !important;
+          -ms-overflow-style: none !important;
+          background: rgba(248,242,228,0.98) !important;
+          border: 3px double #8b6914 !important;
+          border-radius: 6px !important;
+          box-shadow: 4px 8px 20px rgba(0,0,0,0.3), inset 0 0 15px rgba(139,105,20,0.06) !important;
+          font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
+          font-size: 12px !important;
+          color: #2d1f14 !important;
         }
         #bc-minimap-people.hidden { display: none !important; }
+        #bc-minimap-people::-webkit-scrollbar { display: none !important; }
         #bc-minimap-people-hdr {
-          padding: 8px 10px;
-          color: rgb(var(--mm-rgb));
-          font-weight: bold;
-          border-bottom: 1px solid rgba(var(--mm-rgb),0.25);
+          padding: 8px 12px !important;
+          color: #2d1f14 !important;
+          font-weight: 700 !important;
+          border-bottom: 2px solid #c0a860 !important;
+          font-size: 13px !important;
         }
         .mm-people-row {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 6px 10px;
+          padding: 7px 10px !important;
           cursor: pointer;
-          border-bottom: 1px solid rgba(255,255,255,0.06);
+          border-bottom: 1px solid rgba(192,168,96,0.35) !important;
+          transition: all 0.15s ease !important;
         }
-        .mm-people-row:hover { background: rgba(var(--mm-rgb),0.15); }
-        .mm-people-row.self { color: #ff8888; }
-      `;
-            document.head.appendChild(s);
+        .mm-people-row:hover { background: rgba(255,255,255,0.55) !important; transform: translateX(2px); }
+        .mm-people-row.self { color: #a03030 !important; font-weight: 700 !important; }
+      
+
+        /* v1.5.1: New modeBar element for seg control */
+        .mm-mode-bar {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 3px 8px;
+          border-bottom: 1px solid #8b6914;
+          background: rgba(200,180,150,0.15);
+          flex-shrink: 0;
         }
 
+        /* ── 保存名称对话框（纸质地图风格）── */
+        #bc-minimap-save-dialog {
+          position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+          z-index: 2147483647 !important;
+          display: flex !important; align-items: center !important; justify-content: center !important;
+          background: rgba(0,0,0,0.45) !important;
+          animation: bmmFadeInSimple 0.2s ease-out !important;
+        }
+        #bc-minimap-save-dialog .sd-inner {
+          background: rgba(248,242,228,0.98) !important;
+          border: 3px double #8b6914 !important;
+          border-radius: 8px !important;
+          box-shadow: 6px 12px 40px rgba(0,0,0,0.5), inset 0 0 20px rgba(139,105,20,0.08) !important;
+          color: #2d1f14 !important; font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
+          padding: 18px 22px !important; width: 360px; max-width: 90vw;
+          animation: bmmFadeScale 0.25s ease-out !important;
+        }
+        #bc-minimap-save-dialog h3 {
+          margin: 0 0 12px 0; font-size: 15px; font-weight: 700;
+          color: #2d1f14; text-align: center; border-bottom: 1px solid #c0a860; padding-bottom: 8px;
+        }
+        #bc-minimap-save-dialog label {
+          display: block; font-size: 11px; color: #5c3a1e; margin-bottom: 6px;
+        }
+        #bc-minimap-save-dialog #bmm-save-input {
+          width: 100% !important; box-sizing: border-box !important;
+          padding: 8px 10px !important; font-size: 13px !important;
+          font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
+          border: 1px solid #a08050 !important; border-radius: 4px !important;
+          background: #fffef5 !important; color: #2d1f14 !important;
+          outline: none !important;
+        }
+        #bc-minimap-save-dialog #bmm-save-input:focus {
+          border-color: #8b6914 !important; box-shadow: 0 0 0 2px rgba(139,105,20,0.2) !important;
+        }
+        #bc-minimap-save-dialog .sd-acts {
+          display: flex !important; justify-content: flex-end !important; gap: 8px !important; margin-top: 16px !important;
+        }
+        #bc-minimap-save-dialog .sd-acts .mm-btn {
+          background: linear-gradient(180deg, #f5eddE, #e8dcc8) !important;
+          border: 1px solid #a08050 !important; border-bottom-width: 2px !important;
+          color: #2d1f14 !important; font-size: 11px !important; font-weight: 700 !important;
+          padding: 6px 18px !important; cursor: pointer !important; border-radius: 3px !important;
+          font-family: inherit !important;
+        }
+        #bc-minimap-save-dialog .sd-acts .mm-btn:hover {
+          background: linear-gradient(180deg, #fff8e8, #f0e0c8) !important;
+          transform: translateY(-1px);
+        }
+        #bc-minimap-save-dialog .sd-acts .sd-ok {
+          background: linear-gradient(180deg, #c8895a, #a0522d) !important;
+          color: #fff !important; border-color: #704820 !important;
+        }
+        #bc-minimap-save-dialog .sd-acts .sd-ok:hover {
+          background: linear-gradient(180deg, #d89565, #b05e35) !important;
+        }
+
+        /* ── 全局弹入动画 ── */
+        @keyframes bmmFadeIn {
+          from { opacity: 0; transform: translate(-50%,-50%) scale(0.96); }
+          to   { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+        }
+        @keyframes bmmFadeInSimple {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes bmmFadeScale {
+          from { opacity: 0; transform: scale(0.95); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes bmmPanelIn {
+          from { opacity: 0; transform: translateY(-5px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes bmmPanelOut {
+          from { opacity: 1; transform: translateY(0) scale(1); }
+          to   { opacity: 0; transform: translateY(-5px) scale(0.98); }
+        }
+        @keyframes bmmCanvasSwap {
+          from { opacity: 0.45; transform: scale(0.94); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+
+        /* ══════════════════════════════════════════════════════════════
+           PAPER-MAP THEME — main panel overrides (v1.5.1)
+           These win over the original dark/green base via !important.
+           ═════════════════════════════════════════════════════════════ */
+        #bc-minimap-root {
+          --mm-rgb: 160,100,50 !important;
+          box-sizing: border-box !important;
+          background: rgba(248,242,228,0.97) !important;
+          border: 3px double #8b6914 !important;
+          border-radius: 4px !important;
+          box-shadow: 4px 8px 0 rgba(0,0,0,0.35), inset 0 0 30px rgba(139,105,20,0.08) !important;
+          font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
+          color: #2d1f14 !important;
+          transform-origin: top center;
+          /* 模式切换时面板尺寸平滑过渡（与画布同步，共享同一时长/缓动） */
+          transition: border-color .25s, box-shadow .25s, width 0.22s ease, height 0.22s ease !important;
+        }
+        #bc-minimap-root:not(.hidden) {
+          animation: bmmPanelIn 0.14s ease-out !important;
+        }
+        #bc-minimap-root.mm-closing {
+          animation: bmmPanelOut 0.12s ease-in forwards !important;
+          pointer-events: none !important;
+        }
+        #bc-minimap-hdr {
+          background: linear-gradient(180deg, rgba(180,150,100,0.18), rgba(180,150,100,0.08)) !important;
+          border-bottom: 2px solid #8b6914 !important;
+          border-radius: 0 !important;
+        }
+        .mm-title {
+          color: #2d1f14 !important;
+          font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
+          font-size: 12px !important;
+        }
+        #bc-minimap-toolbar {
+          background: linear-gradient(180deg, rgba(220,200,170,0.15), rgba(220,200,170,0.05)) !important;
+          border-bottom: 1px solid rgba(139,105,20,0.25) !important;
+        }
+        #bc-minimap-ftr {
+          background: linear-gradient(180deg, rgba(220,200,170,0.12), rgba(220,200,170,0.04)) !important;
+          border-top: 2px solid #8b6914 !important;
+          color: #5c3a1e !important;
+          font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
+        }
+        .mm-btn {
+          background: linear-gradient(180deg, #f5eddE, #e8dcc8) !important;
+          border: 1px solid #a08050 !important;
+          border-bottom-width: 2px !important;
+          border-radius: 3px !important;
+          color: #2d1f14 !important;
+          font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
+          font-size: 11px !important;
+          font-weight: 700 !important;
+          padding: 4px 12px !important;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.6) !important;
+          transition: all 0.2s ease !important;
+        }
+        .mm-btn:hover {
+          background: linear-gradient(180deg, #fff8e8, #f0e0c8) !important;
+          border-color: #704820 !important;
+          color: #000 !important;
+          transform: translateY(-1px);
+          box-shadow: 0 3px 8px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.7) !important;
+        }
+        .mm-btn:active {
+          transform: translateY(1px) !important;
+          border-bottom-width: 1px !important;
+          box-shadow: 0 1px 1px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+        }
+        .mm-close {
+          background: linear-gradient(180deg, #f5eddE, #e8dcc8) !important;
+          border: 1px solid #a08050 !important;
+          border-radius: 3px !important;
+          color: #2d1f14 !important;
+          font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
+          font-size: 13px !important;
+          font-weight: bold !important;
+          padding: 4px 8px !important;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.6) !important;
+          transition: all 0.2s ease !important;
+        }
+        .mm-close:hover {
+          background: linear-gradient(180deg, #fff8e8, #f0e0c8) !important;
+          border-color: #704820 !important;
+          transform: translateY(-1px);
+        }
+        .mm-mode-bar {
+          background: linear-gradient(180deg, rgba(220,200,170,0.15), rgba(220,200,170,0.05)) !important;
+          border-bottom: 1px solid rgba(139,105,20,0.25) !important;
+        }
+        /* ── 模式切换按钮（纸质浮雕 + 动效）── */
+        .mm-seg-btn {
+          background: linear-gradient(180deg, #f5eddE, #e8dcc8) !important;
+          border: 1px solid #a08050 !important;
+          border-bottom-width: 2px !important;
+          border-radius: 3px !important;
+          color: #2d1f14 !important;
+          font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
+          font-size: 11px !important;
+          font-weight: 700 !important;
+          padding: 3px 10px !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.6) !important;
+        }
+        .mm-seg-btn:hover {
+          background: linear-gradient(180deg, #fff8e8, #f0e0c8) !important;
+          border-color: #704820 !important;
+          transform: translateY(-1px) !important;
+          box-shadow: 0 3px 8px rgba(139,105,20,0.2), inset 0 1px 0 rgba(255,255,255,0.7) !important;
+        }
+        .mm-seg-btn:active {
+          transform: translateY(1px) !important;
+          border-bottom-width: 1px !important;
+          box-shadow: 0 1px 1px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+        }
+        .mm-seg-btn.active {
+          background: linear-gradient(180deg, #c0a060, #a08040) !important;
+          color: #fff !important;
+          border-color: #8b6914 !important;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.3) !important;
+          box-shadow: 0 1px 3px rgba(139,105,20,0.4), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+        }
+        #bc-minimap-canvas {
+          background: transparent !important;
+          border: none !important;
+          display: block !important;
+          flex-shrink: 0 !important;
+          /* 与面板尺寸过渡共享 0.22s ease，确保画布尺寸与面板同步缩放 */
+          transition: width 0.22s ease, height 0.22s ease !important;
+          transform-origin: center center;
+        }
+        /* 模式切换时画布淡入缩放（配合尺寸过渡，营造平滑换图感） */
+        #bc-minimap-canvas.mm-swap {
+          animation: bmmCanvasSwap 0.22s ease-out !important;
+        }
+`;
+            document.head.appendChild(s);
+        }
         // 外框
         panelEl = document.createElement("div");
         panelEl.id = "bc-minimap-root";
@@ -870,7 +1162,7 @@
 
         // 鑰匙狀態指示（銅／銀／金），預設灰色，拿到後點亮對應顏色
         // 使用 SVG + currentColor 而非 emoji，確保三種顏色能被精準染色（emoji 本身顏色由系統字型決定，無法可靠改色）
-        const KEY_SVG = '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="2.3"/><rect x="12.2" y="11" width="2.2" height="9" fill="currentColor"/><rect x="12.2" y="14.5" width="5" height="2" fill="currentColor"/><rect x="12.2" y="17.5" width="4" height="2" fill="currentColor"/></svg>';
+        const KEY_SVG = '<svg viewBox="0 0 1024 1024" width="14" height="14"><path d="M570.880885 777.528481h262.287488v217.897575H570.880885zM843.446353 195.219619c-4.88799-91.281822-79.531845-166.673674-170.943666-166.673675-89.933824 0-160.493687 100.273804-160.493687 100.273804s-66.55587-100.273804-160.529686-100.273804c-91.405821 0-166.047676 75.391853-170.935667 166.673675-2.751995 51.565899 13.873973 90.813823 37.293928 126.359753 46.801909 71.015861 251.425509 241.981527 294.471424 241.981527 43.933914 0 246.735518-170.343667 293.849426-241.981527 23.469954-35.70993 40.049922-74.791854 37.287928-126.359753z" fill="currentColor"/><path d="M512.308999 563.560899c-10.979979 0-32.485937-11.141978-59.191884-28.891943v460.7811h117.75577V535.334954c-26.263949 17.369966-47.475907 28.225945-58.563886 28.225945z" fill="currentColor" opacity=".55"/></svg>';
         const keysWrap = document.createElement("div");
         keysWrap.id = "bc-minimap-keys";
         keysWrap.style.cssText = "display:flex;gap:4px;margin-left:8px;";
@@ -895,15 +1187,16 @@
         }
 
         const btns = document.createElement("div");
-        btns.style.cssText = "display:flex;gap:4px;";
+        btns.style.cssText = "display:flex;gap:4px;align-items:center;flex-shrink:0;";
         const bLocal = document.createElement("button");
-        bLocal.className = "mm-btn active"; bLocal.textContent = t("btn_local");
+        bLocal.className = "mm-seg-btn active"; bLocal.textContent = t("btn_local");
         const bFull  = document.createElement("button");
-        bFull.className  = "mm-btn"; bFull.textContent = t("btn_full");
+        bFull.className  = "mm-seg-btn"; bFull.textContent = t("btn_full");
         const bComplete = document.createElement("button");
-        bComplete.className = "mm-btn"; bComplete.textContent = t("btn_complete");
+        bComplete.className = "mm-seg-btn"; bComplete.textContent = t("btn_complete");
         const bClose = document.createElement("button");
-        bClose.className = "mm-btn"; bClose.textContent = "✕";
+        bClose.className = "mm-btn mm-close"; bClose.innerHTML = "✕";
+
 
         function sizeForMode(m) {
             if (m === "full") return FULL_SIZE;
@@ -913,31 +1206,46 @@
 
         function setMode(m) {
             mapMode = m;
-            bLocal.className    = "mm-btn" + (m==="local"    ? " active" : "");
-            bFull.className     = "mm-btn" + (m==="full"     ? " active" : "");
-            bComplete.className = "mm-btn" + (m==="complete" ? " active" : "");
+            bLocal.className    = "mm-seg-btn" + (m==="local"    ? " active" : "");
+            bFull.className     = "mm-seg-btn" + (m==="full"     ? " active" : "");
+            bComplete.className = "mm-seg-btn" + (m==="complete" ? " active" : "");
             const size = sizeForMode(m);
-            cvEl.width  = size;
-            cvEl.height = size;
+            // 缓冲区已在初始化时固定为 COMPLETE_SIZE(640)，此处只改 CSS 显示尺寸，
+            // 避免每次切换模式重新分配后端存储导致掉帧。drawMap 以缓冲区(640)为逻辑尺寸绘制，
+            // 由 CSS 等比缩放到 size，三个模式的内容与布局保持不变。
             cvEl.style.width  = size + "px";
             cvEl.style.height = size + "px";
-            panelEl.style.setProperty("width",    size + "px",                    "important");
-            panelEl.style.setProperty("height",   (HDR_H + size + TOOLBAR_H + FTR_H) + "px", "important");
-            panelEl.style.setProperty("overflow", "visible",                      "important"); // ← 新增
-            panelEl.style.setProperty("max-height", "none",                       "important"); // ← 新增
+            // 面板用 box-sizing:border-box，外尺寸 = 内容尺寸 + 边框(6px)
+            const BW = 6; // 3px double border × 2 sides
+            panelEl.style.setProperty("width",    (size + BW) + "px");
+            panelEl.style.setProperty("height",   (HDR_H + size + TOOLBAR_H + FTR_H + BW) + "px");
+            panelEl.style.setProperty("overflow", "visible");
+            panelEl.style.setProperty("max-height", "none");
+            redrawNow();
+            // 触发画布换图动效（移除→强制重排→添加，确保每次切换都重播）
+            cvEl.classList.remove("mm-swap");
+            void cvEl.offsetWidth;
+            cvEl.classList.add("mm-swap");
         }
         bLocal.onclick    = () => setMode("local");
         bFull.onclick     = () => setMode("full");
         bComplete.onclick = () => setMode("complete");
         bClose.onclick    = () => panelEl.classList.add("hidden");
 
-        btns.append(bLocal, bFull, bComplete, bClose);
-        hdr.append(title, keysWrap, btns);
+        const seg = document.createElement("div");
+        seg.className = "mm-seg";
+        seg.append(bLocal, bFull, bComplete);
+        // seg moved to modeBar
+        hdr.append(title, keysWrap, bClose);
+
+
 
         // Canvas
         cvEl = document.createElement("canvas");
         cvEl.id = "bc-minimap-canvas";
-        cvEl.width = cvEl.height = LOCAL_SIZE;
+        // 缓冲区一次性设为最大尺寸(COMPLETE_SIZE=640)固定不变，
+        // 切换模式只改 CSS 显示尺寸，避免每次切换重新分配后端存储导致的掉帧。
+        cvEl.width = cvEl.height = COMPLETE_SIZE;
         cvEl.style.width  = LOCAL_SIZE + "px";
         cvEl.style.height = LOCAL_SIZE + "px";
 
@@ -969,12 +1277,17 @@
         fCnt.classList.add("mm-clickable");
         fCnt.title = t("ftr_click_tip");
         ftrInfo.append(fPos, fHover, fCnt);
-        ftr.append(ftrInfo);
+        ftr.append(toolbarEl, ftrInfo);
 
-        panelEl.append(hdr, cvEl, ftr);
+        // -- Mode bar (seg control between header and canvas) --
+        const modeBar = document.createElement("div");
+        modeBar.className = "mm-mode-bar";
+        modeBar.append(seg);
 
-    // 工具列插入到 Footer 最前面（Footer 是 column 布局，工具栏在上行）
-    if (toolbarEl) ftr.prepend(toolbarEl);
+        // Canvas is a direct flex child (explicit px size set by setMode/togglePanel).
+        // clip-path clips canvas to panel content area (panel stays overflow:visible for people side-panel).
+        panelEl.append(hdr, modeBar, cvEl, ftr);
+
         document.body.appendChild(panelEl);
 
         // 人員清單側邊面板（附加在主面板內，隨主面板一起拖曳、隨主面板顯示/隱藏而顯示/隱藏）
@@ -989,7 +1302,8 @@
             peoplePanelEl.innerHTML = "";
             const header = document.createElement("div");
             header.id = "bc-minimap-people-hdr";
-            header.textContent = t("people_hdr", { n: chars.length });
+            const pplIcon = '<svg viewBox="0 0 1024 1024" width="14" height="14" style="vertical-align:-2px;margin-right:4px"><circle cx="280" cy="320" r="90" fill="#8B6914"/><path d="M280 420c-100 0-180 80-180 180v60h360v-60c0-100-80-180-180-180z" fill="#A08050"/><circle cx="512" cy="260" r="110" fill="#B7351B"/><path d="M512 380c-120 0-220 95-220 215v65h440v-65c0-120-100-215-220-215z" fill="#D1782F"/><circle cx="744" cy="340" r="85" fill="#5C3A1E"/><path d="M744 435c-95 0-170 75-170 170v55h340v-55c0-95-75-170-170-170z" fill="#7D5A30"/></svg>';
+            header.innerHTML = pplIcon + t("people_hdr", { n: chars.length });
             peoplePanelEl.append(header);
             for (const c of chars) {
                 const row = document.createElement("div");
@@ -1015,8 +1329,19 @@
         }
 
         fCnt.addEventListener("click", () => {
+            const willShow = peoplePanelEl.classList.contains("hidden");
             peoplePanelEl.classList.toggle("hidden");
-            if (!peoplePanelEl.classList.contains("hidden")) updatePeoplePanel();
+            if (willShow) {
+              const pr = panelEl.getBoundingClientRect();
+              if (pr.right + 228 > window.innerWidth) {
+                peoplePanelEl.style.left = "auto";
+                peoplePanelEl.style.right = "calc(100% + 8px)";
+              } else {
+                peoplePanelEl.style.right = "auto";
+                peoplePanelEl.style.left = "calc(100% + 8px)";
+              }
+              updatePeoplePanel();
+            }
         });
 
         // 拖曳
@@ -1029,8 +1354,12 @@
         });
         document.addEventListener("mousemove", e => {
             if (!drag) return;
-            panelEl.style.left=(e.clientX-ox)+"px";
-            panelEl.style.top=(e.clientY-oy)+"px";
+            const w = panelEl.offsetWidth, h = panelEl.offsetHeight;
+            let nx = e.clientX-ox, ny = e.clientY-oy;
+            nx = Math.max(4, Math.min(window.innerWidth - w - 4, nx));
+            ny = Math.max(4, Math.min(window.innerHeight - h - 4, ny));
+            panelEl.style.left = nx + "px";
+            panelEl.style.top  = ny + "px";
         });
         document.addEventListener("mouseup", ()=>{ drag=false; });
 
@@ -1116,8 +1445,8 @@
             if (panelEl.classList.contains("hidden")) return;
             drawMap(ctx, cvEl.width, cvEl.height);
             const pp = getPlayerPos();
-            fPos.textContent = pp ? `📍 (${pp.x},${pp.y})` : "";
-            fCnt.textContent = `👤 ${String(getChars().length).padStart(2, "\u2007")}人`;
+            fPos.innerHTML = pp ? '<svg viewBox="0 0 1024 1024" width="12" height="12" style="vertical-align:-1px;margin-right:2px"><path d="M523.7 379.1c-116.6 0-211.1 94.5-211.1 211.1s94.5 211.1 211.1 211.1 211.1-94.5 211.1-211.1-94.5-211.1-211.1-211.1zm0 336.7c-69.4 0-125.6-56.2-125.6-125.6s56.2-125.6 125.6-125.6 125.6 56.2 125.6 125.6-56.2 125.6-125.6 125.6z" fill="#B7351B"/><path d="M860.4 423.5c0 185.9-345.9 536.7-345.9 536.7S187 609.4 187 423.5 337.8 86.8 523.7 86.8s336.7 150.7 336.7 336.7z" fill="#B7351B"/></svg> (' + pp.x + ',' + pp.y + ')' : "";
+            fCnt.innerHTML = '<svg viewBox="0 0 1024 1024" width="12" height="12" style="vertical-align:-1px;margin-right:2px"><path d="M409.6 248.32c-129.2 0-234 104.8-234 234s104.8 234 234 234 234-104.8 234-234-104.8-234-234-234zm0 373.2c-76.8 0-139.2-62.4-139.2-139.2s62.4-139.2 139.2-139.2 139.2 62.4 139.2 139.2-62.4 139.2-139.2 139.2z" fill="#FFA161"/><path d="M409.6 541.7c-225.8 0-409.6 183.8-409.6 409.6 0 17.4 0 58.4 58.4 58.4h702.5c58.4 0 58.4-41 58.4-58.4 0-225.8-183.8-409.6-409.6-409.6z" fill="#FFA161"/></svg>' + String(getChars().length).padStart(2, "\u2007") + '人';
             refreshKeyIndicators();
             updatePeoplePanel();
         }, 500);
@@ -1304,12 +1633,34 @@
             if (_editorWin && !_editorWin.closed) _editorWin.postMessage({ source: "bmm", type: "load", map: str }, "*");
         }, 2000);
     }
+    // 自定义纸质地图风格保存名称输入模态框（替代浏览器原生 prompt）
+    function showSaveNameDialog(defaultName) {
+      return new Promise((resolve) => {
+        const ov = document.createElement('div');
+        ov.id = 'bc-minimap-save-dialog';
+        ov.innerHTML = '<div class="sd-inner">' +
+          '<h3>' + t("tb_save") + '</h3>' +
+          '<label>' + t("save_prompt") + '</label>' +
+          '<input type="text" id="bmm-save-input" value="' + defaultName.replace(/"/g,'&quot;') + '" />' +
+          '<div class="sd-acts"><button type="button" class="mm-btn sd-cancel">取消</button><button type="button" class="mm-btn sd-ok">确定</button></div>' +
+          '</div>';
+        document.body.appendChild(ov);
+        const inp = ov.querySelector('#bmm-save-input');
+        setTimeout(() => inp.focus(), 50);
+        inp.select();
+        ov.querySelector('.sd-cancel').onclick = () => { ov.remove(); resolve(''); };
+        ov.querySelector('.sd-ok').onclick = () => { const v = inp.value.trim(); ov.remove(); resolve(v); };
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ov.querySelector('.sd-ok').click(); } if (e.key === 'Escape') { ov.querySelector('.sd-cancel').click(); } });
+        ov.addEventListener('click', (e) => { if (e.target === ov) { ov.remove(); resolve(''); } });
+      });
+    }
+
     async function saveCurrentMap() {
         const md = getMapData();
         if (!md || !md.Tiles) { alert(t("alert_no_save")); return; }
         const room = (ChatRoomData && ChatRoomData.Name) || "map";
         const def = room + " " + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-        const name = (window.prompt(t("save_prompt"), def) || "").trim();
+        const name = await showSaveNameDialog(def);
         if (!name) return;
         const rec = { id: "m_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7), name, savedAt: Date.now(), Type: md.Type, Tiles: md.Tiles, Objects: md.Objects, Fog: md.Fog };
         try { await bmmxPut(rec); flashBtn(bmmxSaveBtn); } catch (e) { alert(t("save_fail") + e); }
@@ -1381,15 +1732,26 @@
 
     function togglePanel() {
         if (!panelEl) createPanel();
-        panelEl.classList.toggle("hidden");
-
-        // 顯示後強制套用正確尺寸
-        if (!panelEl.classList.contains("hidden")) {
+        const isHidden = panelEl.classList.contains("hidden");
+        if (isHidden) {
+            // Opening: remove hidden + closing, trigger bmmPanelIn
+            panelEl.classList.remove("hidden", "mm-closing");
             const size = mapMode === "full" ? FULL_SIZE : mapMode === "complete" ? COMPLETE_SIZE : LOCAL_SIZE;
-            panelEl.style.setProperty("width",    size + "px",                    "important");
-            panelEl.style.setProperty("height",   (HDR_H + size + TOOLBAR_H + FTR_H) + "px", "important");
-            panelEl.style.setProperty("overflow", "visible",                      "important");
-            panelEl.style.setProperty("max-height", "none",                       "important");
+            const BW = 6;
+            panelEl.style.setProperty("width", (size + BW) + "px");
+            panelEl.style.setProperty("height", (HDR_H + size + TOOLBAR_H + FTR_H + BW) + "px");
+            panelEl.style.setProperty("overflow", "visible");
+            panelEl.style.setProperty("max-height", "none");
+            // 立即重绘，避免打开面板时画布空白等 500ms 定时器
+            if (_bmmRedraw) _bmmRedraw();
+        } else {
+            // Closing: play bmmPanelOut animation then hide
+            panelEl.classList.add("mm-closing");
+            panelEl.addEventListener("animationend", function handler() {
+                panelEl.removeEventListener("animationend", handler);
+                panelEl.classList.add("hidden");
+                panelEl.classList.remove("mm-closing");
+            }, { once: true });
         }
     }
 
@@ -1454,14 +1816,18 @@
         const _cv = document.getElementById("bc-minimap-canvas");
         if (_cv && _p) {
             const size = mapMode === "full" ? FULL_SIZE : mapMode === "complete" ? COMPLETE_SIZE : LOCAL_SIZE;
+            const BW = 6;
+            // 缓冲区已在 createPanel 中固定为 COMPLETE_SIZE(640)，此处只改 CSS 显示尺寸，
+            // 不重设 _cv.width/_cv.height，避免覆盖掉固定缓冲区导致切换时重新分配后端存储掉帧。
             _cv.style.width = size + "px";
             _cv.style.height = size + "px";
-            _cv.width = size; _cv.height = size;
-            _p.style.setProperty("width", size + "px", "important");
-            _p.style.setProperty("height", (HDR_H + size + TOOLBAR_H + FTR_H) + "px", "important");
+            _p.style.setProperty("width", (size + BW) + "px", "important");
+            _p.style.setProperty("height", (HDR_H + size + TOOLBAR_H + FTR_H + BW) + "px", "important");
             _p.style.setProperty("overflow", "visible", "important");
             _p.style.setProperty("max-height", "none", "important");
         }
+        // 首次加载立即重绘（缓冲区在 createPanel 已按 COMPLETE_SIZE 清空并绘制）
+        if (_bmmRedraw) _bmmRedraw();
         console.log(`🐈‍⬛ [BMM] ✅ v${MOD_VER} loaded`);
 
         // 按鈕顯示狀態需要連續幾幀都判定一致才會真正切換，避免遊戲內部狀態
