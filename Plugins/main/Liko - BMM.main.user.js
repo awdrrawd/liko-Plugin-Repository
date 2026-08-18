@@ -624,9 +624,9 @@
             }
 
             // 玩家位置（在可见区域内则画中心标记）
+            let cx = null, cy = null, pr = Math.max(5, Math.floor(ts*.35));
             if (pp.x >= vx0 && pp.x < vx1 && pp.y >= vy0 && pp.y < vy1) {
-                const cx = ox+(pp.x-vx0)*ts+ts/2, cy = oy+(pp.y-vy0)*ts+ts/2;
-                const pr = Math.max(5, Math.floor(ts*.35));
+                cx = ox+(pp.x-vx0)*ts+ts/2; cy = oy+(pp.y-vy0)*ts+ts/2;
                 ctx.beginPath(); ctx.arc(cx, cy, pr+3, 0, Math.PI*2);
                 ctx.fillStyle="rgba(255,60,60,0.2)"; ctx.fill();
                 ctx.beginPath(); ctx.arc(cx, cy, pr, 0, Math.PI*2);
@@ -634,8 +634,12 @@
             }
             ctx.strokeStyle="#660000"; ctx.lineWidth=1.5; ctx.stroke();
             // 讓局部模式的玩家自己也能被"人員清單"面板懸停高亮
+            // 注意 cx/cy 仅在玩家处于可见区域内时才赋值（const 声明于 if 块内会令外部引用报
+            // ReferenceError: cx is not defined）；此处仅在玩家可见（cx 非 null）时推入缓存。
             const selfChar = chars.find(c => c.isPlayer);
-            if (selfChar) _charCache.push({ ...selfChar, sx: cx, sy: cy, r: pr });
+            if (selfChar && cx !== null && cy !== null) {
+                _charCache.push({ ...selfChar, sx: cx, sy: cy, r: pr });
+            }
 
             drawHoverHighlight(ctx);
             drawSelectedTileMarker(ctx, W, H);
