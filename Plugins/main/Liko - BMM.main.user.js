@@ -2,7 +2,7 @@
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version 2.0.0
+// @version 2.0.1
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -28,7 +28,7 @@
         if (window.Liko) window.Liko.BMM = null;
     };
     if (window.Liko.BMM) return;
-    const MOD_VER = "2.0.0";
+    const MOD_VER = "2.0.1";
     window.Liko.BMM = MOD_VER;
 
     // ── i18n 多語言系統 ─────────────────────────────────────────────────────
