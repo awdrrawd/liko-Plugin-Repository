@@ -2,7 +2,7 @@
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.0
+// @version      2.0.1
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
