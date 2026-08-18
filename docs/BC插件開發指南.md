@@ -1,11 +1,11 @@
 # Bondage Club 插件開發指南
 
-> **定位：給第一次寫 BC 插件的人看的實用起手式，也給 AI 當作 BC 插件開發的結構化參考。**
+> \*\*定位：給第一次寫 BC 插件的人看的實用起手式，也給 AI 當作 BC 插件開發的結構化參考。\*\*
 >
-> 本指南以本次提供的 **Bondage Club 源碼**、**ECHO Clothing Extension** 與 `liko-Plugin-Repository` 實作為主要分析材料。  
-> 原則是：**先講能直接使用的做法，再集中放容易混淆的特殊情況與實務限制。**
+> 本指南以本次提供的 \*\*Bondage Club 源碼\*\*、\*\*ECHO Clothing Extension\*\* 與 `liko-Plugin-Repository` 實作為主要分析材料。  
+> 原則是：\*\*先講能直接使用的做法，再集中放容易混淆的特殊情況與實務限制。\*\*
 
----
+\---
 
 ## 目錄
 
@@ -18,29 +18,29 @@
 7. [DOM 與 Canvas 混用](#7-dom-與-canvas-混用)
 8. [Character、Drawing 與 GLDraw：到底是哪一套渲染在工作](#8-characterdrawing-與-gldraw到底是哪一套渲染在工作)
 9. [Inventory 與 Extended Item](#9-inventory-與-extended-item)
-10. [Dialog：在雙人互動畫面加入功能](#10-dialog在雙人互動畫面加入功能)
+10. [Dialog 與 InformationSheet：在角色互動／資訊畫面加入功能](#10-dialog-與-informationsheet在角色互動資訊畫面加入功能)
 11. [聊天室訊息與插件間通訊](#11-聊天室訊息與插件間通訊)
 12. [插件共用工具與專案慣例](#12-插件共用工具與專案慣例)
 13. [開發時的快速檢查順序](#13-開發時的快速檢查順序)
 14. [附錄：實務限制、特殊案例與容易誤判的地方](#14-附錄實務限制特殊案例與容易誤判的地方)
 
----
+\---
 
-## 1. 先理解 BC 插件的基本模型
+## 1\. 先理解 BC 插件的基本模型
 
 BC 插件最常見的工作可以分成五類：
 
-| 類型 | 常見需求 | 主要入口 |
-|---|---|---|
-| UI | 按鈕、文字、設定頁、面板 | `DrawText`、`DrawButton`、`ElementCreate`、`PreferenceRegisterExtensionSetting` |
-| 遊戲資料 | 自己的設定、狀態 | `Player.ExtensionSettings`、`ServerPlayerExtensionSettingsSync` |
-| 遊戲內容 | Asset、Inventory、Extended Item | `AssetAdd`、`Inventory...`、`ExtendedItem...` |
-| 遊戲流程 | 攔截或增加原生行為 | `bcModSdk.hookFunction` |
-| 網路／多人 | 聊天、同步、插件間通訊 | `ServerSend`、`ChatRoomMessage`、`AccountBeep` |
+|類型|常見需求|主要入口|
+|-|-|-|
+|UI|按鈕、文字、設定頁、面板|`DrawText`、`DrawButton`、`ElementCreate`、`PreferenceRegisterExtensionSetting`|
+|遊戲資料|自己的設定、狀態|`Player.ExtensionSettings`、`ServerPlayerExtensionSettingsSync`|
+|遊戲內容|Asset、Inventory、Extended Item|`AssetAdd`、`Inventory...`、`ExtendedItem...`|
+|遊戲流程|攔截或增加原生行為|`bcModSdk.hookFunction`|
+|網路／多人|聊天、同步、插件間通訊|`ServerSend`、`ChatRoomMessage`、`AccountBeep`|
 
 寫插件時先問自己：
 
-> **我要改的是 UI、角色畫面、Inventory、Dialog、聊天資料，還是 BC 原生流程？**
+> \*\*我要改的是 UI、角色畫面、Inventory、Dialog、聊天資料，還是 BC 原生流程？\*\*
 
 通常可以藉此直接找到正確的切入點，而不是從 `ServerSend` 或 `DrawImage` 開始亂 hook。
 
@@ -48,15 +48,15 @@ BC 插件最常見的工作可以分成五類：
 
 BC 本身大量 UI 使用 Canvas；DOM 則用於需要真正 HTML 元素的場景，例如輸入框、滑桿、文字輸入、瀏覽器元素等。
 
-- **Canvas**：適合固定版面、按鈕、圖示、文字、遊戲畫面。
-- **DOM**：適合文字輸入、原生 HTML 控制項、需要瀏覽器互動能力的 UI。
-- **混用時**：一定要考慮兩邊的座標、縮放、層級與遮擋。
+* **Canvas**：適合固定版面、按鈕、圖示、文字、遊戲畫面。
+* **DOM**：適合文字輸入、原生 HTML 控制項、需要瀏覽器互動能力的 UI。
+* **混用時**：一定要考慮兩邊的座標、縮放、層級與遮擋。
 
 不要把「Canvas 座標」直接當成「瀏覽器 CSS 像素」。
 
----
+\---
 
-## 2. 一個插件應該怎麼開始
+## 2\. 一個插件應該怎麼開始
 
 建議把初始化分成兩階段，兩者責任要分開：
 
@@ -90,7 +90,7 @@ if (window.Player?.MemberNumber !== undefined) {
 
 ```js
 function isLoggedIn() {
-    return typeof Player !== "undefined" && Player?.MemberNumber !== undefined;
+    return typeof Player !== "undefined" \&\& Player?.MemberNumber !== undefined;
 }
 
 function waitForLogin(modApi) {
@@ -125,15 +125,15 @@ async function bootstrap() {
     initializeAfterLogin(modApi);
 }
 
-bootstrap().catch(error => console.error("[MyMod] init error:", error));
+bootstrap().catch(error => console.error("\[MyMod] init error:", error));
 ```
 
 幾個重點：
 
-- `LoginResponse` 必須先呼叫 `next(args)` 讓原生流程真正把 `Player.MemberNumber` 等欄位賦值完，才檢查 `isLoggedIn()`；不要在呼叫 `next` 之前就判斷。
-- **BC 沒有「登出」這個選單項目。** 畫面上看起來像登出的操作（回到登入畫面、切換角色等），底層走的其實都是 `window.location.reload()`——整個頁面連同所有插件都會被完整重新載入，不是在同一份 JS 執行環境裡切換 `Player`。這代表**正常情況下，一個頁面生命週期內 `LoginResponse` 只會真正觸發一次**，不會有「同一頁面內登出又登入另一個帳號」這種情境需要處理。
-- 因此上面「一次性登入初始化模板」對絕大多數插件已經足夠：初始化成功後呼叫 `hookFunction` 回傳的移除函式（`removeLoginHook`），把 hook 拆掉即可，不需要額外設計「換帳號」的邏輯。
-- 唯一會讓 `LoginResponse` 在同一頁面內被呼叫多次的情況是**暫時斷線後自動重連**（`ServerHandleRelog`）——這種情況下帳號沒有變、`Player.MemberNumber` 也不會被清掉，所以就算沒移除 hook 也不會有副作用；如果真的想保守一點、讓插件在這種重連情境下也能自我修復，才用 `MemberNumber` 做冪等判斷取代「移除 hook」：
+* `LoginResponse` 必須先呼叫 `next(args)` 讓原生流程真正把 `Player.MemberNumber` 等欄位賦值完，才檢查 `isLoggedIn()`；不要在呼叫 `next` 之前就判斷。
+* **BC 沒有「登出」這個選單項目。** 畫面上看起來像登出的操作（回到登入畫面、切換角色等），底層走的其實都是 `window.location.reload()`——整個頁面連同所有插件都會被完整重新載入，不是在同一份 JS 執行環境裡切換 `Player`。這代表**正常情況下，一個頁面生命週期內 `LoginResponse` 只會真正觸發一次**，不會有「同一頁面內登出又登入另一個帳號」這種情境需要處理。
+* 因此上面「一次性登入初始化模板」對絕大多數插件已經足夠：初始化成功後呼叫 `hookFunction` 回傳的移除函式（`removeLoginHook`），把 hook 拆掉即可，不需要額外設計「換帳號」的邏輯。
+* 唯一會讓 `LoginResponse` 在同一頁面內被呼叫多次的情況是**暫時斷線後自動重連**（`ServerHandleRelog`）——這種情況下帳號沒有變、`Player.MemberNumber` 也不會被清掉，所以就算沒移除 hook 也不會有副作用；如果真的想保守一點、讓插件在這種重連情境下也能自我修復，才用 `MemberNumber` 做冪等判斷取代「移除 hook」：
 
 ```js
 let initializedMemberNumber;
@@ -155,20 +155,20 @@ initializeCurrentAccount(); // 插件可能在登入完成「後」才由載入�
 
 這只是「一次性模板」的保守版本，不是因為 BC 真的支援同頁面換帳號才需要。
 
-- 輪詢（`setInterval` 或 `waitFor(() => Player...)`）只保留給「沒有可靠事件、且確實會延後建立」的其他 BC API；登入狀態一律用 `LoginResponse` hook，Hook 不是輪詢，只有函式真的被呼叫時才會執行，不會浪費資源。
+* 輪詢（`setInterval` 或 `waitFor(() => Player...)`）只保留給「沒有可靠事件、且確實會延後建立」的其他 BC API；登入狀態一律用 `LoginResponse` hook，Hook 不是輪詢，只有函式真的被呼叫時才會執行，不會浪費資源。
 
 如果插件還需要 Asset 或其他遊戲資源，登入完成後再另外等待（這屬於「資源就緒」而非「登入判定」，不要混在一起）：
 
 ```js
 await waitFor(() =>
-    !!window.AssetFemale3DCG &&
+    !!window.AssetFemale3DCG \&\&
     typeof AssetGroupGet === "function"
 );
 ```
 
----
+\---
 
-## 3. bcModSdk：插件與 BC 原生函式的橋樑
+## 3\. bcModSdk：插件與 BC 原生函式的橋樑
 
 常用 API：
 
@@ -193,11 +193,11 @@ modApi.hookFunction("SomeBCFunction", 5, (args, next) => {
 
 ### Hook 的基本原則
 
-- 不需要改原流程時，**呼叫 `next(args)`**。
-- 真的要阻止原流程時，才不呼叫 `next`。
-- 修改參數前先確認資料結構。
-- 同一個 BC 函式可能有多支插件 hook，因此 priority 要有意識地選擇：**數字越大越先執行**（`bcModSdk` 官方型別定義裡寫的是「Higher number is called first」），不是越大越晚。
-- 不要為了「保險」而大量 hook；優先找更上層、語意更清楚的入口。
+* 不需要改原流程時，**呼叫 `next(args)`**。
+* 真的要阻止原流程時，才不呼叫 `next`。
+* 修改參數前先確認資料結構。
+* 同一個 BC 函式可能有多支插件 hook，因此 priority 要有意識地選擇：**數字越大越先執行**（`bcModSdk` 官方型別定義裡寫的是「Higher number is called first」），不是越大越晚。
+* 不要為了「保險」而大量 hook；優先找更上層、語意更清楚的入口。
 
 ### Hook 要挑對「層級」，不是挑最底層
 
@@ -219,11 +219,11 @@ modApi.hookFunction("SomeBCFunction", 5, (args, next) => {
 
 `uniformMatrix4fv` 這種等級的 hook 技術上做得到（BC 走 WebGL 渲染時，角色每一層道具的每一次繪製最終都會呼叫到這類 GL API），但**這已經是瀏覽器 WebGL context 本身的原生方法，不是 BC 定義的語意函式**。挑這個層級下手，代表：
 
-- 任何跟繪圖矩陣、著色器管線有關的呼叫都會經過你的 hook，不只是你想改的那個道具，**影響範圍遠大於你的實際需求**。
-- BC 或瀏覽器只要調整渲染管線的實作細節（哪怕只是效能優化、換一種 WebGL 呼叫方式），你的 hook 完全不會有任何語意上的警告，就直接壞掉、或做出跟預期不同的結果，而且很難排查——因為問題出現的地方（`uniformMatrix4fv`）跟你真正想改的東西（某個道具的顯示）中間隔了好幾層。
-- 一旦這支插件跟其他也在做繪圖相關 hook 的插件同時安裝，大家都卡在最底層互相搶同一組呼叫，衝突機率和除錯難度都會被放大。
+* 任何跟繪圖矩陣、著色器管線有關的呼叫都會經過你的 hook，不只是你想改的那個道具，**影響範圍遠大於你的實際需求**。
+* BC 或瀏覽器只要調整渲染管線的實作細節（哪怕只是效能優化、換一種 WebGL 呼叫方式），你的 hook 完全不會有任何語意上的警告，就直接壞掉、或做出跟預期不同的結果，而且很難排查——因為問題出現的地方（`uniformMatrix4fv`）跟你真正想改的東西（某個道具的顯示）中間隔了好幾層。
+* 一旦這支插件跟其他也在做繪圖相關 hook 的插件同時安裝，大家都卡在最底層互相搶同一組呼叫，衝突機率和除錯難度都會被放大。
 
-**多數效果並不需要做到這個程度**，官方也不希望插件開發者往這個方向走——BC 提供 `DynamicScriptDraw`、`ExtendedItem*` 系列函式、`ScriptPermissions` 這類語意化的入口，就是希望插件透過這些管道跟遊戲互動，而不是直接鑽進渲染管線內部。**選擇 hook 目標時，先問「有沒有語意更高、影響範圍更小的函式可以做到同樣的事」，只有在真的沒有更高層入口、且效果非做到這個深度不可時，才考慮往下鑽**，並且要有心理準備：越底層的 hook，遇到官方更新時越容易整支插件一起壞掉，出問題時受影響的範圍也越大、越難定位。
+**多數效果並不需要做到這個程度**，官方也不希望插件開發者往這個方向走——BC 提供 `DynamicScriptDraw`、`ExtendedItem\*` 系列函式、`ScriptPermissions` 這類語意化的入口，就是希望插件透過這些管道跟遊戲互動，而不是直接鑽進渲染管線內部。**選擇 hook 目標時，先問「有沒有語意更高、影響範圍更小的函式可以做到同樣的事」，只有在真的沒有更高層入口、且效果非做到這個深度不可時，才考慮往下鑽**，並且要有心理準備：越底層的 hook，遇到官方更新時越容易整支插件一起壞掉，出問題時受影響的範圍也越大、越難定位。
 
 實務上一個常見情境是「在別人畫面上疊加自己的按鈕」（例如在 `InformationSheetRun` 上畫濾鏡設定按鈕）。這類 hook 慣例上把 priority 設在 **5 以上、但不超過 10**：BCX 這類主流管理型插件的子畫面掛在數字 10 的層級，5 以上又能確保排在大多數其他插件的按鈕之後、正常疊上去。跟這個慣例數字區間保持一致，通常就足夠避免衝突，不需要額外寫「偵測其他插件子畫面」的邏輯（例如 `window.bcx?.inBcxSubscreen?.()`）；那種偵測只在真的與某個知名插件確定衝突、且對方剛好有暴露對應查詢 API 時，才值得當補丁加上去。
 
@@ -237,9 +237,9 @@ modApi.hookFunction("SomeBCFunction", 5, (args, next) => {
 
 因為 Mod SDK 需要直接操作頁面中的 BC 全域與函式。
 
----
+\---
 
-## 4. 資料與伺服器：ExtensionSettings、ServerSend 與登入生命週期
+## 4\. 資料與伺服器：ExtensionSettings、ServerSend 與登入生命週期
 
 ### 4.1 ExtensionSettings 只保存自己的鍵
 
@@ -254,12 +254,12 @@ Player.ExtensionSettings.MyPlugin
 推薦：
 
 ```js
-const EXTENSION_KEY = "MyPlugin";
+const EXTENSION\_KEY = "MyPlugin";
 
 Player.ExtensionSettings ??= {};
-Player.ExtensionSettings[EXTENSION_KEY] = JSON.stringify(mySettings);
+Player.ExtensionSettings\[EXTENSION\_KEY] = JSON.stringify(mySettings);
 
-ServerPlayerExtensionSettingsSync(EXTENSION_KEY);
+ServerPlayerExtensionSettingsSync(EXTENSION\_KEY);
 ```
 
 BC 目前的 `ServerPlayerExtensionSettingsSync` 會只建立：
@@ -274,7 +274,7 @@ BC 目前的 `ServerPlayerExtensionSettingsSync` 會只建立：
 
 **核心原則：只同步自己的鍵，而且只在真的需要保存時同步。**
 
-> ⚠️ **實務觀察（非 BC 原始碼證實，僅供參考）**：`AccountUpdate` 單次傳輸似乎存在容量上限，社群實測抓到的門檻大約在 `180000` 字元量級。BC 客戶端原始碼裡沒有這個常數（只有 `ServerChatMessageMaxLength = 2000` 這類聊天字數上限），所以 `180000` 不是官方保證值，不要當成安全邊界寫死判斷。真正該守住的底線是：**永遠只送出自己真正變更、確定歸屬自己的單一鍵，不要有「整包回傳」或「幫其他插件補送」的邏輯路徑**；如果自己的單一鍵本身就大到有疑慮，才需要處理壓縮、拆鍵，或改用其他儲存方式（如 `localStorage`）。
+> ⚠️ \*\*實務觀察（非 BC 原始碼證實，僅供參考）\*\*：`AccountUpdate` 單次傳輸似乎存在容量上限，社群實測抓到的門檻大約在 `180000` 字元量級。BC 客戶端原始碼裡沒有這個常數（只有 `ServerChatMessageMaxLength = 2000` 這類聊天字數上限），所以 `180000` 不是官方保證值，不要當成安全邊界寫死判斷。真正該守住的底線是：\*\*永遠只送出自己真正變更、確定歸屬自己的單一鍵，不要有「整包回傳」或「幫其他插件補送」的邏輯路徑\*\*；如果自己的單一鍵本身就大到有疑慮，才需要處理壓縮、拆鍵，或改用其他儲存方式（如 `localStorage`）。
 
 ### 4.2 ServerSend 不等於「直接送出」
 
@@ -288,7 +288,7 @@ ServerSend("ChatRoomAdmin", {...});
 
 但 `ServerSend` 本身還會經過 BC 的送出佇列與限制。因此：
 
-> **不要假設呼叫 `ServerSend()` 就代表資料已經立即抵達伺服器。**
+> \*\*不要假設呼叫 `ServerSend()` 就代表資料已經立即抵達伺服器。\*\*
 
 若需求是「攔截原生流程」，優先考慮 hook BC 函式，而不是自行掛 socket。
 
@@ -300,11 +300,11 @@ ServerSend("ChatRoomAdmin", {...});
 
 理解了用途之後，再看兩者在**同步機制**上的具體差異，混用會直接出錯：
 
-| | `ExtensionSettings` | `OnlineSharedSettings` |
-|---|---|---|
-| 結構 | 開放式，鍵是插件自訂的字串 | 封閉式，只有 BC 定義好的固定欄位（`AllowFullWardrobeAccess`、`BlockBodyCosplay`、`AllowPlayerLeashing`、`AllowRename`、`DisablePickingLocksOnSelf`、`ItemsAffectExpressions`、`WheelFortune`、`ScriptPermissions` 等） |
-| 同步方式 | 逐鍵 dot-notation（`ServerPlayerExtensionSettingsSync`），只送自己的鍵 | 整包物件當成**單一頂層欄位**送出，沒有逐欄位同步 API |
-| 驗證 | 插件自己的資料，BC 不檢查內容 | 每次都會經過 `PreferenceOnlineSharedSettingsValidate` 逐欄位驗證，**未定義的多餘欄位會被丟棄**，不是「先放著、以後兼容」 |
+||`ExtensionSettings`|`OnlineSharedSettings`|
+|-|-|-|
+|結構|開放式，鍵是插件自訂的字串|封閉式，只有 BC 定義好的固定欄位（`AllowFullWardrobeAccess`、`BlockBodyCosplay`、`AllowPlayerLeashing`、`AllowRename`、`DisablePickingLocksOnSelf`、`ItemsAffectExpressions`、`WheelFortune`、`ScriptPermissions` 等）|
+|同步方式|逐鍵 dot-notation（`ServerPlayerExtensionSettingsSync`），只送自己的鍵|整包物件當成**單一頂層欄位**送出，沒有逐欄位同步 API|
+|驗證|插件自己的資料，BC 不檢查內容|每次都會經過 `PreferenceOnlineSharedSettingsValidate` 逐欄位驗證，**未定義的多餘欄位會被丟棄**，不是「先放著、以後兼容」|
 
 實務上這代表幾件事：
 
@@ -329,9 +329,9 @@ if (ValidationHasScriptPermission(targetCharacter, "Block", ScriptPermissionLeve
 
 這跟本文一貫強調的「找語意最高的入口，而不是繞過去硬做」是同一個原則：**BC 本身就有這條 official 的授權管道**，插件要修改別人身上道具的 Hide/Block 屬性時，應該先查這個權限，而不是直接無視對方的 Preference 設定用 hook 硬改。玩家自己的 `ScriptPermissions` 則在 Preference → Scripts 分頁調整，插件通常不需要、也不應該自己另開一套 UI 去改這個欄位。
 
----
+\---
 
-## 5. Preference 設定頁與 Commander
+## 5\. Preference 設定頁與 Commander
 
 ### 5.1 `PreferenceRegisterExtensionSetting`
 
@@ -345,7 +345,7 @@ if (ValidationHasScriptPermission(targetCharacter, "Block", ScriptPermissionLeve
 
 ```js
 PreferenceRegisterExtensionSetting({
-    Identifier: "MYMOD_SETTING",
+    Identifier: "MYMOD\_SETTING",
     ButtonText: "My Mod 設定",
     Image: "Icons/Settings.png",
 
@@ -359,10 +359,10 @@ PreferenceRegisterExtensionSetting({
 
 BC 會檢查：
 
-- `Identifier` 必須是非空字串且唯一。
-- `load`、`run`、`click` 必須是函式。
-- `ButtonText` 必須是文字或函式。
-- `Image` 可以是文字、函式或省略。
+* `Identifier` 必須是非空字串且唯一。
+* `load`、`run`、`click` 必須是函式。
+* `ButtonText` 必須是文字或函式。
+* `Image` 可以是文字、函式或省略。
 
 ### 5.2 Preference 返回鍵
 
@@ -396,44 +396,44 @@ if (MouseIn(1815, 75, 90, 90)) {
 `PreferenceRegisterExtensionSetting` 的：
 
 ```js
-Identifier: "MYMOD_SETTING"
+Identifier: "MYMOD\_SETTING"
 ```
 
 可以直接配合：
 
 ```js
-PreferenceSubscreenExtensionsOpen("MYMOD_SETTING");
+PreferenceSubscreenExtensionsOpen("MYMOD\_SETTING");
 ```
 
 也就是：
 
 ```js
-const modname_setting = PreferenceRegisterExtensionSetting.Identifier;
+const modname\_setting = PreferenceRegisterExtensionSetting.Identifier;
 
-PreferenceSubscreenExtensionsOpen(modname_setting);
+PreferenceSubscreenExtensionsOpen(modname\_setting);
 ```
 
 實際程式通常會把 Identifier 抽成常數，避免重複字串：
 
 ```js
-const SETTING_ID = "MYMOD_SETTING";
+const SETTING\_ID = "MYMOD\_SETTING";
 ```
 
 然後：
 
 ```js
 PreferenceRegisterExtensionSetting({
-    Identifier: SETTING_ID,
+    Identifier: SETTING\_ID,
     ...
 });
 
 // Commander
-PreferenceSubscreenExtensionsOpen(SETTING_ID);
+PreferenceSubscreenExtensionsOpen(SETTING\_ID);
 ```
 
----
+\---
 
-## 6. Canvas：文字、按鈕、勾選箱與 Hover
+## 6\. Canvas：文字、按鈕、勾選箱與 Hover
 
 ### 6.1 文字
 
@@ -451,10 +451,10 @@ DrawTextFit("Hello", X, Y, Width, "White", "Gray");
 
 需要注意：
 
-- Canvas 文字的 `X/Y` 是繪製基準點，不一定是左上角。
-- `textAlign`、`textBaseline` 會影響位置。
-- 長文字不要只靠固定寬度硬塞，優先使用 `DrawTextFit` 或換行工具。
-- 多語言後文字長度可能完全不同，版面不要只用英文測試。
+* Canvas 文字的 `X/Y` 是繪製基準點，不一定是左上角。
+* `textAlign`、`textBaseline` 會影響位置。
+* 長文字不要只靠固定寬度硬塞，優先使用 `DrawTextFit` 或換行工具。
+* 多語言後文字長度可能完全不同，版面不要只用英文測試。
 
 ### 6.2 按鈕
 
@@ -519,9 +519,9 @@ DrawButton(
 
 如果你的 Checkbox UI 比較小，不能只把按鈕縮小後就認為圖片會自動變成理想尺寸。必要時應該：
 
-- 自己指定適合尺寸的 Checked 圖片；
-- 或不要直接使用 `DrawCheckbox`，自行畫 `DrawButton` / `DrawImageResize`；
-- 點擊區域與圖片顯示尺寸分開思考。
+* 自己指定適合尺寸的 Checked 圖片；
+* 或不要直接使用 `DrawCheckbox`，自行畫 `DrawButton` / `DrawImageResize`；
+* 點擊區域與圖片顯示尺寸分開思考。
 
 例如需要小型 Checkbox 時：
 
@@ -548,23 +548,23 @@ Left = (MouseX > 1000)
 
 也就是：
 
-- 滑鼠在 **X ≤ 1000**：Hover 文字往物件右邊顯示。
-- 滑鼠在 **X > 1000**：Hover 文字往物件左邊顯示。
+* 滑鼠在 **X ≤ 1000**：Hover 文字往物件右邊顯示。
+* 滑鼠在 **X > 1000**：Hover 文字往物件左邊顯示。
 
 因此開發 Canvas UI 時不要只想「我的按鈕放哪裡」，還要想：
 
-> **Hover 框會跑去哪裡？那個方向有沒有 DOM 或其他重要 UI？**
+> \*\*Hover 框會跑去哪裡？那個方向有沒有 DOM 或其他重要 UI？\*\*
 
 尤其當 Canvas 旁邊有 DOM 元素時：
 
-- X ≤ 1000 的物件，Hover 可能往右蓋到 DOM。
-- X > 1000 的物件，Hover 可能往左蓋到 DOM。
+* X ≤ 1000 的物件，Hover 可能往右蓋到 DOM。
+* X > 1000 的物件，Hover 可能往左蓋到 DOM。
 
 必要時可以傳入 `tooltipPosition`，自行控制 Hover 區域。
 
----
+\---
 
-## 7. DOM 與 Canvas 混用
+## 7\. DOM 與 Canvas 混用
 
 BC 的 DOM 元素通常會使用 Canvas 座標系轉成實際瀏覽器位置，例如：
 
@@ -587,17 +587,17 @@ element.style.left = X + "px";
 
 因此：
 
-- 優先使用 BC 的 `ElementPosition` / `ElementPositionFixed` 等工具。
-- 不要把某個螢幕上的瀏覽器像素位置當成永久座標。
-- 輸入框、滑桿等 DOM 元件要跟 Canvas 的設計座標建立清楚的對應。
-- DOM 如果蓋住 Canvas，反過來也可能影響 Canvas 的 Hover 或操作體驗。
-- 測試至少要包含一般桌面尺寸與較窄／較矮的視窗。
+* 優先使用 BC 的 `ElementPosition` / `ElementPositionFixed` 等工具。
+* 不要把某個螢幕上的瀏覽器像素位置當成永久座標。
+* 輸入框、滑桿等 DOM 元件要跟 Canvas 的設計座標建立清楚的對應。
+* DOM 如果蓋住 Canvas，反過來也可能影響 Canvas 的 Hover 或操作體驗。
+* 測試至少要包含一般桌面尺寸與較窄／較矮的視窗。
 
 **Canvas UI 看起來正常，不代表 DOM UI 也會正常。**
 
----
+\---
 
-## 8. Character、Drawing 與 GLDraw：到底是哪一套渲染在工作
+## 8\. Character、Drawing 與 GLDraw：到底是哪一套渲染在工作
 
 這是 BC 插件開發最容易因為「看起來應該可以」而踩坑的區域。
 
@@ -617,9 +617,9 @@ DrawImageEx(...)
 
 因此：
 
-> **如果你只是畫自己的 UI，使用 `DrawButton`、`DrawText`、`DrawImage` 就好。**
+> \*\*如果你只是畫自己的 UI，使用 `DrawButton`、`DrawText`、`DrawImage` 就好。\*\*
 >
-> **如果你要修改角色身上的 Asset 渲染，就必須理解 Character → Asset → Drawing / GLDraw 的流程。**
+> \*\*如果你要修改角色身上的 Asset 渲染，就必須理解 Character → Asset → Drawing / GLDraw 的流程。\*\*
 
 ### 8.2 Character：角色是「組合後的畫布」
 
@@ -627,12 +627,12 @@ DrawImageEx(...)
 
 BC 會建立角色 Canvas，將：
 
-- 身體
-- 髮型
-- 衣服
-- 配件
-- 束縛
-- 其他 Asset
+* 身體
+* 髮型
+* 衣服
+* 配件
+* 束縛
+* 其他 Asset
 
 依照 BC 的 Asset / Layering 規則組合。
 
@@ -640,9 +640,9 @@ BC 會建立角色 Canvas，將：
 
 因此如果你的目的是：
 
-- 在角色最上方加一個 UI 圖示 → 不要改 Asset 渲染，直接在較上層畫。
-- 改某個 Asset 的實際材質 → 才需要深入 Asset / Drawing / GLDraw。
-- 做角色動態效果 → 優先研究 `DynamicScriptDraw` / `ScriptDraw` 等 BC 已提供的角色繪製入口。
+* 在角色最上方加一個 UI 圖示 → 不要改 Asset 渲染，直接在較上層畫。
+* 改某個 Asset 的實際材質 → 才需要深入 Asset / Drawing / GLDraw。
+* 做角色動態效果 → 優先研究 `DynamicScriptDraw` / `ScriptDraw` 等 BC 已提供的角色繪製入口。
 
 ### 8.3 GLDraw：角色 Asset 可能走另一條渲染路徑
 
@@ -657,7 +657,7 @@ GLDraw2DCanvas
 
 因此這個判斷非常重要：
 
-> **你 hook `DrawImage`，不代表你一定攔得到角色 Asset。**
+> \*\*你 hook `DrawImage`，不代表你一定攔得到角色 Asset。\*\*
 
 如果角色 Asset 當下走 GL 路徑，實際圖片可能是在 `GLDrawImage` 中處理。
 
@@ -675,21 +675,23 @@ GLDraw2DCanvas
 結果與預期不同
 ```
 
-> 這種情況常常會讓人想乾脆往更底層 hook（甚至到 `GLDrawImage` 內部呼叫的 WebGL 原生方法），確保「不管走哪條路徑都攔得到」。但如第 3 節提過的，**越底層的入口影響範圍越大、跟 BC 內部實作耦合也越深**，多數情況下更好的做法是透過 `DynamicScriptDraw` 這類語意化入口，讓 BC 自己決定要走 Canvas 2D 還是 GL，你只需要在它前後插入邏輯。
+> 這種情況常常會讓人想乾脆往更底層 hook（甚至到 `GLDrawImage` 內部呼叫的 WebGL 原生方法），確保「不管走哪條路徑都攔得到」。但如第 3 節提過的，\*\*越底層的入口影響範圍越大、跟 BC 內部實作耦合也越深\*\*，多數情況下更好的做法是透過 `DynamicScriptDraw` 這類語意化入口，讓 BC 自己決定要走 Canvas 2D 還是 GL，你只需要在它前後插入邏輯。
 
-### 8.4 ECHO 特別要注意（角色繪製範圍與座標會被改動）
+### 8.4 只有動到「角色外觀／繪製」時才需要留意 ECHO 這層
+
+> \*\*先判斷你的情境用不用得到這節\*\*：如果你的插件只是畫自己的 UI（面板、按鈕、文字、Preference 頁面）、處理 Inventory 資料、或做跟角色外觀無關的邏輯，\*\*通常完全不需要理會 ECHO\*\*，直接跳過這節即可。只有當你要\*\*對角色外觀本身動手\*\*——例如疊自己的圖層在角色身上、計算角色某個部位在畫面上的座標、或修改角色 Canvas 的繪製方式——才需要往下看，因為這類操作剛好會踩進 ECHO 動過手腳的繪製層。
 
 > 這一節內容依實際使用 ECHO 時觀察與確認過的行為整理，本次工作階段拿到的原始碼只有 BC 本體分支，沒有 ECHO 自己的原始碼分支可以逐行核對，如果要精確追某個函式的實作，仍建議直接翻 ECHO 對應分支的原始碼確認。
 
 ECHO Clothing / Activity Extension 不是單純「使用 BC API 多畫幾張圖片」的插件，它的核心工作其實是在**角色渲染的座標系統本身**動手腳：
 
-- **擴大角色可繪製的座標範圍**，例如把原本大致 `0~250` 的角色繪製範圍延伸到 `-125~375` 這種更大的區間，讓超出原本身體邊界的服裝/道具素材有地方可以畫。
-- **搬動角色本身的繪製座標**，不是只加大畫布，而是實際去調整角色在畫面上的定位/位移。
-- **替換原生身體素材**，用自己的身體圖層取代 BC 原本的身體，作為它擴充服裝系統的基礎。
+* **擴大角色可繪製的座標範圍**，例如把原本大致 `0\~250` 的角色繪製範圍延伸到 `-125\~375` 這種更大的區間，讓超出原本身體邊界的服裝/道具素材有地方可以畫。
+* **搬動角色本身的繪製座標**，不是只加大畫布，而是實際去調整角色在畫面上的定位/位移。
+* **替換原生身體素材**，用自己的身體圖層取代 BC 原本的身體，作為它擴充服裝系統的基礎。
 
 因此：
 
-> **在裝有 ECHO 的環境中，角色的繪製座標系統本身就跟純 BC 原生不同**，不只是「多畫了什麼」，而是「角色本來畫在哪裡、佔多大範圍」都可能被改變。
+> \*\*在裝有 ECHO 的環境中，角色的繪製座標系統本身就跟純 BC 原生不同\*\*，不只是「多畫了什麼」，而是「角色本來畫在哪裡、佔多大範圍」都可能被改變。
 
 如果你的插件也要對角色繪製動手（例如疊自己的圖層、算角色某個部位在畫面上的座標），要先確認：
 
@@ -704,11 +706,11 @@ BC 沒有 CSS 那種「所有東西都有 z-index」的模型。
 
 對角色 Asset 而言，最終效果主要由：
 
-- Asset Group；
-- Layering；
-- Asset 本身的繪製流程；
-- Dynamic Script Draw；
-- 繪製先後；
+* Asset Group；
+* Layering；
+* Asset 本身的繪製流程；
+* Dynamic Script Draw；
+* 繪製先後；
 
 共同決定。
 
@@ -718,9 +720,9 @@ BC 沒有 CSS 那種「所有東西都有 z-index」的模型。
 
 這兩者不是同一件事。
 
----
+\---
 
-## 9. Inventory 與 Extended Item
+## 9\. Inventory 與 Extended Item
 
 ### 9.1 Inventory 的核心
 
@@ -791,14 +793,16 @@ ExtendedItemCustomClickAndPush(...)
 
 這樣可以：
 
-- 跟 BC 其他 Extended Item 的版面一致；
-- 少處理 hover / permission；
-- 少處理選項位置；
-- 減少不同尺寸下的 UI 問題。
+* 跟 BC 其他 Extended Item 的版面一致；
+* 少處理 hover / permission；
+* 少處理選項位置；
+* 減少不同尺寸下的 UI 問題。
 
----
+\---
 
-## 10. Dialog：在雙人互動畫面加入功能
+## 10\. Dialog 與 InformationSheet：在角色互動／資訊畫面加入功能
+
+> Dialog（10.1、10.2）與 InformationSheet（10.3）是\*\*兩個完全不同的畫面、各自獨立的注入點\*\*，只是剛好都是插件常見的「疊加按鈕/功能」目標，才放在同一節方便對照，不代表兩者共用同一套機制或該互相參照著寫。
 
 Dialog 是玩家點擊角色／身體部位後的互動畫面。
 
@@ -820,13 +824,13 @@ DialogClick(...)
 
 Dialog 裡常常同時存在：
 
-- 角色；
-- 身體部位；
-- Item；
-- 操作按鈕；
-- Item 參數；
-- Exit；
-- DOM 控制項。
+* 角色；
+* 身體部位；
+* Item；
+* 操作按鈕；
+* Item 參數；
+* Exit；
+* DOM 控制項。
 
 因此加入自訂按鈕前，先確認：
 
@@ -836,19 +840,58 @@ Dialog 裡常常同時存在：
 4. Hover 說明會往哪邊跑。
 5. 操作後是否需要 `CharacterRefresh` 或 `ChatRoomCharacterItemUpdate`。
 
-### 10.2 Dialog 跟 ECHO 的關係其實不大
+實務上要在 Dialog 選單裡加一個新的選項，通常不需要自己刻 Canvas 按鈕，而是直接把一筆符合 BC 原生格式的資料塞進 `CurrentCharacter.Dialog` 這個陣列，讓 BC 原生的 Dialog 渲染／點擊流程照常處理它。`liko-Plugin-Repository` 的 `Abundantia Florum Chromatica` 就是這樣做的，可以直接參考這個模式：
 
-先前的版本在這裡寫過「ECHO 會在 Dialog 上加自己的按鈕」，重新核對後這個說法沒有把握——這次拿到的原始碼裡沒有 ECHO 自己的分支可以逐行確認，不應該繼續當成定論寫在這裡。
+```js
+const AFC\_MARKER = "\_\_AFC\_\_";
 
-比較確定的分類是：**ECHO 主要動的是「角色怎麼被畫出來」這件事**（角色可繪製座標範圍、角色定位、身體素材本身），屬於第 8.4 節討論的範圍，**不是** Dialog 這個「雙人互動選單畫面」的範圍。Dialog 本身（`DialogClick`、`CurrentCharacter.Dialog` 等）在目前確認過的行為裡就是純 BC 原生畫面。
+// 組出一筆符合 BC Dialog 資料格式的選項
+function makeDialog(option, result, fn, marker) {
+    return {
+        Stage:        "RelationshipSubmenu", // 掛在哪個既有子選單
+        NextStage:    "0",
+        Function:     fn,       // 點擊後要呼叫的（全域）函式名稱字串
+        Option:       option,   // 選項文字
+        Result:       result,   // 點擊後顯示的結果文字
+        \[AFC\_MARKER]: marker,   // 自訂標記，方便之後辨識/移除自己插進去的項目
+    };
+}
 
-所以實務上的判斷順序是：
+// 每次 Dialog 陣列可能被 BC 重建時，重新插入自己的選項
+function injectMyDialogOptions(C) {
+    if (!C) return;
+    const dialog = C.Dialog;
+    if (!Array.isArray(dialog) || dialog.length === 0) return;
 
-1. 你要加的東西是「Dialog 選單裡的一個選項/按鈕」→ 這就是純 BC 原生 Dialog，照第 10.1 節的方式處理，不需要特別考慮 ECHO。
-2. 你要加的東西是「角色身上某個部位的顯示/座標」→ 這其實是角色渲染問題，去看第 8 節（特別是 8.4），不是 Dialog 問題。
-3. 只有在你自己安裝 ECHO 後**實際觀察到** Dialog 畫面出現了 BC 原生沒有的按鈕或控制項，才需要進一步去確認那是不是 ECHO 加的、加在哪個 hook 點——這種情況下請直接對照當時安裝的 ECHO 版本原始碼，不要照抄本文舊版沒把握的推測。
+    // 先清掉自己上次插入的，避免重複疊加
+    for (let i = dialog.length - 1; i >= 0; i--)
+        if (dialog\[i]?.\[AFC\_MARKER]) dialog.splice(i, 1);
 
-### 10.3 在 InformationSheet（角色資訊卡）上加按鈕
+    // 找到要插入的位置（例如某個既有選單的「返回」項目前）
+    const anchorIndex = dialog.findIndex(d =>
+        d?.Stage === "RelationshipSubmenu" \&\& d?.NextStage === "10"
+    );
+    if (anchorIndex === -1) return;
+
+    dialog.splice(anchorIndex, 0, makeDialog("我的選項", "點擊後的結果文字", "MyDialogAction()", "myOption"));
+}
+
+// Dialog 陣列會隨畫面重繪被 BC 重新產生，所以要在對應的繪製時機重新注入，
+// 而不是只在角色進入 Dialog 那一刻插入一次
+modApi.hookFunction("ChatRoomCharacterViewDraw", 1, (args, next) => {
+    const result = next(args);
+    if (CurrentCharacter) injectMyDialogOptions(CurrentCharacter);
+    return result;
+});
+```
+
+幾個重點：
+
+* **這是資料驅動，不是畫面驅動**：不需要自己算座標、畫按鈕、處理 Hover，BC 原生的 Dialog 渲染與點擊邏輯會直接接手這筆資料。
+* **要重複注入、並用標記去重**：Dialog 陣列在畫面重繪時常常會被 BC 重新產生或洗掉你加的項目，所以要掛在會重複觸發的時機（例如 `ChatRoomCharacterViewDraw`）反覆插入，並用一個自訂標記（如上面的 `AFC\_MARKER`）先清掉舊的，避免同一個選項疊加好幾次。
+* **`Function` 是字串**：BC 原生 Dialog 用字串形式呼叫函式，所以對應的處理函式需要掛在 `window` 上才能被找到。
+
+### 10\.2 在 InformationSheet（角色資訊卡）上加按鈕
 
 除了 Dialog，另一個插件常疊加功能的畫面是角色的「資訊卡」（InformationSheet），例如濾鏡設定、背景設定等按鈕。做法通常是 hook `InformationSheetRun`：
 
@@ -864,9 +907,9 @@ priority 慣例上設在 **5 以上、不超過 10**（見第 3 節）。另外�
 
 InformationSheet 和 Dialog 是兩個不同畫面、不同的注入點，不要搞混。
 
----
+\---
 
-## 11. 聊天室訊息與插件間通訊
+## 11\. 聊天室訊息與插件間通訊
 
 ### 11.1 `ChatRoomChat`
 
@@ -875,9 +918,9 @@ InformationSheet 和 Dialog 是兩個不同畫面、不同的注入點，不要�
 ```js
 ServerSend("ChatRoomChat", {
     Type: "Hidden",
-    Content: "MyMod_Sync",
-    Dictionary: [
-        { Tag: "MyMod_Sync", Value: "..." }
+    Content: "MyMod\_Sync",
+    Dictionary: \[
+        { Tag: "MyMod\_Sync", Value: "..." }
     ],
 });
 ```
@@ -894,7 +937,7 @@ ChatRoomMessage(data)
 
 適合：
 
-> **同一聊天室內，已安裝插件的玩家之間同步資料。**
+> \*\*同一聊天室內，已安裝插件的玩家之間同步資料。\*\*
 
 它不應該被當成一般聊天訊息。
 
@@ -902,8 +945,8 @@ ChatRoomMessage(data)
 
 ```js
 if (
-    data.Type === "Hidden" &&
-    data.Content === "MyMod_Sync"
+    data.Type === "Hidden" \&\&
+    data.Content === "MyMod\_Sync"
 ) {
     // 處理自己的資料
 }
@@ -913,7 +956,7 @@ if (
 
 適合：
 
-> **指定某一個會員進行跨聊天室的插件通訊。**
+> \*\*指定某一個會員進行跨聊天室的插件通訊。\*\*
 
 例如：
 
@@ -943,27 +986,27 @@ ServerSocket.on("AccountBeep", data => {
 
 簡單選擇：
 
-| 需求 | 優先 |
-|---|---|
-| 只想旁聽 socket 事件 | `ServerSocket.on` |
-| 要修改／阻止 BC 原生處理 | `hookFunction` |
-| 要與其他 hook 協調順序 | `hookFunction` |
-| 只是自己的 `BeepType` 監聽 | `ServerSocket.on` |
+|需求|優先|
+|-|-|
+|只想旁聽 socket 事件|`ServerSocket.on`|
+|要修改／阻止 BC 原生處理|`hookFunction`|
+|要與其他 hook 協調順序|`hookFunction`|
+|只是自己的 `BeepType` 監聽|`ServerSocket.on`|
 
----
+\---
 
-## 12. 插件共用工具與專案慣例（`liko-Plugin-Repository`）
+## 12\. 插件共用工具與專案慣例（`liko-Plugin-Repository`）
 
-這幾支都是掛在 `window.Liko` 底下、以 `__Sys_` 開頭的共用小工具，設計上都可被多個插件同時載入而不互相衝突（檔頭都有「已存在就 `return`」的防重複載入判斷，晚載入者自動跳過）。**引用時不需要在自己插件裡寫死版本號**；真的要寫，先核對倉庫內該檔案頂端目前的版本號，並確認工具實際行為沒有跟這裡的描述出現落差——工具持續在更新。
+這幾支都是掛在 `window.Liko` 底下、以 `\_\_Sys\_` 開頭的共用小工具，設計上都可被多個插件同時載入而不互相衝突（檔頭都有「已存在就 `return`」的防重複載入判斷，晚載入者自動跳過）。**引用時不需要在自己插件裡寫死版本號**；真的要寫，先核對倉庫內該檔案頂端目前的版本號，並確認工具實際行為沒有跟這裡的描述出現落差——工具持續在更新。
 
-### 12.1 `BC_i18n.js` — 多語翻譯引擎
+### 12.1 `BC\_i18n.js` — 多語翻譯引擎
 
 一份檔案含兩個子系統：
 
-| 掛載點 | 用途 |
-|---|---|
-| `window.Liko.__Sys_i18n__` | 介面字串翻譯（同步取字） |
-| `window.Liko.__Sys_L10N__` | 聊天訊息在地化（送出英文底本，各收訊端依自己語言重寫顯示） |
+|掛載點|用途|
+|-|-|
+|`window.Liko.\_\_Sys\_i18n\_\_`|介面字串翻譯（同步取字）|
+|`window.Liko.\_\_Sys\_L10N\_\_`|聊天訊息在地化（送出英文底本，各收訊端依自己語言重寫顯示）|
 
 **核心設計原則：語言由插件自己決定，引擎只負責翻譯。** 不要依賴引擎幫你判斷語言，因為每個插件的語言選單邏輯不同：
 
@@ -972,23 +1015,23 @@ ServerSocket.on("AccountBeep", data => {
 function myLang() {
     const sel = CONFIG.lang || "auto";
     if (sel !== "auto") return sel;
-    return Liko.__Sys_i18n__.detectLang(); // auto 才借用引擎的偵測
+    return Liko.\_\_Sys\_i18n\_\_.detectLang(); // auto 才借用引擎的偵測
 }
 
 // 註冊字庫
-Liko.__Sys_i18n__.register("MYMOD", {
+Liko.\_\_Sys\_i18n\_\_.register("MYMOD", {
     loaded: { EN: "MyMod v{v} loaded", TW: "MyMod v{v} 已載入", CN: "MyMod v{v} 已载入" },
 });
 
 // 取字（vars 傳物件 → 具名 {v}；傳陣列 → 位置式 {0}{1}）
-Liko.__Sys_i18n__.t("MYMOD", "loaded", { v: "1.0" }, myLang());
+Liko.\_\_Sys\_i18n\_\_.t("MYMOD", "loaded", { v: "1.0" }, myLang());
 ```
 
-`detectLang()` 偵測順序是 `localStorage['BondageClubLanguage']` → `TranslationLanguage` → `navigator.language` → `EN`（優先讀 `localStorage` 是因為 BC 剛啟動時 `TranslationLanguage` 會先短暫是預設值 `"EN"`，之後才被 `TranslationLoad()` 覆寫成真正語系）。
+`detectLang()` 偵測順序是 `localStorage\['BondageClubLanguage']` → `TranslationLanguage` → `navigator.language` → `EN`（優先讀 `localStorage` 是因為 BC 剛啟動時 `TranslationLanguage` 會先短暫是預設值 `"EN"`，之後才被 `TranslationLoad()` 覆寫成真正語系）。
 
-> **BC 官方語系只有 7 種：`TW` `CN` `EN` `DE` `FR` `RU` `UA`**，由全域變數 `TranslationLanguage` 決定，做翻譯優先照顧這 7 種就涵蓋絕大多數玩家。引擎另外多支援 `JA`/`KO`（超出官方的擴充語系）——可以做超過官方的語系，但 `TranslationLanguage` 不會給這些值，得靠插件自己的語言選單指定。取語言用「三段判定」最穩：**① 插件自己的語系設定（使用者手動選）→ ② `TranslationLanguage` 的設定（`auto` 時即 `detectLang()`）→ ③ 最後退回英文 `EN`**（任何語言缺字一律退 `EN`）。
+> \*\*BC 官方語系只有 7 種：`TW` `CN` `EN` `DE` `FR` `RU` `UA`\*\*，由全域變數 `TranslationLanguage` 決定，做翻譯優先照顧這 7 種就涵蓋絕大多數玩家。引擎另外多支援 `JA`/`KO`（超出官方的擴充語系）——可以做超過官方的語系，但 `TranslationLanguage` 不會給這些值，得靠插件自己的語言選單指定。取語言用「三段判定」最穩：\*\*① 插件自己的語系設定（使用者手動選）→ ② `TranslationLanguage` 的設定（`auto` 時即 `detectLang()`）→ ③ 最後退回英文 `EN`\*\*（任何語言缺字一律退 `EN`）。
 
-聊天訊息在地化（`__Sys_L10N__`）用法：
+聊天訊息在地化（`\_\_Sys\_L10N\_\_`）用法：
 
 ```js
 L10N.register("MYMOD", { propose: { EN: "{0} proposed to {1}", TW: "{0} 向 {1} 求婚" } });
@@ -998,19 +1041,19 @@ L10N.send("MYMOD", "propose", myName, targetName);
 
 字庫一律用**純字串**（不要用函式字串），才能被 JSON 化與正確讀取。
 
-> **想在多語介面顯示萬國旗 emoji（🇹🇼 🇯🇵 🇨🇳…）？指定 `"Twemoji Country Flags"` 字型即可，不必自己載字型。** BC 在 `index.html` 已載入 `country-flag-emoji-polyfill`，會在瀏覽器本身不會畫國旗 emoji 的情況下（最典型是 Windows 上的 Chrome/Edge）自動注入一個全域 `@font-face`，把這個字型族註冊到整份文件。插件只要把字型名稱加進 `font-family` 就會正常顯示：
+> \*\*想在多語介面顯示萬國旗 emoji（🇹🇼 🇯🇵 🇨🇳…）？指定 `"Twemoji Country Flags"` 字型即可，不必自己載字型。\*\* BC 在 `index.html` 已載入 `country-flag-emoji-polyfill`，會在瀏覽器本身不會畫國旗 emoji 的情況下（最典型是 Windows 上的 Chrome/Edge）自動注入一個全域 `@font-face`，把這個字型族註冊到整份文件。插件只要把字型名稱加進 `font-family` 就會正常顯示：
 > ```js
 > el.style.fontFamily = '"Twemoji Country Flags", sans-serif'; // DOM
 > ctx.font = '36px "Twemoji Country Flags", sans-serif';       // Canvas（DrawText 前設定）
 > ```
 > 在原生就能畫國旗的平台（多數 macOS／iOS／Android）上 polyfill 不會注入這個字型，但那些平台本來就會用系統 emoji 正常畫出國旗，所以當 fallback 指定在各平台都安全。
 
-### 12.2 `BC_ThemeColorCheck.js` — 介面主題顏色偵測
+### 12.2 `BC\_ThemeColorCheck.js` — 介面主題顏色偵測
 
-掛在 `window.Liko.__Sys_ColorAPI__`。BC 有淺色/深色兩套介面主題，插件想讓自己畫的按鈕、文字顏色跟著主題自動變化時，用這支工具讀出目前主題底色來判斷亮暗，不必猜測或寫死顏色規則：
+掛在 `window.Liko.\_\_Sys\_ColorAPI\_\_`。BC 有淺色/深色兩套介面主題，插件想讓自己畫的按鈕、文字顏色跟著主題自動變化時，用這支工具讀出目前主題底色來判斷亮暗，不必猜測或寫死顏色規則：
 
 ```js
-const Color = Liko.__Sys_ColorAPI__;
+const Color = Liko.\_\_Sys\_ColorAPI\_\_;
 Color.getThemeColor();                // ★建議用這個：取目前介面主題底色 '#rrggbb'（已自動處理下述三條路線 + 保底）
 Color.getUIColor({ x, y });           // 讀某座標上該元件「宣告時傳入」的顏色（需 bcModSdk）
 Color.getCanvasColor({ x, y, size }); // 讀某區域「實際渲染出來」的顏色（取眾數，避免混入抗鋸齒髒色）
@@ -1026,25 +1069,25 @@ Color.getMode();                      // 除錯：目前走哪條路線、是否
 3. **像素取樣**（後備、無相依）：從 canvas 上取樣實際渲染結果取眾數，最後再保底用「上次成功值 → DOM 背景色」。
 
 ```js
-const c = Liko.__Sys_ColorAPI__.getThemeColor();
-if (c && Liko.__Sys_ColorAPI__.isDark(c)) { /* 深色主題 */ } else { /* 淺色主題 */ }
+const c = Liko.\_\_Sys\_ColorAPI\_\_.getThemeColor();
+if (c \&\& Liko.\_\_Sys\_ColorAPI\_\_.isDark(c)) { /\* 深色主題 \*/ } else { /\* 淺色主題 \*/ }
 ```
 
-### 12.3 `BC_toast_system.user.js` — 全域浮動提示訊息
+### 12.3 `BC\_toast\_system.user.js` — 全域浮動提示訊息
 
-掛在 `window.Liko.__Sys_Toast__`（同時保留全域別名 `window.ChatRoomSendLocalStyled` 供舊插件呼叫）：
+掛在 `window.Liko.\_\_Sys\_Toast\_\_`（同時保留全域別名 `window.ChatRoomSendLocalStyled` 供舊插件呼叫）：
 
 ```js
-window.Liko.__Sys_Toast__(message, duration = 3000, color = "#ff69b4", x = null, y = null, fontSize = "24px");
+window.Liko.\_\_Sys\_Toast\_\_(message, duration = 3000, color = "#ff69b4", x = null, y = null, fontSize = "24px");
 // 或用相容別名
 window.ChatRoomSendLocalStyled("已儲存設定", 2000, "#00ff00");
 ```
 
 功能是浮出一則會自動淡出、可堆疊排列（多則訊息自動往上疊、消失後自動補位）的提示文字，不需要自己刻 DOM 動畫。`x`/`y` 省略時置中在畫面下方；有指定時走絕對定位、不參與自動排列。
 
-### 12.4 `BC_ChatRoomButtons.js` — 聊天室按鈕列共用協調器
+### 12.4 `BC\_ChatRoomButtons.js` — 聊天室按鈕列共用協調器
 
-目前 API 為 v5：用 `add({ id, buttonId, order, icon, tooltip, background, active, collapse, onClick })` 註冊按鈕，並以 `setActive(id, on)` / `setState(id, patch)` 更新狀態。掛在 `window.Liko.__Sys_ChatRoomButtons__`。協調器統一負責建立與重建、排序、收合動畫、底色/外框、懸停說明、顯示/隱藏、可視數量（預設 5 顆插件按鈕，不含送出鈕）及動圖播放；插件只需交付已完成顏色處理的圖示、按鈕樣式資料與行為，協調器不修改 SVG fill/stroke 或圖片內容。
+目前 API 為 v5：用 `add({ id, buttonId, order, icon, tooltip, background, active, collapse, onClick })` 註冊按鈕，並以 `setActive(id, on)` / `setState(id, patch)` 更新狀態。掛在 `window.Liko.\_\_Sys\_ChatRoomButtons\_\_`。協調器統一負責建立與重建、排序、收合動畫、底色/外框、懸停說明、顯示/隱藏、可視數量（預設 5 顆插件按鈕，不含送出鈕）及動圖播放；插件只需交付已完成顏色處理的圖示、按鈕樣式資料與行為，協調器不修改 SVG fill/stroke 或圖片內容。
 
 ```js
 const L = window.Liko = window.Liko || {};
@@ -1052,26 +1095,26 @@ const spec = {
     id: "myplugin",
     buttonId: "myplugin-chat-button",
     order: 99,
-    icon: { src: ICON_URL, animated: true }, // GIF/APNG/WebP；靜態圖片不用 animated
+    icon: { src: ICON\_URL, animated: true }, // GIF/APNG/WebP；靜態圖片不用 animated
     tooltip: "開啟插件",
     background: "#455a64",
     onClick: openMyPlugin,
 };
 // 協調器已載入就直接 add；否則推進待處理佇列，等它（無論被誰載入）初始化時自動排空
-if (L.__Sys_ChatRoomButtons__?.add) L.__Sys_ChatRoomButtons__.add(spec);
-else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
+if (L.\_\_Sys\_ChatRoomButtons\_\_?.add) L.\_\_Sys\_ChatRoomButtons\_\_.add(spec);
+else (L.\_\_CRB\_pending\_\_ = L.\_\_CRB\_pending\_\_ || \[]).push(spec);
 ```
 
 兩個關鍵坑：
 
-- **登記與載入要解耦**：務必**同步**把 spec 交出去（直接 `add` 或 push 進 `__CRB_pending__`），**別**寫成 `ensureCRB().then(() => add(...))`——協調器可能由別的插件載入，你的 `.then` 沒在對的時機跑，按鈕就永遠不出現。
-- **圖示由插件先處理完成**：協調器不染色。動圖可提供 `{ src, animated: true, poster? }`；沒有 `poster` 時會嘗試擷取影格，跨來源沒有 CORS 時應自行提供 poster。特殊 DOM 才用 `createButton`，每次呼叫都要回傳新元素。
+* **登記與載入要解耦**：務必**同步**把 spec 交出去（直接 `add` 或 push 進 `\_\_CRB\_pending\_\_`），**別**寫成 `ensureCRB().then(() => add(...))`——協調器可能由別的插件載入，你的 `.then` 沒在對的時機跑，按鈕就永遠不出現。
+* **圖示由插件先處理完成**：協調器不染色。動圖可提供 `{ src, animated: true, poster? }`；沒有 `poster` 時會嘗試擷取影格，跨來源沒有 CORS 時應自行提供 poster。特殊 DOM 才用 `createButton`，每次呼叫都要回傳新元素。
 
-> 這幾支加上 `bcModSdk` 都遵循同一套「系統擴充命名規則」：統一掛在 `window.Liko.__Sys_<name>__`，頂部都用「已存在就 `return`」防止重複載入，多個插件重複 `<script>` 引入也不會出錯。
+> 這幾支加上 `bcModSdk` 都遵循同一套「系統擴充命名規則」：統一掛在 `window.Liko.\_\_Sys\_<name>\_\_`，頂部都用「已存在就 `return`」防止重複載入，多個插件重複 `<script>` 引入也不會出錯。
 
----
+\---
 
-## 13. 開發時的快速檢查順序
+## 13\. 開發時的快速檢查順序
 
 遇到「程式有執行但效果不對」，依照以下順序檢查：
 
@@ -1107,31 +1150,31 @@ console.log("hook reached");
 UI → DrawImage
 角色 → Character Canvas
 角色 Asset → Drawing / GLDraw
-ECHO → 可能再 patch / 包裝
+（若涉及角色外觀繪製，且環境裝有 ECHO → 這一層可能再被 ECHO patch / 包裝，見 8.4）
 ```
 
 ### D. Canvas 與 DOM 是否互相遮住？
 
 檢查：
 
-- Canvas 座標；
-- DOM 實際 CSS 位置；
-- Hover 方向；
-- 視窗尺寸。
+* Canvas 座標；
+* DOM 實際 CSS 位置；
+* Hover 方向；
+* 視窗尺寸。
 
 ### E. 多人資料是否真的同步？
 
 確認：
 
-- 本地資料是否改變；
-- 是否呼叫正確的同步 API；
-- 伺服器訊息是否送出；
-- 對方是否能收到；
-- 對方是否安裝對應插件。
+* 本地資料是否改變；
+* 是否呼叫正確的同步 API；
+* 伺服器訊息是否送出；
+* 對方是否能收到；
+* 對方是否安裝對應插件。
 
----
+\---
 
-## 14. 附錄：實務限制、特殊案例與容易誤判的地方
+## 14\. 附錄：實務限制、特殊案例與容易誤判的地方
 
 本節集中放「知道它很重要，但不適合塞進每一個基本 API 說明旁邊」的內容。  
 這樣主體可以保持簡單；日後新增特殊案例也可以直接補在這裡。
@@ -1140,14 +1183,14 @@ ECHO → 可能再 patch / 包裝
 
 一般來說：
 
-- `Player.MemberNumber`：玩家的會員編號。
-- `Player.ID`：BC 內部使用的另一個識別值。
+* `Player.MemberNumber`：玩家的會員編號。
+* `Player.ID`：BC 內部使用的另一個識別值。
 
 不要因為某個伺服器資料欄位叫 `MemberNumber`，就自動認為它一定要放 `Player.MemberNumber`。
 
 例如 `ChatRoomAdmin` 的某些 Update 流程就是特殊情況。遇到這種 API：
 
-> **以 BC 原生呼叫位置與現有可工作的實例為準，不要只依欄位名稱猜。**
+> \*\*以 BC 原生呼叫位置與現有可工作的實例為準，不要只依欄位名稱猜。\*\*
 
 ### B. `ChatRoomAdmin` 更新房間設定
 
@@ -1186,10 +1229,10 @@ ExtensionSettings.<自己的鍵>
 
 如果自己的單一設定過大，應從資料設計本身處理，例如：
 
-- 減少資料；
-- 壓縮；
-- 分拆；
-- 改用其他儲存方式。
+* 減少資料；
+* 壓縮；
+* 分拆；
+* 改用其他儲存方式。
 
 不要靠「把所有插件一起送一次」解決。
 
@@ -1197,18 +1240,18 @@ ExtensionSettings.<自己的鍵>
 
 自訂 Activity 涉及：
 
-- `ActivityFemale3DCG`
-- `ActivityID`
-- `ActivityDictionary`
-- 前置條件；
-- 權限；
-- Server / ChatRoom 流程。
+* `ActivityFemale3DCG`
+* `ActivityID`
+* `ActivityDictionary`
+* 前置條件；
+* 權限；
+* Server / ChatRoom 流程。
 
 如果只是想做一般按鈕功能，不要為了方便就新增 Activity。
 
 只有當需求本身就是：
 
-> **讓玩家在 BC 的 Activity / 互動動作系統裡看到一個新的動作**
+> \*\*讓玩家在 BC 的 Activity / 互動動作系統裡看到一個新的動作\*\*
 
 才進入這條路。
 
@@ -1216,7 +1259,7 @@ ExtensionSettings.<自己的鍵>
 
 `AssetAdd()` 可以讓新的 Asset 存在，但：
 
-> **「有一個新的鎖 Asset」與「有一套新的獨立解鎖系統」是兩件不同的事情。**
+> \*\*「有一個新的鎖 Asset」與「有一套新的獨立解鎖系統」是兩件不同的事情。\*\*
 
 如果只是想做外觀不同、但沿用既有鎖規則，可以借用原生鎖的資料／流程。
 
@@ -1244,11 +1287,11 @@ GLDrawImage
 Character Canvas
 ```
 
-ECHO 還可能再對其中部分流程做 patch。
+若環境裝有 ECHO，這條角色渲染路徑還可能再被它 patch（見 8.4）；但這僅限於**角色外觀本身**的繪製，跟一般 UI 繪製無關。
 
 所以遇到「我 hook 了 DrawImage，但角色圖片沒有改變」時，第一個問題不是「hook 寫錯」，而是：
 
-> **那張圖片到底是哪個渲染路徑畫出來的？**
+> \*\*那張圖片到底是哪個渲染路徑畫出來的？\*\*
 
 ### G. Canvas Hover 與 DOM 遮擋
 
@@ -1279,17 +1322,19 @@ DOM
 
 至少思考：
 
-- 寬度縮小；
-- 高度縮小；
-- 瀏覽器縮放；
-- DOM 元件縮放；
-- Canvas Hover；
-- 按鈕是否仍在可點擊範圍；
-- 文字是否超出按鈕。
+* 寬度縮小；
+* 高度縮小；
+* 瀏覽器縮放；
+* DOM 元件縮放；
+* Canvas Hover；
+* 按鈕是否仍在可點擊範圍；
+* 文字是否超出按鈕。
 
 ### I. ECHO 與 BC 的責任邊界
 
-當 ECHO 存在時，最重要的判斷不是：
+**這節只適用於「動到角色外觀／角色繪製」的情境**（見 8.4）；純 UI 繪製等其他情境不受影響，不需要套用這節的判斷。
+
+當你的效果確實涉及角色外觀，且環境裝有 ECHO 時，最重要的判斷不是：
 
 > 「這是不是 BC 的畫面？」
 
@@ -1314,7 +1359,7 @@ ECHO
 
 插件應盡量選擇**語意最高、依賴最少的入口**。
 
----
+\---
 
 ## 最後：給新插件作者的一句話
 
@@ -1328,3 +1373,4 @@ ECHO
 4. **有沒有語意更高、影響範圍更小的入口可以做到同樣的事？** 不要預設答案就是 Canvas、Character Canvas、GLDraw 這類最底層的繪圖管線——那是「其他方法都用過還是不行」時才走的最後一步，不是起手式。
 
 只要這四題能回答清楚，大部分 BC 插件開發問題都會從「不知道該從哪裡開始」變成「找到正確的函式，然後寫自己的邏輯」；而第四題同時也是在提醒自己：**選對 hook 的目標，比 hook 得夠深更重要。**
+
