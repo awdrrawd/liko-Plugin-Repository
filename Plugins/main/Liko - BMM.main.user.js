@@ -697,11 +697,15 @@
           letter-spacing: 0.5px;
           cursor: pointer;
           white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          display: flex;
+          align-items: center;
           flex-shrink: 1;
           min-width: 0;
-          max-width: 120px;
+          max-width: 130px;
+        }
+        .mm-title-text {
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         #bc-minimap-canvas {
           display: block;
@@ -1040,6 +1044,12 @@
           color: #2d1f14 !important;
           font-family: Georgia, "Times New Roman", "PingFang SC", SimSun, serif !important;
           font-size: 12px !important;
+          display: flex !important;
+          align-items: center !important;
+        }
+        .mm-title-text {
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
         }
         #bc-minimap-toolbar {
           background: linear-gradient(180deg, rgba(220,200,170,0.15), rgba(220,200,170,0.05)) !important;
@@ -1154,10 +1164,22 @@
         // Header
         const hdr = document.createElement("div");
         hdr.id = "bc-minimap-hdr";
+        // 彩色指南针 SVG 图标（替换原 🗺️ emoji，羊皮纸主题金棕色调）
+        const MAP_ICON_SVG = '<svg class="mm-map-icon" viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-2px;margin-right:3px;flex-shrink:0;"><defs><linearGradient id="mmIconGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#d4a843"/><stop offset="50%" stop-color="#b8860b"/><stop offset="100%" stop-color="#8b6914"/></linearGradient></defs><circle cx="12" cy="12" r="10.5" fill="url(#mmIconGrad)" stroke="#5c4a1f" stroke-width="0.8"/><path d="M12 4.5 L13.5 9.5 L18.5 11 L13.5 12.5 L12 17.5 L10.5 12.5 L5.5 11 L10.5 9.5 Z" fill="#f5eddE" opacity=".92"/><circle cx="12" cy="11" r="2" fill="#a0522d"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" stroke="#8b6914" stroke-width="1" stroke-linecap="round" opacity=".5"/></svg>';
         const title = document.createElement("span");
         title.className = "mm-title";
-        title.textContent = `🗺️ ${ChatRoomData?.Name ?? t("offline_name")}`;
+        title.innerHTML = MAP_ICON_SVG + `<span class="mm-title-text">${ChatRoomData?.Name ?? t("offline_name")}</span>`;
         title.title = t("hdr_dblclick");
+
+        // 动态刷新标题：每次面板可见+重绘时更新房间名（解决进房前创建面板导致显示 "MiniMap" 不变的问题）
+        const _titleTextEl = title.querySelector(".mm-title-text");
+        function refreshTitle() {
+            if (!_titleTextEl) return;
+            const newName = ChatRoomData?.Name || t("offline_name");
+            if (_titleTextEl.textContent !== newName) {
+                _titleTextEl.textContent = newName;
+            }
+        }
         title.addEventListener("dblclick", () => {
             panelEl.classList.toggle("mm-theme-purple");
             // 重新套用目前 footer 顯示內容的按鈕狀態（顏色/可否點擊會隨主題改變）
@@ -1371,6 +1393,7 @@
         const ctx = cvEl.getContext("2d");
         function redrawNow() {
             if (panelEl.classList.contains("hidden")) return;
+            refreshTitle();  // 动态更新标题为当前房间名
             drawMap(ctx, cvEl.width, cvEl.height);
             if (_linkedEdit) { // 联动中徽标
                 const W = cvEl.width;
