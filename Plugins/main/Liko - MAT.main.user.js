@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.7
+// @version      1.7.0
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.7";
+    const MOD_VER = "1.7.0";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -65,7 +65,8 @@
             sendWhisper: true,
             sendBeep: true,
             sendSkipZhVariant: true,   // 發送語言為中文時，內容已是中文則跳過翻譯
-            sendHideOriginal: false,   // 隱藏原句、僅送出譯文（Chat/Whisper/Emote/Action；翻譯失敗才補送原文）
+            sendHideOriginal: false,   // 僅發送譯文，不送原句（Chat/Whisper/Emote/Action；翻譯失敗才補送原文）
+            sendFold: false,           // 譯文摺疊：翻譯廣播回顯後，將自己的原句＋譯文合併成一則訊息、預設收合原句
             // ── 接收分類（動作/互動/悄悄話/私信/系統 Local）──
             recvEmote: true,
             recvAction: true,
@@ -73,7 +74,7 @@
             recvBeep: true,
             recvLocal: false,
             recvSkipZhVariant: true,   // 接收語言為中文時，收到內容為中文則跳過翻譯
-            recvHideOriginal: false,   // 隱藏原句、僅顯示譯文（Chat/Whisper/Emote/Action；翻譯成功才隱藏）
+            recvFold: false,           // 譯文摺疊：翻譯成功後，將原句＋譯文合併成一則訊息、預設收合原句（Chat/Whisper/Emote/Action）
             // ── 其他 ──
             loginNotice: true,
             translateChat: true,       // 手動翻譯（點選訊息出現翻譯按鈕）
@@ -215,6 +216,10 @@
         const saved = Player?.ExtensionSettings?.[SETTINGS_KEY];
         if (!saved) return;
         config = { ...config, ...saved };
+        // 舊版「隱藏原句」設定改名為「譯文摺疊」，沿用舊值一次，避免升級後被重置成關閉。
+        if (saved.recvFold === undefined && typeof saved.recvHideOriginal === 'boolean') {
+            config.recvFold = saved.recvHideOriginal;
+        }
         normalizeHotkeys();
     }
 
@@ -542,6 +547,7 @@
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     await handleReceivedMessage(node);
+                    handleOwnSentFold(node);
                 }
             }
         });
@@ -663,14 +669,44 @@
         if (node.classList.contains('mat-skip') && await waitForRemoteTranslation(node)) return;
         const translated = await smartTranslate(message, config.recvLang);
         if (translated !== null && translated !== message) {
-            createTranslatedDiv(node, translated);
-            // 隱藏原句、僅留譯文：只在確實產生譯文後隱藏（失敗/簡繁跳過不隱藏，免訊息消失）
+            const div = createTranslatedDiv(node, translated);
+            // 譯文摺疊：原句＋譯文合併成一則訊息、優先顯示譯文，按「A/文」可展開查看原句。
+            // 只在確實產生譯文後才摺疊（失敗/簡繁跳過不摺，免訊息消失）。
             const cl = node.classList;
-            if (config.recvHideOriginal &&
+            if (config.recvFold &&
                 (cl.contains('ChatMessageChat') || cl.contains('ChatMessageWhisper') ||
                  cl.contains('ChatMessageEmote') || cl.contains('ChatMessageAction'))) {
-                node.style.display = 'none';
+                applyFoldUI(node, div);
             }
+        }
+    }
+
+    // 發送端「譯文摺疊」：自己送出的訊息，翻譯廣播回顯到自己畫面後，
+    // 找出前面對應的自己原句節點，合併成一則訊息（僅自己看得到、不影響對方畫面）。
+    // 需搭配 sendHideOriginal 關閉（原句確實有送出、本地也確實有回顯）才有東西可摺。
+    function handleOwnSentFold(node) {
+        if (!config.enabled || !config.translateSent || !config.sendFold || config.sendHideOriginal) return;
+        if (!(node instanceof HTMLElement) || !node.classList.contains('ChatMessage')) return;
+        if (node.classList.contains('mat-translated') || node.classList.contains('mat-manual-translated') ||
+            node.classList.contains('mat-folded') || node.classList.contains('mat-processed')) return;
+        if (!node.textContent.includes('[🌐]')) return;   // 只處理翻譯廣播回顯那則
+
+        const senderEl = node.querySelector('.chat-room-sender');
+        if (senderEl?.textContent != Player?.MemberNumber) return;   // 只處理自己的訊息
+
+        let sib = node.previousElementSibling, hops = 0;
+        while (sib && hops < 8) {
+            if (sib instanceof HTMLElement && sib.classList.contains('ChatMessage') &&
+                sib.style.display !== 'none' &&
+                !sib.classList.contains('mat-translated') && !sib.classList.contains('mat-manual-translated') &&
+                !sib.classList.contains('mat-broadcast') && !sib.textContent.includes('[🌐]')) {
+                const sSenderEl = sib.querySelector('.chat-room-sender');
+                if (sSenderEl?.textContent == Player?.MemberNumber) {
+                    applyFoldUI(sib, node);
+                }
+                return;
+            }
+            sib = sib.previousElementSibling; hops++;
         }
     }
 
@@ -733,11 +769,46 @@
             const name = originalNode.querySelector('.ChatMessageName')?.textContent?.trim();
             if (name) body = `${name}: ${translatedText}`;
         }
-        div.textContent = `[🌐] ${body}`;
+        // 用 span 包住文字，讓「A/文」摺疊按鈕（若套用）能插在文字前面而不覆蓋掉整段文字。
+        const textSpan = document.createElement('span');
+        textSpan.textContent = `[🌐] ${body}`;
+        div.appendChild(textSpan);
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
         const wasAtEnd = chatWasAtEnd();   // 插入前先判斷是否本來就在底部
         originalNode.parentNode.insertBefore(div, originalNode.nextSibling);
         scrollChatToEndIfWasAtEnd(wasAtEnd);
+        return div;
+    }
+
+    // ============================================================
+    // 譯文摺疊（原句＋譯文合併成一則訊息，預設只顯示譯文，按「A/文」展開/收合原句）
+    // 接收、發送（自己訊息的翻譯回顯）共用同一套 UI。
+    // ============================================================
+    function applyFoldUI(originalNode, displayNode) {
+        if (!(originalNode instanceof HTMLElement) || !(displayNode instanceof HTMLElement)) return;
+        originalNode.style.display = 'none';
+        displayNode.classList.add('mat-folded');
+        // 優先插在 BC 原生的訊息內容容器裡；我們自建的 div 沒有這個容器，退回用 div 本身當容器。
+        const anchor = displayNode.querySelector('.chat-room-message-content') || displayNode;
+        if (anchor.querySelector(':scope > .mat-fold-toggle')) return;   // 已加過按鈕，避免重複
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'mat-fold-toggle';
+        btn.textContent = 'A/文';
+        btn.title = ui('foldShowOrig');
+        btn.style.cssText = 'all:unset;cursor:pointer;display:inline-block;line-height:1.4;vertical-align:middle;' +
+            'color:#4CAF50;font-size:0.78em;font-weight:bold;padding:0 4px;margin-right:5px;' +
+            'border:1px solid rgba(76,175,80,0.55);border-radius:3px;';
+        btn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+        btn.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            const showingOrig = originalNode.style.display !== 'none';
+            originalNode.style.display = showingOrig ? 'none' : '';
+            btn.title = showingOrig ? ui('foldShowOrig') : ui('foldHideOrig');
+            btn.style.background = showingOrig ? '' : 'rgba(76,175,80,0.28)';
+        });
+        anchor.insertBefore(btn, anchor.firstChild);
     }
 
     // ============================================================
@@ -1471,8 +1542,8 @@
             if (desc && MouseIn(CBX, y, HK_KEY_X - CBX - 10, CB_SZ)) this.hoverDesc = desc;
         },
 
-        _tabLabels() { return [ui('tab_basic'), ui('tab_recv'), ui('tab_send'), ui('tab_other')]; },
-        _tabDesc()   { return [ui('descBasic'), ui('descRecv'), ui('descSend'), ui('descOther')][this.tab - 1]; },
+        _tabLabels() { return [ui('tab_basic'), ui('tab_send'), ui('tab_recv'), ui('tab_other')]; },
+        _tabDesc()   { return [ui('descBasic'), ui('descSend'), ui('descRecv'), ui('descOther')][this.tab - 1]; },
 
         run() {
             this.hoverDesc = '';
@@ -1505,7 +1576,7 @@
             DrawEmptyRect(HELP_X, HELP_Y, HELP_W, HELP_H, "#888");
 
             // 中間內容
-            [this._runBasic, this._runRecv, this._runSend, this._runOther][this.tab - 1].call(this);
+            [this._runBasic, this._runSend, this._runRecv, this._runOther][this.tab - 1].call(this);
 
             // 說明文字（hover 優先，否則顯示分頁常駐說明）
             const desc = this.hoverDesc || this._tabDesc();
@@ -1515,10 +1586,10 @@
         _runBasic() {
             let y = this.C.ROW_Y0; const H = this.C.ROW_H;
             DrawText(ui('tab_basic'), 850, 200, "#2e7d32", "Gray");
-            this._cb(y, ui('optRecv'), config.translateReceived, ui('dRecv'), () => { config.translateReceived = !config.translateReceived; saveSettings(); }); y += H;
-            this._lang(y, ui('lblRecvLang'), uiRecvIdx, ui('dRecvLang'), code => { const i = langCodes.indexOf(code); if (i < 0) return; uiRecvIdx = i; config.recvLang = code; saveSettings(); }); y += H;
             this._cb(y, ui('optSend'), config.translateSent, ui('dSend'), () => { config.translateSent = !config.translateSent; saveSettings(); }); y += H;
             this._lang(y, ui('lblSendLang'), uiSendIdx, ui('dSendLang'), code => { const i = langCodes.indexOf(code); if (i < 0) return; uiSendIdx = i; config.sendLang = code; saveSettings(); }); y += H;
+            this._cb(y, ui('optRecv'), config.translateReceived, ui('dRecv'), () => { config.translateReceived = !config.translateReceived; saveSettings(); }); y += H;
+            this._lang(y, ui('lblRecvLang'), uiRecvIdx, ui('dRecvLang'), code => { const i = langCodes.indexOf(code); if (i < 0) return; uiRecvIdx = i; config.recvLang = code; saveSettings(); }); y += H;
         },
 
         _runSend() {
@@ -1531,6 +1602,7 @@
             this._cb(y, ui('optBeep'),    config.sendBeep,         ui('dBeep'),    () => { config.sendBeep = !config.sendBeep; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optSkipZh'),  config.sendSkipZhVariant, ui('dSkipZh'), () => { config.sendSkipZhVariant = !config.sendSkipZhVariant; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optHideOrig'), config.sendHideOriginal, ui('dHideOrigSend'), () => { config.sendHideOriginal = !config.sendHideOriginal; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optFold'),     config.sendFold,         ui('dFoldSend'),      () => { config.sendFold = !config.sendFold; saveSettings(); }, dis); y += H;
         },
 
         _runRecv() {
@@ -1543,7 +1615,7 @@
             this._cb(y, ui('optBeep'),    config.recvBeep,         ui('dBeep'),    () => { config.recvBeep = !config.recvBeep; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optLocal'),   config.recvLocal,        ui('dLocal'),   () => { config.recvLocal = !config.recvLocal; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optSkipZh'),  config.recvSkipZhVariant, ui('dSkipZh'), () => { config.recvSkipZhVariant = !config.recvSkipZhVariant; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optHideOrig'), config.recvHideOriginal, ui('dHideOrigRecv'), () => { config.recvHideOriginal = !config.recvHideOriginal; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optFold'),   config.recvFold,          ui('dFoldRecv'), () => { config.recvFold = !config.recvFold; saveSettings(); }, dis); y += H;
         },
 
         _runOther() {

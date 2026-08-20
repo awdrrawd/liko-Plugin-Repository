@@ -588,6 +588,10 @@
             TW: "隱藏原句、僅譯文", CN: "隐藏原句、仅译文", EN: "Hide original, translation only",
             DE: "Original ausblenden, nur Übersetzung", FR: "Masquer l'original, traduction seule", RU: "Скрыть оригинал, только перевод", UA: "Сховати оригінал, лише переклад"
         },
+        'optFold': {
+            TW: "譯文摺疊", CN: "译文折叠", EN: "Fold translation",
+            DE: "Übersetzung einklappen", FR: "Replier la traduction", RU: "Свернуть перевод", UA: "Згорнути переклад"
+        },
 
         // ── 其他設定：標籤 ─────────────────────────────────────────────────
         'optLoginNotice': { TW: "登入通知訊息", CN: "登录通知消息", EN: "Login notice", DE: "Login-Hinweis", FR: "Avis de connexion", RU: "Уведомление при входе", UA: "Сповіщення при вході" },
@@ -649,6 +653,10 @@
         'dSkipZh':   { TW: "當你的語言設為繁/簡體，且對象內容已是中文（含日、韓例外）時跳過翻譯，避免中翻中。", CN: "当你的语言设为繁/简体，且对象内容已是中文（日、韩例外）时跳过翻译，避免中翻中。", EN: "When your language is Traditional/Simplified Chinese and the text is already Chinese (Japanese/Korean excepted), skip the pointless zh→zh translation." },
         'dHideOrigSend': { TW: "發送聊天/私聊/動作/情境時不送原句，只送出翻譯結果（仍帶 [🌐] 與隱藏旗標供對方判斷）；翻譯失敗才補送原文。因翻譯需等待，自己的訊息會略慢幾百毫秒出現。", CN: "发送聊天/私聊/动作/情境时不送原句，只送出翻译结果（仍带 [🌐] 与隐藏旗标供对方判断）；翻译失败才补送原文。因翻译需等待，自己的消息会略慢几百毫秒出现。", EN: "For Chat/Whisper/Emote/Action, don't send the original — send only the translation (still tagged [🌐] plus a hidden flag); fall back to the original only if translation fails. Your message appears a few hundred ms later due to the async translation." },
         'dHideOrigRecv': { TW: "接收訊息並翻譯成功後，隱藏原句、只留譯文。翻譯失敗或簡繁跳過時原句保留。", CN: "接收消息并翻译成功后，隐藏原句、只留译文。翻译失败或简繁跳过时原句保留。", EN: "After a message is received and translated, hide the original and keep only the translation. The original stays if translation fails or is zh-skipped." },
+        'dFoldRecv': { TW: "收到訊息並翻譯成功後，把原句與譯文合併成一則訊息、優先顯示譯文；點訊息前方的「A/文」按鈕可展開/收合查看原句。翻譯失敗或簡繁跳過時不摺疊。", CN: "收到消息并翻译成功后，把原句与译文合并成一则消息、优先显示译文；点消息前方的「A/文」按钮可展开/收合查看原句。翻译失败或简繁跳过时不折叠。", EN: "After a received message is translated, merge the original and translation into one message and show the translation first; click the \"A/文\" button in front of it to expand/collapse the original. Not folded if translation fails or is zh-skipped." },
+        'dFoldSend': { TW: "你發送的訊息翻譯廣播回顯後，把你的原句與譯文合併成一則訊息（僅自己畫面）、優先顯示譯文；點「A/文」按鈕可展開/收合查看原句。需搭配「僅發送譯文」關閉（原句仍正常送出）才有原句可摺。", CN: "你发送的消息翻译广播回显后，把你的原句与译文合并成一则消息（仅自己画面）、优先显示译文；点「A/文」按钮可展开/收合查看原句。需搭配「仅发送译文」关闭（原句仍正常送出）才有原句可折。", EN: "After your own translation broadcast echoes back, merge your original and translation into one message (your view only) and show the translation first; click \"A/文\" to expand/collapse the original. Requires \"Send translation only\" to be OFF so the original is actually sent and available to fold." },
+        'foldShowOrig': { TW: "顯示原文", CN: "显示原文", EN: "Show original", DE: "Original anzeigen", FR: "Afficher l'original", RU: "Показать оригинал", UA: "Показати оригінал" },
+        'foldHideOrig': { TW: "收合原文", CN: "折叠原文", EN: "Hide original", DE: "Original einklappen", FR: "Masquer l'original", RU: "Свернуть оригинал", UA: "Згорнути оригінал" },
         'dLoginNotice':  { TW: "登入時在聊天室顯示 MAT 初始化通知。", CN: "登录时在聊天室显示 MAT 初始化通知。", EN: "Show the MAT init notice in chat on login." },
         'dManual':       { TW: "點選一則訊息時，出現手動翻譯的小工具列。", CN: "点选一则消息时，出现手动翻译的小工具栏。", EN: "Show a small manual-translate toolbar when you click a message." },
         'dSelection':    { TW: "選取任意文字後，出現翻譯氣泡（總開關關閉時仍可用）。", CN: "选取任意文字后，出现翻译气泡（总开关关闭时仍可用）。", EN: "Show a translate bubble after selecting text (works even when MAT is off)." },
