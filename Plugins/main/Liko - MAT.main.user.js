@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.4
+// @version      1.7.5
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.4";
+    const MOD_VER = "1.7.5";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -755,7 +755,9 @@
         }
 
         node.classList.add("mat-processed");
-        const message = extractCleanMessage(node);
+        // Action 優先使用 ChatRoomMessage hook 從原始 Dictionary 解出的權威內容；只有舊訊息或
+        // hook 未接上時才從已本地化、可能被其他插件改寫過的 DOM 反推文字。
+        const message = typeof node._matRawMessage === 'string' ? node._matRawMessage : extractCleanMessage(node);
         if (!message) return;
         if (skipZhRecv(message)) return;
         // 對方已標記要翻成我的語言（mat-skip）：先等其 [🌐] 廣播，最多 1 秒；沒到（對方翻譯失敗）才自翻
@@ -763,7 +765,7 @@
         const translated = await smartTranslate(message, config.recvLang);
         if (translated !== null && translated !== message) {
             const div = createTranslatedDiv(node, translated);
-            // 譯文摺疊：原句＋譯文配成一組，譯文維持在原句下方，按「A/文」可展開查看原句。
+            // 譯文摺疊：原句＋譯文配成一組；applyFoldUI 會改成「譯文 → 原文」，預設隱藏原文。
             // 只在確實產生譯文後才摺疊（失敗/簡繁跳過不摺，免訊息消失）。
             const cl = node.classList;
             if (config.recvFold &&
@@ -799,7 +801,7 @@
                 const sSenderEl = sib.querySelector('.chat-room-sender');
                 if (sSenderEl?.textContent == Player?.MemberNumber) {
                     applyFoldUI(sib, node);
-                    // 保持原句在前、譯文在後；展開時閱讀順序固定為原文 → 譯文。
+                    // applyFoldUI 會把顯示順序固定為「譯文 → 原文」，預設隱藏原文。
                 }
                 return;
             }
@@ -980,7 +982,7 @@
 
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
         const wasAtEnd = chatWasAtEnd();   // 插入前先判斷是否本來就在底部
-        // 譯文固定插在原句下方，摺疊展開時也維持「原文 → 譯文」的閱讀順序。
+        // 一般模式固定為「原文 → 譯文」。若稍後啟用摺疊，applyFoldUI 才會調整為「譯文 → 原文」。
         originalNode.parentNode.insertBefore(div, originalNode.nextSibling);
         applyTranslationMessageFilterToNode(div);
         scrollChatToEndIfWasAtEnd(wasAtEnd);
@@ -1019,12 +1021,17 @@
     }
 
     // ============================================================
-    // 譯文摺疊（原句＋譯文合併成一組，譯文位於原句下方；預設只顯示譯文）
+    // 譯文摺疊（原句＋譯文合併成一組，順序為「譯文 → 原文」；預設只顯示譯文）
     // 接收、發送（自己訊息的翻譯回顯）共用同一套 UI。「A/文」按鈕改放在 mat-click-toolbar 最左側，
     // 不再嵌在訊息文字前面；這裡只負責摺疊狀態與登記配對，實際按鈕由 createClickToolbar/showClickToolbar 處理。
     // ============================================================
     function applyFoldUI(originalNode, displayNode) {
         if (!(originalNode instanceof HTMLElement) || !(displayNode instanceof HTMLElement)) return;
+        // 一般翻譯先插在原文下方；只有進入摺疊模式才把譯文移到原文上方。
+        // 因此收合時只見譯文，點「A/文」展開後則是「譯文 → 原文」，不會顛倒一般模式。
+        if (originalNode.parentNode && originalNode.parentNode === displayNode.parentNode) {
+            originalNode.parentNode.insertBefore(displayNode, originalNode);
+        }
         originalNode.style.display = 'none';
         displayNode.classList.add('mat-folded');
         originalNode.classList.add('mat-fold-orig');
@@ -1446,25 +1453,66 @@
     }
 
     // ============================================================
+    // Action 原始資料解析（發送與接收共用）
+    // ============================================================
+    // Action 的 Content 通常是本地化模板鍵，Dictionary 則是一張替換表。LSCG 等 mod 會把
+    // 真正訊息放成多段引用（Content="Beep" → Tag="Beep", Text="msg" → Tag="msg", Text=實文），
+    // 而且替換項可能藏在巢狀物件/陣列中。不要依賴 Dictionary[0] 或固定的 "msg" 開頭；改為：
+    //   1. 有 Content 對應 Tag 時，以它為引用鏈入口；否則沿用 BC 常見的第一個 Text。
+    //   2. Text 若完整等於另一個 Tag，就繼續解引用，直到取得真正文字。
+    // 遍歷與解引用都有上限並防循環，畸形/敵意資料只會安全退回，不會卡住遊戲訊息處理。
+    function getActionRealText(data) {
+            const dict = data?.Dictionary;
+            if (!Array.isArray(dict) || !dict.length) return null;
+
+            const entries = [];
+            const seenObjects = new Set();
+            const stack = dict.map(value => ({ value, depth: 0 }));
+            while (stack.length && entries.length < 256 && seenObjects.size < 512) {
+                const { value, depth } = stack.pop();
+                if (!value || typeof value !== 'object' || seenObjects.has(value) || depth > 12) continue;
+                seenObjects.add(value);
+                if (!Array.isArray(value) && typeof value.Tag === 'string' && typeof value.Text === 'string') {
+                    entries.push(value);
+                }
+                for (const child of Array.isArray(value) ? value : Object.values(value)) {
+                    if (child && typeof child === 'object') stack.push({ value: child, depth: depth + 1 });
+                }
+            }
+
+            // 同 Tag 多筆時優先選 Text 不是自我引用的項目；這也涵蓋多語系別名都指向同一 msg 的情況。
+            const byTag = new Map();
+            for (const entry of entries) {
+                const list = byTag.get(entry.Tag) || [];
+                list.push(entry);
+                byTag.set(entry.Tag, list);
+            }
+            const resolve = (initial) => {
+                let text = typeof initial === 'string' ? initial : null;
+                const seenTags = new Set();
+                for (let hop = 0; text !== null && hop < 16; hop++) {
+                    const refs = byTag.get(text);
+                    if (!refs?.length || seenTags.has(text)) break;
+                    seenTags.add(text);
+                    const nextEntry = refs.find(e => e.Text !== text) || refs[0];
+                    if (nextEntry.Text === text) break;
+                    text = nextEntry.Text;
+                }
+                return text;
+            };
+
+            const contentEntry = typeof data.Content === 'string' ? byTag.get(data.Content)?.[0] : null;
+            if (contentEntry) return resolve(contentEntry.Text);
+            const firstDirectText = dict.find(e => e && typeof e.Text === 'string')?.Text;
+            return resolve(firstDirectText ?? entries[0]?.Text ?? null);
+    }
+
+    // ============================================================
     // 發送翻譯
     // ============================================================
     function hookSendFunctions() {
         if (!modApi) return;
         const safeStr = (v) => typeof v === 'string' ? v : null;
-
-        // LSCG（以及其他採用相同手法的 mod）的 SendAction() 是借用一個已翻譯好的本地化字串
-        // （如 "Beep"）當佔位符，Dictionary[0].Text 因此是字面上的 "msg"，真正的內容是放在
-        // 陣列中 Tag === "msg" 的那一項。若無腦抓 Dictionary[0].Text 會把 "msg" 這個字面值
-        // 當成原文去翻譯，導致誤判翻譯成功、多送出一則內容錯誤的訊息。
-        // 這裡優先偵測此樣式，抓不到才退回舊版 Dictionary[0].Text，不影響其它一般 mod 的相容性。
-        function getActionRealText(dict) {
-            if (!Array.isArray(dict) || !dict.length) return null;
-            if (dict[0]?.Text === "msg") {
-                const real = dict.find(d => d?.Tag === "msg" && typeof d.Text === "string" && d.Text !== "msg");
-                if (real) return real.Text;
-            }
-            return safeStr(dict[0]?.Text);
-        }
 
         // 隱藏原句模式：翻譯失敗時要補送原文，但直接 ServerSend(原data) 會重入本 hook 再翻一次而死循環。
         // 用同步旗標放行這一次補送（ServerSend→hook 是同步的，補送完立即歸位）。
@@ -1486,6 +1534,7 @@
             if (matBypass) return next(args);
             const [command, data] = args;
             if (!config.enabled || !config.translateSent) return next(args);
+            if (!data || typeof data !== 'object') return next(args);
 
             // 夾語言旗標（config.sendLang）到 Dictionary：
             //  - 原句：夾「我會翻成 X 並廣播」意圖旗標，接收端據此跳過重複翻譯（顏文字/編碼/[🌐]/
@@ -1495,8 +1544,8 @@
                 const typeOn = { Chat: true, Emote: config.sendEmote, Whisper: config.sendWhisper, Action: config.sendAction };
                 // 原句用未亂碼 _matRaw 判斷（被堵嘴時 Content 已亂碼）；廣播不經 Generate、無 _matRaw，仍看 Content 抓 [🌐]。
                 const raw = typeof data._matRaw === 'string' ? data._matRaw : null;
-                const ot = data.Type === "Action" ? getActionRealText(data.Dictionary) : (raw || safeStr(data.Content));
-                const isBroadcast = safeStr(data.Content)?.includes('[🌐]') || getActionRealText(data.Dictionary)?.includes('[🌐]') || false;
+                const ot = data.Type === "Action" ? getActionRealText(data) : (raw || safeStr(data.Content));
+                const isBroadcast = safeStr(data.Content)?.includes('[🌐]') || getActionRealText(data)?.includes('[🌐]') || false;
                 if (ot && typeOn[data.Type] && (isBroadcast || (!isUntranslatable(ot) && !skipZhSend(ot)))) addMATFlag(data, isBroadcast);
             }
 
@@ -1521,7 +1570,7 @@
                 }
             }
             if (command === "ChatRoomChat" && data.Type === "Action" && config.sendAction) {
-                const t = getActionRealText(data.Dictionary);
+                const t = getActionRealText(data);
                 if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
                     const hide = config.sendHideOriginal;
                     let origEchoNode = null;
@@ -1627,6 +1676,16 @@
                 // 不需要再靠 findFlaggedNode 的 MsgId/末節點 heuristic 去反查——這裡精準度更高。
                 if (result instanceof HTMLElement && typeof data.Type === 'string') {
                     result.dataset.matType = data.Type;
+                    if (data.Type === 'Action' || data.Type === 'Activity') {
+                        const rawMessage = getActionRealText(data);
+                        if (rawMessage) {
+                            try {
+                                Object.defineProperty(result, '_matRawMessage', {
+                                    value: rawMessage, enumerable: false, configurable: true
+                                });
+                            } catch { result._matRawMessage = rawMessage; }
+                        }
+                    }
                 }
 
                 if (!config.enabled || !config.translateReceived) return result;
