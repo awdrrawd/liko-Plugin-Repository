@@ -159,18 +159,35 @@
 	}
 
 	/**
-	 * 需要時才補一個 `position: relative` 定位錨點，且僅在 computed position
-	 * 確實是 static 時才補。el.style.position 只讀得到行內樣式，讀不到樣式表給的
-	 * position（chat-room-div 可能就是靠樣式表的 absolute + top/left/right/bottom
-	 * 撐滿版面）；用 `||=` 判斷幾乎必為 falsy，會強制寫入行內 relative 蓋掉原本的
-	 * absolute/fixed，使版面跑掉。改用 getComputedStyle 才不會誤蓋。
+	 * 【TextAreaChatLog 高度 bug 根因】原生 ChatRoomInputResize() 會拿
+	 * #chat-room-div 目前的 boundingClientRect 高度，扣掉「所有可見的直屬
+	 * children（除了 TextAreaChatLog 自己）」的高度，剩下的當成 TextAreaChatLog
+	 * 該有的高度寫回去（見 ChatRoom.js）。它判斷「可見」用的是
+	 * el.checkVisibility({checkVisibilityCSS:false})：只要 display 不是 none
+	 * 就算可見，不管是不是 position:absolute 疊在別的元素上面、根本沒佔用文件
+	 * 流版面。
+	 *
+	 * 先前 badge／搜尋列都是用 position:absolute 疊層、直接掛在
+	 * chatLog.parentElement（也就是 #chat-room-div）底下：它們雖然視覺上疊在
+	 * TextAreaChatLog 上方沒有另外佔位置，但在原生計算眼中就是一個「可見的
+	 * sibling」，會被誤把它們的高度也從 TextAreaChatLog 身上扣掉一次。而這個
+	 * 計算只在 InputChat 高度變動時才會重新觸發（換行變高/變回單行），所以：
+	 * 凍結中如果 InputChat 換行→原生重算→誤扣掉 badge/搜尋列高度→
+	 * TextAreaChatLog 變短；且因為這次計算本身「精準地」重算了一次（只是依據
+	 * 錯誤的可見 sibling 清單），在下一次 InputChat 高度變動之前不會自動修正，
+	 * 必須解凍拿掉 badge/搜尋列後，InputChat 再變一次高度，才會用「正確」的
+	 * sibling 清單重算回來。
+	 *
+	 * 對策（讓 CSF 不管凍結與否都不去動到 TextAreaChatLog 的高度）：
+	 *   1. badge 完全脫離 #chat-room-div，改直接掛在 document.body、用
+	 *      position:fixed 手動算座標——原生迴圈只走 parent.children，看不到
+	 *      掛在 body 下的節點，永遠不會被誤算進去。
+	 *   2. 搜尋列改成真的插進文件流（TextAreaChatLog 與 chat-room-top-menu
+	 *      之間，見 showSearchBar），不再是覆蓋層：它的高度本來就「應該」被
+	 *      原生計算扣掉，不是 bug；我們只在插入/移除當下主動呼叫一次
+	 *      ChatRoomInputResize() 立刻重算，不必等到下一次 InputChat 高度變動
+	 *      才會生效，也就不會留下一段高度算錯的空窗期。
 	 */
-	function ensureRelativeAnchor(el) {
-		if (!el) return;
-		if (getComputedStyle(el).position === "static") {
-			el.style.position = "relative";
-		}
-	}
 
 	/** 距離底部還有多少像素（正值代表還沒到底）。與 isAtBottom / 比例計算共用。 */
 	function scrollGapPx(el) {
@@ -194,6 +211,44 @@
 	function captureWhileFrozen(div) {
 		messageQueue.push(div);
 		showBadge(messageQueue.length);
+	}
+
+	/**
+	 * 主動請原生排版立刻重新計算 TextAreaChatLog 的高度：把目前 DOM 中真實
+	 * 存在的 siblings（包含我們剛插入/移除的搜尋列）算進去。搜尋列現在走正常
+	 * 文件流，所以這裡是「讓正確的高度立刻生效」，不是覆蓋層那種誤扣。找不到
+	 * 原生函式或 InputChat 時安靜跳過，不影響其餘流程。
+	 */
+	function triggerNativeResize() {
+		try {
+			const chatInput = document.getElementById("InputChat");
+			if (chatInput && typeof window.ChatRoomInputResize === "function") {
+				window.ChatRoomInputResize(chatInput);
+			}
+		} catch (e) {}
+	}
+
+	/** 讓 badge 貼齊 TextAreaChatLog 目前的可視範圍（底部置中）。badge 掛在
+	 *  document.body、position:fixed，不受 chatLog 內部捲動影響，所以每次
+	 *  chatLog 的版面（大小或位置）變動時都要重新算一次座標。 */
+	function repositionBadge() {
+		const badge = document.getElementById(BADGE_ID);
+		const chatLog = getChatLog();
+		if (!badge || !chatLog) return;
+		const rect = chatLog.getBoundingClientRect();
+		badge.style.left = `${rect.left + rect.width / 2}px`;
+		badge.style.bottom = `${Math.max(0, window.innerHeight - rect.bottom) + 8}px`;
+	}
+
+	/** 觀察 chatLog 本身的版面變動（例如原生重算高度），變動時順便把 badge
+	 *  重新定位；只需要建立一次。 */
+	let chatLogResizeObserver = null;
+	function ensureChatLogObserver(chatLog) {
+		if (chatLogResizeObserver || !chatLog || typeof ResizeObserver !== "function") return;
+		chatLogResizeObserver = new ResizeObserver(() => {
+			if (document.getElementById(BADGE_ID)) repositionBadge();
+		});
+		chatLogResizeObserver.observe(chatLog);
 	}
 
 	/**
@@ -259,10 +314,9 @@
 		style.id = "chat-scroll-freeze-style";
 		style.textContent = `
 			#${SEARCH_BAR_ID} {
-				position: absolute;
-				top: 0;
-				left: 0;
-				right: 0;
+				/* 走正常文件流（見 showSearchBar 根因說明），不再是覆蓋層，
+				   所以這裡不設 position/top/left/right，讓它照文件順序排版。 */
+				box-sizing: border-box;
 				z-index: 60;
 				display: flex;
 				align-items: center;
@@ -335,17 +389,15 @@
 	/** 顯示/更新「有 N 則新訊息，捲到底查看」的小提示條 */
 	function showBadge(count) {
 		const chatLog = getChatLog();
-		if (!chatLog || !chatLog.parentElement) return;
+		if (!chatLog) return;
 
 		let badge = document.getElementById(BADGE_ID);
 		if (!badge) {
 			badge = document.createElement("div");
 			badge.id = BADGE_ID;
 			badge.style.cssText = [
-				"position:absolute",
-				"left:50%",
+				"position:fixed", // 掛在 body 下、脫離 #chat-room-div，見上方根因說明
 				"transform:translateX(-50%)",
-				"bottom:8px",
 				"z-index:50",
 				"padding:4px 12px",
 				"border-radius:999px",
@@ -359,10 +411,11 @@
 				const el = getChatLog();
 				if (el) el.scrollTop = el.scrollHeight;
 			});
-			ensureRelativeAnchor(chatLog.parentElement);
-			chatLog.parentElement.appendChild(badge);
+			document.body.appendChild(badge);
+			ensureChatLogObserver(chatLog);
 		}
 		badge.textContent = t("badge", { count });
+		repositionBadge();
 	}
 
 	function hideBadge() {
@@ -481,18 +534,10 @@
 		}
 	}
 
-	/** 讓搜尋框貼在 chatLog 正上方（用其相對 offsetParent 的偏移量），不管上方
-	 *  選單/struggle bar 目前高度多少都不會被蓋住。 */
-	function repositionSearchBar() {
-		const bar = document.getElementById(SEARCH_BAR_ID);
-		const chatLog = getChatLog();
-		if (!bar || !chatLog) return;
-		bar.style.top = `${chatLog.offsetTop}px`;
-	}
-
 	function showSearchBar() {
 		const chatLog = getChatLog();
-		if (!chatLog || !chatLog.parentElement) return;
+		const parent = chatLog?.parentElement; // #chat-room-div
+		if (!chatLog || !parent) return;
 		if (document.getElementById(SEARCH_BAR_ID)) return; // 已存在
 
 		injectStyleOnce();
@@ -510,15 +555,11 @@
 			<button type="button" data-action="close" title="${t("closeTitle")}">✕</button>
 		`;
 
-		ensureRelativeAnchor(chatLog.parentElement);
-		chatLog.parentElement.appendChild(bar);
-		repositionSearchBar();
-
-		// 幫聊天室本體讓出空間，避免搜尋框蓋住捲到頂端時的第一則訊息
-		chatLog.style.scrollPaddingTop = `${bar.offsetHeight}px`;
-
-		// 上方選單高度可能隨視窗變化，開著搜尋框時持續重新定位
-		window.addEventListener("resize", repositionSearchBar);
+		// 插在 chat-room-top-menu 與 TextAreaChatLog 之間，走正常文件流（不是
+		// 覆蓋層）：不用再算 offsetTop、不用再留 scrollPaddingTop 擔心蓋住第一
+		// 則訊息或房間名稱列，原生高度計算也會自然把這裡的高度算進去。
+		parent.insertBefore(bar, chatLog);
+		triggerNativeResize(); // 立刻重算 TextAreaChatLog 高度，不留舊尺寸空窗期
 
 		const input = bar.querySelector("input");
 		bar.querySelector('[data-action="next"]').addEventListener("click", () => gotoMatch(searchCurrentIndex + 1));
@@ -553,10 +594,8 @@
 
 	function closeSearchBar() {
 		clearHighlights();
-		window.removeEventListener("resize", repositionSearchBar);
 		document.getElementById(SEARCH_BAR_ID)?.remove();
-		const chatLog = getChatLog();
-		if (chatLog) chatLog.style.scrollPaddingTop = "";
+		triggerNativeResize(); // 移出文件流後同樣立刻重算，避免殘留放大的舊 chatLog 高度
 	}
 
 	// ---------------------------------------------------------------------
@@ -627,6 +666,9 @@
 			if (boundChatLog) boundChatLog.removeEventListener("scroll", onScroll);
 			chatLog.addEventListener("scroll", onScroll, { passive: true });
 			boundChatLog = chatLog;
+			// 聊天室節點被整個換掉時，先前掛在舊節點上的 ResizeObserver 要重綁。
+			if (chatLogResizeObserver) { chatLogResizeObserver.disconnect(); chatLogResizeObserver = null; }
+			if (document.getElementById(BADGE_ID)) ensureChatLogObserver(chatLog);
 		}
 
 		ensureIntercepted();
@@ -648,6 +690,10 @@
 	} else {
 		window.addEventListener("resize", onViewportResize);
 	}
+	// ResizeObserver 只在 chatLog 自身「尺寸」變動時觸發；視窗縮放但 chatLog
+	// 尺寸不變、只是位置變動的情況（例如純粹平移）另外補一個 window resize
+	// 監聽，確保 badge 的 fixed 座標不會跟丟。
+	window.addEventListener("resize", () => { if (document.getElementById(BADGE_ID)) repositionBadge(); });
 
 	// 先試著攔一次（BC 核心已就位的話馬上成功），失敗則交給下方輪詢稍後再試。
 	ensureIntercepted();
@@ -668,6 +714,8 @@
 		} catch (e) {}
 		try { removeHook?.(); } catch (e) {}
 		try { removeSendHook?.(); } catch (e) {}
+		try { chatLogResizeObserver?.disconnect(); chatLogResizeObserver = null; } catch (e) {}
+		try { document.getElementById(BADGE_ID)?.remove(); } catch (e) {}
 		// fallback 模式：還原直接覆寫（僅在確定當前掛的就是我們的包裝時）
 		if (monkeyOriginal && window.ChatRoomAppendChat !== monkeyOriginal) {
 			try { window.ChatRoomAppendChat = monkeyOriginal; } catch (e) {}

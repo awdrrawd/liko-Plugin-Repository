@@ -12,13 +12,17 @@
     const ANIM_MS = 200;
     const DEFAULT_VISIBLE_PLUGINS = 5;
     const HEAL_INTERVAL_MS = 500;
+    // 原生 chat-room-send 被 CRB 接管改成開設定面板後，還是有人需要「單純發送
+    // 訊息」的按鈕，所以補一顆走 CDN 的 APNG 圖示按鈕，預設隱藏，需要的人自己
+    // 從設定面板拉出來顯示即可。
+    const MSG_SEND_ICON_URL = 'https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/System/CRB-Send.png';
     const slots = {};
     const plainIds = new Set();
     const els = new Map();
     const specs = new Map();
 
     function settings() {
-        const fallback = { order: [], persistent: [], hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS };
+        const fallback = { order: [], persistent: [], hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS, seeded: [] };
         if (typeof Player === 'undefined' || !Player) return fallback;
         Player.ExtensionSettings = Player.ExtensionSettings || {};
         const saved = Player.ExtensionSettings[SETTINGS_KEY];
@@ -27,8 +31,26 @@
         if (!Array.isArray(value.order)) value.order = [];
         if (!Array.isArray(value.persistent)) value.persistent = [];
         if (!Array.isArray(value.hidden)) value.hidden = [];
+        // 記錄「哪些按鈕 id 已經套用過一次性預設可見度」，避免每次重進聊天室
+        // 都把使用者自己調整過的顯示/隱藏狀態，又強制蓋回去。
+        if (!Array.isArray(value.seeded)) value.seeded = [];
         value.visibleCount = Math.max(1, Math.min(10, Math.round(Number(value.visibleCount) || DEFAULT_VISIBLE_PLUGINS)));
         return value;
+    }
+
+    /**
+     * 讓某個按鈕第一次出現時採用指定的預設可見度（例如預設隱藏），但只套用
+     * 一次：套用過後會記進 settings().seeded，之後使用者自己在設定面板調整
+     * 過，就不會被這裡覆蓋回去。
+     * @param {string} id
+     * @param {boolean} hiddenByDefault
+     */
+    function seedDefaultVisibility(id, hiddenByDefault) {
+        const value = settings();
+        if (value.seeded.includes(id)) return;
+        value.seeded.push(id);
+        if (hiddenByDefault && !value.hidden.includes(id)) value.hidden.push(id);
+        saveSettings();
     }
 
     function saveSettings() {
@@ -445,7 +467,11 @@
                 saveSettings(); applyLayout();
             };
             panel.querySelector('[data-reset]').onclick = () => {
-                Object.assign(settings(), { order: [], persistent: [], hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS });
+                // seeded 也要一併清空，不然 msg-Send 等「預設隱藏」的按鈕會因為
+                // seedDefaultVisibility() 判斷「已經套用過一次」而被跳過，
+                // 還原後反而變成顯示、不是真的回到預設狀態。
+                Object.assign(settings(), { order: [], persistent: [], hidden: [], visibleCount: DEFAULT_VISIBLE_PLUGINS, seeded: [] });
+                applyDefaultSeeds();
                 saveSettings(); applyLayout(); render();
             };
             let draggedKey = null;
@@ -539,6 +565,36 @@
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded', 'hidden'] });
     setInterval(() => { specs.forEach((_spec, id) => ensureButton(id)); applyLayout(); }, HEAL_INTERVAL_MS);
     injectStyle();
+
+    /** 集中列出「第一次出現時預設隱藏」的按鈕 id，bootstrap 跟設定面板的
+     *  「還原預設」都呼叫這裡，確保兩邊行為一致。 */
+    function applyDefaultSeeds() {
+        seedDefaultVisibility('msg-Send', true);
+    }
+
+    function msgSendTooltip() {
+        const language = typeof TranslationLanguage === 'string' ? TranslationLanguage.toUpperCase() : 'EN';
+        if (language === 'TW') return '傳送訊息';
+        if (language === 'CN') return '发送消息';
+        return 'Send Message';
+    }
+
+    // 補回原本 chat-room-send 的「發送訊息」功能：CRB 把原生按鈕改成開設定
+    // 面板後，這顆是唯一還會呼叫 ChatRoomSendChat() 的按鈕。預設放進隱藏區，
+    // 使用者若還是想要一顆單純發送用的按鈕，可自行從設定面板拉到顯示區。
+    add({
+        id: 'msg-Send',
+        order: -9990,
+        collapse: true,
+        tooltip: msgSendTooltip,
+        background: '#49d9ff', // 水藍色，跟設定面板的 --crb-neon 同色系
+        icon: { src: MSG_SEND_ICON_URL, animated: true, alt: 'Send' },
+        onClick: () => {
+            try { if (typeof ChatRoomSendChat === 'function') ChatRoomSendChat(); }
+            catch (error) { console.warn('[CRB] msg-Send failed:', error); }
+        },
+    });
+    applyDefaultSeeds();
 
     global.Liko.__Sys_ChatRoomButtons__ = {
         Version: '1.0', slots, plainIds, register, get, reapply, setPlain, add, remove,
