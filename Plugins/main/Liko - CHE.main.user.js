@@ -3,7 +3,7 @@
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.5.0
+// @version      2.6.0
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,15 +18,12 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.5.0";
+    const MOD_VER = "2.6.0";
     if (window.Liko.CHE) return;
     window.Liko.CHE = MOD_VER;
 
     let modApi;
-    let currentMode = localStorage.getItem("chatlogger_mode") || "stopped";
-
-    let messageObserver = null;
-    let observerActive = false;
+    let currentMode = "stopped";
 
     window.cheErrorCount = 0;
     function logError(location, error) {
@@ -76,9 +73,7 @@
             toastDeleteN:n=>`[CHE] ✅ 已刪除 ${n} 個日期的數據`,
             toastDeleteNone:"[CHE] ❗ 沒有數據被刪除",toastDeleteFail:"[CHE] ❌ 刪除操作失敗",
             toastSaved:"[CHE] ✅ 已保存當前訊息到緩存",toastNoCacheData:"[CHE] ❗ 選中日期沒有數據",
-            toastAutoFail:"[CHE] ❌ 自動保存失敗",
-            toastRestore:n=>`[CHE] ✅ 恢復了 ${n} 條未保存的訊息`,
-            toastRestoreFail:"[CHE] ❌ 恢復數據保存失敗",toastInitFail:"[CHE] ❌ 初始化失敗",
+            toastAutoFail:"[CHE] ❌ 自動保存失敗",toastInitFail:"[CHE] ❌ 初始化失敗",
             toastNotLoaded:"❌ 聊天室尚未載入",
             prefButton:"CHE設定",
         },
@@ -110,9 +105,7 @@
             toastDeleteN:n=>`[CHE] ✅ Deleted ${n} date(s)`,
             toastDeleteNone:"[CHE] ❗ No data was deleted",toastDeleteFail:"[CHE] ❌ Delete operation failed",
             toastSaved:"[CHE] ✅ Current messages saved to cache",
-            toastNoCacheData:"[CHE] ❗ No data for selected dates",toastAutoFail:"[CHE] ❌ Auto-save failed",
-            toastRestore:n=>`[CHE] ✅ Restored ${n} unsaved messages`,
-            toastRestoreFail:"[CHE] ❌ Failed to save restored data",toastInitFail:"[CHE] ❌ Initialization failed",
+            toastNoCacheData:"[CHE] ❗ No data for selected dates",toastAutoFail:"[CHE] ❌ Auto-save failed",toastInitFail:"[CHE] ❌ Initialization failed",
             toastNotLoaded:"❌ Chat room not loaded yet",
             prefButton:"CHE Settings",
         }
@@ -191,59 +184,97 @@
     // =====================================================================
     // CacheManager
     // =====================================================================
+    // 注意："ChatLoggerV2" 是沿用的資料庫名稱，不代表目前 schema 版本。
+    // 真正版本是 indexedDB.open 的第二參數（目前為 3），所以 v2 → v3 會打開
+    // 同一個資料庫並在原地升級，原 daily_fragments 仍可供下方 migration 讀取。
+    const CHE_DB_NAME = "ChatLoggerV2";
+    const CHE_DB_VERSION = 3;
+
     const CacheManager = {
+        _dbPromise: null,
         async init() {
-            const request = indexedDB.open("ChatLoggerV2", 2);
-            request.onupgradeneeded = (e) => {
-                const db = e.target.result;
-                if (db.objectStoreNames.contains("fragments")) db.deleteObjectStore("fragments");
-                if (!db.objectStoreNames.contains("daily_fragments")) db.createObjectStore("daily_fragments");
-            };
-            return new Promise((resolve, reject) => {
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => { logError("CacheManager.init", "IndexedDB init failed"); reject("IndexedDB init failed"); };
+            if (this._dbPromise) return this._dbPromise;
+            this._dbPromise = new Promise((resolve, reject) => {
+                const request = indexedDB.open(CHE_DB_NAME, CHE_DB_VERSION);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (db.objectStoreNames.contains("fragments")) db.deleteObjectStore("fragments");
+                    if (!db.objectStoreNames.contains("daily_fragments")) db.createObjectStore("daily_fragments");
+                    if (!db.objectStoreNames.contains("messages")) {
+                        const store = db.createObjectStore("messages", { keyPath: "_key" });
+                        store.createIndex("account", "_account", { unique: false });
+                        store.createIndex("accountDate", "_accountDate", { unique: false });
+                    }
+                };
+                request.onsuccess = async () => {
+                    try { await this._migrateLegacy(request.result); resolve(request.result); }
+                    catch (e) { this._dbPromise = null; reject(e); }
+                };
+                request.onerror = () => {
+                    this._dbPromise = null;
+                    logError("CacheManager.init", request.error || "IndexedDB init failed");
+                    reject(request.error || new Error("IndexedDB init failed"));
+                };
+            });
+            return this._dbPromise;
+        },
+
+        async _migrateLegacy(db) {
+            // TODO(v2.7): 移除此 v2 daily_fragments 相容遷移；同時把 DB schema 升至 4，
+            // 並在 onupgradeneeded 中 deleteObjectStore("daily_fragments")。
+            if (!db.objectStoreNames.contains("daily_fragments")) return;
+            const tx = db.transaction(["daily_fragments", "messages"], "readwrite");
+            const legacy = tx.objectStore("daily_fragments");
+            const messages = tx.objectStore("messages");
+            await new Promise((resolve, reject) => {
+                const req = legacy.openCursor();
+                req.onsuccess = () => {
+                    const cursor = req.result;
+                    if (!cursor) return;
+                    const key = String(cursor.key);
+                    const split = key.indexOf("_");
+                    // 早期 v2 key 只有 YYYY-MM-DD，後期才加入 account_YYYY-MM-DD 前綴；兩者都接。
+                    const bareDate = /^\d{4}-\d{2}-\d{2}$/.test(key);
+                    const account = bareDate ? getAccountPrefix() : (split >= 0 ? key.slice(0, split) : getAccountPrefix());
+                    const date = bareDate ? key : (split >= 0 ? key.slice(split + 1) : DateUtils.getDateKey());
+                    const rows = Array.isArray(cursor.value?.messages) ? cursor.value.messages : [];
+                    rows.forEach((msg, i) => {
+                        const uid = msg._uid || msg.msgid || `legacy_${i}_${msg._ts || 0}`;
+                        messages.put({ ...msg, _uid:uid, _account:account, _dateStr:date,
+                            _accountDate:`${account}_${date}`, _key:`${account}_${date}_${uid}` });
+                    });
+                    cursor.delete();
+                    cursor.continue();
+                };
+                req.onerror = () => reject(req.error);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error("Legacy migration aborted"));
             });
         },
 
         _makeKey(dateStr) { return `${getAccountPrefix()}_${dateStr}`; },
 
+        _prepareRecord(msg, dateKey) {
+            const account = getAccountPrefix();
+            const uid = msg.msgid || msg._uid || `${msg._ts || Date.now()}_${Math.random().toString(36).slice(2)}`;
+            return { ...msg, _uid: uid, _account: account, _dateStr: dateKey,
+                _accountDate: `${account}_${dateKey}`, _key: `${account}_${dateKey}_${uid}` };
+        },
+
         async saveForDate(messages, dateKey) {
             if (!messages || messages.length === 0) return 0;
             try {
                 const db = await this.init();
-                const fullKey = this._makeKey(dateKey);
-                const tx = db.transaction(["daily_fragments"], "readwrite");
-                const store = tx.objectStore("daily_fragments");
-                const existing = await new Promise((resolve, reject) => {
-                    const req = store.get(fullKey);
-                    req.onsuccess = () => resolve(req.result ? req.result.messages : []);
-                    req.onerror = () => reject(req.error);
-                });
-                // FIX: 原本用 content.substring(0,50) 當 key 的一部分，若兩則不同訊息
-                // 剛好同一分鐘、同一人、前 50 字相同（常見於連續短句/表情），會被
-                // 誤判為重複而遺失。改用完整內容，避免碰撞。
-                const existingKeys = new Set();
-                existing.forEach(msg => {
-                    const key = msg.msgid || `${msg.time}-${msg.id}-${msg.content||""}`;
-                    existingKeys.add(key);
-                });
-                const newMessages = messages.filter(msg => {
-                    const key = msg.msgid || `${msg.time}-${msg.id}-${msg.content||""}`;
-                    return !existingKeys.has(key);
-                });
-                if (newMessages.length === 0) return existing.length;
-                const allMessages = [...existing, ...newMessages];
-                await new Promise((resolve, reject) => {
-                    const req = store.put({ messages: allMessages, count: allMessages.length, lastUpdate: Date.now() }, fullKey);
-                    req.onsuccess = () => resolve();
-                    req.onerror = () => reject(req.error);
-                });
+                const tx = db.transaction(["messages"], "readwrite");
+                const store = tx.objectStore("messages");
+                messages.forEach(msg => store.put(this._prepareRecord(msg, dateKey)));
                 await new Promise((resolve, reject) => {
                     tx.oncomplete = () => resolve();
                     tx.onerror = () => reject(tx.error);
                     tx.onabort = () => reject(new Error("Transaction aborted"));
                 });
-                return allMessages.length;
+                return messages.length;
             } catch (e) {
                 logError("CacheManager.saveForDate", e);
                 window.ChatRoomSendLocalStyled(ui('toastSaveFail'), 3000, "#ff0000");
@@ -258,27 +289,18 @@
         async getAvailableDates() {
             try {
                 const db = await this.init();
-                const tx = db.transaction(["daily_fragments"], "readonly");
-                const store = tx.objectStore("daily_fragments");
-                const keys = await new Promise((resolve, reject) => {
-                    const req = store.getAllKeys();
+                const tx = db.transaction(["messages"], "readonly");
+                const index = tx.objectStore("messages").index("account");
+                const rows = await new Promise((resolve, reject) => {
+                    const req = index.getAll(IDBKeyRange.only(getAccountPrefix()));
                     req.onsuccess = () => resolve(req.result);
                     req.onerror = () => reject(req.error);
                 });
-                const prefix = getAccountPrefix() + "_";
-                const myKeys = keys.filter(k => k.startsWith(prefix));
-                const result = [];
-                for (const key of myKeys) {
-                    const data = await new Promise((resolve, reject) => {
-                        const req = store.get(key);
-                        req.onsuccess = () => resolve(req.result);
-                        req.onerror = () => reject(req.error);
-                    });
-                    if (data) {
-                        const dateStr = key.slice(prefix.length);
-                        result.push({ dateKey: key, count: data.count || 0, display: DateUtils.getDisplayDate(dateStr) });
-                    }
-                }
+                const counts = new Map();
+                rows.forEach(row => counts.set(row._dateStr, (counts.get(row._dateStr) || 0) + 1));
+                const result = [...counts].map(([dateStr, count]) => ({
+                    dateKey: this._makeKey(dateStr), count, display: DateUtils.getDisplayDate(dateStr)
+                }));
                 return result.sort((a, b) => b.dateKey.localeCompare(a.dateKey));
             } catch (e) { logError("CacheManager.getAvailableDates", e); return []; }
         },
@@ -295,40 +317,18 @@
         async getMessagesForDates(dateKeys) {
             try {
                 const db = await this.init();
-                const tx = db.transaction(["daily_fragments"], "readonly");
-                const store = tx.objectStore("daily_fragments");
+                const tx = db.transaction(["messages"], "readonly");
+                const index = tx.objectStore("messages").index("account");
                 const prefix = getAccountPrefix() + "_";
-                let allMessages = [];
-
-                // 日期 key 升序排列，確保跨日順序正確
-                const sortedKeys = [...dateKeys].sort();
-
-                for (const dateKey of sortedKeys) {
-                    const dateStr = dateKey.startsWith(prefix)
-                    ? dateKey.slice(prefix.length)
-                    : dateKey;
-
-                    const data = await new Promise((resolve, reject) => {
-                        const req = store.get(dateKey);
-                        req.onsuccess = () => resolve(req.result);
-                        req.onerror = () => reject(req.error);
-                    });
-
-                    if (data && data.messages) {
-                        let dayMsgs = data.messages;
-                        // 整日都有 _ts 才穩定排序（見上方說明）；否則維持插入順序
-                        if (dayMsgs.length > 1 && dayMsgs.every(m => typeof m._ts === 'number')) {
-                            dayMsgs = dayMsgs.slice().sort((a, b) => a._ts - b._ts);
-                        }
-                        allMessages.push(...dayMsgs.map(msg => ({
-                            ...msg,
-                            isFromCache: true,
-                            _dateStr: dateStr,
-                        })));
-                    }
-                }
-
-                return allMessages;
+                const selected = new Set(dateKeys.map(key => key.startsWith(prefix) ? key.slice(prefix.length) : key));
+                const rows = await new Promise((resolve, reject) => {
+                    const req = index.getAll(IDBKeyRange.only(getAccountPrefix()));
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+                return rows.filter(row => selected.has(row._dateStr))
+                    .sort((a, b) => a._dateStr.localeCompare(b._dateStr) || (a._ts || 0) - (b._ts || 0))
+                    .map(msg => ({ ...msg, isFromCache: true }));
             } catch (e) { logError("CacheManager.getMessagesForDates", e); return []; }
         },
 
@@ -339,15 +339,18 @@
                 let successCount = 0;
                 for (const dateKey of dateKeys) {
                     try {
-                        const tx = db.transaction(["daily_fragments"], "readwrite");
-                        const store = tx.objectStore("daily_fragments");
+                        const prefix = getAccountPrefix() + "_";
+                        const dateStr = dateKey.startsWith(prefix) ? dateKey.slice(prefix.length) : dateKey;
+                        const tx = db.transaction(["messages"], "readwrite");
+                        const index = tx.objectStore("messages").index("accountDate");
+                        const range = IDBKeyRange.only(`${getAccountPrefix()}_${dateStr}`);
                         await new Promise(resolve => {
-                            const req = store.delete(dateKey);
-                            req.onsuccess = () => { successCount++; resolve(); };
+                            const req = index.openKeyCursor(range);
+                            req.onsuccess = () => { const cursor = req.result; if (cursor) { tx.objectStore("messages").delete(cursor.primaryKey); cursor.continue(); } else resolve(); };
                             req.onerror = () => resolve();
                         });
                         await new Promise(resolve => {
-                            tx.oncomplete = () => resolve();
+                            tx.oncomplete = () => { successCount++; resolve(); };
                             tx.onerror = () => resolve();
                             tx.onabort = () => resolve();
                         });
@@ -371,33 +374,43 @@
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
             const cutoffDate = DateUtils.getDateKey(sevenDaysAgo);
-            const prefix = getAccountPrefix() + "_";
-            const cutoffKey = prefix + cutoffDate;
             try {
                 const db = await this.init();
-                const keysToDelete = await new Promise((resolve, reject) => {
-                    const tx = db.transaction(["daily_fragments"], "readonly");
-                    const store = tx.objectStore("daily_fragments");
-                    const req = store.getAllKeys();
+                const tx = db.transaction(["messages"], "readwrite");
+                const store = tx.objectStore("messages");
+                const index = store.index("account");
+                await new Promise((resolve, reject) => {
+                    const req = index.openCursor(IDBKeyRange.only(getAccountPrefix()));
                     req.onsuccess = () => {
-                        const keys = req.result.filter(key => key.startsWith(prefix) && key < cutoffKey);
-                        resolve(keys);
+                        const cursor = req.result;
+                        if (!cursor) { resolve(); return; }
+                        if (cursor.value._dateStr < cutoffDate) cursor.delete();
+                        cursor.continue();
                     };
                     req.onerror = () => reject(req.error);
                 });
-                for (const key of keysToDelete) {
-                    await new Promise((resolve, reject) => {
-                        const tx = db.transaction(["daily_fragments"], "readwrite");
-                        const store = tx.objectStore("daily_fragments");
-                        const req = store.delete(key);
-                        req.onsuccess = () => resolve();
-                        req.onerror = () => reject(req.error);
-                        tx.onerror = () => reject(tx.error);
-                    });
-                }
             } catch (e) { logError("CacheManager.cleanOldData", e); }
         }
     };
+
+    // 真正的 v1 使用另一個資料庫名稱 "ChatLogger"，內容是無日期的 fragments；
+    // 它無法套用七日規則，也從未被 v2 的 ChatLoggerV2 自動讀取。既然碎片復原已移除，
+    // v2.6 僅檢測後清除此淘汰資料庫，避免殘留無法管理的聊天資料。
+    // TODO(v2.7): 移除此一次性 v1 檢測/清理相容程式。
+    async function cleanupLegacyV1Database() {
+        if (typeof indexedDB.databases !== "function") return;
+        try {
+            const databases = await indexedDB.databases();
+            if (!databases.some(info => info.name === "ChatLogger")) return;
+            await new Promise((resolve, reject) => {
+                const req = indexedDB.deleteDatabase("ChatLogger");
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+                req.onblocked = () => reject(new Error("Legacy ChatLogger database deletion blocked"));
+            });
+            console.log("🐈‍⬛ [CHE] 已清除淘汰的 v1 ChatLogger 碎片資料庫");
+        } catch (e) { logError("cleanupLegacyV1Database", e); }
+    }
 
     function loadToastSystem() {
         return new Promise((resolve, reject) => {
@@ -581,24 +594,26 @@
 :root {
     --bg-color:#111; --text-color:#eee; --muted-text:#aaa; --border-color:#444;
     --input-bg:#222; --input-border:#666; --button-bg:#444; --button-text:#fff;
-    --separator-bg:rgba(129,0,231,0.2); --separator-border:#8100E7;
+    --separator-bg:#2b193d; --separator-border:#9b5de5;
     --beep-color:#ff6b6b; --beep-bg:rgba(255,107,107,0.12);
     --accent:#7F53CD;
 }
 body.light {
-    --bg-color:#fff; --text-color:#333; --muted-text:#666; --border-color:#ddd;
-    --input-bg:#fff; --input-border:#ccc; --button-bg:#f0f0f0; --button-text:#333;
-    --separator-bg:rgba(129,0,231,0.08); --separator-border:#8100E7;
-    --beep-color:#d63031; --beep-bg:rgba(214,48,49,0.1);
+    --bg-color:#f4f1f8; --text-color:#211b29; --muted-text:#62586d; --border-color:#cfc6d8;
+    --input-bg:#fff; --input-border:#aaa0b5; --button-bg:#e8e1ef; --button-text:#241c2d;
+    --separator-bg:#e9ddf6; --separator-border:#6f36a8;
+    --beep-color:#a52b2d; --beep-bg:#f6dddd;
 }
-body { font-family:sans-serif; background:var(--bg-color); color:var(--text-color); margin:0; padding:0; transition:all 0.3s; }
-.chat-row { display:flex; align-items:flex-start; margin:2px 0; padding:2px 6px; border-radius:6px; position:relative; }
+body { font-family:sans-serif; background:var(--bg-color); color:var(--text-color); margin:0; padding:0; transition:background .2s,color .2s; }
+.chat-row { --resolved-name:var(--name-color); display:flex; align-items:flex-start; margin:3px 6px; padding:5px 8px; border-radius:7px; position:relative; background:var(--row-bg); border-left-color:var(--row-accent); }
+body.light .chat-row { --resolved-name:color-mix(in srgb,var(--name-color),#241c2d 42%); background:color-mix(in srgb,var(--row-bg),#fff 58%); box-shadow:0 1px 0 rgba(48,32,60,.05); }
 .chat-meta { display:flex; flex-direction:column; align-items:flex-end; width:70px; font-size:0.8em; margin-right:8px; flex-shrink:0; }
 .chat-time { color:var(--muted-text); }
 .chat-id { font-weight:bold; }
 .chat-content { flex:1; white-space:pre-wrap; word-wrap:break-word; color:var(--text-color); }
 .with-accent { border-left:4px solid transparent; }
-.separator-row { background:var(--separator-bg); border-left:4px solid var(--separator-border); text-align:center; font-weight:bold; padding:8px; margin:4px 0; border-radius:8px; transition:opacity 0.2s; }
+.separator-row { position:sticky; top:var(--sticky-top,88px); z-index:60; background:var(--separator-bg); border-left:4px solid var(--separator-border); text-align:center; font-weight:bold; padding:8px; margin:4px 0; border-radius:8px; box-shadow:0 3px 10px rgba(0,0,0,.18); transition:opacity 0.2s; }
+.separator-row.is-collapsed { position:relative; top:auto; z-index:1; box-shadow:none; }
 .separator-row.filter-hidden { display:none !important; }
 .collapse-button { background:none; border:none; color:inherit; font-size:16px; cursor:pointer; padding:6px 10px; border-radius:4px; }
 .collapse-button:hover { background:rgba(255,255,255,0.1); }
@@ -611,7 +626,7 @@ body.light .collapse-button:hover { background:rgba(0,0,0,0.08); }
 #toggleTheme { background:#fff; color:#000; }
 body.light #toggleTheme { background:#333; color:#fff; }
 #toggleLang { background:var(--accent); color:#fff; }
-#searchPanel { position:sticky; top:0; background:var(--bg-color); padding:12px; border-bottom:1px solid var(--border-color); backdrop-filter:blur(10px); z-index:100; }
+#searchPanel { position:sticky; top:0; background:color-mix(in srgb,var(--bg-color),transparent 4%); padding:12px; border-bottom:1px solid var(--border-color); backdrop-filter:blur(10px); z-index:100; box-shadow:0 3px 12px rgba(0,0,0,.1); }
 #searchPanel .row1 { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 #searchPanel input, #searchPanel select { padding:6px 10px; border-radius:6px; border:1px solid var(--input-border); background:var(--input-bg); color:var(--text-color); font-size:14px; }
 #contentSearch { width:200px; }
@@ -873,7 +888,15 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
     function toggleCollapse(id) {
         var el = document.getElementById('collapse-' + id);
-        if (el) el.classList.toggle('collapsed');
+        if (el) {
+            var collapsed = el.classList.toggle('collapsed');
+            var separator = el.previousElementSibling;
+            if (separator && separator.classList.contains('separator-row')) {
+                separator.classList.toggle('is-collapsed', collapsed);
+                var button = separator.querySelector('.collapse-button');
+                if (button) button.setAttribute('aria-expanded', String(!collapsed));
+            }
+        }
     }
     window.toggleCollapse = toggleCollapse;
 
@@ -974,7 +997,13 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         applyFilters();
     });
 
+    function updateStickyOffset() {
+        var panel = document.getElementById('searchPanel');
+        document.documentElement.style.setProperty('--sticky-top', ((panel ? panel.offsetHeight : 72) + 4) + 'px');
+    }
+    window.addEventListener('resize', updateStickyOffset);
     applyLangUI();
+    requestAnimationFrame(updateStickyOffset);
 })();
 <\/script>
 </body>
@@ -1063,7 +1092,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             ? (isOutgoing ? "悄悄话" : "悄悄话来自")
             : (isOutgoing ? "Whisper to" : "Whisper from");
             // FIX: 訊息內文加 color:var(--text-color)，避免深色模式下繼承失敗變黑字
-            content = `<span style="color:${adjustedColor};font-style:italic;">${prefix}</span> <span class="user-name" style="color:${adjustedColor}">${escapeHtml(msg.name)}</span>: <span style="color:var(--text-color)">${linkifyContent(msg.content)}</span>`;
+            content = `<span style="color:var(--resolved-name);font-style:italic;">${prefix}</span> <span class="user-name" style="color:var(--resolved-name)">${escapeHtml(msg.name)}</span>: <span style="color:var(--text-color)">${linkifyContent(msg.content)}</span>`;
         } else if (rowType === 'system') {
             const sysColor = getEnhancedContrastColor('#3aa76d', true);
             bgColor = toRGBA(sysColor, 0.12); borderColor = sysColor;
@@ -1071,14 +1100,14 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         } else if (rowType === 'chat' && msg.name) {
             // FIX: 訊息內文加 color:var(--text-color)，避免深色模式下繼承失敗變黑字
             // 特別修正：[🌐] 翻譯訊息在此分支不再出現黑字問題
-            content = `<span class="user-name" style="color:${adjustedColor}">${escapeHtml(msg.name)}</span>: <span style="color:var(--text-color)">${linkifyContent(msg.content)}</span>`;
+            content = `<span class="user-name" style="color:var(--resolved-name)">${escapeHtml(msg.name)}</span>: <span style="color:var(--text-color)">${linkifyContent(msg.content)}</span>`;
         } else {
-            content = `<span class="action-text" style="color:${adjustedColor}">${linkifyContent(msg.content)}</span>`;
+            content = `<span class="action-text" style="color:var(--resolved-name)">${linkifyContent(msg.content)}</span>`;
         }
 
         // FIX: 移除 enhanced-color class，filter:brightness 會干擾文字顏色繼承
         return `
-            <div class="chat-row with-accent" data-type="${rowType}" style="background:${bgColor};border-left-color:${borderColor};">
+            <div class="chat-row with-accent" data-type="${rowType}" style="--row-bg:${bgColor};--row-accent:${borderColor};--name-color:${adjustedColor};">
                 <div class="chat-meta">
                     <span class="chat-time">${escapeHtml(msg.time || '')}</span>
                     <span class="chat-id">${escapeHtml(msg.id || '')}</span>
@@ -1113,8 +1142,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 if (openCollapsible) html += `</div>`;
                 const collapsedClass = (msg.expanded === false) ? 'collapsed' : '';
                 html += `
-            <div class="separator-row">
-                <button class="collapse-button" onclick="toggleCollapse(${collapseId})">
+            <div class="separator-row ${collapsedClass ? 'is-collapsed' : ''}">
+                <button class="collapse-button" aria-expanded="${collapsedClass ? 'false' : 'true'}" onclick="toggleCollapse(${collapseId})">
                     ${escapeHtml(msg.content)}
                 </button>
             </div>
@@ -1381,7 +1410,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 const collapseBtn = msg.querySelector(".chat-room-sep-collapse");
                 const expanded = collapseBtn ? collapseBtn.getAttribute("aria-expanded") === "true" : true;
                 const sepText = `˅${iconText ? iconText + " - " : ""}${roomName}`.trim();
-                return { time: new Date().toISOString(), id: "", name: "", content: sepText, msgid: `sep_${roomName}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`, type: "separator", roomName, color: "#8100E7", expanded, _ts: Date.now() };
+                return { time: new Date().toISOString(), id: "", name: "", content: sepText, msgid: `sep_${roomName}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`, type: "separator", roomName, color: "#8100E7", expanded, _ts: Date.now(), _uid: crypto.randomUUID?.() || `sep_${Date.now()}_${Math.random()}` };
             }
             if (msg.matches?.("a.beep-link")) return null;
             if (!msg.dataset) return null;
@@ -1432,7 +1461,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             const messageType = detectMessageType(msg, content);
             const labelColor = getLabelColor(msg, nameButton);
             const className = Array.from(msg.classList||[]).join(" ");
-            const record = { time: normalizedTime, id: senderId, name: senderName, content, direction, msgid: msgidAttr, type: messageType, color: labelColor, className, _ts: Date.now() };
+            const record = { time: normalizedTime, id: senderId, name: senderName, content, direction, msgid: msgidAttr, type: messageType, color: labelColor, className, roomName: window.ChatRoomData?.Name || "", _ts: Date.now(), _uid: crypto.randomUUID?.() || `${Date.now()}_${Math.random()}` };
             record.category = classifyCategory(record);
             return record;
         } catch (e) {
@@ -1451,230 +1480,92 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         return processedMessages;
     }
 
-    // =====================================================================
-    // Incremental capture buffer
-    //
-    // 問題背景：原本只靠「每5分鐘 processCurrentMessages() 重新掃描整個 DOM」
-    // 來存檔。但遊戲的聊天室 DOM 節點在訊息量大時會被裁剪／移除，若訊息在
-    // 兩次自動保存之間就從 DOM 消失，就會永久遺失，完全不會進入緩存。
-    // 這就是「偶爾漏訊息」的主因。
-    //
-    // 修復方式：MutationObserver 偵測到新節點時，立即在當下把該節點正規化
-    // 並存進記憶體緩衝區 pendingBuffer，再用 debounce 盡快 flush 進
-    // IndexedDB，不等 DOM 節點日後被裁剪。同時保留較低頻率的整體重掃
-    // （processCurrentMessages）作為保險，抓取任何緩衝區可能漏接的訊息。
-    // =====================================================================
-    let pendingBuffer = [];
-    const capturedNodes = new WeakSet();
-    let flushDebounceTimer = null;
-    const FLUSH_DEBOUNCE_MS = 3000;
-    const FLUSH_MAX_WAIT_MS = 15000;
-    let flushMaxWaitTimer = null;
-    let isFlushing = false;
+    // Hook 後立刻把 DOM 轉成純資料並接到寫入鏈；不保存 DOM 節點、不等待定時擷取，
+    // 每筆訊息各自成為 IndexedDB messages store 的一個 record。
+    let recordWriteChain = Promise.resolve();
+    let lastHookRoom = null;
 
-    function captureNode(node) {
-        try {
-            if (!node || capturedNodes.has(node)) return;
-            capturedNodes.add(node);
-            pendingBuffer.push(node);
-        } catch (e) { logError("captureNode", e); }
+    function queueRecord(record) {
+        if (!record || currentMode !== "cache") return;
+        const date = DateUtils.getDateKey();
+        recordWriteChain = recordWriteChain
+            .then(() => CacheManager.saveForDate([record], date))
+            .catch(e => { logError("queueRecord", e); });
     }
 
-    // 把緩衝的 DOM 節點在「此刻」正規化（延到 flush 才讀 → 抓得到後補的翻譯 [🌐]）
-    function normalizePending(nodes) {
-        const out = [];
-        for (const n of nodes) {
-            try { const m = normalizeChatMessageNode(n); if (m) out.push(m); }
-            catch (e) { logError("normalizePending", e); }
+    function flushRecordQueue() { return recordWriteChain; }
+
+    function queueHookedNode(node) {
+        if (!(node instanceof HTMLElement) || currentMode !== "cache") return;
+        const record = normalizeChatMessageNode(node);
+        if (!record) return;
+        const roomName = record.roomName || window.ChatRoomData?.Name || "";
+        if (roomName && roomName !== lastHookRoom) {
+            lastHookRoom = roomName;
+            queueRecord({ time:new Date().toISOString(), id:"", name:"", content:`⌄ ${roomName}`,
+                type:"separator", roomName, color:"#8100E7", expanded:true, _ts:Math.max(0, record._ts - 1),
+                _uid:crypto.randomUUID?.() || `room_${Date.now()}_${Math.random()}` });
         }
-        return out;
+        queueRecord(record);
     }
 
-    function scheduleFlush() {
-        if (currentMode !== "cache") return;
-        if (flushDebounceTimer) clearTimeout(flushDebounceTimer);
-        flushDebounceTimer = setTimeout(flushBuffer, FLUSH_DEBOUNCE_MS);
-        if (!flushMaxWaitTimer) {
-            flushMaxWaitTimer = setTimeout(() => { flushMaxWaitTimer = null; flushBuffer(); }, FLUSH_MAX_WAIT_MS);
-        }
-    }
-
-    async function flushBuffer() {
-        if (flushDebounceTimer) { clearTimeout(flushDebounceTimer); flushDebounceTimer = null; }
-        if (flushMaxWaitTimer) { clearTimeout(flushMaxWaitTimer); flushMaxWaitTimer = null; }
-        if (isFlushing || pendingBuffer.length === 0 || currentMode !== "cache") return;
-        const nodes = pendingBuffer;
-        pendingBuffer = [];
-        isFlushing = true;
-        try {
-            const toSave = normalizePending(nodes);
-            if (toSave.length > 0) await CacheManager.saveForDate(toSave, DateUtils.getDateKey());
-        } catch (e) {
-            logError("flushBuffer", e);
-            // 保存失敗，放回緩衝區稍後重試，避免資料遺失
-            pendingBuffer = nodes.concat(pendingBuffer);
-            scheduleFlush();
-        } finally {
-            isFlushing = false;
-        }
-    }
-
-    // =====================================================================
-    // Observer
-    // =====================================================================
-    function initMessageObserver() {
-        cleanupObserver();
-        const maxWait = 10 * 60 * 1000;
-        const startTime = Date.now();
-        const checkChatRoom = setInterval(() => {
-            try {
-                const chatLog = DOMCache.getChatLog();
-                if (chatLog && document.contains(chatLog)) {
-                    clearInterval(checkChatRoom);
-                    // 把畫面上現有訊息先捕捉一次（取代舊的全量重掃補齊舊訊息的職責）
-                    DOMCache.getMessages().forEach(captureNode);
-                    messageObserver = new MutationObserver(handleMutations);
-                    try {
-                        messageObserver.observe(chatLog, { childList: true, subtree: true, attributes: false, characterData: false });
-                        observerActive = true;
-                        scheduleFlush();
-                    } catch (observerError) { logError("initMessageObserver.observe", observerError); cleanupObserver(); }
-                } else if (Date.now() - startTime > maxWait) { clearInterval(checkChatRoom); }
-            } catch (e) { logError("initMessageObserver.checkChatRoom", e); }
-        }, 500);
-    }
-
-    function handleMutations(mutations) {
-        if (!observerActive) return;
-        try {
-            let added = 0;
-            mutations.forEach(mutation => {
-                if (!mutation.addedNodes || mutation.addedNodes.length === 0) return;
-                mutation.addedNodes.forEach(node => {
-                    try {
-                        if (node.nodeType !== Node.ELEMENT_NODE) return;
-                        if (node.matches && (node.matches(".ChatMessage") || node.matches(".chat-room-sep-div"))) {
-                            captureNode(node);
-                            added++;
-                        } else if (node.matches && node.matches("a.beep-link")) {
-                            added++;
-                        } else if (node.querySelectorAll) {
-                            // 有些訊息可能是包在一個被整批插入的容器裡
-                            node.querySelectorAll(".ChatMessage, .chat-room-sep-div").forEach(sub => { captureNode(sub); added++; });
-                        }
-                    } catch {}
-                });
+    function installCaptureHooks() {
+        if (!modApi) return;
+        if (typeof window.ChatRoomMessage === "function") {
+            modApi.hookFunction("ChatRoomMessage", 20, (args, next) => {
+                const node = next(args);
+                try { queueHookedNode(node); } catch (e) { logError("hook.ChatRoomMessage", e); }
+                return node;
             });
-            if (added > 0 && currentMode === "cache") scheduleFlush();
-        } catch (e) { logError("handleMutations", e); }
-    }
-
-    function cleanupObserver() {
-        try { if (messageObserver) { messageObserver.disconnect(); messageObserver = null; } observerActive = false; } catch (e) { logError("cleanupObserver", e); }
-    }
-
-    function stopMessageObserver() {
-        cleanupObserver();
-        if (currentMode === "cache" || pendingBuffer.length > 0) flushBuffer();
-    }
-
-    // =====================================================================
-    // Unload / visibility backup
-    //
-    // 原本會把整個 DOM 重新掃描一次，把所有訊息塞進 localStorage，資料量
-    // 大時很容易超過 localStorage 的配額（QuotaExceededError）。
-    // 現在改成：
-    //   1. 優先直接 flush 到 IndexedDB（visibilitychange 時頁面還沒真的關閉，
-    //      通常有機會讓非同步寫入跑完）。
-    //   2. 只把「flush 完後仍留在 pendingBuffer 裡的少量訊息」寫進
-    //      localStorage 當最後防線，資料量遠比整包 DOM 小很多。
-    //   3. 寫入 localStorage 失敗時（例如額度仍然不足）不再直接放棄，
-    //      而是嘗試只保留最後 N 筆訊息重試，盡量留下一部分紀錄。
-    // =====================================================================
-    function saveToLocalStorage(reason) {
-        try {
-            const messages = normalizePending(pendingBuffer);
-            if (messages.length === 0) return;
-            const tempData = { messages, date: DateUtils.getDateKey(), accountPrefix: getAccountPrefix(), timestamp: Date.now(), count: messages.length, reason };
-            const storageKey = `che_temp_data_${getAccountPrefix()}`;
-            try {
-                localStorage.setItem(storageKey, JSON.stringify(tempData));
-            } catch (quotaError) {
-                // 額度不足時，逐步縮減只保留最新的訊息重試，總比完全存不到好
-                let trimmed = messages;
-                let ok = false;
-                for (const keepCount of [200, 50, 10]) {
-                    trimmed = messages.slice(-keepCount);
-                    try {
-                        localStorage.setItem(storageKey, JSON.stringify({ ...tempData, messages: trimmed, count: trimmed.length, trimmed: true }));
-                        ok = true;
-                        break;
-                    } catch { /* 繼續縮減再試 */ }
+        }
+        if (typeof window.ServerAccountBeep === "function") {
+            modApi.hookFunction("ServerAccountBeep", 20, (args, next) => {
+                const log = DOMCache.getChatLog();
+                const before = log?.lastElementChild;
+                const result = next(args);
+                const node = DOMCache.getChatLog()?.lastElementChild;
+                if (node && node !== before) {
+                    try { queueHookedNode(node); } catch (e) { logError("hook.ServerAccountBeep", e); }
                 }
-                if (!ok) logError("saveToLocalStorage.quota", quotaError);
-            }
-        } catch (e) { logError("saveToLocalStorage", e); }
-    }
-
-    function setupDataBackup() {
-        window.addEventListener('beforeunload', () => {
-            if (currentMode === "cache") {
-                // 先把緩衝寫進 localStorage（此時 pendingBuffer 還在），再嘗試 flush
-                saveToLocalStorage("beforeunload");
-                flushBuffer();
-            }
-            cleanupObserver();
-        });
-        document.addEventListener('visibilitychange', () => {
-            // 切到背景時落地一次；observer 保持運作，背景到達的訊息照樣即時捕捉
-            if (document.hidden && currentMode === "cache") {
-                saveToLocalStorage("visibilitychange");
-                flushBuffer();
-            }
-        });
-    }
-
-    async function checkTempData() {
-        const storageKey = `che_temp_data_${getAccountPrefix()}`;
-        try {
-            const tempDataStr = localStorage.getItem(storageKey);
-            if (!tempDataStr) return;
-            let tempData;
-            try { tempData = JSON.parse(tempDataStr); } catch (parseError) { logError("checkTempData.parse", parseError); localStorage.removeItem(storageKey); return; }
-            const currentDate = DateUtils.getDateKey();
-            const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
-            const yesterdayKey = DateUtils.getDateKey(yesterday);
-            if ((tempData.date === currentDate || tempData.date === yesterdayKey) && tempData.messages?.length > 0) {
-                try {
-                    await CacheManager.saveForDate(tempData.messages, tempData.date);
-                    window.ChatRoomSendLocalStyled(ui('toastRestore', tempData.messages.length), 4000, "#00ff00");
-                } catch (saveError) {
-                    logError("checkTempData.save", saveError);
-                    window.ChatRoomSendLocalStyled(ui('toastRestoreFail'), 3000, "#ff0000");
-                }
-            }
-            localStorage.removeItem(storageKey);
-        } catch (e) { logError("checkTempData", e); try { localStorage.removeItem(storageKey); } catch {} }
+                return result;
+            });
+        }
     }
 
     // =====================================================================
     // CHE Settings (localStorage)
     // =====================================================================
     const CHE_SETTINGS_KEY = "che_settings_v1";
-    let cheSettings = { showBall: true, cacheEnabled: true };
+    let cheSettings = { showBall: true, cacheEnabled: true, mode: "stopped", onboarded: false };
 
     function loadCHESettings() {
         try {
             const saved = JSON.parse(localStorage.getItem(CHE_SETTINGS_KEY) || "{}");
-            cheSettings = Object.assign({ showBall: true, cacheEnabled: true }, saved);
+            const legacyMode = localStorage.getItem("chatlogger_mode");
+            const legacyOnboarded = localStorage.getItem("che_onboarded_v1") === "1";
+            cheSettings = Object.assign({ showBall: true, cacheEnabled: true, mode: "stopped", onboarded: false }, saved);
+            if (saved.mode === undefined && legacyMode === "cache") cheSettings.mode = "cache";
+            if (saved.onboarded === undefined && legacyOnboarded) cheSettings.onboarded = true;
+            // v2.6 起 localStorage 僅保留這一份設定；清掉舊模式、導覽旗標與聊天碎片備份。
+            localStorage.removeItem("chatlogger_mode");
+            localStorage.removeItem("che_onboarded_v1");
+            localStorage.removeItem("fragment_count");
+            localStorage.removeItem("message_count_since_last_save");
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const key = localStorage.key(i);
+                if (key?.startsWith("che_temp_data_")) localStorage.removeItem(key);
+            }
+            currentMode = cheSettings.mode === "cache" ? "cache" : "stopped";
             if (!cheSettings.cacheEnabled && currentMode === "cache") {
                 currentMode = "stopped";
-                localStorage.setItem("chatlogger_mode", "stopped");
+                cheSettings.mode = "stopped";
             }
+            localStorage.setItem(CHE_SETTINGS_KEY, JSON.stringify(cheSettings));
         } catch {}
     }
 
     function saveCHESettings() {
+        cheSettings.mode = currentMode;
         localStorage.setItem(CHE_SETTINGS_KEY, JSON.stringify(cheSettings));
     }
 
@@ -1790,13 +1681,11 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 saveCHESettings();
                 if (cheSettings.cacheEnabled) {
                     currentMode = "cache";
-                    localStorage.setItem("chatlogger_mode", "cache");
-                    initMessageObserver();
                 } else {
                     currentMode = "stopped";
-                    localStorage.setItem("chatlogger_mode", "stopped");
-                    stopMessageObserver();
+                    flushRecordQueue();
                 }
+                saveCHESettings();
                 if (window.updateCHEModeBtn) window.updateCHEModeBtn();
                 return;
             }
@@ -1814,10 +1703,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     // =====================================================================
     // Onboarding
     // =====================================================================
-    const ONBOARD_KEY = "che_onboarded_v1";
-
     function showOnboarding() {
-        if (localStorage.getItem(ONBOARD_KEY)) return;
+        if (cheSettings.onboarded) return;
         const zh = isZh();
 
         const overlay = document.createElement("div");
@@ -1882,14 +1769,16 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
         card.querySelector("#che-onboard-close").onclick = () => {
             overlay.remove();
-            localStorage.setItem(ONBOARD_KEY, "1");
+            cheSettings.onboarded = true;
+            saveCHESettings();
             if (ball) ball.style.animation = "";
             document.getElementById("che-pulse-style")?.remove();
         };
     }
 
     function showHelpPopup() {
-        localStorage.removeItem(ONBOARD_KEY);
+        cheSettings.onboarded = false;
+        saveCHESettings();
         showOnboarding();
     }
 
@@ -2018,12 +1907,11 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     function toggleMode(btn) {
         if (currentMode === "stopped") {
             currentMode = "cache";
-            initMessageObserver();
         } else {
             currentMode = "stopped";
-            stopMessageObserver();
+            flushRecordQueue();
         }
-        localStorage.setItem("chatlogger_mode", currentMode);
+        saveCHESettings();
         if (currentMode === "cache") {
             btn.textContent = ui('btnModeCache');
             btn.style.background = "linear-gradient(135deg,#644CB0 0%,#552B90 100%)";
@@ -2055,7 +1943,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         try {
             loadCHESettings();
             await loadToastSystem();
-            setupDataBackup();
             if (typeof bcModSdk !== "undefined" && bcModSdk?.registerMod) {
                 modApi = bcModSdk.registerMod({
                     name: "Liko - CHE",
@@ -2066,11 +1953,13 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             }
 
             await waitForLogin();
+            installCaptureHooks();
             console.log(`🐈‍⬛ [CHE] ✅ v${MOD_VER} loaded`);
-            checkTempData().catch(e => logError("init.checkTempData", e));
+            await cleanupLegacyV1Database();
+            // init() 會先把 v2 daily_fragments 遷移到 v3 records；完成後才依 _dateStr
+            // 清除超過七天的資料，因此舊 v2 資料也受相同七日保留規則約束。
             CacheManager.cleanOldData().catch(e => logError("init.cleanOldData", e));
             addUI();
-            if (currentMode === "cache") initMessageObserver();
             setTimeout(showOnboarding, 800);
 
             waitForPreference().then(() => {
