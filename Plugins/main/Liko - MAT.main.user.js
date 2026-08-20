@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.2
+// @version      1.7.3
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.2";
+    const MOD_VER = "1.7.3";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -82,6 +82,7 @@
             chatScrollFreeze: false,   // 是否載入並啟用 BC_ChatScrollFreeze（聊天室訊息凍結／搜尋擴充）
             skipStutter: true,
             chatButton: true,          // 聊天室快捷按鈕
+            filterTranslations: false, // 過濾聊天室內所有 [🌐]／🔊 翻譯訊息
             hotkeys: makeDefaultHotkeys()
         };
     }
@@ -570,6 +571,7 @@
         observer = new MutationObserver(async (mutations) => {
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
+                    applyTranslationMessageFilterToNode(node);
                     await handleReceivedMessage(node);
                     handleOwnSentFold(node);
                 }
@@ -582,6 +584,36 @@
         if (!observer) return;
         try { observer.disconnect(); } catch {}
         observer = null;
+    }
+
+    // 只恢復由這個功能主動隱藏的訊息，不碰原本就被其他規則隱藏的節點。
+    function isTranslationMessageNode(node) {
+        return node instanceof HTMLElement && node.classList.contains('ChatMessage') &&
+            (node.classList.contains('mat-translated') || node.classList.contains('mat-manual-translated') ||
+             node.classList.contains('mat-broadcast') || node.textContent.includes('[🌐]') ||
+             node.textContent.includes('🔊'));
+    }
+
+    function applyTranslationMessageFilterToNode(node) {
+        if (!config.filterTranslations || !isTranslationMessageNode(node)) return;
+        if (node.style.display === 'none') return;
+        node.classList.add('mat-filter-hidden');
+        node.style.display = 'none';
+    }
+
+    function applyTranslationMessageFilter() {
+        const log = document.querySelector('#TextAreaChatLog');
+        if (!log) return;
+        if (config.filterTranslations) {
+            log.querySelectorAll('.ChatMessage').forEach(applyTranslationMessageFilterToNode);
+            startObserver();
+        } else {
+            log.querySelectorAll('.mat-filter-hidden').forEach(node => {
+                node.classList.remove('mat-filter-hidden');
+                node.style.display = '';
+            });
+            if (!config.enabled) stopObserver();
+        }
     }
 
     // 依旗標定位剛 render 的訊息節點：先用 MsgId 精準，後備用最後一則 + 發送者相符
@@ -731,7 +763,7 @@
         const translated = await smartTranslate(message, config.recvLang);
         if (translated !== null && translated !== message) {
             const div = createTranslatedDiv(node, translated);
-            // 譯文摺疊：原句＋譯文合併成一則訊息、優先顯示譯文，按「A/文」可展開查看原句。
+            // 譯文摺疊：原句＋譯文配成一組，譯文維持在原句下方，按「A/文」可展開查看原句。
             // 只在確實產生譯文後才摺疊（失敗/簡繁跳過不摺，免訊息消失）。
             const cl = node.classList;
             if (config.recvFold &&
@@ -767,8 +799,7 @@
                 const sSenderEl = sib.querySelector('.chat-room-sender');
                 if (sSenderEl?.textContent == Player?.MemberNumber) {
                     applyFoldUI(sib, node);
-                    // 原句移到譯文之後：展開時原句顯示在 [🌐] 譯文下方而非上方。
-                    node.parentNode.insertBefore(sib, node.nextSibling);
+                    // 保持原句在前、譯文在後；展開時閱讀順序固定為原文 → 譯文。
                 }
                 return;
             }
@@ -949,8 +980,9 @@
 
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
         const wasAtEnd = chatWasAtEnd();   // 插入前先判斷是否本來就在底部
-        // 譯文插在原句「之前」：摺疊展開（按 A/文）時，原句會顯示在 [🌐] 譯文下方而非上方。
-        originalNode.parentNode.insertBefore(div, originalNode);
+        // 譯文固定插在原句下方，摺疊展開時也維持「原文 → 譯文」的閱讀順序。
+        originalNode.parentNode.insertBefore(div, originalNode.nextSibling);
+        applyTranslationMessageFilterToNode(div);
         scrollChatToEndIfWasAtEnd(wasAtEnd);
         return div;
     }
@@ -981,12 +1013,13 @@
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
         const wasAtEnd = chatWasAtEnd();
         originalNode.parentNode.insertBefore(div, originalNode.nextSibling);   // 插在原句「之後」
+        applyTranslationMessageFilterToNode(div);
         scrollChatToEndIfWasAtEnd(wasAtEnd);
         return div;
     }
 
     // ============================================================
-    // 譯文摺疊（原句＋譯文合併成一則訊息，預設只顯示譯文，按 mat-click-toolbar 上的「A/文」展開/收合原句）
+    // 譯文摺疊（原句＋譯文合併成一組，譯文位於原句下方；預設只顯示譯文）
     // 接收、發送（自己訊息的翻譯回顯）共用同一套 UI。「A/文」按鈕改放在 mat-click-toolbar 最左側，
     // 不再嵌在訊息文字前面；這裡只負責摺疊狀態與登記配對，實際按鈕由 createClickToolbar/showClickToolbar 處理。
     // ============================================================
@@ -1601,6 +1634,8 @@
                         // （不知道該摺哪一則、該不該再翻一次）。直接藏起來；原句本身沒被標記 mat-skip
                         // （見下面 else 分支的判斷邏輯——語言對不上就不會標記），所以我這端仍會照常
                         // 對原句自動翻譯成我的接收語言，不受影響。
+                        node.classList.add('mat-nontarget-translation');
+                        node.hidden = true;
                         node.style.display = 'none';
                     } else if (/^zh/i.test(flag.lang || '') && config.recvSkipZhVariant && /^zh/i.test(config.recvLang)) {
                         // 中文變體廣播、我又開了簡繁跳過：只有當「原句本身也是中文（我讀得懂）」時，這則
@@ -1662,7 +1697,11 @@
                 if (tr) {
                     node.classList.add('mat-broadcast');
                     node.dataset.matLang = lang;
-                    if (!langReadable(lang, config.recvLang)) node.style.display = 'none';
+                    if (!langReadable(lang, config.recvLang)) {
+                        node.classList.add('mat-nontarget-translation');
+                        node.hidden = true;
+                        node.style.display = 'none';
+                    }
                 } else if (langReadable(lang, config.recvLang)) {
                     node.classList.add('mat-skip');
                 }
@@ -1742,7 +1781,7 @@
         ChatRoomSendLocal(config.enabled
                           ? ui('hotkeyEnabled',  { hk: hotkeyToString(hk) })
                           : ui('hotkeyDisabled', { hk: hotkeyToString(hk) }));
-        if (config.enabled) startObserver(); else stopObserver();
+        if (config.enabled || config.filterTranslations) startObserver(); else stopObserver();
     }
     function hotkeyActionRecv() {
         config.translateReceived = !config.translateReceived;
@@ -1815,10 +1854,10 @@
     // ============================================================
     // 設定畫面
     // ============================================================
-    // 分頁式版面：左側頁簽（總開關/基本/發送/接收/其他）、中間設定、右側說明框。
+    // 分頁式版面：左側頁簽（總開關/基本/發送/接收/其他/快捷鍵）、中間設定、右側說明框。
     // run() 每幀重建互動命中區 _hits，click() 直接比對，兩邊不需各寫一份座標。
     const matSettingsScreen = {
-        tab: 1,             // 內容頁：1基本 2發送 3接收 4其他（左側第 0 鍵為總開關直接切換）
+        tab: 1,             // 內容頁：1基本 2發送 3接收 4其他 5快捷鍵（左側第 0 鍵為總開關直接切換）
         hoverDesc: '',
         _hits: [],          // [{x,y,w,h,onClick}]
 
@@ -1889,8 +1928,8 @@
             if (desc && MouseIn(CBX, y, HK_KEY_X - CBX - 10, CB_SZ)) this.hoverDesc = desc;
         },
 
-        _tabLabels() { return [ui('tab_basic'), ui('tab_send'), ui('tab_recv'), ui('tab_other')]; },
-        _tabDesc()   { return [ui('descBasic'), ui('descSend'), ui('descRecv'), ui('descOther')][this.tab - 1]; },
+        _tabLabels() { return [ui('tab_basic'), ui('tab_send'), ui('tab_recv'), ui('tab_other'), ui('tab_hotkeys')]; },
+        _tabDesc()   { return [ui('descBasic'), ui('descSend'), ui('descRecv'), ui('descOther'), ui('descHotkeys')][this.tab - 1]; },
 
         run() {
             this.hoverDesc = '';
@@ -1906,7 +1945,7 @@
                        config.enabled ? "#2e7d32" : "#c62828", "", "");
             this._hit(TAB_X, TAB_Y0, TAB_W, TAB_H, () => {
                 config.enabled = !config.enabled;
-                if (config.enabled) startObserver(); else stopObserver();
+                if (config.enabled || config.filterTranslations) startObserver(); else stopObserver();
                 saveSettings();
             });
             if (MouseIn(TAB_X, TAB_Y0, TAB_W, TAB_H)) this.hoverDesc = ui('descMaster');
@@ -1923,7 +1962,7 @@
             DrawEmptyRect(HELP_X, HELP_Y, HELP_W, HELP_H, "#888");
 
             // 中間內容
-            [this._runBasic, this._runSend, this._runRecv, this._runOther][this.tab - 1].call(this);
+            [this._runBasic, this._runSend, this._runRecv, this._runOther, this._runHotkeys][this.tab - 1].call(this);
 
             // 說明文字（hover 優先，否則顯示分頁常駐說明）
             const desc = this.hoverDesc || this._tabDesc();
@@ -1942,27 +1981,25 @@
         _runSend() {
             let y = this.C.ROW_Y0; const H = this.C.ROW_H;
             DrawText(ui('tab_send'), 850, 200, "#2e7d32", "Gray");
-            const dis = !config.translateSent;
-            this._cb(y, ui('optEmote'),   config.sendEmote,        ui('dEmote'),   () => { config.sendEmote = !config.sendEmote; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optAction'),  config.sendAction,       ui('dAction'),  () => { config.sendAction = !config.sendAction; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optWhisper'), config.sendWhisper,      ui('dWhisper'), () => { config.sendWhisper = !config.sendWhisper; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optBeep'),    config.sendBeep,         ui('dBeep'),    () => { config.sendBeep = !config.sendBeep; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optFold'),     config.sendFold,         ui('dFoldSend'),      () => { config.sendFold = !config.sendFold; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optHideOrig'), config.sendHideOriginal, ui('dHideOrigSend'), () => { config.sendHideOriginal = !config.sendHideOriginal; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optSkipZh'),  config.sendSkipZhVariant, ui('dSkipZh'), () => { config.sendSkipZhVariant = !config.sendSkipZhVariant; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optEmote'),   config.sendEmote,        ui('dEmote'),   () => { config.sendEmote = !config.sendEmote; saveSettings(); }); y += H;
+            this._cb(y, ui('optAction'),  config.sendAction,       ui('dAction'),  () => { config.sendAction = !config.sendAction; saveSettings(); }); y += H;
+            this._cb(y, ui('optWhisper'), config.sendWhisper,      ui('dWhisper'), () => { config.sendWhisper = !config.sendWhisper; saveSettings(); }); y += H;
+            this._cb(y, ui('optBeep'),    config.sendBeep,         ui('dBeep'),    () => { config.sendBeep = !config.sendBeep; saveSettings(); }); y += H;
+            this._cb(y, ui('optFold'),     config.sendFold,         ui('dFoldSend'),      () => { config.sendFold = !config.sendFold; saveSettings(); }); y += H;
+            this._cb(y, ui('optHideOrig'), config.sendHideOriginal, ui('dHideOrigSend'), () => { config.sendHideOriginal = !config.sendHideOriginal; saveSettings(); }); y += H;
+            this._cb(y, ui('optSkipZh'),  config.sendSkipZhVariant, ui('dSkipZh'), () => { config.sendSkipZhVariant = !config.sendSkipZhVariant; saveSettings(); }); y += H;
         },
 
         _runRecv() {
             let y = this.C.ROW_Y0; const H = this.C.ROW_H;
             DrawText(ui('tab_recv'), 850, 200, "#2e7d32", "Gray");
-            const dis = !config.translateReceived;
-            this._cb(y, ui('optEmote'),   config.recvEmote,        ui('dEmote'),   () => { config.recvEmote = !config.recvEmote; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optAction'),  config.recvAction,       ui('dAction'),  () => { config.recvAction = !config.recvAction; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optWhisper'), config.recvWhisper,      ui('dWhisper'), () => { config.recvWhisper = !config.recvWhisper; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optBeep'),    config.recvBeep,         ui('dBeep'),    () => { config.recvBeep = !config.recvBeep; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optLocal'),   config.recvLocal,        ui('dLocal'),   () => { config.recvLocal = !config.recvLocal; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optFold'),   config.recvFold,          ui('dFoldRecv'), () => { config.recvFold = !config.recvFold; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optSkipZh'),  config.recvSkipZhVariant, ui('dSkipZh'), () => { config.recvSkipZhVariant = !config.recvSkipZhVariant; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optEmote'),   config.recvEmote,        ui('dEmote'),   () => { config.recvEmote = !config.recvEmote; saveSettings(); }); y += H;
+            this._cb(y, ui('optAction'),  config.recvAction,       ui('dAction'),  () => { config.recvAction = !config.recvAction; saveSettings(); }); y += H;
+            this._cb(y, ui('optWhisper'), config.recvWhisper,      ui('dWhisper'), () => { config.recvWhisper = !config.recvWhisper; saveSettings(); }); y += H;
+            this._cb(y, ui('optBeep'),    config.recvBeep,         ui('dBeep'),    () => { config.recvBeep = !config.recvBeep; saveSettings(); }); y += H;
+            this._cb(y, ui('optLocal'),   config.recvLocal,        ui('dLocal'),   () => { config.recvLocal = !config.recvLocal; saveSettings(); }); y += H;
+            this._cb(y, ui('optFold'),   config.recvFold,          ui('dFoldRecv'), () => { config.recvFold = !config.recvFold; saveSettings(); }); y += H;
+            this._cb(y, ui('optSkipZh'),  config.recvSkipZhVariant, ui('dSkipZh'), () => { config.recvSkipZhVariant = !config.recvSkipZhVariant; saveSettings(); }); y += H;
         },
 
         _runOther() {
@@ -1974,6 +2011,12 @@
             this._cb(y, ui('optChatScrollFreeze'), config.chatScrollFreeze, ui('dChatScrollFreeze'), () => { config.chatScrollFreeze = !config.chatScrollFreeze; saveSettings(); applyChatScrollFreezeConfig(); }); y += H;
             this._cb(y, ui('optSkipStutter'), config.skipStutter,        ui('dSkipStutter'), () => { config.skipStutter = !config.skipStutter; saveSettings(); }); y += H;
             this._cb(y, ui('optChatButton'),  config.chatButton,         ui('dChatButton'),  () => { config.chatButton = !config.chatButton; saveSettings(); updateChatButton(); }); y += H;
+            this._cb(y, ui('optFilterTranslations'), config.filterTranslations, ui('dFilterTranslations'), () => { config.filterTranslations = !config.filterTranslations; saveSettings(); applyTranslationMessageFilter(); }); y += H;
+        },
+
+        _runHotkeys() {
+            let y = this.C.ROW_Y0; const H = this.C.ROW_H;
+            DrawText(ui('tab_hotkeys'), 850, 200, "#2e7d32", "Gray");
             this._hotkey(y, ui('hkToggle'), 'toggle', ui('dHkToggle')); y += H;
             this._hotkey(y, ui('hkRecv'),   'recv',   ui('dHkRecv'));   y += H;
             this._hotkey(y, ui('hkSend'),   'send',   ui('dHkSend'));   y += H;
@@ -1998,7 +2041,7 @@
         });
         modApi.hookFunction("ChatRoomSync", 4, (args, next) => {
             const result = next(args);
-            if (config.enabled) { stopObserver(); setTimeout(startObserver, 500); }
+            if (config.enabled || config.filterTranslations) { stopObserver(); setTimeout(startObserver, 500); }
             hideClickToolbar();
             return result;
         });
@@ -2228,7 +2271,7 @@
                 switch(cmd) {
                     case "": case "help":   ChatRoomSendLocal(ui('help', { v: MOD_VER })); break;
                     case "on":              config.enabled = true;  startObserver(); saveSettings(); ChatRoomSendLocal(ui('cmdOn'));  break;
-                    case "off":             config.enabled = false; stopObserver();  saveSettings(); ChatRoomSendLocal(ui('cmdOff')); break;
+                    case "off":             config.enabled = false; if (!config.filterTranslations) stopObserver(); saveSettings(); ChatRoomSendLocal(ui('cmdOff')); break;
                     case "send":            config.translateSent = !config.translateSent; saveSettings(); ChatRoomSendLocal(ui('cmdSend', { v: mk(config.translateSent) })); break;
                     case "chat":            config.translateChat = !config.translateChat; if (!config.translateChat) hideClickToolbar(); saveSettings(); ChatRoomSendLocal(ui('cmdChat', { v: mk(config.translateChat) })); break;
                     case "setting": case "settings": openSettingsScreen(); break;
@@ -2324,7 +2367,7 @@
     function matQuickToggle(kind) {
         if (kind === 'master') {
             config.enabled = !config.enabled;
-            if (config.enabled) startObserver(); else stopObserver();
+            if (config.enabled || config.filterTranslations) startObserver(); else stopObserver();
             ChatRoomSendLocal(config.enabled ? ui('cmdOn') : ui('cmdOff'));
         } else if (kind === 'send') {
             config.translateSent = !config.translateSent;
@@ -2519,7 +2562,8 @@
                     setupChatButton();
                     applyChatScrollFreezeConfig();
                     notifyLoginOnce();
-                    if (config.enabled) startObserver();
+                    if (config.enabled || config.filterTranslations) startObserver();
+                    applyTranslationMessageFilter();
                 });
             });
         } else {

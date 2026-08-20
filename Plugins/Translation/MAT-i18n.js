@@ -553,6 +553,7 @@
         'tab_send':   { TW: "發送設定", CN: "发送设置", EN: "Send", DE: "Senden", FR: "Envoi", RU: "Отправка", UA: "Надсилання" },
         'tab_recv':   { TW: "接收設定", CN: "接收设置", EN: "Receive", DE: "Empfang", FR: "Réception", RU: "Приём", UA: "Отримання" },
         'tab_other':  { TW: "其他設定", CN: "其他设置", EN: "Other", DE: "Sonstiges", FR: "Autres", RU: "Прочее", UA: "Інше" },
+        'tab_hotkeys': { TW: "快捷鍵", CN: "快捷键", EN: "Hotkeys", DE: "Tastenkürzel", FR: "Raccourcis", RU: "Горячие клавиши", UA: "Гарячі клавіші" },
 
         // ── 總開關（左側第 0 鍵）──────────────────────────────────────────
         'masterOn':  { TW: "總開關：開啟", CN: "总开关：开启", EN: "Master: ON", DE: "Haupt: AN", FR: "Principal : ON", RU: "Главный: ВКЛ", UA: "Головний: УВІМК" },
@@ -569,9 +570,9 @@
             EN: "Currently ON.\nIncoming and outgoing messages are auto-translated per your settings."
         },
         'masterStatusOff': {
-            TW: "目前為停用狀態。\n自動翻譯已停止（選取翻譯、Bio 翻譯不受影響）。",
-            CN: "当前为停用状态。\n自动翻译已停止（选取翻译、Bio 翻译不受影响）。",
-            EN: "Currently OFF.\nAuto-translate is stopped (selection translate and Bio translate still work)."
+            TW: "目前為停用狀態。\n只有自動接收／發送翻譯停止，其他設定功能仍會作用。",
+            CN: "当前为停用状态。\n只有自动接收／发送翻译停止，其他设置功能仍会生效。",
+            EN: "Currently OFF.\nOnly automatic receive/send translation is stopped; Other settings still work."
         },
 
         // ── 發送 / 接收：分類標籤 ──────────────────────────────────────────
@@ -597,6 +598,7 @@
         'optLoginNotice': { TW: "登入通知訊息", CN: "登录通知消息", EN: "Login notice", DE: "Login-Hinweis", FR: "Avis de connexion", RU: "Уведомление при входе", UA: "Сповіщення при вході" },
         'optManual':      { TW: "手動翻譯（點選訊息）", CN: "手动翻译（点选消息）", EN: "Manual translate (click message)", DE: "Manuell übersetzen (Nachricht klicken)", FR: "Traduction manuelle (clic message)", RU: "Ручной перевод (клик по сообщению)", UA: "Ручний переклад (клік на повідомлення)" },
         'optChatButton':  { TW: "聊天室快捷按鈕", CN: "聊天室快捷按钮", EN: "Chat room quick button", DE: "Chat-Schnellschaltfläche", FR: "Bouton rapide du chat", RU: "Быстрая кнопка в чате", UA: "Швидка кнопка в чаті" },
+        'optFilterTranslations': { TW: "過濾全部翻譯信息", CN: "过滤全部翻译信息", EN: "Filter all translation messages", DE: "Alle Übersetzungsnachrichten filtern", FR: "Filtrer tous les messages traduits", RU: "Фильтровать все сообщения перевода", UA: "Фільтрувати всі повідомлення перекладу" },
         'hkToggle': { TW: "快捷鍵－總開關", CN: "快捷键－总开关", EN: "Hotkey — master", DE: "Tastenkürzel — Haupt", FR: "Raccourci — principal", RU: "Клавиша — главный", UA: "Клавіша — головний" },
         'hkRecv':   { TW: "快捷鍵－接收翻譯", CN: "快捷键－接收翻译", EN: "Hotkey — receive", DE: "Tastenkürzel — Empfang", FR: "Raccourci — réception", RU: "Клавиша — приём", UA: "Клавіша — отримання" },
         'hkSend':   { TW: "快捷鍵－發送翻譯", CN: "快捷键－发送翻译", EN: "Hotkey — send", DE: "Tastenkürzel — Senden", FR: "Raccourci — envoi", RU: "Клавиша — отправка", UA: "Клавіша — надсилання" },
@@ -615,9 +617,9 @@
 
         // ── 分頁常駐說明 ───────────────────────────────────────────────────
         'descMaster': {
-            TW: "MAT 的總開關。關閉後聊天室的自動翻譯（收/發）全部停止，但「選取翻譯」與「Bio 翻譯」不受影響。",
-            CN: "MAT 的总开关。关闭后聊天室的自动翻译（收/发）全部停止，但「选取翻译」与「Bio 翻译」不受影响。",
-            EN: "MAT master switch. When off, all chat auto-translation (send/receive) stops, but Selection translate and Bio translate still work."
+            TW: "MAT 總開關只控制聊天室的自動接收／發送翻譯。關閉後，其他設定中的手動翻譯、選取翻譯、翻譯訊息過濾、聊天室功能與快捷鍵等仍會作用。",
+            CN: "MAT 总开关只控制聊天室的自动接收／发送翻译。关闭后，其他设置中的手动翻译、选取翻译、翻译消息过滤、聊天室功能与快捷键等仍会生效。",
+            EN: "The MAT master switch controls only automatic receive/send translation. Manual and selection translation, message filtering, chat utilities, hotkeys, and other settings continue to work while it is off."
         },
         'descBasic': {
             TW: "基本設定：開關「接收翻譯」「發送翻譯」並選擇各自的目標語言。細部分類（動作/互動/悄悄話/私信）在發送、接收分頁。",
@@ -625,19 +627,28 @@
             EN: "Basic: toggle Receive/Send translation and pick their target languages. Per-type toggles (emote/action/whisper/beep) are on the Send and Receive tabs."
         },
         'descSend': {
-            TW: "發送設定：分別控制動作、互動、悄悄話、私信是否翻譯後廣播。需先在基本設定開啟「發送翻譯」。一般聊天恆受發送翻譯總開關管。",
-            CN: "发送设置：分别控制动作、互动、悄悄话、私信是否翻译后广播。需先在基本设置开启「发送翻译」。普通聊天恒受发送翻译总开关管。",
-            EN: "Send: control whether emote/action/whisper/beep are translated and broadcast. Requires Send translation on (Basic tab). Normal chat always follows the Send master toggle."
+            TW: "發送設定：可隨時預先調整動作、互動、悄悄話、私信與其他細項；「發送翻譯」關閉時設定仍可修改，重新開啟後生效。",
+            CN: "发送设置：可随时预先调整动作、互动、悄悄话、私信与其他细项；「发送翻译」关闭时设置仍可修改，重新开启后生效。",
+            EN: "Send settings can be edited at any time. When Send translation is off, these options remain configurable and take effect when it is turned back on."
         },
         'descRecv': {
-            TW: "接收設定：分別控制動作、互動、悄悄話、私信、系統(Local)訊息是否翻譯。需先在基本設定開啟「接收翻譯」。一般聊天恆受接收翻譯總開關管。",
-            CN: "接收设置：分别控制动作、互动、悄悄话、私信、系统(Local)消息是否翻译。需先在基本设置开启「接收翻译」。普通聊天恒受接收翻译总开关管。",
-            EN: "Receive: control whether emote/action/whisper/beep/system(Local) messages are translated. Requires Receive translation on (Basic tab). Normal chat always follows the Receive master toggle."
+            TW: "接收設定：可隨時預先調整動作、互動、悄悄話、私信、系統訊息與其他細項；「接收翻譯」關閉時設定仍可修改，重新開啟後生效。",
+            CN: "接收设置：可随时预先调整动作、互动、悄悄话、私信、系统消息与其他细项；「接收翻译」关闭时设置仍可修改，重新开启后生效。",
+            EN: "Receive settings can be edited at any time. When Receive translation is off, these options remain configurable and take effect when it is turned back on."
         },
         'descOther': {
-            TW: "其他設定：登入通知、手動翻譯、選取翻譯、自動捲動、略過結巴、聊天室快捷按鈕與三組快捷鍵。快捷鍵需勾選啟用才會生效。",
-            CN: "其他设置：登录通知、手动翻译、选取翻译、自动滚动、略过结巴、聊天室快捷按钮与三组快捷键。快捷键需勾选启用才会生效。",
-            EN: "Other: login notice, manual translate, selection translate, auto-scroll, skip stutter, chat quick button, and three hotkeys. Each hotkey must be checked to take effect."
+            TW: "其他設定：登入通知、手動翻譯、選取翻譯、自動捲動、略過結巴、聊天室快捷按鈕與翻譯訊息過濾。",
+            CN: "其他设置：登录通知、手动翻译、选取翻译、自动滚动、略过结巴、聊天室快捷按钮与翻译消息过滤。",
+            EN: "Other: login notice, manual translate, selection translate, auto-scroll, skip stutter, chat quick button, and translation-message filtering."
+        },
+        'descHotkeys': {
+            TW: "快捷鍵：設定 MAT 總開關、接收翻譯與發送翻譯三組快捷鍵。每組快捷鍵需勾選啟用才會生效。",
+            CN: "快捷键：设置 MAT 总开关、接收翻译与发送翻译三组快捷键。每组快捷键需勾选启用才会生效。",
+            EN: "Hotkeys: configure shortcuts for the MAT master switch, receive translation, and send translation. Each shortcut must be enabled to take effect.",
+            DE: "Tastenkürzel für MAT-Hauptschalter, Empfang und Senden. Jedes Kürzel muss aktiviert werden.",
+            FR: "Configurez les raccourcis MAT principal, réception et envoi. Chaque raccourci doit être activé.",
+            RU: "Настройте клавиши MAT для главного переключателя, приёма и отправки. Каждую нужно включить.",
+            UA: "Налаштуйте клавіші MAT для головного перемикача, отримання й надсилання. Кожну треба ввімкнути."
         },
 
         // ── 逐項說明 ───────────────────────────────────────────────────────
@@ -653,8 +664,8 @@
         'dSkipZh':   { TW: "當你的語言設為繁/簡體，且對象內容已是中文（含日、韓例外）時跳過翻譯，避免中翻中。", CN: "当你的语言设为繁/简体，且对象内容已是中文（日、韩例外）时跳过翻译，避免中翻中。", EN: "When your language is Traditional/Simplified Chinese and the text is already Chinese (Japanese/Korean excepted), skip the pointless zh→zh translation." },
         'dHideOrigSend': { TW: "發送聊天/私聊/動作/情境時不送原句，只送出翻譯結果（仍帶 [🌐] 與隱藏旗標供對方判斷）；翻譯失敗才補送原文。因翻譯需等待，自己的訊息會略慢幾百毫秒出現。", CN: "发送聊天/私聊/动作/情境时不送原句，只送出翻译结果（仍带 [🌐] 与隐藏旗标供对方判断）；翻译失败才补送原文。因翻译需等待，自己的消息会略慢几百毫秒出现。", EN: "For Chat/Whisper/Emote/Action, don't send the original — send only the translation (still tagged [🌐] plus a hidden flag); fall back to the original only if translation fails. Your message appears a few hundred ms later due to the async translation." },
         'dHideOrigRecv': { TW: "接收訊息並翻譯成功後，隱藏原句、只留譯文。翻譯失敗或簡繁跳過時原句保留。", CN: "接收消息并翻译成功后，隐藏原句、只留译文。翻译失败或简繁跳过时原句保留。", EN: "After a message is received and translated, hide the original and keep only the translation. The original stays if translation fails or is zh-skipped." },
-        'dFoldRecv': { TW: "收到訊息並翻譯成功後，把原句與譯文合併成一則訊息、優先顯示譯文；點訊息前方的「A/文」按鈕可展開/收合查看原句。翻譯失敗或簡繁跳過時不摺疊。", CN: "收到消息并翻译成功后，把原句与译文合并成一则消息、优先显示译文；点消息前方的「A/文」按钮可展开/收合查看原句。翻译失败或简繁跳过时不折叠。", EN: "After a received message is translated, merge the original and translation into one message and show the translation first; click the \"A/文\" button in front of it to expand/collapse the original. Not folded if translation fails or is zh-skipped." },
-        'dFoldSend': { TW: "你發送的訊息翻譯廣播回顯後，把你的原句與譯文合併成一則訊息（僅自己畫面）、優先顯示譯文；點「A/文」按鈕可展開/收合查看原句。需搭配「僅發送譯文」關閉（原句仍正常送出）才有原句可摺。", CN: "你发送的消息翻译广播回显后，把你的原句与译文合并成一则消息（仅自己画面）、优先显示译文；点「A/文」按钮可展开/收合查看原句。需搭配「仅发送译文」关闭（原句仍正常送出）才有原句可折。", EN: "After your own translation broadcast echoes back, merge your original and translation into one message (your view only) and show the translation first; click \"A/文\" to expand/collapse the original. Requires \"Send translation only\" to be OFF so the original is actually sent and available to fold." },
+        'dFoldRecv': { TW: "收到訊息並翻譯成功後，把原句與譯文合併成一組；展開時原文在上、譯文在下，點訊息前方的「A/文」按鈕可展開/收合原句。翻譯失敗或簡繁跳過時不摺疊。", CN: "收到消息并翻译成功后，把原句与译文合并成一组；展开时原文在上、译文在下，点消息前方的「A/文」按钮可展开/折叠原句。翻译失败或简繁跳过时不折叠。", EN: "After translating a received message, group the original and translation; when expanded, the original is above the translation. Click \"A/文\" to show/hide the original. Not folded if translation fails or is zh-skipped." },
+        'dFoldSend': { TW: "你發送的訊息翻譯廣播回顯後，把原句與譯文合併成一組（僅自己畫面）；展開時原文在上、譯文在下，點「A/文」可展開/收合原句。需搭配「僅發送譯文」關閉才有原句可摺。", CN: "你发送的消息翻译广播回显后，把原句与译文合并成一组（仅自己画面）；展开时原文在上、译文在下，点「A/文」可展开/折叠原句。需关闭「仅发送译文」才有原句可折。", EN: "After your translation broadcast echoes back, group it with your original (your view only); when expanded, the original is above the translation. Click \"A/文\" to show/hide it. Requires \"Send translation only\" to be OFF." },
         'foldShowOrig': { TW: "顯示原文", CN: "显示原文", EN: "Show original", DE: "Original anzeigen", FR: "Afficher l'original", RU: "Показать оригинал", UA: "Показати оригінал" },
         'foldHideOrig': { TW: "收合原文", CN: "折叠原文", EN: "Hide original", DE: "Original einklappen", FR: "Masquer l'original", RU: "Свернуть оригинал", UA: "Згорнути оригінал" },
         'dLoginNotice':  { TW: "登入時在聊天室顯示 MAT 初始化通知。", CN: "登录时在聊天室显示 MAT 初始化通知。", EN: "Show the MAT init notice in chat on login." },
@@ -671,6 +682,7 @@
         },
         'dSkipStutter':  { TW: "翻譯前移除結巴前綴（如 n-no → no），避免破碎結果。", CN: "翻译前移除结巴前缀（如 n-no → no），避免破碎结果。", EN: "Strip stutter prefixes (e.g. n-no → no) before translating to avoid broken results." },
         'dChatButton':   { TW: "在聊天室按鈕列新增 🌐 按鈕，點擊向上展開總開關／發送／接收／前往設定。", CN: "在聊天室按钮栏新增 🌐 按钮，点击向上展开总开关／发送／接收／前往设置。", EN: "Add a 🌐 button to the chat button bar; click to pop up master/send/receive/settings." },
+        'dFilterTranslations': { TW: "隱藏聊天室內所有包含 [🌐] 或 🔊 的翻譯信息；關閉後會恢復由此功能隱藏的訊息。", CN: "隐藏聊天室内所有包含 [🌐] 或 🔊 的翻译信息；关闭后会恢复由此功能隐藏的消息。", EN: "Hide all chat messages containing [🌐] or 🔊. Turning it off restores messages hidden by this option.", DE: "Blendet alle Chatnachrichten mit [🌐] oder 🔊 aus; beim Ausschalten werden sie wiederhergestellt.", FR: "Masque tous les messages contenant [🌐] ou 🔊 ; ils sont restaurés à la désactivation.", RU: "Скрывает все сообщения с [🌐] или 🔊; после отключения они восстанавливаются.", UA: "Приховує всі повідомлення з [🌐] або 🔊; після вимкнення вони відновлюються." },
         'dHkToggle': { TW: "啟用後可用快捷鍵切換 MAT 總開關（預設 Ctrl+M）。點右側按鈕可重新綁定。", CN: "启用后可用快捷键切换 MAT 总开关（默认 Ctrl+M）。点右侧按钮可重新绑定。", EN: "When enabled, a hotkey toggles the MAT master switch (default Ctrl+M). Click the button to rebind." },
         'dHkRecv':   { TW: "啟用後可用快捷鍵切換接收翻譯（預設 Ctrl+R）。點右側按鈕可重新綁定。", CN: "启用后可用快捷键切换接收翻译（默认 Ctrl+R）。点右侧按钮可重新绑定。", EN: "When enabled, a hotkey toggles receive translation (default Ctrl+R). Click the button to rebind." },
         'dHkSend':   { TW: "啟用後可用快捷鍵切換發送翻譯（預設 Ctrl+S）。點右側按鈕可重新綁定。", CN: "启用后可用快捷键切换发送翻译（默认 Ctrl+S）。点右侧按钮可重新绑定。", EN: "When enabled, a hotkey toggles send translation (default Ctrl+S). Click the button to rebind." },
