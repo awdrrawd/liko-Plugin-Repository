@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.1
+// @version      1.7.2
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.1";
+    const MOD_VER = "1.7.2";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -405,6 +405,30 @@
         return { lang: e[LIKO_MAT_FIELD] ?? null, tr: !!e.tr };
     }
 
+    // ============================================================
+    // Beep 專用意圖旗標：AccountBeep 沒有 Dictionary 可掛（伺服器端 schema 只有
+    // MemberNumber/Message/BeepType…），無法比照 Chat/Whisper 塞進 Dictionary 夾帶語言旗標。
+    // 改用「不可見分隔符」直接包在 Message 文字尾端——BC 對 Message 內容不做過濾，且已知
+    // BCUtil 用類似手法（\uf124，見上面 stripBCUtilCruft 的處理對象）夾帶專屬標記能存活到
+    // 對方畫面，這裡援用同一招：U+2063 INVISIBLE SEPARATOR 不會被排版顯示，人眼看不到。
+    // 格式：<原文>\u2063LikoMAT:<lang>[:tr]\u2063　（tr = 這是翻譯廣播本身，非原句）
+    // ============================================================
+    const BEEP_MARK = '\u2063';
+    const BEEP_MARK_RE = /\u2063LikoMAT:([a-zA-Z-]+)(:tr)?\u2063$/;
+
+    function addBeepFlag(message, lang, isTranslation) {
+        return `${message}${BEEP_MARK}LikoMAT:${lang}${isTranslation ? ':tr' : ''}${BEEP_MARK}`;
+    }
+
+    // 拆出 { text, lang, tr }：text 是去掉旗標後的乾淨原文；沒有旗標（對方沒裝/舊版 MAT）
+    // 則 lang 為 null、text 原樣返回，呼叫端據此知道「這則沒有協調資訊，比照舊版行為」。
+    function readBeepFlag(message) {
+        if (typeof message !== 'string') return { text: message, lang: null, tr: false };
+        const m = message.match(BEEP_MARK_RE);
+        if (!m) return { text: message, lang: null, tr: false };
+        return { text: message.slice(0, m.index), lang: m[1], tr: !!m[2] };
+    }
+
     // 取出 BC 原生「回覆」功能夾在 Dictionary 裡的 ReplyId（該訊息是回覆哪一則訊息）。
     // 修正：MAT 送出翻譯廣播（[🌐] ...）時原本沒有把這個 ReplyId 一起帶過去，
     // 導致翻譯後的那則訊息在畫面上遺失「回覆/引用」的關聯，讀起來像是憑空冒出的訊息。
@@ -578,16 +602,25 @@
         return null;
     }
 
-    // 節點之後是否已出現同一發送者的翻譯廣播（對方廣播已到）。
+    // 節點之後是否已出現同一發送者、且語言是我讀得懂的翻譯廣播（對方廣播已到）。
     // 優先用 mat-broadcast 旗標類別辨識（被堵嘴時 [🌐] 會被亂碼吃掉），[🌐] 文字僅作後備。
+    // 房間裡不同人可能設定不同的接收語言，對方廣播出來的 [🌐] 不一定是我要的語言（見
+    // hookReceiveFlag 的 dataset.matLang 標記），所以這裡要多比對一次語言是否讀得懂，
+    // 否則會誤把「別人聽得懂、但我看不懂」的廣播當成「我已經有翻譯了」而跳過自翻。
     function hasRemoteTranslation(node) {
         let sib = node.nextElementSibling, hops = 0;
         while (sib && hops < 8) {
             if (sib.classList?.contains('ChatMessage') &&
                 !sib.classList.contains('mat-translated') &&
                 !sib.classList.contains('mat-manual-translated') &&
-                sib.dataset?.sender === node.dataset?.sender &&
-                (sib.classList.contains('mat-broadcast') || sib.textContent.includes('[🌐]'))) return true;
+                sib.dataset?.sender === node.dataset?.sender) {
+                if (sib.classList.contains('mat-broadcast')) {
+                    // 有 dataset.matLang 才比對語言；沒有（理論上不會發生）就沿用舊版「有廣播就算」防呆。
+                    if (!sib.dataset.matLang || langReadable(sib.dataset.matLang, config.recvLang)) return true;
+                } else if (sib.textContent.includes('[🌐]')) {
+                    return true;   // 沒有旗標可比對語言的舊版/亂碼後備判斷
+                }
+            }
             sib = sib.nextElementSibling; hops++;
         }
         return false;
@@ -648,16 +681,44 @@
         if (senderEl?.textContent == Player?.MemberNumber) return;
 
         if (node.classList.contains('ChatMessageBeep')) {
+            if (node.classList.contains('mat-broadcast')) return;   // hookBeepCapture 已標記：這是對方的翻譯廣播本身
+            if (node.classList.contains('mat-skip')) {
+                // 對方已標記會翻成我讀得懂的語言：先等它的廣播 Beep 送到，最多 1 秒，避免同一句
+                // 話兩邊各打一次翻譯 API（跟 Chat/Whisper 用的是同一套等待邏輯，見 hasRemoteTranslation）。
+                node.classList.add("mat-processed");
+                if (await waitForRemoteTranslation(node)) return;
+            }
             const beepLink = node.querySelector('.beep-link');
             if (!beepLink) return;
-            const beepText = beepLink.textContent.trim();
-            if (beepText.includes('{') || beepText.includes('[🌐]')) return;
+
+            // 優先讀 hookBeepCapture 直接從 data.Message 存下的原始內容：權威來源、未經 BC 150 字
+            // 預覽截斷、不受多語系 title 格式（"(BeepFrom X: msg)" 這類固定格式在其他語言下可能
+            // 完全不同，房間自訂名稱裡若剛好含 ": " 也會讓舊版的冒號切割解析錯位）影響。
+            // 沒有這個標記（hook 沒接上、或訊息在 MAT 就緒前就已渲染在畫面殘留）才退回舊版
+            // 「從畫面文字反推固定格式」的解析法，當最後一道防呆。
+            let msg, prefix;
+            if (node.dataset.matBeepMsg != null) {
+                msg = node.dataset.matBeepMsg;
+                const name = node.dataset.matBeepSenderName;
+                const num = node.dataset.matBeepSenderNum;
+                prefix = name ? `${name} (${num}): ` : '';
+            } else {
+                const beepText = beepLink.textContent.trim();
+                if (beepText.includes('{') || beepText.includes('[🌐]')) return;
+                const hasParen = beepText.startsWith('(');
+                const colonIdx = beepText.indexOf(': ');
+                msg = colonIdx >= 0 ? beepText.slice(colonIdx + 2) : beepText;
+                // beep 全句包在「(...)」裡，取冒號後半段時結尾那個右括號不是內容的一部分，得去掉，
+                // 不然會把 "hello)" 這種多一個括號的字串拿去翻譯。
+                if (colonIdx >= 0 && hasParen && msg.endsWith(')')) msg = msg.slice(0, -1);
+                prefix = colonIdx >= 0 ? beepText.slice(hasParen ? 1 : 0, colonIdx + 2) : '';
+            }
+            if (!msg || msg.includes('{') || msg.includes('[🌐]')) return;
             node.classList.add("mat-processed");
-            const colonIdx = beepText.indexOf(': ');
-            const msg = colonIdx >= 0 ? beepText.slice(colonIdx + 2) : beepText;
             if (!msg.trim() || skipZhRecv(msg)) return;
             const translated = await smartTranslate(msg, config.recvLang);
-            if (translated !== null && translated !== msg) createTranslatedDiv(node, translated);
+            if (translated === null || translated === msg) return;
+            createBeepTranslatedDiv(node, prefix, translated);
             return;
         }
 
@@ -795,24 +856,131 @@
         return node;
     }
 
+    // 譯文列的按鈕（名稱／Reply）不能直接把原始節點「原地」搬過來用：BC 用 screen-generated 的
+    // 動態 id（例如 id="a1z"）配發按鈕，同一個 id 不能在畫面上出現兩次。
+    // 但外觀（class / name 屬性 / 巢狀 tooltip 結構）該保留就儘量保留——BC 自己的樣式表是照這些
+    // class／attribute 選字的，保留越多，長出來的形狀就跟原生按鈕越像；只有兩件事要處理：
+    //   1) clone 出來的節點（含巢狀的 tooltip）身上所有 id 都要拔掉，避免與原始節點重複。
+    //   2) clone 不會帶著原本用 addEventListener 掛的行為，所以點擊改成代理呼叫「真正的原始
+    //      （此時仍在 DOM 中、只是 display:none 摺疊起來）按鈕」的 .click()，直接借用 BC 原生邏輯。
+    //      .click() 對 display:none 的元素一樣有效（不影響 JS 事件觸發，只影響滑鼠可不可見/可不可點）。
+    function proxyCloneButton(sourceBtn) {
+        const clone = sourceBtn.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.removeAttribute('aria-labelledby');
+        clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+        clone.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            sourceBtn.click();
+        });
+        return clone;
+    }
+
     function createTranslatedDiv(originalNode, translatedText) {
         const div = document.createElement('div');
-        const cls = [...originalNode.classList].find(c => c.startsWith('ChatMessage') && c !== 'ChatMessage');
+        // 有些訊息同時掛好幾個 ChatMessage* class（例如 Beep 同時是
+        // ChatMessageLocalMessage + ChatMessageNonDialogue + ChatMessageBeep）。
+        // 不能只抓「第一個符合的」：LocalMessage 排在 Beep 前面的話，翻譯列會被誤判成系統本地訊息
+        // （可能被系統訊息的顯示設定濾掉/套用不同樣式），導致翻譯明明跑了、畫面卻看不到。
+        //
+        // 優先讀 hookReceiveFlag 在訊息「建立當下」直接記下的權威類型（來自 ChatRoomMessage 的
+        // data.Type 參數本身——BC 組 class 時就是拿它接成 `ChatMessage${data.Type}`，見原始碼
+        // ChatRoom.js；這不是猜，是讀規則）。讀不到才退回舊版「已知類型優先順序表」用 class
+        // 猜測，當訊息在 MAT hook 生效之前就已經渲染（例如殘留、極少數 hook 沒接上）時的防呆。
+        let cls = originalNode.dataset.matType ? `ChatMessage${originalNode.dataset.matType}` : null;
+        if (!cls || !originalNode.classList.contains(cls)) {
+            const TYPE_PRIORITY = ['ChatMessageBeep', 'ChatMessageWhisper', 'ChatMessageChat',
+                'ChatMessageEmote', 'ChatMessageAction', 'ChatMessageActivity'];
+            const clsList = [...originalNode.classList];
+            cls = TYPE_PRIORITY.find(c => clsList.includes(c)) ||
+                clsList.find(c => c.startsWith('ChatMessage') && c !== 'ChatMessage');
+        }
         div.classList.add('ChatMessage', 'mat-translated');
         if (cls) div.classList.add(cls);
-        let body = translatedText;
-        if (originalNode.classList.contains('ChatMessageChat')) {
-            const name = originalNode.querySelector('.ChatMessageName')?.textContent?.trim();
+        if (originalNode.dataset.time) div.dataset.time = originalNode.dataset.time;
+        if (originalNode.dataset.sender) div.dataset.sender = originalNode.dataset.sender;
+
+        const origNameBtn = originalNode.querySelector('.ChatMessageName');
+        const origContentEl = originalNode.querySelector('.chat-room-message-content');
+        const origMetaEl = originalNode.querySelector('.chat-room-metadata');
+        // Reply 一律指向「原文」的 Reply（若對方點進來回的是譯文，對方收到的引用內容跟他自己說的原話對不上）。
+        // 這件事只在「接收」端有意義：自己發送的訊息本來就有原文＋翻譯廣播兩則真訊息，沒有這個問題。
+        const origReplyBtn = originalNode.querySelector('button[name="reply"]');
+        // Reply 按鈕在原始 DOM 裡包在 .menubar（同時帶 chat-room-message-popup 等 class）容器內，
+        // 那層容器的 class 很可能才是 BC 樣式表（圖示、hover 顯形）實際選中的對象，所以外框的
+        // class 也要一起保留，而不是只保留按鈕本身。
+        const origMenubar = originalNode.querySelector('.menubar');
+
+        // 有名稱按鈕＋內容欄位（Chat / Whisper 等一般訊息的常見結構）才重建「名稱: [🌐]內容 Reply」版面；
+        // 其他類型（Emote/Action/Local…結構不確定）退回舊版純文字，避免誤組出壞掉的 DOM。
+        if (origNameBtn && origContentEl) {
+            const nameBtn = proxyCloneButton(origNameBtn);
+            div.appendChild(nameBtn);
+            div.appendChild(document.createTextNode(': '));
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'chat-room-message-content mat-translated-content';
+            textSpan.textContent = `[🌐] ${translatedText}`;
+            div.appendChild(textSpan);
+
+            if (origReplyBtn) {
+                const replyClone = proxyCloneButton(origReplyBtn);
+                if (origMenubar) {
+                    // 外框只借 class（不 clone 節點本身），一樣是為了不要把 id 帶進來重複。
+                    const replyWrap = document.createElement('div');
+                    replyWrap.className = origMenubar.className;
+                    replyWrap.appendChild(replyClone);
+                    div.appendChild(replyWrap);
+                } else {
+                    div.appendChild(replyClone);
+                }
+            }
+
+            if (origMetaEl) div.appendChild(origMetaEl.cloneNode(true));   // 時間、ID：純文字節點，clone 安全、無 id 衝突
+        } else {
+            let body = translatedText;
+            const name = origNameBtn?.textContent?.trim();
             if (name) body = `${name}: ${translatedText}`;
+            const textSpan = document.createElement('span');
+            textSpan.textContent = `[🌐] ${body}`;
+            div.appendChild(textSpan);
         }
-        // 用 span 包住文字（維持原有 DOM 結構，「A/文」按鈕現在改放在 mat-click-toolbar，不再插入此處）。
-        const textSpan = document.createElement('span');
-        textSpan.textContent = `[🌐] ${body}`;
-        div.appendChild(textSpan);
+
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
         const wasAtEnd = chatWasAtEnd();   // 插入前先判斷是否本來就在底部
         // 譯文插在原句「之前」：摺疊展開（按 A/文）時，原句會顯示在 [🌐] 譯文下方而非上方。
         originalNode.parentNode.insertBefore(div, originalNode);
+        scrollChatToEndIfWasAtEnd(wasAtEnd);
+        return div;
+    }
+
+    // Beep 專用的翻譯列：Beep 的 DOM 跟一般聊天訊息差很多（用 .beep-link 整句包在
+    // 「(好友私聊来自 X (ID): 內容)」這種固定格式的 <a> 裡，沒有 .chat-room-message-content /
+    // .ChatMessageName），所以不走 createTranslatedDiv 那套，另外刻一個小版本：
+    //   1) 前綴（"好友私聊来自 X (ID): "）原樣保留，翻譯列長得跟原生 Beep 一致，不是憑空一句話。
+    //   2) Beep 沒有摺疊機制（fold 只套用在 Chat/Whisper/Emote/Action），譯文直接接在原句「之後」，
+    //      符合「先看到通知原文、再看翻譯」的閱讀順序，而不是像一般訊息摺疊那樣譯文擺在原句前面。
+    function createBeepTranslatedDiv(originalNode, prefix, translatedText) {
+        const div = document.createElement('div');
+        div.classList.add('ChatMessage', 'mat-translated', 'ChatMessageBeep');
+        if (originalNode.dataset.time) div.dataset.time = originalNode.dataset.time;
+        if (originalNode.dataset.sender) div.dataset.sender = originalNode.dataset.sender;
+
+        const origMetaEl = originalNode.querySelector('.chat-room-metadata');
+        const origReplyBtn = originalNode.querySelector('.ReplyButton');
+        if (origReplyBtn) div.appendChild(proxyCloneButton(origReplyBtn));   // 代理到原句的回覆，同理由：回覆要對到原文
+
+        const link = document.createElement('a');
+        link.className = 'beep-link mat-translated-content';
+        link.textContent = `(${prefix}[🌐] ${translatedText})`;
+        div.appendChild(link);
+
+        if (origMetaEl) div.appendChild(origMetaEl.cloneNode(true));   // 時間、ID：純文字節點，clone 安全、無 id 衝突
+
+        div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
+        const wasAtEnd = chatWasAtEnd();
+        originalNode.parentNode.insertBefore(div, originalNode.nextSibling);   // 插在原句「之後」
         scrollChatToEndIfWasAtEnd(wasAtEnd);
         return div;
     }
@@ -1345,9 +1513,16 @@
             if (command === "AccountBeep" && config.sendBeep) {
                 const t = safeStr(data.Message);
                 if (t && !t.includes('[🌐]') && (!data.BeepType || data.BeepType === '') && isUserMessage(t) && !t.trim().startsWith('{') && !skipZhSend(t)) {
+                    // 意圖旗標：告訴對方「我會翻成 sendLang 並再送一則廣播」，讓對方的 hookBeepCapture
+                    // 標記 mat-skip、跳過他自己的自動翻譯——比照 Chat/Whisper 的協調機制，避免同一句話
+                    // 被翻兩次（一次來自這裡的廣播、一次來自對方自己對原句的接收翻譯）。
+                    // 旗標是不可見字元，對方沒裝 MAT／舊版也只是讀不到，不影響原文可讀性。
+                    data.Message = addBeepFlag(t, config.sendLang, false);
                     next(args);
                     smartTranslate(t, config.sendLang).then(r => {
-                        if (r !== null && r !== t) ServerSend("AccountBeep", { MemberNumber: data.MemberNumber, Message: `[🌐] ${r}` });
+                        if (r !== null && r !== t) {
+                            ServerSend("AccountBeep", { MemberNumber: data.MemberNumber, Message: addBeepFlag(`[🌐] ${r}`, config.sendLang, true) });
+                        }
                     });
                     return;
                 }
@@ -1388,27 +1563,49 @@
         });
     }
 
-    // 接收端：讀對方夾的意圖旗標，若其目標語言 == 我的接收語言，標記節點 mat-skip 讓 observer 跳過自翻
+    // 接收端：讀對方夾的意圖旗標，若其目標語言 == 我的接收語言，標記節點 mat-skip 讓 observer 跳過自翻。
+    // 同時（不論有沒有旗標）用 data.Type 替節點標上「權威類型」dataset.matType——ChatRoomMessage
+    // 的 data.Type 參數本身就是 BC 組 `ChatMessage${data.Type}` class 時真正依據的來源（見 BC 原始碼
+    // ChatRoom.js），比事後從一串 class 裡用「已知類型優先順序表」去猜精準，也不受未來 BC 版本調整
+    // class 附加順序影響。createTranslatedDiv 會優先讀這個標記，讀不到才退回舊版猜測法防呆。
     function hookReceiveFlag() {
         if (!modApi) return;
         modApi.hookFunction("ChatRoomMessage", 10, (args, next) => {
             const result = next(args);
             try {
-                if (!config.enabled || !config.translateReceived) return result;
                 const data = args[0];
                 if (!data || typeof data !== 'object') return result;
+
+                // result 就是 BC 剛建立好的節點本身（ChatRoomMessage 回傳 div），直接標記即可，
+                // 不需要再靠 findFlaggedNode 的 MsgId/末節點 heuristic 去反查——這裡精準度更高。
+                if (result instanceof HTMLElement && typeof data.Type === 'string') {
+                    result.dataset.matType = data.Type;
+                }
+
+                if (!config.enabled || !config.translateReceived) return result;
                 if (data.Sender === Player?.MemberNumber) return result;
                 const flag = readMATFlag(data);
                 if (!flag) return result;
-                const node = findFlaggedNode(data);
+                const node = result instanceof HTMLElement ? result : findFlaggedNode(data);
                 if (!node) return result;
                 if (flag.tr) {
                     // 這是「翻譯廣播本身」：標記 mat-broadcast，讓 observer 不再翻它（不靠會被亂碼吃掉的 [🌐]）。
+                    // 同時記下這則廣播實際的語言，供 hasRemoteTranslation 等處精準比對
+                    // （房間裡每個人接收語言可能不同，不能只看「有沒有廣播」就當作我也看得懂）。
                     node.classList.add('mat-broadcast');
-                    // 中文變體廣播、我又開了簡繁跳過：只有當「原句本身也是中文（我讀得懂）」時，這則
-                    // 譯文才算多餘 → 隱藏，免與原文並列成兩筆。原句非中文（我正靠這則廣播閱讀）或原句
-                    // 已被發送端隱藏（找不到）→ 保留，否則整句會變成沒有譯文。
-                    if (flag.lang && /^zh/i.test(flag.lang) && config.recvSkipZhVariant && /^zh/i.test(config.recvLang)) {
+                    node.dataset.matLang = flag.lang || '';
+
+                    if (flag.lang && !langReadable(flag.lang, config.recvLang)) {
+                        // 對方廣播的語言不是我看得懂的（例如對方設定翻成英文廣播，但我的接收語言是中文）。
+                        // 這則廣播對我來說只是雜訊，不但沒用，還會跟我自己這端對原句的翻譯／摺疊搞混
+                        // （不知道該摺哪一則、該不該再翻一次）。直接藏起來；原句本身沒被標記 mat-skip
+                        // （見下面 else 分支的判斷邏輯——語言對不上就不會標記），所以我這端仍會照常
+                        // 對原句自動翻譯成我的接收語言，不受影響。
+                        node.style.display = 'none';
+                    } else if (/^zh/i.test(flag.lang || '') && config.recvSkipZhVariant && /^zh/i.test(config.recvLang)) {
+                        // 中文變體廣播、我又開了簡繁跳過：只有當「原句本身也是中文（我讀得懂）」時，這則
+                        // 譯文才算多餘 → 隱藏，免與原文並列成兩筆。原句非中文（我正靠這則廣播閱讀）或原句
+                        // 已被發送端隱藏（找不到）→ 保留，否則整句會變成沒有譯文。
                         const orig = findOriginalNode(node);
                         if (orig && isChineseText(extractCleanMessage(orig))) node.style.display = 'none';
                     }
@@ -1419,6 +1616,58 @@
                 }
             } catch (e) {
                 console.warn('🐈‍⬛ [MAT] ❌ recv flag hook:', e);
+            }
+            return result;
+        });
+    }
+
+    // 接收端：Beep 專用版本。AccountBeep 走 ServerAccountBeep 這條完全獨立於 ChatRoomMessage 的
+    // 渲染路徑（自己刻 DOM，不是通用訊息渲染器），所以無法沿用 hookReceiveFlag 那套，另外接一支：
+    //   1) 讀出/拆掉藏在 Message 尾端的旗標（見 addBeepFlag/readBeepFlag），把「乾淨版本」(拆完
+    //      旗標的原文) 換回 data.Message 再交給原生函式渲染——這樣 BC 組出的 title／FriendListBeepLog
+    //      存檔都是乾淨文字，不會被不可見字元污染。
+    //   2) 標記權威類型 dataset.matType='Beep' + 直接存一份「未經 150 字預覽截斷、不受多語系
+    //      title 格式影響」的原始訊息，供 handleReceivedMessage 直接讀取，取代舊版從畫面文字
+    //      反推固定格式 "(前綴: 內容)" 的解析法。
+    //   3) 比照 hookReceiveFlag，依旗標做廣播協調（mat-skip / mat-broadcast），避免 Beep 被
+    //      翻兩次（廣播一次、接收端自己又翻一次）。
+    // ServerAccountBeep 沒有回傳值可用，也沒有 MsgId 這種可精準比對的東西；但呼叫是同步的，
+    // 原生函式一執行完，剛插入的節點必然就是 log 的最後一個子節點，用「插入前後子節點數」
+    // 判斷有沒有真的渲染出東西（Player 關閉 ShowBeepChat 時不會渲染），比單純「拿最後一個」更保險。
+    function hookBeepCapture() {
+        if (!modApi) return;
+        modApi.hookFunction("ServerAccountBeep", 10, (args, next) => {
+            const data = args[0];
+            if (!data || typeof data !== 'object' || typeof data.Message !== 'string') return next(args);
+
+            const { text, lang, tr } = readBeepFlag(data.Message);
+            data.Message = text;   // 拆掉旗標再交給原生渲染
+
+            const log0 = document.querySelector('#TextAreaChatLog');
+            const before = log0 ? log0.children.length : -1;
+            const result = next(args);
+            const log = document.querySelector('#TextAreaChatLog');
+            if (!log || log.children.length <= before) return result;   // 沒有真的渲染出節點
+
+            const node = log.lastElementChild;
+            if (!(node instanceof HTMLElement) || !node.classList.contains('ChatMessageBeep')) return result;
+
+            node.dataset.matType = 'Beep';
+            node.dataset.matBeepMsg = text;
+            if (data.MemberName) node.dataset.matBeepSenderName = data.MemberName;
+            if (data.MemberNumber != null) node.dataset.matBeepSenderNum = String(data.MemberNumber);
+
+            if (!config.enabled || !config.translateReceived || !lang) return result;
+            try {
+                if (tr) {
+                    node.classList.add('mat-broadcast');
+                    node.dataset.matLang = lang;
+                    if (!langReadable(lang, config.recvLang)) node.style.display = 'none';
+                } else if (langReadable(lang, config.recvLang)) {
+                    node.classList.add('mat-skip');
+                }
+            } catch (e) {
+                console.warn('🐈‍⬛ [MAT] ❌ beep flag hook:', e);
             }
             return result;
         });
@@ -1819,7 +2068,12 @@
         return (h >>> 0).toString(36);
     }
 
-    function normalizeUnicodeText(text) {
+    // 字元對照表只需要建一次：原本放在函式內，每次呼叫（每次翻譯個人簡介）都重建一個
+    // 900+ entry 的 Map，是白白浪費的 CPU/記憶體churn。挪到 module scope 用 lazy-init
+    // 只算一次，之後每次呼叫直接複用同一份表。
+    let _unicodeNormMap = null;
+    function getUnicodeNormMap() {
+        if (_unicodeNormMap) return _unicodeNormMap;
         const ranges = [
             [0x1D400,0x41,26],[0x1D41A,0x61,26],[0x1D434,0x41,26],[0x1D44E,0x61,26],
             [0x1D468,0x41,26],[0x1D482,0x61,26],[0x1D49C,0x41,26],[0x1D4B6,0x61,26],
@@ -1839,6 +2093,12 @@
                      0x1D51D:0x5A,0x1D53A:0x43,0x1D53F:0x48,0x1D545:0x4E,0x1D547:0x50,
                      0x1D548:0x51,0x1D551:0x5A};
         for (const [k,v] of Object.entries(exc)) map.set(Number(k), v);
+        _unicodeNormMap = map;
+        return map;
+    }
+
+    function normalizeUnicodeText(text) {
+        const map = getUnicodeNormMap();
         let out = '';
         for (let i = 0; i < text.length; i++) {
             const cp = text.codePointAt(i);
@@ -2250,6 +2510,7 @@
                     registerCommands();
                     hookSendFunctions();
                     hookReceiveFlag();
+                    hookBeepCapture();
                     hookRoomEvents();
                     hookOnlineProfile();
                     setupSelectionListener();
