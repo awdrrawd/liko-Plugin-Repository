@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.0
+// @version      1.7.1
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.0";
+    const MOD_VER = "1.7.1";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -64,17 +64,17 @@
             sendAction: true,
             sendWhisper: true,
             sendBeep: true,
-            sendSkipZhVariant: true,   // 發送語言為中文時，內容已是中文則跳過翻譯
-            sendHideOriginal: false,   // 僅發送譯文，不送原句（Chat/Whisper/Emote/Action；翻譯失敗才補送原文）
             sendFold: false,           // 譯文摺疊：翻譯廣播回顯後，將自己的原句＋譯文合併成一則訊息、預設收合原句
+            sendHideOriginal: false,   // 僅發送譯文，不送原句（Chat/Whisper/Emote/Action；翻譯失敗才補送原文）
+            sendSkipZhVariant: true,   // 發送語言為中文時，內容已是中文則跳過翻譯
             // ── 接收分類（動作/互動/悄悄話/私信/系統 Local）──
             recvEmote: true,
             recvAction: true,
             recvWhisper: true,
             recvBeep: true,
             recvLocal: false,
-            recvSkipZhVariant: true,   // 接收語言為中文時，收到內容為中文則跳過翻譯
             recvFold: false,           // 譯文摺疊：翻譯成功後，將原句＋譯文合併成一則訊息、預設收合原句（Chat/Whisper/Emote/Action）
+            recvSkipZhVariant: true,   // 接收語言為中文時，收到內容為中文則跳過翻譯
             // ── 其他 ──
             loginNotice: true,
             translateChat: true,       // 手動翻譯（點選訊息出現翻譯按鈕）
@@ -685,7 +685,10 @@
     // 找出前面對應的自己原句節點，合併成一則訊息（僅自己看得到、不影響對方畫面）。
     // 需搭配 sendHideOriginal 關閉（原句確實有送出、本地也確實有回顯）才有東西可摺。
     function handleOwnSentFold(node) {
-        if (!config.enabled || !config.translateSent || !config.sendFold || config.sendHideOriginal) return;
+        // sendHideOriginal 開啟時也要執行：原句雖不對外送出，仍留一份本地隱藏節點（見 renderLocalOriginalEcho /
+        // hideOwnOriginalEcho 的 mat-hidden-orig 標記），需要在這裡與譯文廣播配對，掛上 A/文 還原按鈕。
+        if (!config.enabled || !config.translateSent) return;
+        if (!config.sendFold && !config.sendHideOriginal) return;
         if (!(node instanceof HTMLElement) || !node.classList.contains('ChatMessage')) return;
         if (node.classList.contains('mat-translated') || node.classList.contains('mat-manual-translated') ||
             node.classList.contains('mat-folded') || node.classList.contains('mat-processed')) return;
@@ -697,12 +700,14 @@
         let sib = node.previousElementSibling, hops = 0;
         while (sib && hops < 8) {
             if (sib instanceof HTMLElement && sib.classList.contains('ChatMessage') &&
-                sib.style.display !== 'none' &&
+                (sib.style.display !== 'none' || sib.classList.contains('mat-hidden-orig')) &&
                 !sib.classList.contains('mat-translated') && !sib.classList.contains('mat-manual-translated') &&
                 !sib.classList.contains('mat-broadcast') && !sib.textContent.includes('[🌐]')) {
                 const sSenderEl = sib.querySelector('.chat-room-sender');
                 if (sSenderEl?.textContent == Player?.MemberNumber) {
                     applyFoldUI(sib, node);
+                    // 原句移到譯文之後：展開時原句顯示在 [🌐] 譯文下方而非上方。
+                    node.parentNode.insertBefore(sib, node.nextSibling);
                 }
                 return;
             }
@@ -755,8 +760,39 @@
             const senderEl = n.querySelector('.chat-room-sender');
             if (!senderEl || senderEl.textContent != Player?.MemberNumber) continue;  // 只清自己那則回顯
             const msg = extractCleanMessage(n);
-            if (msg && texts.some(x => x && msg === x)) { n.style.display = 'none'; return; }
+            if (msg && texts.some(x => x && msg === x)) {
+                // 標記後再藏起來（而非直接藏死）：讓 handleOwnSentFold 稍後配對到翻譯廣播時，
+                // 能掛上「A/文」按鈕，使用者自己仍可還原查看原句；外部完全不受影響（原句本就沒送出）。
+                n.classList.add('mat-hidden-orig');
+                n.style.display = 'none';
+                return;
+            }
         }
+    }
+
+    // ============================================================
+    // 隱藏原句模式：在本地渲染一份原句訊息（不經 ServerSend，純本地顯示），供稍後與翻譯廣播
+    // 配對摺疊，讓使用者自己可用「A/文」按鈕還原查看。外部（伺服器/對方）完全收不到這份原句。
+    // data 需為符合 ChatRoomMessage() 期待格式的物件（Content/Type/Dictionary...），比照 BC 內部
+    // Whisper 本地回顯的做法（於 data 上補 Sender 後直接呼叫 ChatRoomMessage 純本地渲染）。
+    // ============================================================
+    function renderLocalOriginalEcho(data) {
+        if (typeof ChatRoomMessage !== 'function' || !Player?.MemberNumber) return null;
+        const log = document.querySelector('#TextAreaChatLog');
+        if (!log) return null;
+        const before = log.children.length;
+        try {
+            ChatRoomMessage({ ...data, Sender: Player.MemberNumber });
+        } catch (e) {
+            console.warn('🐈‍⬛ [MAT] ❌ 本地原句回顯渲染失敗:', e);
+            return null;
+        }
+        if (log.children.length <= before) return null;   // 被 BC 內部規則擋下（例如訊息被判定無效）
+        const node = log.children[log.children.length - 1];
+        if (!(node instanceof HTMLElement) || !node.classList.contains('ChatMessage')) return null;
+        node.classList.add('mat-hidden-orig');
+        node.style.display = 'none';
+        return node;
     }
 
     function createTranslatedDiv(originalNode, translatedText) {
@@ -769,46 +805,31 @@
             const name = originalNode.querySelector('.ChatMessageName')?.textContent?.trim();
             if (name) body = `${name}: ${translatedText}`;
         }
-        // 用 span 包住文字，讓「A/文」摺疊按鈕（若套用）能插在文字前面而不覆蓋掉整段文字。
+        // 用 span 包住文字（維持原有 DOM 結構，「A/文」按鈕現在改放在 mat-click-toolbar，不再插入此處）。
         const textSpan = document.createElement('span');
         textSpan.textContent = `[🌐] ${body}`;
         div.appendChild(textSpan);
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
         const wasAtEnd = chatWasAtEnd();   // 插入前先判斷是否本來就在底部
-        originalNode.parentNode.insertBefore(div, originalNode.nextSibling);
+        // 譯文插在原句「之前」：摺疊展開（按 A/文）時，原句會顯示在 [🌐] 譯文下方而非上方。
+        originalNode.parentNode.insertBefore(div, originalNode);
         scrollChatToEndIfWasAtEnd(wasAtEnd);
         return div;
     }
 
     // ============================================================
-    // 譯文摺疊（原句＋譯文合併成一則訊息，預設只顯示譯文，按「A/文」展開/收合原句）
-    // 接收、發送（自己訊息的翻譯回顯）共用同一套 UI。
+    // 譯文摺疊（原句＋譯文合併成一則訊息，預設只顯示譯文，按 mat-click-toolbar 上的「A/文」展開/收合原句）
+    // 接收、發送（自己訊息的翻譯回顯）共用同一套 UI。「A/文」按鈕改放在 mat-click-toolbar 最左側，
+    // 不再嵌在訊息文字前面；這裡只負責摺疊狀態與登記配對，實際按鈕由 createClickToolbar/showClickToolbar 處理。
     // ============================================================
     function applyFoldUI(originalNode, displayNode) {
         if (!(originalNode instanceof HTMLElement) || !(displayNode instanceof HTMLElement)) return;
         originalNode.style.display = 'none';
         displayNode.classList.add('mat-folded');
-        // 優先插在 BC 原生的訊息內容容器裡；我們自建的 div 沒有這個容器，退回用 div 本身當容器。
-        const anchor = displayNode.querySelector('.chat-room-message-content') || displayNode;
-        if (anchor.querySelector(':scope > .mat-fold-toggle')) return;   // 已加過按鈕，避免重複
-
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'mat-fold-toggle';
-        btn.textContent = 'A/文';
-        btn.title = ui('foldShowOrig');
-        btn.style.cssText = 'all:unset;cursor:pointer;display:inline-block;line-height:1.4;vertical-align:middle;' +
-            'color:#4CAF50;font-size:0.78em;font-weight:bold;padding:0 4px;margin-right:5px;' +
-            'border:1px solid rgba(76,175,80,0.55);border-radius:3px;';
-        btn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
-        btn.addEventListener('click', (e) => {
-            e.preventDefault(); e.stopPropagation();
-            const showingOrig = originalNode.style.display !== 'none';
-            originalNode.style.display = showingOrig ? 'none' : '';
-            btn.title = showingOrig ? ui('foldShowOrig') : ui('foldHideOrig');
-            btn.style.background = showingOrig ? '' : 'rgba(76,175,80,0.28)';
-        });
-        anchor.insertBefore(btn, anchor.firstChild);
+        originalNode.classList.add('mat-fold-orig');
+        const pair = { original: originalNode, display: displayNode };
+        matFoldPairs.set(originalNode, pair);
+        matFoldPairs.set(displayNode, pair);
     }
 
     // ============================================================
@@ -1025,6 +1046,9 @@
     // ============================================================
     let clickToolbar = null;
     let clickToolbarTarget = null;
+    // 摺疊配對表：原句節點、顯示（譯文/廣播）節點互相對應到同一組 { original, display }，
+    // 供 mat-click-toolbar 的「A/文」按鈕判斷目前狀態、執行還原/收合。
+    const matFoldPairs = new WeakMap();
 
     function createClickToolbar() {
         if (clickToolbar) return;
@@ -1036,7 +1060,34 @@
             'padding:3px 8px', 'box-shadow:0 2px 8px rgba(0,0,0,0.5)', 'pointer-events:all', 'user-select:none',
         ].join(';');
 
+        // 「A/文」摺疊還原按鈕：放在工具列最左側（globe 按鈕左邊），只在目前訊息有摺疊配對時顯示。
+        const foldBtn = document.createElement('button');
+        foldBtn.id = 'mat-click-fold';
+        foldBtn.type = 'button';
+        foldBtn.textContent = 'A/文';
+        foldBtn.style.cssText = 'all:unset;cursor:pointer;display:none;align-items:center;line-height:1.4;' +
+            'color:#4CAF50;font-size:0.85em;font-weight:bold;padding:3px 6px;white-space:nowrap;' +
+            'border:1px solid rgba(76,175,80,0.55);border-radius:4px;';
+        foldBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            const pair = clickToolbarTarget && matFoldPairs.get(clickToolbarTarget);
+            if (!pair) return;
+            const wasAtEnd = chatWasAtEnd();   // 展開/收合前先判斷是否本來就在底部
+            const showingOrig = pair.original.style.display !== 'none';
+            pair.original.style.display = showingOrig ? 'none' : '';
+            const nowShowing = !showingOrig;
+            foldBtn.title = nowShowing ? ui('foldHideOrig') : ui('foldShowOrig');
+            foldBtn.style.background = nowShowing ? 'rgba(76,175,80,0.28)' : '';
+            scrollChatToEndIfWasAtEnd(wasAtEnd);   // 原本在底部才捲到底，避免展開原句後還要手動捲一下
+            repositionClickToolbar();
+        });
+
+        const foldSep = document.createElement('span');
+        foldSep.id = 'mat-click-fold-sep';
+        foldSep.style.cssText = 'display:none;width:1px;height:16px;background:rgba(255,255,255,0.15);margin:0 2px;flex-shrink:0;';
+
         const globeBtn = document.createElement('button');
+
         globeBtn.id = 'mat-click-globe';
         globeBtn.style.cssText = 'all:unset;cursor:pointer;color:#4CAF50;font-size:14px;padding:3px 6px;border-radius:4px;display:flex;align-items:center;gap:4px;white-space:nowrap;';
         globeBtn.innerHTML = `🌐 <span style="font-size:11px;color:#aaa;">${config.recvLang.toUpperCase()}</span>`;
@@ -1066,6 +1117,8 @@
         closeBtn.textContent = '✕';
         closeBtn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); hideClickToolbar(); });
 
+        clickToolbar.appendChild(foldBtn);
+        clickToolbar.appendChild(foldSep);
         clickToolbar.appendChild(globeBtn);
         clickToolbar.appendChild(altBtn);
         clickToolbar.appendChild(sep);
@@ -1088,10 +1141,34 @@
     function showClickToolbar(node) {
         createClickToolbar();
         const globeBtn = document.getElementById('mat-click-globe');
+        const altBtn = document.getElementById('mat-click-alt');
+        const foldBtn = document.getElementById('mat-click-fold');
+        const foldSep = document.getElementById('mat-click-fold-sep');
         if (globeBtn) {
             globeBtn.innerHTML = `🌐 <span style="font-size:11px;color:#aaa;">${config.recvLang.toUpperCase()}</span>`;
             globeBtn.style.pointerEvents = '';
         }
+
+        // 已翻譯／已摺疊的訊息不提供手動翻譯（沒意義：對象已經是譯文或已有摺疊配對）；
+        // 只有這種情況才可能同時是摺疊配對目標，顯示「A/文」還原按鈕取而代之。
+        const isTranslatedNode = node.classList.contains('mat-translated') || node.classList.contains('mat-manual-translated');
+        if (globeBtn) globeBtn.style.display = isTranslatedNode ? 'none' : 'flex';
+        if (altBtn) altBtn.style.display = isTranslatedNode ? 'none' : 'flex';
+
+        const pair = matFoldPairs.get(node);
+        if (foldBtn && foldSep) {
+            if (pair) {
+                foldBtn.style.display = 'flex';
+                foldSep.style.display = isTranslatedNode ? 'none' : 'block';   // 兩側按鈕都在時才需要分隔線
+                const showingOrig = pair.original.style.display !== 'none';
+                foldBtn.title = showingOrig ? ui('foldHideOrig') : ui('foldShowOrig');
+                foldBtn.style.background = showingOrig ? 'rgba(76,175,80,0.28)' : '';
+            } else {
+                foldBtn.style.display = 'none';
+                foldSep.style.display = 'none';
+            }
+        }
+
         if (clickToolbarTarget && clickToolbarTarget !== node) {
             clickToolbarTarget.style.outline = '';
             clickToolbarTarget.style.borderRadius = '';
@@ -1131,7 +1208,10 @@
             if (!config.translateChat) return;
             if (clickToolbar?.contains(e.target)) return;
             const msg = e.target.closest('.ChatMessage');
-            if (!msg || msg.classList.contains('mat-translated') || msg.classList.contains('mat-manual-translated')) {
+            const isTranslatedNode = msg && (msg.classList.contains('mat-translated') || msg.classList.contains('mat-manual-translated'));
+            // 已翻譯訊息預設不開工具列（沒有手動翻譯的意義）；但若它是摺疊配對的一員，
+            // 仍要開啟工具列讓使用者能點「A/文」還原查看原句。
+            if (!msg || (isTranslatedNode && !matFoldPairs.has(msg))) {
                 hideClickToolbar(); return;
             }
             if (e.target.closest('.menubar')) return;
@@ -1146,19 +1226,22 @@
             hideClickToolbar();
         });
 
-        log.addEventListener('scroll', () => {
-            if (!clickToolbarTarget || !clickToolbar || clickToolbar.style.display === 'none') return;
-            const rect = clickToolbarTarget.getBoundingClientRect();
-            const tbH = clickToolbar.offsetHeight || 32;
-            const tbW = clickToolbar.offsetWidth || 130;
-            let top = rect.top - tbH - 4;
-            if (top < 4) top = rect.bottom + 4;
-            let left = rect.left;
-            if (left + tbW > window.innerWidth - 8) left = window.innerWidth - tbW - 8;
-            if (left < 4) left = 4;
-            clickToolbar.style.top  = `${top}px`;
-            clickToolbar.style.left = `${left}px`;
-        });
+        log.addEventListener('scroll', repositionClickToolbar);
+    }
+
+    // 依 clickToolbarTarget 目前位置重新定位工具列（訊息因摺疊展開/收合或捲動而移動時使用）。
+    function repositionClickToolbar() {
+        if (!clickToolbarTarget || !clickToolbar || clickToolbar.style.display === 'none') return;
+        const rect = clickToolbarTarget.getBoundingClientRect();
+        const tbH = clickToolbar.offsetHeight || 32;
+        const tbW = clickToolbar.offsetWidth || 130;
+        let top = rect.top - tbH - 4;
+        if (top < 4) top = rect.bottom + 4;
+        let left = rect.left;
+        if (left + tbW > window.innerWidth - 8) left = window.innerWidth - tbW - 8;
+        if (left < 4) left = 4;
+        clickToolbar.style.top  = `${top}px`;
+        clickToolbar.style.left = `${left}px`;
     }
 
     // ============================================================
@@ -1208,14 +1291,17 @@
                 if (t && !t.includes('[🌐]') && !skipZhSend(src)) {
                     const replyId = getReplyIdFromDictionary(data.Dictionary);
                     const hide = config.sendHideOriginal;
-                    if (!hide) next(args);   // 隱藏原句：先不送原文，等譯文；失敗才補送
+                    // 隱藏原句：先不送原文，等譯文；同時本地渲染一份原句（不送出），供自己用 A/文 還原；失敗才補送真原文
+                    let origEchoNode = null;
+                    if (!hide) next(args);
+                    else origEchoNode = renderLocalOriginalEcho(data);
                     smartTranslate(src, config.sendLang).then(r => {
-                        if (r === null || r === src) { if (hide) sendRaw(args); return; }
+                        if (r === null || r === src) { if (hide) { sendRaw(args); origEchoNode?.remove(); } return; }
                         const payload = { Content: `[🌐] ${r}`, Type: "Chat" };
                         if (replyId) payload.Dictionary = [{ ReplyId: replyId, Tag: "ReplyId" }];
                         ServerSend("ChatRoomChat", payload);
                         if (hide) hideOwnOriginalEcho([t, src]);
-                    }).catch(() => { if (hide) sendRaw(args); });
+                    }).catch(() => { if (hide) { sendRaw(args); origEchoNode?.remove(); } });
                     return;
                 }
             }
@@ -1223,15 +1309,17 @@
                 const t = safeStr(data.Dictionary?.[0]?.Text);
                 if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
                     const hide = config.sendHideOriginal;
+                    let origEchoNode = null;
                     if (!hide) next(args);   // 隱藏原句：先不送原文，等譯文；失敗才補送
+                    else origEchoNode = renderLocalOriginalEcho(data);   // 本地渲染一份原句（不送出），供自己 A/文 還原
                     smartTranslate(t, config.sendLang).then(r => {
-                        if (r === null || r === t) { if (hide) sendRaw(args); return; }
+                        if (r === null || r === t) { if (hide) { sendRaw(args); origEchoNode?.remove(); } return; }
                         ServerSend("ChatRoomChat", {
                             Type: "Action", Content: "CUSTOM_SYSTEM_ACTION",
                             Dictionary: [{ Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION', Text: `[🌐] ${r}` }]
                         });
                         if (hide) hideOwnOriginalEcho([t]);
-                    }).catch(() => { if (hide) sendRaw(args); });
+                    }).catch(() => { if (hide) { sendRaw(args); origEchoNode?.remove(); } });
                     return;
                 }
             }
@@ -1242,6 +1330,8 @@
                     const replyId = getReplyIdFromDictionary(data.Dictionary);
                     const hide = config.sendHideOriginal;
                     if (!hide) next(args);   // 隱藏原句：先不送原文，等譯文；失敗才補送
+                    // 悄悄話 BC 會在 ChatRoomSendWhisper 內自動本地回顯原句（不經此 hook），
+                    // 不需另外呼叫 renderLocalOriginalEcho；hideOwnOriginalEcho 會標記+藏起那則供稍後 A/文 還原。
                     smartTranslate(src, config.sendLang).then(r => {
                         if (r === null || r === src) { if (hide) sendRaw(args); return; }
                         const payload = { Content: `[🌐] ${r}`, Type: "Whisper", Target: data.Target, Sender: data.Sender };
@@ -1277,13 +1367,21 @@
                 const replyId = ChatRoomMessageGetReplyId();
                 const hide = config.sendHideOriginal;
                 const sendOrig = () => { emoteBypass = true; try { ChatRoomSendEmote(t); } finally { emoteBypass = false; } };
+                let origEchoNode = null;
                 if (!hide) next(args);   // 隱藏原句：先不送原文，等譯文；失敗才補送
+                else {
+                    // Emote 本身沒有 data 物件可用，借用 BC 原生的產生函式組出等同送出格式的內容，
+                    // 純本地渲染一份（不呼叫 ServerSend）；此呼叫會清掉輸入框的 reply-id 屬性，
+                    // 但我們已把值存進 replyId 變數，稍後送出翻譯版前會再放回去。
+                    const localData = ChatRoomGenerateChatRoomChatMessage("Emote", t, replyId);
+                    origEchoNode = renderLocalOriginalEcho(localData);
+                }
                 smartTranslate(t, config.sendLang).then(r => {
-                    if (r === null || r === t) { if (hide) sendOrig(); return; }
+                    if (r === null || r === t) { if (hide) { sendOrig(); origEchoNode?.remove(); } return; }
                     if (replyId) document.getElementById('InputChat')?.setAttribute('reply-id', replyId);
                     ChatRoomSendEmote(`[🌐] ${r}`);
                     if (hide) hideOwnOriginalEcho([t]);
-                }).catch(() => { if (hide) sendOrig(); });
+                }).catch(() => { if (hide) { sendOrig(); origEchoNode?.remove(); } });
                 return;
             }
             return next(args);
@@ -1600,9 +1698,9 @@
             this._cb(y, ui('optAction'),  config.sendAction,       ui('dAction'),  () => { config.sendAction = !config.sendAction; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optWhisper'), config.sendWhisper,      ui('dWhisper'), () => { config.sendWhisper = !config.sendWhisper; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optBeep'),    config.sendBeep,         ui('dBeep'),    () => { config.sendBeep = !config.sendBeep; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optSkipZh'),  config.sendSkipZhVariant, ui('dSkipZh'), () => { config.sendSkipZhVariant = !config.sendSkipZhVariant; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optHideOrig'), config.sendHideOriginal, ui('dHideOrigSend'), () => { config.sendHideOriginal = !config.sendHideOriginal; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optFold'),     config.sendFold,         ui('dFoldSend'),      () => { config.sendFold = !config.sendFold; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optHideOrig'), config.sendHideOriginal, ui('dHideOrigSend'), () => { config.sendHideOriginal = !config.sendHideOriginal; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optSkipZh'),  config.sendSkipZhVariant, ui('dSkipZh'), () => { config.sendSkipZhVariant = !config.sendSkipZhVariant; saveSettings(); }, dis); y += H;
         },
 
         _runRecv() {
@@ -1614,8 +1712,8 @@
             this._cb(y, ui('optWhisper'), config.recvWhisper,      ui('dWhisper'), () => { config.recvWhisper = !config.recvWhisper; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optBeep'),    config.recvBeep,         ui('dBeep'),    () => { config.recvBeep = !config.recvBeep; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optLocal'),   config.recvLocal,        ui('dLocal'),   () => { config.recvLocal = !config.recvLocal; saveSettings(); }, dis); y += H;
-            this._cb(y, ui('optSkipZh'),  config.recvSkipZhVariant, ui('dSkipZh'), () => { config.recvSkipZhVariant = !config.recvSkipZhVariant; saveSettings(); }, dis); y += H;
             this._cb(y, ui('optFold'),   config.recvFold,          ui('dFoldRecv'), () => { config.recvFold = !config.recvFold; saveSettings(); }, dis); y += H;
+            this._cb(y, ui('optSkipZh'),  config.recvSkipZhVariant, ui('dSkipZh'), () => { config.recvSkipZhVariant = !config.recvSkipZhVariant; saveSettings(); }, dis); y += H;
         },
 
         _runOther() {
