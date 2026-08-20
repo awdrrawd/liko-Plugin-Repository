@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.3
+// @version      1.7.4
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.3";
+    const MOD_VER = "1.7.4";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -1452,6 +1452,20 @@
         if (!modApi) return;
         const safeStr = (v) => typeof v === 'string' ? v : null;
 
+        // LSCG（以及其他採用相同手法的 mod）的 SendAction() 是借用一個已翻譯好的本地化字串
+        // （如 "Beep"）當佔位符，Dictionary[0].Text 因此是字面上的 "msg"，真正的內容是放在
+        // 陣列中 Tag === "msg" 的那一項。若無腦抓 Dictionary[0].Text 會把 "msg" 這個字面值
+        // 當成原文去翻譯，導致誤判翻譯成功、多送出一則內容錯誤的訊息。
+        // 這裡優先偵測此樣式，抓不到才退回舊版 Dictionary[0].Text，不影響其它一般 mod 的相容性。
+        function getActionRealText(dict) {
+            if (!Array.isArray(dict) || !dict.length) return null;
+            if (dict[0]?.Text === "msg") {
+                const real = dict.find(d => d?.Tag === "msg" && typeof d.Text === "string" && d.Text !== "msg");
+                if (real) return real.Text;
+            }
+            return safeStr(dict[0]?.Text);
+        }
+
         // 隱藏原句模式：翻譯失敗時要補送原文，但直接 ServerSend(原data) 會重入本 hook 再翻一次而死循環。
         // 用同步旗標放行這一次補送（ServerSend→hook 是同步的，補送完立即歸位）。
         let matBypass = false;
@@ -1481,8 +1495,8 @@
                 const typeOn = { Chat: true, Emote: config.sendEmote, Whisper: config.sendWhisper, Action: config.sendAction };
                 // 原句用未亂碼 _matRaw 判斷（被堵嘴時 Content 已亂碼）；廣播不經 Generate、無 _matRaw，仍看 Content 抓 [🌐]。
                 const raw = typeof data._matRaw === 'string' ? data._matRaw : null;
-                const ot = data.Type === "Action" ? safeStr(data.Dictionary?.[0]?.Text) : (raw || safeStr(data.Content));
-                const isBroadcast = safeStr(data.Content)?.includes('[🌐]') || safeStr(data.Dictionary?.[0]?.Text)?.includes('[🌐]') || false;
+                const ot = data.Type === "Action" ? getActionRealText(data.Dictionary) : (raw || safeStr(data.Content));
+                const isBroadcast = safeStr(data.Content)?.includes('[🌐]') || getActionRealText(data.Dictionary)?.includes('[🌐]') || false;
                 if (ot && typeOn[data.Type] && (isBroadcast || (!isUntranslatable(ot) && !skipZhSend(ot)))) addMATFlag(data, isBroadcast);
             }
 
@@ -1507,7 +1521,7 @@
                 }
             }
             if (command === "ChatRoomChat" && data.Type === "Action" && config.sendAction) {
-                const t = safeStr(data.Dictionary?.[0]?.Text);
+                const t = getActionRealText(data.Dictionary);
                 if (t && !t.includes('[🌐]') && !skipZhSend(t)) {
                     const hide = config.sendHideOriginal;
                     let origEchoNode = null;
