@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.5
+// @version      1.7.6
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.5";
+    const MOD_VER = "1.7.6";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -415,19 +415,23 @@
     // 格式：<原文>\u2063LikoMAT:<lang>[:tr]\u2063　（tr = 這是翻譯廣播本身，非原句）
     // ============================================================
     const BEEP_MARK = '\u2063';
-    const BEEP_MARK_RE = /\u2063LikoMAT:([a-zA-Z-]+)(:tr)?\u2063$/;
+    const BEEP_MARK_RE_STRICT = /\u2063LikoMAT:([a-zA-Z-]+)(:tr)?\u2063$/;
+    const BEEP_MARK_RE_LOOSE  = /\u2063?LikoMAT:([a-zA-Z-]+)(:tr)?\u2063?\s*$/;
 
     function addBeepFlag(message, lang, isTranslation) {
         return `${message}${BEEP_MARK}LikoMAT:${lang}${isTranslation ? ':tr' : ''}${BEEP_MARK}`;
     }
 
-    // 拆出 { text, lang, tr }：text 是去掉旗標後的乾淨原文；沒有旗標（對方沒裝/舊版 MAT）
-    // 則 lang 為 null、text 原樣返回，呼叫端據此知道「這則沒有協調資訊，比照舊版行為」。
+    // 拆出 { text, lang, tr }：優先用嚴格版（頭尾不可見字元都在，最乾淨）；
+    // 沒吃到才退而求其次用寬鬆版（不可見字元可能在傳輸中被濾掉，但至少把可見的
+    // "LikoMAT:xx" 文字砍掉，避免污染畫面）。都沒吃到才視為「沒有旗標」的舊版行為。
     function readBeepFlag(message) {
         if (typeof message !== 'string') return { text: message, lang: null, tr: false };
-        const m = message.match(BEEP_MARK_RE);
-        if (!m) return { text: message, lang: null, tr: false };
-        return { text: message.slice(0, m.index), lang: m[1], tr: !!m[2] };
+        let m = message.match(BEEP_MARK_RE_STRICT);
+        if (m) return { text: message.slice(0, m.index), lang: m[1], tr: !!m[2] };
+        m = message.match(BEEP_MARK_RE_LOOSE);
+        if (m) return { text: message.slice(0, m.index), lang: m[1], tr: !!m[2] };
+        return { text: message, lang: null, tr: false };
     }
 
     // 取出 BC 原生「回覆」功能夾在 Dictionary 裡的 ReplyId（該訊息是回覆哪一則訊息）。
@@ -547,7 +551,7 @@
         if (!log) return false;
         return (typeof ElementIsScrolledToEnd === 'function')
             ? ElementIsScrolledToEnd(log)
-            : (log.scrollHeight - log.scrollTop - log.clientHeight <= 1);
+        : (log.scrollHeight - log.scrollTop - log.clientHeight <= 1);
     }
 
     // 插入翻譯「之後」呼叫：只有插入前本來就在底部才捲到底。
@@ -924,7 +928,7 @@
         let cls = originalNode.dataset.matType ? `ChatMessage${originalNode.dataset.matType}` : null;
         if (!cls || !originalNode.classList.contains(cls)) {
             const TYPE_PRIORITY = ['ChatMessageBeep', 'ChatMessageWhisper', 'ChatMessageChat',
-                'ChatMessageEmote', 'ChatMessageAction', 'ChatMessageActivity'];
+                                   'ChatMessageEmote', 'ChatMessageAction', 'ChatMessageActivity'];
             const clsList = [...originalNode.classList];
             cls = TYPE_PRIORITY.find(c => clsList.includes(c)) ||
                 clsList.find(c => c.startsWith('ChatMessage') && c !== 'ChatMessage');
@@ -1462,49 +1466,49 @@
     //   2. Text 若完整等於另一個 Tag，就繼續解引用，直到取得真正文字。
     // 遍歷與解引用都有上限並防循環，畸形/敵意資料只會安全退回，不會卡住遊戲訊息處理。
     function getActionRealText(data) {
-            const dict = data?.Dictionary;
-            if (!Array.isArray(dict) || !dict.length) return null;
+        const dict = data?.Dictionary;
+        if (!Array.isArray(dict) || !dict.length) return null;
 
-            const entries = [];
-            const seenObjects = new Set();
-            const stack = dict.map(value => ({ value, depth: 0 }));
-            while (stack.length && entries.length < 256 && seenObjects.size < 512) {
-                const { value, depth } = stack.pop();
-                if (!value || typeof value !== 'object' || seenObjects.has(value) || depth > 12) continue;
-                seenObjects.add(value);
-                if (!Array.isArray(value) && typeof value.Tag === 'string' && typeof value.Text === 'string') {
-                    entries.push(value);
-                }
-                for (const child of Array.isArray(value) ? value : Object.values(value)) {
-                    if (child && typeof child === 'object') stack.push({ value: child, depth: depth + 1 });
-                }
+        const entries = [];
+        const seenObjects = new Set();
+        const stack = dict.map(value => ({ value, depth: 0 }));
+        while (stack.length && entries.length < 256 && seenObjects.size < 512) {
+            const { value, depth } = stack.pop();
+            if (!value || typeof value !== 'object' || seenObjects.has(value) || depth > 12) continue;
+            seenObjects.add(value);
+            if (!Array.isArray(value) && typeof value.Tag === 'string' && typeof value.Text === 'string') {
+                entries.push(value);
             }
-
-            // 同 Tag 多筆時優先選 Text 不是自我引用的項目；這也涵蓋多語系別名都指向同一 msg 的情況。
-            const byTag = new Map();
-            for (const entry of entries) {
-                const list = byTag.get(entry.Tag) || [];
-                list.push(entry);
-                byTag.set(entry.Tag, list);
+            for (const child of Array.isArray(value) ? value : Object.values(value)) {
+                if (child && typeof child === 'object') stack.push({ value: child, depth: depth + 1 });
             }
-            const resolve = (initial) => {
-                let text = typeof initial === 'string' ? initial : null;
-                const seenTags = new Set();
-                for (let hop = 0; text !== null && hop < 16; hop++) {
-                    const refs = byTag.get(text);
-                    if (!refs?.length || seenTags.has(text)) break;
-                    seenTags.add(text);
-                    const nextEntry = refs.find(e => e.Text !== text) || refs[0];
-                    if (nextEntry.Text === text) break;
-                    text = nextEntry.Text;
-                }
-                return text;
-            };
+        }
 
-            const contentEntry = typeof data.Content === 'string' ? byTag.get(data.Content)?.[0] : null;
-            if (contentEntry) return resolve(contentEntry.Text);
-            const firstDirectText = dict.find(e => e && typeof e.Text === 'string')?.Text;
-            return resolve(firstDirectText ?? entries[0]?.Text ?? null);
+        // 同 Tag 多筆時優先選 Text 不是自我引用的項目；這也涵蓋多語系別名都指向同一 msg 的情況。
+        const byTag = new Map();
+        for (const entry of entries) {
+            const list = byTag.get(entry.Tag) || [];
+            list.push(entry);
+            byTag.set(entry.Tag, list);
+        }
+        const resolve = (initial) => {
+            let text = typeof initial === 'string' ? initial : null;
+            const seenTags = new Set();
+            for (let hop = 0; text !== null && hop < 16; hop++) {
+                const refs = byTag.get(text);
+                if (!refs?.length || seenTags.has(text)) break;
+                seenTags.add(text);
+                const nextEntry = refs.find(e => e.Text !== text) || refs[0];
+                if (nextEntry.Text === text) break;
+                text = nextEntry.Text;
+            }
+            return text;
+        };
+
+        const contentEntry = typeof data.Content === 'string' ? byTag.get(data.Content)?.[0] : null;
+        if (contentEntry) return resolve(contentEntry.Text);
+        const firstDirectText = dict.find(e => e && typeof e.Text === 'string')?.Text;
+        return resolve(firstDirectText ?? entries[0]?.Text ?? null);
     }
 
     // ============================================================
@@ -1749,13 +1753,26 @@
             if (!data || typeof data !== 'object' || typeof data.Message !== 'string') return next(args);
 
             const { text, lang, tr } = readBeepFlag(data.Message);
-            data.Message = text;   // 拆掉旗標再交給原生渲染
+            data.Message = text;
 
             const log0 = document.querySelector('#TextAreaChatLog');
             const before = log0 ? log0.children.length : -1;
             const result = next(args);
             const log = document.querySelector('#TextAreaChatLog');
-            if (!log || log.children.length <= before) return result;   // 沒有真的渲染出節點
+
+            // 沒有渲染出聊天記錄節點（ShowBeepChat 關閉，只跳 Toast）：
+            // 仍然嘗試翻譯，翻完後另外補一個 Toast 顯示譯文，不讓這類 beep 整個跳過翻譯。
+            if (!log || log.children.length <= before) {
+                if (config.enabled && config.translateReceived && lang && !tr &&
+                    langReadable(lang, config.recvLang) === false && text && !skipZhRecv(text)) {
+                    smartTranslate(text, config.recvLang).then(r => {
+                        if (r !== null && r !== text) {
+                            ToastManager.info(`[🌐] ${r}`, { duration: 10000, icon: '' });
+                        }
+                    });
+                }
+                return result;
+            }
 
             const node = log.lastElementChild;
             if (!(node instanceof HTMLElement) || !node.classList.contains('ChatMessageBeep')) return result;
@@ -1784,7 +1801,6 @@
             return result;
         });
     }
-
     // ============================================================
     // 語言定義
     // ============================================================
@@ -2379,12 +2395,12 @@
     // 共用系統擴充載入器：先判斷是否存在，不存在才上網抓。不再自帶精簡版（避免多處維護）。
     // 通常經 PCM 路徑早已載好，這裡是罕見的獨立安裝 fallback；抓來的檔案自身都有防重複載入守衛。
     const _EXPAND_BASES = (typeof window !== 'undefined' && window.LikoDevBase)
-        ? [window.LikoDevBase]
-        : [
-            'https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/',
-            'https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/',
-            'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/',
-        ];
+    ? [window.LikoDevBase]
+    : [
+        'https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/',
+        'https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/',
+        'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/',
+    ];
     const _expandDepPromises = {};
     function ensureExpandDep(rel, ready) {
         if (ready && ready()) return Promise.resolve();
