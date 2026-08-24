@@ -3,7 +3,7 @@
 // @name:zh      Liko的玩具遙控器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1.0
+// @version      1.1.1
 // @description  玩具遙控 | Toy remote control
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -17,7 +17,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.1.0";
+    const MOD_VER = "1.1.1";
     if (window.Liko.TRC) return;
     window.Liko.TRC = MOD_VER;
 
@@ -274,21 +274,24 @@
     }
 
 
-    function makePortraitDataUrl(C, size = 44) {
+    const _portraitDataCache = new WeakMap();
+
+    function makePortraitDataUrl(C) {
         try {
             const src = C?.Canvas;
             if (!src || src.width === 0 || src.height === 0) return null;
+            const cached = _portraitDataCache.get(C);
+            if (cached?.src === src) return cached.url;
+            const size = 68;
             const off = document.createElement('canvas');
             off.width = size; off.height = size;
             const ctx = off.getContext('2d');
             ctx.fillStyle = '#1a0824';
             ctx.fillRect(0, 0, size, size);
 
-            const sx = src.width  * 0.39;
-            const sy = src.height * 0.40;
-            const sw = src.width  * 0.22;
-            const sh = src.height * 0.11;
-            ctx.drawImage(src, sx, sy, sw, sh, 0, 0, size, size);
+            const cropSize = 210;
+            const sx = src.width / 2 - cropSize / 2;
+            ctx.drawImage(src, sx, 740, cropSize, cropSize, 0, 0, size, size);
             // 隱私黑條
             ctx.fillStyle = 'rgba(0,0,0,0.88)';
             ctx.fillRect(
@@ -297,7 +300,9 @@
                 Math.round(size * 0.50),   // barW
                 Math.round(size * 0.15),   // barH ← 調整粗細
             );
-            return off.toDataURL('image/jpeg', 0.85);
+            const url = off.toDataURL('image/webp', 0.9);
+            _portraitDataCache.set(C, { src, url });
+            return url;
         } catch (e) { return null; }
     }
 
@@ -306,7 +311,7 @@
         const div = document.createElement('div');
         div.className = 'bcr-avatar';
         const name = charDisplayName(C);
-        const url  = makePortraitDataUrl(C, 44);
+        const url  = makePortraitDataUrl(C);
         if (url) {
             const img = document.createElement('img');
             img.src = url;
@@ -727,7 +732,7 @@
         const p2portrait = document.getElementById('bcr-p2-portrait');
         if (p2portrait) {
             p2portrait.innerHTML = '';
-            const url = makePortraitDataUrl(C, 68);
+            const url = makePortraitDataUrl(C);
             if (url) {
                 const img = document.createElement('img');
                 img.src = url; img.alt = ''; p2portrait.appendChild(img);
@@ -1278,6 +1283,13 @@
         modApi.hookFunction('DialogMenuButtonBuild', 0, (args, next) => {
             const result = next(args);
             setTimeout(preCacheEchoImages, 150);
+            return result;
+        });
+    } catch {}
+    try {
+        modApi.hookFunction('CharacterLoadCanvas', 10, (args, next) => {
+            const result = next(args);
+            if (args[0]) _portraitDataCache.delete(args[0]);
             return result;
         });
     } catch {}
