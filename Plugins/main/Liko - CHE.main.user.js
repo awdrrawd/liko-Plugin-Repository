@@ -3,7 +3,7 @@
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.6.0
+// @version      2.6.1
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.6.0";
+    const MOD_VER = "2.6.1";
     if (window.Liko.CHE) return;
     window.Liko.CHE = MOD_VER;
 
@@ -654,6 +654,12 @@ body.del-mode .chat-row.soft-deleted .row-del { background:rgba(46,204,113,0.2);
 #toggleDelMode { padding:4px 10px; border-radius:20px; border:1px solid rgba(231,76,60,0.4); background:rgba(231,76,60,0.12); color:#e74c3c; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
 body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 #exportAfterDel { padding:4px 10px; border-radius:20px; border:none; background:var(--accent); color:#fff; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
+.privacy-row { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:6px; margin-top:7px; }
+#privacyIds { width:230px; }
+.privacy-btn { padding:4px 10px; border-radius:20px; border:1px solid rgba(127,83,205,.5); background:rgba(127,83,205,.14); color:var(--text-color); cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
+.privacy-btn:hover { background:rgba(127,83,205,.28); }
+.chat-id.privacy-masked, .chat-content.privacy-masked { color:var(--muted-text) !important; font-style:italic; }
+.chat-content.privacy-masked { border:1px dashed var(--border-color); border-radius:5px; padding:3px 7px; }
 @media(max-width:768px){
     .chat-meta{width:55px; font-size:0.7em;}
     #searchPanel .row1{flex-direction:column; align-items:stretch;}
@@ -688,6 +694,12 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             <button id="toggleDelMode">✂️</button>
         </div>
     </div>
+    <div class="privacy-row">
+        <input type="text" id="privacyIds" />
+        <button class="privacy-btn" id="maskIdsBtn"></button>
+        <button class="privacy-btn" id="maskMessagesBtn"></button>
+        <button class="privacy-btn" id="resetMasksBtn"></button>
+    </div>
 </div>
 <div id="chatlog">
 `;
@@ -719,7 +731,13 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             typeEnter:    "🚪 進出",
             typeWhisper:  "🔒 悄悄話",
             typeBeep:     "📨 私信",
-            typeSystem:   "⚙ 系統"
+            typeSystem:   "⚙ 系統",
+            privacyPlaceholder: "遮蔽對象 ID（逗號分隔）...",
+            maskIds: "🪪 遮蔽 ID",
+            maskMessages: "💬 遮蔽訊息",
+            resetMasks: "↩ 復原遮蔽",
+            maskedId: "[ID 已遮蔽]",
+            maskedMessage: "[訊息已遮蔽]"
         },
         en: {
             searchPlaceholder: "Search content...",
@@ -736,7 +754,13 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             typeEnter:    "🚪 Enter/Leave",
             typeWhisper:  "🔒 Whisper",
             typeBeep:     "📨 Beep",
-            typeSystem:   "⚙ System"
+            typeSystem:   "⚙ System",
+            privacyPlaceholder: "IDs to mask (comma separated)...",
+            maskIds: "🪪 Mask IDs",
+            maskMessages: "💬 Mask messages",
+            resetMasks: "↩ Undo masks",
+            maskedId: "[ID masked]",
+            maskedMessage: "[Message masked]"
         }
     };
     var currentLang = "${def}";
@@ -777,6 +801,10 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         document.getElementById("contentSearch").placeholder = t("searchPlaceholder");
         document.getElementById("idFilter").placeholder     = t("idPlaceholder");
         document.getElementById("clearBtn").textContent     = t("clearBtn");
+        document.getElementById("privacyIds").placeholder  = t("privacyPlaceholder");
+        document.getElementById("maskIdsBtn").textContent = t("maskIds");
+        document.getElementById("maskMessagesBtn").textContent = t("maskMessages");
+        document.getElementById("resetMasksBtn").textContent = t("resetMasks");
         document.getElementById("toggleLang").textContent   = t("langLabel");
         var isLight = document.body.classList.contains("light");
         document.getElementById("toggleTheme").textContent  = isLight ? t("darkMode") : t("lightMode");
@@ -793,6 +821,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         });
         buildTypeChips();
         applyFilters();
+        updateExportBtn();
     }
 
     document.getElementById("toggleLang").addEventListener("click", function(){
@@ -821,7 +850,13 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             exportAfterDeleteBtn.style.display = 'none';
             softDeleted.forEach(function(r){ r.parentNode.removeChild(r); });
 
-            var blob = new Blob([document.documentElement.outerHTML], {type:'text/html;charset=utf-8'});
+            var exportRoot = document.documentElement.cloneNode(true);
+            exportRoot.querySelectorAll('.chat-row.soft-deleted').forEach(function(r){ r.remove(); });
+            exportRoot.querySelectorAll('.chat-row').forEach(function(r){ r.style.display = ''; });
+            exportRoot.querySelectorAll('.separator-row').forEach(function(r){ r.style.display = ''; });
+            exportRoot.querySelectorAll('.filter-expanded').forEach(function(r){ r.classList.remove('filter-expanded'); });
+            exportRoot.querySelectorAll('#contentSearch,#idFilter,#privacyIds').forEach(function(input){ input.setAttribute('value',''); });
+            var blob = new Blob(['<!DOCTYPE html>\\n' + exportRoot.outerHTML], {type:'text/html;charset=utf-8'});
             var a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             a.download = 'edited_chatlog_' + new Date().toISOString().replace(/[:.]/g,'-') + '.html';
@@ -844,13 +879,76 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
     function updateExportBtn() {
         var count = document.querySelectorAll('.chat-row.soft-deleted').length;
+        var idCount = document.querySelectorAll('.chat-row.id-masked').length;
+        var messageCount = document.querySelectorAll('.chat-row.message-masked').length;
         var btn = getOrCreateExportBtn();
         var label = currentLang === 'zh'
-            ? '💾 匯出 (' + count + ' 筆隱藏)'
-            : '💾 Export (' + count + ' hidden)';
+            ? '💾 二次匯出 (隱藏 ' + count + '／ID ' + idCount + '／訊息 ' + messageCount + ')'
+            : '💾 Re-export (hidden ' + count + ' / IDs ' + idCount + ' / messages ' + messageCount + ')';
         btn.textContent = label;
-        btn.style.display = count > 0 ? 'inline-block' : 'none';
+        btn.style.display = (count + idCount + messageCount) > 0 ? 'inline-block' : 'none';
     }
+
+    function selectedPrivacyIds() {
+        return (document.getElementById('privacyIds').value || '').split(/[,，、;；\\s]+/)
+            .map(function(id){ return id.trim().toLowerCase(); }).filter(Boolean);
+    }
+
+    function originalRowId(row) {
+        if (row.__privacyOriginalId !== undefined) return row.__privacyOriginalId;
+        return ((row.querySelector('.chat-id') || {}).textContent || '').trim();
+    }
+
+    function rowsForPrivacySelection() {
+        var ids = selectedPrivacyIds();
+        if (!ids.length) return [];
+        return allChatRows.filter(function(row){ return ids.indexOf(originalRowId(row).toLowerCase()) !== -1; });
+    }
+
+    document.getElementById('maskIdsBtn').addEventListener('click', function(){
+        rowsForPrivacySelection().forEach(function(row){
+            var el = row.querySelector('.chat-id');
+            if (!el || row.classList.contains('id-masked')) return;
+            row.__privacyOriginalId = el.textContent || '';
+            el.textContent = t('maskedId');
+            el.classList.add('privacy-masked');
+            row.classList.add('id-masked');
+        });
+        updateExportBtn();
+        applyFilters();
+    });
+
+    document.getElementById('maskMessagesBtn').addEventListener('click', function(){
+        rowsForPrivacySelection().forEach(function(row){
+            var el = row.querySelector('.chat-content');
+            if (!el || row.classList.contains('message-masked')) return;
+            row.__privacyOriginalContent = el.innerHTML;
+            el.textContent = t('maskedMessage');
+            el.classList.add('privacy-masked');
+            row.classList.add('message-masked');
+            row.__content = undefined;
+        });
+        updateExportBtn();
+        applyFilters();
+    });
+
+    document.getElementById('resetMasksBtn').addEventListener('click', function(){
+        allChatRows.forEach(function(row){
+            var idEl = row.querySelector('.chat-id');
+            var contentEl = row.querySelector('.chat-content');
+            if (row.__privacyOriginalId !== undefined && idEl) idEl.textContent = row.__privacyOriginalId;
+            if (row.__privacyOriginalContent !== undefined && contentEl) contentEl.innerHTML = row.__privacyOriginalContent;
+            row.__privacyOriginalId = undefined;
+            row.__privacyOriginalContent = undefined;
+            row.__id = undefined;
+            row.__content = undefined;
+            row.classList.remove('id-masked','message-masked');
+            if (idEl) idEl.classList.remove('privacy-masked');
+            if (contentEl) contentEl.classList.remove('privacy-masked');
+        });
+        updateExportBtn();
+        applyFilters();
+    });
 
     document.getElementById('toggleDelMode').addEventListener('click', function(){
         var isDelMode = document.body.classList.toggle('del-mode');
@@ -991,6 +1089,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     document.getElementById('clearBtn').addEventListener('click', function(){
         document.getElementById('contentSearch').value = '';
         document.getElementById('idFilter').value = '';
+        document.getElementById('privacyIds').value = '';
         document.getElementById('timeRange').value = '';
         TYPE_KEYS.forEach(function(tp){ typeState[tp] = true; });
         buildTypeChips();
