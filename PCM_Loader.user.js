@@ -5,7 +5,7 @@
 // @version        1.2.1
 // @description    Liko's Plugin Collection Manager
 // @author         Likolisu
-// @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @grant          none
 // @icon           https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @updateURL      https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js

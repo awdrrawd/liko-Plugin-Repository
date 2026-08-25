@@ -6,7 +6,7 @@
 // @version      1.2-1
 // @description  自動回應「救我 / 救救 / help」來解除拘束，支援指定救人
 // @author       莉柯莉絲(Likolisu)
-// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @match        https://bondageprojects.elementfx.com/*
 // @match        https://bondage-europe.com/*
 // @match        https://bondage-asia.com/*

@@ -5,7 +5,7 @@
 // @description  本地測試載入器：設定 LikoDevBase 指向 localhost，再載入四個本體；引擎/擴充/字庫由各本體自行抓取
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @author       Likolisu
-// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @grant        none
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png
 // @run-at       document-end

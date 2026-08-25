@@ -7,7 +7,7 @@
 // @description    Vertical (portrait) layout for the Appearance (wardrobe) screen
 // @description:zh 更衣室（Appearance）畫面的直版佈局：UI 置頂、人物置底、隱藏左側放大鏡
 // @author         Likolisu
-// @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @include        /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @grant          none
 // @require        https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js

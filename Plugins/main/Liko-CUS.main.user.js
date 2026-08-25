@@ -7,7 +7,7 @@
 // @description    Chatroom UI Swap: chat log on the left, characters on the right
 // @description:zh 聊天室左右介面交換：左側聊天訊息、右側人物。手動開關。
 // @author         Likolisu
-// @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @include        /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @icon           https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @grant          none
 // @require        https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js

@@ -7,7 +7,7 @@
 // @description    Persistent, size-limited image cache for Bondage Club and custom assets.
 // @description:zh 為 Bondage Club 與自訂資產提供有容量上限的持久圖片快取。
 // @author         Likolisu
-// @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @include        /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @grant          none
 // @require        https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
 // @require        https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_ChatRoomButtons.js

@@ -5,7 +5,7 @@
 // @version      0.4
 // @description  Hides arousal meter AND any mod-added HUD attached to DrawArousalMeter (e.g. MPA) in Appearance, InformationSheet, ChatRoom+CurrentCharacter
 // @author       Likolisu
-// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @grant        none
 // @run-at       document-end

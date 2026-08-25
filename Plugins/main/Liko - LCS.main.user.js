@@ -7,7 +7,7 @@
 // @description    Executes testcode globally, accurately tracking and resolving side effects caused by the sandbox 
 //                 itself; supports multiple sandboxes, can be merged, and can switch to pure console mode.
 // @description:zh 在全域作用域執行測試碼，精準追蹤並還原「這個沙盒自己造成」的副作用；支援多重沙盒、可收合、可切純控制台模式
-// @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @include        /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @icon           https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/Sandbox/Sandbox-icon.png
 // @grant          none
 // @require        https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_ChatRoomButtons.js

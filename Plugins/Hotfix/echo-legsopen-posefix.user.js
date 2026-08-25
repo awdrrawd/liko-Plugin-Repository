@@ -6,7 +6,7 @@
 // @description    Silence the spammy `Item.AllowActivePose: Ignoring invalid "LegsOpen" pose` warning and report which items still carry the obsolete pose name.
 // @description:zh 消除一直洗版的 `Item.AllowActivePose: Ignoring invalid "LegsOpen" pose` 警告，並列出還帶著舊姿勢名稱的物品，方便回報給 ECHO 作者。
 // @author         likolisu
-// @include        /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
+// @include        /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @grant          none
 // @run-at         document-end
 // ==/UserScript==
