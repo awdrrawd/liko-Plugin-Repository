@@ -3,7 +3,7 @@
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.4
+// @version      2.1.5
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.1.4";
+    const MOD_VER = "2.1.5";
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
 
@@ -346,7 +346,10 @@
     // === 插件腳本快取（僅 JsDelivr）============================
     // ============================================================
 
-    const PLUGIN_CACHE_PREFIX = 'pcm_p_';
+    // 舊版每個插件各開一筆 localStorage（pcm_p_<id>），插件一多就是一堆零散 key。
+    // 改成單一 key 存一個 { id: code } 物件，一次讀寫即可。
+    const PLUGIN_CACHE_KEY    = 'pcm_plugin_cache';
+    const PLUGIN_CACHE_PREFIX = 'pcm_p_'; // 僅供 migrateOldPluginCache() 掃描舊 key 用
 
     function isJsDelivrUrl(url) { return typeof url === 'string' && url.includes('cdn.jsdelivr.net'); }
     // 自家 Pages 鏡像也視為「CDN 來源」，primary 落在 jsDelivr/Pages 時才啟用本地快取當救援
@@ -355,18 +358,48 @@
     const OWN_REPO_RAW_PREFIX   = "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/";
     const OWN_REPO_PAGES_PREFIX = "https://awdrrawd.github.io/liko-Plugin-Repository/";
 
-    // 快取只當「網路全掛時的救援」。不再存版本號：Pages 一律優先、push 後自己收斂到最新，
-    // 「版本沒變走 CDN」的優化因為判斷不到 CDN 邊緣是否已追上而無效，已整套移除。
-    function getCachedPluginRecord(id) {
+    // 快取只當「網路全掛時的救援」，只需要「有沒有救援可用」，不需要寫入時間
+    // （原本存的 time 從沒被讀過，純粹佔位，直接拿掉）。
+    let _pluginCacheStore = null;
+    function loadPluginCacheStore() {
+        if (_pluginCacheStore) return _pluginCacheStore;
+        try { _pluginCacheStore = JSON.parse(localStorage.getItem(PLUGIN_CACHE_KEY) || '{}') || {}; }
+        catch(e) { _pluginCacheStore = {}; }
+        migrateOldPluginCache(_pluginCacheStore);
+        return _pluginCacheStore;
+    }
+    function savePluginCacheStore() {
+        try { localStorage.setItem(PLUGIN_CACHE_KEY, JSON.stringify(_pluginCacheStore)); } catch(e) {}
+    }
+    // 一次性把舊版分散的 pcm_p_<id> key 併進新的單一物件，併完就刪舊 key，之後不會再跑。
+    function migrateOldPluginCache(store) {
         try {
-            const c = JSON.parse(localStorage.getItem(PLUGIN_CACHE_PREFIX + id) || 'null');
-            if (!c) return null;
-            if (typeof c === 'string') return { time: 0, code: c }; // 兼容舊格式（純字串）
-            return c;
-        } catch(e) { return null; }
+            const oldKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.startsWith(PLUGIN_CACHE_PREFIX)) oldKeys.push(k);
+            }
+            if (!oldKeys.length) return;
+            for (const k of oldKeys) {
+                try {
+                    const id = k.slice(PLUGIN_CACHE_PREFIX.length);
+                    const raw = JSON.parse(localStorage.getItem(k) || 'null');
+                    const code = typeof raw === 'string' ? raw : raw?.code;
+                    if (code && !store[id]) store[id] = code;
+                } catch(e) {}
+                localStorage.removeItem(k);
+            }
+            localStorage.setItem(PLUGIN_CACHE_KEY, JSON.stringify(store));
+        } catch(e) {}
+    }
+    function getCachedPluginCode(id) {
+        const store = loadPluginCacheStore();
+        return store[id] || null;
     }
     function setCachedPluginCode(id, code) {
-        try { localStorage.setItem(PLUGIN_CACHE_PREFIX + id, JSON.stringify({ time: Date.now(), code })); } catch(e) {}
+        const store = loadPluginCacheStore();
+        store[id] = code;
+        savePluginCacheStore();
     }
 
 
@@ -461,16 +494,12 @@
         btn?.classList.add('spinning');
         showNotification("↻", t('refreshTitle'), t('refreshing'));
 
-        // 清除所有本機快取：Loader 快取的 Main 腳本、Plugins.json 清單快取、各插件程式碼快取
+        // 清除所有本機快取：Loader 快取的 Main 腳本、Plugins.json 清單快取、插件程式碼快取（單一 key）
         try {
             localStorage.removeItem('pcm_main_cache');
             localStorage.removeItem(JSON_CACHE_KEY);
-            const keysToRemove = [];
-            for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (k && k.startsWith(PLUGIN_CACHE_PREFIX)) keysToRemove.push(k);
-            }
-            keysToRemove.forEach(k => localStorage.removeItem(k));
+            localStorage.removeItem(PLUGIN_CACHE_KEY);
+            _pluginCacheStore = {};
         } catch(e) {}
 
         const data = await fetchJSONFromNetwork();
@@ -727,7 +756,7 @@
 
         const rawUrl   = isCustom ? plugin.url : getActivePluginUrl(plugin, source);
         const loadType = getLoadType(plugin);
-        const cachedRecord = getCachedPluginRecord(plugin.id);
+        const cachedCode = getCachedPluginCode(plugin.id);
         const isAltUrl = !isCustom && plugin.altUrl && rawUrl === plugin.altUrl;
         const mirrorUrl = isAltUrl ? (plugin.altMirrorUrl || plugin.mirrorUrl) : plugin.mirrorUrl;
 
@@ -752,7 +781,7 @@
         const urls    = buildAllFetchUrls(rawUrl, mirrorUrl);
         const primary = urls[0];
         const useCache = isJsDelivrUrl(primary) || isOwnPagesUrl(primary);
-        const oldCache = useCache ? cachedRecord?.code : null; // 先留著當救援，成功前絕不覆蓋
+        const oldCache = useCache ? cachedCode : null; // 先留著當救援，成功前絕不覆蓋
 
         const code = await tryFetch(urls);
         if (code) {
