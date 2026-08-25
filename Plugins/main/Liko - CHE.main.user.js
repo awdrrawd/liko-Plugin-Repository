@@ -3,7 +3,7 @@
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.6.1
+// @version      2.6.4
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
@@ -18,7 +18,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.6.1";
+    const MOD_VER = "2.6.4";
     if (window.Liko.CHE) return;
     window.Liko.CHE = MOD_VER;
 
@@ -185,13 +185,14 @@
     // CacheManager
     // =====================================================================
     // 注意："ChatLoggerV2" 是沿用的資料庫名稱，不代表目前 schema 版本。
-    // 真正版本是 indexedDB.open 的第二參數（目前為 3），所以 v2 → v3 會打開
+    // 真正版本是 indexedDB.open 的第二參數（目前為 4），所以舊版會在原 DB 升級。
     // 同一個資料庫並在原地升級，原 daily_fragments 仍可供下方 migration 讀取。
     const CHE_DB_NAME = "ChatLoggerV2";
-    const CHE_DB_VERSION = 3;
+    const CHE_DB_VERSION = 4;
 
     const CacheManager = {
         _dbPromise: null,
+        _cryptoKeyPromise: null,
         async init() {
             if (this._dbPromise) return this._dbPromise;
             this._dbPromise = new Promise((resolve, reject) => {
@@ -205,9 +206,14 @@
                         store.createIndex("account", "_account", { unique: false });
                         store.createIndex("accountDate", "_accountDate", { unique: false });
                     }
+                    if (!db.objectStoreNames.contains("crypto_keys")) db.createObjectStore("crypto_keys", { keyPath: "id" });
                 };
                 request.onsuccess = async () => {
-                    try { await this._migrateLegacy(request.result); resolve(request.result); }
+                    try {
+                        await this._migrateLegacy(request.result);
+                        await this._encryptPlaintextRecords(request.result);
+                        resolve(request.result);
+                    }
                     catch (e) { this._dbPromise = null; reject(e); }
                 };
                 request.onerror = () => {
@@ -220,8 +226,8 @@
         },
 
         async _migrateLegacy(db) {
-            // TODO(v2.7): 移除此 v2 daily_fragments 相容遷移；同時把 DB schema 升至 4，
-            // 並在 onupgradeneeded 中 deleteObjectStore("daily_fragments")。
+            // 保留 v2 daily_fragments 相容遷移；遷移完成後會由 v4 加密流程
+            // 將 messages store 中仍為明文的記錄全部轉換成 AES-GCM 密文。
             if (!db.objectStoreNames.contains("daily_fragments")) return;
             const tx = db.transaction(["daily_fragments", "messages"], "readwrite");
             const legacy = tx.objectStore("daily_fragments");
@@ -255,6 +261,74 @@
 
         _makeKey(dateStr) { return `${getAccountPrefix()}_${dateStr}`; },
 
+        async _getCryptoKey(db) {
+            if (this._cryptoKeyPromise) return this._cryptoKeyPromise;
+            this._cryptoKeyPromise = (async () => {
+                if (!window.crypto?.subtle) throw new Error("Web Crypto API unavailable");
+                const existing = await new Promise((resolve, reject) => {
+                    const tx = db.transaction(["crypto_keys"], "readonly");
+                    const req = tx.objectStore("crypto_keys").get("message-key-v1");
+                    req.onsuccess = () => resolve(req.result?.key || null);
+                    req.onerror = () => reject(req.error);
+                });
+                if (existing) return existing;
+                const key = await crypto.subtle.generateKey({ name:"AES-GCM", length:256 }, false, ["encrypt", "decrypt"]);
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(["crypto_keys"], "readwrite");
+                    tx.objectStore("crypto_keys").put({ id:"message-key-v1", key, createdAt:Date.now() });
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                    tx.onabort = () => reject(tx.error || new Error("Crypto key save aborted"));
+                });
+                return key;
+            })().catch(e => { this._cryptoKeyPromise = null; throw e; });
+            return this._cryptoKeyPromise;
+        },
+
+        async _encryptRecord(db, record) {
+            if (record?._encrypted === 1) return record;
+            const key = await this._getCryptoKey(db);
+            const { _key, _account, _dateStr, _accountDate, _uid, ...privateData } = record;
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const aad = new TextEncoder().encode(_key);
+            const plaintext = new TextEncoder().encode(JSON.stringify(privateData));
+            const encrypted = await crypto.subtle.encrypt({ name:"AES-GCM", iv, additionalData:aad }, key, plaintext);
+            return { _key, _account, _dateStr, _accountDate, _uid, _encrypted:1,
+                _iv:Array.from(iv), _data:Array.from(new Uint8Array(encrypted)) };
+        },
+
+        async _decryptRecord(db, record) {
+            if (record?._encrypted !== 1) return record;
+            const key = await this._getCryptoKey(db);
+            const iv = new Uint8Array(record._iv);
+            const data = new Uint8Array(record._data);
+            const aad = new TextEncoder().encode(record._key);
+            const decrypted = await crypto.subtle.decrypt({ name:"AES-GCM", iv, additionalData:aad }, key, data);
+            const privateData = JSON.parse(new TextDecoder().decode(decrypted));
+            return { ...privateData, _key:record._key, _account:record._account, _dateStr:record._dateStr,
+                _accountDate:record._accountDate, _uid:record._uid };
+        },
+
+        async _encryptPlaintextRecords(db) {
+            const plaintextRows = await new Promise((resolve, reject) => {
+                const tx = db.transaction(["messages"], "readonly");
+                const req = tx.objectStore("messages").getAll();
+                req.onsuccess = () => resolve(req.result.filter(row => row?._encrypted !== 1));
+                req.onerror = () => reject(req.error);
+            });
+            if (!plaintextRows.length) return;
+            const encryptedRows = await Promise.all(plaintextRows.map(row => this._encryptRecord(db, row)));
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(["messages"], "readwrite");
+                const store = tx.objectStore("messages");
+                encryptedRows.forEach(row => store.put(row));
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error("Plaintext migration aborted"));
+            });
+            console.log(`🐈‍⬛ [CHE] 已加密 ${encryptedRows.length} 筆既有緩存`);
+        },
+
         _prepareRecord(msg, dateKey) {
             const account = getAccountPrefix();
             const uid = msg.msgid || msg._uid || `${msg._ts || Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -266,9 +340,10 @@
             if (!messages || messages.length === 0) return 0;
             try {
                 const db = await this.init();
+                const encryptedRecords = await Promise.all(messages.map(msg => this._encryptRecord(db, this._prepareRecord(msg, dateKey))));
                 const tx = db.transaction(["messages"], "readwrite");
                 const store = tx.objectStore("messages");
-                messages.forEach(msg => store.put(this._prepareRecord(msg, dateKey)));
+                encryptedRecords.forEach(record => store.put(record));
                 await new Promise((resolve, reject) => {
                     tx.oncomplete = () => resolve();
                     tx.onerror = () => reject(tx.error);
@@ -326,7 +401,11 @@
                     req.onsuccess = () => resolve(req.result);
                     req.onerror = () => reject(req.error);
                 });
-                return rows.filter(row => selected.has(row._dateStr))
+                const decryptedRows = await Promise.all(rows.filter(row => selected.has(row._dateStr)).map(async row => {
+                    try { return await this._decryptRecord(db, row); }
+                    catch (e) { logError("CacheManager.decryptRecord", e); return null; }
+                }));
+                return decryptedRows.filter(Boolean)
                     .sort((a, b) => a._dateStr.localeCompare(b._dateStr) || (a._ts || 0) - (b._ts || 0))
                     .map(msg => ({ ...msg, isFromCache: true }));
             } catch (e) { logError("CacheManager.getMessagesForDates", e); return []; }
@@ -654,11 +733,14 @@ body.del-mode .chat-row.soft-deleted .row-del { background:rgba(46,204,113,0.2);
 #toggleDelMode { padding:4px 10px; border-radius:20px; border:1px solid rgba(231,76,60,0.4); background:rgba(231,76,60,0.12); color:#e74c3c; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
 body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 #exportAfterDel { padding:4px 10px; border-radius:20px; border:none; background:var(--accent); color:#fff; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
-.privacy-row { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:6px; margin-top:7px; }
-#privacyIds { width:230px; }
+.privacy-panel { display:none; justify-content:center; align-items:center; flex-wrap:wrap; gap:6px; margin:9px auto 0; padding:9px; max-width:850px; border:1px solid var(--border-color); border-radius:9px; background:color-mix(in srgb,var(--input-bg),transparent 12%); }
+.privacy-panel.open { display:flex; }
+#privacyIds, #privacyKeywords { width:230px; }
 .privacy-btn { padding:4px 10px; border-radius:20px; border:1px solid rgba(127,83,205,.5); background:rgba(127,83,205,.14); color:var(--text-color); cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
 .privacy-btn:hover { background:rgba(127,83,205,.28); }
-.chat-id.privacy-masked, .chat-content.privacy-masked { color:var(--muted-text) !important; font-style:italic; }
+#togglePrivacy { padding:4px 10px; border-radius:20px; border:1px solid rgba(127,83,205,.5); background:rgba(127,83,205,.14); color:var(--text-color); cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
+#togglePrivacy[aria-expanded="true"] { background:rgba(127,83,205,.35); }
+.chat-id.privacy-masked, .chat-content.privacy-masked, .user-name.privacy-masked { color:var(--muted-text) !important; font-style:italic; }
 .chat-content.privacy-masked { border:1px dashed var(--border-color); border-radius:5px; padding:3px 7px; }
 @media(max-width:768px){
     .chat-meta{width:55px; font-size:0.7em;}
@@ -691,13 +773,16 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     <div class="row2">
         <div class="row2-center" id="typeFilters"></div>
         <div class="row2-right" id="editBtns">
+            <button id="togglePrivacy" aria-expanded="false"></button>
             <button id="toggleDelMode">✂️</button>
         </div>
     </div>
-    <div class="privacy-row">
+    <div class="privacy-panel" id="privacyPanel">
         <input type="text" id="privacyIds" />
         <button class="privacy-btn" id="maskIdsBtn"></button>
         <button class="privacy-btn" id="maskMessagesBtn"></button>
+        <input type="text" id="privacyKeywords" />
+        <button class="privacy-btn" id="maskKeywordsBtn"></button>
         <button class="privacy-btn" id="resetMasksBtn"></button>
     </div>
 </div>
@@ -733,10 +818,15 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             typeBeep:     "📨 私信",
             typeSystem:   "⚙ 系統",
             privacyPlaceholder: "遮蔽對象 ID（逗號分隔）...",
-            maskIds: "🪪 遮蔽 ID",
+            keywordPlaceholder: "遮蔽關鍵字（逗號分隔）...",
+            privacyButton: "🛡️ 遮蔽",
+            maskIds: "🪪 遮蔽 ID＋名稱",
             maskMessages: "💬 遮蔽訊息",
+            maskKeywords: "🔤 遮蔽關鍵字",
             resetMasks: "↩ 復原遮蔽",
             maskedId: "[ID 已遮蔽]",
+            maskedName: "[名稱已遮蔽]",
+            maskedKeyword: "[已遮蔽]",
             maskedMessage: "[訊息已遮蔽]"
         },
         en: {
@@ -756,10 +846,15 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             typeBeep:     "📨 Beep",
             typeSystem:   "⚙ System",
             privacyPlaceholder: "IDs to mask (comma separated)...",
-            maskIds: "🪪 Mask IDs",
+            keywordPlaceholder: "Keywords to mask (comma separated)...",
+            privacyButton: "🛡️ Privacy",
+            maskIds: "🪪 Mask IDs + names",
             maskMessages: "💬 Mask messages",
+            maskKeywords: "🔤 Mask keywords",
             resetMasks: "↩ Undo masks",
             maskedId: "[ID masked]",
+            maskedName: "[Name masked]",
+            maskedKeyword: "[Masked]",
             maskedMessage: "[Message masked]"
         }
     };
@@ -802,8 +897,11 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         document.getElementById("idFilter").placeholder     = t("idPlaceholder");
         document.getElementById("clearBtn").textContent     = t("clearBtn");
         document.getElementById("privacyIds").placeholder  = t("privacyPlaceholder");
+        document.getElementById("privacyKeywords").placeholder = t("keywordPlaceholder");
+        document.getElementById("togglePrivacy").textContent = t("privacyButton");
         document.getElementById("maskIdsBtn").textContent = t("maskIds");
         document.getElementById("maskMessagesBtn").textContent = t("maskMessages");
+        document.getElementById("maskKeywordsBtn").textContent = t("maskKeywords");
         document.getElementById("resetMasksBtn").textContent = t("resetMasks");
         document.getElementById("toggleLang").textContent   = t("langLabel");
         var isLight = document.body.classList.contains("light");
@@ -853,9 +951,14 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             var exportRoot = document.documentElement.cloneNode(true);
             exportRoot.querySelectorAll('.chat-row.soft-deleted').forEach(function(r){ r.remove(); });
             exportRoot.querySelectorAll('.chat-row').forEach(function(r){ r.style.display = ''; });
+            exportRoot.querySelectorAll('.chat-row[data-player-name]').forEach(function(r){ r.removeAttribute('data-player-name'); });
             exportRoot.querySelectorAll('.separator-row').forEach(function(r){ r.style.display = ''; });
             exportRoot.querySelectorAll('.filter-expanded').forEach(function(r){ r.classList.remove('filter-expanded'); });
-            exportRoot.querySelectorAll('#contentSearch,#idFilter,#privacyIds').forEach(function(input){ input.setAttribute('value',''); });
+            exportRoot.querySelectorAll('#contentSearch,#idFilter,#privacyIds,#privacyKeywords').forEach(function(input){ input.setAttribute('value',''); });
+            var exportedPrivacyPanel = exportRoot.querySelector('#privacyPanel');
+            if (exportedPrivacyPanel) exportedPrivacyPanel.classList.remove('open');
+            var exportedPrivacyToggle = exportRoot.querySelector('#togglePrivacy');
+            if (exportedPrivacyToggle) exportedPrivacyToggle.setAttribute('aria-expanded','false');
             var blob = new Blob(['<!DOCTYPE html>\\n' + exportRoot.outerHTML], {type:'text/html;charset=utf-8'});
             var a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -881,12 +984,13 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         var count = document.querySelectorAll('.chat-row.soft-deleted').length;
         var idCount = document.querySelectorAll('.chat-row.id-masked').length;
         var messageCount = document.querySelectorAll('.chat-row.message-masked').length;
+        var keywordCount = document.querySelectorAll('.chat-row.keyword-masked').length;
         var btn = getOrCreateExportBtn();
         var label = currentLang === 'zh'
-            ? '💾 二次匯出 (隱藏 ' + count + '／ID ' + idCount + '／訊息 ' + messageCount + ')'
-            : '💾 Re-export (hidden ' + count + ' / IDs ' + idCount + ' / messages ' + messageCount + ')';
+            ? '💾 二次匯出 (隱藏 ' + count + '／身分 ' + idCount + '／訊息 ' + messageCount + '／關鍵字 ' + keywordCount + ')'
+            : '💾 Re-export (hidden ' + count + ' / identity ' + idCount + ' / messages ' + messageCount + ' / keywords ' + keywordCount + ')';
         btn.textContent = label;
-        btn.style.display = (count + idCount + messageCount) > 0 ? 'inline-block' : 'none';
+        btn.style.display = (count + idCount + messageCount + keywordCount) > 0 ? 'inline-block' : 'none';
     }
 
     function selectedPrivacyIds() {
@@ -910,9 +1014,60 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             var el = row.querySelector('.chat-id');
             if (!el || row.classList.contains('id-masked')) return;
             row.__privacyOriginalId = el.textContent || '';
+            var contentEl = row.querySelector('.chat-content');
+            if (contentEl && row.__privacyOriginalContent === undefined) row.__privacyOriginalContent = contentEl.innerHTML;
             el.textContent = t('maskedId');
             el.classList.add('privacy-masked');
+            row.querySelectorAll('.user-name').forEach(function(nameEl){
+                nameEl.textContent = t('maskedName');
+                nameEl.classList.add('privacy-masked');
+            });
+            var playerName = (row.dataset.playerName || '').trim();
+            if (contentEl && playerName) {
+                var namePattern = new RegExp(escapeRegExp(playerName), 'gi');
+                var walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT);
+                var nameNodes = [], nameNode;
+                while ((nameNode = walker.nextNode())) nameNodes.push(nameNode);
+                nameNodes.forEach(function(textNode){
+                    namePattern.lastIndex = 0;
+                    textNode.nodeValue = textNode.nodeValue.replace(namePattern, t('maskedName'));
+                });
+            }
             row.classList.add('id-masked');
+        });
+        updateExportBtn();
+        applyFilters();
+    });
+
+    function selectedPrivacyKeywords() {
+        return (document.getElementById('privacyKeywords').value || '').split(/[,，、;；\\n]+/)
+            .map(function(keyword){ return keyword.trim(); }).filter(Boolean);
+    }
+
+    function escapeRegExp(text) {
+        var specialChars = ['\\\\','^','$','.','*','+','?','(',')','[',']','{','}','|','/'];
+        return text.split('').map(function(ch){ return specialChars.indexOf(ch) >= 0 ? '\\\\' + ch : ch; }).join('');
+    }
+
+    document.getElementById('maskKeywordsBtn').addEventListener('click', function(){
+        var keywords = selectedPrivacyKeywords();
+        if (!keywords.length) return;
+        var pattern = new RegExp(keywords.sort(function(a,b){ return b.length-a.length; }).map(escapeRegExp).join('|'), 'gi');
+        allChatRows.forEach(function(row){
+            var contentEl = row.querySelector('.chat-content');
+            pattern.lastIndex = 0;
+            if (!contentEl || row.classList.contains('message-masked') || !pattern.test(contentEl.textContent || '')) return;
+            pattern.lastIndex = 0;
+            if (row.__privacyOriginalContent === undefined) row.__privacyOriginalContent = contentEl.innerHTML;
+            var walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT);
+            var textNodes = [], node;
+            while ((node = walker.nextNode())) textNodes.push(node);
+            textNodes.forEach(function(textNode){
+                pattern.lastIndex = 0;
+                textNode.nodeValue = textNode.nodeValue.replace(pattern, t('maskedKeyword'));
+            });
+            row.classList.add('keyword-masked');
+            row.__content = undefined;
         });
         updateExportBtn();
         applyFilters();
@@ -942,12 +1097,22 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             row.__privacyOriginalContent = undefined;
             row.__id = undefined;
             row.__content = undefined;
-            row.classList.remove('id-masked','message-masked');
+            row.classList.remove('id-masked','message-masked','keyword-masked');
             if (idEl) idEl.classList.remove('privacy-masked');
-            if (contentEl) contentEl.classList.remove('privacy-masked');
+            if (contentEl) {
+                contentEl.classList.remove('privacy-masked');
+                contentEl.querySelectorAll('.privacy-masked').forEach(function(el){ el.classList.remove('privacy-masked'); });
+            }
         });
         updateExportBtn();
         applyFilters();
+    });
+
+    document.getElementById('togglePrivacy').addEventListener('click', function(){
+        var panel = document.getElementById('privacyPanel');
+        var open = panel.classList.toggle('open');
+        this.setAttribute('aria-expanded', String(open));
+        requestAnimationFrame(updateStickyOffset);
     });
 
     document.getElementById('toggleDelMode').addEventListener('click', function(){
@@ -1090,6 +1255,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         document.getElementById('contentSearch').value = '';
         document.getElementById('idFilter').value = '';
         document.getElementById('privacyIds').value = '';
+        document.getElementById('privacyKeywords').value = '';
         document.getElementById('timeRange').value = '';
         TYPE_KEYS.forEach(function(tp){ typeState[tp] = true; });
         buildTypeChips();
@@ -1206,7 +1372,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
         // FIX: 移除 enhanced-color class，filter:brightness 會干擾文字顏色繼承
         return `
-            <div class="chat-row with-accent" data-type="${rowType}" style="--row-bg:${bgColor};--row-accent:${borderColor};--name-color:${adjustedColor};">
+            <div class="chat-row with-accent" data-type="${rowType}" data-player-name="${escapeHtml(msg.name || '')}" style="--row-bg:${bgColor};--row-accent:${borderColor};--name-color:${adjustedColor};">
                 <div class="chat-meta">
                     <span class="chat-time">${escapeHtml(msg.time || '')}</span>
                     <span class="chat-id">${escapeHtml(msg.id || '')}</span>
@@ -1579,10 +1745,15 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         return processedMessages;
     }
 
-    // Hook 後立刻把 DOM 轉成純資料並接到寫入鏈；不保存 DOM 節點、不等待定時擷取，
-    // 每筆訊息各自成為 IndexedDB messages store 的一個 record。
+    // 新增的 DOM 訊息會立刻轉成純資料並接到寫入鏈；每筆訊息各自成為
+    // IndexedDB messages store 的一個 record。
     let recordWriteChain = Promise.resolve();
     let lastHookRoom = null;
+    let captureObserver = null;
+    let observedChatLog = null;
+    let captureRootTimer = null;
+    let captureReconcileTick = 0;
+    const capturedNodes = new WeakSet();
 
     function queueRecord(record) {
         if (!record || currentMode !== "cache") return;
@@ -1596,10 +1767,12 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
     function queueHookedNode(node) {
         if (!(node instanceof HTMLElement) || currentMode !== "cache") return;
+        if (capturedNodes.has(node)) return;
         const record = normalizeChatMessageNode(node);
         if (!record) return;
+        capturedNodes.add(node);
         const roomName = record.roomName || window.ChatRoomData?.Name || "";
-        if (roomName && roomName !== lastHookRoom) {
+        if (record.type !== "separator" && roomName && roomName !== lastHookRoom) {
             lastHookRoom = roomName;
             queueRecord({ time:new Date().toISOString(), id:"", name:"", content:`⌄ ${roomName}`,
                 type:"separator", roomName, color:"#8100E7", expanded:true, _ts:Math.max(0, record._ts - 1),
@@ -1608,15 +1781,55 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         queueRecord(record);
     }
 
+    function captureAddedTree(node) {
+        if (!(node instanceof HTMLElement) || currentMode !== "cache") return;
+        if (node.matches?.(".ChatMessage, .chat-room-sep-div")) queueHookedNode(node);
+        node.querySelectorAll?.(".ChatMessage, .chat-room-sep-div").forEach(queueHookedNode);
+    }
+
+    function captureExistingMessages() {
+        if (currentMode !== "cache") return;
+        DOMCache.getMessages().forEach(queueHookedNode);
+    }
+
+    function connectCaptureObserver() {
+        const chatLog = DOMCache.getChatLog();
+        if (!chatLog || !document.contains(chatLog)) return false;
+        if (captureObserver && observedChatLog === chatLog) return true;
+        if (captureObserver) captureObserver.disconnect();
+        observedChatLog = chatLog;
+        captureObserver = new MutationObserver(mutations => {
+            if (currentMode !== "cache") return;
+            mutations.forEach(mutation => mutation.addedNodes.forEach(node => captureAddedTree(node)));
+        });
+        captureObserver.observe(chatLog, { childList:true, subtree:true });
+        captureExistingMessages();
+        return true;
+    }
+
+    function startCaptureObserver() {
+        connectCaptureObserver();
+        if (!captureRootTimer) {
+            captureRootTimer = setInterval(() => {
+                try {
+                    const previousRoot = observedChatLog;
+                    const connected = connectCaptureObserver();
+                    if (connected && currentMode === "cache" && previousRoot !== observedChatLog) captureExistingMessages();
+                    // 低頻補掃只處理 WeakSet 尚未見過的節點，作為 observer 漏接時的保險。
+                    if (connected && currentMode === "cache" && ++captureReconcileTick >= 30) {
+                        captureReconcileTick = 0;
+                        captureExistingMessages();
+                    }
+                } catch (e) { logError("captureObserver.reconnect", e); }
+            }, 1000);
+        }
+        if (currentMode === "cache") captureExistingMessages();
+    }
+
     function installCaptureHooks() {
         if (!modApi) return;
-        if (typeof window.ChatRoomMessage === "function") {
-            modApi.hookFunction("ChatRoomMessage", 20, (args, next) => {
-                const node = next(args);
-                try { queueHookedNode(node); } catch (e) { logError("hook.ChatRoomMessage", e); }
-                return node;
-            });
-        }
+        // ChatRoomMessage 沒有可靠的 DOM 回傳值，不能拿 next(args) 的結果當訊息節點。
+        // 一般聊天室訊息由上方 MutationObserver 捕捉；ServerAccountBeep hook 僅作補強。
         if (typeof window.ServerAccountBeep === "function") {
             modApi.hookFunction("ServerAccountBeep", 20, (args, next) => {
                 const log = DOMCache.getChatLog();
@@ -1780,6 +1993,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 saveCHESettings();
                 if (cheSettings.cacheEnabled) {
                     currentMode = "cache";
+                    startCaptureObserver();
                 } else {
                     currentMode = "stopped";
                     flushRecordQueue();
@@ -2006,6 +2220,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     function toggleMode(btn) {
         if (currentMode === "stopped") {
             currentMode = "cache";
+            startCaptureObserver();
         } else {
             currentMode = "stopped";
             flushRecordQueue();
@@ -2053,6 +2268,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
             await waitForLogin();
             installCaptureHooks();
+            startCaptureObserver();
             console.log(`🐈‍⬛ [CHE] ✅ v${MOD_VER} loaded`);
             await cleanupLegacyV1Database();
             // init() 會先把 v2 daily_fragments 遷移到 v3 records；完成後才依 _dateStr
