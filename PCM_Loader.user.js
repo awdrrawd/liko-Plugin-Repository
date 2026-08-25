@@ -2,7 +2,7 @@
 // @name           Liko - Plugin Collection Manager-Loader
 // @name:zh        Liko的插件管理器-Loader
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        1.2.1
+// @version        1.2.2
 // @description    Liko's Plugin Collection Manager
 // @author         Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
