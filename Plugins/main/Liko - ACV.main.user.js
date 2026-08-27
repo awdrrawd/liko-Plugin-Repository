@@ -176,10 +176,11 @@
             ratio: "auto",
         },
         discordCdn: {
-            regex: new RegExp(
-                `(?:cdn\\.discordapp\\.com|media\\.discordapp\\.net)\\/attachments\\/[^\\s]+\\.(?:${RAW_MEDIA_EXT_LIST})(?:\\?[^\\s]*)?`,
-                "i"
-            ),
+regex: new RegExp(
+    `(?:cdn\\.discordapp\\.com|media\\.discordapp\\.net)\\/attachments\\/[^\\s]+\\.(?:${RAW_MEDIA_EXT_LIST})(?:\\?[^\\s]*)?` +
+    `|(?:images-ext-\\d+|media)\\.discordapp\\.net\\/external\\/[^\\s]+\\.(?:${RAW_MEDIA_EXT_LIST})(?:\\?[^\\s]*)?`,
+    "i"
+),
             ratio: "auto",
         },
         pornhub: {
