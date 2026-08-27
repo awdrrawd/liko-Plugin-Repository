@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.1.1
+// @version      2.2.0
 // @description  Bondage Club - Likolisu's tool (R121 Compatible) + UI Panel + 角色选择器 + Canvas SVG图标 + 拖拽排序 + 主题自定义 + 无视绑缚 + 无视衣物阻挡 + 勿扰模式 + 说话总是OOC
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -23,7 +23,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_Version = "2.1.1";
+    const MOD_Version = "2.2.0";
     if (window.Liko.LT) return;
     window.Liko.LT = MOD_Version;
     let modApi = null;
@@ -80,6 +80,7 @@
         craftEdit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.59a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4"/></svg>',
         craftClear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.59a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><path d="M4 4l16 16"/></svg>',
         ignoreBlock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/><path d="M3 3l18 18"/></svg>',
+        magicDefense:'<svg viewBox="0 0 100 100" fill="currentColor"><path fill-rule="evenodd" d="m23.17 6c.57 0 2.04 3.49 5.48 15.5l7.69 2.5c4.22 1.38 7.68 2.84 7.67 3.25 0 .41-3.5 1.86-15.51 5.71L26 40.5c-1.38 4.14-2.84 7.53-3.25 7.52-.41-.01-1.7-3.06-2.87-6.77-1.16-3.71-2.63-7.26-3.25-7.88-.62-.62-4.17-2.09-7.88-3.25-3.71-1.17-6.76-2.46-6.77-2.87-.01-.41 3.38-1.88 15.06-5.75l2.55-7.75C20.99 9.49 22.6 6 23.17 6Zm41.97 16.59c.37.5 2.69 5.86 9.66 22.91l11.35 4.82c6.24 2.65 11.71 5.12 12.14 5.5.44.37-4.6 2.93-23.19 10.68L70.26 78c-2.65 6.33-5.23 11.5-5.71 11.5-.49 0-3.03-5.17-10.44-23l-12.05-5c-6.62-2.75-11.71-5.29-11.3-5.65.41-.36 5.46-2.56 11.24-4.91 5.78-2.34 11.02-4.75 11.66-5.35.63-.6 2.82-5.14 4.86-10.09 2.03-4.95 4.21-10.09 4.83-11.41.62-1.33 1.43-2 1.79-1.5ZM56 54.3l-4.5 1.99c8.16 3.53 9.39 4.76 11.07 8.55l2.08 4.66c3.53-7.95 4.98-9.47 8.21-11 2.31-1.1 4.2-2.23 4.2-2.5-.01-.28-1.86-1.17-4.12-2-3.27-1.19-4.5-2.37-6.03-5.75-1.05-2.34-2.16-4.25-2.47-4.25-.31 0-1.33 1.87-2.25 4.16-1.35 3.32-2.6 4.56-6.19 6.14ZM23.24 68c.56 0 1.55 2.14 2.19 4.75 1.06 4.28 1.58 4.9 5.28 6.25 2.26.83 4.49 1.8 4.95 2.17.46.38-1.41 1.37-4.16 2.22-4.62 1.42-5.11 1.89-6.5 6.1-.83 2.51-1.84 4.56-2.25 4.54-.41-.02-1.36-1.94-2.1-4.28-.75-2.34-1.99-4.58-2.75-4.98-.77-.41-2.98-1.36-4.9-2.13-3.11-1.24-3.28-1.49-1.5-2.17 1.1-.42 3.35-1.29 5-1.94 2.36-.92 3.29-2.18 4.36-5.85.74-2.58 1.81-4.68 2.38-4.68Z"/></svg>',
     };
 
     // ════════════════════════════════════════════════════════════════════════
@@ -118,8 +119,9 @@
         dnd:  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="#ffffff" d="m1.35 2.75c-0.44 1.29 2.38 4.7 10.78 13.01 6.25 6.19 12.16 11.25 13.12 11.25 1-0.01 1.75-0.76 1.76-1.76 0-0.96-5.06-6.81-11.25-12.99-6.2-6.19-11.83-11.25-12.53-11.25-0.71-0.01-1.55 0.78-1.88 1.74zm45.1 0.47c-1.39 1.88-1.63 4.98-1.55 20.25l0.09 18.03c29.4 29.45 38.29 37.63 38.72 37.17 0.44-0.46 0.93-11.48 1.11-24.5 0.17-13.02 0.06-24.68-0.25-25.92-0.36-1.43-1.58-2.46-3.32-2.83-1.92-0.41-3.29-0.03-4.53 1.25-1.49 1.53-1.78 3.59-1.75 12.58 0.02 6.2-0.39 10.96-0.97 11.25-0.55 0.27-1.7-0.06-2.54-0.75-1.3-1.05-1.54-4.21-1.5-19.5 0.04-17.27-0.07-18.3-1.96-19.25-1.1-0.55-2.34-0.99-2.75-0.98-0.41 0-1.42 0.44-2.25 0.96-1.2 0.75-1.6 4.29-2 17.73-0.48 15.96-0.6 16.79-2.5 16.79-1.92 0-2.02-0.83-2.5-21.29-0.41-17.45-0.77-21.46-2-22.23-0.83-0.52-2.49-0.96-3.7-0.96-1.21-0.01-2.94 0.98-3.85 2.2zm-14.45 8.78c-1.57 1.57-2 3.34-2.01 8.25-0.01 6.13 0.07 6.34 4.75 10.99 2.62 2.6 5.1 4.74 5.51 4.75 0.41 0 0.75-4.83 0.76-10.74 0-7.93-0.39-11.34-1.5-13-0.83-1.24-2.41-2.25-3.51-2.25-1.1 0-2.9 0.9-4 2zm-2 34.25l0.01 11.25c10.53 10.13 12.8 13.07 12.49 14-0.28 0.83-1.06 1.48-1.75 1.46-0.69-0.02-7.1-5.36-14.25-11.85-7.15-6.5-14.01-12.11-15.25-12.46-1.63-0.47-2.94 0.04-4.75 1.85-1.38 1.37-2.5 2.95-2.5 3.5 0 0.55 3.04 5.4 6.75 10.79 3.71 5.38 10.57 15.29 15.25 22.01l8.5 12.23 42 0.03c2.11-4.31 3.36-7.36 4.14-9.56l1.41-4c-39.18-39.14-50.89-50.5-51.3-50.5-0.41 0-0.75 5.06-0.75 11.25zm54.99 40.5c-0.01 0.96 2.35 4.11 5.25 6.99 2.89 2.88 6.05 5.24 7.01 5.25 1 0.01 1.75-0.74 1.76-1.74 0.01-0.96-2.35-4.11-5.25-6.99-2.89-2.88-6.05-5.24-7.01-5.25-1-0.01-1.75 0.74-1.76 1.74z"/></svg>',
         // 无视绑缚：麦束
         free: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="#ffffff" d="m41 8.45c-4.67 0.64-9.51 1.7-10.75 2.36-1.42 0.75-2.25 2.12-2.25 3.69 0 1.38 0.68 2.73 1.5 3 0.82 0.27 6.56 0.49 12.75 0.48 10.5-0.01 11.47 0.15 14.5 2.5l3.25 2.52c-13.56 9.47-18.28 13.19-19.23 14.36-0.95 1.18-1.73 3.49-1.74 5.14-0.01 2.12 2.12 6.06 7.33 13.5l7.34 10.5c-17.98 1.55-23.76 2.34-24.45 2.75-0.69 0.41-1.25 2.1-1.25 3.75q0 3 2 4c1.1 0.55 9.83 1 19.5 1 9.67 0 18.4-0.45 19.5-1 1.28-0.64 1.99-1.98 1.98-3.75-0.02-1.68-2.78-7.03-7.12-13.75-6.68-10.37-6.98-11.08-5.22-12.34 1.02-0.73 6.14-4.11 11.36-7.5 7.37-4.78 9.56-6.72 9.78-8.66 0.17-1.51-1.03-4.48-3.01-7.5-2.28-3.47-5.89-6.76-11.78-10.77-6.69-4.54-9.23-5.73-11.99-5.6-1.92 0.08-7.33 0.68-12 1.32zm41.97 2.08c-2.24 2.46-3.18 4.45-3.1 6.5 0.09 1.95 1.33 4.17 3.63 6.47 2.13 2.13 4.48 3.5 6 3.5 1.38 0 3.74-0.62 5.25-1.38 1.51-0.76 3.31-2.56 4-4 0.69-1.44 1.25-3.52 1.25-4.62 0-1.1-0.5-3.01-1.12-4.25-0.61-1.24-2.07-3.03-3.25-3.98-1.17-0.95-3.77-1.74-5.78-1.75-2.92-0.02-4.3 0.69-6.88 3.51zm-82.42 14.47c-0.3 0.55-0.33 1.45-0.05 2 0.31 0.62 8.33 1 21 1 19.83 0 20.5-0.07 20.5-2 0-1.93-0.67-2-20.45-2-12.6 0-20.66 0.38-21 1zm0 10c-0.3 0.55-0.33 1.45-0.05 2 0.3 0.6 6.67 1 16 1 14.83 0 15.5-0.09 15.5-2 0-1.91-0.67-2-15.45-2-9.27 0-15.67 0.4-16 1zm0 10c-0.3 0.55-0.33 1.45-0.05 2 0.3 0.6 6.67 1 16 1 14.83 0 15.5-0.09 15.5-2 0-1.91-0.67-2-15.45-2-9.27 0-15.67 0.4-16 1zm0 10c-0.3 0.55-0.33 1.45-0.05 2 0.31 0.62 8 1 20 1 18.83 0 19.5-0.07 19.5-2 0-1.93-0.67-2-19.45-2-11.94 0-19.66 0.39-20 1zm34.05 32.25c-2.5 2.89-4.75 5.92-4.99 6.75-0.24 0.83 0.2 2.51 0.97 3.75 0.78 1.24 2.32 2.25 3.42 2.25 1.16 0 5.87-3.75 11.25-8.97l9.25-8.98-15.35-0.05zm40.36-45.94c-3.32 2.33-4.43 3.73-4.14 5.19 0.21 1.1 0.91 2.62 1.53 3.37 0.91 1.08 3.31 1.22 11.65 0.64 5.77-0.4 11.28-1.13 12.25-1.62 1.14-0.58 1.66-1.85 1.5-3.64-0.21-2.27-0.78-2.79-3.25-3-1.65-0.14-5.37-0.48-8.25-0.75-3.78-0.36-5.25-0.92-5.25-2 0-0.83-0.34-1.48-0.75-1.44-0.42 0.03-2.8 1.49-5.29 3.25z"/></svg>',
+        magicDefense: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="#ffffff" fill-rule="evenodd" d="m23.17 6c.57 0 2.04 3.49 5.48 15.5l7.69 2.5c4.22 1.38 7.68 2.84 7.67 3.25 0 .41-3.5 1.86-15.51 5.71L26 40.5c-1.38 4.14-2.84 7.53-3.25 7.52-.41-.01-1.7-3.06-2.87-6.77-1.16-3.71-2.63-7.26-3.25-7.88-.62-.62-4.17-2.09-7.88-3.25-3.71-1.17-6.76-2.46-6.77-2.87-.01-.41 3.38-1.88 15.06-5.75l2.55-7.75C20.99 9.49 22.6 6 23.17 6Zm41.97 16.59c.37.5 2.69 5.86 9.66 22.91l11.35 4.82c6.24 2.65 11.71 5.12 12.14 5.5.44.37-4.6 2.93-23.19 10.68L70.26 78c-2.65 6.33-5.23 11.5-5.71 11.5-.49 0-3.03-5.17-10.44-23l-12.05-5c-6.62-2.75-11.71-5.29-11.3-5.65.41-.36 5.46-2.56 11.24-4.91 5.78-2.34 11.02-4.75 11.66-5.35.63-.6 2.82-5.14 4.86-10.09 2.03-4.95 4.21-10.09 4.83-11.41.62-1.33 1.43-2 1.79-1.5ZM56 54.3l-4.5 1.99c8.16 3.53 9.39 4.76 11.07 8.55l2.08 4.66c3.53-7.95 4.98-9.47 8.21-11 2.31-1.1 4.2-2.23 4.2-2.5-.01-.28-1.86-1.17-4.12-2-3.27-1.19-4.5-2.37-6.03-5.75-1.05-2.34-2.16-4.25-2.47-4.25-.31 0-1.33 1.87-2.25 4.16-1.35 3.32-2.6 4.56-6.19 6.14ZM23.24 68c.56 0 1.55 2.14 2.19 4.75 1.06 4.28 1.58 4.9 5.28 6.25 2.26.83 4.49 1.8 4.95 2.17.46.38-1.41 1.37-4.16 2.22-4.62 1.42-5.11 1.89-6.5 6.1-.83 2.51-1.84 4.56-2.25 4.54-.41-.02-1.36-1.94-2.1-4.28-.75-2.34-1.99-4.58-2.75-4.98-.77-.41-2.98-1.36-4.9-2.13-3.11-1.24-3.28-1.49-1.5-2.17 1.1-.42 3.35-1.29 5-1.94 2.36-.92 3.29-2.18 4.36-5.85.74-2.58 1.81-4.68 2.38-4.68Z"/></svg>',
     };
-    const BADGE_COLOR = { dnd: '#d03030', free: '#2d8bc4' };
+    const BADGE_COLOR = { dnd: '#d03030', free: '#2d8bc4', magicDefense: '#7a45c4' };
     var _badgeImgCache = {};
     function getBadgeImg(key) {
         if (_badgeImgCache[key]) return _badgeImgCache[key];
@@ -354,6 +356,9 @@
             dndOn:           "勿扰模式已启用（除自己外，任何人对你外观的编辑都会立即复原）",
             dndOff:          "勿扰模式已停用",
             dndReverted:     "{src} 对 {who} 修改了外观，但很快地复原了",
+            magicDefenseOn:  "魔法防御已启用（LSCG 魔法无法对你生效）",
+            magicDefenseOff: "魔法防御已停用",
+            magicDeflected:  "{who}受到了魔法的攻击，但很快的就失去效力了",
             oocOn:           "说话总是OOC 已启用（聊天/密语自动加上括号转为 OOC）",
             oocOff:          "说话总是OOC 已停用",
             oocPlaceholder:  "现在讯息为 OOC",
@@ -446,6 +451,7 @@
                 "/lt heightlock        - 锁定身高为标准值\n" +
                 "/lt ooc               - 说话总是OOC（聊天/密语自动加括号转 OOC）\n" +
                 "/lt dnd               - 勿扰模式（除自己外，他人对你外观的编辑立即复原）\n" +
+                "/lt magicdefense      - 魔法防御（使 LSCG 魔法无法生效）\n" +
                 "/lt freehands         - 无视绑缚（被绑时仍可使用双手，不解开道具）\n" +
                 "/lt ignoreblock       - 无视衣物阻挡（被遮挡的格子仍可换装、装拘束）\n" +
                 "/lt geteverything     - 增强功能\n" +
@@ -512,6 +518,9 @@
             dndOn:           "Do Not Disturb enabled (anyone but you editing your appearance is instantly reverted)",
             dndOff:          "Do Not Disturb disabled",
             dndReverted:     "{src} changed {who}'s appearance, but it was quickly restored",
+            magicDefenseOn:  "Magic Defense enabled (LSCG magic cannot affect you)",
+            magicDefenseOff: "Magic Defense disabled",
+            magicDeflected:  "{who} was struck by magic, but it quickly lost its effect",
             oocOn:           "Always OOC enabled (chat/whisper auto-wrapped in parentheses as OOC)",
             oocOff:          "Always OOC disabled",
             oocPlaceholder:  "Messages are OOC now",
@@ -604,6 +613,7 @@
                 "/lt heightlock        - Lock height to standard value\n" +
                 "/lt ooc               - Always OOC (auto-wrap chat/whisper in parentheses)\n" +
                 "/lt dnd               - Do Not Disturb (others' edits to your appearance auto-revert)\n" +
+                "/lt magicdefense      - Block LSCG magic from taking effect\n" +
                 "/lt freehands         - Free hands (use hands while restrained, keeps items on)\n" +
                 "/lt ignoreblock       - Ignore clothing block (equip on covered slots)\n" +
                 "/lt geteverything     - Enhancement menu\n" +
@@ -695,7 +705,7 @@
     function getES() {
         if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
         if (!Player.ExtensionSettings.LikoTOOL) {
-            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, stealthRp: 0, rpModeLocal: 0, freeHands: 0, ignoreBlock: 0, dnd: 0, alwaysOOC: 0 };
+            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, stealthRp: 0, rpModeLocal: 0, freeHands: 0, ignoreBlock: 0, dnd: 0, magicDefense: 0, alwaysOOC: 0 };
         }
         const s = Player.ExtensionSettings.LikoTOOL;
         if (typeof s.heightFix        === 'undefined') s.heightFix        = 0;
@@ -706,6 +716,7 @@
         if (typeof s.freeHands        === 'undefined') s.freeHands        = 0;
         if (typeof s.ignoreBlock      === 'undefined') s.ignoreBlock      = 0;
         if (typeof s.dnd              === 'undefined') s.dnd              = 0;
+        if (typeof s.magicDefense     === 'undefined') s.magicDefense     = 0;
         if (typeof s.alwaysOOC        === 'undefined') s.alwaysOOC        = 0;
         return s;
     }
@@ -731,10 +742,12 @@
         if (typeof oss.RPmode    === 'undefined') oss.RPmode    = 0;
         if (typeof oss.DND       === 'undefined') oss.DND       = 0; // 广播：勿扰徽章
         if (typeof oss.FreeHands === 'undefined') oss.FreeHands = 0; // 广播：无视绑缚徽章
+        if (typeof oss.MagicDefense === 'undefined') oss.MagicDefense = 0; // 广播：魔法防御徽章
         getES();
         // 把本地持久化的开关镜像到广播设定，让重登后徽章状态一致
         oss.DND       = getES().dnd === 1 ? 1 : 0;
         oss.FreeHands = getES().freeHands === 1 ? 1 : 0;
+        oss.MagicDefense = getES().magicDefense === 1 ? 1 : 0;
     }
 
     // ──────────────────────────────────────────
@@ -779,6 +792,7 @@
     }
     function getDndMode(character)  { return _readShared(character, 'DND',       () => getES().dnd === 1); }
     function getFreeHandsShared(character) { return _readShared(character, 'FreeHands', () => getES().freeHands === 1); }
+    function getMagicDefenseShared(character) { return _readShared(character, 'MagicDefense', () => getES().magicDefense === 1); }
 
     // 把某个本地开关镜像到 OnlineSharedSettings 并广播（让别人看得到徽章）
     function broadcastShared(key, enabled) {
@@ -896,6 +910,7 @@
         if (getRpMode(C))         keys.push('rp');
         if (getDndMode(C))        keys.push('dnd');
         if (getFreeHandsShared(C)) keys.push('free');
+        if (getMagicDefenseShared(C)) keys.push('magicDefense');
         if (!keys.length) return;
         const baseY = (C.IsKneeling && C.IsKneeling()) ? 300 : 40; // 固定锚点：跪姿往下移
         const x = CharX +35+340 * Zoom;
@@ -1349,6 +1364,7 @@
         const toggles = [
             { icon: SVG.rp,        label: isZh() ? 'RP模式'  : 'RP Mode',    title: isZh() ? '开启后屏蔽游戏 Action 消息' : 'Block game Action messages', toggle: 'rp', fn: function() { rpmode(); updateToggleBtns(); } },
             { icon: SVG.dnd,       label: isZh() ? '勿扰模式' : 'Do Not Disturb', title: isZh() ? '除自己外，任何人对你外观的编辑（换衣/拘束）都会立即复原' : 'Anyone but you editing your appearance is instantly reverted', toggle: 'dnd', fn: function() { dndCommand(); updateToggleBtns(); } },
+            { icon: SVG.magicDefense,label: isZh() ? '魔法防御' : 'Magic Defense', title: isZh() ? '抵御所有对你施放的 LSCG 魔法' : 'Prevent all LSCG magic cast on you from taking effect', toggle: 'magicDefense', fn: function() { magicDefenseCommand(); updateToggleBtns(); } },
             { icon: SVG.free,      label: isZh() ? '无视绑缚' : 'Free Hands', title: isZh() ? '被绑缚时仍可使用双手（不会实际解开道具）' : 'Use hands while restrained (does not remove items)', toggle: 'freeHands', fn: function() { freeHandsCommand(); updateToggleBtns(); } },
             { icon: SVG.ignoreBlock,label: isZh() ? '无视衣物阻挡' : 'Ignore Clothing Block', title: isZh() ? '被服装/道具遮挡的格子仍可换装、装拘束（不必先脱）' : 'Equip on slots covered by clothing/items (no need to strip first)', toggle: 'ignoreBlock', fn: function() { ignoreBlockCommand(); updateToggleBtns(); } },
             { icon: SVG.heightFix, label: isZh() ? '拉高'    : 'Height Fix', title: isZh() ? '趴跪姿时自动拉高视角' : 'Auto-raise when kneeling/prone', toggle: 'heightFix', fn: function() { heightFixCommand(); updateToggleBtns(); } },
@@ -1389,6 +1405,7 @@
             var isOn = false;
             if (key === 'rp') isOn = getRpMode(Player);
             else if (key === 'dnd') isOn = getES().dnd === 1;
+            else if (key === 'magicDefense') isOn = getES().magicDefense === 1;
             else if (key === 'rpBtn') isOn = getES().rpBtnVisible === 1;
             else if (key === 'heightFix') isOn = getES().heightFix === 1;
             else if (key === 'heightLock') isOn = getES().heightLock === 1;
@@ -2653,6 +2670,73 @@
     }
 
     // ──────────────────────────────────────────
+    // LSCG 魔法防御：在 LSCG 套用任何效果前拦截接收入口。
+    // 同时覆盖远端施法、本地/自施法及配对魔法，避免短暂的换装、催眠、失明等副作用。
+    // ──────────────────────────────────────────
+    let _magicDefenseModule = null;
+    let _magicDefenseOriginals = null;
+    let _magicDefenseTimer = null;
+
+    function announceMagicDefense() {
+        chatSendCustomAction(t('magicDeflected', { who: getNickname(Player) }));
+    }
+
+    function restoreMagicDefenseHooks() {
+        if (_magicDefenseModule && _magicDefenseOriginals) {
+            Object.keys(_magicDefenseOriginals).forEach(function(name) {
+                if (_magicDefenseModule[name]?._ltMagicDefenseWrapper) {
+                    _magicDefenseModule[name] = _magicDefenseOriginals[name];
+                }
+            });
+        }
+        _magicDefenseModule = null;
+        _magicDefenseOriginals = null;
+    }
+
+    function setupMagicDefenseHooks() {
+        let magic = null;
+        try { magic = window.LSCG?.getModule?.('MagicModule'); } catch (e) {}
+        if (!magic || magic === _magicDefenseModule) return;
+        restoreMagicDefenseHooks();
+
+        const originals = {};
+        ['IncomingSpellCommand', 'IncomingSpell', 'IncomingSpellPair'].forEach(function(name) {
+            if (typeof magic[name] !== 'function') return;
+            const original = magic[name];
+            originals[name] = original;
+            const wrapper = function() {
+                if (getES().magicDefense === 1) {
+                    announceMagicDefense();
+                    return;
+                }
+                return original.apply(this, arguments);
+            };
+            wrapper._ltMagicDefenseWrapper = true;
+            magic[name] = wrapper;
+        });
+        if (Object.keys(originals).length) {
+            _magicDefenseModule = magic;
+            _magicDefenseOriginals = originals;
+        }
+    }
+
+    function startMagicDefenseHooks() {
+        setupMagicDefenseHooks();
+        if (!_magicDefenseTimer) _magicDefenseTimer = setInterval(setupMagicDefenseHooks, 1000);
+    }
+
+    function magicDefenseCommand() {
+        const s = getES();
+        s.magicDefense = s.magicDefense !== 1 ? 1 : 0;
+        saveES();
+        setupMagicDefenseHooks();
+        broadcastShared('MagicDefense', s.magicDefense === 1);
+        ChatRoomSendLocal(s.magicDefense === 1 ? t('magicDefenseOn') : t('magicDefenseOff'), TOGGLE_MSG_MS);
+        if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
+        return true;
+    }
+
+    // ──────────────────────────────────────────
     // 说话总是 OOC：聊天/密语时自动把讯息包成 (...) 转为 OOC（略过指令 / / 动作 * / 已是 OOC）
     //  另外把输入框 placeholder（BC 的「对话状态」提示）在启用时前缀「现在讯息为 OOC」。
     // ──────────────────────────────────────────
@@ -2769,6 +2853,7 @@
             heightlock:    heightLockCommand,
             ooc:           oocCommand,
             dnd:           dndCommand,
+            magicdefense:  magicDefenseCommand,
             freehands:     freeHandsCommand,
             ignoreblock:   ignoreBlockCommand,
             undo:          undoCommand,
@@ -2799,8 +2884,9 @@
         initializeStorage();
         applyFreeHands();
         applyIgnoreBlock();
+        startMagicDefenseHooks();
         if (getES().dnd === 1) dndCaptureBaseline();
-        // 广播持久化的徽章状态（DND / FreeHands），让别人一进房就看得到
+        // 广播持久化的徽章状态（DND / FreeHands / MagicDefense），让别人一进房就看得到
         if (typeof ServerAccountUpdate?.QueueData === 'function') {
             ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
         }
@@ -2835,6 +2921,8 @@
             modApi.onUnload(() => {
                 if (heightTargetChar) { removeHeightHijack(heightTargetChar); heightTargetChar = null; }
                 _ibUnpatch();
+                if (_magicDefenseTimer) { clearInterval(_magicDefenseTimer); _magicDefenseTimer = null; }
+                restoreMagicDefenseHooks();
                 delete window.__LikoToolLoaded__;
                 console.log("🐈‍⬛ [LT] 🗑️ 插件卸载");
             });
