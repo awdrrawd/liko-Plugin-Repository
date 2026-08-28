@@ -74,6 +74,7 @@
             'refreshFailed':      { EN: 'Update failed, using cached list' },
             'pluginLoadComplete': { EN: 'Plugin loading complete' },
             'successLoaded':      { EN: 'Loaded' },
+            'fusamLoadedCount':   { EN: 'FUSAM {count} loaded successfully' },
             'plugins':            { EN: 'plugins' },
             'failed':             { EN: 'failed' },
             'pluginLoadFailed':   { EN: '{name} failed to load' },
@@ -1037,7 +1038,10 @@
                 results.forEach((r, idx) => { if (r.status === 'fulfilled') ok++; else { fail++; console.error(`🐈‍⬛ [PCM] ❌ ${batch[idx].name}`); } });
                 if (i + batchSize < plugins.length) await new Promise(r => setTimeout(r, 800));
             }
-        if (plugins.length > 0) showLoadNotification(fail > 0 ? "⚠️" : "✅", t('pluginLoadComplete'), `${t('successLoaded')} ${ok} ${t('plugins')}${fail > 0 ? `, ${fail} ${t('failed')}` : ''}`);
+        if (plugins.length > 0) {
+            const successText = source === 'fusam' ? t('fusamLoadedCount', { count: ok }) : `${t('successLoaded')} ${ok} ${t('plugins')}`;
+            showLoadNotification(fail > 0 ? "⚠️" : "✅", t('pluginLoadComplete'), `${successText}${fail > 0 ? `, ${fail} ${t('failed')}` : ''}`);
+        }
         } finally { isLoadingPlugins = false; }
     }
 
@@ -1091,17 +1095,17 @@
 
     function applyFilter() {
         const q = searchQuery.toLowerCase().trim();
-        ['local', 'account', 'custom'].forEach(src => {
+        ['local', 'account', 'fusam', 'custom'].forEach(src => {
             const container = document.getElementById(`bc-plugin-content-${src}`);
             if (!container) return;
             container.querySelectorAll('.bc-plugin-item[data-plugin-id]').forEach(item => {
                 const id = item.getAttribute('data-plugin-id');
-                const plugin = src === 'custom' ? customPlugins.find(p => p.id === id) : subPlugins.find(p => p.id === id);
+                const plugin = src === 'custom' ? customPlugins.find(p => p.id === id) : src === 'fusam' ? fusamPlugins.find(p => p.id === id) : subPlugins.find(p => p.id === id);
                 if (!plugin) return;
 
                 let pass = true;
-                if (filterMode === 'enabled')  pass = src === 'account' ? isPluginEnabledInAccount(plugin) : (src === 'custom' ? plugin.enabled : isPluginEnabled(plugin));
-                if (filterMode === 'disabled') pass = !(src === 'account' ? isPluginEnabledInAccount(plugin) : (src === 'custom' ? plugin.enabled : isPluginEnabled(plugin)));
+                if (filterMode === 'enabled')  pass = src === 'account' ? isPluginEnabledInAccount(plugin) : ((src === 'custom' || src === 'fusam') ? plugin.enabled : isPluginEnabled(plugin));
+                if (filterMode === 'disabled') pass = !(src === 'account' ? isPluginEnabledInAccount(plugin) : ((src === 'custom' || src === 'fusam') ? plugin.enabled : isPluginEnabled(plugin)));
 
                 if (pass && q) {
                     pass = [plugin.id, plugin.name, plugin.en_name, plugin.description, plugin.en_description]
@@ -1334,6 +1338,8 @@
         .bc-plugin-empty { min-height:240px; display:flex; align-items:center; justify-content:center; }
         .bc-plugin-source-note { flex:1; min-width:0; color:#aaa3be; font-size:10px; line-height:1.35; }
         .bc-plugin-source-note a { color:#cdb9ff; }
+        .bc-plugin-search-row.fusam { flex-wrap:wrap; }
+        .bc-plugin-search-row.fusam .bc-plugin-source-note { order:-1; flex:0 0 100%; }
         .bc-plugin-fusam { min-height:260px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px; text-align:center; color:#aaa3be; }
         .bc-plugin-fusam h4 { margin:0; color:#fff; font-size:15px; }
         .bc-plugin-fusam p { margin:0; max-width:310px; font-size:11px; line-height:1.6; }
@@ -1528,11 +1534,11 @@
                 }
                 if (!data) throw networkError || new Error('FUSAM manifest failed');
                 localStorage.setItem(FUSAM_CACHE_KEY, JSON.stringify(data));
-                fusamPlugins = data.addons.map(normalizeFusamPlugin);
+                fusamPlugins = data.addons.map(normalizeFusamPlugin).sort((a, b) => fusamText(a.name).localeCompare(fusamText(b.name), undefined, { sensitivity: 'base', numeric: true }));
             } catch(e) {
                 const cached = getCachedFusamManifest();
                 if (!cached) throw e;
-                fusamPlugins = cached.addons.map(normalizeFusamPlugin);
+                fusamPlugins = cached.addons.map(normalizeFusamPlugin).sort((a, b) => fusamText(a.name).localeCompare(fusamText(b.name), undefined, { sensitivity: 'base', numeric: true }));
                 console.warn(`🐈‍⬛ [PCM] ⚠️ FUSAM manifest network failed; using cache: ${e.message}`);
             }
             return fusamPlugins;
@@ -1553,6 +1559,7 @@
             if (!container.isConnected && !document.body.contains(container)) return;
             container.innerHTML = '';
             addons.forEach(plugin => container.appendChild(buildFusamItem(plugin)));
+            applyFilter();
         } catch(e) {
             container.innerHTML = `<div class="bc-plugin-fusam"><h4>${escapeHtml(t('loadPluginsFailed'))}</h4><p>${escapeHtml(e.message)}</p><button class="bc-plugin-fusam-link" type="button">↻ ${escapeHtml(t('refreshTitle'))}</button><a class="bc-plugin-fusam-link" href="${FUSAM_URL}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('fusamOpen'))}</a></div>`;
             container.querySelector('button')?.addEventListener('click', () => buildFusamContent(container, true));
@@ -2138,7 +2145,8 @@
             gearBtn.style.display = tab === 'custom' ? '' : 'none';
             customAddFab.style.display = tab === 'custom' ? 'flex' : 'none';
             const isFusam = tab === 'fusam';
-            searchInput.style.display = filterBtn.style.display = isFusam ? 'none' : '';
+            searchRow.classList.toggle('fusam', isFusam);
+            searchInput.style.display = filterBtn.style.display = '';
             sourceNote.style.display = isFusam ? '' : 'none';
             if (tab === 'account') buildAccountContent(contentAccount);
             if (tab === 'custom')  buildCustomContent(contentCustom);

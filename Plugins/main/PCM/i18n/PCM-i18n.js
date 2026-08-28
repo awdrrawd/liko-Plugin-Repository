@@ -47,6 +47,7 @@
         'refreshFailed':     { TW: '更新失敗，使用舊版清單', CN: '更新失败，使用旧版清单', DE: 'Aktualisierung fehlgeschlagen', FR: 'Mise à jour échouée, liste en cache utilisée', RU: 'Обновление не удалось, используется кэш', UA: 'Оновлення не вдалося, використовується кеш' },
         'pluginLoadComplete':{ TW: '插件載入完成', CN: '插件载入完成', DE: 'Plugin-Laden abgeschlossen', FR: 'Chargement des plugins terminé', RU: 'Загрузка плагинов завершена', UA: 'Завантаження плагінів завершено' },
         'successLoaded':     { TW: '已載入', CN: '已载入', DE: 'Geladen', FR: 'Chargés', RU: 'Загружено', UA: 'Завантажено' },
+        'fusamLoadedCount':  { TW: 'FUSAM {count} 個載入成功', CN: 'FUSAM {count} 个加载成功', DE: 'FUSAM: {count} erfolgreich geladen', FR: 'FUSAM : {count} chargés avec succès', RU: 'FUSAM: успешно загружено {count}', UA: 'FUSAM: успішно завантажено {count}' },
         'plugins':           { TW: '個插件', CN: '个插件', DE: 'Plugins', FR: 'plugins', RU: 'плагинов', UA: 'плагінів' },
         'failed':            { TW: '個失敗', CN: '个失败', DE: 'fehlgeschlagen', FR: 'échoués', RU: 'не удалось', UA: 'невдало' },
         'pluginLoadFailed':  { TW: '{name} 載入失敗', CN: '{name} 载入失败', DE: '{name} konnte nicht geladen werden', FR: '{name} n\'a pas pu être chargé', RU: '{name} не удалось загрузить', UA: '{name} не вдалося завантажити' },
