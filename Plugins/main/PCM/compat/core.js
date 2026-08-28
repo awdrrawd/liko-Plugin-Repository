@@ -86,7 +86,7 @@
             'customDeleted':      { EN: '{name} removed' },
             'customUrlInvalid':   { EN: 'URL must end in .js' },
             'customNameRequired': { EN: 'Please enter a name' },
-            'customEmptyHint':    { EN: 'No custom plugins yet.\nClick ⚙ above to add one.' },
+            'customEmptyHint':    { EN: 'No custom plugins yet.\nTap ＋ in the lower-right corner to add one.' },
             'prefButton':         { EN: 'PCM Plugin Manager' },
         };
 
@@ -1268,6 +1268,68 @@
 
         @media (max-width:480px) { .bc-plugin-btn-group{right:10px;top:40px;} }
         @media (max-height:600px) { .bc-plugin-content{max-height:160px;} }
+
+        /* PCM mobile settings UI */
+        .bc-plugin-panel { width:min(390px,calc(100vw - 16px)); max-width:none; max-height:calc(100dvh - 16px); min-height:0; background:rgba(21,19,35,.96); border-color:rgba(204,190,255,.16); border-radius:28px; box-shadow:0 26px 80px rgba(0,0,0,.55); backdrop-filter:blur(22px); }
+        .bc-plugin-header { padding:16px 16px 10px; text-align:left; background:linear-gradient(155deg,rgba(117,68,223,.42),rgba(25,22,42,.28)); border-bottom:1px solid rgba(204,190,255,.12); overflow:visible; }
+        .bc-plugin-header::before { display:none; }
+        .bc-plugin-top-row { display:flex; align-items:center; gap:10px; min-height:44px; }
+        .bc-plugin-brand { width:44px; height:44px; object-fit:cover; flex:0 0 44px; border-radius:14px; box-shadow:0 8px 22px rgba(113,71,220,.32); pointer-events:none; }
+        .bc-plugin-title-wrap { min-width:0; flex:1; }
+        .bc-plugin-title { margin:0; font-size:17px; line-height:1.2; font-weight:700; }
+        .bc-plugin-summary { display:block; margin-top:4px; color:#b9b0cb; font-size:10px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .bc-plugin-header-actions { display:flex; align-items:center; gap:7px; }
+        .bc-plugin-header .bc-plugin-changelog-btn,.bc-plugin-header #bc-plugin-refresh-btn { width:36px; height:36px; flex:0 0 36px; border:1px solid rgba(204,190,255,.14); border-radius:12px; background:rgba(255,255,255,.055); box-shadow:none; color:#fff; font-size:16px; }
+        .bc-plugin-header .bc-plugin-changelog-btn:hover,.bc-plugin-header #bc-plugin-refresh-btn:hover { transform:none; background:rgba(154,108,255,.15); border-color:rgba(175,145,255,.5); }
+        .bc-plugin-tabs { position:relative; display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin-top:13px; padding:4px; border:0; border-radius:14px; background:rgba(8,7,15,.38); overflow:hidden; }
+        .bc-plugin-tabs::before { content:''; position:absolute; z-index:0; top:4px; bottom:4px; left:4px; width:calc((100% - 16px) / 3); border-radius:10px; background:#292541; box-shadow:0 4px 14px rgba(0,0,0,.22); transition:transform .28s cubic-bezier(.22,.8,.32,1); }
+        .bc-plugin-tabs[data-active="account"]::before { transform:translateX(calc(100% + 4px)); }
+        .bc-plugin-tabs[data-active="custom"]::before { transform:translateX(calc(200% + 8px)); }
+        .bc-plugin-tab { position:relative; z-index:1; padding:8px 5px; border:0; border-radius:10px; color:#aaa3be; font-size:11px; font-weight:700; }
+        .bc-plugin-tab:hover:not(.active) { background:rgba(255,255,255,.035); }
+        .bc-plugin-tab.active { color:#fff; border:0; background:transparent; box-shadow:none; }
+        .bc-plugin-search-row { gap:7px; padding:11px 14px 9px; background:transparent; border:0; }
+        .bc-plugin-search { height:38px; padding:0 12px; border-color:rgba(204,190,255,.12); border-radius:12px; background:rgba(255,255,255,.045); font-size:12px; user-select:text!important; -webkit-user-select:text!important; }
+        .bc-plugin-filter-btn,.bc-plugin-gear-btn { width:38px; height:38px; border-color:rgba(204,190,255,.12); border-radius:12px; background:rgba(255,255,255,.045); }
+        .bc-plugin-content { max-height:none; min-height:0; padding:4px 14px max(18px,env(safe-area-inset-bottom)); touch-action:none; cursor:grab; overscroll-behavior:contain; scroll-padding-bottom:max(18px,env(safe-area-inset-bottom)); -webkit-overflow-scrolling:touch; }
+        .bc-plugin-content.dragging { cursor:grabbing; }
+        .bc-plugin-item { min-height:0; margin-bottom:9px; padding:10px 11px; border-color:rgba(204,190,255,.12); border-radius:18px; background:linear-gradient(145deg,rgba(46,41,70,.82),rgba(31,28,48,.92)); }
+        .bc-plugin-item.enabled { background:linear-gradient(145deg,rgba(58,45,91,.9),rgba(36,30,57,.94)); border-color:rgba(154,108,255,.3); }
+        .bc-plugin-item.enabled::before,.bc-plugin-item.beta-enabled::before { display:none; }
+        .bc-plugin-item:hover { transform:translateY(-1px); border-color:rgba(176,143,255,.36); box-shadow:none; }
+        .bc-plugin-icon { width:50px; height:50px; flex:0 0 50px; margin-right:11px; border-radius:15px; background:rgba(154,108,255,.15); font-size:20px; }
+        .bc-plugin-name { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .bc-plugin-desc { font-size:10.5px; color:#aaa3be; white-space:normal; overflow-wrap:anywhere; }
+        .bc-plugin-runtime-status { position:relative; padding-left:11px; margin-top:5px; font-size:9px; }
+        .bc-plugin-runtime-status::before { content:''; position:absolute; left:0; top:50%; width:6px; height:6px; border-radius:50%; background:currentColor; transform:translateY(-50%); box-shadow:0 0 7px currentColor; }
+        .bc-plugin-toggle { width:44px; height:26px; border-radius:16px; }
+        .bc-plugin-toggle::after { top:3px; left:3px; width:20px; height:20px; }
+        .bc-plugin-toggle.active::after { left:21px; }
+        .bc-plugin-footer { padding:8px 16px; border-color:rgba(204,190,255,.1); background:rgba(255,255,255,.015); font-size:9px; }
+        .bc-plugin-delete-btn { inset:auto; top:50%; right:62px; width:36px; height:36px; transform:translateY(-50%); border:1px solid rgba(255,100,120,.35); border-radius:12px; background:rgba(255,80,100,.12); color:#ff8394; font-size:17px; }
+        .bc-plugin-delete-btn:hover { transform:translateY(-50%); background:rgba(180,30,50,.55); border-color:rgba(255,130,145,.8); }
+        .bc-plugin-custom-fab { position:absolute; z-index:6; right:18px; bottom:36px; width:50px; height:50px; display:flex; align-items:center; justify-content:center; border:0; border-radius:17px; cursor:pointer; color:#fff; background:linear-gradient(145deg,#aa7cff,#7041db); box-shadow:0 12px 28px rgba(112,65,219,.45); font-size:27px; line-height:1; }
+        .bc-plugin-custom-fab:hover { filter:brightness(1.08); }
+        #bc-plugin-content-custom { padding-bottom:max(76px,env(safe-area-inset-bottom)); }
+        .bc-plugin-empty { min-height:240px; display:flex; align-items:center; justify-content:center; }
+        .bc-liko-toggle-notification { padding:9px 11px; border:1px solid rgba(194,170,255,.22); border-radius:14px; background:rgba(27,23,43,.97); box-shadow:0 12px 34px rgba(0,0,0,.35); }
+        @media (max-width:480px) {
+            .bc-plugin-panel { width:calc(100vw - 12px); min-height:0; border-radius:22px; }
+            .bc-plugin-header { padding:13px 12px 8px; }
+            .bc-plugin-brand { width:40px; height:40px; flex-basis:40px; border-radius:13px; }
+            .bc-plugin-header .bc-plugin-changelog-btn,.bc-plugin-header #bc-plugin-refresh-btn { width:34px; height:34px; flex-basis:34px; }
+            .bc-plugin-search-row { padding-inline:11px; }
+            .bc-plugin-content { padding-inline:11px; }
+        }
+        @media (max-height:600px) {
+            .bc-plugin-panel { min-height:0; border-radius:18px; }
+            .bc-plugin-header { padding-top:10px; }
+            .bc-plugin-tabs { margin-top:8px; }
+            .bc-plugin-search-row { padding-top:7px; padding-bottom:7px; }
+            .bc-plugin-content { max-height:none; }
+            .bc-plugin-item { min-height:0; padding:8px 9px; }
+            .bc-plugin-icon { width:44px; height:44px; flex-basis:44px; }
+        }
         `;
         document.head.appendChild(style);
     }
@@ -1333,7 +1395,6 @@
 
     function buildCustomContent(container) {
         container.innerHTML = '';
-        if (isCustomEditMode) container.appendChild(buildAddItem());
         if (!customPlugins.length) {
             const hint = document.createElement('div');
             hint.className = 'bc-plugin-empty';
@@ -1345,9 +1406,11 @@
     }
 
     function buildAddItem() {
-        const item = document.createElement('div');
-        item.className = 'bc-plugin-item bc-plugin-add-item';
-        item.innerHTML = '<div class="bc-plugin-add-icon">➕</div>';
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'bc-plugin-custom-fab';
+        item.innerHTML = '＋';
+        item.title = t('customAddTitle');
         item.addEventListener('click', showAddPluginPanel);
         return item;
     }
@@ -1648,6 +1711,57 @@
         g.style.display = (!shouldShowUI() || !accountFloatingBtnVisible) ? 'none' : '';
     }
 
+    function enableMomentumScroll(container) {
+        let pointerId = null, lastY = 0, lastTime = 0, velocity = 0;
+        let dragged = false, inertiaFrame = 0, suppressClick = false;
+
+        const stopInertia = () => { if (inertiaFrame) cancelAnimationFrame(inertiaFrame); inertiaFrame = 0; };
+        const runInertia = () => {
+            if (Math.abs(velocity) < 0.015) { inertiaFrame = 0; return; }
+            const before = container.scrollTop;
+            container.scrollTop += velocity * 16;
+            velocity *= 0.94;
+            if (container.scrollTop === before) { inertiaFrame = 0; return; }
+            inertiaFrame = requestAnimationFrame(runInertia);
+        };
+
+        container.addEventListener('pointerdown', e => {
+            if (e.button !== 0 || e.target.closest('input,select,textarea')) return;
+            stopInertia(); pointerId = e.pointerId; lastY = e.clientY; lastTime = performance.now();
+            velocity = 0; dragged = false; suppressClick = false;
+        });
+        container.addEventListener('pointermove', e => {
+            if (pointerId !== e.pointerId) return;
+            const now = performance.now(), deltaY = e.clientY - lastY, elapsed = Math.max(1, now - lastTime);
+            const threshold = e.pointerType === 'touch' ? 8 : 4;
+            if (!dragged && Math.abs(deltaY) > threshold) {
+                dragged = true; container.classList.add('dragging');
+                container.setPointerCapture?.(pointerId);
+            }
+            if (dragged) {
+                e.preventDefault();
+                container.scrollTop -= deltaY;
+                const instantVelocity = (-deltaY / elapsed) * 1.35;
+                velocity = velocity * 0.65 + instantVelocity * 0.35;
+                lastY = e.clientY; lastTime = now;
+            }
+        });
+        const finish = e => {
+            if (pointerId !== e.pointerId) return;
+            if (container.hasPointerCapture?.(pointerId)) container.releasePointerCapture(pointerId);
+            pointerId = null;
+            container.classList.remove('dragging'); suppressClick = dragged;
+            if (dragged && Math.abs(velocity) >= 0.015) inertiaFrame = requestAnimationFrame(runInertia);
+            setTimeout(() => { suppressClick = false; dragged = false; });
+        };
+        container.addEventListener('pointerup', finish);
+        container.addEventListener('pointercancel', finish);
+        container.addEventListener('click', e => {
+            if (!suppressClick) return;
+            e.preventDefault(); e.stopImmediatePropagation();
+        }, true);
+    }
+
     function createManagerUI() {
         const show = shouldShowUI();
         const eg   = document.getElementById("bc-plugin-btn-group");
@@ -1689,7 +1803,7 @@
         changelogBtn.title = t('changelogTitle');
         changelogBtn.style.display = 'none';
 
-        btnGroup.append(floatBtn, refreshBtn, changelogBtn);
+        btnGroup.append(floatBtn);
         document.body.appendChild(btnGroup);
         makeDraggable(btnGroup);
         applyFloatingBtnVisibility();
@@ -1702,11 +1816,15 @@
         // Header
         const header = document.createElement('div');
         header.className = 'bc-plugin-header';
-        header.innerHTML = `<h3 class="bc-plugin-title">${t('welcomeTitle')}</h3>`;
+        header.innerHTML = `<div class="bc-plugin-top-row"><img class="bc-plugin-brand" src="https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png" alt=""><div class="bc-plugin-title-wrap"><h3 class="bc-plugin-title">${t('welcomeTitle')}</h3><small class="bc-plugin-summary"></small></div><div class="bc-plugin-header-actions"></div></div>`;
+        header.querySelector('.bc-plugin-header-actions').append(changelogBtn, refreshBtn);
+        refreshBtn.style.display = 'flex';
+        changelogBtn.style.display = 'flex';
 
         // Tabs
         const tabsBar = document.createElement('div');
         tabsBar.className = 'bc-plugin-tabs';
+        tabsBar.dataset.active = 'local';
         const tabs = {
             local:   document.createElement('button'),
             account: document.createElement('button'),
@@ -1719,6 +1837,7 @@
         tabs.account.textContent = t('tabAccount');
         tabs.custom.textContent  = t('tabCustom');
         tabsBar.append(tabs.local, tabs.account, tabs.custom);
+        header.appendChild(tabsBar);
 
         // Search row
         const searchRow = document.createElement('div');
@@ -1755,28 +1874,51 @@
         contentCustom.className = 'bc-plugin-content';
         contentCustom.style.display = 'none';
         buildCustomContent(contentCustom);
+        [contentLocal, contentAccount, contentCustom].forEach(enableMomentumScroll);
 
         // Footer
         const footer = document.createElement('div');
         footer.className = 'bc-plugin-footer';
         footer.innerHTML = `❖ <a class="bc-plugin-footer-link" href="https://awdrrawd.github.io/liko-Plugin-Repository/" target="_blank" rel="noopener noreferrer">Liko Plugin Manager v${MOD_VER}</a> ❖`;
+        const customAddFab = buildAddItem();
+        customAddFab.style.display = 'none';
 
-        panel.append(header, tabsBar, searchRow, contentLocal, contentAccount, contentCustom, footer);
+        panel.append(header, searchRow, contentLocal, contentAccount, contentCustom, footer, customAddFab);
         document.body.appendChild(panel);
 
         let isOpen = false;
         const contents = { local: contentLocal, account: contentAccount, custom: contentCustom };
 
+        const updateHeaderSummary = () => {
+            if (activeTab === 'local' && (!pluginsLoaded || contents.local.querySelector('.bc-plugin-loading'))) {
+                header.querySelector('.bc-plugin-summary').textContent = t('loadingPlugins');
+                return;
+            }
+            const items = [...contents[activeTab].querySelectorAll('.bc-plugin-item:not(.bc-plugin-add-item)')];
+            const enabled = items.filter(item => item.classList.contains('enabled') || item.classList.contains('beta-enabled')).length;
+            header.querySelector('.bc-plugin-summary').textContent = `${items.length} ${t('plugins')} · ${enabled} ${t('pluginEnabled')}`;
+        };
+        const summaryObserver = new MutationObserver(updateHeaderSummary);
+        Object.values(contents).forEach(content => summaryObserver.observe(content, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class'],
+        }));
+
         const switchTab = (tab) => {
             activeTab = tab;
+            tabsBar.dataset.active = tab;
             Object.keys(tabs).forEach(k => {
                 tabs[k].classList.toggle('active', k === tab);
                 contents[k].style.display = k === tab ? '' : 'none';
             });
             gearBtn.style.display = tab === 'custom' ? '' : 'none';
+            customAddFab.style.display = tab === 'custom' ? 'flex' : 'none';
             if (tab === 'account') buildAccountContent(contentAccount);
             if (tab === 'custom')  buildCustomContent(contentCustom);
             applyFilter();
+            updateHeaderSummary();
         };
 
         tabs.local.addEventListener('click',   () => switchTab('local'));
@@ -1812,30 +1954,30 @@
             e.preventDefault(); e.stopPropagation();
             isOpen = !isOpen;
             panel.classList.toggle('show', isOpen);
-            refreshBtn.style.display   = isOpen ? 'flex' : 'none';
-            changelogBtn.style.display = isOpen ? 'flex' : 'none';
 
             if (isOpen) {
                 // Calculate panel position — always clamped within viewport
                 const gr     = btnGroup.getBoundingClientRect();
                 const vw     = window.innerWidth;
                 const vh     = window.innerHeight;
-                const pWidth = Math.min(380, vw - 20);
+                const pWidth = Math.min(390, vw - 12);
                 panel.style.width = pWidth + 'px';
 
                 let left = gr.left - pWidth - 12;
                 if (left < 10) left = Math.max(10, (vw - pWidth) / 2);  // center if no room on left
                 left = Math.max(10, Math.min(vw - pWidth - 10, left));
 
-                const top = Math.max(10, Math.min(gr.top, vh - 200));
+                const compactViewport = vw <= 480 || vh <= 600;
+                const top = compactViewport ? 6 : Math.max(10, Math.min(gr.top, vh - 200));
                 panel.style.left     = left + 'px';
                 panel.style.right    = 'auto';
                 panel.style.top      = top + 'px';
-                panel.style.maxHeight = (vh - top - 20) + 'px';
+                panel.style.maxHeight = (vh - top - (compactViewport ? 6 : 20)) + 'px';
 
                 if (pluginsLoaded && contentLocal.querySelector('.bc-plugin-loading')) {
                     contentLocal.innerHTML = ''; subPlugins.forEach(p => contentLocal.appendChild(buildPluginItem(p, 'local')));
                     applyFilter();
+                    updateHeaderSummary();
                 }
             } else {
                 resetPanelState();
@@ -1845,13 +1987,13 @@
         refreshBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); refreshPluginList(); });
         changelogBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showChangelogModal(); });
 
-        [contentLocal, contentAccount, contentCustom].forEach(c => c.addEventListener('click', handlePluginToggle));
+        [contentLocal, contentAccount, contentCustom].forEach(c => c.addEventListener('click', e => { handlePluginToggle(e); setTimeout(updateHeaderSummary); }));
+        updateHeaderSummary();
 
         if (_docClickHandler) document.removeEventListener('click', _docClickHandler);
         _docClickHandler = e => {
             if (!panel.contains(e.target) && !btnGroup.contains(e.target) && isOpen) {
                 isOpen = false; panel.classList.remove('show');
-                refreshBtn.style.display = changelogBtn.style.display = 'none';
                 resetPanelState();
             }
         };
@@ -1866,10 +2008,10 @@
         if (notif) { notif.classList.remove('show'); clearTimeout(toggleNotifTimer); }
         else { notif = document.createElement("div"); notif.id = "pcm-toggle-notif"; notif.className = "bc-liko-toggle-notification"; document.body.appendChild(notif); }
         const panel = document.getElementById("bc-plugin-panel");
-        if (panel) { const r = panel.getBoundingClientRect(); notif.style.top = (r.bottom + 3) + "px"; notif.style.width = panel.clientWidth + "px"; notif.style.left = r.left + "px"; notif.style.right = "auto"; }
+        if (panel) { const r = panel.getBoundingClientRect(); const width = Math.min(250, Math.max(180, panel.clientWidth - 110)); notif.style.top = (r.top + 14) + "px"; notif.style.width = width + "px"; notif.style.left = (r.left + Math.max(58, (panel.clientWidth - width) / 2)) + "px"; notif.style.right = "auto"; }
         notif.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:2px;"><span style="font-size:16px;margin-right:7px;">${escapeHtml(icon)}</span><strong style="font-size:12px;">${escapeHtml(title)}</strong></div><div style="font-size:11px;opacity:.88;">${escapeHtml(message)}</div>`;
         requestAnimationFrame(() => requestAnimationFrame(() => notif.classList.add('show')));
-        toggleNotifTimer = setTimeout(() => { notif.classList.remove('show'); notif.classList.add('hide'); setTimeout(() => notif?.parentNode?.removeChild(notif), 350); }, 2500);
+        toggleNotifTimer = setTimeout(() => { notif.classList.remove('show'); notif.classList.add('hide'); setTimeout(() => notif?.parentNode?.removeChild(notif), 350); }, 1800);
     }
 
     function getNotificationStack() {

@@ -68,7 +68,7 @@
         'customDeleted':     { TW: '{name} 已移除', CN: '{name} 已移除', DE: '{name} entfernt', FR: '{name} supprimé', RU: '{name} удалён', UA: '{name} видалено' },
         'customUrlInvalid':  { TW: '網址必須以 .js 結尾', CN: '网址必须以 .js 结尾', DE: 'URL muss mit .js enden', FR: 'L\'URL doit se terminer par .js', RU: 'URL должен заканчиваться на .js', UA: 'URL має закінчуватися на .js' },
         'customNameRequired':{ TW: '請輸入插件名稱', CN: '请输入插件名称', DE: 'Bitte einen Namen eingeben', FR: 'Veuillez saisir un nom', RU: 'Введите название', UA: 'Введіть назву' },
-        'customEmptyHint':   { TW: '尚無自訂插件。\n點擊上方 ⚙ 來新增。', CN: '尚无自定义插件。\n点击上方 ⚙ 来新增。', DE: 'Noch keine eigenen Plugins.\nKlicke ⚙ oben.', FR: 'Aucun plugin personnalisé.\nCliquez sur ⚙ ci-dessus.', RU: 'Своих плагинов пока нет.\nНажмите ⚙ выше.', UA: 'Власних плагінів немає.\nНатисніть ⚙ вище.' },
+        'customEmptyHint':   { TW: '尚無自訂插件。\n點擊右下角 ＋ 來新增。', CN: '尚无自定义插件。\n点击右下角 ＋ 来新增。', DE: 'Noch keine eigenen Plugins.\nTippe unten rechts auf ＋.', FR: 'Aucun plugin personnalisé.\nTouchez ＋ en bas à droite.', RU: 'Своих плагинов пока нет.\nНажмите ＋ внизу справа.', UA: 'Власних плагінів немає.\nНатисніть ＋ унизу праворуч.' },
         'prefButton':        { TW: 'PCM 插件管理器', CN: 'PCM 插件管理器', DE: 'PCM Plugin-Manager', FR: 'Gestionnaire de plugins PCM', RU: 'Менеджер плагинов PCM', UA: 'Менеджер плагінів PCM' },
     };
 
