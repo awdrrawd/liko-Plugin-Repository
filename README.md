@@ -19,6 +19,8 @@ You can continue reading the README below, or visit the interactive website for 
 開發插件前，請閱讀 [`docs/BC插件開發初始指南.md`](docs/BC插件開發初始指南.md)。
 Before developing a plugin, read the [BC plugin development guide](docs/BC插件開發初始指南.md).
 
+DOM 清單與下拉選單的主題捲軸、按住內容拖曳及事件衝突處理，請參考 [`docs/自訂捲軸與拖曳捲動指南.md`](docs/自訂捲軸與拖曳捲動指南.md)。
+
 ---
 
 ## 📦 安裝方式 · Installation

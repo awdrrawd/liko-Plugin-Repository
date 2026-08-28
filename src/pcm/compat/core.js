@@ -106,7 +106,7 @@
             'settingsLanguage':   { EN: 'Language' },
             'settingsAuto':       { EN: 'AUTO' },
             'settingsLoadNotif':  { EN: 'Show plugin loading notifications' },
-            'settingsFusam':      { EN: 'Show FUSAM tab' },
+            'settingsFusam':      { EN: 'Load FUSAM plugin list' },
             'settingsCustom':     { EN: 'Show custom plugins tab' },
             'settingsClose':      { EN: 'Done' },
             'fusamTitle':         { EN: 'Fantastic Ultimate Solution to Addon Management' },
@@ -1289,7 +1289,7 @@
         .bc-liko-toggle-notification.show { transform:translateY(0); opacity:1; }
         .bc-liko-toggle-notification.hide { transform:translateY(-6px); opacity:0; }
 
-        .bc-liko-notification-stack { position:fixed; right:20px; bottom:15vh; z-index:2147483648; width:min(312px,calc(100vw - 40px)); max-height:70vh; display:flex; flex-direction:column; align-items:stretch; gap:10px; pointer-events:none; }
+        .bc-liko-notification-stack { position:fixed; right:20px; top:max(16px,15vh); bottom:auto; z-index:2147483648; width:min(312px,calc(100vw - 40px)); max-height:70vh; display:flex; flex-direction:column; align-items:stretch; gap:10px; pointer-events:none; }
         .bc-liko-system-notification { position:relative; box-sizing:border-box; width:100%; flex-shrink:0; background:rgba(26,32,46,0.95); border:1px solid rgba(127,83,205,0.4); color:#fff; padding:12px 16px; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.3); font-family:'PingFang TC','Microsoft JhengHei','Noto Sans TC','Heiti TC',sans-serif; font-size:13px; transform:translateX(340px); opacity:0; transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .3s ease; user-select:none; cursor:pointer; pointer-events:auto; }
         .bc-liko-system-notification.show { transform:translateX(0); opacity:1; }
         .bc-liko-system-notification.hide { transform:translateX(320px); opacity:0; }
@@ -1320,6 +1320,7 @@
         .bc-plugin-filter-btn,.bc-plugin-gear-btn { width:38px; height:38px; border-color:rgba(204,190,255,.12); border-radius:12px; background:rgba(255,255,255,.045); }
         .bc-plugin-content { max-height:none; min-height:0; padding:4px 14px max(18px,env(safe-area-inset-bottom)); touch-action:none; cursor:grab; overscroll-behavior:contain; scroll-padding-bottom:max(18px,env(safe-area-inset-bottom)); -webkit-overflow-scrolling:touch; }
         .bc-plugin-content.dragging { cursor:grabbing; }
+        #bc-plugin-content-settings { touch-action:pan-y; cursor:default; overscroll-behavior:contain; }
         .bc-plugin-item { min-height:0; margin-bottom:9px; padding:10px 11px; border-color:rgba(204,190,255,.12); border-radius:18px; background:linear-gradient(145deg,rgba(46,41,70,.82),rgba(31,28,48,.92)); }
         .bc-plugin-item.enabled { background:linear-gradient(145deg,rgba(58,45,91,.9),rgba(36,30,57,.94)); border-color:rgba(154,108,255,.3); }
         .bc-plugin-item.enabled::before,.bc-plugin-item.beta-enabled::before { display:none; }
@@ -1352,7 +1353,12 @@
         .bc-plugin-settings-card h3 { margin:0 0 15px; font-size:16px; }
         .bc-plugin-setting-row { display:flex; align-items:center; justify-content:space-between; gap:14px; min-height:44px; border-bottom:1px solid rgba(204,190,255,.1); color:#d8d2e5; font-size:12px; }
         .bc-plugin-setting-row select { max-width:150px; padding:7px 9px; border:1px solid rgba(204,190,255,.18); border-radius:9px; color:#fff; background:#292541; }
-        .bc-plugin-setting-row input { accent-color:#9a6cff; width:19px; height:19px; }
+        .bc-plugin-setting-toggle { position:relative; width:44px; height:26px; flex:0 0 44px; }
+        .bc-plugin-setting-toggle input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+        .bc-plugin-setting-toggle-track { position:absolute; inset:0; border:1px solid rgba(204,190,255,.18); border-radius:16px; background:rgba(255,255,255,.09); cursor:pointer; transition:background .2s,border-color .2s; }
+        .bc-plugin-setting-toggle-track::after { content:''; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#aaa3be; box-shadow:0 2px 6px rgba(0,0,0,.35); transition:left .22s cubic-bezier(.22,.8,.32,1),background .2s; }
+        .bc-plugin-setting-toggle input:checked + .bc-plugin-setting-toggle-track { border-color:#a987fa; background:linear-gradient(135deg,#9a6cff,#7147dc); }
+        .bc-plugin-setting-toggle input:checked + .bc-plugin-setting-toggle-track::after { left:21px; background:#fff; }
         .bc-plugin-settings-done { width:100%; margin-top:16px; padding:10px; border:0; border-radius:11px; color:#fff; background:linear-gradient(135deg,#9a6cff,#7147dc); }
         .bc-plugin-settings-card .bc-plugin-fusam { min-height:0; padding:14px 0 0; gap:8px; }
         .bc-plugin-settings-inline { padding:12px 4px 72px; color:#fff; }
@@ -1360,10 +1366,12 @@
         .bc-plugin-settings-inline .bc-plugin-fusam { min-height:0; padding:16px 0 4px; gap:9px; }
         .bc-plugin-language-select { position:relative; min-width:154px; font-family:"Twemoji Country Flags",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif; }
         .bc-plugin-language-trigger { width:100%; padding:8px 10px; border:1px solid rgba(204,190,255,.2); border-radius:10px; color:#fff; background:#292541; text-align:left; cursor:pointer; font-family:"Twemoji Country Flags",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif; }
-        .bc-plugin-language-menu { position:absolute; z-index:12; top:calc(100% + 5px); right:0; width:100%; max-height:190px; overflow-y:auto; padding:5px; border:1px solid rgba(190,165,255,.3); border-radius:11px; background:#211e34; box-shadow:0 12px 30px rgba(0,0,0,.4); scrollbar-width:thin; scrollbar-color:#8258dc #211e34; }
-        .bc-plugin-language-menu::-webkit-scrollbar { width:7px; }
-        .bc-plugin-language-menu::-webkit-scrollbar-track { background:#211e34; border-radius:7px; }
-        .bc-plugin-language-menu::-webkit-scrollbar-thumb { background:linear-gradient(#9a6cff,#7147dc); border:2px solid #211e34; border-radius:7px; }
+        .bc-plugin-language-menu { position:absolute; z-index:12; top:calc(100% + 5px); right:0; width:100%; max-height:190px; overflow-y:auto; padding:5px; border:1px solid rgba(190,165,255,.3); border-radius:11px; background:#211e34; box-shadow:0 12px 30px rgba(0,0,0,.4); scrollbar-width:thin; scrollbar-color:#9a6cff rgba(0,0,0,.35); touch-action:pan-y; overscroll-behavior:contain; cursor:default; }
+        .bc-plugin-language-menu::-webkit-scrollbar { width:10px; }
+        .bc-plugin-language-menu::-webkit-scrollbar-track { background:rgba(0,0,0,.35); border-radius:7px; }
+        .bc-plugin-language-menu::-webkit-scrollbar-thumb { background:#8258dc; border-radius:7px; }
+        .bc-plugin-language-menu::-webkit-scrollbar-thumb:hover { background:#9a6cff; }
+        .bc-plugin-language-menu.dragging,.bc-plugin-language-menu.dragging * { cursor:grabbing!important; user-select:none!important; }
         .bc-plugin-language-option { display:block; width:100%; padding:8px 9px; border:0; border-radius:8px; color:#d8d2e5; background:transparent; text-align:left; cursor:pointer; font-family:"Twemoji Country Flags",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif; }
         .bc-plugin-language-option:hover,.bc-plugin-language-option.active { color:#fff; background:rgba(154,108,255,.28); }
         .bc-liko-toggle-notification { padding:9px 11px; border:1px solid rgba(194,170,255,.22); border-radius:14px; background:rgba(27,23,43,.97); box-shadow:0 12px 34px rgba(0,0,0,.35); }
@@ -1588,9 +1596,9 @@
         card.className = 'bc-plugin-settings-inline';
         card.innerHTML = `<h3>${escapeHtml(t('settingsTitle'))}</h3>
             <div class="bc-plugin-setting-row"><span>${escapeHtml(t('settingsLanguage'))}</span><div class="bc-plugin-language-select"><button type="button" class="bc-plugin-language-trigger"></button><div class="bc-plugin-language-menu" hidden></div></div></div>
-            <label class="bc-plugin-setting-row"><span>${escapeHtml(t('settingsLoadNotif'))}</span><input type="checkbox" data-setting="showLoadNotifications"${pcmUiSettings.showLoadNotifications ? ' checked' : ''}></label>
-            <label class="bc-plugin-setting-row"><span>${escapeHtml(t('settingsFusam'))}</span><input type="checkbox" data-setting="showFusamTab"${pcmUiSettings.showFusamTab ? ' checked' : ''}></label>
-            <label class="bc-plugin-setting-row"><span>${escapeHtml(t('settingsCustom'))}</span><input type="checkbox" data-setting="showCustomTab"${pcmUiSettings.showCustomTab ? ' checked' : ''}></label>
+            <label class="bc-plugin-setting-row"><span>${escapeHtml(t('settingsLoadNotif'))}</span><span class="bc-plugin-setting-toggle"><input type="checkbox" data-setting="showLoadNotifications"${pcmUiSettings.showLoadNotifications ? ' checked' : ''}><span class="bc-plugin-setting-toggle-track"></span></span></label>
+            <label class="bc-plugin-setting-row"><span>${escapeHtml(t('settingsFusam'))}</span><span class="bc-plugin-setting-toggle"><input type="checkbox" data-setting="showFusamTab"${pcmUiSettings.showFusamTab ? ' checked' : ''}><span class="bc-plugin-setting-toggle-track"></span></span></label>
+            <label class="bc-plugin-setting-row"><span>${escapeHtml(t('settingsCustom'))}</span><span class="bc-plugin-setting-toggle"><input type="checkbox" data-setting="showCustomTab"${pcmUiSettings.showCustomTab ? ' checked' : ''}><span class="bc-plugin-setting-toggle-track"></span></span></label>
             <div class="bc-plugin-fusam"><p>${escapeHtml(t('fusamLicense'))}</p><a class="bc-plugin-fusam-link" href="${FUSAM_URL}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('fusamOpen'))}</a></div>
             <button class="bc-plugin-settings-done">${escapeHtml(t('settingsClose'))}</button>`;
         container.appendChild(card);
@@ -1613,11 +1621,12 @@
             });
             menu.appendChild(option);
         });
-        enableMomentumScroll(menu, true);
+        enableAeeStyleDragScroll(menu);
         paintLanguage();
         trigger.addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; });
         card.querySelectorAll('input[data-setting]').forEach(input => input.addEventListener('change', () => {
             pcmUiSettings[input.dataset.setting] = input.checked; saveUiSettings(); changed = true;
+            if (input.dataset.setting === 'showFusamTab' || input.dataset.setting === 'showCustomTab') onDone(true);
         }));
         card.querySelector('.bc-plugin-settings-done').addEventListener('click', e => { e.stopPropagation(); onDone(changed); });
     }
@@ -1876,6 +1885,41 @@
 
     // === Draggable ==============================================
 
+    function enableAeeStyleDragScroll(area) {
+        let drag = null, suppressClick = false;
+        const onPointerDown = event => {
+            if (!event.isPrimary || event.button !== 0 || area.scrollHeight <= area.clientHeight + 1) return;
+            drag = { pointerId:event.pointerId, startX:event.clientX, startY:event.clientY, startScrollTop:area.scrollTop, dragging:false };
+        };
+        const onPointerMove = event => {
+            if (!drag || drag.pointerId !== event.pointerId) return;
+            const dx = event.clientX - drag.startX, dy = event.clientY - drag.startY;
+            if (!drag.dragging) {
+                if (Math.abs(dy) < 6 || Math.abs(dy) <= Math.abs(dx)) return;
+                drag.dragging = true; area.classList.add('dragging');
+                try { area.setPointerCapture(event.pointerId); } catch(e) {}
+            }
+            event.preventDefault();
+            area.scrollTop = drag.startScrollTop - dy;
+        };
+        const finish = event => {
+            if (!drag || drag.pointerId !== event.pointerId) return;
+            const wasDragging = drag.dragging;
+            drag = null; area.classList.remove('dragging');
+            if (!wasDragging) return;
+            suppressClick = true;
+            setTimeout(() => { suppressClick = false; }, 0);
+        };
+        area.addEventListener('pointerdown', onPointerDown, true);
+        area.addEventListener('pointermove', onPointerMove, { capture:true, passive:false });
+        area.addEventListener('pointerup', finish, true);
+        area.addEventListener('pointercancel', finish, true);
+        area.addEventListener('click', event => {
+            if (!suppressClick) return;
+            event.preventDefault(); event.stopImmediatePropagation(); suppressClick = false;
+        }, true);
+    }
+
     function makeDraggable(el) {
         let startX, startY, startL, startT, dragging = false;
 
@@ -1915,7 +1959,7 @@
         g.style.display = (!shouldShowUI() || !accountFloatingBtnVisible) ? 'none' : '';
     }
 
-    function enableMomentumScroll(container, allowLanguageMenu = false) {
+    function enableMomentumScroll(container) {
         let pointerId = null, lastY = 0, lastTime = 0, velocity = 0;
         let dragged = false, inertiaFrame = 0, suppressClick = false;
 
@@ -1930,7 +1974,7 @@
         };
 
         container.addEventListener('pointerdown', e => {
-            if (e.button !== 0 || e.target.closest('input,select,textarea') || (!allowLanguageMenu && e.target.closest('.bc-plugin-language-menu'))) return;
+            if (e.button !== 0 || e.target.closest('input,select,textarea,.bc-plugin-language-select')) return;
             stopInertia(); pointerId = e.pointerId; lastY = e.clientY; lastTime = performance.now();
             velocity = 0; dragged = false; suppressClick = false;
         });
@@ -2100,7 +2144,7 @@
         contentSettings.id = 'bc-plugin-content-settings';
         contentSettings.className = 'bc-plugin-content';
         contentSettings.style.display = 'none';
-        [contentLocal, contentAccount, contentFusam, contentCustom, contentSettings].forEach(enableMomentumScroll);
+        [contentLocal, contentAccount, contentFusam, contentCustom].forEach(enableMomentumScroll);
 
         // Footer
         const footer = document.createElement('div');
@@ -2205,19 +2249,61 @@
 
         searchInput.addEventListener('input', () => { searchQuery = searchInput.value; applyFilter(); });
 
-        const resetPanelState = () => {
+        let closeRebuildTimer = null, closeTransitionHandler = null;
+        const cancelClosedRebuild = () => {
+            if (closeRebuildTimer) clearTimeout(closeRebuildTimer);
+            closeRebuildTimer = null;
+            if (closeTransitionHandler) panel.removeEventListener('transitionend', closeTransitionHandler);
+            closeTransitionHandler = null;
+        };
+        const finalizeClosedRebuild = () => {
+            if (isOpen || !panel.isConnected) return;
+            cancelClosedRebuild();
+            const groupRect = btnGroup.getBoundingClientRect();
+            activeTab = 'local';
             searchQuery = ''; filterMode = 'all'; isCustomEditMode = false;
-            searchInput.value = ''; gearBtn.classList.remove('active');
-            applyFilter();
+            if (_docClickHandler) {
+                document.removeEventListener('click', _docClickHandler);
+                _docClickHandler = null;
+            }
+            summaryObserver.disconnect();
+            document.getElementById('pcm-add-panel')?.remove();
+            document.getElementById('pcm-delete-panel')?.remove();
+            panel.remove(); btnGroup.remove();
+            currentUIState = null;
+            createManagerUI();
+            const rebuiltGroup = document.getElementById('bc-plugin-btn-group');
+            if (rebuiltGroup) {
+                rebuiltGroup.style.left = Math.max(0, Math.min(window.innerWidth - rebuiltGroup.offsetWidth, groupRect.left)) + 'px';
+                rebuiltGroup.style.top = Math.max(0, Math.min(window.innerHeight - rebuiltGroup.offsetHeight, groupRect.top)) + 'px';
+                rebuiltGroup.style.right = 'auto';
+            }
+        };
+        const closeAndRebuildManager = () => {
+            if (!isOpen) return;
+            isOpen = false;
+            panel.classList.remove('show');
+            document.getElementById('pcm-add-panel')?.remove();
+            document.getElementById('pcm-delete-panel')?.remove();
+            cancelClosedRebuild();
+            closeTransitionHandler = event => {
+                if (event.target !== panel || (event.propertyName !== 'transform' && event.propertyName !== 'opacity')) return;
+                finalizeClosedRebuild();
+            };
+            panel.addEventListener('transitionend', closeTransitionHandler);
+            closeRebuildTimer = setTimeout(finalizeClosedRebuild, 460);
         };
 
         floatBtn.addEventListener('click', e => {
             if (e.target !== floatBtn && e.target !== floatBtn.querySelector('img')) return;
             e.preventDefault(); e.stopPropagation();
-            isOpen = !isOpen;
-            panel.classList.toggle('show', isOpen);
-
             if (isOpen) {
+                closeAndRebuildManager();
+                return;
+            } else {
+                cancelClosedRebuild();
+                isOpen = true;
+                panel.classList.add('show');
                 // Calculate panel position — always clamped within viewport
                 const gr     = btnGroup.getBoundingClientRect();
                 const vw     = window.innerWidth;
@@ -2241,8 +2327,6 @@
                     applyFilter();
                     updateHeaderSummary();
                 }
-            } else {
-                resetPanelState();
             }
         });
 
@@ -2256,8 +2340,7 @@
         if (_docClickHandler) document.removeEventListener('click', _docClickHandler);
         _docClickHandler = e => {
             if (!panel.contains(e.target) && !btnGroup.contains(e.target) && isOpen) {
-                isOpen = false; panel.classList.remove('show');
-                resetPanelState();
+                closeAndRebuildManager();
             }
         };
         document.addEventListener('click', _docClickHandler);

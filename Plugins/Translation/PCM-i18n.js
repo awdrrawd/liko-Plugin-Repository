@@ -79,7 +79,7 @@
         'settingsLanguage':  { TW: '語言', CN: '语言', DE: 'Sprache', FR: 'Langue', RU: 'Язык', UA: 'Мова' },
         'settingsAuto':      { TW: 'AUTO', CN: 'AUTO', DE: 'AUTO', FR: 'AUTO', RU: 'AUTO', UA: 'AUTO' },
         'settingsLoadNotif': { TW: '顯示插件載入通知', CN: '显示插件加载通知', DE: 'Plugin-Ladehinweise anzeigen', FR: 'Afficher les notifications de chargement', RU: 'Показывать уведомления о загрузке', UA: 'Показувати сповіщення про завантаження' },
-        'settingsFusam':     { TW: '顯示 FUSAM 分頁', CN: '显示 FUSAM 分页', DE: 'FUSAM-Tab anzeigen', FR: 'Afficher l’onglet FUSAM', RU: 'Показывать вкладку FUSAM', UA: 'Показувати вкладку FUSAM' },
+        'settingsFusam':     { TW: '載入 FUSAM 插件列表', CN: '加载 FUSAM 插件列表', DE: 'FUSAM-Pluginliste laden', FR: 'Charger la liste des plugins FUSAM', RU: 'Загружать список плагинов FUSAM', UA: 'Завантажувати список плагінів FUSAM' },
         'settingsCustom':    { TW: '顯示自訂插件分頁', CN: '显示自定义插件分页', DE: 'Eigene Plugins anzeigen', FR: 'Afficher les plugins personnalisés', RU: 'Показывать свои плагины', UA: 'Показувати власні плагіни' },
         'settingsClose':     { TW: '完成', CN: '完成', DE: 'Fertig', FR: 'Terminé', RU: 'Готово', UA: 'Готово' },
         'fusamTitle':        { TW: 'Fantastic Ultimate Solution to Addon Management', CN: 'Fantastic Ultimate Solution to Addon Management', DE: 'Fantastic Ultimate Solution to Addon Management', FR: 'Fantastic Ultimate Solution to Addon Management', RU: 'Fantastic Ultimate Solution to Addon Management', UA: 'Fantastic Ultimate Solution to Addon Management' },
