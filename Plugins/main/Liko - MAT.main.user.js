@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.6
+// @version      1.7.7
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.6";
+    const MOD_VER = "1.7.7";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -839,7 +839,7 @@
     }
 
     function isUserMessage(text) {
-        return !['enablelianchat', 'reqroom'].includes(text.toLowerCase());
+        return !['enablelianchat', 'reqroom', 'summon'].includes(text.toLowerCase());
     }
 
     // 隱藏原句模式殘留清理：BC 送悄悄話時會本地回顯原句（ChatRoomSendWhisper 內的 ChatRoomMessage(data)），
