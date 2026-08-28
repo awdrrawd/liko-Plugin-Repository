@@ -26,7 +26,10 @@ function addonToPcm(a) {
   return {
     id: a.id,
     name: a.name.cn,
-    icon: a.iemoji ?? '🐈‍⬛',
+    // Keep the image URL and emoji fallback separately. PCM displays the image
+    // when available, then falls back to iemoji if the image cannot be loaded.
+    ...(a.icon ? { icon: a.icon } : {}),
+    iemoji: a.iemoji ?? '🐈‍⬛',
     en_name: a.name.en,
     description: a.description.cn,
     en_description: a.description.en,
