@@ -32,7 +32,16 @@
 
     // === i18n ===================================================
     
-    const t = (key, vars) => window.Liko.__Sys_i18n__?.t('PCM', key, vars) ?? key;
+    const PCM_UI_SETTINGS_KEY = 'pcm_ui_settings';
+    const DEFAULT_UI_SETTINGS = { language: 'AUTO', showLoadNotifications: true, showFusamTab: false, showCustomTab: false };
+    function loadUiSettings() {
+        try { return { ...DEFAULT_UI_SETTINGS, ...(JSON.parse(localStorage.getItem(PCM_UI_SETTINGS_KEY) || '{}') || {}) }; }
+        catch(e) { return { ...DEFAULT_UI_SETTINGS }; }
+    }
+    let pcmUiSettings = loadUiSettings();
+    function saveUiSettings() { try { localStorage.setItem(PCM_UI_SETTINGS_KEY, JSON.stringify(pcmUiSettings)); } catch(e) {} }
+    const pcmLang = () => pcmUiSettings.language === 'AUTO' ? undefined : pcmUiSettings.language;
+    const t = (key, vars) => window.Liko.__Sys_i18n__?.t('PCM', key, vars, pcmLang()) ?? key;
 
     function registerI18n() {
         // EN strings are the authoritative fallback — other languages live in PCM-i18n.js
@@ -43,6 +52,7 @@
             'tabLocal':         { EN: '📱 Local' },
             'tabAccount':       { EN: '☁️ Account' },
             'tabCustom':        { EN: '🔧 Custom' },
+            'tabFusam':         { EN: '◆ FUSAM' },
             'searchPlaceholder':{ EN: 'Search plugins...' },
             'filterAll':        { EN: 'Showing: All' },
             'filterEnabled':    { EN: 'Showing: Enabled' },
@@ -88,6 +98,17 @@
             'customNameRequired': { EN: 'Please enter a name' },
             'customEmptyHint':    { EN: 'No custom plugins yet.\nTap ＋ in the lower-right corner to add one.' },
             'prefButton':         { EN: 'PCM Plugin Manager' },
+            'settingsTitle':      { EN: 'PCM Settings' },
+            'settingsLanguage':   { EN: 'Language' },
+            'settingsAuto':       { EN: 'AUTO' },
+            'settingsLoadNotif':  { EN: 'Show plugin loading notifications' },
+            'settingsFusam':      { EN: 'Show FUSAM tab' },
+            'settingsCustom':     { EN: 'Show custom plugins tab' },
+            'settingsClose':      { EN: 'Done' },
+            'fusamTitle':         { EN: 'Fantastic Ultimate Solution to Addon Management' },
+            'fusamDesc':          { EN: 'An independent community addon manager. PCM reads its official GitLab Pages manifest directly.' },
+            'fusamOpen':          { EN: 'Open official FUSAM installation page' },
+            'fusamLicense':       { EN: 'FUSAM is an independent GPLv3 project. Addons installed there are managed by FUSAM.' },
         };
 
         // i18n 引擎可能晚就位（EBC 下要等別的插件順便載入），輪詢等待最多 10 秒再放棄。
@@ -622,7 +643,7 @@
 
     // === 語言輔助 ================================================
 
-    function getLang() { return window.Liko.__Sys_i18n__?.detectLang() ?? 'EN'; }
+    function getLang() { return pcmLang() || window.Liko.__Sys_i18n__?.detectLang() || 'EN'; }
     function isCJK() { const l = getLang(); return l === 'TW' || l === 'CN'; }
     function getPluginName(p) { return isCJK() ? p.name : (p.en_name || p.name); }
     function getPluginDescription(p) { return isCJK() ? p.description : (p.en_description || p.description); }
@@ -940,7 +961,7 @@
                 setPluginRuntime(plugin.id, { status: 'failed', error: `All ${loadType} URLs failed` });
                 rememberPluginError(plugin.id, `All ${loadType} URLs failed`, 'load');
                 showPluginRetryBtn(plugin.id);
-                showNotification("❌", t('pluginLoadFailed', { name: getPluginName(plugin) }), t('pluginLoadRetry'));
+            showLoadNotification("❌", t('pluginLoadFailed', { name: getPluginName(plugin) }), t('pluginLoadRetry'));
                 throw new Error(`All ${loadType} URLs failed`);
             }
             loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
@@ -984,7 +1005,7 @@
         setPluginRuntime(plugin.id, { status: 'failed', error: 'All URLs failed' });
         rememberPluginError(plugin.id, 'All URLs failed', 'load');
         showPluginRetryBtn(plugin.id);
-        showNotification("❌", t('pluginLoadFailed', { name: getPluginName(plugin) }), t('pluginLoadRetry'));
+            showLoadNotification("❌", t('pluginLoadFailed', { name: getPluginName(plugin) }), t('pluginLoadRetry'));
         throw new Error('All URLs failed');
     }
 
@@ -1016,7 +1037,7 @@
                 results.forEach((r, idx) => { if (r.status === 'fulfilled') ok++; else { fail++; console.error(`🐈‍⬛ [PCM] ❌ ${batch[idx].name}`); } });
                 if (i + batchSize < plugins.length) await new Promise(r => setTimeout(r, 800));
             }
-            if (plugins.length > 0) showNotification(fail > 0 ? "⚠️" : "✅", t('pluginLoadComplete'), `${t('successLoaded')} ${ok} ${t('plugins')}${fail > 0 ? `, ${fail} ${t('failed')}` : ''}`);
+        if (plugins.length > 0) showLoadNotification(fail > 0 ? "⚠️" : "✅", t('pluginLoadComplete'), `${t('successLoaded')} ${ok} ${t('plugins')}${fail > 0 ? `, ${fail} ${t('failed')}` : ''}`);
         } finally { isLoadingPlugins = false; }
     }
 
@@ -1279,15 +1300,14 @@
         .bc-plugin-title { margin:0; font-size:17px; line-height:1.2; font-weight:700; }
         .bc-plugin-summary { display:block; margin-top:4px; color:#b9b0cb; font-size:10px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .bc-plugin-header-actions { display:flex; align-items:center; gap:7px; }
-        .bc-plugin-header .bc-plugin-changelog-btn,.bc-plugin-header #bc-plugin-refresh-btn { width:36px; height:36px; flex:0 0 36px; border:1px solid rgba(204,190,255,.14); border-radius:12px; background:rgba(255,255,255,.055); box-shadow:none; color:#fff; font-size:16px; }
-        .bc-plugin-header .bc-plugin-changelog-btn:hover,.bc-plugin-header #bc-plugin-refresh-btn:hover { transform:none; background:rgba(154,108,255,.15); border-color:rgba(175,145,255,.5); }
+        .bc-plugin-header .bc-plugin-changelog-btn,.bc-plugin-header #bc-plugin-refresh-btn,.bc-plugin-header .bc-plugin-settings-btn { width:36px; height:36px; flex:0 0 36px; border:1px solid rgba(204,190,255,.14); border-radius:12px; background:rgba(255,255,255,.055); box-shadow:none; color:#fff; font-size:16px; }
+        .bc-plugin-header .bc-plugin-changelog-btn:hover,.bc-plugin-header #bc-plugin-refresh-btn:hover,.bc-plugin-header .bc-plugin-settings-btn:hover { transform:none; background:rgba(154,108,255,.15); border-color:rgba(175,145,255,.5); }
+        .bc-plugin-header .bc-plugin-settings-btn.active { background:rgba(154,108,255,.3); border-color:#b99cff; }
         .bc-plugin-tabs { position:relative; display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin-top:13px; padding:4px; border:0; border-radius:14px; background:rgba(8,7,15,.38); overflow:hidden; }
-        .bc-plugin-tabs::before { content:''; position:absolute; z-index:0; top:4px; bottom:4px; left:4px; width:calc((100% - 16px) / 3); border-radius:10px; background:#292541; box-shadow:0 4px 14px rgba(0,0,0,.22); transition:transform .28s cubic-bezier(.22,.8,.32,1); }
-        .bc-plugin-tabs[data-active="account"]::before { transform:translateX(calc(100% + 4px)); }
-        .bc-plugin-tabs[data-active="custom"]::before { transform:translateX(calc(200% + 8px)); }
+        .bc-plugin-tabs::before { content:''; position:absolute; z-index:0; top:4px; bottom:4px; left:4px; width:var(--pcm-tab-width,calc((100% - 16px) / 3)); transform:var(--pcm-tab-offset,translateX(0)); border:1px solid rgba(190,165,255,.34); border-radius:10px; background:linear-gradient(135deg,rgba(154,108,255,.42),rgba(92,65,155,.55)); box-shadow:0 4px 16px rgba(90,48,180,.28),inset 0 1px rgba(255,255,255,.08); transition:transform .28s cubic-bezier(.22,.8,.32,1),width .2s ease; }
         .bc-plugin-tab { position:relative; z-index:1; padding:8px 5px; border:0; border-radius:10px; color:#aaa3be; font-size:11px; font-weight:700; }
         .bc-plugin-tab:hover:not(.active) { background:rgba(255,255,255,.035); }
-        .bc-plugin-tab.active { color:#fff; border:0; background:transparent; box-shadow:none; }
+        .bc-plugin-tab.active { color:#fff; border:0; background:transparent; box-shadow:none; text-shadow:0 0 9px rgba(218,203,255,.72); }
         .bc-plugin-search-row { gap:7px; padding:11px 14px 9px; background:transparent; border:0; }
         .bc-plugin-search { height:38px; padding:0 12px; border-color:rgba(204,190,255,.12); border-radius:12px; background:rgba(255,255,255,.045); font-size:12px; user-select:text!important; -webkit-user-select:text!important; }
         .bc-plugin-filter-btn,.bc-plugin-gear-btn { width:38px; height:38px; border-color:rgba(204,190,255,.12); border-radius:12px; background:rgba(255,255,255,.045); }
@@ -1312,12 +1332,37 @@
         .bc-plugin-custom-fab:hover { filter:brightness(1.08); }
         #bc-plugin-content-custom { padding-bottom:max(76px,env(safe-area-inset-bottom)); }
         .bc-plugin-empty { min-height:240px; display:flex; align-items:center; justify-content:center; }
+        .bc-plugin-source-note { flex:1; min-width:0; color:#aaa3be; font-size:10px; line-height:1.35; }
+        .bc-plugin-source-note a { color:#cdb9ff; }
+        .bc-plugin-fusam { min-height:260px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px; text-align:center; color:#aaa3be; }
+        .bc-plugin-fusam h4 { margin:0; color:#fff; font-size:15px; }
+        .bc-plugin-fusam p { margin:0; max-width:310px; font-size:11px; line-height:1.6; }
+        .bc-plugin-fusam-link { padding:10px 15px; border:1px solid rgba(190,165,255,.32); border-radius:12px; color:#fff; background:linear-gradient(135deg,rgba(154,108,255,.38),rgba(92,65,155,.5)); text-decoration:none; }
+        .bc-plugin-settings-overlay { position:fixed; inset:0; z-index:2147483648; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(0,0,0,.58); backdrop-filter:blur(4px); }
+        .bc-plugin-settings-card { width:min(340px,94vw); max-height:calc(100dvh - 24px); overflow-y:auto; padding:18px; border:1px solid rgba(190,165,255,.3); border-radius:20px; color:#fff; background:#1c192b; box-shadow:0 22px 60px rgba(0,0,0,.48); }
+        .bc-plugin-settings-card h3 { margin:0 0 15px; font-size:16px; }
+        .bc-plugin-setting-row { display:flex; align-items:center; justify-content:space-between; gap:14px; min-height:44px; border-bottom:1px solid rgba(204,190,255,.1); color:#d8d2e5; font-size:12px; }
+        .bc-plugin-setting-row select { max-width:150px; padding:7px 9px; border:1px solid rgba(204,190,255,.18); border-radius:9px; color:#fff; background:#292541; }
+        .bc-plugin-setting-row input { accent-color:#9a6cff; width:19px; height:19px; }
+        .bc-plugin-settings-done { width:100%; margin-top:16px; padding:10px; border:0; border-radius:11px; color:#fff; background:linear-gradient(135deg,#9a6cff,#7147dc); }
+        .bc-plugin-settings-card .bc-plugin-fusam { min-height:0; padding:14px 0 0; gap:8px; }
+        .bc-plugin-settings-inline { padding:12px 4px 72px; color:#fff; }
+        .bc-plugin-settings-inline h3 { margin:0 0 12px; font-size:16px; }
+        .bc-plugin-settings-inline .bc-plugin-fusam { min-height:0; padding:16px 0 4px; gap:9px; }
+        .bc-plugin-language-select { position:relative; min-width:154px; font-family:"Twemoji Country Flags",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif; }
+        .bc-plugin-language-trigger { width:100%; padding:8px 10px; border:1px solid rgba(204,190,255,.2); border-radius:10px; color:#fff; background:#292541; text-align:left; cursor:pointer; font-family:"Twemoji Country Flags",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif; }
+        .bc-plugin-language-menu { position:absolute; z-index:12; top:calc(100% + 5px); right:0; width:100%; max-height:190px; overflow-y:auto; padding:5px; border:1px solid rgba(190,165,255,.3); border-radius:11px; background:#211e34; box-shadow:0 12px 30px rgba(0,0,0,.4); scrollbar-width:thin; scrollbar-color:#8258dc #211e34; }
+        .bc-plugin-language-menu::-webkit-scrollbar { width:7px; }
+        .bc-plugin-language-menu::-webkit-scrollbar-track { background:#211e34; border-radius:7px; }
+        .bc-plugin-language-menu::-webkit-scrollbar-thumb { background:linear-gradient(#9a6cff,#7147dc); border:2px solid #211e34; border-radius:7px; }
+        .bc-plugin-language-option { display:block; width:100%; padding:8px 9px; border:0; border-radius:8px; color:#d8d2e5; background:transparent; text-align:left; cursor:pointer; font-family:"Twemoji Country Flags",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif; }
+        .bc-plugin-language-option:hover,.bc-plugin-language-option.active { color:#fff; background:rgba(154,108,255,.28); }
         .bc-liko-toggle-notification { padding:9px 11px; border:1px solid rgba(194,170,255,.22); border-radius:14px; background:rgba(27,23,43,.97); box-shadow:0 12px 34px rgba(0,0,0,.35); }
         @media (max-width:480px) {
             .bc-plugin-panel { width:calc(100vw - 12px); min-height:0; border-radius:22px; }
             .bc-plugin-header { padding:13px 12px 8px; }
             .bc-plugin-brand { width:40px; height:40px; flex-basis:40px; border-radius:13px; }
-            .bc-plugin-header .bc-plugin-changelog-btn,.bc-plugin-header #bc-plugin-refresh-btn { width:34px; height:34px; flex-basis:34px; }
+            .bc-plugin-header .bc-plugin-changelog-btn,.bc-plugin-header #bc-plugin-refresh-btn,.bc-plugin-header .bc-plugin-settings-btn { width:32px; height:32px; flex-basis:32px; }
             .bc-plugin-search-row { padding-inline:11px; }
             .bc-plugin-content { padding-inline:11px; }
         }
@@ -1426,6 +1471,145 @@
             item.appendChild(btn);
         }
         return item;
+    }
+
+    const FUSAM_URL = 'https://sidiousious.gitlab.io/bc-addon-loader/';
+    const FUSAM_MANIFEST_URLS = [
+        'https://sidiousious.gitlab.io/bc-addon-loader/manifest.json',
+    ];
+    const FUSAM_CACHE_KEY = 'pcm_fusam_manifest_cache';
+    const FUSAM_SETTINGS_KEY = 'pcm_fusam_plugin_settings';
+    let fusamPluginSettings = (() => {
+        try { return JSON.parse(localStorage.getItem(FUSAM_SETTINGS_KEY) || '{}') || {}; }
+        catch(e) { return {}; }
+    })();
+    let fusamPlugins = [], fusamManifestPromise = null;
+    function saveFusamPluginSettings() {
+        try { localStorage.setItem(FUSAM_SETTINGS_KEY, JSON.stringify(fusamPluginSettings)); } catch(e) {}
+    }
+    function normalizeFusamPlugin(addon) {
+        const versions = Array.isArray(addon?.versions) ? addon.versions : [];
+        const selected = versions.find(v => v?.distribution === 'stable' && v?.source) || versions.find(v => v?.source);
+        const manifestType = String(addon?.type || '').toLowerCase();
+        return {
+            ...addon,
+            id: `fusam:${String(addon?.id || '')}`,
+            fusamId: String(addon?.id || ''),
+            url: selected?.source || '',
+            type: manifestType === 'module' ? 'mod' : manifestType === 'script' ? 'scr' : 'eval',
+            enabled: fusamPluginSettings[String(addon?.id || '')] === true,
+        };
+    }
+    function fusamText(value) {
+        if (typeof value === 'string') return value;
+        if (!value || typeof value !== 'object') return '';
+        const lang = getLang().toLowerCase();
+        return value[lang] || value[lang === 'tw' ? 'cn' : lang] || value.en || Object.values(value).find(v => typeof v === 'string') || '';
+    }
+    function getCachedFusamManifest() {
+        try { const data = JSON.parse(localStorage.getItem(FUSAM_CACHE_KEY) || 'null'); return Array.isArray(data?.addons) ? data : null; }
+        catch(e) { return null; }
+    }
+    async function loadFusamManifest(force = false) {
+        if (fusamPlugins.length && !force) return fusamPlugins;
+        if (fusamManifestPromise && !force) return fusamManifestPromise;
+        fusamManifestPromise = (async () => {
+            let networkError;
+            try {
+                let data = null;
+                for (const url of FUSAM_MANIFEST_URLS) {
+                    try {
+                        const { res, text } = await fetchTextWithTimeout(url, { cache: 'no-store' });
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const candidate = JSON.parse(text);
+                        if (!Array.isArray(candidate.addons)) throw new Error('Invalid FUSAM manifest');
+                        data = candidate; break;
+                    } catch(e) { networkError = e; console.warn(`🐈‍⬛ [PCM] ⚠️ FUSAM manifest ${url}: ${e.message}`); }
+                }
+                if (!data) throw networkError || new Error('FUSAM manifest failed');
+                localStorage.setItem(FUSAM_CACHE_KEY, JSON.stringify(data));
+                fusamPlugins = data.addons.map(normalizeFusamPlugin);
+            } catch(e) {
+                const cached = getCachedFusamManifest();
+                if (!cached) throw e;
+                fusamPlugins = cached.addons.map(normalizeFusamPlugin);
+                console.warn(`🐈‍⬛ [PCM] ⚠️ FUSAM manifest network failed; using cache: ${e.message}`);
+            }
+            return fusamPlugins;
+        })();
+        try { return await fusamManifestPromise; }
+        finally { fusamManifestPromise = null; }
+    }
+    function buildFusamItem(plugin) {
+        const item = buildPluginItem({ ...plugin, name: fusamText(plugin.name) || plugin.fusamId, description: fusamText(plugin.description), website: plugin.website || plugin.repository || FUSAM_URL, icon: plugin.icon || '◆' }, 'fusam');
+        item.classList.add('bc-plugin-fusam-item');
+        item.dataset.fusamId = plugin.fusamId;
+        return item;
+    }
+    async function buildFusamContent(container, force = false) {
+        container.innerHTML = `<div class="bc-plugin-loading">${escapeHtml(t('loadingPlugins'))}</div>`;
+        try {
+            const addons = await loadFusamManifest(force);
+            if (!container.isConnected && !document.body.contains(container)) return;
+            container.innerHTML = '';
+            addons.forEach(plugin => container.appendChild(buildFusamItem(plugin)));
+        } catch(e) {
+            container.innerHTML = `<div class="bc-plugin-fusam"><h4>${escapeHtml(t('loadPluginsFailed'))}</h4><p>${escapeHtml(e.message)}</p><button class="bc-plugin-fusam-link" type="button">↻ ${escapeHtml(t('refreshTitle'))}</button><a class="bc-plugin-fusam-link" href="${FUSAM_URL}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('fusamOpen'))}</a></div>`;
+            container.querySelector('button')?.addEventListener('click', () => buildFusamContent(container, true));
+        }
+    }
+    async function loadEnabledFusamPluginsPhase() {
+        if (!Object.values(fusamPluginSettings).some(Boolean)) return;
+        try {
+            const addons = await loadFusamManifest();
+            await runPluginBatch(addons.filter(plugin => plugin.enabled && plugin.url), 'fusam');
+        } catch(e) {
+            console.warn(`🐈‍⬛ [PCM] ⚠️ Enabled FUSAM plugins could not be loaded: ${e.message}`);
+        }
+    }
+
+    const PCM_LANGS = [
+        ['AUTO','🌐','AUTO'], ['TW','🇹🇼','繁體中文'], ['CN','🇨🇳','简体中文'], ['EN','🇬🇧','English'],
+        ['DE','🇩🇪','Deutsch'], ['FR','🇫🇷','Français'], ['RU','🇷🇺','Русский'], ['UA','🇺🇦','Українська'],
+    ];
+    function buildPcmSettingsContent(container, onDone) {
+        container.innerHTML = '';
+        const card = document.createElement('div');
+        card.className = 'bc-plugin-settings-inline';
+        card.innerHTML = `<h3>${escapeHtml(t('settingsTitle'))}</h3>
+            <div class="bc-plugin-setting-row"><span>${escapeHtml(t('settingsLanguage'))}</span><div class="bc-plugin-language-select"><button type="button" class="bc-plugin-language-trigger"></button><div class="bc-plugin-language-menu" hidden></div></div></div>
+            <label class="bc-plugin-setting-row"><span>${escapeHtml(t('settingsLoadNotif'))}</span><input type="checkbox" data-setting="showLoadNotifications"${pcmUiSettings.showLoadNotifications ? ' checked' : ''}></label>
+            <label class="bc-plugin-setting-row"><span>${escapeHtml(t('settingsFusam'))}</span><input type="checkbox" data-setting="showFusamTab"${pcmUiSettings.showFusamTab ? ' checked' : ''}></label>
+            <label class="bc-plugin-setting-row"><span>${escapeHtml(t('settingsCustom'))}</span><input type="checkbox" data-setting="showCustomTab"${pcmUiSettings.showCustomTab ? ' checked' : ''}></label>
+            <div class="bc-plugin-fusam"><p>${escapeHtml(t('fusamLicense'))}</p><a class="bc-plugin-fusam-link" href="${FUSAM_URL}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('fusamOpen'))}</a></div>
+            <button class="bc-plugin-settings-done">${escapeHtml(t('settingsClose'))}</button>`;
+        container.appendChild(card);
+        let changed = false;
+        const trigger = card.querySelector('.bc-plugin-language-trigger');
+        const menu = card.querySelector('.bc-plugin-language-menu');
+        const paintLanguage = () => {
+            const entry = PCM_LANGS.find(([code]) => code === pcmUiSettings.language) || PCM_LANGS[0];
+            trigger.textContent = `${entry[1]} ${entry[2]}`;
+        };
+        PCM_LANGS.forEach(([code, flag, name]) => {
+            const option = document.createElement('button');
+            option.type = 'button'; option.className = 'bc-plugin-language-option';
+            option.textContent = `${flag} ${name}`;
+            option.classList.toggle('active', code === pcmUiSettings.language);
+            option.addEventListener('click', e => {
+                e.stopPropagation(); pcmUiSettings.language = code; saveUiSettings(); changed = true;
+                menu.hidden = true; paintLanguage();
+                menu.querySelectorAll('.bc-plugin-language-option').forEach(btn => btn.classList.toggle('active', btn === option));
+            });
+            menu.appendChild(option);
+        });
+        enableMomentumScroll(menu, true);
+        paintLanguage();
+        trigger.addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+        card.querySelectorAll('input[data-setting]').forEach(input => input.addEventListener('change', () => {
+            pcmUiSettings[input.dataset.setting] = input.checked; saveUiSettings(); changed = true;
+        }));
+        card.querySelector('.bc-plugin-settings-done').addEventListener('click', e => { e.stopPropagation(); onDone(changed); });
     }
 
     // === Add Plugin Panel =======================================
@@ -1593,11 +1777,12 @@
         if (retryBtn) {
             const id = retryBtn.getAttribute('data-retry-id');
             const isCustom = !!customPlugins.find(p => p.id === id);
-            const plugin = isCustom ? customPlugins.find(p => p.id === id) : subPlugins.find(p => p.id === id);
+            const isFusam = !!fusamPlugins.find(p => p.id === id);
+            const plugin = isCustom ? customPlugins.find(p => p.id === id) : isFusam ? fusamPlugins.find(p => p.id === id) : subPlugins.find(p => p.id === id);
             if (!plugin) return;
             failedPlugins.delete(id);
             hidePluginRetryBtn(id);
-            loadSubPlugin(plugin, isCustom ? 'custom' : getPluginLoadSource(plugin)).catch(() => {});
+            loadSubPlugin(plugin, isCustom ? 'custom' : isFusam ? 'fusam' : getPluginLoadSource(plugin)).catch(() => {});
             return;
         }
 
@@ -1610,7 +1795,7 @@
         if (toggle) {
             const id = toggle.getAttribute('data-plugin');
             const src = toggle.getAttribute('data-source') || 'local';
-            const plugin = src === 'custom' ? customPlugins.find(p => p.id === id) : subPlugins.find(p => p.id === id);
+            const plugin = src === 'custom' ? customPlugins.find(p => p.id === id) : src === 'fusam' ? fusamPlugins.find(p => p.id === id) : subPlugins.find(p => p.id === id);
             if (!plugin) return;
 
             if (src === 'account') {
@@ -1629,6 +1814,15 @@
                 showToggleNotification(plugin.enabled ? "🐈‍⬛" : "🐾", `${plugin.name} ${plugin.enabled ? t('pluginEnabled') : t('pluginDisabled')}`, plugin.enabled ? t('willTakeEffect') : t('willNotStart'));
                 setPluginRuntime(id, { reloadRequired: !plugin.enabled && loadedPlugins.has(id) });
                 if (plugin.enabled && !loadedPlugins.has(id)) loadSubPlugin(plugin, 'custom').catch(() => {});
+            } else if (src === 'fusam') {
+                plugin.enabled = !plugin.enabled;
+                fusamPluginSettings[plugin.fusamId] = plugin.enabled;
+                saveFusamPluginSettings();
+                toggle.classList.toggle('active', plugin.enabled);
+                toggle.closest('.bc-plugin-item').classList.toggle('enabled', plugin.enabled);
+                showToggleNotification(plugin.enabled ? "🐈‍⬛" : "🐾", `${getPluginName(plugin)} ${plugin.enabled ? t('pluginEnabled') : t('pluginDisabled')}`, plugin.enabled ? t('willTakeEffect') : t('willNotStart'));
+                setPluginRuntime(id, { reloadRequired: !plugin.enabled && loadedPlugins.has(id) });
+                if (plugin.enabled && !loadedPlugins.has(id)) loadSubPlugin(plugin, 'fusam').catch(() => {});
             } else {
                 plugin.enabled = !plugin.enabled;
                 pluginSettings[id] = plugin.enabled; saveSettings(pluginSettings);
@@ -1711,7 +1905,7 @@
         g.style.display = (!shouldShowUI() || !accountFloatingBtnVisible) ? 'none' : '';
     }
 
-    function enableMomentumScroll(container) {
+    function enableMomentumScroll(container, allowLanguageMenu = false) {
         let pointerId = null, lastY = 0, lastTime = 0, velocity = 0;
         let dragged = false, inertiaFrame = 0, suppressClick = false;
 
@@ -1726,7 +1920,7 @@
         };
 
         container.addEventListener('pointerdown', e => {
-            if (e.button !== 0 || e.target.closest('input,select,textarea')) return;
+            if (e.button !== 0 || e.target.closest('input,select,textarea') || (!allowLanguageMenu && e.target.closest('.bc-plugin-language-menu'))) return;
             stopInertia(); pointerId = e.pointerId; lastY = e.clientY; lastTime = performance.now();
             velocity = 0; dragged = false; suppressClick = false;
         });
@@ -1802,6 +1996,10 @@
         changelogBtn.innerHTML = '📋';
         changelogBtn.title = t('changelogTitle');
         changelogBtn.style.display = 'none';
+        const settingsBtn = document.createElement('button');
+        settingsBtn.className = 'bc-plugin-settings-btn';
+        settingsBtn.innerHTML = '⚙';
+        settingsBtn.title = t('settingsTitle');
 
         btnGroup.append(floatBtn);
         document.body.appendChild(btnGroup);
@@ -1817,7 +2015,7 @@
         const header = document.createElement('div');
         header.className = 'bc-plugin-header';
         header.innerHTML = `<div class="bc-plugin-top-row"><img class="bc-plugin-brand" src="https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png" alt=""><div class="bc-plugin-title-wrap"><h3 class="bc-plugin-title">${t('welcomeTitle')}</h3><small class="bc-plugin-summary"></small></div><div class="bc-plugin-header-actions"></div></div>`;
-        header.querySelector('.bc-plugin-header-actions').append(changelogBtn, refreshBtn);
+        header.querySelector('.bc-plugin-header-actions').append(changelogBtn, refreshBtn, settingsBtn);
         refreshBtn.style.display = 'flex';
         changelogBtn.style.display = 'flex';
 
@@ -1828,15 +2026,20 @@
         const tabs = {
             local:   document.createElement('button'),
             account: document.createElement('button'),
+            fusam:   document.createElement('button'),
             custom:  document.createElement('button'),
         };
         tabs.local.className   = 'bc-plugin-tab active';
         tabs.account.className = 'bc-plugin-tab';
+        tabs.fusam.className   = 'bc-plugin-tab';
         tabs.custom.className  = 'bc-plugin-tab';
         tabs.local.textContent   = t('tabLocal');
         tabs.account.textContent = t('tabAccount');
+        tabs.fusam.textContent   = t('tabFusam');
         tabs.custom.textContent  = t('tabCustom');
-        tabsBar.append(tabs.local, tabs.account, tabs.custom);
+        tabs.fusam.style.display  = pcmUiSettings.showFusamTab ? '' : 'none';
+        tabs.custom.style.display = pcmUiSettings.showCustomTab ? '' : 'none';
+        tabsBar.append(tabs.local, tabs.account, tabs.fusam, tabs.custom);
         header.appendChild(tabsBar);
 
         // Search row
@@ -1854,7 +2057,11 @@
         gearBtn.className = 'bc-plugin-gear-btn';
         gearBtn.textContent = '⚙';
         gearBtn.style.display = 'none';
-        searchRow.append(searchInput, filterBtn, gearBtn);
+        const sourceNote = document.createElement('div');
+        sourceNote.className = 'bc-plugin-source-note';
+        sourceNote.style.display = 'none';
+        sourceNote.innerHTML = `${escapeHtml(t('fusamDesc'))} <a href="${FUSAM_URL}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('fusamOpen'))}</a>`;
+        searchRow.append(searchInput, sourceNote, filterBtn, gearBtn);
 
         // Contents
         const contentLocal = document.createElement('div');
@@ -1874,7 +2081,16 @@
         contentCustom.className = 'bc-plugin-content';
         contentCustom.style.display = 'none';
         buildCustomContent(contentCustom);
-        [contentLocal, contentAccount, contentCustom].forEach(enableMomentumScroll);
+        const contentFusam = document.createElement('div');
+        contentFusam.id = 'bc-plugin-content-fusam';
+        contentFusam.className = 'bc-plugin-content';
+        contentFusam.style.display = 'none';
+        if (pcmUiSettings.showFusamTab) buildFusamContent(contentFusam);
+        const contentSettings = document.createElement('div');
+        contentSettings.id = 'bc-plugin-content-settings';
+        contentSettings.className = 'bc-plugin-content';
+        contentSettings.style.display = 'none';
+        [contentLocal, contentAccount, contentFusam, contentCustom, contentSettings].forEach(enableMomentumScroll);
 
         // Footer
         const footer = document.createElement('div');
@@ -1883,13 +2099,17 @@
         const customAddFab = buildAddItem();
         customAddFab.style.display = 'none';
 
-        panel.append(header, searchRow, contentLocal, contentAccount, contentCustom, footer, customAddFab);
+        panel.append(header, searchRow, contentLocal, contentAccount, contentFusam, contentCustom, contentSettings, footer, customAddFab);
         document.body.appendChild(panel);
 
         let isOpen = false;
-        const contents = { local: contentLocal, account: contentAccount, custom: contentCustom };
+        const contents = { local: contentLocal, account: contentAccount, fusam: contentFusam, custom: contentCustom };
+        const visibleTabKeys = ['local', 'account', ...(pcmUiSettings.showFusamTab ? ['fusam'] : []), ...(pcmUiSettings.showCustomTab ? ['custom'] : [])];
+        tabsBar.style.gridTemplateColumns = `repeat(${visibleTabKeys.length},1fr)`;
+        tabsBar.style.setProperty('--pcm-tab-width', `calc((100% - ${8 + (visibleTabKeys.length - 1) * 4}px) / ${visibleTabKeys.length})`);
 
         const updateHeaderSummary = () => {
+            if (activeTab === 'fusam') { header.querySelector('.bc-plugin-summary').textContent = `${fusamPlugins.length} ${t('plugins')} · ${fusamPlugins.filter(plugin => plugin.enabled).length} ${t('pluginEnabled')}`; return; }
             if (activeTab === 'local' && (!pluginsLoaded || contents.local.querySelector('.bc-plugin-loading'))) {
                 header.querySelector('.bc-plugin-summary').textContent = t('loadingPlugins');
                 return;
@@ -1909,20 +2129,51 @@
         const switchTab = (tab) => {
             activeTab = tab;
             tabsBar.dataset.active = tab;
+            const tabIndex = Math.max(0, visibleTabKeys.indexOf(tab));
+            tabsBar.style.setProperty('--pcm-tab-offset', `translateX(calc(${tabIndex * 100}% + ${tabIndex * 4}px))`);
             Object.keys(tabs).forEach(k => {
                 tabs[k].classList.toggle('active', k === tab);
                 contents[k].style.display = k === tab ? '' : 'none';
             });
             gearBtn.style.display = tab === 'custom' ? '' : 'none';
             customAddFab.style.display = tab === 'custom' ? 'flex' : 'none';
+            const isFusam = tab === 'fusam';
+            searchInput.style.display = filterBtn.style.display = isFusam ? 'none' : '';
+            sourceNote.style.display = isFusam ? '' : 'none';
             if (tab === 'account') buildAccountContent(contentAccount);
             if (tab === 'custom')  buildCustomContent(contentCustom);
             applyFilter();
             updateHeaderSummary();
         };
 
+        let settingsOpen = false, settingsReturnTab = 'local';
+        const closeSettings = changed => {
+            settingsOpen = false; settingsBtn.classList.remove('active');
+            if (changed) {
+                document.getElementById('bc-plugin-btn-group')?.remove();
+                document.getElementById('bc-plugin-panel')?.remove();
+                currentUIState = null; createManagerUI();
+                return;
+            }
+            contentSettings.style.display = 'none';
+            tabsBar.style.display = '';
+            searchRow.style.display = '';
+            switchTab(settingsReturnTab);
+        };
+        const openSettings = () => {
+            if (settingsOpen) { closeSettings(false); return; }
+            settingsOpen = true; settingsReturnTab = activeTab;
+            settingsBtn.classList.add('active');
+            tabsBar.style.display = 'none'; searchRow.style.display = 'none';
+            Object.values(contents).forEach(content => { content.style.display = 'none'; });
+            customAddFab.style.display = 'none'; contentSettings.style.display = '';
+            header.querySelector('.bc-plugin-summary').textContent = t('settingsTitle');
+            buildPcmSettingsContent(contentSettings, closeSettings);
+        };
+
         tabs.local.addEventListener('click',   () => switchTab('local'));
         tabs.account.addEventListener('click', () => switchTab('account'));
+        tabs.fusam.addEventListener('click',   () => switchTab('fusam'));
         tabs.custom.addEventListener('click',  () => switchTab('custom'));
 
         const filterModes = ['all', 'enabled', 'disabled'];
@@ -1986,8 +2237,9 @@
 
         refreshBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); refreshPluginList(); });
         changelogBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showChangelogModal(); });
+        settingsBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openSettings(); });
 
-        [contentLocal, contentAccount, contentCustom].forEach(c => c.addEventListener('click', e => { handlePluginToggle(e); setTimeout(updateHeaderSummary); }));
+        [contentLocal, contentAccount, contentFusam, contentCustom].forEach(c => c.addEventListener('click', e => { handlePluginToggle(e); setTimeout(updateHeaderSummary); }));
         updateHeaderSummary();
 
         if (_docClickHandler) document.removeEventListener('click', _docClickHandler);
@@ -2054,6 +2306,7 @@
         previousPluginError = null;
     }
     function showNotification(icon, title, message, durationMs = 3500) { _createSystemNotif(icon, title, message, durationMs); }
+    function showLoadNotification(icon, title, message, durationMs = 3500) { if (pcmUiSettings.showLoadNotifications) _createSystemNotif(icon, title, message, durationMs); }
     function _createSystemNotif(icon, title, message, durationMs = 3500) {
         const notif = document.createElement("div");
         notif.className = "bc-liko-system-notification";
@@ -2124,7 +2377,7 @@
         });
         wait().then(ok => {
             if (!ok) return;
-            try { ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${t('shortLoaded')}</font>`, Timeout: 60000 }); showNotification("🐈‍⬛", "PCM", t('loaded', { ver: MOD_VER })); } catch(e) {}
+            try { if (pcmUiSettings.showLoadNotifications) { ChatRoomMessage({ Type: "LocalMessage", Sender: Player.MemberNumber, Content: `<font color="#885CB0">[PCM] ${t('shortLoaded')}</font>`, Timeout: 60000 }); showLoadNotification("🐈‍⬛", "PCM", t('loaded', { ver: MOD_VER })); } } catch(e) {}
         });
     }
 
@@ -2320,6 +2573,7 @@
         loadLocalPluginsPhase();
         loadAccountPluginsPhase();
         setTimeout(() => loadCustomPluginsPhase(), 5000);
+        setTimeout(() => loadEnabledFusamPluginsPhase(), 5500);
         registerPreferencePage();
 
         if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {

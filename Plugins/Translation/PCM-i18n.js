@@ -25,6 +25,7 @@
         'tabLocal':          { TW: '📱 本地',         CN: '📱 本地',         DE: '📱 Lokal',          FR: '📱 Local',                 RU: '📱 Локальные',        UA: '📱 Локальні' },
         'tabAccount':        { TW: '☁️ 帳戶',         CN: '☁️ 账户',         DE: '☁️ Konto',          FR: '☁️ Compte',                RU: '☁️ Аккаунт',          UA: '☁️ Акаунт' },
         'tabCustom':         { TW: '🔧 自訂',         CN: '🔧 自定义',       DE: '🔧 Eigene',         FR: '🔧 Personnalisé',          RU: '🔧 Свои',             UA: '🔧 Власні' },
+        'tabFusam':          { TW: '◆ FUSAM', CN: '◆ FUSAM', DE: '◆ FUSAM', FR: '◆ FUSAM', RU: '◆ FUSAM', UA: '◆ FUSAM' },
         'searchPlaceholder': { TW: '搜尋插件...',     CN: '搜索插件...',     DE: 'Plugins suchen...', FR: 'Rechercher des plugins...',RU: 'Поиск плагинов...',   UA: 'Пошук плагінів...' },
         'filterAll':         { TW: '顯示：全部',      CN: '显示：全部',      DE: 'Alle',              FR: 'Tous',                     RU: 'Все',                 UA: 'Усі' },
         'filterEnabled':     { TW: '顯示：已啟用',    CN: '显示：已启用',    DE: 'Aktivierte',        FR: 'Activés',                  RU: 'Включённые',          UA: 'Увімкнені' },
@@ -70,6 +71,17 @@
         'customNameRequired':{ TW: '請輸入插件名稱', CN: '请输入插件名称', DE: 'Bitte einen Namen eingeben', FR: 'Veuillez saisir un nom', RU: 'Введите название', UA: 'Введіть назву' },
         'customEmptyHint':   { TW: '尚無自訂插件。\n點擊右下角 ＋ 來新增。', CN: '尚无自定义插件。\n点击右下角 ＋ 来新增。', DE: 'Noch keine eigenen Plugins.\nTippe unten rechts auf ＋.', FR: 'Aucun plugin personnalisé.\nTouchez ＋ en bas à droite.', RU: 'Своих плагинов пока нет.\nНажмите ＋ внизу справа.', UA: 'Власних плагінів немає.\nНатисніть ＋ унизу праворуч.' },
         'prefButton':        { TW: 'PCM 插件管理器', CN: 'PCM 插件管理器', DE: 'PCM Plugin-Manager', FR: 'Gestionnaire de plugins PCM', RU: 'Менеджер плагинов PCM', UA: 'Менеджер плагінів PCM' },
+        'settingsTitle':     { TW: 'PCM 設定', CN: 'PCM 设置', DE: 'PCM-Einstellungen', FR: 'Paramètres PCM', RU: 'Настройки PCM', UA: 'Налаштування PCM' },
+        'settingsLanguage':  { TW: '語言', CN: '语言', DE: 'Sprache', FR: 'Langue', RU: 'Язык', UA: 'Мова' },
+        'settingsAuto':      { TW: 'AUTO', CN: 'AUTO', DE: 'AUTO', FR: 'AUTO', RU: 'AUTO', UA: 'AUTO' },
+        'settingsLoadNotif': { TW: '顯示插件載入通知', CN: '显示插件加载通知', DE: 'Plugin-Ladehinweise anzeigen', FR: 'Afficher les notifications de chargement', RU: 'Показывать уведомления о загрузке', UA: 'Показувати сповіщення про завантаження' },
+        'settingsFusam':     { TW: '顯示 FUSAM 分頁', CN: '显示 FUSAM 分页', DE: 'FUSAM-Tab anzeigen', FR: 'Afficher l’onglet FUSAM', RU: 'Показывать вкладку FUSAM', UA: 'Показувати вкладку FUSAM' },
+        'settingsCustom':    { TW: '顯示自訂插件分頁', CN: '显示自定义插件分页', DE: 'Eigene Plugins anzeigen', FR: 'Afficher les plugins personnalisés', RU: 'Показывать свои плагины', UA: 'Показувати власні плагіни' },
+        'settingsClose':     { TW: '完成', CN: '完成', DE: 'Fertig', FR: 'Terminé', RU: 'Готово', UA: 'Готово' },
+        'fusamTitle':        { TW: 'Fantastic Ultimate Solution to Addon Management', CN: 'Fantastic Ultimate Solution to Addon Management', DE: 'Fantastic Ultimate Solution to Addon Management', FR: 'Fantastic Ultimate Solution to Addon Management', RU: 'Fantastic Ultimate Solution to Addon Management', UA: 'Fantastic Ultimate Solution to Addon Management' },
+        'fusamDesc':         { TW: '獨立的社群插件管理器。PCM 直接讀取其官方 GitLab Pages Manifest。', CN: '独立的社区插件管理器。PCM 直接读取其官方 GitLab Pages Manifest。', DE: 'Ein unabhängiger Community-Addon-Manager. PCM liest das offizielle Manifest direkt von GitLab Pages.', FR: 'Un gestionnaire communautaire indépendant. PCM lit directement son manifeste officiel sur GitLab Pages.', RU: 'Независимый менеджер дополнений сообщества. PCM напрямую читает официальный манифест с GitLab Pages.', UA: 'Незалежний менеджер доповнень спільноти. PCM безпосередньо читає офіційний маніфест із GitLab Pages.' },
+        'fusamOpen':         { TW: '開啟 FUSAM 官方安裝頁', CN: '打开 FUSAM 官方安装页', DE: 'Offizielle FUSAM-Installation öffnen', FR: 'Ouvrir l’installation officielle de FUSAM', RU: 'Открыть официальную страницу установки FUSAM', UA: 'Відкрити офіційну сторінку встановлення FUSAM' },
+        'fusamLicense':      { TW: 'FUSAM 是獨立的 GPLv3 專案；由它安裝的插件會交由 FUSAM 管理。', CN: 'FUSAM 是独立的 GPLv3 项目；由它安装的插件将由 FUSAM 管理。', DE: 'FUSAM ist ein unabhängiges GPLv3-Projekt; dort installierte Addons werden von FUSAM verwaltet.', FR: 'FUSAM est un projet GPLv3 indépendant ; les extensions installées par ce biais sont gérées par FUSAM.', RU: 'FUSAM — независимый проект GPLv3; установленные через него плагины управляются FUSAM.', UA: 'FUSAM — незалежний проєкт GPLv3; встановленими через нього плагінами керує FUSAM.' },
     };
 
     // 引擎（window.Liko.__Sys_i18n__）有時會晚一點才就位（例如 Electron-BC 環境下，
