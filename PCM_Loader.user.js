@@ -2,7 +2,7 @@
 // @name           Liko - Plugin Collection Manager-Loader
 // @name:zh        Liko的插件管理器-Loader
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        1.2.2
+// @version        1.3.0
 // @description    Liko's Plugin Collection Manager
 // @author         Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -17,7 +17,55 @@
 (function () {
     "use strict";
 
+    const MODULE_REL = "Plugins/main/PCM/entry.js";
     const MAIN_REL = "Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
+
+    function buildModuleUrls() {
+        const ts = Date.now();
+        return [
+            `https://awdrrawd.github.io/liko-Plugin-Repository/${MODULE_REL}?timestamp=${ts}`,
+            `https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/${MODULE_REL}`,
+            `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${MODULE_REL}`,
+        ];
+    }
+
+    function loadModule(url, timeoutMs = 15000) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            const timer = setTimeout(() => {
+                script.remove();
+                reject(new Error("module load timeout"));
+            }, timeoutMs);
+            script.type = "module";
+            script.src = url;
+            script.dataset.pcmModuleLoader = "true";
+            script.onload = () => {
+                clearTimeout(timer);
+                if (window.Liko?.PCM) resolve();
+                else reject(new Error("module loaded but PCM did not start"));
+            };
+            script.onerror = () => {
+                clearTimeout(timer);
+                script.remove();
+                reject(new Error("module script error"));
+            };
+            (document.head || document.documentElement).appendChild(script);
+        });
+    }
+
+    async function loadModuleSequential() {
+        let lastErr;
+        for (const url of buildModuleUrls()) {
+            try {
+                await loadModule(url);
+                return;
+            } catch (e) {
+                lastErr = e;
+                console.warn(`🐈‍⬛ [PCM] ⚠️ 模組入口 ${url}: ${e.message}`);
+            }
+        }
+        throw lastErr ?? new Error("all module URLs failed");
+    }
 
     // 優先序：
     // 1. GitHub Pages — 即時（push 後幾乎立刻生效）且不會 429，帶時間戳確保拿最新版
@@ -61,6 +109,14 @@
     }
 
     (async () => {
+        try {
+            await loadModuleSequential();
+            console.log("🐈‍⬛ [PCM] ✅ Modular PCM started");
+            return;
+        } catch (e) {
+            console.warn(`🐈‍⬛ [PCM] ⚠️ 模組版載入失敗，回退單檔版：${e.message}`);
+        }
+
         const oldCache = getCachedMain();
 
         let freshCode = null;

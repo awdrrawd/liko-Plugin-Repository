@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         本地測試 - PCM 載入器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.1
-// @description  本地測試載入器：設定 LikoDevBase 指向 localhost，再載入四個本體；引擎/擴充/字庫由各本體自行抓取
+// @version      0.2
+// @description  本地測試載入器：優先載入模組版 PCM，失敗時回退保留的單檔版
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 (async () => {
-    window.LikoDevBase = `http://localhost:5175/Plugins/`;   // ← 四個本體會讀這個覆寫依賴基底（引擎/擴充/字庫全走本地）
+    window.LikoDevBase = `http://localhost:5175/Plugins/`;
 
     const load = async (path) => {
         const res = await fetch(`http://localhost:5175/Plugins/` + path + '?t=' + Date.now(), { cache: 'no-store' });
@@ -26,14 +26,36 @@
         new Function(code)();
     };
 
-    // 只載入本體；其餘依賴由本體自己抓（與正式環境載入路徑一致）
-    const mains = [
-        'main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js',
-    ];
+    const loadModule = (path, timeoutMs = 15000) => new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        const timer = setTimeout(() => {
+            script.remove();
+            reject(new Error(`${path} → 模組載入逾時`));
+        }, timeoutMs);
+        script.type = 'module';
+        script.src = `http://localhost:5175/Plugins/${path}?t=${Date.now()}`;
+        script.onload = () => {
+            clearTimeout(timer);
+            if (window.Liko?.PCM) resolve();
+            else reject(new Error(`${path} → PCM 未啟動`));
+        };
+        script.onerror = () => {
+            clearTimeout(timer);
+            script.remove();
+            reject(new Error(`${path} → 模組執行失敗`));
+        };
+        (document.head || document.documentElement).appendChild(script);
+    });
 
     try {
-        for (const m of mains) { await load(m); }
-        console.log('🐈‍⬛ [PCM local] ✅ 本地四個本體已載入，依賴由各本體自行抓取');
+        try {
+            await loadModule('main/PCM/entry.js');
+            console.log('🐈‍⬛ [PCM local] ✅ 本地模組版已載入');
+        } catch (moduleError) {
+            console.warn(`🐈‍⬛ [PCM local] ⚠️ 模組版失敗，回退單檔版：${moduleError.message}`);
+            await load('main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js');
+            console.log('🐈‍⬛ [PCM local] ✅ 本地單檔版已載入（fallback）');
+        }
     } catch (e) {
         console.error('🐈‍⬛ [PCM local] ❌ 載入失敗（node dev/serve-local.mjs 有開嗎？）:', e.message);
     }
