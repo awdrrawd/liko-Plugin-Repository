@@ -3,7 +3,7 @@
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.1.5
+// @version      2.2.0
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.1.5";
+    const MOD_VER = "2.2.0";
     if (window.Liko.PCM) return;
     window.Liko.PCM = MOD_VER;
 
@@ -284,16 +284,41 @@
 
     // === JSON 來源 ===============================================
     // GitHub Pages 優先、raw 備援、jsDelivr 最後保底 —— Plugins.json 承載版本號/更新日誌等
+    const DEV_PLUGINS_JSON_URL = window.LikoDevBase ? new URL('../Plugins.json', window.LikoDevBase).href : null;
     const PLUGINS_JSON_URLS = [
+        DEV_PLUGINS_JSON_URL,
         `https://awdrrawd.github.io/liko-Plugin-Repository/Plugins.json?timestamp=${Date.now()}`,
         "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
         "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
-    ];
+    ].filter(Boolean);
+    const NETWORK_TIMEOUT_MS = 12000;
+    async function fetchTextWithTimeout(url, options = {}, timeoutMs = NETWORK_TIMEOUT_MS) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const res = await fetch(url, { ...options, signal: controller.signal });
+            const text = await res.text();
+            return { res, text };
+        } catch(e) {
+            if (e?.name === 'AbortError') throw new Error(`Timeout after ${timeoutMs}ms`);
+            throw e;
+        } finally {
+            clearTimeout(timer);
+        }
+    }
 
     // === 設定存取 ================================================
     let saveTimer;
     function saveSettings(s) { clearTimeout(saveTimer); saveTimer = setTimeout(() => localStorage.setItem("BC_PluginManager_Settings", JSON.stringify(s)), 100); }
-    function loadSettings() { return JSON.parse(localStorage.getItem("BC_PluginManager_Settings") || "{}"); }
+    function loadSettings() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem("BC_PluginManager_Settings") || "{}");
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        } catch(e) {
+            console.warn("🐈‍⬛ [PCM] ⚠️ 本機設定已損壞，改用預設設定：", e?.message || e);
+            return {};
+        }
+    }
     let pluginSettings = loadSettings();
     let accountPluginSettings = {};
     let accountSettingsLoaded = false;
@@ -369,7 +394,19 @@
         return _pluginCacheStore;
     }
     function savePluginCacheStore() {
-        try { localStorage.setItem(PLUGIN_CACHE_KEY, JSON.stringify(_pluginCacheStore)); } catch(e) {}
+        try {
+            let serialized = JSON.stringify(_pluginCacheStore);
+            if (serialized.length > 3500000) {
+                const removable = Object.entries(_pluginCacheStore)
+                    .filter(([, value]) => value && typeof value === 'object')
+                    .sort((a, b) => (a[1].lastSuccessAt || a[1].cachedAt || 0) - (b[1].lastSuccessAt || b[1].cachedAt || 0));
+                while (serialized.length > 3500000 && removable.length) {
+                    delete _pluginCacheStore[removable.shift()[0]];
+                    serialized = JSON.stringify(_pluginCacheStore);
+                }
+            }
+            localStorage.setItem(PLUGIN_CACHE_KEY, serialized);
+        } catch(e) { console.warn('🐈‍⬛ [PCM] ⚠️ 插件快取寫入失敗：', e?.message || e); }
     }
     // 一次性把舊版分散的 pcm_p_<id> key 併進新的單一物件，併完就刪舊 key，之後不會再跑。
     function migrateOldPluginCache(store) {
@@ -392,13 +429,20 @@
             localStorage.setItem(PLUGIN_CACHE_KEY, JSON.stringify(store));
         } catch(e) {}
     }
-    function getCachedPluginCode(id) {
+    function getCachedPluginCode(cacheKey, legacyId) {
         const store = loadPluginCacheStore();
-        return store[id] || null;
+        const entry = store[cacheKey] ?? store[legacyId];
+        return typeof entry === 'string' ? entry : (entry?.code || null);
     }
-    function setCachedPluginCode(id, code) {
+    function hashPluginCode(code) {
+        let hash = 2166136261;
+        for (let i = 0; i < code.length; i++) hash = Math.imul(hash ^ code.charCodeAt(i), 16777619);
+        return (hash >>> 0).toString(36);
+    }
+    function setCachedPluginCode(cacheKey, legacyId, code, url, distribution) {
         const store = loadPluginCacheStore();
-        store[id] = code;
+        store[cacheKey] = { code, url, distribution, hash: hashPluginCode(code), cachedAt: Date.now(), lastSuccessAt: Date.now() };
+        if (legacyId !== cacheKey && Object.prototype.hasOwnProperty.call(store, legacyId)) delete store[legacyId];
         savePluginCacheStore();
     }
 
@@ -423,7 +467,28 @@
     let _resolvePluginsReady;
     const pluginsReady = new Promise(r => { _resolvePluginsReady = r; });
 
-    function validateJSON(data) { return data && Array.isArray(data.plugins) && data.plugins.length > 0; }
+    const SAFE_PLUGIN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+    function normalizePluginData(data) {
+        if (!data || typeof data !== 'object' || !Array.isArray(data.plugins) || !data.plugins.length) return null;
+        const seen = new Set();
+        const plugins = [];
+        for (const raw of data.plugins) {
+            if (!raw || typeof raw !== 'object') { console.warn('🐈‍⬛ [PCM] ⚠️ 略過無效插件資料'); continue; }
+            const id = typeof raw.id === 'string' ? raw.id.trim() : '';
+            const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+            const type = raw.type == null || raw.type === '' ? 'eval' : raw.type;
+            const urls = [raw.url, raw.mirrorUrl, raw.altUrl, raw.altMirrorUrl].filter(Boolean);
+            const validUrls = urls.every(url => typeof url === 'string' && /^https:\/\//i.test(url));
+            if (!SAFE_PLUGIN_ID_RE.test(id) || !name || seen.has(id) || !['eval', 'scr', 'mod'].includes(type)
+                || (!raw.url && !raw.inlineCode) || !validUrls) {
+                console.warn(`🐈‍⬛ [PCM] ⚠️ 略過不合法插件：${id || '(missing id)'}`);
+                continue;
+            }
+            seen.add(id);
+            plugins.push({ ...raw, id, name, type, priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 5 });
+        }
+        return plugins.length ? { ...data, plugins } : null;
+    }
 
     function applyPluginSettings(plugins) {
         return plugins.map(plugin => {
@@ -449,10 +514,11 @@
     async function fetchJSONFromNetwork() {
         for (const url of PLUGINS_JSON_URLS) {
             try {
-                const res = await fetch(url, { cache: 'no-store' });
+                const { res, text } = await fetchTextWithTimeout(url, { cache: 'no-store' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                let data; try { data = JSON.parse(await res.text()); } catch(e) { continue; }
-                if (!validateJSON(data)) continue;
+                let data; try { data = JSON.parse(text); } catch(e) { continue; }
+                data = normalizePluginData(data);
+                if (!data) continue;
                 setCachedJSON(data);
                 console.log(`🐈‍⬛ [PCM] ✅ Plugins.json fetched (${url})`);
                 return data;
@@ -474,8 +540,9 @@
         }
 
         const cached = getCachedJSON();
-        if (cached && validateJSON(cached)) {
-            processPluginData(cached);
+        const normalizedCache = normalizePluginData(cached);
+        if (normalizedCache) {
+            processPluginData(normalizedCache);
             _resolvePluginsReady(true);
             refreshPluginListUI();
         } else {
@@ -565,8 +632,91 @@
     
     let loadedPlugins = new Set(), failedPlugins = new Set();
     const pluginLoadPromises = new Map();
+    const pluginRuntime = new Map();
+    const pcmLogs = [];
+    const PCM_LOG_LIMIT = 300;
     let isLoadingPlugins = false, localLoadStarted = false, accountLoadStarted = false, customLoadStarted = false;
     let localPhasePromise = null;
+    const LAST_PLUGIN_ERROR_KEY = 'pcm_last_plugin_error';
+    let previousPluginError = null;
+    try { previousPluginError = JSON.parse(localStorage.getItem(LAST_PLUGIN_ERROR_KEY) || 'null'); } catch(e) {}
+    // 上次錯誤只消費一次；本次若再出錯，rememberPluginError() 會重新寫入供下次刷新提醒。
+    try { localStorage.removeItem(LAST_PLUGIN_ERROR_KEY); } catch(e) {}
+
+    function pcmLog(level, message, data = null) {
+        const entry = { time: Date.now(), level, message, ...(data ? { data } : {}) };
+        pcmLogs.push(entry);
+        if (pcmLogs.length > PCM_LOG_LIMIT) pcmLogs.splice(0, pcmLogs.length - PCM_LOG_LIMIT);
+        return entry;
+    }
+
+    function rememberPluginError(id, err, phase = 'runtime') {
+        if (!id) return;
+        const plugin = subPlugins.find(p => p.id === id) || customPlugins.find(p => p.id === id);
+        const record = {
+            pluginId: id,
+            pluginName: plugin ? getPluginName(plugin) : id,
+            phase,
+            message: String(err?.message || err || 'Unknown error').slice(0, 500),
+            time: Date.now(),
+        };
+        try { localStorage.setItem(LAST_PLUGIN_ERROR_KEY, JSON.stringify(record)); } catch(e) {}
+    }
+    function setPluginRuntime(id, patch) {
+        const previous = pluginRuntime.get(id) || { status: 'idle' };
+        const next = { ...previous, ...patch };
+        if (patch.status === 'loading' && !next.startedAt) next.startedAt = Date.now();
+        if ((patch.status === 'loaded' || patch.status === 'cached' || patch.status === 'failed') && !next.settledAt) {
+            next.settledAt = Date.now();
+            if (next.startedAt) next.durationMs = next.settledAt - next.startedAt;
+        }
+        pluginRuntime.set(id, next);
+        if (patch.status && patch.status !== previous.status) pcmLog(
+            patch.status === 'failed' ? 'ERROR' : 'INFO',
+            `Plugin ${id}: ${previous.status} -> ${patch.status}`,
+            { source: next.source, loadType: next.loadType, durationMs: next.durationMs, error: next.error }
+        );
+        document.querySelectorAll('.bc-plugin-item[data-plugin-id]').forEach(item => {
+            if (item.getAttribute('data-plugin-id') !== id) return;
+            item.classList.toggle('failed', next.status === 'failed');
+            item.classList.toggle('runtime-warning', !!next.postLoadError);
+            const label = item.querySelector('.bc-plugin-runtime-status');
+            if (label) {
+                const labels = isCJK()
+                    ? { loading: '載入中…', loaded: '已載入', cached: '已從快取救援', failed: '載入失敗' }
+                    : { loading: 'Loading…', loaded: 'Loaded', cached: 'Recovered from cache', failed: 'Load failed' };
+                label.textContent = next.reloadRequired
+                    ? (isCJK() ? '已停用，重新整理後生效' : 'Disabled · reload required')
+                    : (labels[next.status] || '');
+                label.setAttribute('data-status', next.reloadRequired ? 'reload' : next.status);
+            }
+        });
+    }
+    function installPCMReadOnlyApi() {
+        window.Liko.PCMApi = Object.freeze({
+            apiVersion: 1,
+            version: MOD_VER,
+            list: () => subPlugins.map(plugin => ({
+                id: plugin.id,
+                name: getPluginName(plugin),
+                enabled: isPluginEnabled(plugin),
+                runtime: { ...(pluginRuntime.get(plugin.id) || { status: 'idle' }) },
+            })),
+            getRuntimeState: id => ({ ...(pluginRuntime.get(String(id)) || { status: 'idle' }) }),
+            getLastPluginError: () => {
+                try { return JSON.parse(localStorage.getItem(LAST_PLUGIN_ERROR_KEY) || 'null'); } catch(e) { return null; }
+            },
+            getLogs: () => pcmLogs.map(entry => ({ ...entry, ...(entry.data ? { data: { ...entry.data } } : {}) })),
+            exportDiagnostic: () => JSON.stringify({
+                pcmVersion: MOD_VER,
+                generatedAt: new Date().toISOString(),
+                language: getLang(),
+                plugins: [...pluginRuntime].map(([id, state]) => ({ id, ...state })),
+                lastPluginError: (() => { try { return JSON.parse(localStorage.getItem(LAST_PLUGIN_ERROR_KEY) || 'null'); } catch(e) { return null; } })(),
+                logs: pcmLogs,
+            }, null, 2),
+        });
+    }
 
     // === 插件執行期錯誤歸因（best-effort）====
     // 各載入方式成功後把「可辨識字串」（sourceURL / 實際 URL）登記進來；日後任何時點的 window
@@ -585,6 +735,8 @@
         // 只記錄、不強制標記失敗 —— 初次載入已成功，晚發錯誤不代表整支不能用，重試與否交給使用者。
         const plugin = subPlugins.find(p => p.id === id) || customPlugins.find(p => p.id === id);
         console.error(`🐈‍⬛ [PCM] ⚠️ 插件執行期錯誤 [${plugin ? getPluginName(plugin) : id}]:`, err?.message || err);
+        rememberPluginError(id, err, 'runtime');
+        setPluginRuntime(id, { postLoadError: String(err?.message || err || 'Unknown error').slice(0, 500) });
     }
     const _onPluginWindowError = (ev) => {
         try { const id = _findPluginIdBySource(ev.filename || ev.error?.stack || ''); if (id) _handlePluginRuntimeError(id, ev.error || ev.message); } catch(e) {}
@@ -618,9 +770,8 @@
     async function tryFetch(urls) {
         for (const url of urls) {
             try {
-                const res = await fetch(url, { cache: 'no-store' });
+                const { res, text } = await fetchTextWithTimeout(url, { cache: 'no-store' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const text = await res.text();
                 if (!text || text.trimStart().startsWith('<')) throw new Error('Invalid content');
                 return text;
             } catch(e) { console.warn(`🐈‍⬛ [PCM] ⚠️ ${url}: ${e.message}`); }
@@ -689,9 +840,9 @@
                 // <script src> 嚴格會拒載。自己 fetch 文字、用正確 MIME 包成 Blob URL 再 import。
                 let blobUrl;
                 try {
-                    const res = await fetch(url, { cache: 'no-store' });
+                    const { res, text } = await fetchTextWithTimeout(url, { cache: 'no-store' });
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    let code = await res.text();
+                    let code = text;
                     if (!code || code.trimStart().startsWith('<')) throw new Error('Invalid content');
                     const sourceTag = `liko-plugin://${id}`;
                     code += `\n//# sourceURL=${sourceTag}`; // blob 沒有真實檔名，自行加註供錯誤歸因比對
@@ -712,10 +863,13 @@
     function loadViaScriptTag(url, id) {
         return new Promise((resolve, reject) => {
             const s = document.createElement('script');
+            let settled = false;
+            const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); fn(value); };
             s.src = url;
             s.setAttribute('data-plugin', id);
-            s.onload  = () => { registerPluginSource(id, url); resolve(); };
-            s.onerror = () => reject(new Error('script load error'));
+            s.onload  = () => { registerPluginSource(id, url); finish(resolve); };
+            s.onerror = () => finish(reject, new Error('script load error'));
+            const timer = setTimeout(() => { s.remove(); finish(reject, new Error(`Timeout after ${NETWORK_TIMEOUT_MS}ms`)); }, NETWORK_TIMEOUT_MS);
             document.body.appendChild(s);
         });
     }
@@ -749,15 +903,29 @@
         }
 
         if (!plugin.url && plugin.inlineCode) {
-            try { injectScript(plugin.id, plugin.inlineCode); loadedPlugins.add(plugin.id); } catch(e) {}
+            setPluginRuntime(plugin.id, { status: 'loading', source, loadType: 'eval', error: null, startedAt: Date.now(), settledAt: null });
+            try {
+                injectScript(plugin.id, plugin.inlineCode);
+                loadedPlugins.add(plugin.id);
+                setPluginRuntime(plugin.id, { status: 'loaded' });
+            } catch(e) {
+                failedPlugins.add(plugin.id);
+                setPluginRuntime(plugin.id, { status: 'failed', error: String(e?.message || e) });
+                rememberPluginError(plugin.id, e, 'load');
+                throw e;
+            }
             return;
         }
         if (!plugin.url) return;
 
+        setPluginRuntime(plugin.id, { status: 'loading', source, error: null, postLoadError: null, startedAt: Date.now(), settledAt: null, durationMs: null });
+
         const rawUrl   = isCustom ? plugin.url : getActivePluginUrl(plugin, source);
         const loadType = getLoadType(plugin);
-        const cachedCode = getCachedPluginCode(plugin.id);
         const isAltUrl = !isCustom && plugin.altUrl && rawUrl === plugin.altUrl;
+        const distribution = isAltUrl ? 'beta' : (isCustom ? 'custom' : 'stable');
+        const cacheKey = `${plugin.id}|${distribution}|${rawUrl}`;
+        const cachedCode = getCachedPluginCode(cacheKey, plugin.id);
         const mirrorUrl = isAltUrl ? (plugin.altMirrorUrl || plugin.mirrorUrl) : plugin.mirrorUrl;
 
         // mod / scr 不進 fetch+eval / localStorage 快取，交給瀏覽器 HTTP cache（模組無法安全地
@@ -769,11 +937,14 @@
                 : await tryLoadScriptTag(urls, plugin.id);
             if (!ok) {
                 failedPlugins.add(plugin.id);
+                setPluginRuntime(plugin.id, { status: 'failed', error: `All ${loadType} URLs failed` });
+                rememberPluginError(plugin.id, `All ${loadType} URLs failed`, 'load');
                 showPluginRetryBtn(plugin.id);
                 showNotification("❌", t('pluginLoadFailed', { name: getPluginName(plugin) }), t('pluginLoadRetry'));
                 throw new Error(`All ${loadType} URLs failed`);
             }
             loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
+            setPluginRuntime(plugin.id, { status: 'loaded', loadType, loadedUrl: rawUrl });
             hidePluginRetryBtn(plugin.id);
             return;
         }
@@ -788,8 +959,9 @@
             try {
                 injectScript(plugin.id, code);
                 loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
+                setPluginRuntime(plugin.id, { status: 'loaded', loadType, loadedUrl: primary });
                 hidePluginRetryBtn(plugin.id);
-                if (useCache) setCachedPluginCode(plugin.id, code); // 注入成功才覆蓋快取
+                if (useCache) setCachedPluginCode(cacheKey, plugin.id, code, rawUrl, distribution); // 注入成功才覆蓋快取
                 return;
             } catch(e) {
                 console.warn(`🐈‍⬛ [PCM] ⚠️ ${plugin.name} 新版執行失敗，改用舊版快取：${e.message}`);
@@ -801,6 +973,7 @@
             try {
                 injectScript(plugin.id, oldCache);
                 loadedPlugins.add(plugin.id); failedPlugins.delete(plugin.id);
+                setPluginRuntime(plugin.id, { status: 'cached', loadType, loadedUrl: primary });
                 hidePluginRetryBtn(plugin.id);
                 console.log(`🐈‍⬛ [PCM] ⚡ ${plugin.name} from cache (fallback)`);
                 return;
@@ -808,13 +981,15 @@
         }
 
         failedPlugins.add(plugin.id);
+        setPluginRuntime(plugin.id, { status: 'failed', error: 'All URLs failed' });
+        rememberPluginError(plugin.id, 'All URLs failed', 'load');
         showPluginRetryBtn(plugin.id);
         showNotification("❌", t('pluginLoadFailed', { name: getPluginName(plugin) }), t('pluginLoadRetry'));
         throw new Error('All URLs failed');
     }
 
-    function showPluginRetryBtn(pluginId) {
-        const item = document.querySelector(`.bc-plugin-item[data-plugin-id="${CSS.escape(pluginId)}"]`);
+    function showPluginRetryBtn(pluginId, targetItem = null) {
+        const item = targetItem || document.querySelector(`.bc-plugin-item[data-plugin-id="${CSS.escape(pluginId)}"]`);
         if (!item || item.querySelector('.bc-plugin-retry-btn')) return;
         const btn = document.createElement('button');
         btn.className = 'bc-plugin-retry-btn';
@@ -1029,13 +1204,19 @@
         .bc-plugin-item.beta-enabled { background:rgba(205,128,53,0.1); border-color:rgba(205,128,53,0.35); }
         .bc-plugin-item.beta-enabled::before { content:''; position:absolute; top:0; left:0; width:0; height:0; border-left:20px solid #CD8035; border-bottom:20px solid transparent; z-index:1; }
         .bc-plugin-item.failed { border-color:rgba(255,80,80,0.4); background:rgba(255,50,50,0.06); }
+        .bc-plugin-item.runtime-warning { border-color:rgba(245,158,11,.5); }
         .bc-plugin-item:hover { background:rgba(255,255,255,0.08); border-color:rgba(127,83,205,0.3); transform:translateY(-2px); box-shadow:0 8px 20px rgba(127,83,205,0.15); }
         .bc-plugin-item-header { display:flex; align-items:center; position:relative; }
-        .bc-plugin-icon { font-size:22px; margin-right:10px; display:flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:10px; background:rgba(255,255,255,0.1); flex-shrink:0; }
-        .bc-plugin-icon img { width:22px; height:22px; border-radius:4px; }
+        .bc-plugin-icon { font-size:22px; margin-right:10px; display:flex; align-items:center; justify-content:center; width:42px; height:42px; border-radius:10px; background:rgba(255,255,255,0.1); flex-shrink:0; overflow:hidden; }
+        .bc-plugin-icon img { display:block; width:100%; height:100%; border-radius:inherit; object-fit:cover; }
         .bc-plugin-info { flex:1; color:#fff; min-width:0; }
         .bc-plugin-name { font-size:13px; font-weight:500; margin:0; color:#fff; }
         .bc-plugin-desc { font-size:11px; color:#a0a9c0; margin:3px 0 0; line-height:1.4; }
+        .bc-plugin-runtime-status { display:block; min-height:13px; margin-top:3px; color:#a0a9c0; font-size:9px; }
+        .bc-plugin-runtime-status[data-status="loaded"] { color:#82d6a1; }
+        .bc-plugin-runtime-status[data-status="cached"] { color:#f3c67a; }
+        .bc-plugin-runtime-status[data-status="failed"] { color:#ff9292; }
+        .bc-plugin-runtime-status[data-status="reload"] { color:#f3c67a; }
 
         .bc-plugin-info-btn { position:absolute; bottom:0; right:0; width:28px; height:28px; cursor:pointer; text-decoration:none; z-index:2; border-radius:0 0 12px 0; }
         .bc-plugin-info-btn::before { content:''; position:absolute; bottom:0; right:0; width:0; height:0; border-style:solid; border-width:0 0 28px 28px; border-color:transparent transparent rgba(255,255,255,0.08) transparent; transition:border-color .2s; }
@@ -1059,8 +1240,8 @@
         .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-label:nth-child(2) { color:#fff; }
         .bc-plugin-toggle-tri[data-state="beta"]   .bc-plugin-toggle-tri-label:nth-child(3) { color:#fff; }
 
-        .bc-plugin-retry-btn { position:absolute; top:8px; right:8px; width:26px; height:26px; background:rgba(255,80,80,0.2); border:1px solid rgba(255,80,80,0.4); border-radius:50%; cursor:pointer; font-size:14px; color:#ff8080; display:flex; align-items:center; justify-content:center; transition:all .2s; z-index:3; padding:0; }
-        .bc-plugin-retry-btn:hover { background:rgba(255,80,80,0.4); color:#fff; transform:rotate(180deg); }
+        .bc-plugin-retry-btn { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:38px; height:38px; background:rgba(32,18,45,0.92); border:1px solid rgba(255,80,80,0.65); border-radius:50%; cursor:pointer; font-size:19px; color:#ff9b9b; display:flex; align-items:center; justify-content:center; transition:background .2s,color .2s,box-shadow .2s,transform .2s; z-index:4; padding:0; box-shadow:0 4px 14px rgba(0,0,0,.38); }
+        .bc-plugin-retry-btn:hover { background:rgba(112,35,55,0.96); color:#fff; box-shadow:0 5px 18px rgba(255,80,80,.28); transform:translate(-50%,-50%) rotate(180deg); }
 
         .bc-plugin-delete-btn { position:absolute; inset:0; width:100%; height:100%; background:rgba(20,10,10,0.55); border:none; border-radius:12px; cursor:pointer; font-size:22px; color:#ff8080; display:flex; align-items:center; justify-content:center; transition:background .2s; z-index:4; padding:0; }
         .bc-plugin-delete-btn:hover { background:rgba(180,30,30,0.65); }
@@ -1080,7 +1261,8 @@
         .bc-liko-toggle-notification.show { transform:translateY(0); opacity:1; }
         .bc-liko-toggle-notification.hide { transform:translateY(-6px); opacity:0; }
 
-        .bc-liko-system-notification { position:fixed; top:20px; right:20px; background:rgba(26,32,46,0.95); border:1px solid rgba(127,83,205,0.4); color:#fff; padding:12px 16px; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.3); z-index:2147483648; font-family:'PingFang TC','Microsoft JhengHei','Noto Sans TC','Heiti TC',sans-serif; font-size:13px; max-width:280px; transform:translateX(320px); opacity:0; transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .3s ease; user-select:none; cursor:pointer; pointer-events:auto; }
+        .bc-liko-notification-stack { position:fixed; right:20px; bottom:15vh; z-index:2147483648; width:min(312px,calc(100vw - 40px)); max-height:70vh; display:flex; flex-direction:column; align-items:stretch; gap:10px; pointer-events:none; }
+        .bc-liko-system-notification { position:relative; box-sizing:border-box; width:100%; flex-shrink:0; background:rgba(26,32,46,0.95); border:1px solid rgba(127,83,205,0.4); color:#fff; padding:12px 16px; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.3); font-family:'PingFang TC','Microsoft JhengHei','Noto Sans TC','Heiti TC',sans-serif; font-size:13px; transform:translateX(340px); opacity:0; transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .3s ease; user-select:none; cursor:pointer; pointer-events:auto; }
         .bc-liko-system-notification.show { transform:translateX(0); opacity:1; }
         .bc-liko-system-notification.hide { transform:translateX(320px); opacity:0; }
 
@@ -1101,15 +1283,17 @@
         else { currentState = isTri ? (plugin.state || "off") : null; isEnabled = source === 'custom' ? plugin.enabled : isPluginEnabled(plugin); }
         isBeta = isTri && currentState === "beta";
 
-        item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}${failedPlugins.has(plugin.id) ? ' failed' : ''}`;
+        const runtime = pluginRuntime.get(plugin.id) || { status: 'idle' };
+        item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}${failedPlugins.has(plugin.id) ? ' failed' : ''}${runtime.postLoadError ? ' runtime-warning' : ''}`;
         item.setAttribute('data-plugin-id', plugin.id);
 
         // XSS 防護：icon/website 只接受 https（拒 javascript: 等 scheme），進 innerHTML 前一律 escapeHtml。
         const isHttpsUrl = (u) => typeof u === 'string' && /^https:\/\//i.test(u);
         const iconUrl = isHttpsUrl(plugin.customIcon) ? plugin.customIcon : (isHttpsUrl(plugin.icon) ? plugin.icon : null);
+        const fallbackIcon = plugin.iemoji || (!isHttpsUrl(plugin.icon) ? plugin.icon : null) || '🔌';
         const iconHtml = iconUrl
-            ? `<img src="${escapeHtml(iconUrl)}" alt="" />`
-            : escapeHtml(plugin.icon || '🔌');
+            ? `<img class="bc-plugin-icon-image" src="${escapeHtml(iconUrl)}" alt="" /><span class="bc-plugin-icon-fallback" hidden>${escapeHtml(fallbackIcon)}</span>`
+            : `<span class="bc-plugin-icon-fallback">${escapeHtml(fallbackIcon)}</span>`;
 
         const infoBtnHtml = isHttpsUrl(plugin.website)
             ? `<a class="bc-plugin-info-btn" href="${escapeHtml(plugin.website)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t('visitWebsite'))}"></a>`
@@ -1119,9 +1303,23 @@
             ? (() => { const labels = getTriLabels(plugin); return `<button class="bc-plugin-toggle-tri" data-plugin-tri="${plugin.id}" data-source="${source}" data-state="${currentState}"><div class="bc-plugin-toggle-tri-track"></div><div class="bc-plugin-toggle-tri-labels"><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[0])}</span><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[1])}</span><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[2])}</span></div></button>`; })()
             : `<button class="bc-plugin-toggle${isEnabled ? ' active' : ''}" data-plugin="${plugin.id}" data-source="${source}"></button>`;
 
-        item.innerHTML = `${infoBtnHtml}<div class="bc-plugin-item-header"><div class="bc-plugin-icon">${iconHtml}</div><div class="bc-plugin-info"><h4 class="bc-plugin-name">${escapeHtml(getPluginName(plugin))}</h4><p class="bc-plugin-desc">${escapeHtml(getPluginDescription(plugin))}</p></div>${toggleHtml}</div>`;
+        const runtimeLabels = isCJK()
+            ? { loading: '載入中…', loaded: '已載入', cached: '已從快取救援', failed: '載入失敗' }
+            : { loading: 'Loading…', loaded: 'Loaded', cached: 'Recovered from cache', failed: 'Load failed' };
+        const runtimeStatus = runtime.reloadRequired ? 'reload' : runtime.status;
+        const runtimeText = runtime.reloadRequired
+            ? (isCJK() ? '已停用，重新整理後生效' : 'Disabled · reload required')
+            : (runtimeLabels[runtime.status] || '');
+        item.innerHTML = `${infoBtnHtml}<div class="bc-plugin-item-header"><div class="bc-plugin-icon">${iconHtml}</div><div class="bc-plugin-info"><h4 class="bc-plugin-name">${escapeHtml(getPluginName(plugin))}</h4><p class="bc-plugin-desc">${escapeHtml(getPluginDescription(plugin))}</p><small class="bc-plugin-runtime-status" data-status="${escapeHtml(runtimeStatus)}">${escapeHtml(runtimeText)}</small></div>${toggleHtml}</div>`;
+        const iconImage = item.querySelector('.bc-plugin-icon-image');
+        if (iconImage) iconImage.addEventListener('error', () => {
+            console.warn(`🐈‍⬛ [PCM] ⚠️ 插件圖片載入失敗，改用 Emoji：${plugin.id} (${iconUrl})`);
+            iconImage.hidden = true;
+            const fallback = item.querySelector('.bc-plugin-icon-fallback');
+            if (fallback) fallback.hidden = false;
+        }, { once: true });
 
-        if (failedPlugins.has(plugin.id)) showPluginRetryBtn(plugin.id); // re-attach if rebuilding
+        if (failedPlugins.has(plugin.id)) showPluginRetryBtn(plugin.id, item); // re-attach if rebuilding
 
         return item;
     }
@@ -1191,11 +1389,16 @@
             <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${escapeHtml(t('customFieldDesc'))}</label>
             <input id="pcm-add-desc" type="text" style="${fieldStyle}" autocomplete="off" />
             <label style="font-size:11px;color:#a0a9c0;display:block;margin-bottom:4px;">${escapeHtml(t('customFieldType'))}</label>
-            <select id="pcm-add-type" style="${fieldStyle.replace('margin-bottom:10px','margin-bottom:14px')}">
-                <option value="eval">${escapeHtml(t('customTypeEval'))}</option>
-                <option value="scr">${escapeHtml(t('customTypeScr'))}</option>
-                <option value="mod">${escapeHtml(t('customTypeMod'))}</option>
-            </select>
+            <div id="pcm-add-type" class="pcm-module-select" style="position:relative;margin-bottom:14px;">
+                <button id="pcm-add-type-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" style="${fieldStyle.replace('margin-bottom:10px','margin-bottom:0')}text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                    <span id="pcm-add-type-label">${escapeHtml(t('customTypeEval'))}</span><span aria-hidden="true" style="font-size:10px;">▼</span>
+                </button>
+                <div id="pcm-add-type-menu" role="listbox" tabindex="-1" hidden style="position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:2;padding:4px;background:rgba(22,27,40,.99);border:1px solid rgba(167,139,250,.45);border-radius:9px;box-shadow:0 12px 28px rgba(0,0,0,.5);">
+                    <button type="button" role="option" aria-selected="true" data-value="eval" style="display:block;width:100%;padding:8px 9px;border:0;border-radius:6px;background:rgba(127,83,205,.35);color:#fff;text-align:left;font:inherit;cursor:pointer;">${escapeHtml(t('customTypeEval'))}</button>
+                    <button type="button" role="option" aria-selected="false" data-value="scr" style="display:block;width:100%;padding:8px 9px;border:0;border-radius:6px;background:transparent;color:#d8dcec;text-align:left;font:inherit;cursor:pointer;">${escapeHtml(t('customTypeScr'))}</button>
+                    <button type="button" role="option" aria-selected="false" data-value="mod" style="display:block;width:100%;padding:8px 9px;border:0;border-radius:6px;background:transparent;color:#d8dcec;text-align:left;font:inherit;cursor:pointer;">${escapeHtml(t('customTypeMod'))}</button>
+                </div>
+            </div>
             <div style="display:flex;gap:8px;">
                 <button id="pcm-add-cancel" style="flex:1;padding:9px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:#a0a9c0;font-size:13px;cursor:pointer;font-family:inherit;">${escapeHtml(t('customBtnCancel'))}</button>
                 <button id="pcm-add-confirm" style="flex:1;padding:9px;border:none;border-radius:8px;background:linear-gradient(135deg,#7F53CD,#A78BFA);color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">${escapeHtml(t('customBtnAdd'))}</button>
@@ -1210,14 +1413,47 @@
         const iconInput    = overlay.querySelector('#pcm-add-icon');
         const descInput    = overlay.querySelector('#pcm-add-desc');
         const typeSelect   = overlay.querySelector('#pcm-add-type');
+        const typeTrigger  = overlay.querySelector('#pcm-add-type-trigger');
+        const typeLabel    = overlay.querySelector('#pcm-add-type-label');
+        const typeMenu     = overlay.querySelector('#pcm-add-type-menu');
         const cancelBtn    = overlay.querySelector('#pcm-add-cancel');
         const confirmBtn   = overlay.querySelector('#pcm-add-confirm');
-        if (!nameInput || !urlInput || !iconInput || !descInput || !typeSelect || !cancelBtn || !confirmBtn) {
+        if (!nameInput || !urlInput || !iconInput || !descInput || !typeSelect || !typeTrigger || !typeLabel || !typeMenu || !cancelBtn || !confirmBtn) {
             console.error('🐈‍⬛ [PCM] Custom plugin panel failed to render');
             overlay.remove();
             return;
         }
         nameInput.focus();
+
+        let selectedType = 'eval';
+        const typeOptions = [...typeMenu.querySelectorAll('[role="option"]')];
+        const setTypeMenuOpen = open => {
+            typeMenu.hidden = !open;
+            typeTrigger.setAttribute('aria-expanded', String(open));
+            if (open) typeOptions.find(o => o.dataset.value === selectedType)?.focus();
+        };
+        const selectType = option => {
+            selectedType = option.dataset.value;
+            typeLabel.textContent = option.textContent;
+            typeOptions.forEach(o => {
+                const active = o === option;
+                o.setAttribute('aria-selected', String(active));
+                o.style.background = active ? 'rgba(127,83,205,.35)' : 'transparent';
+            });
+            setTypeMenuOpen(false);
+            typeTrigger.focus();
+        };
+        typeTrigger.addEventListener('click', e => { e.stopPropagation(); setTypeMenuOpen(typeMenu.hidden); });
+        typeOptions.forEach(option => option.addEventListener('click', e => { e.stopPropagation(); selectType(option); }));
+        typeSelect.addEventListener('keydown', e => {
+            if (e.key === 'Escape') { setTypeMenuOpen(false); typeTrigger.focus(); return; }
+            if (!['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) return;
+            e.preventDefault();
+            if (typeMenu.hidden) { setTypeMenuOpen(true); return; }
+            const current = Math.max(0, typeOptions.indexOf(document.activeElement));
+            if (e.key === 'Enter' || e.key === ' ') selectType(typeOptions[current]);
+            else typeOptions[(current + (e.key === 'ArrowDown' ? 1 : -1) + typeOptions.length) % typeOptions.length].focus();
+        });
 
         const close = () => overlay.remove();
         cancelBtn.addEventListener('click', e => { e.stopPropagation(); close(); });
@@ -1234,7 +1470,7 @@
             if (!name) { showNotification("⚠️", "PCM", t('customNameRequired')); return; }
             if (!url.endsWith('.js')) { showNotification("⚠️", "PCM", t('customUrlInvalid')); return; }
 
-            const type = typeSelect.value; // 'eval' | 'scr' | 'mod'
+            const type = selectedType; // 'eval' | 'scr' | 'mod'
             const plugin = { id: 'custom_' + Date.now(), name, en_name: name, url, icon: icon || '🔌', description: desc, en_description: desc, enabled: false, type };
             customPlugins.push(plugin);
             saveCustomPlugins();
@@ -1321,12 +1557,14 @@
                 toggle.classList.toggle('active', newVal);
                 toggle.closest('.bc-plugin-item').classList.toggle('enabled', newVal);
                 showToggleNotification(newVal ? "🐈‍⬛" : "🐾", `${getPluginName(plugin)} ${newVal ? t('pluginEnabled') : t('pluginDisabled')}`, newVal ? t('willTakeEffect') : t('willNotStart'));
+                setPluginRuntime(id, { reloadRequired: !newVal && loadedPlugins.has(id) });
                 if (newVal && !loadedPlugins.has(id) && typeof Player !== 'undefined') loadSubPlugin(plugin, 'account').catch(() => {});
             } else if (src === 'custom') {
                 plugin.enabled = !plugin.enabled; saveCustomPlugins();
                 toggle.classList.toggle('active', plugin.enabled);
                 toggle.closest('.bc-plugin-item').classList.toggle('enabled', plugin.enabled);
                 showToggleNotification(plugin.enabled ? "🐈‍⬛" : "🐾", `${plugin.name} ${plugin.enabled ? t('pluginEnabled') : t('pluginDisabled')}`, plugin.enabled ? t('willTakeEffect') : t('willNotStart'));
+                setPluginRuntime(id, { reloadRequired: !plugin.enabled && loadedPlugins.has(id) });
                 if (plugin.enabled && !loadedPlugins.has(id)) loadSubPlugin(plugin, 'custom').catch(() => {});
             } else {
                 plugin.enabled = !plugin.enabled;
@@ -1334,6 +1572,7 @@
                 toggle.classList.toggle('active', plugin.enabled);
                 toggle.closest('.bc-plugin-item').classList.toggle('enabled', plugin.enabled);
                 showToggleNotification(plugin.enabled ? "🐈‍⬛" : "🐾", `${getPluginName(plugin)} ${plugin.enabled ? t('pluginEnabled') : t('pluginDisabled')}`, plugin.enabled ? t('willTakeEffect') : t('willNotStart'));
+                setPluginRuntime(id, { reloadRequired: !plugin.enabled && loadedPlugins.has(id) });
                 if (plugin.enabled && !loadedPlugins.has(id)) loadSubPlugin(plugin, 'local').catch(() => {});
             }
             return;
@@ -1363,6 +1602,7 @@
             showToggleNotification(next === 'off' ? "🐾" : next === 'stable' ? "🐈‍⬛" : "🧪",
                 next === 'off' ? `${getPluginName(plugin)} ${t('pluginDisabled')}` : `${getPluginName(plugin)} ${labels[next === 'stable' ? 1 : 2]} ${t('pluginEnabled')}`,
                 next === 'off' ? t('willNotStart') : t('willTakeEffect'));
+            setPluginRuntime(id, { reloadRequired: next === 'off' && loadedPlugins.has(id) });
             if (next !== 'off' && !loadedPlugins.has(id)) loadSubPlugin(plugin, src === 'account' ? 'account' : 'local').catch(() => {});
         }
     }
@@ -1632,22 +1872,54 @@
         toggleNotifTimer = setTimeout(() => { notif.classList.remove('show'); notif.classList.add('hide'); setTimeout(() => notif?.parentNode?.removeChild(notif), 350); }, 2500);
     }
 
-    let systemNotifTimer = null;
-    function showNotification(icon, title, message) {
-        let notif = document.getElementById("pcm-system-notif");
-        if (notif) { notif.classList.remove('show'); notif.classList.add('hide'); clearTimeout(systemNotifTimer); setTimeout(() => _createSystemNotif(icon, title, message), 300); return; }
-        _createSystemNotif(icon, title, message);
+    function getNotificationStack() {
+        let stack = document.getElementById('pcm-notification-stack');
+        if (!stack) {
+            stack = document.createElement('div');
+            stack.id = 'pcm-notification-stack';
+            stack.className = 'bc-liko-notification-stack';
+            document.body.appendChild(stack);
+        }
+        return stack;
     }
-    function _createSystemNotif(icon, title, message) {
-        document.getElementById("pcm-system-notif")?.remove();
+    function dismissStackNotification(notif) {
+        if (!notif || notif.dataset.dismissing === 'true') return;
+        notif.dataset.dismissing = 'true';
+        notif.classList.remove('show');
+        notif.classList.add('hide');
+        setTimeout(() => {
+            const stack = notif.parentElement;
+            notif.remove();
+            if (stack?.id === 'pcm-notification-stack' && !stack.children.length) stack.remove();
+        }, 400);
+    }
+    function showPreviousPluginErrorNotice() {
+        if (!previousPluginError?.pluginId || document.getElementById('pcm-previous-error-notif')) return;
+        const pluginName = previousPluginError.pluginName || previousPluginError.pluginId;
+        const notif = document.createElement('div');
+        notif.id = 'pcm-previous-error-notif';
+        notif.className = 'bc-liko-system-notification';
+        const title = isCJK() ? '上次插件錯誤' : 'Previous plugin error';
+        const message = isCJK()
+            ? `上次 ${pluginName} 插件發生錯誤；若仍持續發生，建議暫時停用。`
+            : `${pluginName} reported an error last time. If it continues, consider disabling it.`;
+        notif.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:2px;"><span style="font-size:16px;margin-right:7px;">⚠️</span><strong style="font-size:12px;">${escapeHtml(title)}</strong></div><div style="font-size:11px;opacity:.85;">${escapeHtml(message)}</div>`;
+        const dismiss = () => dismissStackNotification(notif);
+        notif.addEventListener('click', dismiss, { once: true });
+        getNotificationStack().appendChild(notif);
+        requestAnimationFrame(() => requestAnimationFrame(() => notif.classList.add('show')));
+        setTimeout(dismiss, 8000);
+        previousPluginError = null;
+    }
+    function showNotification(icon, title, message, durationMs = 3500) { _createSystemNotif(icon, title, message, durationMs); }
+    function _createSystemNotif(icon, title, message, durationMs = 3500) {
         const notif = document.createElement("div");
-        notif.id = "pcm-system-notif";
         notif.className = "bc-liko-system-notification";
         notif.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:2px;"><span style="font-size:16px;margin-right:7px;">${escapeHtml(icon)}</span><strong style="font-size:12px;">${escapeHtml(title)}</strong></div><div style="font-size:11px;opacity:.85;">${escapeHtml(message)}</div>`;
-        document.body.appendChild(notif);
-        notif.addEventListener('click', () => { notif.classList.remove('show'); notif.classList.add('hide'); clearTimeout(systemNotifTimer); setTimeout(() => notif?.parentNode?.removeChild(notif), 400); });
+        getNotificationStack().appendChild(notif);
+        notif.addEventListener('click', () => dismissStackNotification(notif), { once: true });
         requestAnimationFrame(() => requestAnimationFrame(() => notif.classList.add('show')));
-        systemNotifTimer = setTimeout(() => { notif.classList.remove('show'); notif.classList.add('hide'); setTimeout(() => notif?.parentNode?.removeChild(notif), 400); }, 3500);
+        setTimeout(() => dismissStackNotification(notif), durationMs);
     }
 
     // === Language Change ========================================
@@ -1776,9 +2048,8 @@
         let lastErr;
         for (const base of _DEP_BASES) {
             try {
-                const res = await fetch(base + rel, { cache: 'no-store' });
+                const { res, text } = await fetchTextWithTimeout(base + rel, { cache: 'no-store' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const text = await res.text();
                 if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
                 return text;
             } catch(e) { lastErr = e; console.warn(`🐈‍⬛ [PCM] ⚠️ ${base}${rel}: ${e.message}`); }
@@ -1896,8 +2167,10 @@
 
         lastDetectedLanguage = getLang();
         customPlugins = loadCustomPlugins();
+        installPCMReadOnlyApi();
 
         injectStyles();
+        setTimeout(showPreviousPluginErrorNotice, 1200);
         monitorPageChanges();
         tryRegisterCommand();
 
@@ -1914,6 +2187,7 @@
             if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
             window.removeEventListener('error', _onPluginWindowError);
             window.removeEventListener('unhandledrejection', _onPluginUnhandledRejection);
+            document.getElementById('pcm-notification-stack')?.remove();
             isInitialized = false;
         });
     }
