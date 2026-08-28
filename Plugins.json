@@ -37,7 +37,7 @@
     {
       "id": "HT-QI",
       "name": "BC 快捷互动插件",
-      "icon": "⚡",
+      "iemoji": "⚡",
       "en_name": "BC quick-interaction",
       "description": "快捷互动插件，提供部位直选、批量执行、动作收藏、连招编排、ECHO動作匯出、自訂動作",
       "en_description": "quick-interaction plugins offer features such as direct selection of body parts, batch execution, action collection, combo choreography, ECHO action export, and custom actions.",
@@ -51,7 +51,7 @@
     {
       "id": "Liko-LCE",
       "name": "Liko的俱樂部擴充(測試)",
-      "icon": "✨",
+      "iemoji": "✨",
       "en_name": "Liko's Club Expansion(test)",
       "description": "以WCE為基底合併幾個小型插件功能，並提供美化登入介面與帳號記憶功能",
       "en_description": "Based on WCE, merge several small plugin features, and provide a beautified login interface with account memory functionality.",
@@ -65,7 +65,8 @@
     {
       "id": "Liko-AEE",
       "name": "Liko的外觀編輯拓展(測試中)",
-      "icon": "🐈‍⬛",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/BC-AEE@main/public/AEE_icon.jpg",
+      "iemoji": "🐈‍⬛",
       "en_name": "Liko's Appearance editing extension(testing)",
       "description": "更強大的編輯器，並且支援更多的服裝編輯(測試中)",
       "en_description": "A more powerful editor, and support for more clothing editing.(testing)",
@@ -79,7 +80,8 @@
     {
       "id": "Liko-AFC",
       "name": "繁戀如花 ─繽紛─",
-      "icon": "🌸",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/BC-AFC@main/Images/AFC-ICON.png",
+      "iemoji": "🌸",
       "en_name": "Abundantia Florum ─Chromatica─",
       "description": "更多戀人，如百花盛放的愛情篇章，並搭載可延展的戀人鎖機制。",
       "en_description": "An abundance of lovers, like a love story blooming in countless flowers, featuring an extensible Lover’s Lock system.",
@@ -93,7 +95,7 @@
     {
       "id": "Liko-FCM",
       "name": "Liko的好友與房間管理",
-      "icon": "👥",
+      "iemoji": "👥",
       "en_name": "Friends and ChatRoom Manager",
       "description": "更好的好友管理與房間管理功能",
       "en_description": "Improved friend and room management features.",
@@ -107,7 +109,8 @@
     {
       "id": "Liko-HSC",
       "name": "催眠奴隸俱樂部",
-      "icon": "🌀",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/BC-HSC@main/Assets/Icon/HSC-iconB2.png",
+      "iemoji": "🌀",
       "en_name": "Hypnotic Slave Club",
       "description": "提供多樣催眠效果，增強催眠的沉浸度",
       "en_description": "Provides a variety of hypnosis effects to enhance the immersion of the experience.",
@@ -121,7 +124,7 @@
     {
       "id": "Liko-CHE",
       "name": "Liko的聊天室書記官",
-      "icon": "📖",
+      "iemoji": "📖",
       "en_name": "Liko's Chat History Exporter",
       "description": "聊天室信息轉HTML，並且提供最多7天的信息救援(需要手動啟用緩存功能)",
       "en_description": "Convert chat history to HTML and provides message recovery for up to 7 days.(The caching feature requires manual activation.)",
@@ -134,7 +137,7 @@
     {
       "id": "Liko-Image_Uploader",
       "name": "Liko的圖片上傳器",
-      "icon": "🖼️",
+      "iemoji": "🖼️",
       "en_name": "Liko's Image Uploader",
       "description": "拖曳上傳圖片並分享到聊天室",
       "en_description": "Drag and drop image upload and share to chatroom",
@@ -147,7 +150,7 @@
     {
       "id": "Liko-MAT",
       "name": "Liko的自動翻譯",
-      "icon": "🌐",
+      "iemoji": "🌐",
       "en_name": "Liko's Messages Auto Translator",
       "description": "自動翻譯(使用Google api)",
       "en_description": "Auto translate BC chat messages using Google API",
@@ -160,7 +163,7 @@
     {
       "id": "Liko-Tool",
       "name": "Liko的工具包",
-      "icon": "🧰",
+      "iemoji": "🧰",
       "en_name": "Liko's Tool Kit",
       "description": "有許多小功能合集的工具包，但也有點不穩定",
       "en_description": "A collection of small utility functions, but somewhat unstable",
@@ -173,7 +176,7 @@
     {
       "id": "Liko-ACV",
       "name": "Liko的自動創建影片",
-      "icon": "🎬",
+      "iemoji": "🎬",
       "en_name": "Liko's Automatically create video.",
       "description": "Liko的自動創建影片",
       "en_description": "Liko's Automatically create video.",
@@ -186,7 +189,7 @@
     {
       "id": "Liko-Kaomoji",
       "name": "文字表情",
-      "icon": "😀",
+      "iemoji": "😀",
       "en_name": "Kaomoji",
       "description": "文字表情快捷面板，並提供自訂、常用快捷分類",
       "en_description": "Quick-access text emoji panel with custom and frequently-used categories.",
@@ -199,7 +202,7 @@
     {
       "id": "Liko-BMM",
       "name": "Liko的地圖房迷你地圖",
-      "icon": "🗺️",
+      "iemoji": "🗺️",
       "en_name": "Liko's Bondage Map Minimap",
       "description": "BC 地圖房迷你地圖",
       "en_description": "BC map room minimap",
@@ -212,7 +215,7 @@
     {
       "id": "Liko-CRA",
       "name": "聊天室輔助工具",
-      "icon": "🔧",
+      "iemoji": "🔧",
       "en_name": "ChatRoom Assistant",
       "description": "替他人改姿勢、輸入歷史、BIO時區頭頂時間、@動作自帶名字、指令/房間轉按鈕",
       "en_description": "Change pose for others, input history, timezone display above head in BIO, @actions with auto-name inclusion, command /room converted to button.",
@@ -225,7 +228,7 @@
     {
       "id": "Liko-Prank",
       "name": "Liko對朋友的惡作劇",
-      "icon": "🪄",
+      "iemoji": "🪄",
       "en_name": "Liko's Friend Prank",
       "description": "內褲大盜鬧得BC社群人心惶惶！",
       "en_description": "The underwear thief causing panic in the BC community!",
@@ -238,7 +241,7 @@
     {
       "id": "Liko-CDB",
       "name": "Liko的自訂更衣室背景",
-      "icon": "👗",
+      "iemoji": "👗",
       "en_name": "Liko's Custom Dressing Background",
       "description": "更衣室背景替換，並提供網格對焦與替換姿勢",
       "en_description": "Replace the wardrobe background with a grid-based focus assist and pose change function.",
@@ -251,7 +254,7 @@
     {
       "id": "Liko-CMC",
       "name": "Liko的聊天室音樂控制器(測試中)",
-      "icon": "🎵",
+      "iemoji": "🎵",
       "en_name": "Liko's Music Controller(testing)",
       "description": "支援歌詞(需要有曲名)、歌曲列表",
       "en_description": "Supports lyrics (must have song title) and song list.",
@@ -264,7 +267,7 @@
     {
       "id": "Liko-MPL",
       "name": "手機直版佈局(測試)",
-      "icon": "📱",
+      "iemoji": "📱",
       "en_name": "Mobile Portrait Layout(test)",
       "description": "支援房間搜尋與聊天室的直版佈局",
       "en_description": "Supports vertical layout for ChatSearch and ChatRoom.",
@@ -277,7 +280,7 @@
     {
       "id": "Liko-NOI",
       "name": "Liko的邀請通知器",
-      "icon": "📧",
+      "iemoji": "📧",
       "en_name": "Liko's Notification of Invites",
       "description": "發出好友、白單、黑單的信息!",
       "en_description": "Customize the notification message when sending a friend, whitelist, or blacklist request.",
@@ -290,7 +293,7 @@
     {
       "id": "Liko-WPS",
       "name": "WCE的個人資料分享",
-      "icon": "🆔",
+      "iemoji": "🆔",
       "en_name": "WCE Profile Share.",
       "description": "WCE的個人資料分享，需開啟WCE的個人資料保存",
       "en_description": "WCE Profile Share, need to enable WCE profile saving.",
@@ -303,7 +306,7 @@
     {
       "id": "Liko-Region_switch",
       "name": "快速切換混合&女性區",
-      "icon": "⚧️",
+      "iemoji": "⚧️",
       "en_name": "Region switch",
       "description": "快速切換混合&女性區",
       "en_description": "Region switch",
@@ -316,7 +319,7 @@
     {
       "id": "Liko-TRC",
       "name": "Liko的玩具遙控器",
-      "icon": "🎮",
+      "iemoji": "🎮",
       "en_name": "Liko's Toy remote control",
       "description": "聊天室玩具控制",
       "en_description": "Chat room Toy remote control",
@@ -329,7 +332,7 @@
     {
       "id": "Liko-CFT",
       "name": "聊天室信息過濾器",
-      "icon": "📋",
+      "iemoji": "📋",
       "en_name": "RChat Filter Tool",
       "description": "聊天室信息過濾",
       "en_description": "Chat room message filtering",
@@ -342,7 +345,7 @@
     {
       "id": "Liko-BDG",
       "name": "你畫我猜(測試)",
-      "icon": "🫟",
+      "iemoji": "🫟",
       "en_name": "Draw Game(test)",
       "description": "可以在聊天室隨意塗鴉",
       "en_description": "Can doodle freely in the chat room.",
@@ -355,7 +358,7 @@
     {
       "id": "Liko-CPB",
       "name": "Liko的自定義個人資料頁面背景",
-      "icon": "🪪",
+      "iemoji": "🪪",
       "en_name": "Liko's Custom Profile Background",
       "description": "自定義個人資料頁面背景並分享給他人",
       "en_description": "Customize profile page background and share it with others.",
@@ -368,7 +371,7 @@
     {
       "id": "Liko-Chat_TtoB",
       "name": "Liko的對話變按鈕",
-      "icon": "💬",
+      "iemoji": "💬",
       "en_name": "Liko's Chat Text to Button",
       "description": "聊天室信息轉按鈕，現在還多了傳送門功能!",
       "en_description": "Convert chat messages to buttons, now with portal feature!",
@@ -381,7 +384,7 @@
     {
       "id": "Liko-BTP",
       "name": "BC翻譯補丁",
-      "icon": "📔",
+      "iemoji": "📔",
       "en_name": "BC-translation-patch",
       "description": "中文的翻譯補丁，補充上遺漏翻譯",
       "en_description": "Chinese translation supplement, to fill in the missing translations.",
@@ -395,7 +398,8 @@
     {
       "id": "Liko-DDT",
       "name": "繪圖檢測工具",
-      "icon": "🖌️",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/DDT/DDT-icon.png",
+      "iemoji": "🖌️",
       "en_name": "Draw Detection Tool",
       "description": "偵測 canvas & DOM 物件的屬性，支持染色與位移，並支持繪製物件功能",
       "en_description": "Detect properties of canvas & DOM objects, support tinting/coloring and displacement, and support object drawing functionality.",
@@ -408,7 +412,7 @@
     {
       "id": "Liko-Release_Maid",
       "name": "Liko的解綁女僕",
-      "icon": "🧹",
+      "iemoji": "🧹",
       "en_name": "Liko's Release Maid",
       "description": "自動解綁女僕，不過有點天然，會在意外時觸發!",
       "en_description": "Auto-release maid, but a bit naive and may trigger unexpectedly!",
@@ -421,7 +425,7 @@
     {
       "id": "Liko-CUS",
       "name": "聊天室左右介面交換",
-      "icon": "📱",
+      "iemoji": "📱",
       "en_name": "Chatroom UI Swap",
       "description": "聊天室左右介面交換：左側聊天訊息、右側人物。手動開關。",
       "en_description": "Chatroom UI Swap: chat log on the left, characters on the right.",
@@ -434,7 +438,7 @@
     {
       "id": "Liko-LCS",
       "name": "程式碼沙盒",
-      "icon": "🧪",
+      "iemoji": "🧪",
       "en_name": "Code Sandbox",
       "description": "在全域作用域執行測試碼，精準追蹤並還原「這個沙盒自己造成」的副作用；支援多重沙盒、可收合、可切純控制台模式",
       "en_description": "Execute test code in the global scope, precisely track and restore side effects caused by the sandbox itself; supports multiple sandboxes, collapsible panels, and toggleable pure console mode.",
