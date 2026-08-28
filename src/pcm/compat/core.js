@@ -74,7 +74,10 @@
             'refreshFailed':      { EN: 'Update failed, using cached list' },
             'pluginLoadComplete': { EN: 'Plugin loading complete' },
             'successLoaded':      { EN: 'Loaded' },
-            'fusamLoadedCount':   { EN: 'FUSAM {count} loaded successfully' },
+            'pcmLoadedCount':     { EN: 'PCM - {count} loaded successfully' },
+            'fusamLoadedCount':   { EN: 'FUSAM - {count} loaded successfully' },
+            'pcmFailedCount':     { EN: 'PCM - {count} failed to load' },
+            'fusamFailedCount':   { EN: 'FUSAM - {count} failed to load' },
             'plugins':            { EN: 'plugins' },
             'failed':             { EN: 'failed' },
             'pluginLoadFailed':   { EN: '{name} failed to load' },
@@ -1039,8 +1042,8 @@
                 if (i + batchSize < plugins.length) await new Promise(r => setTimeout(r, 800));
             }
         if (plugins.length > 0) {
-            const successText = source === 'fusam' ? t('fusamLoadedCount', { count: ok }) : `${t('successLoaded')} ${ok} ${t('plugins')}`;
-            showLoadNotification(fail > 0 ? "⚠️" : "✅", t('pluginLoadComplete'), `${successText}${fail > 0 ? `, ${fail} ${t('failed')}` : ''}`);
+            if (ok > 0) showLoadNotification("✅", t(source === 'fusam' ? 'fusamLoadedCount' : 'pcmLoadedCount', { count: ok }), '');
+            if (fail > 0) showLoadNotification("❌", t(source === 'fusam' ? 'fusamFailedCount' : 'pcmFailedCount', { count: fail }), '');
         }
         } finally { isLoadingPlugins = false; }
     }
@@ -2318,7 +2321,7 @@
     function _createSystemNotif(icon, title, message, durationMs = 3500) {
         const notif = document.createElement("div");
         notif.className = "bc-liko-system-notification";
-        notif.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:2px;"><span style="font-size:16px;margin-right:7px;">${escapeHtml(icon)}</span><strong style="font-size:12px;">${escapeHtml(title)}</strong></div><div style="font-size:11px;opacity:.85;">${escapeHtml(message)}</div>`;
+        notif.innerHTML = `<div style="display:flex;align-items:center;${message ? 'margin-bottom:2px;' : ''}"><span style="font-size:16px;margin-right:7px;">${escapeHtml(icon)}</span><strong style="font-size:12px;">${escapeHtml(title)}</strong></div>${message ? `<div style="font-size:11px;opacity:.85;">${escapeHtml(message)}</div>` : ''}`;
         getNotificationStack().appendChild(notif);
         notif.addEventListener('click', () => dismissStackNotification(notif), { once: true });
         requestAnimationFrame(() => requestAnimationFrame(() => notif.classList.add('show')));
