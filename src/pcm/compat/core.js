@@ -871,34 +871,10 @@
 
     // 不加破快取 query string：對 jsDelivr 而言每次不同 URL = 每次快取未命中，反而是 429 來源。
     // 跟 eval/scr 一樣信任瀏覽器與 CDN 快取；要強制更新請重新整理頁面。
-    // WCE 的 module 入口含 top-level await：通過 FUSAM/BC 檢查後會先設定 FBC_VERSION，
-    // 接著等待登入帳號與設定載入。FUSAM 本身是 fire-and-forget，不會 await 這段初始化；
-    // PCM 若直接 await import()，登入前載入時就會讓整個批次永久顯示「載入中」。
-    // 以 FBC_VERSION 作為 WCE 已安全啟動的明確訊號，後半段仍在背景完成並保留錯誤診斷。
-    function awaitModuleStartup(modulePromise, id) {
-        if (id !== 'fusam:WCE') return modulePromise;
-        return new Promise((resolve, reject) => {
-            let settled = false;
-            const finish = (fn, value) => {
-                if (settled) return;
-                settled = true;
-                clearInterval(timer);
-                fn(value);
-            };
-            modulePromise.then(value => finish(resolve, value), error => finish(reject, error));
-            const timer = setInterval(() => {
-                if (globalThis.FBC_VERSION) {
-                    finish(resolve);
-                    modulePromise.catch(error => rememberPluginError(id, error, 'post-load'));
-                }
-            }, 25);
-        });
-    }
-
     async function tryImportModule(urls, id) {
         for (const url of urls) {
             try {
-                await awaitModuleStartup(import(url), id);
+                await import(url);
                 registerPluginSource(id, url);
                 return true;
             }
@@ -915,7 +891,7 @@
                     const sourceTag = `liko-plugin://${id}`;
                     code += `\n//# sourceURL=${sourceTag}`; // blob 沒有真實檔名，自行加註供錯誤歸因比對
                     blobUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
-                    await awaitModuleStartup(import(blobUrl), id);
+                    await import(blobUrl);
                     registerPluginSource(id, url, sourceTag);
                     return true;
                 } catch(e2) {
@@ -1560,6 +1536,12 @@
             enabled: fusamPluginSettings[String(addon?.id || '')] === true,
         };
     }
+    function normalizeFusamPlugins(addons) {
+        return addons
+            .filter(addon => String(addon?.id || '') !== 'WCE')
+            .map(normalizeFusamPlugin)
+            .sort((a, b) => fusamText(a.name).localeCompare(fusamText(b.name), undefined, { sensitivity: 'base', numeric: true }));
+    }
     function fusamText(value) {
         if (typeof value === 'string') return value;
         if (!value || typeof value !== 'object') return '';
@@ -1588,11 +1570,11 @@
                 }
                 if (!data) throw networkError || new Error('FUSAM manifest failed');
                 localStorage.setItem(FUSAM_CACHE_KEY, JSON.stringify(data));
-                fusamPlugins = data.addons.map(normalizeFusamPlugin).sort((a, b) => fusamText(a.name).localeCompare(fusamText(b.name), undefined, { sensitivity: 'base', numeric: true }));
+                fusamPlugins = normalizeFusamPlugins(data.addons);
             } catch(e) {
                 const cached = getCachedFusamManifest();
                 if (!cached) throw e;
-                fusamPlugins = cached.addons.map(normalizeFusamPlugin).sort((a, b) => fusamText(a.name).localeCompare(fusamText(b.name), undefined, { sensitivity: 'base', numeric: true }));
+                fusamPlugins = normalizeFusamPlugins(cached.addons);
                 console.warn(`🐈‍⬛ [PCM] ⚠️ FUSAM manifest network failed; using cache: ${e.message}`);
             }
             return fusamPlugins;
