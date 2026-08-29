@@ -1,4 +1,4 @@
-name: Publish PCM modules
+name: Build PCM bundle
 
 on:
   push:
@@ -6,34 +6,38 @@ on:
     paths:
       - 'src/pcm/**'
       - 'scripts/build-pcm.mjs'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: publish-pcm-modules
+  group: build-pcm-bundle
   cancel-in-progress: true
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 24
+          cache: npm
 
-      - name: Publish src/pcm
-        run: node scripts/build-pcm.mjs
+      - run: npm ci
+      - run: npm run build:pcm
 
-      - name: Commit generated modules
+      - name: Commit bundle
         run: |
-          if [[ -n "$(git status --porcelain Plugins/main/PCM)" ]]; then
+          if [[ -n "$(git status --porcelain dist/pcm/PCM.js)" ]]; then
             git config user.name  "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add Plugins/main/PCM
-            git commit -m "chore: publish PCM modules"
+            git add dist/pcm/PCM.js
+            git commit -m "chore: build PCM bundle"
             git push
           else
-            echo "PCM modules already up to date"
+            echo "PCM bundle already up to date"
           fi

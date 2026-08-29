@@ -20,8 +20,11 @@ preferences and plugin-loading behaviour from its first release. Extracted
 services remain available beside it and can replace internals incrementally
 without changing the entry URL or public API.
 
-Run `node scripts/build-pcm.mjs` from the repository root to publish this tree
-to `Plugins/main/PCM`. The production and local loaders try `PCM/entry.js`
-first, then fall back to the retained single-file userscript if module loading
-fails. When the legacy userscript changes, update `compat/core.js` in the same
-commit and verify that both files are byte-identical.
+This directory is the authored modular source. Run `npm run build:pcm` to bundle
+`entry.js` and all internal imports into the single production module
+`dist/pcm/PCM.js`. GitHub Pages, raw GitHub, jsDelivr and the local development
+loader all load that bundle, then fall back to the retained single-file
+userscript if module loading fails. Do not edit the generated bundle directly.
+
+When the legacy userscript changes, update `compat/core.js` in the same commit
+and verify that both files are byte-identical.

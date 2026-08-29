@@ -2,7 +2,7 @@
 // @name           Liko - Plugin Collection Manager-Loader
 // @name:zh        Liko的插件管理器-Loader
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        1.3.0
+// @version        1.4.0
 // @description    Liko's Plugin Collection Manager
 // @author         Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -17,7 +17,7 @@
 (function () {
     "use strict";
 
-    const MODULE_REL = "Plugins/main/PCM/entry.js";
+    const MODULE_REL = "dist/pcm/PCM.js";
     const MAIN_REL = "Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
 
     function buildModuleUrls() {

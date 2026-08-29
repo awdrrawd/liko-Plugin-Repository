@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         本地測試 - PCM 載入器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.2
+// @version      0.4
 // @description  本地測試載入器：優先載入模組版 PCM，失敗時回退保留的單檔版
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @author       Likolisu
@@ -33,7 +33,7 @@
             reject(new Error(`${path} → 模組載入逾時`));
         }, timeoutMs);
         script.type = 'module';
-        script.src = `http://localhost:5175/Plugins/${path}?t=${Date.now()}`;
+        script.src = `http://localhost:5175/${path}?t=${Date.now()}`;
         script.onload = () => {
             clearTimeout(timer);
             if (window.Liko?.PCM) resolve();
@@ -49,7 +49,7 @@
 
     try {
         try {
-            await loadModule('main/PCM/entry.js');
+            await loadModule('dist/pcm/PCM.js');
             console.log('🐈‍⬛ [PCM local] ✅ 本地模組版已載入');
         } catch (moduleError) {
             console.warn(`🐈‍⬛ [PCM local] ⚠️ 模組版失敗，回退單檔版：${moduleError.message}`);

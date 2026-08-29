@@ -1,0 +1,11 @@
+{
+  "name": "liko-plugin-repository",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:pcm": "node scripts/build-pcm.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.9"
+  }
+}

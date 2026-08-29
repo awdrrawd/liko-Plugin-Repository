@@ -1,25 +1,26 @@
-// Publish the modular PCM source tree without bundling. Native ES module paths
-// are preserved so GitHub Pages, raw GitHub and jsDelivr can serve the output.
-import {cpSync, mkdirSync, readdirSync, rmSync} from 'node:fs';
-import {dirname, join, relative, resolve} from 'node:path';
+import {mkdir} from 'node:fs/promises';
+import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {build} from 'esbuild';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const source = join(root, 'src', 'pcm');
-const output = join(root, 'Plugins', 'main', 'PCM');
+const outfile = resolve(root, 'dist', 'pcm', 'PCM.js');
 
-rmSync(output, {recursive: true, force: true});
-mkdirSync(output, {recursive: true});
-cpSync(source, output, {recursive: true});
+await mkdir(dirname(outfile), {recursive: true});
+await build({
+  entryPoints: [resolve(root, 'src', 'pcm', 'entry.js')],
+  outfile,
+  bundle: true,
+  format: 'esm',
+  platform: 'browser',
+  target: ['es2022'],
+  charset: 'utf8',
+  minify: true,
+  legalComments: 'none',
+  sourcemap: false,
+  banner: {
+    js: '// AUTO-GENERATED from src/pcm by scripts/build-pcm.mjs. Do not edit directly.',
+  },
+});
 
-const files = [];
-function collect(directory) {
-  for (const entry of readdirSync(directory, {withFileTypes: true})) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) collect(path);
-    else files.push(relative(root, path).replaceAll('\\', '/'));
-  }
-}
-collect(output);
-console.log(`✅ PCM modules published — ${files.length} files`);
-for (const file of files) console.log(`  ${file}`);
+console.log('✅ PCM bundle built → dist/pcm/PCM.js');
