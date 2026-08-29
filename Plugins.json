@@ -449,6 +449,20 @@
       "version": "1.0"
     },
     {
+      "id": "Liko-TTS",
+      "name": "文字轉語音",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/TTS/TTS-icon.png",
+      "iemoji": "🔊",
+      "en_name": "Text to Speech",
+      "description": "聊天室信息轉語音",
+      "en_description": "Chatroom message to voice conversion",
+      "additionalInfo": "",
+      "en_additionalInfo": "",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TTS.main.user.js",
+      "priority": 8,
+      "version": "0.6.0"
+    },
+    {
       "id": "ECHO-Cloth",
       "icon": "🥐",
       "name": "ECHO的服裝拓展",

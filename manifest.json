@@ -830,6 +830,35 @@
       ],
       "priority": 10,
       "version": "1.0"
+    },
+    {
+      "id": "Liko-TTS",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/TTS/TTS-icon.png",
+      "iemoji": "🔊",
+      "name": {
+        "cn": "文字轉語音",
+        "en": "Text to Speech"
+      },
+      "description": {
+        "cn": "聊天室信息轉語音",
+        "en": "Chatroom message to voice conversion"
+      },
+      "additionalInfo": {
+        "cn": "",
+        "en": ""
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": ["accessibility", "chat"],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TTS.main.user.js"
+        }
+      ],
+      "priority": 8,
+      "version": "0.6.0"
     }
   ]
 }
