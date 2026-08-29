@@ -1,0 +1,39 @@
+name: Publish PCM modules
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/pcm/**'
+      - 'scripts/build-pcm.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-pcm-modules
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+
+      - name: Publish src/pcm
+        run: node scripts/build-pcm.mjs
+
+      - name: Commit generated modules
+        run: |
+          if [[ -n "$(git status --porcelain Plugins/main/PCM)" ]]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add Plugins/main/PCM
+            git commit -m "chore: publish PCM modules"
+            git push
+          else
+            echo "PCM modules already up to date"
+          fi

@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'Plugins/**'          # 插件檔（版本號來源）變動時觸發
+      - '!Plugins/main/PCM/**' # PCM 模組是 src/pcm 的產物，不參與插件版本掃描
       - 'manifest.json'       # 自己的插件清單變動時觸發
       - 'external.json'       # 外部插件/Hotfix 清單變動時觸發
       - 'meta.json'           # updateId / changelog 變動時觸發
