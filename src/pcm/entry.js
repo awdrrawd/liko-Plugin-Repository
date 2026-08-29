@@ -1,6 +1,8 @@
 import {PCM_VERSION} from './config.js';
+import {installFusamCompat} from './fusam-compat.js';
 
 window.Liko ??= {};
+installFusamCompat();
 
 const existingBoot = window.Liko.__PCMBoot__;
 if (existingBoot?.promise) {

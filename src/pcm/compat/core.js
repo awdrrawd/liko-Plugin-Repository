@@ -696,6 +696,18 @@
             if (next.startedAt) next.durationMs = next.settledAt - next.startedAt;
         }
         pluginRuntime.set(id, next);
+        const fusamCompat = window.Liko?.__PCMFusamCompat__;
+        if (fusamCompat?.isOwned?.()) {
+            const status = next.status === 'loading' ? 'loading'
+                : (next.status === 'loaded' || next.status === 'cached') ? 'loaded'
+                    : next.status === 'failed' ? 'error' : 'missing';
+            fusamCompat.setAddonState(id, {
+                distribution: next.source === 'fusam' ? 'fusam'
+                    : next.source === 'account' ? 'account'
+                        : next.source === 'custom' ? 'custom' : 'stable',
+                status,
+            });
+        }
         if (patch.status && patch.status !== previous.status) pcmLog(
             patch.status === 'failed' ? 'ERROR' : 'INFO',
             `Plugin ${id}: ${previous.status} -> ${patch.status}`,
@@ -721,6 +733,9 @@
         window.Liko.PCMApi = Object.freeze({
             apiVersion: 1,
             version: MOD_VER,
+            ...(window.Liko?.__PCMFusamCompat__?.isOwned?.()
+                ? { modals: window.Liko.__PCMFusamCompat__.api.modals }
+                : {}),
             list: () => subPlugins.map(plugin => ({
                 id: plugin.id,
                 name: getPluginName(plugin),
@@ -739,6 +754,10 @@
                 plugins: [...pluginRuntime].map(([id, state]) => ({ id, ...state })),
                 lastPluginError: (() => { try { return JSON.parse(localStorage.getItem(LAST_PLUGIN_ERROR_KEY) || 'null'); } catch(e) { return null; } })(),
                 logs: pcmLogs,
+                fusamCompat: window.Liko?.__PCMFusamCompat__?.isOwned?.() ? {
+                    installed: true,
+                    registeredDebugMethods: [...window.Liko.__PCMFusamCompat__.getDebugMethods().keys()],
+                } : { installed: false, reason: window.FUSAM?.present ? 'external-fusam' : 'unavailable' },
             }, null, 2),
         });
     }
@@ -2059,6 +2078,7 @@
         document.body.appendChild(btnGroup);
         makeDraggable(btnGroup);
         applyFloatingBtnVisibility();
+        window.Liko?.__PCMFusamCompat__?.applyButtonOptions?.();
 
         // ── Panel ──
         const panel = document.createElement('div');

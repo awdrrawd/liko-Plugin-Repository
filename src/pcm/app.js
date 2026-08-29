@@ -108,6 +108,9 @@ export class PCMApp {
     window.Liko.PCMApi = Object.freeze({
       apiVersion: 1,
       version: PCM_VERSION,
+      ...(window.Liko?.__PCMFusamCompat__?.isOwned?.()
+        ? {modals: window.Liko.__PCMFusamCompat__.api.modals}
+        : {}),
       list: () => this.plugins.map(plugin => ({
         id: plugin.id,
         name: plugin.name,
