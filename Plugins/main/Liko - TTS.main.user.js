@@ -52,6 +52,8 @@
         randomPlayerVoices: true,
         voiceGender: "female", // female | male | mixed
         chatButton: true,
+        filteredPrefixesEnabled: true,
+        filteredPrefixes: "[🌐];🔊;📞",
         kokoro: { enabled: false, device: "auto", dtype: "auto", workerUrl: "" },
     };
     let config = structuredClone(defaults);
@@ -101,6 +103,7 @@
         unsupported: "沒有可用語音的片段", unsupportedSkip: "跳過（建議）", unsupportedBase: "使用主要語音", unsupportedDesc: "只影響找不到相符語系語音的片段；已安裝對應語音的語言屬於支援語言。跳過可避免錯誤朗讀與雜訊。",
         longMessage: "過長訊息", truncate: "截斷", skipAll: "整段跳過", longMessageDesc: "決定超過最大字數時的行為。",
         maxLength: "最大字數", maxLengthDesc: "每格 25 字，範圍 25–1000 字。", rate: "語速", pitch: "語調", volume: "音量",
+        filteredPrefixesEnabled: "過濾帶特定開頭句子", filteredPrefixesEnabledDesc: "開啟時，符合下一列任一開頭的訊息不會朗讀。關閉時保留已輸入的內容。", filteredPrefixes: "設定過濾開頭", filteredPrefixesDesc: "使用分號分隔多個開頭，例如：[🌐];🔊;📞。",
         kokoroEnabled: "啟用 Kokoro", kokoroCompute: "Kokoro 運算", kokoroWorkerUrl: "自架 Worker 網址",
         kokoroAuto: "運算-AUTO", kokoroWebGPU: "運算-WebGPU", kokoroWasm: "運算-WASM", kokoroDtypeAuto: "精度-AUTO", kokoroFp32: "精度-FP32（高）", kokoroQ8: "精度-Q8（普通）",
         kokoroRemove: "移除語音包", kokoroRemoveDone: "完成移除", kokoroVoicePrefix: "Kokoro", kokoroModelLoading: "正在下載並載入 Kokoro 共用模型", kokoroModelReady: "Kokoro 共用模型已就緒", kokoroDownloading: "正在下載 {name}（{done}/{total}）", kokoroDownloaded: "{name} 語音包下載完成", kokoroRemoved: "已移除 {name} 語音包", kokoroDownloadFailed: "Kokoro 處理失敗：{message}",
@@ -128,6 +131,7 @@
         voiceGender: "Player voice gender", voiceGenderFemale: "Female (default)", voiceGenderMale: "Male", voiceGenderMixed: "Mixed", voiceGenderDesc: "Female mode excludes known male voices. Manually selected voices are unaffected.",
         unsupported: "Unsupported segments", unsupportedSkip: "Skip (recommended)", unsupportedBase: "Use primary voice", unsupportedDesc: "Controls segments with no matching installed voice. Skipping avoids incorrect speech and noise.", longMessage: "Long messages", truncate: "Truncate", skipAll: "Skip entire message", longMessageDesc: "Choose what happens when a message exceeds the character limit.",
         maxLength: "Maximum characters", maxLengthDesc: "25 characters per step, from 25 to 1000.", rate: "Rate", pitch: "Pitch", volume: "Volume",
+        filteredPrefixesEnabled: "Filter messages by prefix", filteredPrefixesEnabledDesc: "When enabled, messages matching any prefix on the next row are not spoken. Disabling preserves the entered list.", filteredPrefixes: "Prefix list", filteredPrefixesDesc: "Separate prefixes with semicolons, for example: [🌐];🔊;📞.",
         kokoroEnabled: "Enable Kokoro", kokoroCompute: "Kokoro compute", kokoroWorkerUrl: "Custom Worker URL", kokoroAuto: "Compute-AUTO", kokoroWebGPU: "Compute-WebGPU", kokoroWasm: "Compute-WASM", kokoroDtypeAuto: "Precision-AUTO", kokoroFp32: "Precision-FP32 (High)", kokoroQ8: "Precision-Q8 (Normal)",
         kokoroRemove: "Remove voice packs", kokoroRemoveDone: "Finish removing", kokoroModelLoading: "Downloading and loading the shared Kokoro model", kokoroModelReady: "Kokoro shared model is ready", kokoroDownloading: "Downloading {name} ({done}/{total})", kokoroDownloaded: "Downloaded {name} voice pack", kokoroRemoved: "Removed {name} voice pack", kokoroDownloadFailed: "Kokoro failed: {message}",
         personalTarget: "Member ID", personalLanguage: "Personal language", personalVoice: "Personal voice", personalRate: "Personal rate", personalPitch: "Personal pitch", personalVolume: "Personal volume", personalSave: "Save override", personalClear: "Use defaults",
@@ -525,6 +529,10 @@
         if (data.Type === "Emote") {
             if (name && text.toLowerCase().startsWith(name.toLowerCase())) text = text.slice(name.length).trim();
         }
+        if (config.filteredPrefixesEnabled) {
+            const filteredPrefixes = String(config.filteredPrefixes || "").split(";").map(prefix => prefix.trim()).filter(Boolean);
+            if (filteredPrefixes.some(prefix => text.trimStart().startsWith(prefix))) return;
+        }
         if (config.speakSender) {
             if (name) text = `${name}${speakVerb()}${text}`;
         }
@@ -638,7 +646,7 @@
             CTRL_X: 850, CTRL_W: 450, ROW_Y0: 225, ROW_H: 80,
             HELP_X: 1350, HELP_Y: 200, HELP_W: 560, HELP_H: 700,
         },
-        domIds: ["lk-tts-lang-select", "lk-tts-rate-range", "lk-tts-pitch-range", "lk-tts-volume-range", "lk-tts-base-lang-select", "lk-tts-voice-select", "lk-tts-test-text", "lk-tts-max-range", "lk-tts-kokoro-device", "lk-tts-kokoro-dtype", "lk-tts-kokoro-worker-url", "lk-tts-person-id", "lk-tts-person-lang", "lk-tts-person-voice", "lk-tts-person-rate", "lk-tts-person-pitch", "lk-tts-person-volume", "lk-tts-person-list", "lk-tts-person-test"],
+        domIds: ["lk-tts-lang-select", "lk-tts-rate-range", "lk-tts-pitch-range", "lk-tts-volume-range", "lk-tts-base-lang-select", "lk-tts-voice-select", "lk-tts-test-text", "lk-tts-max-range", "lk-tts-kokoro-device", "lk-tts-kokoro-dtype", "lk-tts-kokoro-worker-url", "lk-tts-person-id", "lk-tts-person-lang", "lk-tts-person-voice", "lk-tts-person-rate", "lk-tts-person-pitch", "lk-tts-person-volume", "lk-tts-person-list", "lk-tts-person-test", "lk-tts-filter-prefixes"],
         load() { refreshVoices(); this._createDom(); void this._refreshPackStatus(); },
         async _refreshPackStatus() { this.installedPacks = await installedKokoroPacks(); },
         _createDom() {
@@ -701,6 +709,8 @@
             [[14,.5,2,.1,1],[15,0,2,.1,1],[16,0,1,.05,1]].forEach(([i,min,max,step,value]) => { const el=document.createElement("input"); el.id=this.domIds[i]; el.type="range"; el.min=min; el.max=max; el.step=step; el.value=value; document.body.appendChild(el); });
             const personList = document.createElement("select"); personList.id=this.domIds[17]; personList.size=8; personList.onchange=()=>{ personId.value=personList.value; this._loadPersonal(); }; document.body.appendChild(personList);
             const personTest = document.createElement("input"); personTest.id=this.domIds[18]; personTest.type="text"; personTest.value=ui("voiceTest"); personTest.placeholder=ui("voiceTest"); document.body.appendChild(personTest);
+            const filterPrefixes = document.createElement("input"); filterPrefixes.id=this.domIds[19]; filterPrefixes.type="text"; filterPrefixes.value=config.filteredPrefixes;
+            filterPrefixes.onchange=()=>{config.filteredPrefixes=filterPrefixes.value;saveConfig();}; document.body.appendChild(filterPrefixes);
             personId.onchange=()=>this._loadPersonal();
             this.domIds.forEach(id => {
                 const element = document.getElementById(id);
@@ -801,7 +811,7 @@
                 ? [this.domIds[0], this.domIds[1], this.domIds[2], this.domIds[3], this.domIds[4], this.domIds[5], this.domIds[6]]
                 : this.tab === 2 ? [this.domIds[8], this.domIds[9], this.domIds[10]]
                     : this.tab === 3 ? this.domIds.slice(11,19)
-                        : this.tab === 4 ? [this.domIds[7]] : []);
+                        : this.tab === 4 ? [this.domIds[7], this.domIds[19]] : []);
             const C = this.C;
             const previousAlign = W.MainCanvas.textAlign;
             W.MainCanvas.textAlign = "left";
@@ -918,6 +928,13 @@
             this._positionDom(this.domIds[7], this.C.CTRL_X, y + 8, 300, 48);
             this._text(String(config.maxLength), 1235, this._mid(y), 100);
             if (W.MouseIn(this.C.LBL_X, y, this.C.CTRL_X - this.C.LBL_X + this.C.CTRL_W, this.C.CB_SZ)) this.hoverDesc = ui("maxLengthDesc");
+            y += H;
+            this._cb(y, ui("filteredPrefixesEnabled"), config.filteredPrefixesEnabled, ui("filteredPrefixesEnabledDesc"), () => { config.filteredPrefixesEnabled = !config.filteredPrefixesEnabled; saveConfig(); });
+            y += H;
+            const filterPrefixes = document.getElementById(this.domIds[19]);
+            if (filterPrefixes && document.activeElement !== filterPrefixes) filterPrefixes.value = config.filteredPrefixes;
+            this._positionDom(this.domIds[19], 400, y, 900, this.C.CB_SZ);
+            if (W.MouseIn(400, y, 900, this.C.CB_SZ)) this.hoverDesc = ui("filteredPrefixesDesc");
         },
         click() {
             if (W.MouseIn(1815, 75, 90, 90)) { W.PreferenceExit?.(); return; }

@@ -1,139 +1,957 @@
 {
-  "_comment": "PCM-only entries NOT published to the FUSAM manifest: other authors + Liko hotfixes. PCM appends these to its list; BMM/FUSAM never read this file.",
-  "plugins": [
+  "version": "1",
+  "addons": [
     {
-      "id": "ECHO-Cloth",
-      "icon": "🥐",
-      "name": "ECHO的服裝拓展",
-      "en_name": "ECHO's Expansion on cloth options",
-      "description": "ECHO的服裝拓展",
-      "en_description": "ECHO's Expansion on cloth options",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
-      "url": "https://sugarchain-studio.github.io/echo-clothing-ext/bc-cloth.user.js",
-      "altUrl": "https://sugarchain-studio.github.io/echo-clothing-ext/bc-cloth-beta.user.js",
-      "website": "https://github.com/SugarChain-Studio/echo-clothing-ext",
-      "priority": 1
-    },
-    {
-      "id": "ECHO-Activity",
-      "icon": "🥐",
-      "name": "ECHO的動作拓展",
-      "en_name": "ECHO's Expansion on activity options",
-      "description": "ECHO的動作拓展",
-      "en_description": "ECHO's Expansion on activity options",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
-      "url": "https://sugarchain-studio.github.io/echo-activity-ext/bc-activity.user.js",
-      "altUrl": "https://sugarchain-studio.github.io/echo-activity-ext/bc-activity-beta.user.js",
-      "website": "https://github.com/SugarChain-Studio/echo-activity-ext",
-      "priority": 1
-    },
-    {
-      "id": "XS-Activity",
-      "icon": "🍪",
-      "name": "小酥的動作拓展",
-      "en_name": "XS's Expansion on activity options",
-      "description": "小酥的動作拓展",
-      "en_description": "XS's Expansion on activity options",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
-      "url": "https://awdrrawd.github.io/XiaoSuActivity/main/XSActivity.js",
-      "website": "https://github.com/iceriny/XiaoSuActivity",
-      "priority": 10
-    },
-    {
-      "id": "Vivian-PWB",
-      "icon": "👘",
-      "name": "Vivian 的 BC 随身衣柜",
-      "en_name": "Vivian's Portable Wardrobe for BC.",
-      "description": "本脚本为 BC 游戏提供 随身衣柜，内置预览镜和高级服装管理功能。",
-      "en_description": "A BC script that adds a portable wardrobe system with a preview mirror and advanced outfit management.",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
-      "url": "https://vivianmoonlight.github.io/Vivians-Portable-Wardrobe/ViviansPortableWardrobeLoader.user.js",
-      "website": "https://github.com/VivianMoonlight/Vivians-Portable-Wardrobe",
-      "priority": 4
-    },
-    {
-      "id": "ULTRAbc",
-      "icon": "🐇",
-      "name": "ULTRAbc",
-      "en_name": "ULTRAbc",
-      "description": "有許多輔助功能，但考慮遊戲性請自行選擇是否啟用",
-      "en_description": "A large collection of cheats, quality of life improvements, and a moaner script.",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
-      "url": "https://tetris245.github.io/ultrabc.github.io/ULTRAbcloader.user.js",
-      "altUrl": "https://tetris245.github.io/ultrabc.github.io/ULTRAbcloader-ch.user.js",
-      "triLabels": [
-        "OFF",
-        "EN",
-        "ZH"
+      "id": "Shuang-CustomAssets",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/ShuangCustomAssets-Mirror@master/assets/SCA_logo.png",
+      "iemoji": "🧩",
+      "name": {
+        "cn": "Shuang的自定义道具扩展",
+        "en": "ShuangCustomAssets"
+      },
+      "description": {
+        "cn": "新增貼圖分享物品。可設定貼圖網址，設置在角色身上並分享顯示給其他人",
+        "en": "Add sticker item: allows setting a sticker URL, attaching it to a character, and sharing it so that it is visible to others."
+      },
+      "author": "Shuang",
+      "repository": "https://gitgud.io/yeshuang26/shuangcustomassets",
+      "website": "https://gitgud.io/yeshuang26/shuangcustomassets",
+      "tags": [
+        "enhancements"
       ],
-      "website": "https://github.com/tetris245/ULTRAbc",
+      "type": "module",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/ShuangCustomAssets-Mirror/shuang-assets.js"
+        }
+      ],
+      "priority": 5,
+      "pcmskip": true
+    },
+    {
+      "id": "HT-QI",
+      "iemoji": "⚡",
+      "name": {
+        "cn": "BC 快捷互动插件",
+        "en": "BC quick-interaction"
+      },
+      "description": {
+        "cn": "快捷互动插件，提供部位直选、批量执行、动作收藏、连招编排、ECHO動作匯出、自訂動作",
+        "en": "quick-interaction plugins offer features such as direct selection of body parts, batch execution, action collection, combo choreography, ECHO action export, and custom actions."
+      },
+      "author": "Tao MUSE",
+      "repository": "https://github.com/bondage-studio/QuickInteraction",
+      "website": "https://github.com/bondage-studio/QuickInteraction",
+      "tags": [
+        "chat",
+        "Interaction"
+      ],
+      "type": "module",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://bondage-studio.github.io/QuickInteraction/assets/main.js"
+        }
+      ],
       "priority": 2
     },
     {
-      "id": "GGC",
-      "icon": "🎲",
-      "name": "Galia的賭博俱樂部",
-      "en_name": "Galia's Gambling Club",
-      "description": "增加了小遊戲、骰子和硬幣動畫、交易、趣味文字效果以及專為聊天室互動而設計的環形選單。",
-      "en_description": "Addon that adds canvas games, dice and coin animations, trades, playful text effects, and a radial menu built for chat-room interactions.",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
-      "url": "https://galia-bc.github.io/galia.github.io/club-gaming/club-gaming.js",
-      "mirrorUrl": "https://raw.githubusercontent.com/galia-bc/galia.github.io/main/club-gaming/club-gaming.js",
-      "altUrl": "https://heitaoplay.github.io/galia.github.io/club-gaming/club-gaming.js",
-      "altMirrorUrl": "https://raw.githubusercontent.com/heitaoplay/galia.github.io/refs/heads/i18n/club-gaming/club-gaming.js",
-      "triLabels": [
-        "OFF",
-        "EN",
-        "ZH"
+      "id": "Liko-LCE",
+      "iemoji": "✨",
+      "name": {
+        "cn": "Liko的俱樂部擴充(測試)",
+        "en": "Liko's Club Expansion(test)"
+      },
+      "description": {
+        "cn": "以WCE為基底合併幾個小型插件功能，並提供美化登入介面與帳號記憶功能",
+        "en": "Based on WCE, merge several small plugin features, and provide a beautified login interface with account memory functionality."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/BC-LCE",
+      "website": "https://github.com/awdrrawd/BC-LCE",
+      "tags": [
+        "ui",
+        "enhancements"
       ],
-      "website": "https://galia-bc.github.io/galia.github.io",
-      "priority": 4
+      "type": "module",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/BC-LCE/assets/main.js"
+        }
+      ],
+      "priority": 2
     },
     {
-      "id": "Shuang-Assets",
-      "icon": "🧩",
-      "name": "Shuang的貼圖分享",
-      "en_name": "Shuang's sticker sharing",
-      "description": "新增貼圖分享物品。可設定貼圖網址，設置在角色身上並分享顯示給其他人",
-      "en_description": "Add sticker item: allows setting a sticker URL, attaching it to a character, and sharing it so that it is visible to others.",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
-      "url": "https://shuang-custom-assets.pages.dev/shuang-assets.js",
-      "mirrorUrl": "https://shuang-custom-assets.netlify.app/shuang-assets.js",
-      "website": "https://gitgud.io/yeshuang26/shuangcustomassets",
-      "priority": 5
+      "id": "Liko-AEE",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/BC-AEE@main/public/AEE_icon.jpg",
+      "iemoji": "🐈‍⬛",
+      "name": {
+        "cn": "Liko的外觀編輯拓展(測試中)",
+        "en": "Liko's Appearance editing extension(testing)"
+      },
+      "description": {
+        "cn": "更強大的編輯器，並且支援更多的服裝編輯(測試中)",
+        "en": "A more powerful editor, and support for more clothing editing.(testing)"
+      },
+      "author": "莉柯莉絲(Likolisu) & InkerBot",
+      "repository": "https://github.com/awdrrawd/BC-AEE",
+      "website": "https://github.com/awdrrawd/BC-AEE/tree/main",
+      "tags": [
+        "appearance",
+        "ui",
+        "enhancements"
+      ],
+      "type": "module",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/BC-AEE/assets/main.js"
+        }
+      ],
+      "priority": 3
     },
     {
-      "id": "Fix-HHA",
-      "icon": "💉",
-      "name": "物件隱藏熱修",
-      "en_name": "Hotfix for Hidden elements",
-      "description": "在更衣室、個人資訊、角色互動中隱藏興奮條、MPA等物件",
-      "en_description": "Hide arousal meters, MPA, and similar elements in the locker room, character info, and interaction menus.",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
-      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HHA.user.js",
+      "id": "Liko-AFC",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/BC-AFC@main/Images/AFC-ICON.png",
+      "iemoji": "🌸",
+      "name": {
+        "cn": "繁戀如花 ─繽紛─",
+        "en": "Abundantia Florum ─Chromatica─"
+      },
+      "description": {
+        "cn": "更多戀人，如百花盛放的愛情篇章，並搭載可延展的戀人鎖機制。",
+        "en": "An abundance of lovers, like a love story blooming in countless flowers, featuring an extensible Lover’s Lock system."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/BC-AFC",
+      "website": "https://github.com/awdrrawd/BC-AFC",
+      "tags": [
+        "social"
+      ],
+      "type": "module",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/BC-AFC/assets/main.js"
+        }
+      ],
+      "priority": 3
+    },
+    {
+      "id": "Liko-FCM",
+      "iemoji": "👥",
+      "name": {
+        "cn": "Liko的好友與房間管理",
+        "en": "Friends and ChatRoom Manager"
+      },
+      "description": {
+        "cn": "更好的好友管理與房間管理功能",
+        "en": "Improved friend and room management features."
+      },
+      "additionalInfo": {
+        "cn": "提供個人資料的保存、查詢，房間名單的管理",
+        "en": "Provides features for saving and searching personal profiles, and managing room lists."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/BC-FCM",
+      "website": "https://github.com/awdrrawd/BC-FCM",
+      "tags": [
+        "social",
+        "management"
+      ],
+      "type": "module",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/BC-FCM/assets/main.js"
+        }
+      ],
+      "priority": 3
+    },
+    {
+      "id": "Liko-HSC",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/BC-HSC@main/Assets/Icon/HSC-iconB2.png",
+      "iemoji": "🌀",
+      "name": {
+        "cn": "催眠奴隸俱樂部",
+        "en": "Hypnotic Slave Club"
+      },
+      "description": {
+        "cn": "提供多樣催眠效果，增強催眠的沉浸度",
+        "en": "Provides a variety of hypnosis effects to enhance the immersion of the experience."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/BC-HSC",
+      "website": "https://github.com/awdrrawd/BC-HSC",
+      "tags": [
+        "social",
+        "immersion"
+      ],
+      "type": "module",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/BC-HSC/assets/main.js"
+        }
+      ],
+      "priority": 3
+    },
+    {
+      "id": "Liko-CHE",
+      "iemoji": "📖",
+      "name": {
+        "cn": "Liko的聊天室書記官",
+        "en": "Liko's Chat History Exporter"
+      },
+      "description": {
+        "cn": "聊天室信息轉HTML，並且提供最多7天的信息救援(需要手動啟用緩存功能)",
+        "en": "Convert chat history to HTML and provides message recovery for up to 7 days.(The caching feature requires manual activation.)"
+      },
+      "additionalInfo": {
+        "cn": "包含完整的聊天記錄、時間戳和角色信息，可以搭配Neocities等網站上傳分享",
+        "en": "Includes complete chat logs, timestamps and character info, compatible with sites like Neocities for sharing"
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "chat",
+        "tool"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CHE.main.user.js"
+        }
+      ],
+      "priority": 4,
+      "version": "2.6.0"
+    },
+    {
+      "id": "Liko-Image_Uploader",
+      "iemoji": "🖼️",
+      "name": {
+        "cn": "Liko的圖片上傳器",
+        "en": "Liko's Image Uploader"
+      },
+      "description": {
+        "cn": "拖曳上傳圖片並分享到聊天室",
+        "en": "Drag and drop image upload and share to chatroom"
+      },
+      "additionalInfo": {
+        "cn": "圖片上傳失敗時，可以使用/IMG或/IMG HELP查閱說明",
+        "en": "If the image fails to upload, you can use /IMG or /IMG HELP to view the instructions."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "chat",
+        "media"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js"
+        }
+      ],
+      "priority": 4,
+      "version": "1.6.2"
+    },
+    {
+      "id": "Liko-MAT",
+      "iemoji": "🌐",
+      "name": {
+        "cn": "Liko的自動翻譯",
+        "en": "Liko's Messages Auto Translator"
+      },
+      "description": {
+        "cn": "自動翻譯(使用Google api)",
+        "en": "Auto translate BC chat messages using Google API"
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "chat",
+        "tool",
+        "translation"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MAT.main.user.js"
+        }
+      ],
+      "priority": 4,
+      "version": "1.7.6"
+    },
+    {
+      "id": "Liko-Tool",
+      "iemoji": "🧰",
+      "name": {
+        "cn": "Liko的工具包",
+        "en": "Liko's Tool Kit"
+      },
+      "description": {
+        "cn": "有許多小功能合集的工具包，但也有點不穩定",
+        "en": "A collection of small utility functions, but somewhat unstable"
+      },
+      "additionalInfo": {
+        "cn": "詳細使用說明請輸入/LT或/LT help查詢",
+        "en": "For detailed usage instructions, please enter /LT or /LT help."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "tool",
+        "cheat"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Tool.main.user.js"
+        }
+      ],
+      "priority": 5,
+      "version": "2.2.0"
+    },
+    {
+      "id": "Liko-ACV",
+      "iemoji": "🎬",
+      "name": {
+        "cn": "Liko的自動創建影片",
+        "en": "Liko's Automatically create video."
+      },
+      "description": {
+        "cn": "Liko的自動創建影片",
+        "en": "Liko's Automatically create video."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "chat",
+        "media"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20ACV.main.user.js"
+        }
+      ],
+      "priority": 4,
+      "version": "1.5.1"
+    },
+    {
+      "id": "Liko-Kaomoji",
+      "iemoji": "😀",
+      "name": {
+        "cn": "文字表情",
+        "en": "Kaomoji"
+      },
+      "description": {
+        "cn": "文字表情快捷面板，並提供自訂、常用快捷分類",
+        "en": "Quick-access text emoji panel with custom and frequently-used categories."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "chat"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Kaomoji.main.user.js"
+        }
+      ],
+      "priority": 4,
+      "version": "1.1.1"
+    },
+    {
+      "id": "Liko-BMM",
+      "iemoji": "🗺️",
+      "name": {
+        "cn": "Liko的地圖房迷你地圖",
+        "en": "Liko's Bondage Map Minimap"
+      },
+      "description": {
+        "cn": "BC 地圖房迷你地圖",
+        "en": "BC map room minimap"
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "chat",
+        "map",
+        "cheat"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20BMM.main.user.js"
+        }
+      ],
+      "priority": 8,
+      "version": "2.0.1"
+    },
+    {
+      "id": "Liko-CRA",
+      "iemoji": "🔧",
+      "name": {
+        "cn": "聊天室輔助工具",
+        "en": "ChatRoom Assistant"
+      },
+      "description": {
+        "cn": "替他人改姿勢、輸入歷史、BIO時區頭頂時間、@動作自帶名字、指令/房間轉按鈕",
+        "en": "Change pose for others, input history, timezone display above head in BIO, @actions with auto-name inclusion, command /room converted to button."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "chat",
+        "tool"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CRA.main.user.js"
+        }
+      ],
+      "priority": 7,
+      "version": "1.0.2"
+    },
+    {
+      "id": "Liko-Prank",
+      "iemoji": "🪄",
+      "name": {
+        "cn": "Liko對朋友的惡作劇",
+        "en": "Liko's Friend Prank"
+      },
+      "description": {
+        "cn": "內褲大盜鬧得BC社群人心惶惶！",
+        "en": "The underwear thief causing panic in the BC community!"
+      },
+      "additionalInfo": {
+        "cn": "注意：這是個惡作劇插件，請謹慎使用！指令 /偷取, /溶解, /传送",
+        "en": "Warning: This is a prank plugin, use with caution! Command /Steal, /dissolve, /Teleport"
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "fun"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Prank.main.user.js"
+        }
+      ],
+      "priority": 5,
+      "version": "1.6.9"
+    },
+    {
+      "id": "Liko-CDB",
+      "iemoji": "👗",
+      "name": {
+        "cn": "Liko的自訂更衣室背景",
+        "en": "Liko's Custom Dressing Background"
+      },
+      "description": {
+        "cn": "更衣室背景替換，並提供網格對焦與替換姿勢",
+        "en": "Replace the wardrobe background with a grid-based focus assist and pose change function."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "appearance"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CDB.main.user.js"
+        }
+      ],
+      "priority": 7,
+      "version": "1.5.2"
+    },
+    {
+      "id": "Liko-CMC",
+      "iemoji": "🎵",
+      "name": {
+        "cn": "Liko的聊天室音樂控制器(測試中)",
+        "en": "Liko's Music Controller(testing)"
+      },
+      "description": {
+        "cn": "支援歌詞(需要有曲名)、歌曲列表",
+        "en": "Supports lyrics (must have song title) and song list."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "media",
+        "chat"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CMC.main.user.js"
+        }
+      ],
+      "priority": 7,
+      "version": "1.3.1"
+    },
+    {
+      "id": "Liko-MPL",
+      "iemoji": "📱",
+      "name": {
+        "cn": "手機直版佈局(測試)",
+        "en": "Mobile Portrait Layout(test)"
+      },
+      "description": {
+        "cn": "支援房間搜尋與聊天室的直版佈局",
+        "en": "Supports vertical layout for ChatSearch and ChatRoom."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "ui",
+        "mobile"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MPL.main.user.js"
+        }
+      ],
+      "priority": 7,
+      "version": "0.5.4"
+    },
+    {
+      "id": "Liko-NOI",
+      "iemoji": "📧",
+      "name": {
+        "cn": "Liko的邀請通知器",
+        "en": "Liko's Notification of Invites"
+      },
+      "description": {
+        "cn": "發出好友、白單、黑單的信息!",
+        "en": "Customize the notification message when sending a friend, whitelist, or blacklist request."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "social"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20NOI.main.user.js"
+        }
+      ],
+      "priority": 7,
+      "version": "1.1"
+    },
+    {
+      "id": "Liko-WPS",
+      "iemoji": "🆔",
+      "name": {
+        "cn": "WCE的個人資料分享",
+        "en": "WCE Profile Share."
+      },
+      "description": {
+        "cn": "WCE的個人資料分享，需開啟WCE的個人資料保存",
+        "en": "WCE Profile Share, need to enable WCE profile saving."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "social"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20WPS.main.user.js"
+        }
+      ],
+      "priority": 7,
+      "version": "1.1.2"
+    },
+    {
+      "id": "Liko-Region_switch",
+      "iemoji": "⚧️",
+      "name": {
+        "cn": "快速切換混合&女性區",
+        "en": "Region switch"
+      },
+      "description": {
+        "cn": "快速切換混合&女性區",
+        "en": "Region switch"
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "tool"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Region%20switch.main.user.js"
+        }
+      ],
+      "priority": 7,
+      "version": "1.3"
+    },
+    {
+      "id": "Liko-TRC",
+      "iemoji": "🎮",
+      "name": {
+        "cn": "Liko的玩具遙控器",
+        "en": "Liko's Toy remote control"
+      },
+      "description": {
+        "cn": "聊天室玩具控制",
+        "en": "Chat room Toy remote control"
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "chat",
+        "toy",
+        "cheat"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TRC.main.user.js"
+        }
+      ],
+      "priority": 6,
+      "version": "1.1.0"
+    },
+    {
+      "id": "Liko-CFT",
+      "iemoji": "📋",
+      "name": {
+        "cn": "聊天室信息過濾器",
+        "en": "RChat Filter Tool"
+      },
+      "description": {
+        "cn": "聊天室信息過濾",
+        "en": "Chat room message filtering"
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "chat",
+        "tool"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CFT.main.user.js"
+        }
+      ],
+      "priority": 7,
+      "version": "1.1.3"
+    },
+    {
+      "id": "Liko-BDG",
+      "iemoji": "🫟",
+      "name": {
+        "cn": "你畫我猜(測試)",
+        "en": "Draw Game(test)"
+      },
+      "description": {
+        "cn": "可以在聊天室隨意塗鴉",
+        "en": "Can doodle freely in the chat room."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "chat",
+        "fun"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko-BDG.main.user.js"
+        }
+      ],
+      "priority": 8,
+      "version": "0.3.0"
+    },
+    {
+      "id": "Liko-CPB",
+      "iemoji": "🪪",
+      "name": {
+        "cn": "Liko的自定義個人資料頁面背景",
+        "en": "Liko's Custom Profile Background"
+      },
+      "description": {
+        "cn": "自定義個人資料頁面背景並分享給他人",
+        "en": "Customize profile page background and share it with others."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "appearance",
+        "social"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CPB.main.user.js"
+        }
+      ],
+      "priority": 9,
+      "version": "1.2.2"
+    },
+    {
+      "id": "Liko-Chat_TtoB",
+      "iemoji": "💬",
+      "name": {
+        "cn": "Liko的對話變按鈕",
+        "en": "Liko's Chat Text to Button"
+      },
+      "description": {
+        "cn": "聊天室信息轉按鈕，現在還多了傳送門功能!",
+        "en": "Convert chat messages to buttons, now with portal feature!"
+      },
+      "additionalInfo": {
+        "cn": "使用/指令、!!說話、#房名#都會變成可以點擊的按鈕，#房名#提供傳送功能",
+        "en": "Commands starting with /, !! for speech, and #RoomName# will become clickable buttons. The #RoomName# button provides a teleport function."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "chat",
+        "tool"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js"
+        }
+      ],
       "priority": 10,
-      "version": "0.3"
+      "version": "1.1.1"
     },
     {
-      "id": "Fix-HLF",
-      "icon": "💉",
-      "name": "牽引補丁(測試)",
-      "en_name": "Leash Fix(test)",
-      "description": "修復部分牽引失敗的錯誤",
-      "en_description": "Fix some Leash failures",
-      "additionalInfo": "",
-      "en_additionalInfo": "",
-      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HLF.user.js",
+      "id": "Liko-BTP",
+      "iemoji": "📔",
+      "name": {
+        "cn": "BC翻譯補丁",
+        "en": "BC-translation-patch"
+      },
+      "description": {
+        "cn": "中文的翻譯補丁，補充上遺漏翻譯",
+        "en": "Chinese translation supplement, to fill in the missing translations."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/BC-translation-patch",
+      "website": "https://github.com/awdrrawd/BC-translation-patch",
+      "tags": [
+        "translation",
+        "tool"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/BC-translation-patch/bc-translation-patch.js"
+        }
+      ],
       "priority": 10,
-      "version": "0.17"
+      "version": "0.1.0"
+    },
+    {
+      "id": "Liko-DDT",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/DDT/DDT-icon.png",
+      "iemoji": "🖌️",
+      "name": {
+        "cn": "繪圖檢測工具",
+        "en": "Draw Detection Tool"
+      },
+      "description": {
+        "cn": "偵測 canvas & DOM 物件的屬性，支持染色與位移，並支持繪製物件功能",
+        "en": "Detect properties of canvas & DOM objects, support tinting/coloring and displacement, and support object drawing functionality."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "dev",
+        "tool"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20DDT.main.user.js"
+        }
+      ],
+      "priority": 10,
+      "version": "0.1.0"
+    },
+    {
+      "id": "Liko-Release_Maid",
+      "iemoji": "🧹",
+      "name": {
+        "cn": "Liko的解綁女僕",
+        "en": "Liko's Release Maid"
+      },
+      "description": {
+        "cn": "自動解綁女僕，不過有點天然，會在意外時觸發!",
+        "en": "Auto-release maid, but a bit naive and may trigger unexpectedly!"
+      },
+      "additionalInfo": {
+        "cn": "請評估自己需求，避免降低遊戲樂趣",
+        "en": "Please consider your own needs to avoid diminishing the enjoyment of the game."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "automation",
+        "cheat"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Release%20Maid.main.user.js"
+        }
+      ],
+      "priority": 10,
+      "version": "1.2"
+    },
+    {
+      "id": "Liko-CUS",
+      "iemoji": "📱",
+      "name": {
+        "cn": "聊天室左右介面交換",
+        "en": "Chatroom UI Swap"
+      },
+      "description": {
+        "cn": "聊天室左右介面交換：左側聊天訊息、右側人物。手動開關。",
+        "en": "Chatroom UI Swap: chat log on the left, characters on the right."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "ui",
+        "mobile"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko-CUS.main.user.js"
+        }
+      ],
+      "priority": 9,
+      "version": "0.1"
+    },
+    {
+      "id": "Liko-ImageCache",
+      "iemoji": "📦",
+      "name": {
+        "cn": "圖片快取",
+        "en": "Image Cache"
+      },
+      "description": {
+        "cn": "為 Bondage Club 與自訂資產提供有容量上限的持久圖片快取。",
+        "en": "Persistent, size-limited image cache for Bondage Club and custom assets."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "ui",
+        "mobile"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Cache.main.user.js"
+        }
+      ],
+      "priority": 10,
+      "version": "0.1",
+      "pcmskip": true
+    },
+    {
+      "id": "Liko-LCS",
+      "iemoji": "🧪",
+      "name": {
+        "cn": "程式碼沙盒",
+        "en": "Code Sandbox"
+      },
+      "description": {
+        "cn": "在全域作用域執行測試碼，精準追蹤並還原「這個沙盒自己造成」的副作用；支援多重沙盒、可收合、可切純控制台模式",
+        "en": "Execute test code in the global scope, precisely track and restore side effects caused by the sandbox itself; supports multiple sandboxes, collapsible panels, and toggleable pure console mode."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "tool",
+        "cheat",
+        "fab"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20LCS.main.user.js"
+        }
+      ],
+      "priority": 10,
+      "version": "1.0"
+    },
+    {
+      "id": "Liko-TTS",
+      "name": {
+        "cn": "文字轉語音",
+        "en": "Text to Speech"
+      },
+      "description": {
+        "en": "Chatroom message to voice conversion",
+        "cn": "聊天室信息轉語音"
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/liko-Plugin-Repository",
+      "tags": [
+        "tool",
+        "cheat"
+      ],
+      "type": "eval",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TTS.main.user.js"
+        }
+      ],
+      "priority": 8,
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/TTS/TTS-icon.png",
+      "iemoji": "🔊",
+      "version": "0.6"
     }
   ]
 }
