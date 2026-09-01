@@ -3,7 +3,7 @@
 // @name:zh      熱修 - 製作物品的擴充物品資產保護 
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.1
+// @version      0.1.1
 // @description  Preserves crafted items while extension assets are unavailable and restores them after the assets load.
 // @description:zh 在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用。
 // @author       Likolisu
@@ -22,9 +22,12 @@
     window.Liko = window.Liko ?? {};
     if (window.Liko.HCR) return;
 
-    const MOD_VERSION = "0.1";
+    const MOD_VERSION = "0.1.1";
     const UNKNOWN_ASSET = -1;
     const TAG = "🐈‍⬛ [HCR]";
+    const BACKUP_KEY = "HCR";
+    const BACKUP_VERSION = 1;
+    const EXTENSION_SETTINGS_SAFE_LIMIT = 175000;
     const STRINGS = {
         TW: "此物品的資產丟失，如果為拓展套件請重新加載後再次確認",
         CN: "此物品的资产丢失，如果为扩展组件请重新加载后再次确认",
@@ -84,6 +87,124 @@
             try { CraftingAssets = refreshed; } catch (_) { /* lexical globals may be read-only from some loaders */ }
         }
         return assets;
+    }
+
+    function encodeCrafting(crafting = Player?.Crafting) {
+        if (!Array.isArray(crafting) || typeof CraftingSerialize !== "function" || typeof LZString !== "object") return null;
+        let serialized = crafting.map((craft) => craft == null ? "" : CraftingSerialize(craft)).join("§");
+        while (serialized.endsWith("§")) serialized = serialized.slice(0, -1);
+        return LZString.compressToUTF16(serialized);
+    }
+
+    function readBackupPacket() {
+        try {
+            let backup = Player?.ExtensionSettings?.[BACKUP_KEY];
+            if (typeof backup === "string") backup = JSON.parse(backup);
+            if (!backup || backup.v !== BACKUP_VERSION || typeof backup.p !== "string") return null;
+            return backup.p;
+        } catch (error) {
+            console.warn(`${TAG} invalid ExtensionSettings backup`, error);
+            return null;
+        }
+    }
+
+    function extensionSettingsSize(settings) {
+        const json = JSON.stringify(settings);
+        return typeof TextEncoder === "function" ? new TextEncoder().encode(json).byteLength : json.length * 2;
+    }
+
+    function saveBackupPacket(packet, reason = "save") {
+        if (typeof packet !== "string" || !Player?.ExtensionSettings) return false;
+        const previous = Player.ExtensionSettings[BACKUP_KEY];
+        if (readBackupPacket() === packet) return true;
+
+        const backup = { v: BACKUP_VERSION, t: Date.now(), p: packet };
+        Player.ExtensionSettings[BACKUP_KEY] = backup;
+        // ServerPlayerExtensionSettingsSync sends only { "ExtensionSettings.HCR": value },
+        // so the relevant limit is this key's serialized value, not every extension's settings.
+        const size = extensionSettingsSize(backup);
+        if (size > EXTENSION_SETTINGS_SAFE_LIMIT) {
+            if (previous === undefined) delete Player.ExtensionSettings[BACKUP_KEY];
+            else Player.ExtensionSettings[BACKUP_KEY] = previous;
+            console.error(`${TAG} backup skipped: ExtensionSettings.HCR would use ${size} bytes (safe limit ${EXTENSION_SETTINGS_SAFE_LIMIT})`);
+            return false;
+        }
+
+        try {
+            ServerPlayerExtensionSettingsSync(BACKUP_KEY);
+            console.info(`${TAG} backup updated (${reason}, ${packet.length} characters, ExtensionSettings.HCR ${size} bytes)`);
+            return true;
+        } catch (error) {
+            if (previous === undefined) delete Player.ExtensionSettings[BACKUP_KEY];
+            else Player.ExtensionSettings[BACKUP_KEY] = previous;
+            console.error(`${TAG} failed to sync backup`, error);
+            return false;
+        }
+    }
+
+    function mergeBackup(currentData) {
+        const backupPacket = readBackupPacket();
+        if (!backupPacket || !Array.isArray(currentData)) return { data: currentData, restored: 0, indices: [] };
+        const backupData = CraftingDecompressServerData(backupPacket);
+        if (!Array.isArray(backupData) || !backupData.length) return { data: currentData, restored: 0, indices: [] };
+
+        const data = currentData.slice(0, 200);
+        let restored = 0;
+        const indices = [];
+        const length = Math.min(200, Math.max(data.length, backupData.length));
+        while (data.length < length) data.push(null);
+        for (let i = 0; i < length; i++) {
+            // The live game is authoritative whenever it has an item. Restore only a hole:
+            // game empty + backup populated. If both sides are populated but differ, keep game.
+            if (data[i] == null && backupData[i] != null) {
+                data[i] = backupData[i];
+                restored++;
+                indices.push(i);
+            }
+        }
+        return { data, restored, indices };
+    }
+
+    function announceRestoration(indices, phase) {
+        if (!indices.length) return;
+        window.dispatchEvent(new CustomEvent("HCRCraftingRestored", {
+            detail: { indices: indices.slice(), count: indices.length, phase },
+        }));
+    }
+
+    async function ensureInitialBackup() {
+        const ready = await waitFor(() => Player?.MemberNumber != null
+            && Player.ExtensionSettings !== undefined
+            && Array.isArray(Player.Crafting), 30000);
+        if (!ready || readBackupPacket()) return false;
+
+        // Allow an in-flight account packet to settle. If it arrives later, the
+        // CraftingLoadServer hook below replaces this first snapshot immediately.
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (readBackupPacket()) return true;
+        const packet = encodeCrafting(Player.Crafting);
+        return packet ? saveBackupPacket(packet, "first-run") : false;
+    }
+
+    function reconcileLoadedCrafting() {
+        if (!Array.isArray(Player?.Crafting)) return 0;
+        const existingBackup = readBackupPacket();
+        // An empty array also exists before the account Crafting packet is loaded. Do not let
+        // that transient state become the first account backup.
+        if (!existingBackup && !Player.Crafting.some((craft) => craft != null)) return 0;
+        const { data, restored, indices } = mergeBackup(Player.Crafting);
+        if (!restored) {
+            const packet = encodeCrafting(Player.Crafting);
+            if (!existingBackup && packet) saveBackupPacket(packet, "initial");
+            return 0;
+        }
+        console.warn(`${TAG} restored ${restored} crafted item(s) from ExtensionSettings`);
+        // Re-enter the public loader instead of assigning Player.Crafting directly. This lets
+        // BC and every already-loaded extension hook observe and rebuild from the restored data.
+        CraftingLoadServer(data);
+        CraftingSaveServer();
+        announceRestoration(indices, "late-load");
+        return restored;
     }
 
     function installSlotDisplayPatch() {
@@ -172,11 +293,42 @@
             return next(args);
         });
 
-        modApi.hookFunction("CraftingLoadServer", 100, (args) => {
+        modApi.hookFunction("CraftingSaveServer", 100, (args, next) => {
+            const packet = encodeCrafting();
+            if (packet) saveBackupPacket(packet, "crafting-change");
+            return next(args);
+        });
+
+        modApi.hookFunction("CraftingLoadServer", 100, (args, next) => {
             Player.Crafting = [];
             let refresh = false;
             const criticalErrors = {};
-            const data = CraftingDecompressServerData(args[0]);
+            const serverData = CraftingDecompressServerData(args[0]);
+            // Reconcile on every account initialization, not only when creating the first backup.
+            const merged = mergeBackup(serverData);
+            const data = merged.data;
+
+            // When every asset is already available (including the case where an extension
+            // initialized before HCR), keep the normal loader chain intact. Other extensions
+            // hooking CraftingLoadServer will receive the restored array and can rebuild caches.
+            const allAssetsReady = data.every((item) => item == null || assetsFor(item.Item).length > 0);
+            if (allAssetsReady) {
+                if (merged.restored) console.warn(`${TAG} restored ${merged.restored} crafted item(s) during initialization`);
+                const result = next([data]);
+                if (merged.restored) {
+                    CraftingSaveServer();
+                    announceRestoration(merged.indices, "initialization");
+                } else {
+                    const packet = encodeCrafting(Player.Crafting);
+                    if (packet) saveBackupPacket(packet, "initialization");
+                }
+                return result;
+            }
+
+            if (merged.restored) {
+                refresh = true;
+                console.warn(`${TAG} restored ${merged.restored} crafted item(s) during initialization`);
+            }
 
             for (const [i, item] of CommonEnumerate(data)) {
                 if (item == null) {
@@ -202,6 +354,10 @@
                 const count = Object.keys(criticalErrors).length;
                 if (count) console.error(`Removing ${count} corrupted crafted items`, criticalErrors);
                 CraftingSaveServer();
+                if (merged.restored) announceRestoration(merged.indices, "initialization");
+            } else {
+                const packet = encodeCrafting(Player.Crafting);
+                if (packet) saveBackupPacket(packet, "initialization");
             }
         });
 
@@ -211,7 +367,21 @@
             assetsFor,
             tooltip,
             warningImage: WARNING_IMAGE,
+            backup: {
+                encode: encodeCrafting,
+                read: readBackupPacket,
+                save: () => {
+                    const packet = encodeCrafting();
+                    return packet ? saveBackupPacket(packet, "manual") : false;
+                },
+                reconcile: reconcileLoadedCrafting,
+            },
         };
+        // Create the first cross-device snapshot as soon as account data is available, rather
+        // than waiting for the player to manually add/remove a crafted item.
+        ensureInitialBackup();
+        // Late-load recovery: compare an already-loaded crafting list with the account backup.
+        reconcileLoadedCrafting();
         console.log(`${TAG} v${MOD_VERSION} loaded`);
     });
 })();
