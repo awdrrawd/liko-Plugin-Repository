@@ -20,7 +20,7 @@
     "use strict";
 
     window.Liko = window.Liko ?? {};
-    if (window.Liko.CAR) return;
+    if (window.Liko.HCR) return;
 
     const MOD_VERSION = "0.1";
     const UNKNOWN_ASSET = -1;
