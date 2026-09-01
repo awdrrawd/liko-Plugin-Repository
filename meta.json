@@ -1,37 +1,21 @@
 {
-  "updateId": "260825",
+  "updateId": "260901",
   "changelog": {
     "cn": [
       "⭐AEE - 外觀編輯拓展 更新",
-      "新增衣櫃內R131的座標熱修，但不一定能完全復原",
-      "⭐FCM - 好友與房間管理 更新",
-      "新增聊天工具，需到設定開啟(測試中)",
-      "新增快捷UI切換",
-      "調整UI介面",
-      "⭐AEE - 外觀編輯拓展 更新",
-      "完全移除渲染機制，交給遊戲渲染，如果有安裝LSCG的玩家還是會看到之前的座標，但只安裝AEE的玩家只會看到遊戲座標",
-      "新增拾取功能，可以點角色身體直接快速切換衣服編輯",
-      "新增服裝邊線功能，懸停時會顯示服裝輪廓",
-      "修改使用道具時會呼叫AEE面板問題，現在只有玩偶、絨毛娃娃會呼叫",
-      "修改匯出、匯入衣物，使其UI對齊BCX匯入UI",
-      "⭐LCE - 俱樂部拓展 更新",
-      "修改圖片快取邏輯，現在不會因為停用ECHO導致快取頭像變形"
+      "已經上傳FUSAM",
+      "新增隨意變形功能",
+      "新增部件圖示功能",
+      "⭐HCR - 製作物品的擴充物品資產保護 新增",
+      "在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用。"
     ],
     "en": [
-      "⭐ AEE - Appearance editing extension Update",
-      "Added a hotfix for coordinate R131 in the wardrobe (may not fully restore functionality)",
-      "⭐ FCM - Friends and ChatRoom Manager Update",
-      "Added chat tools (must be enabled in settings; currently in testing)",
-      "Added quick UI toggle",
-      "Adjusted UI interface",
-      "⭐ AEE - Appearance editing extension Update",
-      "Completely removed the custom rendering mechanism; rendering is now handled by the game engine. Players with LSCG installed will still see the previous coordinate system, but players with only AEE installed will now see only the game's native coordinates.",
-      "Added a pick-up feature: click on a character's body to quickly switch clothing for editing",
-      "Added clothing outline feature: outlines will appear when hovering over garments",
-      "Fixed an issue where using items would trigger the AEE panel; now only dolls and plush toys will trigger it",
-      "Adjusted import/export clothing UI to align with BCX import UI",
-      "⭐ LCE - Liko's Club Expansion Update",
-      "Modified image caching logic; cached avatars will no longer become distorted when ECHO is disabled"
+      "⭐ AEE - Appearance Edit Extension Update",
+      "Uploaded to FUSAM",
+      "Added freeform deformation feature",
+      "Added part icon feature",
+      "⭐ HCR - Craftable Expansion Item Asset Protection (New)",
+      "Preserves crafted items while extension assets are unavailable and restores them after the assets load."
     ]
   }
 }

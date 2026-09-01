@@ -134,6 +134,17 @@
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HLF.user.js",
       "priority": 10,
       "version": "0.17"
+    },
+    {
+      "id": "Fix-HCR",
+      "name": "製作物品的擴充物品資產保護",
+      "en_name": "Crafting Asset Recovery",
+      "description": "在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用",
+      "en_description": "Preserves crafted items while extension assets are unavailable and restores them after the assets load.",
+      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HCR.user.js",
+      "priority": 10,
+      "icon": "💉",
+      "version": "0.1"
     }
   ]
 }
