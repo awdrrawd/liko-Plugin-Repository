@@ -3,7 +3,7 @@
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.6.0
+// @version      2.6.1
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.6.0";
+    const MOD_VER = "2.6.1";
     if (window.Liko.CHE) return;
     window.Liko.CHE = MOD_VER;
 
@@ -1665,6 +1665,10 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     // =====================================================================
     // Message normalization (shared by full-scan and incremental capture)
     // =====================================================================
+    function restrictedMessageText() {
+        return isZh() ? "[訊息遭限制（未顯示）]" : "[Message restricted (not displayed)]";
+    }
+
     function normalizeChatMessageNode(msg) {
         try {
             if (msg.classList?.contains("chat-room-sep-div")) {
@@ -1722,6 +1726,9 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                     content = `${originalText} [🌐] ${content.replace(/^\[🌐\]\s*/, '')}`;
                 }
             }
+            // BCX 或 BC 的限制可能保留訊息外框、但不提供任何可見內文。
+            // 不繞過限制保存原句，改為留下明確標記，避免匯出時出現無法解釋的空白紀錄。
+            if (msg.dataset.cheRestrictedMessage === "1") content = restrictedMessageText();
 
             const messageType = detectMessageType(msg, content);
             const labelColor = getLabelColor(msg, nameButton);
@@ -1828,8 +1835,54 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
     function installCaptureHooks() {
         if (!modApi) return;
-        // ChatRoomMessage 沒有可靠的 DOM 回傳值，不能拿 next(args) 的結果當訊息節點。
-        // 一般聊天室訊息由上方 MutationObserver 捕捉；ServerAccountBeep hook 僅作補強。
+        // BCX 的接收限制可能直接中止 ChatRoomMessage，因而完全不建立 DOM；另一些
+        // 感官/審查限制則只建立空白外框。包住整條 hook chain，比較呼叫前後的最後
+        // 節點：正常訊息仍交給 DOM 正規化；沒有可見節點時留下「遭限制」紀錄。
+        if (typeof window.ChatRoomMessage === "function") {
+            modApi.hookFunction("ChatRoomMessage", 20, (args, next) => {
+                if (currentMode !== "cache") return next(args);
+                const data = args[0];
+                const recordable = data && ["Chat", "Whisper", "Emote"].includes(data.Type)
+                    && typeof data.Sender === "number" && typeof data.Content === "string";
+                if (!recordable) return next(args);
+
+                const log = DOMCache.getChatLog();
+                const before = log?.lastElementChild;
+                const result = next(args);
+                const node = DOMCache.getChatLog()?.lastElementChild;
+                if (node && node !== before && node.matches?.(".ChatMessage")) {
+                    const body = node.querySelector(".chat-room-message-content");
+                    const visibleBody = body
+                        ? (body.innerText || body.textContent || "").trim()
+                        : (() => {
+                            const clone = node.cloneNode(true);
+                            clone.querySelectorAll(".ChatMessageName,.chat-room-message-popup,.chat-room-metadata").forEach(el => el.remove());
+                            return (clone.innerText || clone.textContent || "").trim();
+                        })();
+                    if (!visibleBody) node.dataset.cheRestrictedMessage = "1";
+                    queueHookedNode(node);
+                } else {
+                    const sender = window.ChatRoomCharacter?.find?.(character => character?.MemberNumber === data.Sender);
+                    const direction = data.Type === "Whisper"
+                        ? (data.Sender === window.Player?.MemberNumber ? "outgoing" : "incoming")
+                        : undefined;
+                    const record = {
+                        time: new Date().toISOString(), id: String(data.Sender),
+                        name: sender ? (window.CharacterNickname?.(sender) || sender.Name || "") : "",
+                        content: restrictedMessageText(), direction,
+                        msgid: "", type: data.Type === "Whisper" ? "whisper" : data.Type === "Emote" ? "emote" : "normal",
+                        color: sender?.LabelColor || "#000", className: "ChatMessage che-restricted-message",
+                        roomName: window.ChatRoomData?.Name || "", _ts: Date.now(),
+                        _uid: crypto.randomUUID?.() || `${Date.now()}_${Math.random()}`,
+                    };
+                    record.category = classifyCategory(record);
+                    queueRecord(record);
+                }
+                return result;
+            });
+        }
+
+        // ServerAccountBeep 不經 ChatRoomMessage，保留獨立補強。
         if (typeof window.ServerAccountBeep === "function") {
             modApi.hookFunction("ServerAccountBeep", 20, (args, next) => {
                 const log = DOMCache.getChatLog();
