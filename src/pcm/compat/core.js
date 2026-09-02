@@ -668,6 +668,39 @@
     // 上次錯誤只消費一次；本次若再出錯，rememberPluginError() 會重新寫入供下次刷新提醒。
     try { localStorage.removeItem(LAST_PLUGIN_ERROR_KEY); } catch(e) {}
 
+    function hasExternalFusam() {
+        return !!window.FUSAM?.present && !window.Liko?.__PCMFusamCompat__?.isOwned?.();
+    }
+
+    function fusamDistributions(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+        return value.enabledDistributions && typeof value.enabledDistributions === 'object'
+            ? value.enabledDistributions : value;
+    }
+
+    /** 讀取真正 FUSAM 的瀏覽器層與帳號層設定；只有本次確實啟用 FUSAM 才生效。 */
+    function externalFusamEnabledIds() {
+        const ids = new Set();
+        if (!hasExternalFusam()) return ids;
+        try {
+            const browser = fusamDistributions(JSON.parse(localStorage.getItem('fusam.settings') || '{}'));
+            for (const [id, distribution] of Object.entries(browser)) if (distribution) ids.add(id);
+        } catch(e) { console.warn('🐈‍⬛ [PCM] ⚠️ 無法讀取 FUSAM 瀏覽器設定:', e?.message || e); }
+        try {
+            const packed = Player?.ExtensionSettings?.FUSAMSettings || Player?.OnlineSettings?.FUSAMSettings;
+            if (packed && typeof globalThis.LZString?.decompressFromBase64 === 'function') {
+                const account = fusamDistributions(JSON.parse(globalThis.LZString.decompressFromBase64(packed) || '{}'));
+                for (const [id, distribution] of Object.entries(account)) if (distribution) ids.add(id);
+            }
+        } catch(e) { console.warn('🐈‍⬛ [PCM] ⚠️ 無法讀取 FUSAM 帳號設定:', e?.message || e); }
+        return ids;
+    }
+
+    function isOwnedByExternalFusam(plugin) {
+        const id = String(plugin?.fusamId || plugin?.id || '').replace(/^fusam:/, '');
+        return !!id && externalFusamEnabledIds().has(id);
+    }
+
     function pcmLog(level, message, data = null) {
         const entry = { time: Date.now(), level, message, ...(data ? { data } : {}) };
         pcmLogs.push(entry);
@@ -691,7 +724,7 @@
         const previous = pluginRuntime.get(id) || { status: 'idle' };
         const next = { ...previous, ...patch };
         if (patch.status === 'loading' && !next.startedAt) next.startedAt = Date.now();
-        if ((patch.status === 'loaded' || patch.status === 'cached' || patch.status === 'failed') && !next.settledAt) {
+        if ((patch.status === 'loaded' || patch.status === 'cached' || patch.status === 'failed' || patch.status === 'delegated') && !next.settledAt) {
             next.settledAt = Date.now();
             if (next.startedAt) next.durationMs = next.settledAt - next.startedAt;
         }
@@ -720,8 +753,8 @@
             const label = item.querySelector('.bc-plugin-runtime-status');
             if (label) {
                 const labels = isCJK()
-                    ? { loading: '載入中…', loaded: '已載入', cached: '已從快取救援', failed: '載入失敗' }
-                    : { loading: 'Loading…', loaded: 'Loaded', cached: 'Recovered from cache', failed: 'Load failed' };
+                    ? { loading: '載入中…', loaded: '已載入', cached: '已從快取救援', failed: '載入失敗', delegated: '由 FUSAM 載入' }
+                    : { loading: 'Loading…', loaded: 'Loaded', cached: 'Recovered from cache', failed: 'Load failed', delegated: 'Handled by FUSAM' };
                 label.textContent = next.reloadRequired
                     ? (isCJK() ? '已停用，重新整理後生效' : 'Disabled · reload required')
                     : (labels[next.status] || '');
@@ -944,6 +977,14 @@
         if (!isCustom) {
             if (source === 'account' && !accountSettingsLoaded && !(await ensureAccountSettingsLoaded())) return;
             if (!isPluginEnabledForSource(plugin, source)) return;
+        }
+
+        // 只處理 PCM 的 FUSAM 頁：真正 FUSAM 已啟用同 ID 插件時由它負責。
+        // PCM 本地／帳號／自訂來源維持原本載入時序，不受這個相容判定影響。
+        if (source === 'fusam' && isOwnedByExternalFusam(plugin)) {
+            console.info(`🐈‍⬛ [PCM] ↪ ${getPluginName(plugin)} 已由 FUSAM 啟用，PCM 略過載入`);
+            setPluginRuntime(plugin.id, { status: 'delegated', source: 'fusam-external', error: null });
+            return;
         }
 
         if (!plugin.url && plugin.inlineCode) {
@@ -1458,8 +1499,8 @@
             : `<button class="bc-plugin-toggle${isEnabled ? ' active' : ''}" data-plugin="${plugin.id}" data-source="${source}"></button>`;
 
         const runtimeLabels = isCJK()
-            ? { loading: '載入中…', loaded: '已載入', cached: '已從快取救援', failed: '載入失敗' }
-            : { loading: 'Loading…', loaded: 'Loaded', cached: 'Recovered from cache', failed: 'Load failed' };
+            ? { loading: '載入中…', loaded: '已載入', cached: '已從快取救援', failed: '載入失敗', delegated: '由 FUSAM 載入' }
+            : { loading: 'Loading…', loaded: 'Loaded', cached: 'Recovered from cache', failed: 'Load failed', delegated: 'Handled by FUSAM' };
         const runtimeStatus = runtime.reloadRequired ? 'reload' : runtime.status;
         const runtimeText = runtime.reloadRequired
             ? (isCJK() ? '已停用，重新整理後生效' : 'Disabled · reload required')
