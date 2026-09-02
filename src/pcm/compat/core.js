@@ -702,7 +702,7 @@
                 : (next.status === 'loaded' || next.status === 'cached') ? 'loaded'
                     : next.status === 'failed' ? 'error' : 'missing';
             fusamCompat.setAddonState(id, {
-                distribution: next.source === 'fusam' ? 'fusam'
+                distribution: next.source === 'fusam' ? (next.distribution || 'stable')
                     : next.source === 'account' ? 'account'
                         : next.source === 'custom' ? 'custom' : 'stable',
                 status,
@@ -962,7 +962,7 @@
         }
         if (!plugin.url) return;
 
-        setPluginRuntime(plugin.id, { status: 'loading', source, error: null, postLoadError: null, startedAt: Date.now(), settledAt: null, durationMs: null });
+        setPluginRuntime(plugin.id, { status: 'loading', source, distribution: source === 'fusam' ? plugin.distribution : undefined, error: null, postLoadError: null, startedAt: Date.now(), settledAt: null, durationMs: null });
 
         const rawUrl   = isCustom ? plugin.url : getActivePluginUrl(plugin, source);
         const loadType = getLoadType(plugin);
@@ -1286,6 +1286,10 @@
         .bc-plugin-toggle-tri[data-state="off"]    .bc-plugin-toggle-tri-label:nth-child(1) { color:rgba(255,255,255,.85); }
         .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-label:nth-child(2) { color:#fff; }
         .bc-plugin-toggle-tri[data-state="beta"]   .bc-plugin-toggle-tri-label:nth-child(3) { color:#fff; }
+        .bc-plugin-fusam-channel { min-width:58px; height:26px; margin-left:8px; padding:0 9px; border:1px solid rgba(255,255,255,.18); border-radius:13px; color:#d7d0e7; background:rgba(255,255,255,.1); font-size:9px; font-weight:700; cursor:pointer; flex-shrink:0; }
+        .bc-plugin-fusam-channel[data-state="stable"] { color:#fff; border-color:#a78bfa; background:linear-gradient(135deg,#7F53CD,#9a6cff); }
+        .bc-plugin-fusam-channel[data-state="beta"] { color:#fff; border-color:#f0aa64; background:linear-gradient(135deg,#a96627,#d98b3f); }
+        .bc-plugin-fusam-channel[data-state="dev"] { color:#fff; border-color:#ee78a8; background:linear-gradient(135deg,#9d3766,#ce5489); }
 
         .bc-plugin-retry-btn { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:38px; height:38px; background:rgba(32,18,45,0.92); border:1px solid rgba(255,80,80,0.65); border-radius:50%; cursor:pointer; font-size:19px; color:#ff9b9b; display:flex; align-items:center; justify-content:center; transition:background .2s,color .2s,box-shadow .2s,transform .2s; z-index:4; padding:0; box-shadow:0 4px 14px rgba(0,0,0,.38); }
         .bc-plugin-retry-btn:hover { background:rgba(112,35,55,0.96); color:#fff; box-shadow:0 5px 18px rgba(255,80,80,.28); transform:translate(-50%,-50%) rotate(180deg); }
@@ -1424,7 +1428,9 @@
 
         if (source === 'account') { currentState = isTri ? (accountPluginSettings[plugin.id] || "off") : null; isEnabled = isPluginEnabledInAccount(plugin); }
         else { currentState = isTri ? (plugin.state || "off") : null; isEnabled = source === 'custom' ? plugin.enabled : isPluginEnabled(plugin); }
-        isBeta = isTri && currentState === "beta";
+        isBeta = source === 'fusam'
+            ? plugin.distribution === 'beta' || plugin.distribution === 'dev'
+            : isTri && currentState === "beta";
 
         const runtime = pluginRuntime.get(plugin.id) || { status: 'idle' };
         item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}${failedPlugins.has(plugin.id) ? ' failed' : ''}${runtime.postLoadError ? ' runtime-warning' : ''}`;
@@ -1442,7 +1448,12 @@
             ? `<a class="bc-plugin-info-btn" href="${escapeHtml(plugin.website)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t('visitWebsite'))}"></a>`
             : '';
 
-        const toggleHtml = isTri
+        const fusamLabels = isCJK()
+            ? { off: '關閉', stable: '穩定', beta: '測試', dev: '開發' }
+            : { off: 'OFF', stable: 'STABLE', beta: 'BETA', dev: 'DEV' };
+        const toggleHtml = source === 'fusam'
+            ? `<button class="bc-plugin-fusam-channel" data-plugin-fusam-channel="${escapeHtml(plugin.id)}" data-state="${escapeHtml(plugin.distribution || 'off')}">${escapeHtml(fusamLabels[plugin.distribution || 'off'] || plugin.distribution)}</button>`
+            : isTri
             ? (() => { const labels = getTriLabels(plugin); return `<button class="bc-plugin-toggle-tri" data-plugin-tri="${plugin.id}" data-source="${source}" data-state="${currentState}"><div class="bc-plugin-toggle-tri-track"></div><div class="bc-plugin-toggle-tri-labels"><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[0])}</span><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[1])}</span><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[2])}</span></div></button>`; })()
             : `<button class="bc-plugin-toggle${isEnabled ? ' active' : ''}" data-plugin="${plugin.id}" data-source="${source}"></button>`;
 
@@ -1525,15 +1536,21 @@
     }
     function normalizeFusamPlugin(addon) {
         const versions = Array.isArray(addon?.versions) ? addon.versions : [];
-        const selected = versions.find(v => v?.distribution === 'stable' && v?.source) || versions.find(v => v?.source);
+        const saved = fusamPluginSettings[String(addon?.id || '')];
+        const requestedDistribution = saved === true ? 'stable' : typeof saved === 'string' ? saved : 'off';
+        const availableVersions = versions.filter(v => v?.source && ['stable', 'beta', 'dev'].includes(v?.distribution));
+        const selected = availableVersions.find(v => v.distribution === requestedDistribution)
+            || (saved === true ? availableVersions[0] : null);
         const manifestType = String(addon?.type || '').toLowerCase();
         return {
             ...addon,
             id: `fusam:${String(addon?.id || '')}`,
             fusamId: String(addon?.id || ''),
             url: selected?.source || '',
+            fusamVersions: availableVersions.map(v => ({ distribution: v.distribution, source: v.source })),
+            distribution: selected?.distribution || 'off',
             type: manifestType === 'module' ? 'mod' : manifestType === 'script' ? 'scr' : 'eval',
-            enabled: fusamPluginSettings[String(addon?.id || '')] === true,
+            enabled: !!selected,
         };
     }
     function normalizeFusamPlugins(addons) {
@@ -1815,6 +1832,39 @@
 
     function handlePluginToggle(e) {
         if (e.target.closest('.bc-plugin-info-btn')) { e.stopPropagation(); return; }
+
+        // FUSAM manifest 可同時提供 stable / beta / dev；依實際存在的通道循環選擇。
+        const fusamChannel = e.target.closest('.bc-plugin-fusam-channel');
+        if (fusamChannel) {
+            const id = fusamChannel.getAttribute('data-plugin-fusam-channel');
+            const plugin = fusamPlugins.find(p => p.id === id);
+            if (!plugin) return;
+            const states = ['off', ...plugin.fusamVersions.map(v => v.distribution)];
+            const currentIndex = Math.max(0, states.indexOf(plugin.distribution || 'off'));
+            const next = states[(currentIndex + 1) % states.length];
+            const version = plugin.fusamVersions.find(v => v.distribution === next);
+            plugin.distribution = next;
+            plugin.enabled = next !== 'off';
+            plugin.url = version?.source || '';
+            if (plugin.enabled) fusamPluginSettings[plugin.fusamId] = next;
+            else delete fusamPluginSettings[plugin.fusamId];
+            saveFusamPluginSettings();
+
+            const labels = isCJK()
+                ? { off: '關閉', stable: '穩定', beta: '測試', dev: '開發' }
+                : { off: 'OFF', stable: 'STABLE', beta: 'BETA', dev: 'DEV' };
+            fusamChannel.setAttribute('data-state', next);
+            fusamChannel.textContent = labels[next] || next.toUpperCase();
+            const item = fusamChannel.closest('.bc-plugin-item');
+            item.classList.toggle('enabled', next === 'stable');
+            item.classList.toggle('beta-enabled', next === 'beta' || next === 'dev');
+            showToggleNotification(next === 'off' ? '🐾' : next === 'stable' ? '🐈‍⬛' : '🧪',
+                next === 'off' ? `${getPluginName(plugin)} ${t('pluginDisabled')}` : `${getPluginName(plugin)} ${labels[next] || next} ${t('pluginEnabled')}`,
+                next === 'off' ? t('willNotStart') : t('willTakeEffect'));
+            setPluginRuntime(id, { reloadRequired: loadedPlugins.has(id), distribution: next });
+            if (plugin.enabled && !loadedPlugins.has(id)) loadSubPlugin(plugin, 'fusam').catch(() => {});
+            return;
+        }
 
         // Retry button
         const retryBtn = e.target.closest('.bc-plugin-retry-btn');
