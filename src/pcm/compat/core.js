@@ -1489,11 +1489,8 @@
             ? `<a class="bc-plugin-info-btn" href="${escapeHtml(plugin.website)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(t('visitWebsite'))}"></a>`
             : '';
 
-        const fusamLabels = isCJK()
-            ? { off: '關閉', stable: '穩定', beta: '測試', dev: '開發' }
-            : { off: 'OFF', stable: 'STABLE', beta: 'BETA', dev: 'DEV' };
         const toggleHtml = source === 'fusam'
-            ? `<button class="bc-plugin-fusam-channel" data-plugin-fusam-channel="${escapeHtml(plugin.id)}" data-state="${escapeHtml(plugin.distribution || 'off')}">${escapeHtml(fusamLabels[plugin.distribution || 'off'] || plugin.distribution)}</button>`
+            ? `<button class="bc-plugin-fusam-channel" data-plugin-fusam-channel="${escapeHtml(plugin.id)}" data-state="${escapeHtml(plugin.distribution || 'off')}">${escapeHtml(getFusamChannelLabel(plugin, plugin.distribution || 'off'))}</button>`
             : isTri
             ? (() => { const labels = getTriLabels(plugin); return `<button class="bc-plugin-toggle-tri" data-plugin-tri="${plugin.id}" data-source="${source}" data-state="${currentState}"><div class="bc-plugin-toggle-tri-track"></div><div class="bc-plugin-toggle-tri-labels"><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[0])}</span><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[1])}</span><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[2])}</span></div></button>`; })()
             : `<button class="bc-plugin-toggle${isEnabled ? ' active' : ''}" data-plugin="${plugin.id}" data-source="${source}"></button>`;
@@ -1599,6 +1596,11 @@
             .filter(addon => String(addon?.id || '') !== 'WCE')
             .map(normalizeFusamPlugin)
             .sort((a, b) => fusamText(a.name).localeCompare(fusamText(b.name), undefined, { sensitivity: 'base', numeric: true }));
+    }
+    function getFusamChannelLabel(plugin, distribution) {
+        if (distribution === 'off') return 'OFF';
+        if (plugin?.fusamVersions?.length === 1) return 'ON';
+        return String(distribution || '').toUpperCase();
     }
     function fusamText(value) {
         if (typeof value === 'string') return value;
@@ -1891,16 +1893,13 @@
             else delete fusamPluginSettings[plugin.fusamId];
             saveFusamPluginSettings();
 
-            const labels = isCJK()
-                ? { off: '關閉', stable: '穩定', beta: '測試', dev: '開發' }
-                : { off: 'OFF', stable: 'STABLE', beta: 'BETA', dev: 'DEV' };
             fusamChannel.setAttribute('data-state', next);
-            fusamChannel.textContent = labels[next] || next.toUpperCase();
+            fusamChannel.textContent = getFusamChannelLabel(plugin, next);
             const item = fusamChannel.closest('.bc-plugin-item');
             item.classList.toggle('enabled', next === 'stable');
             item.classList.toggle('beta-enabled', next === 'beta' || next === 'dev');
             showToggleNotification(next === 'off' ? '🐾' : next === 'stable' ? '🐈‍⬛' : '🧪',
-                next === 'off' ? `${getPluginName(plugin)} ${t('pluginDisabled')}` : `${getPluginName(plugin)} ${labels[next] || next} ${t('pluginEnabled')}`,
+                next === 'off' ? `${getPluginName(plugin)} ${t('pluginDisabled')}` : `${getPluginName(plugin)} ${getFusamChannelLabel(plugin, next)} ${t('pluginEnabled')}`,
                 next === 'off' ? t('willNotStart') : t('willTakeEffect'));
             setPluginRuntime(id, { reloadRequired: loadedPlugins.has(id), distribution: next });
             if (plugin.enabled && !loadedPlugins.has(id)) loadSubPlugin(plugin, 'fusam').catch(() => {});

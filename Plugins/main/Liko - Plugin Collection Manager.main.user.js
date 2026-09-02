@@ -632,18 +632,23 @@
 
     // === 三段開關輔助 ============================================
 
-    function isTriStatePlugin(p) { return !!p.altUrl; }
+    function isTriStatePlugin(p) { return !!p.altUrl || Array.isArray(p.stateOptions); }
     function isPluginEnabled(p) { return isTriStatePlugin(p) ? p.state !== "off" : p.enabled; }
     function isPluginEnabledInAccount(p) { const v = accountPluginSettings[p.id]; return v !== undefined && v !== 0 && v !== "off"; }
     function getPluginState(p, source) { return (source === 'account' ? accountPluginSettings[p.id] : p.state) || "off"; }
     function isPluginEnabledForSource(p, source) { return source === 'account' ? isPluginEnabledInAccount(p) : isPluginEnabled(p); }
     function getPluginLoadSource(p) { return isPluginEnabled(p) ? 'local' : 'account'; }
     function getActivePluginUrl(p, source = 'local') {
+        if (Array.isArray(p.stateOptions)) {
+            const state = getPluginState(p, source);
+            return p.stateOptions.find(option => option.value === state)?.url || p.url;
+        }
         if (p.altUrl && getPluginState(p, source) === "beta") return p.altUrl;
         return p.url;
     }
-    function getTriLabels(p) { return p.triLabels?.length === 3 ? p.triLabels : ["OFF", "ON", "BETA"]; }
-    function cycleTriState(s) { return s === "off" ? "stable" : s === "stable" ? "beta" : "off"; }
+    function getTriStates(p) { return Array.isArray(p.stateOptions) ? ["off", ...p.stateOptions.map(option => option.value)] : ["off", "stable", "beta"]; }
+    function getTriLabels(p) { return Array.isArray(p.stateOptions) ? ["OFF", ...p.stateOptions.map(option => p.stateOptions.length === 1 ? "ON" : option.label)] : (p.triLabels?.length === 3 ? p.triLabels : ["OFF", "ON", "BETA"]); }
+    function cycleTriState(s, p) { const states = getTriStates(p); return states[(Math.max(0, states.indexOf(s)) + 1) % states.length]; }
 
     // === 語言輔助 ================================================
 
@@ -948,7 +953,7 @@
         const rawUrl   = isCustom ? plugin.url : getActivePluginUrl(plugin, source);
         const loadType = getLoadType(plugin);
         const isAltUrl = !isCustom && plugin.altUrl && rawUrl === plugin.altUrl;
-        const distribution = isAltUrl ? 'beta' : (isCustom ? 'custom' : 'stable');
+        const distribution = Array.isArray(plugin.stateOptions) ? getPluginState(plugin, source) : (isAltUrl ? 'beta' : (isCustom ? 'custom' : 'stable'));
         const cacheKey = `${plugin.id}|${distribution}|${rawUrl}`;
         const cachedCode = getCachedPluginCode(cacheKey, plugin.id);
         const mirrorUrl = isAltUrl ? (plugin.altMirrorUrl || plugin.mirrorUrl) : plugin.mirrorUrl;
@@ -1257,16 +1262,19 @@
         .bc-plugin-toggle::after { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; background:#fff; border-radius:50%; transition:all .3s cubic-bezier(.25,.46,.45,.94); box-shadow:0 2px 6px rgba(0,0,0,0.2); }
         .bc-plugin-toggle.active::after { left:26px; }
 
-        .bc-plugin-toggle-tri { position:relative; width:84px; height:24px; background:rgba(255,255,255,0.12); border-radius:12px; cursor:pointer; border:1px solid rgba(255,255,255,0.15); outline:none; display:flex; align-items:center; padding:0; overflow:hidden; flex-shrink:0; transition:border-color .3s; margin-left:8px; }
+        .bc-plugin-toggle-tri { position:relative; width:calc(var(--state-count,3) * 28px); height:24px; background:rgba(255,255,255,0.12); border-radius:12px; cursor:pointer; border:1px solid rgba(255,255,255,0.15); outline:none; display:flex; align-items:center; padding:0; overflow:hidden; flex-shrink:0; transition:border-color .3s; margin-left:8px; }
         .bc-plugin-toggle-tri:hover { border-color:rgba(196,181,253,0.4); }
-        .bc-plugin-toggle-tri-track { position:absolute; top:2px; width:27px; height:20px; border-radius:10px; transition:left .3s cubic-bezier(.25,.46,.45,.94),background .3s; left:2px; background:rgba(255,255,255,.35); }
-        .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-track { left:29px; background:linear-gradient(135deg,#7F53CD,#A78BFA); }
-        .bc-plugin-toggle-tri[data-state="beta"]   .bc-plugin-toggle-tri-track { left:55px; background:linear-gradient(135deg,#CD8035,#FAB87A); }
+        .bc-plugin-toggle-tri-track { position:absolute; top:2px; width:27px; height:20px; border-radius:10px; transition:left .3s cubic-bezier(.25,.46,.45,.94),background .3s; left:calc(2px + var(--state-index,0) * 28px); background:rgba(255,255,255,.35); }
+        .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-track { background:linear-gradient(135deg,#7F53CD,#A78BFA); }
+        .bc-plugin-toggle-tri[data-state="beta"]   .bc-plugin-toggle-tri-track { background:linear-gradient(135deg,#CD8035,#FAB87A); }
+        .bc-plugin-toggle-tri[data-state]:not([data-state="off"]) .bc-plugin-toggle-tri-track { background:linear-gradient(135deg,#7F53CD,#A78BFA); }
+        .bc-plugin-toggle-tri[data-state="beta"] .bc-plugin-toggle-tri-track,.bc-plugin-toggle-tri[data-state="dev"] .bc-plugin-toggle-tri-track { background:linear-gradient(135deg,#CD8035,#FAB87A); }
         .bc-plugin-toggle-tri-labels { position:relative; z-index:1; display:flex; width:100%; justify-content:space-around; align-items:center; height:100%; }
         .bc-plugin-toggle-tri-label { font-size:8px; font-weight:600; color:rgba(255,255,255,.45); width:28px; text-align:center; transition:color .3s; user-select:none; pointer-events:none; }
         .bc-plugin-toggle-tri[data-state="off"]    .bc-plugin-toggle-tri-label:nth-child(1) { color:rgba(255,255,255,.85); }
         .bc-plugin-toggle-tri[data-state="stable"] .bc-plugin-toggle-tri-label:nth-child(2) { color:#fff; }
         .bc-plugin-toggle-tri[data-state="beta"]   .bc-plugin-toggle-tri-label:nth-child(3) { color:#fff; }
+        .bc-plugin-toggle-tri-label.active { color:#fff; }
 
         .bc-plugin-retry-btn { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:38px; height:38px; background:rgba(32,18,45,0.92); border:1px solid rgba(255,80,80,0.65); border-radius:50%; cursor:pointer; font-size:19px; color:#ff9b9b; display:flex; align-items:center; justify-content:center; transition:background .2s,color .2s,box-shadow .2s,transform .2s; z-index:4; padding:0; box-shadow:0 4px 14px rgba(0,0,0,.38); }
         .bc-plugin-retry-btn:hover { background:rgba(112,35,55,0.96); color:#fff; box-shadow:0 5px 18px rgba(255,80,80,.28); transform:translate(-50%,-50%) rotate(180deg); }
@@ -1405,7 +1413,7 @@
 
         if (source === 'account') { currentState = isTri ? (accountPluginSettings[plugin.id] || "off") : null; isEnabled = isPluginEnabledInAccount(plugin); }
         else { currentState = isTri ? (plugin.state || "off") : null; isEnabled = source === 'custom' ? plugin.enabled : isPluginEnabled(plugin); }
-        isBeta = isTri && currentState === "beta";
+        isBeta = isTri && currentState !== "off" && currentState !== "stable";
 
         const runtime = pluginRuntime.get(plugin.id) || { status: 'idle' };
         item.className = `bc-plugin-item${isEnabled && !isBeta ? ' enabled' : ''}${isBeta ? ' beta-enabled' : ''}${failedPlugins.has(plugin.id) ? ' failed' : ''}${runtime.postLoadError ? ' runtime-warning' : ''}`;
@@ -1424,7 +1432,7 @@
             : '';
 
         const toggleHtml = isTri
-            ? (() => { const labels = getTriLabels(plugin); return `<button class="bc-plugin-toggle-tri" data-plugin-tri="${plugin.id}" data-source="${source}" data-state="${currentState}"><div class="bc-plugin-toggle-tri-track"></div><div class="bc-plugin-toggle-tri-labels"><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[0])}</span><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[1])}</span><span class="bc-plugin-toggle-tri-label">${escapeHtml(labels[2])}</span></div></button>`; })()
+            ? (() => { const labels = getTriLabels(plugin), states = getTriStates(plugin), index = Math.max(0, states.indexOf(currentState)); return `<button class="bc-plugin-toggle-tri" data-plugin-tri="${plugin.id}" data-source="${source}" data-state="${escapeHtml(currentState)}" style="--state-count:${states.length};--state-index:${index}"><div class="bc-plugin-toggle-tri-track"></div><div class="bc-plugin-toggle-tri-labels">${labels.map((label, i) => `<span class="bc-plugin-toggle-tri-label${i === index ? ' active' : ''}">${escapeHtml(label)}</span>`).join('')}</div></button>`; })()
             : `<button class="bc-plugin-toggle${isEnabled ? ' active' : ''}" data-plugin="${plugin.id}" data-source="${source}"></button>`;
 
         const runtimeLabels = isCJK()
@@ -1505,16 +1513,20 @@
         try { localStorage.setItem(FUSAM_SETTINGS_KEY, JSON.stringify(fusamPluginSettings)); } catch(e) {}
     }
     function normalizeFusamPlugin(addon) {
-        const versions = Array.isArray(addon?.versions) ? addon.versions : [];
-        const selected = versions.find(v => v?.distribution === 'stable' && v?.source) || versions.find(v => v?.source);
+        const versions = (Array.isArray(addon?.versions) ? addon.versions : []).filter(v => typeof v?.distribution === 'string' && typeof v?.source === 'string' && /^https:\/\//i.test(v.source));
+        const selected = versions.find(v => v.distribution === 'stable') || versions[0];
+        const saved = fusamPluginSettings[String(addon?.id || '')];
+        const selectedDistribution = saved === true ? selected?.distribution : (typeof saved === 'string' && versions.some(v => v.distribution === saved) ? saved : 'off');
         const manifestType = String(addon?.type || '').toLowerCase();
         return {
             ...addon,
             id: `fusam:${String(addon?.id || '')}`,
             fusamId: String(addon?.id || ''),
             url: selected?.source || '',
+            state: selectedDistribution,
+            stateOptions: versions.map(version => ({ value: version.distribution, label: version.distribution.toUpperCase(), url: version.source })),
             type: manifestType === 'module' ? 'mod' : manifestType === 'script' ? 'scr' : 'eval',
-            enabled: fusamPluginSettings[String(addon?.id || '')] === true,
+            enabled: selectedDistribution !== 'off',
         };
     }
     function fusamText(value) {
@@ -1859,27 +1871,36 @@
         if (tri) {
             const id = tri.getAttribute('data-plugin-tri');
             const src = tri.getAttribute('data-source') || 'local';
-            const plugin = subPlugins.find(p => p.id === id);
+            const plugin = src === 'fusam' ? fusamPlugins.find(p => p.id === id) : subPlugins.find(p => p.id === id);
             if (!plugin || !isTriStatePlugin(plugin)) return;
 
             const cur  = src === 'account' ? (accountPluginSettings[id] || "off") : (plugin.state || "off");
-            const next = cycleTriState(cur);
+            const next = cycleTriState(cur, plugin);
 
             if (src === 'account') { if (next === "off") delete accountPluginSettings[id]; else accountPluginSettings[id] = next; saveAccountSettings(); }
-            else { plugin.state = next; pluginSettings[id] = next; saveSettings(pluginSettings); }
+            else if (src === 'fusam') {
+                plugin.state = next;
+                plugin.enabled = next !== 'off';
+                if (next === 'off') delete fusamPluginSettings[plugin.fusamId]; else fusamPluginSettings[plugin.fusamId] = next;
+                saveFusamPluginSettings();
+            } else { plugin.state = next; pluginSettings[id] = next; saveSettings(pluginSettings); }
 
             tri.setAttribute('data-state', next);
+            const states = getTriStates(plugin);
+            const stateIndex = Math.max(0, states.indexOf(next));
+            tri.style.setProperty('--state-index', stateIndex);
+            tri.querySelectorAll('.bc-plugin-toggle-tri-label').forEach((label, index) => label.classList.toggle('active', index === stateIndex));
             const item = tri.closest('.bc-plugin-item');
             item.classList.remove('enabled', 'beta-enabled');
             if (next === 'stable') item.classList.add('enabled');
-            if (next === 'beta')   item.classList.add('beta-enabled');
+            if (next !== 'off' && next !== 'stable') item.classList.add('beta-enabled');
 
             const labels = getTriLabels(plugin);
             showToggleNotification(next === 'off' ? "🐾" : next === 'stable' ? "🐈‍⬛" : "🧪",
-                next === 'off' ? `${getPluginName(plugin)} ${t('pluginDisabled')}` : `${getPluginName(plugin)} ${labels[next === 'stable' ? 1 : 2]} ${t('pluginEnabled')}`,
+                next === 'off' ? `${getPluginName(plugin)} ${t('pluginDisabled')}` : `${getPluginName(plugin)} ${labels[stateIndex]} ${t('pluginEnabled')}`,
                 next === 'off' ? t('willNotStart') : t('willTakeEffect'));
             setPluginRuntime(id, { reloadRequired: next === 'off' && loadedPlugins.has(id) });
-            if (next !== 'off' && !loadedPlugins.has(id)) loadSubPlugin(plugin, src === 'account' ? 'account' : 'local').catch(() => {});
+            if (next !== 'off' && !loadedPlugins.has(id)) loadSubPlugin(plugin, src === 'account' ? 'account' : src === 'fusam' ? 'fusam' : 'local').catch(() => {});
         }
     }
 
