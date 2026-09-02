@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Liko - TTS
 // @namespace    https://github.com/awdrrawd
-// @version      0.6.0
+// @version      0.6.1
 // @description  Free multilingual text-to-speech for Bondage Club
 // @author       Liko
 // @match        https://bondageprojects.elementfx.com/*
@@ -18,7 +18,7 @@
 
     const W = window;
     const MOD_NAME = "Liko - TTS";
-    const MOD_VERSION = "0.6.0";
+    const MOD_VERSION = "0.6.1";
     const SETTINGS_ID = "Liko_TTS_Settings";
     const STORAGE_KEY = "LikoTTS";
     const BUTTON_ID = "lk-tts-trigger-btn";
@@ -50,6 +50,7 @@
         voiceByLang: {},
         playerVoices: {},
         randomPlayerVoices: true,
+        voiceAssignment: "system", // configured | random | system
         voiceGender: "female", // female | male | mixed
         chatButton: true,
         filteredPrefixesEnabled: true,
@@ -98,7 +99,7 @@
         language: "設定語系", followPrimaryLanguage: "↪ 跟隨主語系", selectVoice: "選擇語音", systemDefaultVoice: "系統預設語音", noVoice: "此語系尚未安裝可用語音", noVoiceHelp: "請到作業系統的語言或語音設定下載，再重新掃描。",
         rescan: "重新掃描系統語音", voicesFound: "已找到 {count} 個系統語音",
         multilingual: "自動切換語系語音", multilingualDesc: "依 Unicode 書寫系統切分混合語句。",
-        randomVoices: "為玩家分配固定聲線", randomVoicesDesc: "依用戶編號穩定分配聲線；名稱、英文與主要語系正文會保持一致。可用語音清單不變時，重新載入仍會得到同一聲線。",
+        voiceAssignment: "玩家語音分配", voiceConfigured: "統一使用設定語音", voiceRandom: "為玩家隨機分配", voiceSystem: "系統自動選擇", voiceAssignmentDesc: "個別 ID 設定永遠優先；其餘玩家可統一使用語言頁指定聲音、依會員 ID 穩定隨機，或使用系統預設聲音。",
         voiceGender: "玩家聲線性別", voiceGenderFemale: "女聲（預設）", voiceGenderMale: "男聲", voiceGenderMixed: "混合", voiceGenderDesc: "女聲模式會排除已知男聲；只有明確選擇男聲或混合時，才會為其他玩家分配男聲。手動選取的語音不受此項限制。",
         unsupported: "沒有可用語音的片段", unsupportedSkip: "跳過（建議）", unsupportedBase: "使用主要語音", unsupportedDesc: "只影響找不到相符語系語音的片段；已安裝對應語音的語言屬於支援語言。跳過可避免錯誤朗讀與雜訊。",
         longMessage: "過長訊息", truncate: "截斷", skipAll: "整段跳過", longMessageDesc: "決定超過最大字數時的行為。",
@@ -127,7 +128,7 @@
         voiceTest: "This is a voice test", playTest: "Test", playTestDesc: "Play the test sentence using the voice and parameters currently shown.", testText: "Test sentence",
         primaryLanguage: "My primary language", primaryLanguageDesc: "Player names, English, and this primary language prefer the same player voice.", language: "Configure language", followPrimaryLanguage: "↪ Follow primary language", selectVoice: "Select voice", systemDefaultVoice: "System default", noVoice: "No installed voice for this language", noVoiceHelp: "Install a voice in your operating system, then rescan.",
         rescan: "Rescan system voices", voicesFound: "Found {count} system voices",
-        multilingual: "Automatic language switching", multilingualDesc: "Split mixed text by Unicode writing system.", randomVoices: "Assign stable player voices", randomVoicesDesc: "Assign a stable voice from the member number. Names, English, and primary-language text remain consistent.",
+        multilingual: "Automatic language switching", multilingualDesc: "Split mixed text by Unicode writing system.", voiceAssignment: "Player voice assignment", voiceConfigured: "Use configured voice for everyone", voiceRandom: "Assign random player voices", voiceSystem: "Let the system choose", voiceAssignmentDesc: "Per-ID overrides always win. Other players can share the configured voice, receive a stable random voice, or use the system default.",
         voiceGender: "Player voice gender", voiceGenderFemale: "Female (default)", voiceGenderMale: "Male", voiceGenderMixed: "Mixed", voiceGenderDesc: "Female mode excludes known male voices. Manually selected voices are unaffected.",
         unsupported: "Unsupported segments", unsupportedSkip: "Skip (recommended)", unsupportedBase: "Use primary voice", unsupportedDesc: "Controls segments with no matching installed voice. Skipping avoids incorrect speech and noise.", longMessage: "Long messages", truncate: "Truncate", skipAll: "Skip entire message", longMessageDesc: "Choose what happens when a message exceeds the character limit.",
         maxLength: "Maximum characters", maxLengthDesc: "25 characters per step, from 25 to 1000.", rate: "Rate", pitch: "Pitch", volume: "Volume",
@@ -208,7 +209,7 @@
     }
     function stopKokoroWorker() {
         kokoroWorker?.terminate(); kokoroWorker = null; kokoroReady = false; kokoroLoading = false;
-        for (const pending of kokoroPending.values()) pending.reject(new Error("Kokoro stopped"));
+        for (const pending of kokoroPending.values()) pending.resolve(null);
         kokoroPending.clear();
         if (kokoroWorkerUrl) URL.revokeObjectURL(kokoroWorkerUrl);
         kokoroWorkerUrl = "";
@@ -253,6 +254,7 @@
             kokoroPending.set(requestId, { resolve, reject });
             kokoroWorker.postMessage({ type: "generate", requestId, text: text.trim(), voiceId: voiceURI.slice(7) });
         });
+        if (!audioUrl) return;
         await new Promise(resolve => {
             const audio = new Audio(audioUrl); audio.volume = params.volume ?? config.volume; audio.playbackRate = params.rate ?? config.rate;
             audio.onended = resolve; audio.onerror = resolve;
@@ -274,6 +276,7 @@
         };
         merged.maxLength = Math.min(1000, Math.max(25, Math.round(merged.maxLength / 25) * 25));
         if (!["female", "male", "mixed"].includes(merged.voiceGender)) merged.voiceGender = "female";
+        if (!["configured", "random", "system"].includes(merged.voiceAssignment)) merged.voiceAssignment = raw.voiceAssignment || (raw.randomPlayerVoices === true ? "random" : "configured");
         return merged;
     }
     function loadConfig() {
@@ -302,6 +305,11 @@
             || preferredVoices(wanted)[0]
             || null;
     }
+    function systemVoiceFor(lang) {
+        const wanted = primaryLang(lang);
+        const matching = voices.filter(voice => primaryLang(voice.lang) === wanted);
+        return matching.find(voice => voice.default) || matching[0] || null;
+    }
     const FEMALE_VOICE = /female|woman|hanhan|yating|huihui|yaoyao|xiaoxiao|xiaoyi|aria|jenny|zira|hazel|samantha|victoria|kyoko|haruka|heami/i;
     const MALE_VOICE = /\bmale\b|\bman\b|zhiwei|yunxi|yunyang|david|mark|george|daniel|ichiro/i;
     function preferredVoices(lang) {
@@ -316,13 +324,11 @@
         const personal = speakerId != null ? config.playerVoices[String(speakerId)] : null;
         if (personal?.voiceURI) {
             const lang = personal.lang || base;
-            const selected = [...voices, ...kokoroVoiceOptions(lang)].find(voice => voice.voiceURI === personal.voiceURI);
+            const selected = [...voices, ...(config.kokoro.enabled ? kokoroVoiceOptions(lang) : [])].find(voice => voice.voiceURI === personal.voiceURI);
             if (selected) return selected;
         }
-        // TTS-MAIN uses the configured/default voice unless a different player voice
-        // was assigned. Always let the local player hear exactly the voice selected in UI.
-        if (speakerId === W.Player?.MemberNumber) return voiceFor(base);
-        if (!config.randomPlayerVoices || speakerId == null) return voiceFor(base);
+        if (config.voiceAssignment === "configured" || speakerId == null) return voiceFor(base);
+        if (config.voiceAssignment === "system") return systemVoiceFor(base);
         const key = `${speakerId}:${base}`;
         const cachedUri = sessionPlayerVoices.get(key);
         const cached = [...voices, ...(config.kokoro.enabled ? kokoroVoiceOptions(base) : [])].find(voice => voice.voiceURI === cachedUri);
@@ -390,10 +396,10 @@
             // The speaker name is normally Latin. Keep Latin and the user's main language
             // on the same assigned player voice; truly foreign scripts still switch voice.
             if ((chunk.lang === "en" || chunk.lang === base) && playerVoice) return { ...chunk, voiceURI: playerVoice.voiceURI };
-            const matchingVoice = chunk.lang !== "unsupported" ? voiceFor(chunk.lang) : null;
+            const matchingVoice = chunk.lang !== "unsupported" ? (config.voiceAssignment === "system" ? systemVoiceFor(chunk.lang) : voiceFor(chunk.lang)) : null;
             if (matchingVoice) return { ...chunk, voiceURI: matchingVoice.voiceURI };
             if (config.unsupported === "base") {
-                const baseVoice = voiceFor(base);
+                const baseVoice = config.voiceAssignment === "system" ? systemVoiceFor(base) : voiceFor(base);
                 return { ...chunk, lang: base, voiceURI: baseVoice?.voiceURI };
             }
             return [];
@@ -418,6 +424,7 @@
     }
     function speakChunk(item, token) {
         if (item.voiceURI?.startsWith("kokoro:")) {
+            if (!config.kokoro.enabled) return Promise.resolve();
             return kokoroAudio(item.text, item.voiceURI, item).catch(error => console.warn("🐈‍⬛ [TTS] Kokoro speech failed", error));
         }
         return new Promise(resolve => {
@@ -463,6 +470,7 @@
         for (const chunk of chunks) {
             if (token !== generation || disposed) return;
             if (chunk.voiceURI?.startsWith("kokoro:")) {
+                if (!config.kokoro.enabled) continue;
                 await kokoroAudio(chunk.text, chunk.voiceURI).catch(error => notify(ui("kokoroDownloadFailed", { message: error?.message || error })));
                 continue;
             }
@@ -499,7 +507,7 @@
         if (!text?.trim()) return;
         clearSpeech();
         if (voiceURI?.startsWith("kokoro:")) {
-            config.kokoro.enabled = true; saveConfig();
+            if (!config.kokoro.enabled) return;
             await kokoroAudio(text.trim(), voiceURI, params).catch(error => notify(ui("kokoroDownloadFailed", { message: error?.message || error })));
             return;
         }
@@ -726,7 +734,7 @@
             const lang = this.activeLang();
             const current = config.voiceByLang[lang] || "";
             select.replaceChildren(new Option(ui("systemDefaultVoice"), ""));
-            [...this.filteredVoices(), ...kokoroVoiceOptions(lang)].filter((voice, index, list) => list.findIndex(item => item.voiceURI === voice.voiceURI) === index)
+            [...this.filteredVoices(), ...(config.kokoro.enabled ? kokoroVoiceOptions(lang) : [])].filter((voice, index, list) => list.findIndex(item => item.voiceURI === voice.voiceURI) === index)
                 .forEach(voice => select.add(new Option(`${voice.name} [${voice.lang}]`, voice.voiceURI)));
             select.value = [...select.options].some(option => option.value === current) ? current : "";
         },
@@ -802,7 +810,7 @@
             const self=String(W.Player?.MemberNumber||""); all.sort((a,b)=>String(a.MemberNumber)===self?-1:String(b.MemberNumber)===self?1:0);
             list.replaceChildren(...all.filter(c=>c.MemberNumber!=null&&!seen.has(String(c.MemberNumber))&&seen.add(String(c.MemberNumber))).map(c=>new Option(`${c===W.Player?"★ ":""}${c.Nickname||c.Name||"Player"} (#${c.MemberNumber})`,c.MemberNumber)));
         },
-        _populatePersonalVoice() { const lang=document.getElementById(this.domIds[12])?.value||primaryLang(config.baseLang), el=document.getElementById(this.domIds[13]); if(!el)return; el.replaceChildren(new Option(ui("systemDefaultVoice"),"")); [...preferredVoices(lang),...kokoroVoiceOptions(lang)].filter((v,i,a)=>a.findIndex(x=>x.voiceURI===v.voiceURI)===i).forEach(v=>el.add(new Option(`${v.name} [${v.lang}]`,v.voiceURI))); },
+        _populatePersonalVoice() { const lang=document.getElementById(this.domIds[12])?.value||primaryLang(config.baseLang), el=document.getElementById(this.domIds[13]); if(!el)return; el.replaceChildren(new Option(ui("systemDefaultVoice"),"")); [...preferredVoices(lang),...(config.kokoro.enabled?kokoroVoiceOptions(lang):[])].filter((v,i,a)=>a.findIndex(x=>x.voiceURI===v.voiceURI)===i).forEach(v=>el.add(new Option(`${v.name} [${v.lang}]`,v.voiceURI))); },
         _loadPersonal() { const id=document.getElementById(this.domIds[11])?.value, p=config.playerVoices[String(id)]||{}; const lang=document.getElementById(this.domIds[12]); if(lang)lang.value=p.lang||primaryLang(config.baseLang); this._populatePersonalVoice(); const voice=document.getElementById(this.domIds[13]); if(voice)voice.value=p.voiceURI||""; [[14,"rate"],[15,"pitch"],[16,"volume"]].forEach(([i,k])=>{const e=document.getElementById(this.domIds[i]);if(e)e.value=p[k]??config[k];}); },
         run() {
             this.hoverDesc = ""; this._hits = [];
@@ -877,7 +885,9 @@
             this._positionDom(this.domIds[10], C.CTRL_X, y, C.CTRL_W, C.CB_SZ); y += H;
             this._cb(y, ui("kokoroEnabled"), config.kokoro.enabled, "", () => {
                 config.kokoro.enabled = !config.kokoro.enabled; saveConfig();
-                if (config.kokoro.enabled) void startKokoroWorker(); else stopKokoroWorker();
+                if (config.kokoro.enabled) void startKokoroWorker();
+                else { clearSpeech(); stopKokoroWorker(); }
+                this._populateVoiceSelect(); this._populatePersonalVoice(); sessionPlayerVoices.clear();
             }); y += H;
             this._text(ui("kokoroCompute"), C.LBL_X, this._mid(y), 280);
             this._positionDom(this.domIds[8], 700, y, 290, C.CB_SZ);
@@ -915,7 +925,11 @@
             let y = this.C.ROW_Y0, H = this.C.ROW_H;
             this._text(ui("tabAdvanced"), this.C.LBL_X, 200, this.C.LBL_W, "#4CAF50");
             this._cb(y, ui("multilingual"), config.multilingual, ui("multilingualDesc"), () => { config.multilingual = !config.multilingual; saveConfig(); }); y += H;
-            this._cb(y, ui("randomVoices"), config.randomPlayerVoices, ui("randomVoicesDesc"), () => { config.randomPlayerVoices = !config.randomPlayerVoices; sessionPlayerVoices.clear(); saveConfig(); }); y += H;
+            const assignmentLabel = config.voiceAssignment === "random" ? ui("voiceRandom") : config.voiceAssignment === "system" ? ui("voiceSystem") : ui("voiceConfigured");
+            this._choice(y, ui("voiceAssignment"), assignmentLabel, ui("voiceAssignmentDesc"), () => {
+                config.voiceAssignment = config.voiceAssignment === "configured" ? "random" : config.voiceAssignment === "random" ? "system" : "configured";
+                sessionPlayerVoices.clear(); saveConfig();
+            }, 300, 1000); y += H;
             const genderLabel = config.voiceGender === "male" ? ui("voiceGenderMale") : config.voiceGender === "mixed" ? ui("voiceGenderMixed") : ui("voiceGenderFemale");
             this._choice(y, ui("voiceGender"), genderLabel, ui("voiceGenderDesc"), () => {
                 config.voiceGender = config.voiceGender === "female" ? "male" : config.voiceGender === "male" ? "mixed" : "female";
