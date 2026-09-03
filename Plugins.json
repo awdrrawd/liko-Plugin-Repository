@@ -549,11 +549,11 @@
       "en_description": "Add sticker item: allows setting a sticker URL, attaching it to a character, and sharing it so that it is visible to others.",
       "additionalInfo": "",
       "en_additionalInfo": "",
+      "type": "mod",
       "url": "https://shuang-custom-assets.pages.dev/assets/main.js",
       "mirrorUrl": "https://shuang-custom-assets.netlify.app/assets/main.js",
       "website": "https://gitgud.io/yeshuang26/shuangcustomassets",
-      "priority": 5,
-      "type": "mod"
+      "priority": 5
     },
     {
       "id": "Fix-HHA",
