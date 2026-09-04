@@ -2,7 +2,7 @@
 // @name         Liko - WPS
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1.4
+// @version      1.1.3
 // @description  WCE Profile Share
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.1.4";
+    const MOD_VER = "1.1.3";
     const fcmProfiles = () => {
         const fcm = window.Liko?.FCM;
         return fcm?.apiVersion >= 1
@@ -29,10 +29,6 @@
         return wps?.apiVersion >= 1 && typeof wps.share === "function" ? wps : null;
     };
     const higherReceiver = () => !!fcmProfiles() || lceWps()?.handlesReceive?.() === true;
-    if (fcmProfiles() || lceWps()) {
-        console.info("🐈‍⬛ [WPS] FCM/LCE 已提供 Profile 分享，獨立 WPS 不啟動");
-        return;
-    }
     if (window.Liko.WPS) return;
     window.Liko.WPS = MOD_VER;
     
@@ -102,17 +98,6 @@
 
     /* ================= 分享端 ================= */
     async function shareProfile(memberNumber) {
-        const fcm = fcmProfiles();
-        if (fcm) {
-            try {
-                if (await fcm.has(memberNumber) && await fcm.share(memberNumber)) return true;
-            } catch (e) { log("FCM share failed, trying fallback", e); }
-        }
-        const lce = lceWps();
-        if (lce) {
-            try { if (await lce.share(memberNumber)) return true; }
-            catch (e) { log("LCE share failed, trying standalone WPS", e); }
-        }
         const db = await openBceDB();
         const tx = db.transaction("profiles", "readonly");
         const store = tx.objectStore("profiles");
@@ -258,7 +243,9 @@
 
     /* ================= Profile UI：分享按鈕 ================= */
     function enhanceProfilesUI() {
-        if (fcmProfiles() || lceWps()) {
+        // FCM 的入口位於自己的面板，不與此處衝突；只有 LCE 也在
+        // /profiles 建立分享按鈕，因此獨立 WPS 僅對 LCE 的 UI 避讓。
+        if (lceWps()) {
             document.querySelectorAll(".liko-wps-share").forEach(button => button.remove());
             return;
         }
