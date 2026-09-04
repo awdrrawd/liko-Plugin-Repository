@@ -1,12 +1,12 @@
 // BC Color API (BC_ThemeColorCheck.js) — 取 BC 介面主題色並判斷亮暗。
-// getThemeColor() 依序試三條路線：LCE 主題 API → 宣告值 hook（需 bcModSdk）→ 像素取樣（眾數），最後保底用上次成功值 / DOM 背景。
+// getThemeColor() 是純查詢：LCE 主題 API → 已顯式啟用的宣告值 hook → 像素取樣（眾數），最後保底用上次成功值 / DOM 背景。
 // 掛在 window.Liko.__Sys_ColorAPI__。用法與各路線細節見 README-bc-color-api.md
 (function (global) {
   'use strict';
 
   global.Liko = global.Liko ?? {};
   if (global.Liko.__Sys_ColorAPI__) return;   // 防重複載入（先到者勝）
-  const MOD_VER = "2.2";
+  const MOD_VER = "2.3";
 
   // ---------------------------------------------------------------------------
   // 共用小工具
@@ -107,22 +107,9 @@
   // 沒人用就自動停掉，避免白白吃效能
   const IDLE_MS = 10000;
 
-  function _installHooks() {
-    if (_hooked) return false;
-    if (!global.bcModSdk || typeof global.DrawRect !== 'function') return false;
-
-    let api;
-    try {
-      api = global.bcModSdk.registerMod({
-        name: 'Liko - ColorAPI',
-        fullName: "Liko's Color API",
-        version: MOD_VER,
-        repository: 'https://github.com/awdrrawd/liko-Plugin-Repository',
-      });
-    } catch (err) {
-      _warnThrottled('[Liko.__Sys_ColorAPI__] bcModSdk 註冊失敗，改用像素取樣', err);
-      return false;
-    }
+  function enableHooks(api) {
+    if (_hooked) return true;
+    if (!api || typeof api.hookFunction !== 'function' || typeof global.DrawRect !== 'function') return false;
 
     // priority 0 = 最內層，代表其他插件（例如主題插件）改過的顏色我們看到的是最終值
     const rec = (name, colorIdx) => {
@@ -151,13 +138,16 @@
     });
 
     _hooked = true;
+    _armed = true;
+    _cur = [];
+    _lastUseAt = Date.now();
     return true;
   }
 
-  /** 有人要用宣告值路線了：確保 hook 裝好、記錄打開 */
+  /** 只喚醒已由 enableHooks(modApi) 顯式安裝的 hook；查詢本身絕不註冊 SDK。 */
   function _arm() {
     _lastUseAt = Date.now();
-    if (!_hooked && !_installHooks()) return false;
+    if (!_hooked) return false;
     if (!_armed) { _armed = true; _cur = []; }
     return true;
   }
@@ -381,7 +371,8 @@
 
   const API = {
     version: MOD_VER,
-    getThemeColor,   // v2.0 新增，建議優先使用
+    getThemeColor,   // 純查詢，不會註冊 mod 或自行新增 hook
+    enableHooks,     // 可選：借用呼叫端已註冊好的 bcModSdk modApi
     getUIColor,      // v2.0 新增
     getCanvasColor,
     isDark,
