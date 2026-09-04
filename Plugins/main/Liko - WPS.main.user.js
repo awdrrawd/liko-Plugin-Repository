@@ -2,7 +2,7 @@
 // @name         Liko - WPS
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1.3
+// @version      1.1.4
 // @description  WCE Profile Share
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,23 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.1.3";
+    const MOD_VER = "1.1.4";
+    const fcmProfiles = () => {
+        const fcm = window.Liko?.FCM;
+        return fcm?.apiVersion >= 1
+            && typeof fcm.profiles?.has === "function"
+            && typeof fcm.profiles?.share === "function"
+            ? fcm.profiles : null;
+    };
+    const lceWps = () => {
+        const wps = window.Liko?.LCE?.WPS;
+        return wps?.apiVersion >= 1 && typeof wps.share === "function" ? wps : null;
+    };
+    const higherReceiver = () => !!fcmProfiles() || lceWps()?.handlesReceive?.() === true;
+    if (fcmProfiles() || lceWps()) {
+        console.info("🐈‍⬛ [WPS] FCM/LCE 已提供 Profile 分享，獨立 WPS 不啟動");
+        return;
+    }
     if (window.Liko.WPS) return;
     window.Liko.WPS = MOD_VER;
     
@@ -87,6 +103,17 @@
 
     /* ================= 分享端 ================= */
     async function shareProfile(memberNumber) {
+        const fcm = fcmProfiles();
+        if (fcm) {
+            try {
+                if (await fcm.has(memberNumber) && await fcm.share(memberNumber)) return true;
+            } catch (e) { log("FCM share failed, trying fallback", e); }
+        }
+        const lce = lceWps();
+        if (lce) {
+            try { if (await lce.share(memberNumber)) return true; }
+            catch (e) { log("LCE share failed, trying standalone WPS", e); }
+        }
         const db = await openBceDB();
         const tx = db.transaction("profiles", "readonly");
         const store = tx.objectStore("profiles");
@@ -124,12 +151,14 @@
                 });
             }
             ChatRoomSendLocal(getI18N().sharedSelf(displayName, memberNumber),0);
+            return true;
         };
     }
 
     /* ================= 接收端（Hidden only） ================= */
     function handleShareMessage(data) {
         if (!data?.Content?.startsWith(PREFIX)) return false;
+        if (higherReceiver()) return false;
 
         try {
             const parts = data.Content.split(" ");
@@ -178,6 +207,7 @@
 
     /* ================= UI：開啟按鈕 ================= */
     function processShareText(element) {
+        if (higherReceiver()) return;
         if (element.dataset.likoShareProcessed === "1") return;
         const html = element.innerHTML;
         if (!html || !html.includes(OPEN_MARK)) return;
@@ -229,6 +259,10 @@
 
     /* ================= Profile UI：分享按鈕 ================= */
     function enhanceProfilesUI() {
+        if (fcmProfiles() || lceWps()) {
+            document.querySelectorAll(".liko-wps-share").forEach(button => button.remove());
+            return;
+        }
         document.querySelectorAll("a.bce-profile-open").forEach(open => {
             if (open.dataset.likoShareAdded) return;
             open.dataset.likoShareAdded = "1";
@@ -239,6 +273,7 @@
 
             const memberNumber = Number(m[1]);
             const btn = document.createElement("a");
+            btn.className = "liko-wps-share";
             btn.href = "#";
             btn.textContent = getUILabel("share");
             btn.style.marginLeft = "6px";
