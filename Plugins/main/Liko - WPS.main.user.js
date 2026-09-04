@@ -32,8 +32,8 @@
     if (window.Liko.WPS) return;
     window.Liko.WPS = MOD_VER;
     
-    const PREFIX = "[LIKOSHARE]";
-    const OPEN_MARK = "LIKOSHARE_OPEN";
+    const PROFILE_SHARE_PREFIX = "[PROFILESHARE]";
+    const PROFILE_SHARE_OPEN_MARK = "PROFILESHARE_OPEN";
     const CHUNK_SIZE = 800;
 
     const incoming = new Map();
@@ -131,7 +131,7 @@
                 const chunk = encoded.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
                 ServerSend("ChatRoomChat", {
                     Type: "Hidden",
-                    Content: `${PREFIX} ${shareId} ${i + 1}/${total} ${chunk}`
+                    Content: `${PROFILE_SHARE_PREFIX} ${shareId} ${i + 1}/${total} ${chunk}`
                 });
             }
             ChatRoomSendLocal(getI18N().sharedSelf(displayName, memberNumber),0);
@@ -141,7 +141,7 @@
 
     /* ================= 接收端（Hidden only） ================= */
     function handleShareMessage(data) {
-        if (!data?.Content?.startsWith(PREFIX)) return false;
+        if (!data?.Content?.startsWith(PROFILE_SHARE_PREFIX)) return false;
         if (higherReceiver()) return false;
 
         try {
@@ -170,7 +170,7 @@
                 const fromName = from.name || from.memberNumber || "某人";
                 const isSelf = from.memberNumber === Player?.MemberNumber;
                 const displayName = p.lastNick || p.name || p.memberNumber;
-                const openToken = `[${OPEN_MARK} ${payload.sharedAt} ${p.memberNumber}]`;
+                const openToken = `[${PROFILE_SHARE_OPEN_MARK} ${payload.sharedAt} ${p.memberNumber}]`;
 
                 const seenDate = new Date(p.seen);
                 const seenText =
@@ -192,25 +192,25 @@
     /* ================= UI：開啟按鈕 ================= */
     function processShareText(element) {
         if (higherReceiver()) return;
-        if (element.dataset.likoShareProcessed === "1") return;
+        if (element.dataset.profileShareProcessed === "1") return;
         const html = element.innerHTML;
-        if (!html || !html.includes(OPEN_MARK)) return;
+        if (!html || !html.includes(PROFILE_SHARE_OPEN_MARK)) return;
 
         const replaced = html.replace(
-            /\[LIKOSHARE_OPEN\s+(\d+)\s+(\d+)\]/g,
+            /\[PROFILESHARE_OPEN\s+(\d+)\s+(\d+)\]/g,
             (m, sharedAt, memberNumber) => {
                 const key = `${sharedAt}:${memberNumber}`;
                 if (!cache.has(key)) return m;
-                return `<span class="likoShareOpen" data-key="${key}"
+                return `<span class="profileShareOpen" data-key="${key}"
                     style="color:#885CB0;cursor:pointer;">▶ 開啟</span>`;
             }
         );
 
         if (replaced !== html) {
             element.innerHTML = replaced;
-            element.dataset.likoShareProcessed = "1";
+            element.dataset.profileShareProcessed = "1";
 
-            element.querySelectorAll(".likoShareOpen").forEach(el => {
+            element.querySelectorAll(".profileShareOpen").forEach(el => {
                 if (el.dataset.bound) return;
                 el.dataset.bound = "1";
 
@@ -250,8 +250,8 @@
             return;
         }
         document.querySelectorAll("a.bce-profile-open").forEach(open => {
-            if (open.dataset.likoShareAdded) return;
-            open.dataset.likoShareAdded = "1";
+            if (open.dataset.profileShareAdded) return;
+            open.dataset.profileShareAdded = "1";
 
             const text = open.parentElement?.textContent || "";
             const m = text.match(/\((\d+)\)/);
