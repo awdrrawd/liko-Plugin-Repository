@@ -542,7 +542,8 @@
     },
     {
       "id": "Shuang-Assets",
-      "icon": "🧩",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/ShuangCustomAssets-Mirror@master/assets/SCA_slider.png",
+      "iemoji": "🧩",
       "name": "Shuang的貼圖分享",
       "en_name": "Shuang's sticker sharing",
       "description": "新增貼圖分享物品。可設定貼圖網址，設置在角色身上並分享顯示給其他人",

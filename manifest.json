@@ -3,7 +3,7 @@
   "addons": [
     {
       "id": "Shuang-CustomAssets",
-      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/ShuangCustomAssets-Mirror@master/assets/SCA_logo.png",
+      "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/ShuangCustomAssets-Mirror@master/assets/SCA_slider.png",
       "iemoji": "🧩",
       "name": {
         "cn": "Shuang的自定义道具扩展",
@@ -21,7 +21,7 @@
       "versions": [
         {
           "distribution": "stable",
-          "source": "https://awdrrawd.github.io/ShuangCustomAssets-Mirror/shuang-assets.js"
+          "source": "https://shuang-custom-assets.pages.dev/assets/main.js"
         }
       ],
       "priority": 5,
