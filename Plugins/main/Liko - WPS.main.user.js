@@ -25,7 +25,7 @@
             ? fcm.profiles : null;
     };
     const lceWps = () => {
-        const wps = window.Liko?.LCE?.WPS;
+        const wps = window.Liko?.LCE?.ProfileShare;
         return wps?.apiVersion >= 1 && typeof wps.share === "function" ? wps : null;
     };
     const higherReceiver = () => !!fcmProfiles() || lceWps()?.handlesReceive?.() === true;
@@ -42,7 +42,6 @@
 
     const incoming = new Map();
     const cache = new Map();
-    window.__LIKOSHARE_CACHE__ = cache;
 
     const log = (...a) => console.log("🐈‍⬛ [WPS]", ...a);
 
