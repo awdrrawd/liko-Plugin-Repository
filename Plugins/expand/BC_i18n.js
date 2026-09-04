@@ -3,7 +3,7 @@
 // @name:zh        Liko 共用多語引擎（介面 + 聊天在地化）
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        2.0.0
+// @version        2.1.0
 // @description    Shared translation engine for all Liko plugins — UI strings (Liko.__Sys_i18n__) + chat-message localization (Liko.__Sys_L10N__)
 // @author         Likolisu
 // @include        /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -19,17 +19,13 @@
     if (typeof window === 'undefined') return;
     window.Liko = window.Liko ?? {};
 
-    if (window.Liko.__Sys_i18n__) return;   // 防重複載入（先到者勝）
-    const ENGINE_VER = '2.0.0';
+    if (window.Liko.__Sys_i18n__ && window.Liko.__Sys_L10N__) return;   // 防重複載入（先到者勝）
+    const ENGINE_VER = '2.1.0';
 
     // 語言偵測：localStorage → TranslationLanguage → 瀏覽器語系 → EN（BC 啟動瞬間 TranslationLanguage 尚是預設 "EN"，故 localStorage 優先）
-    const SUPPORTED = ['TW', 'CN', 'EN', 'JA', 'KO', 'DE', 'FR', 'RU', 'UA'];
-    function detectLang() {
-        let raw = '';
-        try { raw = (typeof localStorage !== 'undefined' && localStorage.getItem('BondageClubLanguage')) || ''; } catch (e) {}
-        if (!raw && typeof TranslationLanguage !== 'undefined' && TranslationLanguage) raw = String(TranslationLanguage);
-        if (!raw && typeof navigator !== 'undefined') raw = navigator.language || '';
-
+    // 官方預設語系僅作 metadata；引擎不以此限制插件可註冊的語言。
+    const OFFICIAL_LANGUAGES = Object.freeze(['TW', 'CN', 'EN', 'DE', 'FR', 'RU', 'UA']);
+    function normalizeLang(raw) {
         const low = String(raw).toLowerCase();
         let code = String(raw).toUpperCase().trim();
         // 中文各種寫法歸一：zh / zh-TW / zh-Hant → TW；zh-CN / zh-Hans → CN
@@ -43,7 +39,33 @@
         // BC 用國家碼 JP/KR；統一成 ISO 639-1 語言碼 JA/KO（字庫檔名與各插件一致）
         if (code === 'JP') code = 'JA';
         else if (code === 'KR') code = 'KO';
-        return code || 'EN';
+        else if (code === 'UK' || code === 'UKR') code = 'UA';
+        // 保留可辨識的語言碼，實際支援度由每個 namespace 已註冊的字庫決定。
+        return /^[A-Z]{2,3}$/.test(code) ? code : 'EN';
+    }
+
+    function detectLang() {
+        let raw = '';
+        try { raw = (typeof localStorage !== 'undefined' && localStorage.getItem('BondageClubLanguage')) || ''; } catch {}
+        if (!raw && typeof TranslationLanguage !== 'undefined' && TranslationLanguage) raw = String(TranslationLanguage);
+        if (!raw && typeof navigator !== 'undefined') raw = navigator.language || '';
+        return normalizeLang(raw);
+    }
+
+    const _languageListeners = new Set();
+    let _lastDetectedLang = detectLang();
+    setInterval(() => {
+        const next = detectLang();
+        if (next === _lastDetectedLang) return;
+        _lastDetectedLang = next;
+        for (const listener of _languageListeners) {
+            try { listener(next); } catch (e) { console.warn('[Liko i18n] language listener failed:', e); }
+        }
+    }, 2000);
+    function onChange(listener) {
+        if (typeof listener !== 'function') return () => {};
+        _languageListeners.add(listener);
+        return () => _languageListeners.delete(listener);
     }
 
     // ── 共用：字庫存取（_bank[realm][ns][key][lang] = string）─────────────────
@@ -60,6 +82,13 @@
         }
     }
     function _has(realm, ns, key) { return !!_bank[realm][ns]?.[key]; }
+    function _languages(realm, ns) {
+        const found = new Set();
+        for (const entry of Object.values(_bank[realm][ns] || {})) {
+            for (const lang of Object.keys(entry || {})) found.add(normalizeLang(lang));
+        }
+        return [...found];
+    }
 
     // 語言解析：目前語言 →（TW/CN 互退、再退 ZH）→ EN → 表中任一
     function _pick(entry, lang) {
@@ -131,7 +160,7 @@
     //  .json → 當純資料（該檔即該語言）；.js → 自註冊（可含多語，抓來執行即可）
     function _loadLangs(realm, ns, urlMap, forceLang) {
         if (!urlMap || typeof urlMap !== 'object') return Promise.resolve();
-        const lang = forceLang || detectLang();
+        const lang = normalizeLang(forceLang || detectLang());
         const wanted = [...new Set([lang, lang === 'CN' ? 'TW' : null, 'EN'].filter(Boolean))];
         const jobs = [];
         for (const code of wanted) {
@@ -146,16 +175,21 @@
     //  t(ns, key, vars, forceLang)：forceLang 省略時用 detectLang()；插件有自己的語言
     //  選單（如 HSC/FCM 的 auto/TW/CN/JP…）時，算出語言後以第 4 參數傳入即可，不會污染其他插件。
     function ui_t(ns, key, vars, forceLang) {
-        const out = _resolve('ui', forceLang || detectLang(), ns, key, vars);
+        const out = _resolve('ui', normalizeLang(forceLang || detectLang()), ns, key, vars);
         if (out == null) { console.warn(`🐈‍⬛ [Liko i18n] missing key: "${ns}/${key}"`); return key; }
         return out;
     }
 
     window.Liko.__Sys_i18n__ = {
         version: ENGINE_VER,
+        capabilities: Object.freeze({ json: true, script: true, onChange: true, normalizeLang: true, dynamicLanguages: true }),
+        officialLanguages: OFFICIAL_LANGUAGES,
         detectLang,
+        normalizeLang,
+        onChange,
         register: (ns, strings) => _register('ui', ns, strings),
         has: (ns, key) => _has('ui', ns, key),
+        getNamespaceLanguages: ns => _languages('ui', ns),
         t: ui_t,
         // 字庫載入
         loadScript,                                                          // 單一合併 JS
@@ -172,9 +206,24 @@
     let _l10nInstalled = false;
 
     function msg_tl(lang, ns, key, ...args) {
-        return _resolve('msg', lang, ns, key, args.length ? args : null);
+        return _resolve('msg', normalizeLang(lang), ns, key, args.length ? args : null);
     }
     function msg_t(ns, key, ...args) { return msg_tl(detectLang(), ns, key, ...args); }
+
+    function msg_localize(data) {
+        try {
+            const dict = data && Array.isArray(data.Dictionary) ? data.Dictionary : null;
+            const d = dict && dict.find(x => x && x.Tag === L10N_TAG && x.key);
+            if (!d) return false;
+            let arr = [];
+            try { const p = JSON.parse(d.data ?? '[]'); if (Array.isArray(p)) arr = p; } catch {}
+            const local = msg_tl(detectLang(), d.ns, d.key, ...arr);
+            if (local == null) return false;
+            const custom = dict.find(x => x && typeof x.Tag === 'string' && x.Tag.includes(CUSTOM_TAG));
+            if (custom) custom.Text = local; else data.Content = local;
+            return true;
+        } catch { return false; }
+    }
 
     function msg_send(ns, key, ...args) {
         try {
@@ -189,7 +238,7 @@
                     { Tag: L10N_TAG, ns, key: String(key), data: JSON.stringify(args) },
                 ],
             });
-        } catch (e) {}
+        } catch {}
     }
 
     function msg_install(modApi) {
@@ -197,20 +246,7 @@
         _l10nInstalled = true;
         try {
             modApi.hookFunction('ChatRoomMessage', 5, (a, next) => {
-                const data = a[0];
-                try {
-                    const dict = data && Array.isArray(data.Dictionary) ? data.Dictionary : null;
-                    const d = dict && dict.find(x => x && x.Tag === L10N_TAG && x.key);
-                    if (d) {
-                        let arr = [];
-                        try { const p = JSON.parse(d.data ?? '[]'); if (Array.isArray(p)) arr = p; } catch (e) {}
-                        const local = msg_tl(detectLang(), d.ns, d.key, ...arr);
-                        if (local != null) {
-                            const custom = dict.find(x => x && typeof x.Tag === 'string' && x.Tag.includes(CUSTOM_TAG));
-                            if (custom) custom.Text = local; else data.Content = local;
-                        }
-                    }
-                } catch (e) {}
+                msg_localize(a[0]);
                 return next(a);
             });
         } catch (e) { console.warn('🐈‍⬛ [Liko L10N] hook 失敗:', e.message); }
@@ -218,12 +254,19 @@
 
     window.Liko.__Sys_L10N__ = {
         version: ENGINE_VER,
+        capabilities: Object.freeze({ localize: true, install: true, onChange: true, normalizeLang: true, dynamicLanguages: true }),
+        officialLanguages: OFFICIAL_LANGUAGES,
         lang: detectLang,
+        detectLang,
+        normalizeLang,
+        onChange,
         register: (ns, table) => _register('msg', ns, table),
         has: (ns, key) => _has('msg', ns, key),
+        getNamespaceLanguages: ns => _languages('msg', ns),
         t: msg_t,
         tl: msg_tl,
         send: msg_send,
+        localize: msg_localize,
         install: msg_install,
         loadScript,
         loadLangs: (ns, urlMap, lang) => _loadLangs('msg', ns, urlMap, lang),

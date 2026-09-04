@@ -1,12 +1,12 @@
 # Liko 共用多語引擎（BC_i18n.js）接入指南
 
 > 一份 JS、兩個子系統：`window.Liko.__Sys_i18n__`（介面字串）+ `window.Liko.__Sys_L10N__`（聊天訊息在地化）。
-> 供 **BC-HSC / BC-AFC / BC-FCM**（及其他 Liko 插件）接入時參閱與修改。
+> 供 **BC-AFC / BC-FCM / BC-LCE / PCM**（及其他 Liko 插件）接入時參閱。BC-AEE 使用 i18next，維持獨立。
 
 檔案位置（本倉庫）：
 - **引擎** → `Plugins/expand/BC_i18n.js`（與 bcmodsdk / toast / ColorAPI 等系統擴充同處）。
 - **各插件文本字庫**（`XXX-i18n.js`）→ `Plugins/Translation/`。
-- sibling repo 各自把引擎放自己的 `Translation/`（或 `expand/`）、文本放自己的 `Translation/`，路徑自訂，行為一致即可。
+- sibling repo 可內嵌本檔的部署副本以支援獨立啟動，但不得在各專案分叉修改；唯一權威來源是本檔。
 
 CDN / 取得網址：
 
@@ -16,7 +16,7 @@ CDN / 取得網址：
 | jsDelivr | `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/BC_i18n.js` |
 | Pages | `https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_i18n.js` |
 
-各 sibling repo 若透過 `copy-assets` 自帶一份，請把自己 `Translation/BC_i18n.js` 同步成本檔內容即可（引擎有版本防重載，先載到者建立，後載者跳過）。
+各 sibling repo 若需支援獨立啟動，可在 `src` 內保留本檔的部署副本並打包；更新時必須完整同步權威檔，不要各自修改（引擎有版本防重載，先載到者建立，後載者跳過）。
 
 ---
 
@@ -25,15 +25,16 @@ CDN / 取得網址：
 - **同一份檔、兩個引擎、共用內部**：語言偵測、佔位符代入、字庫倉儲、字庫載入全部共用。
 - **佔位符**：以 **具名 `{name}`** 為主（`vars` 傳物件），亦相容 **位置式 `{0}{1}`**（`vars` 傳陣列）。字串一律用純字串（**不要用函式字串**），才能 JSON 化。
 - **語言 fallback 鏈**：目標語言 →（`TW`↔`CN` 互退、再退 `ZH`）→ `EN` → 表中任一。
-- **字庫來源**：可用「單一合併 JS」或「依語言分檔」（`.js` 自註冊 / `.json` 純資料），大文本插件可只載目前語言。
-- **防重複載入**：`window.Liko.__Sys_i18n__.version === '2.0.0'` 時後續載入自動跳過，不會洗掉他人已註冊字庫。
+- **字庫來源**：新專案統一使用每語言一份 `.json` 純資料；`loadScript()` 僅保留給既有單檔插件相容。
+- **防重複載入**：`window.Liko.__Sys_i18n__` 與 `__Sys_L10N__` 都存在時，後續載入自動跳過，不會洗掉他人已註冊字庫。
+- **目前版本**：`2.1.0`；提供 `normalizeLang()`、`onChange()`、capabilities，以及可獨立呼叫的 `L10N.localize(data)`。
 
 ---
 
 ## 2. 核心原則：語言由「插件」決定，引擎只負責翻譯
 
-**每支插件先用自己的邏輯算出「最終語言碼」，再連同插件名、要翻的 key 一起丟給引擎。**
-不要讓引擎替你判斷語言 —— 因為各插件情況不同：有的有 `auto`、有的固定語言、有的有自己的 `SUPPORTED_LANGS` 白名單（如 `HSC_LANGS = ['auto','TW','CN','EN','JP','KR','DE','FR','RU','UA']`）。
+**每支插件先用自己的設定算出「自動或手動」，再把最終語言碼連同插件名、key 交給引擎。**
+插件可以有自己的語言選單，但不應用共用引擎的官方語言 metadata 限制字庫；引擎會正規化任意有效的 2–3 碼語言碼，實際支援度由各 namespace 已註冊的字庫決定。未指定語言時才使用 `detectLang()`。
 
 流程：
 
@@ -69,7 +70,7 @@ Liko.__Sys_i18n__.t('HSC', 'loaded', { v: '1.0' }, hscLang());   // 插件名 + 
 
 **BC 目前官方內建的語系只有 7 種：`TW`、`CN`、`EN`、`DE`、`FR`、`RU`、`UA`**，由全域變數 `TranslationLanguage` 決定（`detectLang()` 也是以它為主要依據之一）。做翻譯時**建議優先照顧這 7 種**——這是實際會有玩家用到的語系。
 
-引擎的 `SUPPORTED` 另外多列了 `JA`、`KO`（超出官方 7 種的擴充語系），代表你**可以**做超過官方的語系；只是要清楚這些不是 BC 原生就會切到的語言，`TranslationLanguage` 不會給你這些值，得靠插件自己的語言選單指定。
+`officialLanguages` 只列官方 7 種，並不限制插件。其他語言會由 `normalizeLang()` 保留，實際支援度依各 namespace 已註冊的字庫動態決定，可用 `getNamespaceLanguages(ns)` 查詢。因此 FCM 可以提供 JA／KO／ES／VI，而 LCE 不會被誤認為也支援這些語言。
 
 若你的插件支援超過官方 7 種的語系，取語言時用「雙／三段判定」最穩，優先序由高到低：
 
@@ -91,7 +92,7 @@ Liko.__Sys_i18n__.t('MYMOD', 'loaded', { v: '1.0' }, myLang());
 ## 3. `window.Liko.__Sys_i18n__` API（介面字串）
 
 ```js
-i18n.version                       // '2.0.0'
+i18n.version                       // '2.1.0'
 i18n.detectLang()                  // → 'TW' | 'CN' | 'EN' | 'JP' | ...
 i18n.register(ns, strings)         // strings = { key: { EN, TW, CN, JP, ... } }
 i18n.has(ns, key)                  // boolean
@@ -142,7 +143,9 @@ L10N.send('AFC', 'propose', myName, targetName);
 
 ---
 
-## 5. 字庫檔三種寫法
+## 5. 字庫檔格式
+
+新專案使用 (C) JSON。以下 (A)、(B) JS 格式只供既有 Plugin Repository 單檔插件相容，不作為 AFC / FCM / LCE 新字庫的範本。
 
 **(A) 單一合併 JS**（`XXX-i18n.js`，自註冊；本倉庫 PCM/MAT/MPL/Prank 用此法）
 
@@ -157,7 +160,7 @@ L10N.send('AFC', 'propose', myName, targetName);
 ```
 載入：`await Liko.__Sys_i18n__.ensure('HSC', 'https://.../Translation/HSC-i18n.js');`
 
-**(B) 依語言分檔（`.js`，自註冊單一語言）** — 適合超大文本，只抓目前語言
+**(B) 依語言分檔（`.js`，自註冊單一語言；舊格式）**
 
 ```js
 // HSC-i18n.TW.js
@@ -172,7 +175,7 @@ await Liko.__Sys_i18n__.ensure('HSC', {
 }, hscLang());   // 第 3 參給插件算好的語言；只會抓該語言 + EN
 ```
 
-**(C) 依語言分檔（`.json`，純資料）** — 最易維護，可交給翻譯者
+**(C) 依語言分檔（`.json`，純資料；標準格式）** — 最易維護，可交給翻譯者
 
 ```json
 // HSC-i18n.TW.json
@@ -224,7 +227,7 @@ await Liko.__Sys_i18n__.ensure('HSC', {
 ```js
 window.Liko = window.Liko ?? {};
 if (window.Liko.__Sys_i18n__) return;   // 已載入就跳過
-const MOD_VER = '2.0.0';
+const MOD_VER = '2.1.0';
 // …建立 api…
 window.Liko.__Sys_i18n__ = api;         // 掛上，即完成註冊（版本讀 api.version）
 ```
