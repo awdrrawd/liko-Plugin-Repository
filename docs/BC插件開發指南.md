@@ -1330,7 +1330,56 @@ DOM
 * 按鈕是否仍在可點擊範圍；
 * 文字是否超出按鈕。
 
-### I. ECHO 與 BC 的責任邊界
+### I. 判斷手機模式：`CommonIsMobile`
+
+BC 是否進入「手機模式」由全域旗標 `CommonIsMobile`（宣告在 `Scripts/Common.js`）決定，判斷依據不是 User Agent、也不是螢幕寬度，而是：
+
+```js
+function CommonDetectMobile() {
+    return globalThis.matchMedia("(pointer: coarse)").matches;
+}
+```
+
+也就是「輸入裝置是不是粗略指標（觸控）」，跟視窗尺寸、瀏覽器縮放無關——桌機把視窗縮到很窄也不會被判斷成手機模式；反過來，平板／手機瀏覽器就算開到很大的外接螢幕，一樣算手機模式。
+
+`CommonIsMobile` **只在 `GameStart()`（`Scripts/Game.js`）一開始被賦值一次**，而 `GameStart()` 又是在 `window` 的 `load` 事件裡才被觸發：
+
+```js
+window.addEventListener("load", () => {
+    CommonPromiseCatch(GameStart().then(resolve));
+});
+
+async function GameStart(isNode = false) {
+    // ...
+    CommonIsMobile = CommonDetectMobile();
+    // ...
+}
+```
+
+因此：
+
+* **整個頁面生命週期只判斷一次**，之後不會因為玩家縮放視窗或旋轉裝置而重新偵測；BC 把它當成「這台裝置從一開始就是手機還是桌機」這種固定屬性使用，插件也應該比照辦理，不要自己另外監聽 `resize` 去猜。
+* 若插件在 `window` 的 `load` 事件觸發**之前**就讀取 `CommonIsMobile`，讀到的會是 `Scripts/Common.js` 裡的預設值 `false`（誤判成非手機模式），因為賦值還沒發生。實務上，只要照本指南「先 `registerMod`，再等 `LoginResponse` / `Player.MemberNumber` 就緒」的流程走，正常情況下已經夠晚，很少真的會搶在 `load` 之前跑到判斷手機模式的程式碼；如果真的需要保守處理，可以自行多判斷一次 `globalThis.matchMedia("(pointer: coarse)").matches`，或等待 BC 暴露的 `GameReadyState.load`（`Scripts/Game.js`，代表「頁面載入完成、登入前」）resolve 之後再讀 `CommonIsMobile`，不需要自己重新設計一套偵測邏輯。
+
+用法上直接讀全域變數即可，不需要呼叫函式或訂閱事件：
+
+```js
+if (CommonIsMobile) {
+    // 手機模式：例如放大按鈕、拿掉只有滑鼠才有意義的 Hover 提示
+} else {
+    // 桌機模式
+}
+```
+
+BC 原生大量使用這個旗標，插件可以照抄同樣的判斷邏輯：
+
+* **關閉滑鼠專屬效果**：`!CommonIsMobile` 常跟 Hover／高亮判斷放在一起，例如「滑鼠停在按鈕上才顯示高亮」要寫成 `MouseIn(...) && !CommonIsMobile`，因為手機模式下沒有「滑鼠停在上面但沒點」這種中間狀態，只有點下去。
+* **調整版面／可點擊區域**：例如按鈕文字可用寬度在手機模式下預留的邊界通常比桌機小，因為觸控目標本身需要更大的可點擊範圍。
+* **調整小遊戲操作方式或難度**：像 Struggle、KinkyDungeon、MaidCleaning 這類小遊戲會依 `CommonIsMobile` 切換操作方式（例如改成點擊移動而不是方向鍵）或調整難度係數；插件如果自製需要「連續按鍵／方向鍵」的互動，也該替手機模式準備替代操作方式，不要假設玩家一定有實體鍵盤。
+
+不要拿 `CommonIsMobile` 來判斷「螢幕是不是很小」——那是另一個問題（見上一節「不同畫面尺寸」），兩者要分開處理：桌機瀏覽器把視窗縮到很窄，`CommonIsMobile` 仍然是 `false`，但版面一樣可能被擠壓；反過來手機接上大螢幕橫向使用，空間可能很充裕，但 `CommonIsMobile` 仍然是 `true`。
+
+### J. ECHO 與 BC 的責任邊界
 
 **這節只適用於「動到角色外觀／角色繪製」的情境**（見 8.4）；純 UI 繪製等其他情境不受影響，不需要套用這節的判斷。
 
