@@ -101,6 +101,31 @@
       "priority": 3
     },
     {
+      "id": "Liko-Responsive",
+      "icon": "https://awdrrawd.github.io/BC-Responsive/assets/preference-icon.svg",
+      "iemoji": "💗",
+      "name": {
+        "cn": "Liko的熱情回應",
+        "en": "Liko's Responsive Reactions"
+      },
+      "description": {
+        "cn": "依互動、高潮、趣味與房間事件，自動執行文字、動作、表情與特殊動畫回應。",
+        "en": "Automatically responds to interactions, climax, flavour, and room events with messages, activities, expressions, and special animations."
+      },
+      "author": "莉柯莉絲(Likolisu)",
+      "repository": "https://github.com/awdrrawd/BC-Responsive",
+      "website": "https://github.com/awdrrawd/BC-Responsive",
+      "tags": ["chat", "Interaction", "immersion"],
+      "type": "module",
+      "versions": [
+        {
+          "distribution": "stable",
+          "source": "https://awdrrawd.github.io/BC-Responsive/dist/main.js"
+        }
+      ],
+      "priority": 3
+    },
+    {
       "id": "Liko-AFC",
       "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/BC-AFC@main/Images/AFC-ICON.png",
       "iemoji": "🌸",

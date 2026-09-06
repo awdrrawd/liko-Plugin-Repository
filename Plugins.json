@@ -62,6 +62,23 @@
       "type": "mod"
     },
     {
+      "id": "Liko-Responsive",
+      "name": "Liko的熱情回應",
+      "icon": "https://awdrrawd.github.io/BC-Responsive/assets/preference-icon.svg",
+      "iemoji": "💗",
+      "en_name": "Liko's Responsive Reactions",
+      "description": "依互動、高潮、趣味與房間事件，自動執行文字、動作、表情與特殊動畫回應。",
+      "en_description": "Automatically responds to interactions, climax, flavour, and room events with messages, activities, expressions, and special animations.",
+      "additionalInfo": "支援人格匯入匯出、對象名單、BCX預先檢查，以及與LCE協調表情與口型接管。",
+      "en_additionalInfo": "Supports persona import and export, target lists, BCX preflight checks, and expression and mouth ownership coordination with LCE.",
+      "type": "mod",
+      "url": "https://awdrrawd.github.io/BC-Responsive/dist/main.js",
+      "mirrorUrl": "https://cdn.jsdelivr.net/gh/awdrrawd/BC-Responsive@main/dist/main.js",
+      "website": "https://github.com/awdrrawd/BC-Responsive",
+      "priority": 3,
+      "version": "0.1.0"
+    },
+    {
       "id": "Liko-AFC",
       "name": "繁戀如花 ─繽紛─",
       "icon": "https://cdn.jsdelivr.net/gh/awdrrawd/BC-AFC@main/Images/AFC-ICON.png",
