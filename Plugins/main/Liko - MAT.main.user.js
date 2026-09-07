@@ -132,7 +132,14 @@
 
     // 將錯誤代碼轉成對應的提示字串
     function apiHint(err) {
-        const map = { rate_limit: 'hint_rate_limit', blocked: 'hint_blocked', network: 'hint_network' };
+        const map = {
+            rate_limit: 'hint_rate_limit',
+            blocked: 'hint_blocked',
+            network: 'hint_network',
+            cors: 'hint_cors',
+            offline: 'hint_offline',
+            timeout: 'hint_timeout',
+        };
         return ui(map[err] || 'hint_unknown', { err: err || 'unknown' });
     }
 
@@ -346,12 +353,31 @@
     // 單次請求逾時：某個 fetch 若永久 hang 住，序列佇列會整條卡死、其後訊息全部靜默不翻，
     // 那是最大批量丟失來源。逾時後 abort 併入下方 transient 路徑重試，不會直接算失敗丟棄。
     const FETCH_TIMEOUT = 10000;
+
+    // 瀏覽器基於安全考量，fetch() 對「真正斷線／DNS 失敗」和「CORS 被擋」都只會丟出同一種
+    // TypeError，訊息內容也不可靠（因為要防止網頁用錯誤細節去偵測跨網域資源是否存在），
+    // 無法單憑 catch 到的例外本身分辨。這裡用「補一次 no-cors 探測」的方式做二次判斷：
+    // no-cors 模式不受同源政策限制讀取結果，只要連線層面成功建立（不論對方回什麼 HTTP
+    // 狀態）就不會 throw；因此若補測成功，代表伺服器其實有回應，問題出在 CORS 標頭被拒絕
+    // 讀取，而不是真的斷線。
+    async function classifyFetchFailure(url, err) {
+        if (err.name === 'AbortError') return 'timeout';
+        if (!(err instanceof TypeError)) return err.message || 'unknown';
+        if (navigator.onLine === false) return 'offline';
+        try {
+            await fetch(url, { mode: 'no-cors', cache: 'no-store' });
+            return 'cors';
+        } catch {
+            return 'network';
+        }
+    }
+
     async function translateGoogle(text, target, attempt = 0) {
         const MAX_RETRY = 2;
         const ctrl = new AbortController();
         const to = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
         try {
-            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
             const resp = await fetch(url, { signal: ctrl.signal });
 
             if (resp.status === 429) throw new Error('rate_limit');
@@ -362,11 +388,9 @@
             const translated = data[0]?.map(seg => seg?.[0] || '').join('') || text;
             return { translated, detectedLang: data[2] || null };
         } catch (e) {
-            // fetch 本身失敗（網路斷線、timeout）會是 TypeError；逾時 abort 為 AbortError，一併視為網路暫時性
-            const isNetwork = e instanceof TypeError || e.name === 'AbortError';
-            const reason = isNetwork ? 'network' : (e.message || 'unknown');
-            // 5xx 伺服器錯誤與網路中斷屬暫時性，退避後重試（600ms、1200ms）
-            const transient = isNetwork || /^http_5\d\d$/.test(reason);
+            const reason = await classifyFetchFailure(url, e);
+            // 逾時／離線／CORS 阻擋／真實斷線都屬暫時性，5xx 伺服器錯誤亦同，退避後重試（600ms、1200ms）
+            const transient = ['timeout', 'offline', 'cors', 'network'].includes(reason) || /^http_5\d\d$/.test(reason);
             if (transient && attempt < MAX_RETRY) {
                 await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
                 return translateGoogle(text, target, attempt + 1);
