@@ -352,7 +352,7 @@
 
             if (refresh) {
                 const count = Object.keys(criticalErrors).length;
-                if (count) console.error(`Removing ${count} corrupted crafted items`, criticalErrors);
+                if (count) console.error(`${TAG} Removing ${count} corrupted crafted items`, criticalErrors);
                 CraftingSaveServer();
                 if (merged.restored) announceRestoration(merged.indices, "initialization");
             } else {
