@@ -73,6 +73,8 @@
             recvWhisper: true,
             recvBeep: true,
             recvLocal: false,
+            recvShrinkNonDialogue: true, // 譯文列比照原句：若原句掛有 ChatMessageNonDialogue（動作/悄悄話/系統等非對話訊息），
+                                         // 翻譯後的譯文列也套用同一縮小字級，而不是固定用一般聊天的大小
             recvFold: false,           // 譯文摺疊：翻譯成功後，將原句＋譯文合併成一則訊息、預設收合原句（Chat/Whisper/Emote/Action）
             recvSkipZhVariant: true,   // 接收語言為中文時，收到內容為中文則跳過翻譯
             // ── 其他 ──
@@ -82,7 +84,8 @@
             chatScrollFreeze: false,   // 是否載入並啟用 BC_ChatScrollFreeze（聊天室訊息凍結／搜尋擴充）
             skipStutter: true,
             chatButton: true,          // 聊天室快捷按鈕
-            filterTranslations: false, // 過濾聊天室內所有 [🌐]／🔊 翻譯訊息
+            filterTranslations: false, // 隱藏符合指定開頭的聊天室訊息
+            filterPrefixes: '[🌐],🔊',
             hotkeys: makeDefaultHotkeys()
         };
     }
@@ -616,10 +619,10 @@
 
     // 只恢復由這個功能主動隱藏的訊息，不碰原本就被其他規則隱藏的節點。
     function isTranslationMessageNode(node) {
-        return node instanceof HTMLElement && node.classList.contains('ChatMessage') &&
-            (node.classList.contains('mat-translated') || node.classList.contains('mat-manual-translated') ||
-             node.classList.contains('mat-broadcast') || node.textContent.includes('[🌐]') ||
-             node.textContent.includes('🔊'));
+        if (!(node instanceof HTMLElement) || !node.classList.contains('ChatMessage')) return false;
+        const text = (node.dataset.matBeepMsg ?? extractCleanMessage(node)).trimStart().replace(/^[（(]\s*/, '');
+        return (config.filterPrefixes ?? '[🌐],🔊').split(/[,，\n]/u)
+            .map(prefix => prefix.trim()).filter(Boolean).some(prefix => text.startsWith(prefix));
     }
 
     function applyTranslationMessageFilterToNode(node) {
@@ -632,14 +635,14 @@
     function applyTranslationMessageFilter() {
         const log = document.querySelector('#TextAreaChatLog');
         if (!log) return;
+        log.querySelectorAll('.mat-filter-hidden').forEach(node => {
+            node.classList.remove('mat-filter-hidden');
+            node.style.display = '';
+        });
         if (config.filterTranslations) {
             log.querySelectorAll('.ChatMessage').forEach(applyTranslationMessageFilterToNode);
             startObserver();
         } else {
-            log.querySelectorAll('.mat-filter-hidden').forEach(node => {
-                node.classList.remove('mat-filter-hidden');
-                node.style.display = '';
-            });
             if (!config.enabled) stopObserver();
         }
     }
@@ -938,6 +941,51 @@
         return clone;
     }
 
+    // 讓 MAT 產生的譯文列比照 BC 原生「縮小非對話訊息」設定：原句若掛有 ChatMessageNonDialogue
+    // （動作/悄悄話/系統訊息等非一般聊天的類型），就直接讀原句「實際渲染出來」的字級
+    // （getComputedStyle）套用到譯文列上——不猜遊戲用了多少縮小比例，原句字級不管以後改多少，
+    // 譯文列都會自動跟著同步。原句不是非對話類型、或設定關閉時，完全不動，維持一般聊天原本的大小。
+    function applyNonDialogueShrink(div, originalNode) {
+        if (!config.recvShrinkNonDialogue) return;
+        if (!(originalNode instanceof HTMLElement) || !originalNode.classList.contains('ChatMessageNonDialogue')) return;
+        div.classList.add('ChatMessageNonDialogue');
+        try {
+            const refEl = originalNode.querySelector('.chat-room-message-content, .beep-link') || originalNode;
+            const size = getComputedStyle(refEl).fontSize;
+            if (size) div.style.fontSize = size;
+        } catch (e) { /* 讀取失敗就維持原本字級，不影響翻譯本身 */ }
+    }
+
+    // 找出一則 MAT 譯文列（自動或手動翻譯）對應的原句節點：優先查摺疊配對表（摺疊模式下譯文
+    // 會被搬到原句「前面」），查不到才退回一般模式的位置關係——譯文固定插在原句正後方。
+    function findOriginalForTranslatedDiv(div) {
+        const pair = matFoldPairs.get(div);
+        if (pair) return pair.original === div ? pair.display : pair.original;
+        let sib = div.previousElementSibling, hops = 0;
+        while (sib && hops < 8) {
+            if (sib.classList?.contains('ChatMessage') &&
+                !sib.classList.contains('mat-translated') && !sib.classList.contains('mat-manual-translated')) return sib;
+            sib = sib.previousElementSibling; hops++;
+        }
+        return null;
+    }
+
+    // 設定切換當下，回頭套用/還原畫面上已經顯示的譯文列，不必等下一則新訊息或重新整理聊天室。
+    function refreshNonDialogueShrink() {
+        const log = document.querySelector('#TextAreaChatLog');
+        if (!log) return;
+        log.querySelectorAll('.mat-translated, .mat-manual-translated').forEach(div => {
+            const original = findOriginalForTranslatedDiv(div);
+            if (!original) return;
+            if (config.recvShrinkNonDialogue && original.classList.contains('ChatMessageNonDialogue')) {
+                applyNonDialogueShrink(div, original);
+            } else if (div.classList.contains('ChatMessageNonDialogue')) {
+                div.classList.remove('ChatMessageNonDialogue');
+                div.style.fontSize = '0.95em';
+            }
+        });
+    }
+
     function createTranslatedDiv(originalNode, translatedText) {
         const div = document.createElement('div');
         // 有些訊息同時掛好幾個 ChatMessage* class（例如 Beep 同時是
@@ -1009,6 +1057,7 @@
         }
 
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
+        applyNonDialogueShrink(div, originalNode);
         const wasAtEnd = chatWasAtEnd();   // 插入前先判斷是否本來就在底部
         // 一般模式固定為「原文 → 譯文」。若稍後啟用摺疊，applyFoldUI 才會調整為「譯文 → 原文」。
         originalNode.parentNode.insertBefore(div, originalNode.nextSibling);
@@ -1041,6 +1090,7 @@
         if (origMetaEl) div.appendChild(origMetaEl.cloneNode(true));   // 時間、ID：純文字節點，clone 安全、無 id 衝突
 
         div.style.cssText = 'background:rgba(76,175,80,0.1);border-left:3px solid #4CAF50;padding:2px 6px;margin-top:2px;font-size:0.95em;opacity:0.9';
+        applyNonDialogueShrink(div, originalNode);
         const wasAtEnd = chatWasAtEnd();
         originalNode.parentNode.insertBefore(div, originalNode.nextSibling);   // 插在原句「之後」
         applyTranslationMessageFilterToNode(div);
@@ -1134,6 +1184,7 @@
         if (cls) div.classList.add(cls);
         div.textContent = `[🌐${lang.toUpperCase()}] ${translated}`;
         div.style.cssText = 'position:relative;background:rgba(33,150,243,0.12);border-left:3px solid #2196F3;padding:2px 24px 2px 6px;margin-top:2px;font-size:0.95em;opacity:0.95;user-select:text;cursor:text;';
+        applyNonDialogueShrink(div, node);
         div.title = ui('dblClickRemove');
         div.addEventListener('dblclick', () => div.remove());
 
@@ -2045,6 +2096,7 @@
         _tabDesc()   { return [ui('descBasic'), ui('descSend'), ui('descRecv'), ui('descOther'), ui('descHotkeys')][this.tab - 1]; },
 
         run() {
+            if (this.tab !== 4) this._removePrefixInput();
             this.hoverDesc = '';
             this._hits = [];
             const { TAB_X, TAB_Y0, TAB_W, TAB_H, TAB_GAP, HELP_X, HELP_Y, HELP_W, HELP_H } = this.C;
@@ -2124,7 +2176,33 @@
             this._cb(y, ui('optChatScrollFreeze'), config.chatScrollFreeze, ui('dChatScrollFreeze'), () => { config.chatScrollFreeze = !config.chatScrollFreeze; saveSettings(); applyChatScrollFreezeConfig(); }); y += H;
             this._cb(y, ui('optSkipStutter'), config.skipStutter,        ui('dSkipStutter'), () => { config.skipStutter = !config.skipStutter; saveSettings(); }); y += H;
             this._cb(y, ui('optChatButton'),  config.chatButton,         ui('dChatButton'),  () => { config.chatButton = !config.chatButton; saveSettings(); updateChatButton(); }); y += H;
+            this._cb(y, ui('optShrinkNonDialogue'), config.recvShrinkNonDialogue, ui('dShrinkNonDialogue'),
+                () => { config.recvShrinkNonDialogue = !config.recvShrinkNonDialogue; saveSettings(); refreshNonDialogueShrink(); }); y += H;
             this._cb(y, ui('optFilterTranslations'), config.filterTranslations, ui('dFilterTranslations'), () => { config.filterTranslations = !config.filterTranslations; saveSettings(); applyTranslationMessageFilter(); }); y += H;
+            this._prefixInput(y);
+        },
+
+        _removePrefixInput() { document.getElementById('mat-filter-prefixes')?.remove(); },
+        _prefixInput(y) {
+            let input = document.getElementById('mat-filter-prefixes');
+            if (!input) {
+                input = document.createElement('input');
+                input.id = 'mat-filter-prefixes';
+                input.type = 'text';
+                input.value = config.filterPrefixes ?? '[🌐],🔊';
+                input.addEventListener('input', () => {
+                    config.filterPrefixes = input.value;
+                    applyTranslationMessageFilter();
+                });
+                input.addEventListener('change', () => saveSettings());
+                document.body.appendChild(input);
+            }
+            input.title = ui('dFilterTranslations');
+            input.setAttribute('aria-label', ui('optFilterTranslations'));
+            const canvas = document.querySelector('canvas');
+            const r = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: 2000, height: 1000 };
+            input.style.cssText = `position:fixed;box-sizing:border-box;z-index:100;left:${r.left + 490 * r.width / 2000}px;top:${r.top + y * r.height / 1000}px;width:${820 * r.width / 2000}px;height:${54 * r.height / 1000}px;font-size:${28 * r.height / 1000}px;`;
+            if (MouseIn(490, y, 820, 54)) this.hoverDesc = ui('dFilterTranslations');
         },
 
         _runHotkeys() {
@@ -2139,8 +2217,8 @@
             if (MouseIn(1815, 75, 90, 90)) { if (typeof PreferenceExit === "function") PreferenceExit(); return; }
             for (const h of this._hits) { if (MouseIn(h.x, h.y, h.w, h.h)) { h.onClick(); return; } }
         },
-        unload() { hotkeyRecording = false; hotkeyRecordingTarget = null; },
-        exit()   { hotkeyRecording = false; hotkeyRecordingTarget = null; }
+        unload() { this._removePrefixInput(); hotkeyRecording = false; hotkeyRecordingTarget = null; },
+        exit()   { this._removePrefixInput(); hotkeyRecording = false; hotkeyRecordingTarget = null; }
     };
 
     // ============================================================
@@ -2165,7 +2243,7 @@
     // ============================================================
     function isBioSkipLine(line) {
         if (!line.trim()) return true;
-        if (/^https?:\/\//.test(line.trim())) return true;
+        if (isPureUrl(line)) return true;
         if (/^[=\-_*#]{3,}$/.test(line.trim())) return true;
         return false;
     }
