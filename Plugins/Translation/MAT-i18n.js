@@ -42,7 +42,11 @@
         'scrollFreezeLoadFail': {
             TW: "⚠️ [MAT] 進階聊天室凍結模組載入失敗，已改用 BC 內建的基礎凍結機制，不影響一般使用",
             CN: "⚠️ [MAT] 进阶聊天室冻结模块加载失败，已改用 BC 内建的基础冻结机制，不影响一般使用",
-            EN: "⚠️ [MAT] Advanced chat-freeze module failed to load; falling back to BC's built-in basic freeze (no impact on normal use)"
+            EN: "⚠️ [MAT] Advanced chat-freeze module failed to load; falling back to BC's built-in basic freeze (no impact on normal use)",
+            DE: "⚠️ [MAT] Erweitertes Chat-Freeze-Modul konnte nicht geladen werden; es wird auf die integrierte Basis-Freeze-Funktion von BC zurückgegriffen (keine Auswirkung auf die normale Nutzung)",
+            FR: "⚠️ [MAT] Échec du chargement du module avancé de gel du chat ; retour au gel de base intégré de BC (aucun impact sur l'utilisation normale)",
+            RU: "⚠️ [MAT] Не удалось загрузить расширенный модуль заморозки чата; используется встроенный базовый механизм BC (не влияет на обычное использование)",
+            UA: "⚠️ [MAT] Не вдалося завантажити розширений модуль заморозки чату; використовується вбудований базовий механізм BC (не впливає на звичайне використання)"
         },
 
         // ── API / 翻譯失敗 ────────────────────────────────────────────────
@@ -90,6 +94,33 @@
             FR: "Erreur réseau, veuillez vérifier votre connexion",
             RU: "Ошибка сети, проверьте подключение",
             UA: "Помилка мережі, перевірте з'єднання"
+        },
+        'hint_cors': {
+            TW: "翻譯伺服器暫時拒絕跨站請求，並非斷線，稍後通常會自動恢復",
+            CN: "翻译服务器暂时拒绝跨站请求，并非断线，稍后通常会自动恢复",
+            EN: "Translation server temporarily rejected the cross-site request; not a disconnect, usually recovers shortly",
+            DE: "Der Übersetzungsserver hat die Cross-Origin-Anfrage vorübergehend abgelehnt; keine Verbindungsstörung, erholt sich meist bald",
+            FR: "Le serveur de traduction a temporairement refusé la requête interdomaines ; ce n'est pas une déconnexion, cela se rétablit généralement vite",
+            RU: "Сервер перевода временно отклонил межсайтовый запрос; это не разрыв соединения, обычно скоро восстановится",
+            UA: "Сервер перекладу тимчасово відхилив міжсайтовий запит; це не розрив з'єднання, зазвичай швидко відновлюється"
+        },
+        'hint_offline': {
+            TW: "裝置目前處於離線狀態，請檢查網路連線",
+            CN: "设备当前处于离线状态，请检查网络连接",
+            EN: "Your device appears offline, please check your connection",
+            DE: "Ihr Gerät scheint offline zu sein, bitte überprüfen Sie Ihre Verbindung",
+            FR: "Votre appareil semble hors ligne, veuillez vérifier votre connexion",
+            RU: "Похоже, устройство offline, проверьте подключение",
+            UA: "Схоже, пристрій офлайн, перевірте з'єднання"
+        },
+        'hint_timeout': {
+            TW: "請求逾時，將自動重試",
+            CN: "请求超时，将自动重试",
+            EN: "Request timed out, retrying automatically",
+            DE: "Zeitüberschreitung der Anfrage, wird automatisch wiederholt",
+            FR: "Délai de requête dépassé, nouvelle tentative automatique",
+            RU: "Тайм-аут запроса, повтор автоматически",
+            UA: "Тайм-аут запиту, повтор автоматично"
         },
         'hint_unknown': {
             TW: "發生錯誤（{err}）",
@@ -567,12 +598,20 @@
         'masterStatusOn': {
             TW: "目前為啟用狀態。\n收到與發送的訊息會依你的設定自動翻譯。",
             CN: "当前为启用状态。\n收到与发送的消息会按你的设置自动翻译。",
-            EN: "Currently ON.\nIncoming and outgoing messages are auto-translated per your settings."
+            EN: "Currently ON.\nIncoming and outgoing messages are auto-translated per your settings.",
+            DE: "Derzeit AN.\nEingehende und ausgehende Nachrichten werden gemäß Ihren Einstellungen automatisch übersetzt.",
+            FR: "Actuellement ACTIVÉ.\nLes messages entrants et sortants sont traduits automatiquement selon vos paramètres.",
+            RU: "Сейчас включено.\nВходящие и исходящие сообщения переводятся автоматически согласно вашим настройкам.",
+            UA: "Зараз увімкнено.\nВхідні та вихідні повідомлення перекладаються автоматично згідно з вашими налаштуваннями."
         },
         'masterStatusOff': {
             TW: "目前為停用狀態。\n只有自動接收／發送翻譯停止，其他設定功能仍會作用。",
             CN: "当前为停用状态。\n只有自动接收／发送翻译停止，其他设置功能仍会生效。",
-            EN: "Currently OFF.\nOnly automatic receive/send translation is stopped; Other settings still work."
+            EN: "Currently OFF.\nOnly automatic receive/send translation is stopped; Other settings still work.",
+            DE: "Derzeit AUS.\nNur die automatische Empfangs-/Sendeübersetzung ist gestoppt; andere Einstellungen funktionieren weiterhin.",
+            FR: "Actuellement DÉSACTIVÉ.\nSeule la traduction automatique de réception/envoi est arrêtée ; les autres paramètres restent actifs.",
+            RU: "Сейчас выключено.\nОстановлен только автоматический перевод при приёме/отправке; остальные настройки продолжают работать.",
+            UA: "Зараз вимкнено.\nЗупинено лише автоматичний переклад під час отримання/надсилання; інші налаштування продовжують працювати."
         },
 
         // ── 發送 / 接收：分類標籤 ──────────────────────────────────────────
@@ -624,22 +663,38 @@
         'descBasic': {
             TW: "基本設定：開關「接收翻譯」「發送翻譯」並選擇各自的目標語言。細部分類（動作/互動/悄悄話/私信）在發送、接收分頁。",
             CN: "基本设置：开关「接收翻译」「发送翻译」并选择各自的目标语言。细部分类（动作/互动/悄悄话/私信）在发送、接收分页。",
-            EN: "Basic: toggle Receive/Send translation and pick their target languages. Per-type toggles (emote/action/whisper/beep) are on the Send and Receive tabs."
+            EN: "Basic: toggle Receive/Send translation and pick their target languages. Per-type toggles (emote/action/whisper/beep) are on the Send and Receive tabs.",
+            DE: "Grundeinstellungen: „Empfangsübersetzung\" und „Sendeübersetzung\" ein-/ausschalten und jeweilige Zielsprache wählen. Detaillierte Optionen (Emote/Aktion/Flüstern/Beep) befinden sich auf den Tabs Senden und Empfangen.",
+            FR: "Paramètres de base : activez/désactivez la « traduction reçue » et la « traduction envoyée » et choisissez leur langue cible. Les options détaillées (émote/action/chuchotement/bip) se trouvent dans les onglets Envoi et Réception.",
+            RU: "Основные настройки: включите/выключите «перевод при получении» и «перевод при отправке» и выберите целевой язык для каждого. Детальные переключатели (эмоции/действия/шёпот/сигнал) находятся на вкладках «Отправка» и «Получение».",
+            UA: "Основні налаштування: увімкніть/вимкніть «переклад отримання» та «переклад надсилання» і виберіть цільову мову для кожного. Детальні перемикачі (емоції/дії/шепіт/сигнал) знаходяться на вкладках «Надсилання» та «Отримання»."
         },
         'descSend': {
             TW: "發送設定：可隨時預先調整動作、互動、悄悄話、私信與其他細項；「發送翻譯」關閉時設定仍可修改，重新開啟後生效。",
             CN: "发送设置：可随时预先调整动作、互动、悄悄话、私信与其他细项；「发送翻译」关闭时设置仍可修改，重新开启后生效。",
-            EN: "Send settings can be edited at any time. When Send translation is off, these options remain configurable and take effect when it is turned back on."
+            EN: "Send settings can be edited at any time. When Send translation is off, these options remain configurable and take effect when it is turned back on.",
+            DE: "Sendeeinstellungen können jederzeit im Voraus angepasst werden (Aktion, Interaktion, Flüstern, Privatnachricht usw.). Bei deaktivierter „Sendeübersetzung\" bleiben diese Optionen änderbar und wirken, sobald sie wieder aktiviert wird.",
+            FR: "Les paramètres d'envoi peuvent être ajustés à tout moment (action, interaction, chuchotement, message privé, etc.). Lorsque la « traduction envoyée » est désactivée, ces options restent modifiables et prennent effet une fois réactivées.",
+            RU: "Настройки отправки можно менять заранее в любое время (действия, взаимодействия, шёпот, личные сообщения и т.д.). Когда «перевод при отправке» выключен, эти параметры остаются доступными для изменения и вступят в силу после повторного включения.",
+            UA: "Налаштування надсилання можна змінювати заздалегідь у будь-який час (дії, взаємодії, шепіт, приватні повідомлення тощо). Коли «переклад надсилання» вимкнено, ці параметри залишаються доступними для зміни та набудуть чинності після повторного увімкнення."
         },
         'descRecv': {
             TW: "接收設定：可隨時預先調整動作、互動、悄悄話、私信、系統訊息與其他細項；「接收翻譯」關閉時設定仍可修改，重新開啟後生效。",
             CN: "接收设置：可随时预先调整动作、互动、悄悄话、私信、系统消息与其他细项；「接收翻译」关闭时设置仍可修改，重新开启后生效。",
-            EN: "Receive settings can be edited at any time. When Receive translation is off, these options remain configurable and take effect when it is turned back on."
+            EN: "Receive settings can be edited at any time. When Receive translation is off, these options remain configurable and take effect when it is turned back on.",
+            DE: "Empfangseinstellungen können jederzeit im Voraus angepasst werden (Aktion, Interaktion, Flüstern, Privatnachricht, Systemnachricht usw.). Bei deaktivierter „Empfangsübersetzung\" bleiben diese Optionen änderbar und wirken, sobald sie wieder aktiviert wird.",
+            FR: "Les paramètres de réception peuvent être ajustés à tout moment (action, interaction, chuchotement, message privé, message système, etc.). Lorsque la « traduction reçue » est désactivée, ces options restent modifiables et prennent effet une fois réactivées.",
+            RU: "Настройки получения можно менять заранее в любое время (действия, взаимодействия, шёпот, личные сообщения, системные сообщения и т.д.). Когда «перевод при получении» выключен, эти параметры остаются доступными для изменения и вступят в силу после повторного включения.",
+            UA: "Налаштування отримання можна змінювати заздалегідь у будь-який час (дії, взаємодії, шепіт, приватні повідомлення, системні повідомлення тощо). Коли «переклад отримання» вимкнено, ці параметри залишаються доступними для зміни та набудуть чинності після повторного увімкнення."
         },
         'descOther': {
             TW: "其他設定：登入通知、手動翻譯、選取翻譯、自動捲動、略過結巴、聊天室快捷按鈕與翻譯訊息過濾。",
             CN: "其他设置：登录通知、手动翻译、选取翻译、自动滚动、略过结巴、聊天室快捷按钮与翻译消息过滤。",
-            EN: "Other: login notice, manual translate, selection translate, auto-scroll, skip stutter, chat quick button, and translation-message filtering."
+            EN: "Other: login notice, manual translate, selection translate, auto-scroll, skip stutter, chat quick button, and translation-message filtering.",
+            DE: "Sonstiges: Anmeldebenachrichtigung, manuelle Übersetzung, Auswahlübersetzung, automatisches Scrollen, Stotter-Präfix überspringen, Chat-Schnellschaltfläche und Filterung übersetzter Nachrichten.",
+            FR: "Autres : notification de connexion, traduction manuelle, traduction de la sélection, défilement automatique, ignorer le préfixe de bégaiement, bouton rapide du chat et filtrage des messages traduits.",
+            RU: "Прочее: уведомление о входе, ручной перевод, перевод выделения, автопрокрутка, пропуск заикания, быстрая кнопка чата и фильтрация переведённых сообщений.",
+            UA: "Інше: сповіщення про вхід, ручний переклад, переклад виділеного, автопрокрутка, пропуск заїкання, швидка кнопка чату та фільтрація перекладених повідомлень."
         },
         'descHotkeys': {
             TW: "快捷鍵：設定 MAT 總開關、接收翻譯與發送翻譯三組快捷鍵。每組快捷鍵需勾選啟用才會生效。",
