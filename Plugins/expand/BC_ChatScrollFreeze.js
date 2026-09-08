@@ -26,7 +26,8 @@
 	// 防重複載入：系統擴充統一掛 window.Liko.__Sys_* ，先搶先贏。
 	if (window.Liko.__Sys_ChatScrollFreeze__) return;
 
-	const MOD_VER = "1.2";
+	const MOD_VER = "1.3";
+	let disposed = false;
 	const FREEZE_THRESHOLD = 0.05; // 往上捲超過畫面高度的 5% 就凍結
 
 	/** 觸控裝置自動 focus 搜尋框會彈軟鍵盤，體驗差，故略過自動聚焦。 */
@@ -152,6 +153,8 @@
 	let removeSendHook = null;
 	let monkeyOriginal = null;
 	let monkeySendOriginal = null;
+	let monkeyWrapper = null;
+	let monkeySendWrapper = null;
 	let intercepted = false;
 
 	function getChatLog() {
@@ -197,7 +200,7 @@
 	/** 距離底部的比例：0 = 在最底部，越大代表越往上捲。 */
 	function distanceFromBottomRatio(el) {
 		if (!el || el.scrollHeight <= el.clientHeight) return 0;
-		return scrollGapPx(el) / el.scrollHeight;
+		return scrollGapPx(el) / Math.max(1, el.clientHeight);
 	}
 
 	function isAtBottom(el) {
@@ -208,8 +211,8 @@
 	}
 
 	/** 凍結期間攔截：放進佇列、更新提示條，不插入 DOM。 */
-	function captureWhileFrozen(div) {
-		messageQueue.push(div);
+	function captureWhileFrozen(append) {
+		messageQueue.push(append);
 		showBadge(messageQueue.length);
 	}
 
@@ -257,6 +260,7 @@
 	 * 輪詢稍後再試。
 	 */
 	function ensureIntercepted() {
+		if (disposed) return false;
 		if (intercepted) return true;
 		if (typeof window.ChatRoomAppendChat !== "function") return false;
 
@@ -271,7 +275,8 @@
 				});
 				// priority 0：讓其他插件先跑完訊息處理，我們只在最外層決定插不插。
 				removeHook = sdkApi.hookFunction("ChatRoomAppendChat", 0, (args, next) => {
-					if (frozen) { captureWhileFrozen(args[0]); return; }
+					ensureBound();
+					if (frozen) { captureWhileFrozen(() => next(args)); return; }
 					return next(args);
 				});
 				// 自己發話＝已看完歷史 → 送出當下解除凍結，避免自己的訊息卡進佇列。
@@ -286,19 +291,26 @@
 				return true;
 			} catch (e) {
 				console.warn("🐈‍⬛ [ChatScrollFreeze] ⚠️ bcModSdk 註冊失敗，改用直接覆寫:", e.message);
+				try { sdkApi?.unload(); } catch {}
 				sdkApi = null;
 			}
 		}
 
 		// 路線 B：直接覆寫（fallback）
 		monkeyOriginal = window.ChatRoomAppendChat;
-		window.ChatRoomAppendChat = function (div) {
-			if (frozen) { captureWhileFrozen(div); return; }
+		monkeyWrapper = window.ChatRoomAppendChat = function (div) {
+			if (disposed) return monkeyOriginal.apply(this, arguments);
+			ensureBound();
+			if (frozen) {
+				const context = this, args = [...arguments];
+				captureWhileFrozen(() => monkeyOriginal.apply(context, args));
+				return;
+			}
 			return monkeyOriginal.call(this, div);
 		};
 		if (typeof window.ChatRoomSendChat === "function") {
 			monkeySendOriginal = window.ChatRoomSendChat;
-			window.ChatRoomSendChat = function () {
+			monkeySendWrapper = window.ChatRoomSendChat = function () {
 				exitFreezeToLatest();
 				return monkeySendOriginal.apply(this, arguments);
 			};
@@ -408,8 +420,7 @@
 				"user-select:none",
 			].join(";");
 			badge.addEventListener("click", () => {
-				const el = getChatLog();
-				if (el) el.scrollTop = el.scrollHeight;
+				exitFreezeToLatest();
 			});
 			document.body.appendChild(badge);
 			ensureChatLogObserver(chatLog);
@@ -427,8 +438,9 @@
 	// DOM，不影響其事件綁定。
 	// ---------------------------------------------------------------------
 
-	function clearHighlights() {
-		const chatLog = getChatLog();
+	function clearHighlights(chatLog = getChatLog()) {
+		searchMatches = [];
+		searchCurrentIndex = -1;
 		if (!chatLog) return;
 		const marks = chatLog.querySelectorAll(`mark.${HIGHLIGHT_CLASS}`);
 		marks.forEach((mark) => {
@@ -521,6 +533,9 @@
 	}
 
 	function performSearch(query) {
+		clearTimeout(searchDebounceHandle);
+		searchDebounceHandle = null;
+		if (disposed || !frozen || !document.getElementById(SEARCH_BAR_ID)) return;
 		clearHighlights();
 		if (!query) {
 			updateSearchCountLabel();
@@ -593,6 +608,8 @@
 	}
 
 	function closeSearchBar() {
+		clearTimeout(searchDebounceHandle);
+		searchDebounceHandle = null;
 		clearHighlights();
 		document.getElementById(SEARCH_BAR_ID)?.remove();
 		triggerNativeResize(); // 移出文件流後同樣立刻重算，避免殘留放大的舊 chatLog 高度
@@ -612,8 +629,9 @@
 
 		if (!chatLog) return;
 
-		for (const div of queued) {
-			if (typeof window.ChatRoomAppendChat === "function") window.ChatRoomAppendChat(div);
+		for (const append of queued) {
+			if (getChatLog() !== chatLog) break;
+			try { append(); } catch (error) { console.warn("[ChatScrollFreeze] queued append failed", error); }
 		}
 		chatLog.scrollTop = chatLog.scrollHeight;
 	}
@@ -623,6 +641,7 @@
 	 * （ChatRoomSendChat hook）、按右端 close X、對外 API unfreeze()。
 	 */
 	function exitFreezeToLatest() {
+		ensureBound();
 		if (!frozen) return;
 		frozen = false;
 		flushQueue();
@@ -659,19 +678,25 @@
 
 	/** 綁定 scroll 監聽；若聊天室節點被整個重建過，重新綁一次 */
 	function ensureBound() {
+		if (disposed) return;
 		const chatLog = getChatLog();
-		if (!chatLog) return;
 
 		if (chatLog !== boundChatLog) {
 			if (boundChatLog) boundChatLog.removeEventListener("scroll", onScroll);
-			chatLog.addEventListener("scroll", onScroll, { passive: true });
+			clearHighlights(boundChatLog);
+			frozen = false;
+			messageQueue = [];
+			hideBadge();
+			closeSearchBar();
+			suppressExitUntil = 0;
+			lastClientHeight = chatLog?.clientHeight || 0;
+			chatLog?.addEventListener("scroll", onScroll, { passive: true });
 			boundChatLog = chatLog;
 			// 聊天室節點被整個換掉時，先前掛在舊節點上的 ResizeObserver 要重綁。
 			if (chatLogResizeObserver) { chatLogResizeObserver.disconnect(); chatLogResizeObserver = null; }
 			if (document.getElementById(BADGE_ID)) ensureChatLogObserver(chatLog);
 		}
 
-		ensureIntercepted();
 	}
 
 	/** visualViewport resize 是偵測手機軟鍵盤彈出/收合最可靠的時機點（桌面則對應
@@ -682,7 +707,7 @@
 		if (frozen) return; // 使用者正在看歷史，別動它的捲動位置
 		requestAnimationFrame(() => {
 			const el = getChatLog();
-			if (el && !frozen) el.scrollTop = el.scrollHeight;
+			if (el && !frozen && !disposed) el.scrollTop = el.scrollHeight;
 		});
 	}
 	if (window.visualViewport) {
@@ -693,7 +718,8 @@
 	// ResizeObserver 只在 chatLog 自身「尺寸」變動時觸發；視窗縮放但 chatLog
 	// 尺寸不變、只是位置變動的情況（例如純粹平移）另外補一個 window resize
 	// 監聽，確保 badge 的 fixed 座標不會跟丟。
-	window.addEventListener("resize", () => { if (document.getElementById(BADGE_ID)) repositionBadge(); });
+	function onWindowResize() { if (document.getElementById(BADGE_ID)) repositionBadge(); }
+	window.addEventListener("resize", onWindowResize);
 
 	// 先試著攔一次（BC 核心已就位的話馬上成功），失敗則交給下方輪詢稍後再試。
 	ensureIntercepted();
@@ -703,10 +729,19 @@
 	const poll = setInterval(() => {
 		if (!intercepted) ensureIntercepted();
 		if (!_i18nRegistered) ensureI18nRegistered(); // 引擎可能比本檔晚就位
-		if (getChatLog()) ensureBound();
+		ensureBound();
 	}, 1000);
 
 	function teardown() {
+		if (disposed) return;
+		exitFreezeToLatest();
+		disposed = true;
+		boundChatLog?.removeEventListener("scroll", onScroll);
+		boundChatLog = null;
+		closeSearchBar();
+		window.removeEventListener("resize", onWindowResize);
+		window.removeEventListener("beforeunload", teardown);
+		document.getElementById("chat-scroll-freeze-style")?.remove();
 		clearInterval(poll);
 		try {
 			if (window.visualViewport) window.visualViewport.removeEventListener("resize", onViewportResize);
@@ -714,15 +749,17 @@
 		} catch (e) {}
 		try { removeHook?.(); } catch (e) {}
 		try { removeSendHook?.(); } catch (e) {}
+		try { sdkApi?.unload(); } catch (e) {}
 		try { chatLogResizeObserver?.disconnect(); chatLogResizeObserver = null; } catch (e) {}
 		try { document.getElementById(BADGE_ID)?.remove(); } catch (e) {}
 		// fallback 模式：還原直接覆寫（僅在確定當前掛的就是我們的包裝時）
-		if (monkeyOriginal && window.ChatRoomAppendChat !== monkeyOriginal) {
+		if (monkeyOriginal && window.ChatRoomAppendChat === monkeyWrapper) {
 			try { window.ChatRoomAppendChat = monkeyOriginal; } catch (e) {}
 		}
-		if (monkeySendOriginal && window.ChatRoomSendChat !== monkeySendOriginal) {
+		if (monkeySendOriginal && window.ChatRoomSendChat === monkeySendWrapper) {
 			try { window.ChatRoomSendChat = monkeySendOriginal; } catch (e) {}
 		}
+		if (window.Liko.__Sys_ChatScrollFreeze__?.teardown === teardown) delete window.Liko.__Sys_ChatScrollFreeze__;
 	}
 	window.addEventListener("beforeunload", teardown);
 
