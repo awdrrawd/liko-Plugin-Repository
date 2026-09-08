@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:pcm": "node scripts/build-pcm.mjs"
+    "build:pcm": "node scripts/build-pcm.mjs",
+    "build:docs": "node scripts/build-docs.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.9"

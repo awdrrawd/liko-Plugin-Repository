@@ -1,335 +1,117 @@
 <div align="center">
 
-## 🐈‍⬛ Liko Plugin Repository 🐈‍⬛
-[![Version](https://img.shields.io/badge/PCM-v1.5.1-7F53CD?style=for-the-badge&logo=github)](https://github.com/awdrrawd/liko-Plugin-Repository)
-[![License](https://img.shields.io/badge/License-MIT-A78BFA?style=for-the-badge)](LICENSE)
-[![BondageClub](https://img.shields.io/badge/BondageClub-Compatible-C4B5FD?style=for-the-badge)](https://bondageprojects.elementfx.com)
+<img src="Images/PCM_ICON.png" alt="PCM icon" width="160">
+
+# Plugin Collection Manager（PCM）
+
+[![PCM](https://img.shields.io/badge/PCM-v2.2.0-9F7AEA?style=for-the-badge)](https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js)
+[![License](https://img.shields.io/badge/License-MIT-C084FC?style=for-the-badge)](LICENSE)
+
+集中安裝、啟用與管理 Bondage Club 插件。建議優先使用 PCM；也保留書籤、控制台及單獨安裝方式。
+
+[立即安裝 PCM](https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js) · [瀏覽插件網站](https://awdrrawd.github.io/liko-Plugin-Repository/)
 
 </div>
 
----
+## 安裝 PCM
 
-*個人開發的 BondageClub 插件集合，透過插件管理器（PCM）統一管理，或單獨安裝所需插件。*  
-*A collection of personal BondageClub plugins. Install everything at once via the Plugin Collection Manager (PCM), or install individual plugins on their own.*
+### 推薦：腳本管理器
 
-你可以直接往下閱讀 README，或前往互動式網站獲得更好的瀏覽與插件探索體驗。  
-You can continue reading the README below, or visit the interactive website for improved browsing and plugin navigation.  
-[👉 點此前往 · Click to visit it](https://awdrrawd.github.io/liko-Plugin-Repository/)  
+安裝 Tampermonkey、Violentmonkey 或 Userscripts 後，點擊下方連結即可安裝並自動更新 PCM：
 
-開發插件前，請閱讀 [`docs/BC插件開發初始指南.md`](docs/BC插件開發初始指南.md)。
-Before developing a plugin, read the [BC plugin development guide](docs/BC插件開發初始指南.md).
+### [👉 點此安裝 PCM](https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js)
 
-DOM 清單與下拉選單的主題捲軸、按住內容拖曳及事件衝突處理，請參考 [`docs/自訂捲軸與拖曳捲動指南.md`](docs/自訂捲軸與拖曳捲動指南.md)。
+進入遊戲後可輸入 `/pcm help` 查看說明，或輸入 `/pcm list` 查看插件狀態。
 
----
+### 其他載入方式
 
-## 📦 安裝方式 · Installation
+#### 書籤
 
-> 插件有兩種安裝方式：
-> - **使用 PCM 管理器**：一次安裝所有插件，支援啟用 / 停用、自動載入、快取加速
-> - **單獨安裝**：前往 [`/Plugins`](./Plugins) 資料夾，找到想要的插件單獨安裝，無需安裝 PCM
-
-> There are two ways to install plugins:
-> - **Use PCM**: Manage all plugins from one place — enable/disable, auto-load, and cache acceleration
-> - **Install individually**: Browse the [`/Plugins`](./Plugins) folder and install only what you need, no PCM required
-
----
-
-### 方式一 · Option 1：Plugin Collection Manager (PCM)
-
-#### A. 腳本管理器 · Script Manager（Tampermonkey / Violentmonkey / Userscripts）
-
-[👉 點此安裝 PCM · Click to Install PCM](https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js)
-
----
-
-#### B. 書籤 · Bookmark
-
-建立一個新書籤，將網址欄貼上以下程式碼 / Create a new bookmark and paste the following as the URL：
+建立新書籤，將下列內容貼到書籤網址：
 
 ```javascript
-javascript:(function(){
-  var s=document.createElement('script');
-  s.src="https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?"+Date.now();
-  s.type="text/javascript";
-  s.crossOrigin="anonymous";
-  document.head.appendChild(s);
-})();
+javascript:(function(){var s=document.createElement('script');s.src='https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?'+Date.now();s.type='text/javascript';s.crossOrigin='anonymous';document.head.appendChild(s)})();
 ```
 
----
+#### 瀏覽器控制台
 
-#### C. 瀏覽器控制台 · Browser Console
-
-開啟 F12 開發者工具，在 Console 貼上 / Open F12 DevTools and paste in the Console tab：
+開啟開發者工具，在 Console 貼上：
 
 ```javascript
-import(`https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?v=${(Date.now()/10000).toFixed(0)}`);
+import(`https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?v=${(Date.now() / 10000).toFixed(0)}`);
 ```
 
----
-
-### 方式二 · Option 2：Install a Single Plugin
-
-不想使用 PCM 的話，可以前往 [`/Plugins`](./Plugins) 資料夾直接安裝個別插件的 `.user.js` 檔案，透過腳本管理器（Tampermonkey 等）安裝即可獨立使用。
-
-If you don't want to use PCM, head to the [`/Plugins`](./Plugins) folder and install any individual plugin's `.user.js` file directly through your script manager (e.g. Tampermonkey). Each plugin works standalone.
-
----
-
-## 🔌 插件列表 · Plugin List
-
-> 語言標示 · Language support：**EN✔️** = 完整英文支援 · full English support
-
----
-
-### 🐈‍⬛ Liko 自製插件 · Liko's Own Plugins
-
----
-
-#### 🐈‍⬛ Liko's Appearance editing extension. · Liko的外觀編輯拓展
-> 🆔 `Liko-AEE` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-AEE.user.js)
-
-新的服裝編輯UI，並且提供旋轉、縮放、鏡像編輯功能。  
-有收納模式,方便在手機的螢幕小的場合下使用。  
-此外，它還提供顏色和圖層調整功能，無需頻繁切換選單。  
-The new clothing editing UI offers rotation, scaling, and mirroring editing functions.  
-It has a mini mode, which is convenient for use in situations where the phone screen is small.  
-Additionally, it offers coloring and layer adjustments, eliminating the need to constantly switch menus.  
-
----
-
-#### 🌸 Abundantia Florum ─Chromatica─ · 繁戀如花 ─繽紛─
-> 🆔 `Liko-ACF` · EN✔️ · [📥Download](https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/main/Liko%20-%20Abundantia%20Florum%20Chromatica.main.user.js)
-
-更多戀人，如百花盛放的愛情篇章，並搭載可延展的戀人鎖機制。  
-An abundance of lovers, like a love story blooming in countless flowers, featuring an extensible Lover’s Lock system.
-
----
-
-#### 🧰 Liko's Tool · Liko的工具包
-> 🆔 `Liko-Tool` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Tool.user.js)
-
-有許多小功能合集的工具包，但也有點不穩定。  
-A collection of small utility functions — handy but somewhat unstable.
-
-- 詳細使用說明請輸入 `/LT` 或 `/LT help` 查詢 · For usage instructions, enter `/LT` or `/LT help`
-
----
-
-#### 🖼️ Liko's Image Uploader · 圖片上傳器
-> 🆔 `Liko-Image_Uploader` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Image_Uploader.user.js)
-
-拖曳上傳圖片並分享到聊天室。  
-Drag and drop images to upload and share in the chatroom.
-
-- 圖片上傳失敗時，可以使用 `/IMG` 或 `/IMG HELP` 查閱說明 · If upload fails, use `/IMG` or `/IMG HELP` for instructions
-
----
-
-#### 📖 Liko's Chat History Exporter · 聊天室書記官
-> 🆔 `Liko-CHE` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CHE.user.js)
-
-聊天室信息轉 HTML，並且提供最多 7 天的信息救援（需要手動啟用快取功能）。  
-Export chat history to HTML with message recovery for up to 7 days *(caching must be enabled manually)*.
-
-- 包含完整的聊天記錄、時間戳和角色信息，可以搭配 Neocities 等網站上傳分享  
-  Includes full chat logs, timestamps, and character info — compatible with sites like Neocities for sharing
-
----
-
-#### 👗 Liko's Custom Dressing Room Background · 自訂更衣室背景
-> 🆔 `Liko-CDB` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CDB.user.js)
-
-更衣室背景替換，並提供網格對焦。現在多了替換姿勢的功能。  
-Replace the wardrobe background with grid focus assistance. Now includes a posture-change function.
-
----
-
-#### 🌐 Liko's Messages Auto Translator · 自動翻譯
-> 🆔 `Liko-MAT` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-MAT.user.js)
-
-自動翻譯聊天室信息（使用 Google API）。  
-Auto-translate BC chat messages using the Google Translate API.
-
----
-
-#### 🎮 Liko's Toy remote control · 玩具遙控器
-> 🆔 `Liko-TRC`· EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-TRC.user.js)
-
-入侵房間內其他人身上的玩具並控制它(你需要有對方的觸碰權限)  
-Hacking into the toys on other people in the room and taking control of them.  
-(You need to have the other party's touch permission.)  
-
----
-
-#### 🎵 Liko's Music Controller · 聊天室音樂控制器
-> 🆔 `Liko-CMC` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CMC.user.js)
-
-支援歌詞（需要有曲名）、歌曲列表、FLAC 等格式。  
-Supports lyrics (song title required), playlists, FLAC, and other audio formats.
-
----
-
-#### 📧 Liko's Notification of Invites · 邀請通知器
-> 🆔 `Liko-NOI` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-NOI.user.js)
-
-發出好友、白單、黑單的通知信息！  
-Sends a customizable notification message when sending a friend, whitelist, or blacklist request.
-
-- 可以使用 `/NOI` 或 `/NOI HELP` 查閱說明 · Enter `/NOI` or `/NOI HELP` for usage instructions
-
----
-
-#### 🪄 Liko's Friend Prank · 對朋友的惡作劇
-> 🆔 `Liko-Prank` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Prank.user.js)
-
-內褲大盜鬧得 BC 社群人心惶惶！  
-The underwear thief causing panic across the BC community!
-
-> ⚠️ **注意 Warning**：這是個惡作劇插件，請謹慎使用！ This is a prank plugin — use responsibly!
-
-- 指令 Commands：`/偷取` `/溶解` `/传送` · `/Steal` `/dissolve` `/Teleport`
-
----
-
-#### 🆔 WCE Profile Share · WCE個人資料分享
-> 🆔 `Liko-WPS` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-WPS.user.js)
-
-WCE 的個人資料分享，需開啟 WCE 的個人資料保存。  
-Share your WCE profile with others. Requires WCE profile saving to be enabled first.
-
----
-
-#### 🎬 Liko's Automatically Create Video · 自動創建影片
-> 🆔 `Liko-ACV` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-ACV.user.js)
-
-自動創建影片。  
-Automatically create a video recording.
-
----
-
-#### ⚧️ Region Switch · 快速切換混合&女性區
-> 🆔 `Liko-Region_switch` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Region_switch.user.js)
-
-快速切換混合區與女性區。  
-Quickly switch between the mixed and female regions.
-
----
-
-#### 📋 Chat Filter Tool · 聊天室信息過濾器
-> 🆔 `Liko-CFT` · EN✔️ · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CFT.user.js)
-
-聊天室信息過濾。  
-Filter messages in the chatroom.
-
----
-
-#### 👥 Liko's Friends and ChatRoom Manager · 好友與房間管理
-> 🆔 `Liko-FCM` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-FCM.user.js)
-
-提供個人資料的保存、查詢，房間名單的管理
-Provides features for saving and searching personal profiles, and managing room lists.
-
----
-
-#### 💬 Liko's Chat Text to Button · 對話變按鈕
-> 🆔 `Liko-Chat_TtoB` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Chat_TtoB.user.js)
-
-聊天室信息轉按鈕，現在還多了傳送門功能。  
-Converts chat messages into clickable buttons, with a room teleport feature.
-
-- 使用 `/指令`、`!!說話`、`#房名#` 都會變成可以點擊的按鈕，`#房名#` 提供傳送功能  
-  Messages starting with `/`, `!!`, or wrapped in `#RoomName#` become buttons. `#RoomName#` teleports you to that room.
-
----
-
-#### 🧹 Liko's Release Maid · 解綁女僕
-> 🆔 `Liko-Release_Maid` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-Release_Maid.user.js)
-
-自動解綁女僕，不過有點天然，會在意外時觸發。  
-An auto-release maid, though a bit naive — may trigger unexpectedly.
-
-- 請評估自己需求，避免降低遊戲樂趣 · Consider whether this suits your playstyle before enabling
-
----
-
-#### 🪪 Liko's Custom Profile Background · 自定義個人資料頁面背景
-> 🆔 `Liko-CPB` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CPB.user.js)
-
-自定義個人資料頁面背景並分享給他人。  
-Customize your profile page background and share it with others.
-
----
-
-#### 🖌️ Liko's Coordinate Drawing Tool · 座標繪製工具
-> 🆔 `Liko-CDT` · [📥Download](https://github.com/awdrrawd/liko-Plugin-Repository/blob/main/Plugins/Liko-CDT.user.js)
-
-BC 的介面 UI 定位工具，有開發需求的可以使用。  
-A BC interface UI positioning tool — useful for plugin developers.
-
----
-
-### 🌟 社群推薦插件 · Community Featured Plugins
-
-*以下插件已取得開發者同意，透過 PCM 整合收錄，感謝各位作者的貢獻！*  
-*All of the following have been included with the developer's permission. Thanks to all authors!*
-
----
-
-#### 🥐 ECHO's Expansion on Cloth Options · ECHO的服裝拓展
-> 🆔 `ECHO-Cloth` · EN✔️ · [GitHub](https://github.com/SugarChain-Studio/echo-clothing-ext) · by **SugarChain Studio**
-
-ECHO 的服裝拓展（支援穩定版 / Beta 版切換）。  
-Expands clothing options in BC *(supports stable / beta toggle)*.
-
----
-
-#### 🥐 ECHO's Expansion on Activity Options · ECHO的動作拓展
-> 🆔 `ECHO-Activity` · EN✔️ · [GitHub](https://github.com/SugarChain-Studio/echo-activity-ext) · by **SugarChain Studio**
-
-ECHO 的動作拓展（支援穩定版 / Beta 版切換）。  
-Expands activity options in BC *(supports stable / beta toggle)*.
-
----
-
-#### 🐇 Vivian's Portable Wardrobe for Bondage Club · Vivian 的 BC 随身衣柜
-> 👘 `Vivian's Portable Wardrobe for BC.` · EN✔️ · [GitHub](https://github.com/VivianMoonlight/Vivians-Portable-Wardrobe) · by **VivianMoonlight**
-
-本脚本为 BC 游戏提供随身衣柜，内置预览镜和高级服装管理功能。  
-A BC script that adds a portable wardrobe system with a preview mirror and advanced outfit management.
-
----
-
-#### 🐇 ULTRAbc
-> 🆔 `ULTRAbc` · EN✔️ · [GitHub](https://github.com/tetris245/ULTRAbc) · by **tetris245**
-
-有許多輔助功能，但考慮遊戲性請自行選擇是否啟用（支援 EN / ZH 版本切換）。  
-A large collection of cheats, quality-of-life improvements, and a moaner script *(supports EN / ZH toggle)*. Enable selectively to preserve your gameplay experience.
-
----
-
-#### 🎲 Galia's Gambling Club · Galia的賭博俱樂部
-> 🆔 `GGC` · EN✔️ · [GitHub](https://galia-bc.github.io/galia.github.io) · by **Galia**
-
-增加了小遊戲、骰子和硬幣動畫、交易、趣味文字效果以及專為聊天室互動而設計的環形選單。
-Addon that adds canvas games, dice and coin animations, trades, playful text effects, 和 a radial menu built for chat-room interactions.
-
----
-
-## 📝 注意事項 · Notes
-
-- 插件啟用後會自動載入，或在下次刷新頁面時生效
-  Plugins auto-load after enabling, or take effect on the next page refresh
-- 建議根據需要選擇性啟用插件以獲得最佳體驗
-  Selectively enabling plugins is recommended for the best experience
-- 輸入 `/pcm help` 查看插件管理器說明；`/pcm list` 查看所有插件狀態  
-  Enter `/pcm help` for manager instructions; `/pcm list` to view all plugin statuses
-
----
-
-<div align="center">
-
-❖ Made with 🐾 by **Likolisu** ❖
-
-</div>
+#### 單獨安裝插件
+
+如果不使用 PCM，可直接點擊下方插件表格中的「安裝」，或前往 [Plugins](./Plugins) 選擇個別腳本。
+
+## 插件收藏
+
+目前收錄 43 款插件：32 款 Liko 插件、8 款社群插件與 3 款修正補丁，涵蓋聊天室、外觀、互動、媒體、介面優化與開發輔助。
+
+### Liko 插件
+
+| 插件 | 功能介紹 | 版本 | 連結 |
+|---|---|---:|---|
+| ✨ **Liko的俱樂部擴充(測試)**<br><sub>Liko's Club Expansion(test)</sub><br>`Liko-LCE` | 以WCE為基底合併幾個小型插件功能，並提供美化登入介面與帳號記憶功能 | 持續更新 | [安裝](https://cdn.jsdelivr.net/gh/awdrrawd/BC-LCE@main/dist/assets/main.js) · [專案網站](https://github.com/awdrrawd/BC-LCE) |
+| 🐈‍⬛ **Liko的外觀編輯拓展(測試中)**<br><sub>Liko's Appearance editing extension(testing)</sub><br>`Liko-AEE` | 更強大的編輯器，並且支援更多的服裝編輯(測試中) | 持續更新 | [安裝](https://awdrrawd.github.io/BC-AEE/assets/main.js) · [專案網站](https://github.com/awdrrawd/BC-AEE/tree/main) |
+| 💗 **Liko的熱情回應**<br><sub>Liko's Responsive Reactions</sub><br>`Liko-Responsive` | 依互動、高潮、趣味與房間事件，自動執行文字、動作、表情與特殊動畫回應。 | 持續更新 | [安裝](https://awdrrawd.github.io/BC-Responsive/dist/main.js) · [專案網站](https://github.com/awdrrawd/BC-Responsive) |
+| 🌸 **繁戀如花 ─繽紛─**<br><sub>Abundantia Florum ─Chromatica─</sub><br>`Liko-AFC` | 更多戀人，如百花盛放的愛情篇章，並搭載可延展的戀人鎖機制。 | 持續更新 | [安裝](https://awdrrawd.github.io/BC-AFC/assets/main.js) · [專案網站](https://github.com/awdrrawd/BC-AFC) |
+| 👥 **Liko的好友與房間管理**<br><sub>Friends and ChatRoom Manager</sub><br>`Liko-FCM` | 更好的好友管理與房間管理功能<br><sub>提供個人資料的保存、查詢，房間名單的管理</sub> | 持續更新 | [安裝](https://awdrrawd.github.io/BC-FCM/assets/main.js) · [專案網站](https://github.com/awdrrawd/BC-FCM) |
+| 🌀 **催眠奴隸俱樂部**<br><sub>Hypnotic Slave Club</sub><br>`Liko-HSC` | 提供多樣催眠效果，增強催眠的沉浸度 | 持續更新 | [安裝](https://awdrrawd.github.io/BC-HSC/assets/main.js) · [專案網站](https://github.com/awdrrawd/BC-HSC) |
+| 📖 **Liko的聊天室書記官**<br><sub>Liko's Chat History Exporter</sub><br>`Liko-CHE` | 聊天室信息轉HTML，並且提供最多7天的信息救援(需要手動啟用緩存功能)<br><sub>包含完整的聊天記錄、時間戳和角色信息，可以搭配Neocities等網站上傳分享</sub> | v2.6.0 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CHE.main.user.js) |
+| 🖼️ **Liko的圖片上傳器**<br><sub>Liko's Image Uploader</sub><br>`Liko-Image_Uploader` | 拖曳上傳圖片並分享到聊天室<br><sub>圖片上傳失敗時，可以使用/IMG或/IMG HELP查閱說明</sub> | v1.6.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js) |
+| 🌐 **Liko的自動翻譯**<br><sub>Liko's Messages Auto Translator</sub><br>`Liko-MAT` | 自動翻譯(使用Google api) | v1.7.8 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MAT.main.user.js) |
+| 🧰 **Liko的工具包**<br><sub>Liko's Tool Kit</sub><br>`Liko-Tool` | 有許多小功能合集的工具包，但也有點不穩定<br><sub>詳細使用說明請輸入/LT或/LT help查詢</sub> | v2.2.0 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Tool.main.user.js) |
+| 🎬 **Liko的自動創建影片**<br><sub>Liko's Automatically create video.</sub><br>`Liko-ACV` | Liko的自動創建影片 | v1.5.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20ACV.main.user.js) |
+| 😀 **文字表情**<br><sub>Kaomoji</sub><br>`Liko-Kaomoji` | 文字表情快捷面板，並提供自訂、常用快捷分類 | v1.1.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Kaomoji.main.user.js) |
+| 🗺️ **Liko的地圖房迷你地圖**<br><sub>Liko's Bondage Map Minimap</sub><br>`Liko-BMM` | BC 地圖房迷你地圖 | v2.0.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20BMM.main.user.js) |
+| 🔧 **聊天室輔助工具**<br><sub>ChatRoom Assistant</sub><br>`Liko-CRA` | 替他人改姿勢、輸入歷史、BIO時區頭頂時間、@動作自帶名字、指令/房間轉按鈕 | v1.0.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CRA.main.user.js) |
+| 🪄 **Liko對朋友的惡作劇**<br><sub>Liko's Friend Prank</sub><br>`Liko-Prank` | 內褲大盜鬧得BC社群人心惶惶！<br><sub>注意：這是個惡作劇插件，請謹慎使用！指令 /偷取, /溶解, /传送</sub> | v1.6.9 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Prank.main.user.js) |
+| 👗 **Liko的自訂更衣室背景**<br><sub>Liko's Custom Dressing Background</sub><br>`Liko-CDB` | 更衣室背景替換，並提供網格對焦與替換姿勢 | v1.5.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CDB.main.user.js) |
+| 🎵 **Liko的聊天室音樂控制器(測試中)**<br><sub>Liko's Music Controller(testing)</sub><br>`Liko-CMC` | 支援歌詞(需要有曲名)、歌曲列表 | v1.3.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CMC.main.user.js) |
+| 📱 **手機直版佈局(測試)**<br><sub>Mobile Portrait Layout(test)</sub><br>`Liko-MPL` | 支援房間搜尋與聊天室的直版佈局 | v0.5.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MPL.main.user.js) |
+| 📧 **Liko的邀請通知器**<br><sub>Liko's Notification of Invites</sub><br>`Liko-NOI` | 發出好友、白單、黑單的信息! | v1.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20NOI.main.user.js) |
+| 🆔 **WCE的個人資料分享**<br><sub>WCE Profile Share.</sub><br>`Liko-WPS` | WCE的個人資料分享，需開啟WCE的個人資料保存 | v1.1.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20WPS.main.user.js) |
+| ⚧️ **快速切換混合&女性區**<br><sub>Region switch</sub><br>`Liko-Region_switch` | 快速切換混合&女性區 | v1.3 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Region%20switch.main.user.js) |
+| 🎮 **Liko的玩具遙控器**<br><sub>Liko's Toy remote control</sub><br>`Liko-TRC` | 聊天室玩具控制 | v1.1.0 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TRC.main.user.js) |
+| 📋 **聊天室信息過濾器**<br><sub>RChat Filter Tool</sub><br>`Liko-CFT` | 聊天室信息過濾 | v1.1.3 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CFT.main.user.js) |
+| 🫟 **你畫我猜(測試)**<br><sub>Draw Game(test)</sub><br>`Liko-BDG` | 可以在聊天室隨意塗鴉 | v0.3.0 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko-BDG.main.user.js) |
+| 🪪 **Liko的自定義個人資料頁面背景**<br><sub>Liko's Custom Profile Background</sub><br>`Liko-CPB` | 自定義個人資料頁面背景並分享給他人 | v1.2.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CPB.main.user.js) |
+| 💬 **Liko的對話變按鈕**<br><sub>Liko's Chat Text to Button</sub><br>`Liko-Chat_TtoB` | 聊天室信息轉按鈕，現在還多了傳送門功能!<br><sub>使用/指令、!!說話、#房名#都會變成可以點擊的按鈕，#房名#提供傳送功能</sub> | v1.1.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js) |
+| 📔 **BC翻譯補丁**<br><sub>BC-translation-patch</sub><br>`Liko-BTP` | 中文的翻譯補丁，補充上遺漏翻譯 | v0.1.0 | [安裝](https://awdrrawd.github.io/BC-translation-patch/bc-translation-patch.js) · [專案網站](https://github.com/awdrrawd/BC-translation-patch) |
+| 🖌️ **繪圖檢測工具**<br><sub>Draw Detection Tool</sub><br>`Liko-DDT` | 偵測 canvas & DOM 物件的屬性，支持染色與位移，並支持繪製物件功能 | v0.1.0 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20DDT.main.user.js) |
+| 🧹 **Liko的解綁女僕**<br><sub>Liko's Release Maid</sub><br>`Liko-Release_Maid` | 自動解綁女僕，不過有點天然，會在意外時觸發!<br><sub>請評估自己需求，避免降低遊戲樂趣</sub> | v1.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Release%20Maid.main.user.js) |
+| 📱 **聊天室左右介面交換**<br><sub>Chatroom UI Swap</sub><br>`Liko-CUS` | 聊天室左右介面交換：左側聊天訊息、右側人物。手動開關。 | v0.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko-CUS.main.user.js) |
+| 🧪 **程式碼沙盒**<br><sub>Code Sandbox</sub><br>`Liko-LCS` | 在全域作用域執行測試碼，精準追蹤並還原「這個沙盒自己造成」的副作用；支援多重沙盒、可收合、可切純控制台模式 | v1.0 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20LCS.main.user.js) |
+| 🔊 **文字轉語音**<br><sub>Text to Speech</sub><br>`Liko-TTS` | 聊天室信息轉語音 | v0.6.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TTS.main.user.js) |
+
+### 社群插件
+
+| 插件 | 功能介紹 | 版本 | 連結 |
+|---|---|---:|---|
+| ⚡ **BC 快捷互动插件**<br><sub>BC quick-interaction</sub><br>`HT-QI` | 快捷互动插件，提供部位直选、批量执行、动作收藏、连招编排、ECHO動作匯出、自訂動作 | 持續更新 | [安裝](https://bondage-studio.github.io/QuickInteraction/assets/main.js) · [專案網站](https://github.com/bondage-studio/QuickInteraction) |
+| 🥐 **ECHO的服裝拓展**<br><sub>ECHO's Expansion on cloth options</sub><br>`ECHO-Cloth` | ECHO的服裝拓展 | 持續更新 | [安裝](https://sugarchain-studio.github.io/echo-clothing-ext/bc-cloth.user.js) · [專案網站](https://github.com/SugarChain-Studio/echo-clothing-ext) |
+| 🥐 **ECHO的動作拓展**<br><sub>ECHO's Expansion on activity options</sub><br>`ECHO-Activity` | ECHO的動作拓展 | 持續更新 | [安裝](https://sugarchain-studio.github.io/echo-activity-ext/bc-activity.user.js) · [專案網站](https://github.com/SugarChain-Studio/echo-activity-ext) |
+| 🍪 **小酥的動作拓展**<br><sub>XS's Expansion on activity options</sub><br>`XS-Activity` | 小酥的動作拓展 | 持續更新 | [安裝](https://awdrrawd.github.io/XiaoSuActivity/main/XSActivity.js) · [專案網站](https://github.com/iceriny/XiaoSuActivity) |
+| 👘 **Vivian 的 BC 随身衣柜**<br><sub>Vivian's Portable Wardrobe for BC.</sub><br>`Vivian-PWB` | 本脚本为 BC 游戏提供 随身衣柜，内置预览镜和高级服装管理功能。 | 持續更新 | [安裝](https://vivianmoonlight.github.io/Vivians-Portable-Wardrobe/ViviansPortableWardrobeLoader.user.js) · [專案網站](https://github.com/VivianMoonlight/Vivians-Portable-Wardrobe) |
+| 🐇 **ULTRAbc**<br>`ULTRAbc` | 有許多輔助功能，但考慮遊戲性請自行選擇是否啟用 | 持續更新 | [安裝](https://tetris245.github.io/ultrabc.github.io/ULTRAbcloader.user.js) · [專案網站](https://github.com/tetris245/ULTRAbc) |
+| 🎲 **Galia的賭博俱樂部**<br><sub>Galia's Gambling Club</sub><br>`GGC` | 增加了小遊戲、骰子和硬幣動畫、交易、趣味文字效果以及專為聊天室互動而設計的環形選單。 | 持續更新 | [安裝](https://galia-bc.github.io/galia.github.io/club-gaming/club-gaming.js) · [專案網站](https://galia-bc.github.io/galia.github.io) |
+| 🧩 **Shuang的貼圖分享**<br><sub>Shuang's sticker sharing</sub><br>`Shuang-Assets` | 新增貼圖分享物品。可設定貼圖網址，設置在角色身上並分享顯示給其他人 | 持續更新 | [安裝](https://shuang-custom-assets.pages.dev/assets/main.js) · [專案網站](https://gitgud.io/yeshuang26/shuangcustomassets) |
+
+### 修正補丁
+
+| 插件 | 功能介紹 | 版本 | 連結 |
+|---|---|---:|---|
+| 💉 **物件隱藏熱修**<br><sub>Hotfix for Hidden elements</sub><br>`Fix-HHA` | 在更衣室、個人資訊、角色互動中隱藏興奮條、MPA等物件 | v0.3 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HHA.user.js) |
+| 💉 **牽引補丁(測試)**<br><sub>Leash Fix(test)</sub><br>`Fix-HLF` | 修復部分牽引失敗的錯誤 | v0.17 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HLF.user.js) |
+| 💉 **製作物品的擴充物品資產保護**<br><sub>Crafting Asset Recovery</sub><br>`Fix-HCR` | 在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用 | v0.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HCR.user.js) |
+
+## 開發參考
+
+- [BC 插件開發指南](docs/BC插件開發指南.md)
+- [自訂捲軸與拖曳捲動指南](docs/自訂捲軸與拖曳捲動指南.md)
+
+## 授權
+
+[MIT License](LICENSE)
