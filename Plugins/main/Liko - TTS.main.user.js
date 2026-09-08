@@ -1,13 +1,10 @@
 // ==UserScript==
 // @name         Liko - TTS
 // @namespace    https://github.com/awdrrawd
-// @version      0.6.1
+// @version      0.6.2
 // @description  Free multilingual text-to-speech for Bondage Club
 // @author       Liko
-// @match        https://bondageprojects.elementfx.com/*
-// @match        https://www.bondageprojects.elementfx.com/*
-// @match        https://bondage-europe.com/*
-// @match        https://www.bondage-europe.com/*
+// @include      /^https:\/\/(www\.)?bondage(projects\.elementfx|-(europe|asia))\.com\/.*/
 // @grant        none
 // @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/bcmodsdk.js
 // @run-at       document-start
@@ -18,7 +15,7 @@
 
     const W = window;
     const MOD_NAME = "Liko - TTS";
-    const MOD_VERSION = "0.6.1";
+    const MOD_VERSION = "0.6.2";
     const SETTINGS_ID = "Liko_TTS_Settings";
     const STORAGE_KEY = "LikoTTS";
     const BUTTON_ID = "lk-tts-trigger-btn";
@@ -49,10 +46,10 @@
         baseLang: "zh-TW",
         voiceByLang: {},
         playerVoices: {},
-        randomPlayerVoices: true,
         voiceAssignment: "system", // configured | random | system
         voiceGender: "female", // female | male | mixed
         chatButton: true,
+        reminderMode: false,
         filteredPrefixesEnabled: true,
         filteredPrefixes: "[🌐];🔊;📞",
         kokoro: { enabled: false, device: "auto", dtype: "auto", workerUrl: "" },
@@ -74,6 +71,8 @@
     let kokoroWorkerUrl = "";
     let kokoroReady = false;
     let kokoroLoading = false;
+    let activeKokoroAudio = null;
+    let resolveActiveKokoroAudio = null;
     let kokoroInstalledVoices = new Set();
     const kokoroPending = new Map();
     const cleanups = [];
@@ -94,6 +93,7 @@
         speakVerbZh: "說", speakVerbEn: " says ", speakVerbJa: "は", speakVerbKo: "이 말합니다. ", speakVerbRu: " говорит: ", speakVerbAr: " يقول: ", speakVerbHi: " कहता है: ", speakVerbTh: "พูดว่า ", speakVerbEl: " λέει: ", speakVerbHe: " אומר: ",
         readChat: "朗讀聊天訊息", readChatDesc: "朗讀一般 Chat 訊息。", readWhisper: "朗讀悄悄話", readWhisperDesc: "朗讀收到的 Whisper 訊息。",
         readEmote: "朗讀動作訊息", readEmoteDesc: "朗讀 Emote 類型的角色動作。", chatButton: "顯示聊天室快捷按鈕", chatButtonDesc: "在 CRB 加入 TTS 快捷按鈕。",
+        reminderMode: "提醒模式", reminderModeDesc: "遊戲頁面位於最前方時不朗讀；切到其他分頁或視窗後，收到新訊息才朗讀。", reminderOn: "提醒模式-啟用", reminderOff: "提醒模式-停用", reminderEnabledNotice: "提醒模式已啟用", reminderDisabledNotice: "提醒模式已停用",
         voiceTest: "This is a voice test", playTest: "試聽", playTestDesc: "使用目前畫面選擇的聲線與參數播放測試句。", testText: "測試句",
         primaryLanguage: "自己的主要語系", primaryLanguageDesc: "玩家名稱、英文與這個主要語系會優先沿用同一位玩家的聲線。",
         language: "設定語系", followPrimaryLanguage: "↪ 跟隨主語系", selectVoice: "選擇語音", systemDefaultVoice: "系統預設語音", noVoice: "此語系尚未安裝可用語音", noVoiceHelp: "請到作業系統的語言或語音設定下載，再重新掃描。",
@@ -108,8 +108,8 @@
         kokoroEnabled: "啟用 Kokoro", kokoroCompute: "Kokoro 運算", kokoroWorkerUrl: "自架 Worker 網址",
         kokoroAuto: "運算-AUTO", kokoroWebGPU: "運算-WebGPU", kokoroWasm: "運算-WASM", kokoroDtypeAuto: "精度-AUTO", kokoroFp32: "精度-FP32（高）", kokoroQ8: "精度-Q8（普通）",
         kokoroRemove: "移除語音包", kokoroRemoveDone: "完成移除", kokoroVoicePrefix: "Kokoro", kokoroModelLoading: "正在下載並載入 Kokoro 共用模型", kokoroModelReady: "Kokoro 共用模型已就緒", kokoroDownloading: "正在下載 {name}（{done}/{total}）", kokoroDownloaded: "{name} 語音包下載完成", kokoroRemoved: "已移除 {name} 語音包", kokoroDownloadFailed: "Kokoro 處理失敗：{message}",
-        personalTarget: "用戶ID", personalLanguage: "個人語系", personalVoice: "個人語音", personalRate: "個人語速", personalPitch: "個人語調", personalVolume: "個人音量", personalSave: "保存覆寫", personalClear: "使用預設",
-        enabledNotice: "TTS 已啟用", disabledNotice: "TTS 已停用", enabled: "啟用", disabled: "停用", clearVoice: "清除語音", settings: "前往設定",
+        personalTarget: "用戶ID", personalLanguage: "個人語系", personalVoice: "個人語音", personalRate: "個人語速", personalPitch: "個人語調", personalVolume: "個人音量", personalSave: "保存覆寫", personalClear: "使用預設", personalRoom: "房間", personalSaved: "已保存",
+        enabledNotice: "TTS 已啟用", disabledNotice: "TTS 已停用", enabled: "TTS-啟用", disabled: "TTS-停用", clearVoice: "清除語音", settings: "前往設定",
         stateOn: "開", stateOff: "關",
         langZh: "🇹🇼 中文", langJa: "🇯🇵 日本語", langKo: "🇰🇷 한국어", langRu: "🇷🇺 Русский", langAr: "🇸🇦 العربية", langHi: "🇮🇳 हिन्दी", langTh: "🇹🇭 ไทย", langEl: "🇬🇷 Ελληνικά", langHe: "🇮🇱 עברית", langEn: "🇺🇸 English / Latin",
         testZh: "這是一段中文語音測試。", testJa: "これは日本語の音声テストです。", testKo: "한국어 음성 테스트입니다.", testRu: "Это проверка русского голоса.", testAr: "هذا اختبار للصوت العربي.", testHi: "यह हिन्दी आवाज़ का परीक्षण है।", testTh: "นี่คือการทดสอบเสียงภาษาไทย", testEl: "Αυτή είναι μια δοκιμή ελληνικής φωνής.", testHe: "זהו מבחן קול בעברית.", testEn: "This is an English voice test.",
@@ -125,6 +125,7 @@
         helpAdvanced: "Mixed-language text is split by writing system and spoken with matching voices. Skipping unsupported segments prevents incorrect speech and noise.",
         ownMessages: "Read my messages", ownMessagesDesc: "When off, only messages from other players are read.", speakSender: "Read speaker names", speakSenderDesc: "The name and main-language text use the same player voice.",
         readChat: "Read chat messages", readChatDesc: "Read normal Chat messages.", readWhisper: "Read whispers", readWhisperDesc: "Read received Whisper messages.", readEmote: "Read emotes", readEmoteDesc: "Read character Emote messages.", chatButton: "Show chat shortcut", chatButtonDesc: "Add a TTS shortcut button to CRB.",
+        reminderMode: "Reminder mode", reminderModeDesc: "Stay silent while the game page is in front; speak new messages only while another tab or window is in view.", reminderOn: "Reminder mode-On", reminderOff: "Reminder mode-Off", reminderEnabledNotice: "Reminder mode enabled", reminderDisabledNotice: "Reminder mode disabled",
         voiceTest: "This is a voice test", playTest: "Test", playTestDesc: "Play the test sentence using the voice and parameters currently shown.", testText: "Test sentence",
         primaryLanguage: "My primary language", primaryLanguageDesc: "Player names, English, and this primary language prefer the same player voice.", language: "Configure language", followPrimaryLanguage: "↪ Follow primary language", selectVoice: "Select voice", systemDefaultVoice: "System default", noVoice: "No installed voice for this language", noVoiceHelp: "Install a voice in your operating system, then rescan.",
         rescan: "Rescan system voices", voicesFound: "Found {count} system voices",
@@ -135,8 +136,8 @@
         filteredPrefixesEnabled: "Filter messages by prefix", filteredPrefixesEnabledDesc: "When enabled, messages matching any prefix on the next row are not spoken. Disabling preserves the entered list.", filteredPrefixes: "Prefix list", filteredPrefixesDesc: "Separate prefixes with semicolons, for example: [🌐];🔊;📞.",
         kokoroEnabled: "Enable Kokoro", kokoroCompute: "Kokoro compute", kokoroWorkerUrl: "Custom Worker URL", kokoroAuto: "Compute-AUTO", kokoroWebGPU: "Compute-WebGPU", kokoroWasm: "Compute-WASM", kokoroDtypeAuto: "Precision-AUTO", kokoroFp32: "Precision-FP32 (High)", kokoroQ8: "Precision-Q8 (Normal)",
         kokoroRemove: "Remove voice packs", kokoroRemoveDone: "Finish removing", kokoroModelLoading: "Downloading and loading the shared Kokoro model", kokoroModelReady: "Kokoro shared model is ready", kokoroDownloading: "Downloading {name} ({done}/{total})", kokoroDownloaded: "Downloaded {name} voice pack", kokoroRemoved: "Removed {name} voice pack", kokoroDownloadFailed: "Kokoro failed: {message}",
-        personalTarget: "Member ID", personalLanguage: "Personal language", personalVoice: "Personal voice", personalRate: "Personal rate", personalPitch: "Personal pitch", personalVolume: "Personal volume", personalSave: "Save override", personalClear: "Use defaults",
-        enabledNotice: "TTS enabled", disabledNotice: "TTS disabled", enabled: "Enable", disabled: "Disable", clearVoice: "Clear speech", settings: "Open settings", stateOn: "On", stateOff: "Off",
+        personalTarget: "Member ID", personalLanguage: "Personal language", personalVoice: "Personal voice", personalRate: "Personal rate", personalPitch: "Personal pitch", personalVolume: "Personal volume", personalSave: "Save override", personalClear: "Use defaults", personalRoom: "Room", personalSaved: "Saved",
+        enabledNotice: "TTS enabled", disabledNotice: "TTS disabled", enabled: "TTS-Enable", disabled: "TTS-Disable", clearVoice: "Clear speech", settings: "Open settings", stateOn: "On", stateOff: "Off",
         langZh: "🇹🇼 Chinese", langJa: "🇯🇵 Japanese", langKo: "🇰🇷 Korean", langRu: "🇷🇺 Russian", langAr: "🇸🇦 Arabic", langHi: "🇮🇳 Hindi", langTh: "🇹🇭 Thai", langEl: "🇬🇷 Greek", langHe: "🇮🇱 Hebrew", langEn: "🇺🇸 English / Latin",
     };
     const chineseUI = () => /^(?:CN|TW|ZH[-_](?:CN|TW))$/i.test(String(W.TranslationLanguage || navigator.language || ""));
@@ -205,6 +206,7 @@
         }
         kokoroInstalledVoices = installedVoices;
         settingsScreen?._populateVoiceSelect?.();
+        settingsScreen?._populatePersonalVoice?.();
         return installed;
     }
     function stopKokoroWorker() {
@@ -257,8 +259,16 @@
         if (!audioUrl) return;
         await new Promise(resolve => {
             const audio = new Audio(audioUrl); audio.volume = params.volume ?? config.volume; audio.playbackRate = params.rate ?? config.rate;
-            audio.onended = resolve; audio.onerror = resolve;
-            void audio.play().catch(resolve);
+            let settled = false;
+            const finish = () => {
+                if (settled) return;
+                settled = true;
+                if (activeKokoroAudio === audio) { activeKokoroAudio = null; resolveActiveKokoroAudio = null; }
+                resolve();
+            };
+            activeKokoroAudio = audio; resolveActiveKokoroAudio = finish;
+            audio.onended = finish; audio.onerror = finish;
+            void audio.play().catch(finish);
         });
         URL.revokeObjectURL(audioUrl);
     }
@@ -276,7 +286,12 @@
         };
         merged.maxLength = Math.min(1000, Math.max(25, Math.round(merged.maxLength / 25) * 25));
         if (!["female", "male", "mixed"].includes(merged.voiceGender)) merged.voiceGender = "female";
-        if (!["configured", "random", "system"].includes(merged.voiceAssignment)) merged.voiceAssignment = raw.voiceAssignment || (raw.randomPlayerVoices === true ? "random" : "configured");
+        if (!["configured", "random", "system"].includes(raw.voiceAssignment)) {
+            merged.voiceAssignment = typeof raw.randomPlayerVoices === "boolean"
+                ? (raw.randomPlayerVoices ? "random" : "configured")
+                : defaults.voiceAssignment;
+        }
+        delete merged.randomPlayerVoices;
         return merged;
     }
     function loadConfig() {
@@ -295,13 +310,18 @@
     function refreshVoices() {
         voices = [...(W.speechSynthesis?.getVoices?.() || [])].sort((a, b) =>
             a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
+        sessionPlayerVoices.clear();
         settingsScreen._populateVoiceSelect?.();
+        settingsScreen._populatePersonalVoice?.();
         return voices;
+    }
+    function availableVoices(lang) {
+        return [...voices, ...(config.kokoro.enabled ? kokoroVoiceOptions(lang) : [])];
     }
     function voiceFor(lang) {
         const wanted = primaryLang(lang);
         const uri = config.voiceByLang[wanted] || (wanted === primaryLang(config.baseLang) ? config.voiceByLang.default : "");
-        return [...voices, ...(config.kokoro.enabled ? kokoroVoiceOptions(wanted) : [])].find(v => v.voiceURI === uri)
+        return availableVoices(wanted).find(v => v.voiceURI === uri)
             || preferredVoices(wanted)[0]
             || null;
     }
@@ -313,7 +333,7 @@
     const FEMALE_VOICE = /female|woman|hanhan|yating|huihui|yaoyao|xiaoxiao|xiaoyi|aria|jenny|zira|hazel|samantha|victoria|kyoko|haruka|heami/i;
     const MALE_VOICE = /\bmale\b|\bman\b|zhiwei|yunxi|yunyang|david|mark|george|daniel|ichiro/i;
     function preferredVoices(lang) {
-        const matching = [...voices.filter(voice => primaryLang(voice.lang) === primaryLang(lang)), ...(config.kokoro.enabled ? kokoroVoiceOptions(lang) : [])];
+        const matching = availableVoices(lang).filter(voice => primaryLang(voice.lang) === primaryLang(lang));
         return matching.sort((a, b) => {
             const score = voice => FEMALE_VOICE.test(voice.name) ? 0 : MALE_VOICE.test(voice.name) ? 2 : 1;
             return score(a) - score(b) || Number(b.default) - Number(a.default) || a.name.localeCompare(b.name);
@@ -324,14 +344,14 @@
         const personal = speakerId != null ? config.playerVoices[String(speakerId)] : null;
         if (personal?.voiceURI) {
             const lang = personal.lang || base;
-            const selected = [...voices, ...(config.kokoro.enabled ? kokoroVoiceOptions(lang) : [])].find(voice => voice.voiceURI === personal.voiceURI);
+            const selected = availableVoices(lang).find(voice => voice.voiceURI === personal.voiceURI);
             if (selected) return selected;
         }
         if (config.voiceAssignment === "configured" || speakerId == null) return voiceFor(base);
         if (config.voiceAssignment === "system") return systemVoiceFor(base);
         const key = `${speakerId}:${base}`;
         const cachedUri = sessionPlayerVoices.get(key);
-        const cached = [...voices, ...(config.kokoro.enabled ? kokoroVoiceOptions(base) : [])].find(voice => voice.voiceURI === cachedUri);
+        const cached = availableVoices(base).find(voice => voice.voiceURI === cachedUri);
         if (cached) return cached;
         const candidates = preferredVoices(base);
         if (!candidates.length) return voiceFor(base);
@@ -421,6 +441,10 @@
         queue = [];
         speaking = false;
         W.speechSynthesis?.cancel?.();
+        if (activeKokoroAudio) {
+            try { activeKokoroAudio.pause(); activeKokoroAudio.currentTime = 0; } catch {}
+            resolveActiveKokoroAudio?.();
+        }
     }
     function speakChunk(item, token) {
         if (item.voiceURI?.startsWith("kokoro:")) {
@@ -452,8 +476,11 @@
         }
         speaking = false;
     }
+    function reminderSuppressesSpeech() {
+        return config.reminderMode && !document.hidden && document.hasFocus();
+    }
     function enqueue(text, speakerId = null) {
-        if (!config.enabled || !text) return;
+        if (!config.enabled || !text || reminderSuppressesSpeech()) return;
         const visibleLength = [...text].length;
         if (visibleLength > config.maxLength) {
             if (config.longMessage === "skip") return;
@@ -485,23 +512,6 @@
                 W.speechSynthesis.speak(utterance);
             });
         }
-    }
-    async function testOwnVoice(text) {
-        if (!text?.trim()) return;
-        clearSpeech();
-        const selfId = W.Player?.MemberNumber, lang = primaryLang(config.baseLang), voice = playerVoiceFor(selfId);
-        const personal = config.playerVoices[String(selfId)] || {};
-        if (voice?.voiceURI?.startsWith("kokoro:")) {
-            await kokoroAudio(text.trim(), voice.voiceURI, personal).catch(error => notify(ui("kokoroDownloadFailed", { message: error?.message || error })));
-            return;
-        }
-        await new Promise(resolve => {
-            const utterance = new SpeechSynthesisUtterance(text.trim());
-            if (voice) { utterance.voice = voice; utterance.lang = voice.lang; } else utterance.lang = config.baseLang;
-            utterance.rate = personal.rate ?? config.rate; utterance.pitch = personal.pitch ?? config.pitch; utterance.volume = personal.volume ?? config.volume;
-            utterance.onend = resolve; utterance.onerror = resolve;
-            W.speechSynthesis.speak(utterance);
-        });
     }
     async function testPersonalDraft(text, voiceURI, params) {
         if (!text?.trim()) return;
@@ -554,6 +564,12 @@
         refreshQuickMenu();
         applyChatButton();
     }
+    function setReminderMode(value) {
+        config.reminderMode = Boolean(value);
+        if (reminderSuppressesSpeech()) clearSpeech();
+        saveConfig();
+        refreshQuickMenu();
+    }
     function notify(text) {
         if (typeof W.ChatRoomSendLocal === "function" && W.CurrentScreen === "ChatRoom") W.ChatRoomSendLocal(text);
         else console.info("🐈‍⬛ [TTS]", text);
@@ -575,6 +591,7 @@
             menu.appendChild(button);
         };
         add("lk-tts-toggle", "", () => { setEnabled(!config.enabled); notify(config.enabled ? ui("enabledNotice") : ui("disabledNotice")); });
+        add("lk-tts-reminder", "", () => { setReminderMode(!config.reminderMode); notify(config.reminderMode ? ui("reminderEnabledNotice") : ui("reminderDisabledNotice")); });
         add("lk-tts-clear", ui("clearVoice"), () => { clearSpeech(); hideQuickMenu(); });
         add("lk-tts-settings", ui("settings"), () => { hideQuickMenu(); openSettings(); });
         document.body.appendChild(menu);
@@ -588,6 +605,11 @@
             // This is a status label, not an action label: it always mirrors current state.
             toggle.textContent = config.enabled ? ui("enabled") : ui("disabled");
             toggle.style.background = config.enabled ? "#367b48" : "#333b4d";
+        }
+        const reminder = menu?.querySelector(".lk-tts-reminder");
+        if (reminder) {
+            reminder.textContent = config.reminderMode ? ui("reminderOn") : ui("reminderOff");
+            reminder.style.background = config.reminderMode ? "#8a6d1d" : "#333b4d";
         }
     }
     function hideQuickMenu() { const menu = document.getElementById(MENU_ID); if (menu) menu.style.display = "none"; }
@@ -647,10 +669,10 @@
     // MAT-style preference screen: fixed left navigation, aligned content rows,
     // a right-hand help panel, and one hit map rebuilt together with each frame.
     const settingsScreen = {
-        tab: 0, lang: "follow", hoverDesc: "", removePackMode: false, installedPacks: new Set(), _hits: [],
+        tab: 0, lang: "follow", personalListMode: "room", hoverDesc: "", removePackMode: false, installedPacks: new Set(), _hits: [],
         C: {
             TAB_X: 90, TAB_Y0: 210, TAB_W: 250, TAB_H: 58, TAB_GAP: 68,
-            CBX: 490, CB_SZ: 64, LBL_X: 400, LBL_W: 420,
+            CB_SZ: 64, LBL_X: 400, LBL_W: 420,
             CTRL_X: 850, CTRL_W: 450, ROW_Y0: 225, ROW_H: 80,
             HELP_X: 1350, HELP_Y: 200, HELP_W: 560, HELP_H: 700,
         },
@@ -734,7 +756,7 @@
             const lang = this.activeLang();
             const current = config.voiceByLang[lang] || "";
             select.replaceChildren(new Option(ui("systemDefaultVoice"), ""));
-            [...this.filteredVoices(), ...(config.kokoro.enabled ? kokoroVoiceOptions(lang) : [])].filter((voice, index, list) => list.findIndex(item => item.voiceURI === voice.voiceURI) === index)
+            this.filteredVoices()
                 .forEach(voice => select.add(new Option(`${voice.name} [${voice.lang}]`, voice.voiceURI)));
             select.value = [...select.options].some(option => option.value === current) ? current : "";
         },
@@ -805,12 +827,31 @@
         filteredVoices() { return preferredVoices(this.activeLang()); },
         _refreshPersonalList() {
             const list=document.getElementById(this.domIds[17]); if(!list)return;
+            const selectedId=document.getElementById(this.domIds[11])?.value||list.value;
+            const savedIds=new Set(Object.keys(config.playerVoices));
+            const self=String(W.Player?.MemberNumber||"");
+            if(this.personalListMode==="saved") {
+                const friendNames=W.Player?.FriendNames;
+                const options=[...savedIds].sort((a,b)=>a===self?-1:b===self?1:Number(a)-Number(b)).map(id=>{
+                    const memberNumber=Number(id);
+                    const friendName=friendNames?.get?.(memberNumber)??friendNames?.get?.(id);
+                    const label=friendName?`${friendName} (#${id})`:`#${id}`;
+                    return new Option(label,id);
+                });
+                list.replaceChildren(...options);
+                if([...list.options].some(option=>option.value===selectedId)) list.value=selectedId;
+                return;
+            }
             const all=[W.Player,...(W.ChatRoomCharacter||[])].filter(Boolean); const seen=new Set();
-            Object.keys(config.playerVoices).forEach(id=>{ if(!all.some(c=>String(c.MemberNumber)===id)) all.push({MemberNumber:Number(id),Name:`#${id}`}); });
-            const self=String(W.Player?.MemberNumber||""); all.sort((a,b)=>String(a.MemberNumber)===self?-1:String(b.MemberNumber)===self?1:0);
-            list.replaceChildren(...all.filter(c=>c.MemberNumber!=null&&!seen.has(String(c.MemberNumber))&&seen.add(String(c.MemberNumber))).map(c=>new Option(`${c===W.Player?"★ ":""}${c.Nickname||c.Name||"Player"} (#${c.MemberNumber})`,c.MemberNumber)));
+            all.sort((a,b)=>String(a.MemberNumber)===self?-1:String(b.MemberNumber)===self?1:0);
+            list.replaceChildren(...all.filter(c=>c.MemberNumber!=null&&!seen.has(String(c.MemberNumber))&&seen.add(String(c.MemberNumber))).map(c=>{
+                const id=String(c.MemberNumber);
+                const marker=id===self?"✦":savedIds.has(id)?"✢":"";
+                return new Option(`${marker}${c.Nickname||c.Name||"Player"} (#${id})`,id);
+            }));
+            if([...list.options].some(option=>option.value===selectedId)) list.value=selectedId;
         },
-        _populatePersonalVoice() { const lang=document.getElementById(this.domIds[12])?.value||primaryLang(config.baseLang), el=document.getElementById(this.domIds[13]); if(!el)return; el.replaceChildren(new Option(ui("systemDefaultVoice"),"")); [...preferredVoices(lang),...(config.kokoro.enabled?kokoroVoiceOptions(lang):[])].filter((v,i,a)=>a.findIndex(x=>x.voiceURI===v.voiceURI)===i).forEach(v=>el.add(new Option(`${v.name} [${v.lang}]`,v.voiceURI))); },
+        _populatePersonalVoice() { const lang=document.getElementById(this.domIds[12])?.value||primaryLang(config.baseLang), el=document.getElementById(this.domIds[13]); if(!el)return; el.replaceChildren(new Option(ui("systemDefaultVoice"),"")); preferredVoices(lang).forEach(v=>el.add(new Option(`${v.name} [${v.lang}]`,v.voiceURI))); },
         _loadPersonal() { const id=document.getElementById(this.domIds[11])?.value, p=config.playerVoices[String(id)]||{}; const lang=document.getElementById(this.domIds[12]); if(lang)lang.value=p.lang||primaryLang(config.baseLang); this._populatePersonalVoice(); const voice=document.getElementById(this.domIds[13]); if(voice)voice.value=p.voiceURI||""; [[14,"rate"],[15,"pitch"],[16,"volume"]].forEach(([i,k])=>{const e=document.getElementById(this.domIds[i]);if(e)e.value=p[k]??config[k];}); },
         run() {
             this.hoverDesc = ""; this._hits = [];
@@ -834,7 +875,7 @@
             tabs.forEach((label, index) => {
                 const y = C.TAB_Y0 + (index + 1) * C.TAB_GAP;
                 W.DrawButton(C.TAB_X, y, C.TAB_W, C.TAB_H, label, this.tab === index ? "#4CAF50" : "White");
-                this._hit(C.TAB_X, y, C.TAB_W, C.TAB_H, () => { this.tab = index; });
+                this._hit(C.TAB_X, y, C.TAB_W, C.TAB_H, () => { this.tab = index; if(index===3)this._refreshPersonalList(); });
             });
             W.DrawEmptyRect(C.HELP_X, C.HELP_Y, C.HELP_W, C.HELP_H, "#888");
             [this._runBasic, this._runVoices, this._runPacks, this._runPersonal, this._runAdvanced][this.tab].call(this);
@@ -852,7 +893,8 @@
             this._cb(y, ui("readChat"), config.messageTypes.Chat, ui("readChatDesc"), () => { config.messageTypes.Chat = !config.messageTypes.Chat; saveConfig(); }); y += H;
             this._cb(y, ui("readWhisper"), config.messageTypes.Whisper, ui("readWhisperDesc"), () => { config.messageTypes.Whisper = !config.messageTypes.Whisper; saveConfig(); }); y += H;
             this._cb(y, ui("readEmote"), config.messageTypes.Emote, ui("readEmoteDesc"), () => { config.messageTypes.Emote = !config.messageTypes.Emote; saveConfig(); }); y += H;
-            this._cb(y, ui("chatButton"), config.chatButton, ui("chatButtonDesc"), () => { config.chatButton = !config.chatButton; saveConfig(); applyChatButton(); });
+            this._cb(y, ui("chatButton"), config.chatButton, ui("chatButtonDesc"), () => { config.chatButton = !config.chatButton; saveConfig(); applyChatButton(); }); y += H;
+            this._cb(y, ui("reminderMode"), config.reminderMode, ui("reminderModeDesc"), () => { setReminderMode(!config.reminderMode); });
         },
         _runVoices() {
             const C = this.C; let y = C.ROW_Y0, H = C.ROW_H;
@@ -913,7 +955,11 @@
         },
         _runPersonal() {
             const C=this.C; this._text(ui("tabPersonal"),C.LBL_X,200,C.LBL_W,"#4CAF50");
-            this._positionDom(this.domIds[17],400,235,390,570);
+            W.DrawButton(400,235,185,50,ui("personalRoom"),this.personalListMode==="room"?"#4CAF50":"White");
+            this._hit(400,235,185,50,()=>{this.personalListMode="room";this._refreshPersonalList();});
+            W.DrawButton(605,235,185,50,ui("personalSaved"),this.personalListMode==="saved"?"#4CAF50":"White");
+            this._hit(605,235,185,50,()=>{this.personalListMode="saved";this._refreshPersonalList();});
+            this._positionDom(this.domIds[17],400,295,390,510);
             const rows=[["personalTarget",11],["personalLanguage",12],["personalVoice",13],["personalRate",14],["personalPitch",15],["personalVolume",16]];
             rows.forEach(([key,id],index)=>{const y=235+index*80;this._text(ui(key),820,this._mid(y),250,"#f2f2f2",30);this._positionDom(this.domIds[id],1080,y,220,C.CB_SZ);});
             this._positionDom(this.domIds[18],820,735,300,C.CB_SZ);
@@ -1053,6 +1099,13 @@
         registerSettings();
         document.addEventListener("mousedown", outsideClick);
         cleanups.push(() => document.removeEventListener("mousedown", outsideClick));
+        const stopReminderSpeechInForeground = () => {
+            if (reminderSuppressesSpeech()) clearSpeech();
+        };
+        W.addEventListener("focus", stopReminderSpeechInForeground);
+        document.addEventListener("visibilitychange", stopReminderSpeechInForeground);
+        cleanups.push(() => W.removeEventListener("focus", stopReminderSpeechInForeground));
+        cleanups.push(() => document.removeEventListener("visibilitychange", stopReminderSpeechInForeground));
         applyChatButton();
         void ensureCRB();
         console.log(`🐈‍⬛ [TTS] v${MOD_VERSION} loaded (${voices.length} voices)`);
