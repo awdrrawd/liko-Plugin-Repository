@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Liko - TTS
 // @namespace    https://github.com/awdrrawd
-// @version      0.6.2
+// @version      0.6.3
 // @description  Free multilingual text-to-speech for Bondage Club
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -15,7 +15,7 @@
 
     const W = window;
     const MOD_NAME = "Liko - TTS";
-    const MOD_VERSION = "0.6.2";
+    const MOD_VERSION = "0.6.3";
     const SETTINGS_ID = "Liko_TTS_Settings";
     const STORAGE_KEY = "LikoTTS";
     const BUTTON_ID = "lk-tts-trigger-btn";
@@ -47,7 +47,7 @@
         voiceByLang: {},
         playerVoices: {},
         voiceAssignment: "system", // configured | random | system
-        voiceGender: "female", // female | male | mixed
+        voiceGender: "female", // female | mixed
         chatButton: true,
         reminderMode: false,
         filteredPrefixesEnabled: true,
@@ -100,7 +100,7 @@
         rescan: "重新掃描系統語音", voicesFound: "已找到 {count} 個系統語音",
         multilingual: "自動切換語系語音", multilingualDesc: "依 Unicode 書寫系統切分混合語句。",
         voiceAssignment: "玩家語音分配", voiceConfigured: "統一使用設定語音", voiceRandom: "為玩家隨機分配", voiceSystem: "系統自動選擇", voiceAssignmentDesc: "個別 ID 設定永遠優先；其餘玩家可統一使用語言頁指定聲音、依會員 ID 穩定隨機，或使用系統預設聲音。",
-        voiceGender: "玩家聲線性別", voiceGenderFemale: "女聲（預設）", voiceGenderMale: "男聲", voiceGenderMixed: "混合", voiceGenderDesc: "女聲模式會排除已知男聲；只有明確選擇男聲或混合時，才會為其他玩家分配男聲。手動選取的語音不受此項限制。",
+        voiceGender: "玩家聲線性別", voiceGenderFemale: "女聲（預設）", voiceGenderMixed: "混合", voiceGenderDesc: "女聲只使用能明確辨識為女性的 TTS 聲音；無法確認性別的聲音不會使用。混合模式不區分性別。手動選取的語音不受此項限制。",
         unsupported: "沒有可用語音的片段", unsupportedSkip: "跳過（建議）", unsupportedBase: "使用主要語音", unsupportedDesc: "只影響找不到相符語系語音的片段；已安裝對應語音的語言屬於支援語言。跳過可避免錯誤朗讀與雜訊。",
         longMessage: "過長訊息", truncate: "截斷", skipAll: "整段跳過", longMessageDesc: "決定超過最大字數時的行為。",
         maxLength: "最大字數", maxLengthDesc: "每格 25 字，範圍 25–1000 字。", rate: "語速", pitch: "語調", volume: "音量",
@@ -130,7 +130,7 @@
         primaryLanguage: "My primary language", primaryLanguageDesc: "Player names, English, and this primary language prefer the same player voice.", language: "Configure language", followPrimaryLanguage: "↪ Follow primary language", selectVoice: "Select voice", systemDefaultVoice: "System default", noVoice: "No installed voice for this language", noVoiceHelp: "Install a voice in your operating system, then rescan.",
         rescan: "Rescan system voices", voicesFound: "Found {count} system voices",
         multilingual: "Automatic language switching", multilingualDesc: "Split mixed text by Unicode writing system.", voiceAssignment: "Player voice assignment", voiceConfigured: "Use configured voice for everyone", voiceRandom: "Assign random player voices", voiceSystem: "Let the system choose", voiceAssignmentDesc: "Per-ID overrides always win. Other players can share the configured voice, receive a stable random voice, or use the system default.",
-        voiceGender: "Player voice gender", voiceGenderFemale: "Female (default)", voiceGenderMale: "Male", voiceGenderMixed: "Mixed", voiceGenderDesc: "Female mode excludes known male voices. Manually selected voices are unaffected.",
+        voiceGender: "Player voice gender", voiceGenderFemale: "Female (default)", voiceGenderMixed: "Mixed", voiceGenderDesc: "Female mode only uses voices positively identified as female; voices with an unknown gender are excluded. Mixed mode does not filter by gender. Manually selected voices are unaffected.",
         unsupported: "Unsupported segments", unsupportedSkip: "Skip (recommended)", unsupportedBase: "Use primary voice", unsupportedDesc: "Controls segments with no matching installed voice. Skipping avoids incorrect speech and noise.", longMessage: "Long messages", truncate: "Truncate", skipAll: "Skip entire message", longMessageDesc: "Choose what happens when a message exceeds the character limit.",
         maxLength: "Maximum characters", maxLengthDesc: "25 characters per step, from 25 to 1000.", rate: "Rate", pitch: "Pitch", volume: "Volume",
         filteredPrefixesEnabled: "Filter messages by prefix", filteredPrefixesEnabledDesc: "When enabled, messages matching any prefix on the next row are not spoken. Disabling preserves the entered list.", filteredPrefixes: "Prefix list", filteredPrefixesDesc: "Separate prefixes with semicolons, for example: [🌐];🔊;📞.",
@@ -285,7 +285,10 @@
             kokoro: { ...defaults.kokoro, ...(raw.kokoro || {}) },
         };
         merged.maxLength = Math.min(1000, Math.max(25, Math.round(merged.maxLength / 25) * 25));
-        if (!["female", "male", "mixed"].includes(merged.voiceGender)) merged.voiceGender = "female";
+        // Male-only selection was removed. Preserve existing users' access to their
+        // voices by migrating that value to the unfiltered mixed mode.
+        if (merged.voiceGender === "male") merged.voiceGender = "mixed";
+        if (!["female", "mixed"].includes(merged.voiceGender)) merged.voiceGender = "female";
         if (!["configured", "random", "system"].includes(raw.voiceAssignment)) {
             merged.voiceAssignment = typeof raw.randomPlayerVoices === "boolean"
                 ? (raw.randomPlayerVoices ? "random" : "configured")
@@ -332,16 +335,13 @@
         return matching.find(voice => voice.default) || matching[0] || null;
     }
     const FEMALE_VOICE = /female|woman|hanhan|yating|huihui|yaoyao|xiaoxiao|xiaoyi|aria|jenny|zira|hazel|samantha|victoria|kyoko|haruka|heami/i;
-    const MALE_VOICE = /\bmale\b|\bman\b|zhiwei|yunxi|yunyang|david|mark|george|daniel|ichiro/i;
-    function voiceGender(voice) {
+    function isFemaleVoice(voice) {
         const kokoro = /^kokoro:[a-z]([fm])_/.exec(voice.voiceURI || "");
-        if (kokoro) return kokoro[1] === "f" ? "female" : "male";
-        if (FEMALE_VOICE.test(voice.name)) return "female";
-        if (MALE_VOICE.test(voice.name)) return "male";
-        return "unknown";
+        if (kokoro) return kokoro[1] === "f";
+        return FEMALE_VOICE.test(voice.name);
     }
     function automaticVoices(list) {
-        return list.filter(voice => config.voiceGender === "mixed" || voiceGender(voice) === config.voiceGender);
+        return config.voiceGender === "mixed" ? list : list.filter(isFemaleVoice);
     }
     function randomVoiceFor(lang, speakerId) {
         const pool = automaticVoices(preferredVoices(lang));
@@ -356,10 +356,7 @@
     }
     function preferredVoices(lang) {
         const matching = availableVoices(lang).filter(voice => primaryLang(voice.lang) === primaryLang(lang));
-        return matching.sort((a, b) => {
-            const score = voice => FEMALE_VOICE.test(voice.name) ? 0 : MALE_VOICE.test(voice.name) ? 2 : 1;
-            return score(a) - score(b) || Number(b.default) - Number(a.default) || a.name.localeCompare(b.name);
-        });
+        return matching.sort((a, b) => Number(b.default) - Number(a.default) || a.name.localeCompare(b.name));
     }
     function playerVoiceFor(speakerId) {
         const base = primaryLang(config.baseLang);
@@ -988,9 +985,9 @@
                 config.voiceAssignment = config.voiceAssignment === "configured" ? "random" : config.voiceAssignment === "random" ? "system" : "configured";
                 sessionPlayerVoices.clear(); saveConfig();
             }, 300, 1000); y += H;
-            const genderLabel = config.voiceGender === "male" ? ui("voiceGenderMale") : config.voiceGender === "mixed" ? ui("voiceGenderMixed") : ui("voiceGenderFemale");
+            const genderLabel = config.voiceGender === "mixed" ? ui("voiceGenderMixed") : ui("voiceGenderFemale");
             this._choice(y, ui("voiceGender"), genderLabel, ui("voiceGenderDesc"), () => {
-                config.voiceGender = config.voiceGender === "female" ? "male" : config.voiceGender === "male" ? "mixed" : "female";
+                config.voiceGender = config.voiceGender === "female" ? "mixed" : "female";
                 sessionPlayerVoices.clear(); saveConfig();
             }, 300, 1000); y += H;
             this._choice(y, ui("unsupported"), config.unsupported === "skip" ? ui("unsupportedSkip") : ui("unsupportedBase"), ui("unsupportedDesc"), () => { config.unsupported = config.unsupported === "skip" ? "base" : "skip"; saveConfig(); }, 300, 1000); y += H;
