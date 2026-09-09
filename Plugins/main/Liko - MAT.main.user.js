@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.8
+// @version      1.7.9
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.8";
+    const MOD_VER = "1.7.9";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -139,7 +139,6 @@
             rate_limit: 'hint_rate_limit',
             blocked: 'hint_blocked',
             network: 'hint_network',
-            cors: 'hint_cors',
             offline: 'hint_offline',
             timeout: 'hint_timeout',
         };
@@ -261,7 +260,7 @@
         },
         async add(text, targetLang) {
             return new Promise(resolve => {
-                this.queue.push({ text, targetLang, resolve });
+                this.queue.push({ text, targetLang, resolve, queuedAt: Date.now() });
                 if (!this.processing) this.process();
             });
         },
@@ -271,6 +270,12 @@
             const elapsed = Date.now() - this.lastRequestTime;
             if (elapsed < this.minInterval) await new Promise(r => setTimeout(r, this.minInterval - elapsed));
             const item = this.queue.shift();
+            // 聊天翻譯具有時效性。佇列塞車時直接捨棄舊項目，避免幾秒後才突然插入過時譯文。
+            if (Date.now() - item.queuedAt > MAX_QUEUE_WAIT) {
+                item.resolve({ translated: null, detectedLang: null, error: 'stale' });
+                this.process();
+                return;
+            }
             this.lastRequestTime = Date.now();
             try {
                 const res = await translateGoogle(item.text, item.targetLang);
@@ -283,6 +288,9 @@
             this.process();
         }
     };
+
+    // 佇列最長等待時間：聊天室訊息過期後不再翻譯。
+    const MAX_QUEUE_WAIT = 3000;
 
     // 單筆翻譯字數上限：超過就在標點／分段處切成多段送出，避免過長 URL 觸發 http_500
     const MAX_TRANSLATE_LEN = 500;
@@ -353,30 +361,19 @@
         }
     };
 
-    // 單次請求逾時：某個 fetch 若永久 hang 住，序列佇列會整條卡死、其後訊息全部靜默不翻，
-    // 那是最大批量丟失來源。逾時後 abort 併入下方 transient 路徑重試，不會直接算失敗丟棄。
-    const FETCH_TIMEOUT = 10000;
+    // 單次請求逾時。聊天翻譯不延後重試；逾時或失敗就略過該則，避免過時譯文稍後才出現。
+    const FETCH_TIMEOUT = 6000;
 
-    // 瀏覽器基於安全考量，fetch() 對「真正斷線／DNS 失敗」和「CORS 被擋」都只會丟出同一種
-    // TypeError，訊息內容也不可靠（因為要防止網頁用錯誤細節去偵測跨網域資源是否存在），
-    // 無法單憑 catch 到的例外本身分辨。這裡用「補一次 no-cors 探測」的方式做二次判斷：
-    // no-cors 模式不受同源政策限制讀取結果，只要連線層面成功建立（不論對方回什麼 HTTP
-    // 狀態）就不會 throw；因此若補測成功，代表伺服器其實有回應，問題出在 CORS 標頭被拒絕
-    // 讀取，而不是真的斷線。
-    async function classifyFetchFailure(url, err) {
+    function classifyFetchFailure(err) {
         if (err.name === 'AbortError') return 'timeout';
         if (!(err instanceof TypeError)) return err.message || 'unknown';
         if (navigator.onLine === false) return 'offline';
-        try {
-            await fetch(url, { mode: 'no-cors', cache: 'no-store' });
-            return 'cors';
-        } catch {
-            return 'network';
-        }
+        // fetch 對 CORS、DNS、連線重設等情況都只提供 TypeError，無法可靠細分。
+        // 不另送 no-cors 探測：該探測讀不到 HTTP 狀態，會誤判，也會讓失敗流量加倍。
+        return 'network';
     }
 
-    async function translateGoogle(text, target, attempt = 0) {
-        const MAX_RETRY = 2;
+    async function translateGoogle(text, target) {
         const ctrl = new AbortController();
         const to = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
@@ -391,13 +388,7 @@
             const translated = data[0]?.map(seg => seg?.[0] || '').join('') || text;
             return { translated, detectedLang: data[2] || null };
         } catch (e) {
-            const reason = await classifyFetchFailure(url, e);
-            // 逾時／離線／CORS 阻擋／真實斷線都屬暫時性，5xx 伺服器錯誤亦同，退避後重試（600ms、1200ms）
-            const transient = ['timeout', 'offline', 'cors', 'network'].includes(reason) || /^http_5\d\d$/.test(reason);
-            if (transient && attempt < MAX_RETRY) {
-                await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
-                return translateGoogle(text, target, attempt + 1);
-            }
+            const reason = classifyFetchFailure(e);
             return { translated: null, detectedLang: null, error: reason };
         } finally {
             clearTimeout(to);
@@ -555,6 +546,7 @@
         try {
             const { translated, error } = await translateChunked(text, targetLang);
             if (error || translated === null) {
+                if (error === 'stale') return null;
                 apiErrorNotifier.notify(error || '');
                 return null;
             }

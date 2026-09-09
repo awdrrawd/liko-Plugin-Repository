@@ -51,13 +51,13 @@
 
         // ── API / 翻譯失敗 ────────────────────────────────────────────────
         'apiFail': {
-            TW: "⚠️ [MAT] Google 翻譯請求失敗\n・{hint}\n・將自動重試",
-            CN: "⚠️ [MAT] Google 翻译请求失败\n・{hint}\n・将自动重试",
-            EN: "⚠️ [MAT] Google Translate request failed\n・{hint}\n・Will retry automatically",
-            DE: "⚠️ [MAT] Google-Übersetzungsanfrage fehlgeschlagen\n・{hint}\n・Wird automatisch wiederholt",
-            FR: "⚠️ [MAT] Échec de la requête Google Traduction\n・{hint}\n・Nouvelle tentative automatique",
-            RU: "⚠️ [MAT] Сбой запроса Google Переводчика\n・{hint}\n・Повтор автоматически",
-            UA: "⚠️ [MAT] Помилка запиту Google Перекладача\n・{hint}\n・Повтор автоматично"
+            TW: "⚠️ [MAT] Google 翻譯請求失敗\n・{hint}",
+            CN: "⚠️ [MAT] Google 翻译请求失败\n・{hint}",
+            EN: "⚠️ [MAT] Google Translate request failed\n・{hint}",
+            DE: "⚠️ [MAT] Google-Übersetzungsanfrage fehlgeschlagen\n・{hint}",
+            FR: "⚠️ [MAT] Échec de la requête Google Traduction\n・{hint}",
+            RU: "⚠️ [MAT] Сбой запроса Google Переводчика\n・{hint}",
+            UA: "⚠️ [MAT] Помилка запиту Google Перекладача\n・{hint}"
         },
         'translateFail': {
             TW: "⚠️ [MAT] 翻譯失敗\n・{hint}",
@@ -95,15 +95,6 @@
             RU: "Ошибка сети, проверьте подключение",
             UA: "Помилка мережі, перевірте з'єднання"
         },
-        'hint_cors': {
-            TW: "翻譯伺服器暫時拒絕跨站請求，並非斷線，稍後通常會自動恢復",
-            CN: "翻译服务器暂时拒绝跨站请求，并非断线，稍后通常会自动恢复",
-            EN: "Translation server temporarily rejected the cross-site request; not a disconnect, usually recovers shortly",
-            DE: "Der Übersetzungsserver hat die Cross-Origin-Anfrage vorübergehend abgelehnt; keine Verbindungsstörung, erholt sich meist bald",
-            FR: "Le serveur de traduction a temporairement refusé la requête interdomaines ; ce n'est pas une déconnexion, cela se rétablit généralement vite",
-            RU: "Сервер перевода временно отклонил межсайтовый запрос; это не разрыв соединения, обычно скоро восстановится",
-            UA: "Сервер перекладу тимчасово відхилив міжсайтовий запит; це не розрив з'єднання, зазвичай швидко відновлюється"
-        },
         'hint_offline': {
             TW: "裝置目前處於離線狀態，請檢查網路連線",
             CN: "设备当前处于离线状态，请检查网络连接",
@@ -114,13 +105,13 @@
             UA: "Схоже, пристрій офлайн, перевірте з'єднання"
         },
         'hint_timeout': {
-            TW: "請求逾時，將自動重試",
-            CN: "请求超时，将自动重试",
-            EN: "Request timed out, retrying automatically",
-            DE: "Zeitüberschreitung der Anfrage, wird automatisch wiederholt",
-            FR: "Délai de requête dépassé, nouvelle tentative automatique",
-            RU: "Тайм-аут запроса, повтор автоматически",
-            UA: "Тайм-аут запиту, повтор автоматично"
+            TW: "請求逾時，已略過這則翻譯",
+            CN: "请求超时，已跳过这条翻译",
+            EN: "Request timed out; this translation was skipped",
+            DE: "Zeitüberschreitung; diese Übersetzung wurde übersprungen",
+            FR: "Délai dépassé ; cette traduction a été ignorée",
+            RU: "Тайм-аут запроса; этот перевод пропущен",
+            UA: "Тайм-аут запиту; цей переклад пропущено"
         },
         'hint_unknown': {
             TW: "發生錯誤（{err}）",
