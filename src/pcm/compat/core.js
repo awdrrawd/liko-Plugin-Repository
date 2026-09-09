@@ -1208,7 +1208,11 @@
                 const vc = getCurrentViewingCharacter();
                 return vc && vc.MemberNumber === Player.MemberNumber;
             }
-            if (CurrentScreen === 'Preference') { return !(window.bcx?.inBcxSubscreen?.() || window.MPA?.menuLoaded || window.LITTLISH_CLUB?.inModSubscreen?.()); }
+            if (CurrentScreen === 'Preference') {
+                const isExtensionPreference = typeof PreferenceExtensionsCurrent !== 'undefined'
+                    && PreferenceExtensionsCurrent?.Identifier != undefined;
+                return !(isExtensionPreference || window.bcx?.inBcxSubscreen?.() || window.MPA?.menuLoaded || window.LITTLISH_CLUB?.inModSubscreen?.());
+            }
             if (['Login', 'Character', 'MainHall', 'Introduction'].includes(CurrentScreen)) return true;
         }
         return false;
