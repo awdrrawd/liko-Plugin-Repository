@@ -35,3 +35,24 @@ context.config.filterTranslations = false;
 context.applyTranslationMessageFilter();
 assert.deepEqual(nodes.map(n=>n.style.display), ['','','','','none']);
 console.log('MAT URL and prefix filter checks passed.');
+
+// Skip-translation rules are independent from visibility filters.
+{
+    const start = source.indexOf('    function matchesSkipTranslationRule(');
+    const end = source.indexOf('\n    }', start) + 6;
+    vm.runInContext(source.slice(start, end), context);
+    for (const text of ['[🌐] hello', '🔊 hello', '📞 hello', '🎬 hello', 'https://example.com']) assert.equal(context.matchesSkipTranslationRule(text), true, text);
+    assert.equal(context.matchesSkipTranslationRule('ordinary message'), false);
+    context.config.skipTranslationRules = '';
+    assert.equal(context.matchesSkipTranslationRule('🎬 hello'), false);
+    assert.equal(context.matchesSkipTranslationRule('https://example.com'), false);
+    context.config.skipTranslationRules = 'custom,$url';
+    assert.equal(context.matchesSkipTranslationRule('a custom message'), true);
+    assert.equal(context.matchesSkipTranslationRule('(https://example.com)'), true);
+    assert.equal(context.matchesSkipTranslationRule('🎬 hello'), false);
+}
+
+context.config.skipTranslationEnabled = false;
+assert.equal(context.matchesSkipTranslationRule('a custom message'), false);
+context.config.skipTranslationEnabled = true;
+assert.equal(context.matchesSkipTranslationRule('a custom message'), true);

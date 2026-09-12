@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.9
+// @version      1.7.10
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.9";
+    const MOD_VER = "1.7.10";
     if (window.Liko.MAT) return;
     window.Liko.MAT = MOD_VER;
 
@@ -83,9 +83,10 @@
             translateSelection: true,
             chatScrollFreeze: false,   // 是否載入並啟用 BC_ChatScrollFreeze（聊天室訊息凍結／搜尋擴充）
             skipStutter: true,
-            chatButton: true,          // 聊天室快捷按鈕
             filterTranslations: false, // 隱藏符合指定開頭的聊天室訊息
             filterPrefixes: '[🌐],🔊',
+            skipTranslationEnabled: true,
+            skipTranslationRules: '[🌐],🔊,📞,$url,🎬',
             hotkeys: makeDefaultHotkeys()
         };
     }
@@ -519,12 +520,18 @@
 
     // 自動翻譯的統一跳過判斷：送出端據此決定要不要夾旗標、接收端據此跳過——兩邊必須一致，
     // 否則「不該翻的句子」被夾了旗標，接收端會空等 1 秒造成爆量塞車。
+    function matchesSkipTranslationRule(text) {
+        if (config.skipTranslationEnabled === false) return false;
+        return (config.skipTranslationRules ?? '[🌐],🔊,📞,$url,🎬').split(/[,，\n]/u)
+            .map(rule => rule.trim()).filter(Boolean)
+            .some(rule => rule.toLowerCase() === '$url' ? isPureUrl(text) : text.includes(rule));
+    }
+
     function isUntranslatable(text) {
         if (!text) return true;
         if (text.includes('BCX_') || /^[\d\s:]+$/.test(text) ||
-            text.includes(TRANSLATE_MARKER) || text.includes('[🌐]') ||
-            text.includes('🔊') || text.includes('📞')) return true;
-        if (isPureUrl(text)) return true;
+            text.includes(TRANSLATE_MARKER)) return true;
+        if (matchesSkipTranslationRule(text)) return true;
         if (!/\p{L}/u.test(text)) return true;   // 純顏文字/符號/emoji
         if (looksLikeShortKaomoji(text)) return true;  // 短顏文字（含 1~2 個不連續字母）
         if (looksEncoded(text)) return true;     // LZString/base64/hex/hash
@@ -2160,41 +2167,45 @@
         },
 
         _runOther() {
-            let y = 240; const H = 70;
+            let y = 240; const H = 60;
             DrawText(ui('tab_other'), 850, 200, "#2e7d32", "Gray");
             this._cb(y, ui('optLoginNotice'), config.loginNotice,        ui('dLoginNotice'), () => { config.loginNotice = !config.loginNotice; saveSettings(); }); y += H;
             this._cb(y, ui('optManual'),      config.translateChat,      ui('dManual'),      () => { config.translateChat = !config.translateChat; if (!config.translateChat) hideClickToolbar(); saveSettings(); }); y += H;
             this._cb(y, ui('optSelection'),   config.translateSelection, ui('dSelection'),   () => { config.translateSelection = !config.translateSelection; if (!config.translateSelection) hideSelectionPopup(); saveSettings(); }); y += H;
             this._cb(y, ui('optChatScrollFreeze'), config.chatScrollFreeze, ui('dChatScrollFreeze'), () => { config.chatScrollFreeze = !config.chatScrollFreeze; saveSettings(); applyChatScrollFreezeConfig(); }); y += H;
             this._cb(y, ui('optSkipStutter'), config.skipStutter,        ui('dSkipStutter'), () => { config.skipStutter = !config.skipStutter; saveSettings(); }); y += H;
-            this._cb(y, ui('optChatButton'),  config.chatButton,         ui('dChatButton'),  () => { config.chatButton = !config.chatButton; saveSettings(); updateChatButton(); }); y += H;
             this._cb(y, ui('optShrinkNonDialogue'), config.recvShrinkNonDialogue, ui('dShrinkNonDialogue'),
                 () => { config.recvShrinkNonDialogue = !config.recvShrinkNonDialogue; saveSettings(); refreshNonDialogueShrink(); }); y += H;
+            this._cb(y, ui('optSkipMessages'), config.skipTranslationEnabled !== false, ui('dSkipMessages'), () => { config.skipTranslationEnabled = config.skipTranslationEnabled === false; saveSettings(); }); y += H;
+            this._prefixInput(y, true); y += H;
             this._cb(y, ui('optFilterTranslations'), config.filterTranslations, ui('dFilterTranslations'), () => { config.filterTranslations = !config.filterTranslations; saveSettings(); applyTranslationMessageFilter(); }); y += H;
-            this._prefixInput(y);
+            this._prefixInput(y); y += H;
         },
 
-        _removePrefixInput() { document.getElementById('mat-filter-prefixes')?.remove(); },
-        _prefixInput(y) {
-            let input = document.getElementById('mat-filter-prefixes');
+        _removePrefixInput() { document.getElementById('mat-filter-prefixes')?.remove(); document.getElementById('mat-skip-rules')?.remove(); },
+        _prefixInput(y, skip = false) {
+            const id = skip ? 'mat-skip-rules' : 'mat-filter-prefixes';
+            const key = skip ? 'skipTranslationRules' : 'filterPrefixes';
+            const desc = skip ? 'dSkipMessages' : 'dFilterTranslations';
+            let input = document.getElementById(id);
             if (!input) {
                 input = document.createElement('input');
-                input.id = 'mat-filter-prefixes';
+                input.id = id;
                 input.type = 'text';
-                input.value = config.filterPrefixes ?? '[🌐],🔊';
+                input.value = config[key] ?? (skip ? '[🌐],🔊,📞,$url,🎬' : '[🌐],🔊');
                 input.addEventListener('input', () => {
-                    config.filterPrefixes = input.value;
-                    applyTranslationMessageFilter();
+                    config[key] = input.value;
+                    if (!skip) applyTranslationMessageFilter();
                 });
                 input.addEventListener('change', () => saveSettings());
                 document.body.appendChild(input);
             }
-            input.title = ui('dFilterTranslations');
-            input.setAttribute('aria-label', ui('optFilterTranslations'));
+            input.title = ui(desc);
+            input.setAttribute('aria-label', ui(skip ? 'optSkipMessages' : 'optFilterTranslations'));
             const canvas = document.querySelector('canvas');
             const r = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: 2000, height: 1000 };
             input.style.cssText = `position:fixed;box-sizing:border-box;z-index:100;left:${r.left + 490 * r.width / 2000}px;top:${r.top + y * r.height / 1000}px;width:${820 * r.width / 2000}px;height:${54 * r.height / 1000}px;font-size:${28 * r.height / 1000}px;`;
-            if (MouseIn(490, y, 820, 54)) this.hoverDesc = ui('dFilterTranslations');
+            if (MouseIn(490, y, 820, 54)) this.hoverDesc = ui(desc);
         },
 
         _runHotkeys() {
@@ -2664,11 +2675,11 @@
     });
 
     // 只交付圖示、顏色與行為資料；按鈕 DOM 與染色由 CRB 統一建立。
-    // config.chatButton 切換：開 → 登記(直接 add 或推進待處理佇列)；關 → remove 並清掉佇列殘留。
+    // Always register the shared chat button.
     function applyChatButton() {
         const L = window.Liko;
         const crb = L.__Sys_ChatRoomButtons__;
-        if (config.chatButton) {
+        {
             const spec = {
                 id: "mat",
                 buttonId: MAT_BTN_ID,
@@ -2681,16 +2692,9 @@
             };
             if (crb?.add) crb.add(spec);
             else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
-        } else {
-            crb?.remove?.("mat");
-            const q = L.__CRB_pending__;
-            if (Array.isArray(q)) { const i = q.findIndex(s => s && s.id === "mat"); if (i >= 0) q.splice(i, 1); }
-            hideMatQuickMenu();
         }
     }
 
-    // 設定頁切換 chatButton 時呼叫。
-    function updateChatButton() { applyChatButton(); }
 
     function setupChatButton() {
         // 同步登記按鈕規格（不綁在載入 promise 上）；容器建立/重建、收合同步、順位皆由協調器統一處理。

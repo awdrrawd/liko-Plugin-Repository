@@ -11,6 +11,8 @@
 
     window.Liko.__Sys_i18n__.register('MAT', {
 
+        "optSkipMessages": {"TW":"不翻譯訊息","CN":"不翻译消息","EN":"Do not translate messages","DE":"Nachrichten nicht übersetzen","FR":"Ne pas traduire les messages","RU":"Не переводить сообщения","UA":"Не перекладати повідомлення"},
+        "dSkipMessages": {"TW":"以逗號分隔；訊息包含任一標記時跳過自動翻譯，但仍顯示。$url 代表以 http:// 或 https:// 網址開頭的訊息。清空可停用這些規則。","CN":"以逗号分隔；消息包含任一标记时跳过自动翻译，但仍显示。$url 代表以 http:// 或 https:// 网址开头的消息。清空可停用这些规则。","EN":"Comma-separated markers skip automatic translation without hiding messages. $url matches messages starting with an http:// or https:// URL. Clear to disable these rules.","DE":"Kommagetrennte Marker überspringen die automatische Übersetzung, ohne Nachrichten auszublenden. $url erkennt Nachrichten, die mit einer http://- oder https://-URL beginnen. Zum Deaktivieren leeren.","FR":"Les marqueurs séparés par des virgules désactivent la traduction automatique sans masquer les messages. $url correspond aux messages commençant par une URL http:// ou https://. Videz le champ pour désactiver ces règles.","RU":"Маркеры через запятую отключают автоматический перевод, но не скрывают сообщения. $url обозначает сообщения, начинающиеся с URL http:// или https://. Очистите поле, чтобы отключить эти правила.","UA":"Маркери через кому вимикають автоматичний переклад, але не приховують повідомлення. $url позначає повідомлення, що починаються з URL http:// або https://. Очистьте поле, щоб вимкнути ці правила."},
         'foldOriginalLabel': { TW: '原文', CN: '原文', EN: 'Original', DE: 'Original', FR: 'Original', RU: 'Оригинал', UA: 'Оригінал' },
 
         // ── 載入 / SDK ────────────────────────────────────────────────────
