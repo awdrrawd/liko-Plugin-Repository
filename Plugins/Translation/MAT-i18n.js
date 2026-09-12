@@ -11,6 +11,8 @@
 
     window.Liko.__Sys_i18n__.register('MAT', {
 
+        'foldOriginalLabel': { TW: '原文', CN: '原文', EN: 'Original', DE: 'Original', FR: 'Original', RU: 'Оригинал', UA: 'Оригінал' },
+
         // ── 載入 / SDK ────────────────────────────────────────────────────
         'sdkTimeout': {
             TW: "bcModSdk 等待逾時，插件無法載入",

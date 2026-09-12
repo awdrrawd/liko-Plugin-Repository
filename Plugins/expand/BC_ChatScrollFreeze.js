@@ -30,10 +30,6 @@
 	let disposed = false;
 	const FREEZE_THRESHOLD = 0.05; // 往上捲超過畫面高度的 5% 就凍結
 
-	/** 觸控裝置自動 focus 搜尋框會彈軟鍵盤，體驗差，故略過自動聚焦。 */
-	const IS_TOUCH =
-		typeof window !== "undefined" &&
-		(("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0);
 	const CHATLOG_ID = "TextAreaChatLog";
 	const BADGE_ID = "chat-scroll-freeze-badge";
 	const SEARCH_BAR_ID = "chat-scroll-freeze-search";
@@ -152,6 +148,18 @@
 	let suppressFreezeUntil = 0;
 	/** 上一次 onScroll 時的 chatLog 可視高度，用來偵測上述的高度突變 */
 	let lastClientHeight = 0;
+	let scrollIntentUntil = 0;
+	function onScrollIntent(event) {
+		if (event.type === 'pointermove' && !event.buttons) return;
+		if (event.type === 'keydown' && !['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) return;
+		if (event.target?.closest?.('input, textarea, [contenteditable="true"]')) return;
+		scrollIntentUntil = Date.now() + 1500;
+	}
+	function bindScrollIntent(log, bind) {
+		for (const type of ['wheel', 'touchmove', 'pointerdown', 'pointermove', 'keydown']) {
+			log?.[bind ? 'addEventListener' : 'removeEventListener'](type, onScrollIntent, { passive: true });
+		}
+	}
 
 	// === append 攔截狀態 =================================================
 	let sdkApi = null;
@@ -562,6 +570,7 @@
 	}
 
 	function showSearchBar() {
+		if (!frozen || disposed) return;
 		const chatLog = getChatLog();
 		const parent = chatLog?.parentElement; // #chat-room-div
 		if (!chatLog || !parent) return;
@@ -615,8 +624,7 @@
 			}
 		});
 
-		// 手機自動 focus 會彈軟鍵盤、體驗差；桌面才自動聚焦。
-		if (!IS_TOUCH) input.focus();
+		// Opening a passive search UI must never interrupt chat input or IME composition.
 	}
 
 	function closeSearchBar() {
@@ -705,7 +713,7 @@
 				chatLog.scrollTop = chatLog.scrollHeight;
 				return;
 			}
-			if (distanceFromBottomRatio(chatLog) > FREEZE_THRESHOLD) {
+			if (Date.now() < scrollIntentUntil && distanceFromBottomRatio(chatLog) > FREEZE_THRESHOLD) {
 				frozen = true;
 				showSearchBar();
 			}
@@ -725,6 +733,8 @@
 
 		if (chatLog !== boundChatLog) {
 			if (boundChatLog) boundChatLog.removeEventListener("scroll", onScroll);
+			bindScrollIntent(boundChatLog, false);
+			scrollIntentUntil = 0;
 			clearHighlights(boundChatLog);
 			frozen = false;
 			cancelReplay();
@@ -733,6 +743,7 @@
 			suppressExitUntil = 0;
 			lastClientHeight = chatLog?.clientHeight || 0;
 			chatLog?.addEventListener("scroll", onScroll, { passive: true });
+			bindScrollIntent(chatLog, true);
 			boundChatLog = chatLog;
 			// 聊天室節點被整個換掉時，先前掛在舊節點上的 ResizeObserver 要重綁。
 			if (chatLogResizeObserver) { chatLogResizeObserver.disconnect(); chatLogResizeObserver = null; }
@@ -781,6 +792,7 @@
 		cancelReplay();
 		disposed = true;
 		boundChatLog?.removeEventListener("scroll", onScroll);
+		bindScrollIntent(boundChatLog, false);
 		boundChatLog = null;
 		closeSearchBar();
 		window.removeEventListener("resize", onWindowResize);

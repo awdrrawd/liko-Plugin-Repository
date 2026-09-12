@@ -95,12 +95,14 @@
     // ============================================================
     // 語系偵測（遊戲就緒後才準確）
     // ============================================================
-    function isZH() {
-        if (typeof TranslationLanguage !== "undefined") {
-            const l = TranslationLanguage.toLowerCase();
-            return l === 'tw' || l === 'cn';
-        }
-        return (navigator.language || "en").toLowerCase().startsWith("zh");
+    const languageDisplayNames = new Map();
+    function localizedLanguageName(code, index) {
+        const lang = window.Liko?.__Sys_i18n__?.detectLang?.() || 'EN';
+        const locale = { TW: 'zh-Hant', CN: 'zh-Hans', EN: 'en', DE: 'de', FR: 'fr', RU: 'ru', UA: 'uk' }[lang] || 'en';
+        try {
+            if (!languageDisplayNames.has(locale)) languageDisplayNames.set(locale, new Intl.DisplayNames([locale], { type: 'language' }));
+            return languageDisplayNames.get(locale).of(code) || langNameNative[index];
+        } catch (_) { return langNameNative[index] || code; }
     }
 
     // ============================================================
@@ -574,14 +576,11 @@
     }
 
     // 插入翻譯「之後」呼叫：只有插入前本來就在底部才捲到底。
-    // 這 60ms 內若使用者已往上捲觸發凍結就放棄，避免把人拉回底部。
+    // Restore the bottom synchronously, before layout-generated scroll events can look like history browsing.
     function scrollChatToEndIfWasAtEnd(wasAtEnd) {
-        if (!wasAtEnd) return;
-        setTimeout(() => {
-            if (window.Liko.__Sys_ChatScrollFreeze__?.isFrozen?.()) return;
-            if (typeof ElementScrollToEnd === 'function') ElementScrollToEnd('TextAreaChatLog');
-            else { const log = document.querySelector('#TextAreaChatLog'); if (log) log.scrollTop = log.scrollHeight; }
-        }, 60);
+        if (!wasAtEnd || window.Liko.__Sys_ChatScrollFreeze__?.isFrozen?.()) return;
+        const log = document.querySelector('#TextAreaChatLog');
+        if (log) log.scrollTop = log.scrollHeight;
     }
 
     // ============================================================
@@ -1124,7 +1123,7 @@
         sel.style.cssText = `position:fixed;z-index:99999;left:${Math.max(4,left)}px;top:${Math.max(4,rect.top-4)}px;font-size:1vw;padding:0.2vh 0.3vw;border:1px solid #4CAF50;border-radius:4px;background:#1a1a2e;color:#eee;cursor:pointer;max-height:35vh;min-width:9vw;font-family:"Twemoji Country Flags",-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;`;
         langCodes.forEach((code, i) => {
             const opt = document.createElement('option');
-            const uiName = isZH() ? langNameZH[i] : langNameEN[i];
+            const uiName = localizedLanguageName(code, i);
             const native = langNameNative[i];
             opt.value = code;
             const nm = uiName === native ? uiName : `${uiName} / ${native}`;
@@ -1346,7 +1345,7 @@
         const foldBtn = document.createElement('button');
         foldBtn.id = 'mat-click-fold';
         foldBtn.type = 'button';
-        foldBtn.textContent = 'A/文';
+        foldBtn.textContent = ui('foldOriginalLabel');
         foldBtn.style.cssText = 'all:unset;cursor:pointer;display:none;align-items:center;line-height:1.4;' +
             'color:#4CAF50;font-size:0.85em;font-weight:bold;padding:3px 6px;white-space:nowrap;' +
             'border:1px solid rgba(76,175,80,0.55);border-radius:4px;';
@@ -1875,8 +1874,6 @@
     // 語言定義
     // ============================================================
     const langCodes    = ['zh-TW','zh-CN','en','ja','ko','de','fr','es','ru','it','pt','pl','nl','tr','sv','uk','cs','hu','ro','ar','th','vi','id','ms'];
-    const langNameEN   = ['Chinese (Traditional)','Chinese (Simplified)','English','Japanese','Korean','German','French','Spanish','Russian','Italian','Portuguese','Polish','Dutch','Turkish','Swedish','Ukrainian','Czech','Hungarian','Romanian','Arabic','Thai','Vietnamese','Indonesian','Malay'];
-    const langNameZH   = ['繁體中文','簡體中文','英文','日文','韓文','德文','法文','西班牙文','俄文','義大利文','葡萄牙文','波蘭文','荷蘭文','土耳其文','瑞典文','烏克蘭文','捷克文','匈牙利文','羅馬尼亞文','阿拉伯文','泰文','越南文','印尼文','馬來文'];
     const langNameNative = ['繁體中文','简体中文','English','日本語','한국어','Deutsch','Français','Español','Русский','Italiano','Português','Polski','Nederlands','Türkçe','Svenska','Українська','Čeština','Magyar','Română','العربية','ภาษาไทย','Tiếng Việt','Bahasa Indonesia','Bahasa Melayu'];
     // 與 langCodes 對齊的國旗 emoji（國旗字元是「國家碼」regional indicator，非語言碼）。
     // 顯示需白嫖 BC country-flag polyfill 注入的 "Twemoji Country Flags" 字體，見 openMATLangSelect。
