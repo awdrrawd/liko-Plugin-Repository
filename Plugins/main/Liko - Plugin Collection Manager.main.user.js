@@ -1624,11 +1624,13 @@
         const paintLanguage = () => {
             const entry = PCM_LANGS.find(([code]) => code === pcmUiSettings.language) || PCM_LANGS[0];
             trigger.textContent = `${entry[1]} ${entry[2]}`;
+            window.Liko?.__Sys_Flags__?.renderLabel?.(trigger, trigger.textContent);
         };
         PCM_LANGS.forEach(([code, flag, name]) => {
             const option = document.createElement('button');
             option.type = 'button'; option.className = 'bc-plugin-language-option';
             option.textContent = `${flag} ${name}`;
+            window.Liko?.__Sys_Flags__?.renderLabel?.(option, option.textContent);
             option.classList.toggle('active', code === pcmUiSettings.language);
             option.addEventListener('click', e => {
                 e.stopPropagation(); pcmUiSettings.language = code; saveUiSettings(); changed = true;
@@ -2588,7 +2590,7 @@
             await _loadDep("expand/bcmodsdk.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ bcmodsdk:", e.message));
         }
         // i18n 引擎：能力偵測（ensure 為 v2 專有），沒有才載入
-        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') {
+        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function' || !window.Liko?.__Sys_Flags__) {
             await _loadDep("expand/BC_i18n.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ BC_i18n.js:", e.message));
         }
         // PCM 字庫：一律載入。不用 has('PCM','tabLocal') 判斷，否則會被本體內建的 EN fallback

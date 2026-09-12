@@ -20,9 +20,13 @@ export class DependencyLoader {
         return true;
       })
       .catch(error => {
-        this.loads.delete(name);
         this.runtime?.log('WARN', `Dependency failed: ${name}`, {error: String(error?.message || error)});
         throw error;
+      })
+      .finally(() => {
+        // Share only in-flight requests. A settled promise must not hide a
+        // service that was subsequently removed or gained new API requirements.
+        if (this.loads.get(name) === promise) this.loads.delete(name);
       });
     this.loads.set(name, promise);
     return promise;
@@ -48,7 +52,13 @@ export class DependencyLoader {
     jobs.push(this.ensure({
       name: 'i18n',
       relativePath: 'expand/BC_i18n.js',
-      ready: () => typeof this.global.Liko?.__Sys_i18n__?.ensure === 'function',
+      ready: () => {
+        const liko = this.global.Liko;
+        return typeof liko?.__Sys_i18n__?.ensure === 'function'
+          && typeof liko?.__Sys_L10N__?.localize === 'function'
+          && typeof liko?.__Sys_Flags__?.ensure === 'function'
+          && typeof liko?.__Sys_Flags__?.renderLabel === 'function';
+      },
     }));
     await Promise.allSettled(jobs);
 

@@ -65,7 +65,7 @@
     // 用能力侦测（ensure）判断 v2 引擎 —— 旧版 v1 只有 version，会被误判为已载入而挡掉 v2。
     // 字库改用引擎的 ensure() 载入（依 URL 去重，不需自订旗标）。
     async function ensureI18n() {
-        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') await loadScript(LIKO_I18N_ENGINE_URL);
+        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function' || !window.Liko?.__Sys_Flags__) await loadScript(LIKO_I18N_ENGINE_URL);
         if (typeof window.Liko?.__Sys_i18n__?.ensure === 'function') await window.Liko.__Sys_i18n__.ensure(I18N_NS, LIKO_PRANK_STRINGS_URL);
     }
 

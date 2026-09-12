@@ -13,6 +13,16 @@ Module boundaries:
 - `runtime.js` — plugin state machine, diagnostics and subscriptions.
 - `notification-stack.js` — independent stacked side notifications.
 
+Shared language services use the canonical `Plugins/expand/BC_i18n.js` (2.2).
+`dependencies.js` checks UI translations, L10N and SVG flag APIs together;
+an older translation engine alone does not satisfy the dependency. Only pending
+loads are shared, so a missing service can be loaded again after an earlier success.
+The flag API is `window.Liko.__Sys_Flags__`; the settings labels in `compat/core.js`
+prefer decoded SVGs and retain Twemoji text when unavailable. Do not embed SVG
+assets in `i18n/PCM-i18n.js`, which remains a plain translation dictionary.
+
+Regression check: `node scripts/test-pcm-dependencies.mjs`.
+
 `entry.js` acquires the shared `window.Liko.__PCMBoot__` lock and imports
 `compat/core.js`. The compatibility core is an exact copy of the retained 2.2.0
 userscript, so the module URL has the same UI, badge, account, command,

@@ -121,7 +121,7 @@
     // 用能力偵測（ensure）判斷 v2 引擎是否就緒 —— 舊版 v1 只有 version，會被誤判為已載入而擋掉 v2。
     // 字庫改用引擎的 ensure() 載入（依 URL 去重，不需自訂旗標）。
     async function ensureI18n() {
-        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function') await loadScript(LIKO_I18N_ENGINE_URL);
+        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function' || !window.Liko?.__Sys_Flags__) await loadScript(LIKO_I18N_ENGINE_URL);
         if (typeof window.Liko?.__Sys_i18n__?.ensure === 'function') await window.Liko.__Sys_i18n__.ensure(I18N_NS, LIKO_MAT_STRINGS_URL);
     }
 
@@ -1134,8 +1134,11 @@
         });
         let settled = false;
         sel.addEventListener('change', () => { settled = true; onSelect(sel.value); if (sel.parentNode) sel.remove(); });
-        sel.addEventListener('blur', () => { setTimeout(() => { if (!settled && sel.parentNode) sel.remove(); }, 100); });
+        sel.addEventListener('blur', () => { setTimeout(() => { if (!settled && sel.parentNode && sel.dataset.likoFlagPicker !== 'open') sel.remove(); }, 100); });
+        sel.addEventListener('liko-flags-close', () => { setTimeout(() => { if (!settled && document.activeElement !== sel) sel.remove(); }, 100); });
         document.body.appendChild(sel);
+        window.Liko?.__Sys_Flags__?.bindSelect(sel);
+        void window.Liko?.__Sys_Flags__?.preload(langCodes);
         setTimeout(() => sel.focus(), 0);
     }
 
@@ -2579,6 +2582,7 @@
             if (!b) return;
             const f = flagOf(code);
             b.textContent = f ? `${base} ${f}` : base;
+            window.Liko?.__Sys_Flags__?.renderLabel(b, b.textContent);
         };
         setLabel('lk-mat-q-send', ui('cbtnSend'), config.sendLang);
         setLabel('lk-mat-q-recv', ui('cbtnRecv'), config.recvLang);

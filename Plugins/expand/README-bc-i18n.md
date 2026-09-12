@@ -1,6 +1,52 @@
 # Liko 共用多語引擎（BC_i18n.js）接入指南
 
-> 一份 JS、兩個子系統：`window.Liko.__Sys_i18n__`（介面字串）+ `window.Liko.__Sys_L10N__`（聊天訊息在地化）。
+> 一份 JS、三個全域服務：`window.Liko.__Sys_i18n__`（介面字串）、`window.Liko.__Sys_L10N__`（聊天訊息在地化）、`window.Liko.__Sys_Flags__`（按需下載國旗）。
+
+## 國旗服務（2.2.0 新增）
+
+素材使用 flag-icons 7.3.2（MIT，https://github.com/lipis/flag-icons/tree/v7.3.2），按需從 jsDelivr npm CDN 下載單面 SVG。完整圖集與產生腳本已移除；授權保留在 `Plugins/expand/LICENSE.flag-icons.txt`。
+
+```js
+const flags = window.Liko.__Sys_Flags__;
+flags.supports('tw');         // 是否在素材支援清單（不發送網路請求）
+flags.has('tw');              // 4:3 是否已下載成功
+flags.status('tw');           // unsupported / idle / loading / ready / error
+await flags.ensure('tw');     // 下載並回傳共用 Blob URL；同時請求共用 Promise
+flags.get('tw');              // 同步取得已快取 URL，未下載回傳 null
+
+const image = await flags.create('tw', { format: 'circle', size: 24, alt: '台灣' });
+container.append(image);      // 每次建立自己的 img 節點，共用下載素材
+
+const country = flags.forLanguage('VI'); // vn；EN → gb、JA/JP → jp、KO/KR → kr
+if (country) await flags.ensure(country);
+const results = await flags.ready;      // 啟動預載的 allSettled 結果，不拋出單旗失敗
+```
+
+`ensure/get/has/status` 第二參數為 `4:3`（預設）、`1:1` 或 `circle`。圓形與 1:1 共用快取；圓形裁切由 `create()` 的圖片樣式提供，單獨引用 URL 不會自帶裁切。`create()` 預設 `alt=""` 作裝飾圖片，仍應保留可讀的語言名稱。
+
+啟動自動預載 11 面 **4:3** 國旗：`TW→tw、CN→cn、EN→gb、DE→de、FR→fr、RU→ru、UA→ua、JA→jp、KO→kr、VI→vn、ES→es`。方形／圓形首次使用時才下載。也可呼叫 `flags.preload(['TW', 'JA'], '1:1')`，回傳依輸入順序排列的 allSettled 結果。
+
+國旗 API 接受的是**國家／地區碼**；語言必須先經 `forLanguage()`，避免將越南語 `VI` 與美屬維京群島 `vi` 混淆。`languageCountries` 是唯讀的預設對照；插件可自行決定英語改用 `us`。對照已涵蓋 MAT 的 24 種語言，但不會因此增加預設 11 面的預載；MAT 開啟語言清單時才預載其完整清單。
+
+國旗服務 API 版本為 `1.1.0`（翻譯引擎仍是 `2.2.0`），另提供顯示轉接：
+
+```js
+flags.renderLabel(labelNode, '🇹🇼 繁體中文'); // 先顯示文字；圖片成功解碼才替換國旗
+flags.bindSelect(select);                  // 原生 select 的值/事件不變，SVG popup 支援鍵盤操作
+if (!flags.draw(ctx, 'tw', x, y, 32, 24)) {
+    ctx.fillText('🇹🇼', x, y);              // Canvas 尚未就緒或下載失敗時回退
+}
+```
+
+`renderLabel` 只用於專用文字容器，不要傳入含按鈕或 React 管理的 DOM。它會避免過期的下載結果覆蓋新標籤。`bindSelect` 可在 options/value 更新後重複呼叫，未變動時不重建；圖片失敗保留 Twemoji 文字。React 的 AEE 使用自己的 `CountryLabel` 元件管理狀態。
+
+下載最長 15 秒，失敗後冷卻 5 秒再允許重試；不阻塞翻譯初始化。Blob URL 在同一頁面生命週期內保留，呼叫端不可自行 revoke，否則會影響其他插件。重新整理後記憶體快取會重建；HTTP 快取由瀏覽器處理。遊戲的 CSP 必須允許 CDN fetch 與 blob 圖片，實際遊戲環境尚需驗證。
+
+國旗服務會在翻譯引擎防重載檢查**之前**獨立初始化：即使頁面已有舊 i18n/L10N，載入此版仍能增加 Flags，且不覆蓋既有字庫。AFC、FCM、HSC、LCE、Responsive 使用同步的 2.2 引擎；AEE 保留 i18next，只打包由同一權威檔產生的國旗部分。兩種入口共用 `__Sys_Flags__`。
+
+同步部署副本：`node scripts/sync-i18n-clients.mjs`（需同層存在上述六個倉庫），之後各插件執行 `npm run build`。不要分叉修改副本。`Plugins/Translation` 的五個字庫維持原有格式，已驗證能註冊至 2.2；UI 國旗不寫入翻譯字串 HTML。
+
+驗證：`node scripts/test-i18n-flags.cjs`（模擬網路，涵蓋預載、請求合併、比例共用、失敗重試、重複初始化、舊引擎共存與五個字庫）。`node scripts/flags-browser-check.mjs` 提供 localhost:8794 瀏覽器回歸頁，以測試 SVG 驗證顯示、過期結果、錯誤回退、下拉事件、Canvas 和圓形；不代表實際遊戲 CSP / CDN 連線驗收。
 > 供 **BC-AFC / BC-FCM / BC-LCE / PCM**（及其他 Liko 插件）接入時參閱。BC-AEE 使用 i18next，維持獨立。
 
 檔案位置（本倉庫）：
@@ -27,7 +73,7 @@ CDN / 取得網址：
 - **語言 fallback 鏈**：目標語言 →（`TW`↔`CN` 互退、再退 `ZH`）→ `EN` → 表中任一。
 - **字庫來源**：新專案統一使用每語言一份 `.json` 純資料；`loadScript()` 僅保留給既有單檔插件相容。
 - **防重複載入**：`window.Liko.__Sys_i18n__` 與 `__Sys_L10N__` 都存在時，後續載入自動跳過，不會洗掉他人已註冊字庫。
-- **目前版本**：`2.1.0`；提供 `normalizeLang()`、`onChange()`、capabilities，以及可獨立呼叫的 `L10N.localize(data)`。
+- **目前版本**：`2.2.0`；新增獨立 Flags 全域，並保留 `normalizeLang()`、`onChange()`、capabilities，以及可獨立呼叫的 `L10N.localize(data)`。
 
 ---
 
@@ -92,7 +138,7 @@ Liko.__Sys_i18n__.t('MYMOD', 'loaded', { v: '1.0' }, myLang());
 ## 3. `window.Liko.__Sys_i18n__` API（介面字串）
 
 ```js
-i18n.version                       // '2.1.0'
+i18n.version                       // '2.2.0'
 i18n.detectLang()                  // → 'TW' | 'CN' | 'EN' | 'JP' | ...
 i18n.register(ns, strings)         // strings = { key: { EN, TW, CN, JP, ... } }
 i18n.has(ns, key)                  // boolean
