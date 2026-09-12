@@ -3,7 +3,7 @@
 // @name:zh      Liko的文字表情
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1.0
+// @version      1.2.0
 // @description  Bondage Club - 文字表情快捷面板：点击颜文字自动插入聊天输入框，支持收藏/常用/自定义分组/拖动排序
 // @author       Likolisu & TAO
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -64,7 +64,7 @@
         // Destroy() 内部会把 window.Liko.Kaomoji 重置为 {}，这里保险起见再确认一次，
         window.Liko.Kaomoji = window.Liko.Kaomoji ?? {};
         if (window.Liko.Kaomoji.version) return;
-        const MOD_VER = "1.1.0";
+        const MOD_VER = "1.2.0";
         window.Liko.Kaomoji.version = MOD_VER;
 
         /* ── 常量 ──────────────────────────────────────────────────────────── */
@@ -274,6 +274,11 @@
                 zh: '文字表情 v{VER} 已加载成功 | 插件在右下角，点击笑脸按钮展开面板',
                 en: 'Kaomoji v{VER} loaded | Look for the smiley button at the bottom-right to open the panel',
             },
+            dismissToast: { zh: '点击关闭通知', en: 'Click to dismiss notification' },
+            exportGroups: { zh: '导出自定义分组', en: 'Export custom groups' },
+            importGroups: { zh: '导入自定义分组（同名合并）', en: 'Import custom groups (merge matching names)' },
+            importFailed: { zh: '导入失败：请检查文件格式或浏览器储存空间。', en: 'Import failed: check the file format or browser storage.' },
+            storagePending: { zh: '设定仍在载入，请稍后再试。', en: 'Settings are still loading. Please try again shortly.' },
         };
 
         /** 内建分类 id → I18N key 的对照表，供 renderTabs 显示对应语言的分类名称 */
@@ -305,6 +310,40 @@
         let _dragSrc = null;                  // 表情项拖动排序用（跟面板拖动无关，保留）
         let collectingMode = false;           // 收藏模式开关
         let _destroyed = false;               // 防止热更新时，旧实例仍在等待 bcModSdk 的异步注册在销毁后才完成
+        const lifecycle = new AbortController();
+        function listen(target, type, handler, options = {}) {
+            target.addEventListener(type, handler, { ...(typeof options === 'boolean' ? { capture: options } : options), signal: lifecycle.signal });
+        }
+        function waitUntil(ready) {
+            return new Promise(resolve => {
+                let timer;
+                function finish(value) {
+                    clearTimeout(timer);
+                    lifecycle.signal.removeEventListener('abort', cancel);
+                    resolve(value);
+                }
+                function cancel() { finish(false); }
+                function check() {
+                    if (_destroyed) return finish(false);
+                    if (ready()) return finish(true);
+                    timer = setTimeout(check, 200);
+                }
+                lifecycle.signal.addEventListener('abort', cancel, { once: true });
+                check();
+            });
+        }
+
+        function validEmotes(value) {
+            return Array.isArray(value) ? [...new Set(value.filter(text => typeof text === 'string' && text.trim()))] : [];
+        }
+        function validGroups(value) {
+            const ids = new Set(RESERVED_GROUP_IDS);
+            return Array.isArray(value) ? value.filter(group => {
+                if (!group || typeof group.id !== 'string' || !group.id || ids.has(group.id) || typeof group.name !== 'string' || !group.name.trim() || !Array.isArray(group.emotes)) return false;
+                ids.add(group.id);
+                return true;
+            }).map(group => ({ id: group.id, name: group.name.trim(), emotes: validEmotes(group.emotes) })) : [];
+        }
 
         // ────────────────────────────────── 存储 ──────────────────────────────────
         // 收藏/尺寸/自动发送/自动关闭/收合状态存 Player.ExtensionSettings（跟着帐号走），登入后才由伺服器送达，合并成 _data 一包。
@@ -324,24 +363,11 @@
         let _data = {};   // { groups, recent, favs, size, autoSend, autoClose, collapse }
         let _loaded = false;  // 设定确实从 DB 载入前，一律不落盘——否则会用空 _data 覆盖掉帐号里的真实资料
 
-        // 等待 ExtensionSettings 由伺服器载入（最多 ~15 秒）
-        function waitForExtensionSettings(timeout = 15000) {
-            const start = Date.now();
-            return new Promise(function (resolve) {
-                const check = function () {
-                    if (typeof Player !== 'undefined' && Player && Player.ExtensionSettings !== undefined) resolve(true);
-                    else if (Date.now() - start > timeout) resolve(false);
-                    else setTimeout(check, 200);
-                };
-                check();
-            });
-        }
-
         let _saveTimer = null;
         function saveData(immediate) {
             const doSave = function () {
                 try {
-                    if (!_loaded) return;  // 尚未从 DB 载入完成，不能存——避免空资料覆盖既有设定
+                    if (!_loaded || _destroyed) return false;
                     if (typeof Player === 'undefined' || !Player) return;
                     if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
                     Player.ExtensionSettings[ES_KEY] = JSON.stringify(_data);
@@ -365,11 +391,13 @@
             } else if (Array.isArray(_data.groups)) {
                 // 旧版资料在 DB → 搬回 localStorage，并从 DB 清掉，避免两边不同步
                 g = _data.groups;
-                try { localStorage.setItem(STORAGE_GROUPS, JSON.stringify(g)); } catch (_) {}
-                delete _data.groups; saveData(true);
+                try {
+                    localStorage.setItem(STORAGE_GROUPS, JSON.stringify(g));
+                    delete _data.groups; saveData(true);
+                } catch (error) { console.warn('[Kaomoji] Group migration retained source:', error); }
             }
             // 过滤掉任何内建/固定标签 id 的残留数据（例如旧版的"默认"分组），只保留真正的自定义分组
-            return Array.isArray(g) ? g.filter(function (grp) { return grp && grp.id && !RESERVED_GROUP_IDS.has(grp.id); }) : [];
+            return validGroups(g);
         }
         function saveGroups() {
             try { localStorage.setItem(STORAGE_GROUPS, JSON.stringify(groups)); } catch (e) { console.warn('🐈‍⬛ [Kaomoji] ❌ 分组储存失败:', e.message); }
@@ -379,13 +407,15 @@
             let raw = null;
             try { raw = localStorage.getItem(STORAGE_RECENT); } catch (_) {}
             if (raw !== null) {
-                try { const r = JSON.parse(raw); if (Array.isArray(r)) return r.slice(0, RECENT_MAX); } catch (_) {}
+                try { return validEmotes(JSON.parse(raw)).slice(0, RECENT_MAX); } catch (_) {}
                 return [];
             }
             if (Array.isArray(_data.recent)) {
-                const r = _data.recent.slice(0, RECENT_MAX);
-                try { localStorage.setItem(STORAGE_RECENT, JSON.stringify(r)); } catch (_) {}
-                delete _data.recent; saveData(true);
+                const r = validEmotes(_data.recent).slice(0, RECENT_MAX);
+                try {
+                    localStorage.setItem(STORAGE_RECENT, JSON.stringify(r));
+                    delete _data.recent; saveData(true);
+                } catch (error) { console.warn('[Kaomoji] Recent migration retained source:', error); }
                 return r;
             }
             return [];
@@ -394,12 +424,12 @@
             try { localStorage.setItem(STORAGE_RECENT, JSON.stringify(recentList.slice(0, RECENT_MAX))); } catch (e) { console.warn('🐈‍⬛ [Kaomoji] ❌ 常用储存失败:', e.message); }
         }
         function loadFavs() {
-            return new Set(Array.isArray(_data.favs) ? _data.favs : []);
+            return new Set(validEmotes(_data.favs));
         }
         function saveFavs() { _data.favs = [...favSet]; saveData(); }
         function loadSize() {
             const s = _data.size;
-            if (s && typeof s.height === 'number') return { height: s.height };
+            if (s && Number.isFinite(s.height)) return { height: Math.max(220, Math.min(640, s.height)) };
             return { height: 520 };
         }
         function saveSize() { _data.size = { height: panelSize.height }; saveData(); }
@@ -417,7 +447,7 @@
         }
         function saveChatButtonsCollapseState(value) { _data.collapse = value; saveData(); }
 
-        /** 一次性搬移：旧的七个 localStorage key 读进来写入 DB，成功后删除原本的 key */
+        /** 旧设定写入 DB；同步没有服务器确认回执，保留本地来源作为备份。 */
         function migrateFromLocalStorage() {
             let moved = false;
             for (const [field, lsKey] of LEGACY_KEYS) {
@@ -433,26 +463,20 @@
             if (!moved) return;
 
             saveData(true);
-            if (Player && Player.ExtensionSettings && Player.ExtensionSettings[ES_KEY] !== undefined) {
-                for (const [, lsKey] of LEGACY_KEYS) {
-                    try { localStorage.removeItem(lsKey); } catch (_) {}
-                }
-                console.log('🐈‍⬛ [Kaomoji] ✅ 设定已从 localStorage 搬移至 DB');
-            }
         }
 
         /** 设定是登入后才进来的，载入完要把解析时抓到的预设值覆盖掉 */
         async function initStorage() {
             // 一直等到伺服器把 ExtensionSettings 送来才继续（在登入画面逗留超过 15 秒也不会放弃，
             // 否则会带着空 _data 跑一整个 session，一存档就把帐号里的真实资料清空）。
-            while (!(await waitForExtensionSettings())) { /* keep waiting until login delivers settings */ }
+            if (!(await waitUntil(() => typeof Player !== 'undefined' && Player && Player.ExtensionSettings != null)) || _destroyed) return;
 
             let blob = null;
             try {
                 const raw = Player?.ExtensionSettings?.[ES_KEY];
                 if (raw !== undefined) {
                     const o = typeof raw === 'object' ? raw : JSON.parse(raw);
-                    if (o && typeof o === 'object') blob = o;
+                    if (o && typeof o === 'object' && !Array.isArray(o)) blob = o;
                 }
             } catch (e) { console.warn('🐈‍⬛ [Kaomoji] ❌ 设定读取失败，使用预设:', e.message); }
 
@@ -787,15 +811,73 @@
         function insertToChat(text) {
             if (typeof ElementValue !== 'function') return;
             var current = ElementValue('InputChat') || '';
-            if (current.length > 0 && !current.endsWith(' ')) current += ' ';
-            ElementValue('InputChat', current + text);
             var input = document.getElementById('InputChat');
-            if (input) input.focus();
+            var start = typeof input?.selectionStart === 'number' ? input.selectionStart : current.length;
+            var end = typeof input?.selectionEnd === 'number' ? input.selectionEnd : start;
+            var prefix = start > 0 && !/\s/.test(current[start - 1]) ? ' ' : '';
+            var insertion = prefix + text;
+            ElementValue('InputChat', current.slice(0, start) + insertion + current.slice(end));
+            if (input) {
+                input.focus();
+                input.setSelectionRange?.(start + insertion.length, start + insertion.length);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
             if (autoSend && typeof ChatRoomSendChat === 'function') {
                 ChatRoomSendChat();
             }
             recordRecent(text);
             if (autoClose) closePanel();
+        }
+
+        const downloadUrls = new Map();
+        function exportGroups() {
+            if (!_loaded) { window.alert(t('storagePending')); return; }
+            const blob = new Blob([JSON.stringify({ format: 'liko-kaomoji', version: 1, groups }, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'liko-kaomoji-groups.json';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            // Let the browser consume the download before revoking the URL.
+            downloadUrls.set(url, setTimeout(() => {
+                URL.revokeObjectURL(url);
+                downloadUrls.delete(url);
+            }, 1000));
+        }
+
+        function mergeImportedGroups(existing, value) {
+            if (!value || value.format !== 'liko-kaomoji' || value.version !== 1 || !Array.isArray(value.groups)) throw new Error('Unsupported group file');
+            for (const group of value.groups) {
+                if (!group || typeof group.name !== 'string' || !group.name.trim() || !Array.isArray(group.emotes) || group.emotes.some(text => typeof text !== 'string' || !text.trim())) throw new Error('Invalid group');
+            }
+            const merged = validGroups(existing);
+            for (const group of value.groups) {
+                const name = group.name.trim();
+                const match = merged.find(item => item.name === name);
+                if (match) match.emotes = validEmotes(match.emotes.concat(group.emotes));
+                else merged.push({ id: 'g-' + crypto.randomUUID(), name, emotes: validEmotes(group.emotes) });
+            }
+            return merged;
+        }
+
+        async function importGroups(file) {
+            if (!file || _destroyed) return;
+            if (!_loaded) { window.alert(t('storagePending')); return; }
+            try {
+                if (file.size > 2 * 1024 * 1024) throw new Error('File exceeds 2 MiB');
+                const value = JSON.parse(await file.text());
+                if (_destroyed) return;
+                const merged = mergeImportedGroups(groups, value);
+                // Commit to storage before replacing the current UI data.
+                localStorage.setItem(STORAGE_GROUPS, JSON.stringify(merged));
+                groups = merged;
+                renderTabs(); renderGrid();
+            } catch (error) {
+                if (!_destroyed) window.alert(t('importFailed'));
+                console.warn('[Kaomoji] Import failed:', error);
+            }
         }
 
         function createPanel() {
@@ -900,6 +982,20 @@
             header.appendChild(editBtn);
             header.appendChild(collectBtn);
             header.appendChild(helpBtn);
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file'; fileInput.accept = '.json,application/json'; fileInput.hidden = true;
+            fileInput.addEventListener('change', () => { importGroups(fileInput.files[0]); fileInput.value = ''; });
+            header.appendChild(fileInput);
+            for (const [key, symbol, action] of [
+                ['exportGroups', '↓', exportGroups],
+                ['importGroups', '↑', () => fileInput.click()],
+            ]) {
+                const button = document.createElement('button');
+                button.type = 'button'; button.className = 'lk-km-btn';
+                button.textContent = symbol; button.title = t(key); button.setAttribute('aria-label', t(key));
+                button.addEventListener('click', action);
+                header.appendChild(button);
+            }
             header.appendChild(closeBtn);
 
             // 分组标签栏
@@ -988,9 +1084,12 @@
             resizeHandle.className = 'lk-km-resize';
             resizeHandle.title = t('resizeTooltip');
             resizeHandle.innerHTML = '<div class="lk-km-resize-corner"></div>';
-            resizeHandle.addEventListener('mousedown', function (e) {
+            resizeHandle.style.touchAction = 'none';
+            resizeHandle.addEventListener('pointerdown', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
+                if (!e.isPrimary || e.button !== 0) return;
+                resizeHandle.setPointerCapture(e.pointerId);
                 _resizing = true;
                 _resizeStart.y = e.clientY;
                 _resizeStart.h = panel.offsetHeight;
@@ -1202,7 +1301,7 @@
          * 排除条件：点击在面板内部，或点击在聊天输入框 InputChat 内部，或点击的是触发面板开关的原生按钮本身
          * （避免与 togglePanel 的开关逻辑互相打架，导致点一下按钮变成"开了又立刻被这里关掉"）。
          */
-        document.addEventListener('mousedown', function (e) {
+        listen(document, 'pointerdown', function (e) {
             if (!panelVisible || !panelEl) return;
             var target = e.target;
             if (panelEl.contains(target)) return;
@@ -1215,9 +1314,9 @@
 
         /* 只保留纵向缩放（高度），宽度始终跟随 TextAreaChatLog；缩放时仍保持贴齐 chat-room-bot 顶部，
          * 且高度不超过 TextAreaChatLog 的可用范围 */
-        document.addEventListener('mousemove', function (e) {
+        listen(document, 'pointermove', function (e) {
             if (!_resizing) return;
-            var newH = _resizeStart.h + (e.clientY - _resizeStart.y);
+            var newH = _resizeStart.h - (e.clientY - _resizeStart.y);
             newH = Math.max(220, Math.min(640, newH));
             var p = computeAnchorPos(newH);
             panelSize.height = p.h;
@@ -1228,33 +1327,19 @@
             panelEl.style.width = p.w + 'px';
             panelEl.style.height = p.h + 'px';
         });
-        document.addEventListener('mouseup', function () {
+        listen(document, 'pointerup', function () {
             if (!_resizing) return;
             _resizing = false;
             saveSize();
         });
-        document.addEventListener('touchmove', function (e) {
-            if (!_resizing) return;
-            var t = e.touches[0];
-            var newH = _resizeStart.h + (t.clientY - _resizeStart.y);
-            newH = Math.max(220, Math.min(640, newH));
-            var p = computeAnchorPos(newH);
-            panelSize.height = p.h;
-            panelPos.x = p.x;
-            panelPos.y = p.y;
-            panelEl.style.left = p.x + 'px';
-            panelEl.style.top = p.y + 'px';
-            panelEl.style.width = p.w + 'px';
-            panelEl.style.height = p.h + 'px';
-        }, { passive: true });
-        document.addEventListener('touchend', function () {
+        listen(document, 'pointercancel', function () {
             if (!_resizing) return;
             _resizing = false;
             saveSize();
         });
 
         /* 窗口尺寸变化时，若面板正开启，重新贴齐 TextAreaChatLog 的 X / 宽度 / 高度上限，并贴齐 chat-room-bot 顶部 */
-        window.addEventListener('resize', function () {
+        listen(window, 'resize', function () {
             repositionPanel();
         });
 
@@ -1265,20 +1350,21 @@
          * 让原生「收纳/展开按钮列」的折叠状态持久化：
          * 第一次遇到该按钮时套用上次保存的状态（直接复用原生点击逻辑，保证图示与 hidden 状态同步），
          * 之后每次用户点击都把最新状态写回设定。
-         * 用 dataset 标记挂钩状态，元素被重建（比如 PreserveChat=false 离开房间再进）时会自动重新挂钩。
+         * 用 WeakSet 标记挂钩状态，元素被重建（比如 PreserveChat=false 离开房间再进）时会自动重新挂钩。
          */
+        const collapseButtons = new WeakSet();
         function syncChatButtonsCollapse() {
             var btn = document.getElementById('chat-room-buttons-collapse');
-            if (!btn || btn.dataset.likoCollapseHooked) return;
-            btn.dataset.likoCollapseHooked = '1';
+            if (!_loaded || !btn || collapseButtons.has(btn)) return;
+            collapseButtons.add(btn);
 
             var saved = loadChatButtonsCollapseState();
             if (saved !== null && btn.getAttribute('aria-expanded') !== saved) {
                 btn.click(); // 原生点击处理函数是同步的，这里会顺带把 hidden 状态一起同步好
             }
 
-            btn.addEventListener('click', function () {
-                saveChatButtonsCollapseState(btn.getAttribute('aria-expanded'));
+            listen(btn, 'click', function () {
+                queueMicrotask(() => { if (!_destroyed) saveChatButtonsCollapseState(btn.getAttribute('aria-expanded')); });
             });
         }
 
@@ -1310,15 +1396,25 @@
         })();
 
         /* 此定时器保留两件事：面板跟随（面板关闭时 repositionPanel 立即 return，近乎零开销），以及
-           原生收合钮的折叠状态持久化（syncChatButtonsCollapse 有 dataset 守卫、幂等，负责在收合钮
+           原生收合钮的折叠状态持久化（syncChatButtonsCollapse 有 WeakSet 守卫、幂等，负责在收合钮
            (重)出现时补挂钩并套用上次保存的状态）。按钮本身的注入/收合已由协调器处理，不在这里。 */
         var _injectInterval = setInterval(function () {
-            try { repositionPanel(); } catch (e) {}
+            try { repositionPanel(); syncChatButtonsCollapse(); } catch (e) {}
         }, 200);
 
         /* ── 单实例销毁（供热更新彻底清理旧实例）────────────────────────────── */
         function destroyInstance() {
+            if (_destroyed) return;
+            if (_saveTimer) saveData(true);
+            clearTimeout(_saveTimer);
+            _saveTimer = null;
+            lifecycle.abort();
+            downloadUrls.forEach((timer, url) => { clearTimeout(timer); URL.revokeObjectURL(url); });
+            downloadUrls.clear();
+            panelVisible = false;
+            _resizing = false;
             _destroyed = true; // 立即标记，防止仍在等待 bcModSdk 的旧实例事后才悄悄完成注册
+            if (_dismissLoadToast) _dismissLoadToast();
             try { clearInterval(_injectInterval); } catch (e) {}
             // 从协调器注销本插件的按钮（连同待处理队列残留），避免旧实例的工厂闭包在容器重建时被复用
             try {
@@ -1335,8 +1431,8 @@
             } catch (e) {}
             panelEl = null;
             try {
-                if (modApi && typeof modApi.unregister === 'function') {
-                    modApi.unregister();
+                if (modApi && typeof modApi.unload === 'function') {
+                    modApi.unload();
                     console.log("🐈‍⬛ [Kaomoji] 已从 bcModSdk 注销旧实例");
                 }
             } catch (e) {}
@@ -1354,40 +1450,10 @@
         window.Liko.Kaomoji.Toggle  = togglePanel;
 
         /* ── bcModSDK 注册 ───────────────────────────────────────────────────── */
-        function waitForBcModSdk() {
-            return new Promise(function (resolve, reject) {
-                (function check() {
-                    if (_destroyed) return reject(new Error('destroyed'));
-                    if (typeof bcModSdk !== 'undefined' && bcModSdk && bcModSdk.registerMod) return resolve();
-                    setTimeout(check, 100);
-                })();
-            });
-        }
-
         var modApi = null;
 
-        function waitForLogin() {
-            if (typeof Player !== 'undefined' && Player?.MemberNumber !== undefined) return Promise.resolve();
-            return new Promise(function (resolve) {
-                var removeHook = modApi.hookFunction('LoginResponse', 0, function (args, next) {
-                    var result = next(args);
-                    queueMicrotask(function () {
-                        if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) return;
-                        removeHook();
-                        resolve();
-                    });
-                    return result;
-                });
-            });
-        }
-
         async function initMod() {
-            try {
-                await waitForBcModSdk();
-            } catch (e) {
-                return; // 实例在等待期间已被销毁（例如脚本被热更新替换），放弃注册
-            }
-            if (_destroyed) return; // 双重保险
+            if (!(await waitUntil(() => typeof bcModSdk !== 'undefined' && bcModSdk?.registerMod)) || _destroyed) return;
             try {
                 modApi = bcModSdk.registerMod({
                     repository: "https://github.com/awdrrawd/liko-Plugin-Repository",
@@ -1401,7 +1467,7 @@
                 console.error("🐈‍⬛ [Kaomoji] bcModSdk 注册失败:", e);
                 return;
             }
-            await waitForLogin();
+            if (!(await waitUntil(() => typeof Player !== 'undefined' && Player?.MemberNumber !== undefined)) || _destroyed) return;
             await initStorage();
         }
         initMod();
@@ -1419,10 +1485,16 @@
             return { right: 16, bottom: 88 };
         }
 
-        /* ── 加载提示（贴齐 chat-room-bot 右上方，靠右对齐，6秒后自动消失）──── */
+        /* ── 加载提示：点击立即关闭，也会在 6 秒后自动淡出 ── */
+        var _dismissLoadToast = null;
         function showLoadToast(message) {
-            var toast = document.createElement('div');
+            if (_destroyed) return;
+            if (_dismissLoadToast) _dismissLoadToast();
+            var toast = document.createElement('button');
+            toast.type = 'button';
             toast.id = 'lk-kaomoji-toast';
+            toast.title = t('dismissToast');
+            toast.setAttribute('aria-label', '[Kaomoji] ' + message + '. ' + t('dismissToast'));
 
             var pos = computeToastPos();
 
@@ -1445,24 +1517,38 @@
                 'opacity:1',
                 'transform:translateY(0)',
                 'transition:opacity 0.4s ease,transform 0.4s ease',
-                'pointer-events:none',
+                'pointer-events:auto',
+                'cursor:pointer',
+                'text-align:left',
             ].join(';');
-            toast.innerHTML = '<span style="color:#c79dff;font-weight:600;">[Kaomoji]</span> ' + message;
+            var label = document.createElement('span');
+            label.style.cssText = 'color:#c79dff;font-weight:600;';
+            label.textContent = '[Kaomoji]';
+            toast.append(label, document.createTextNode(' ' + message));
+            var fadeTimer = null;
+            var removeTimer = null;
+            function dismiss() {
+                clearTimeout(fadeTimer);
+                clearTimeout(removeTimer);
+                toast.remove();
+                if (_dismissLoadToast === dismiss) _dismissLoadToast = null;
+            }
+            _dismissLoadToast = dismiss;
+            toast.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                dismiss();
+            });
             document.body.appendChild(toast);
-            setTimeout(function () {
+            fadeTimer = setTimeout(function () {
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateY(8px)';
-                setTimeout(function () { if (toast.parentNode) toast.remove(); }, 400);
+                removeTimer = setTimeout(dismiss, 400);
             }, 6000);
         }
 
         (async function waitForLoad() {
-            while (typeof Player === 'undefined' || typeof CurrentScreen === 'undefined') {
-                await new Promise(r => setTimeout(r, 1000));
-            }
-            while (CurrentScreen !== 'ChatRoom') {
-                await new Promise(r => setTimeout(r, 1000));
-            }
+            if (!(await waitUntil(() => typeof Player !== 'undefined' && typeof CurrentScreen !== 'undefined' && CurrentScreen === 'ChatRoom')) || _destroyed) return;
             showLoadToast(t('toastMessage').replace('{VER}', MOD_VER));
         })();
 

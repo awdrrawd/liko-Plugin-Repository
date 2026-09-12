@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.2.0
+// @version      2.2.1
 // @description  Bondage Club - Likolisu's tool (R121 Compatible) + UI Panel + 角色选择器 + Canvas SVG图标 + 拖拽排序 + 主题自定义 + 无视绑缚 + 无视衣物阻挡 + 勿扰模式 + 说话总是OOC
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -22,8 +22,54 @@
 // ── 防重複加载 guard ──────────────────────────────────────────────────────────
 
 (function () {
+let disposed = false;
+    const lifecycle = new AbortController();
+    const timers = new Set(), intervals = new Set(), frames = new Set(), cleanupTasks = new Set();
+    function setTimeout(fn, ms, ...args) {
+        if (disposed) return null;
+        const id = globalThis.setTimeout(() => { timers.delete(id); if (!disposed) fn(...args); }, ms);
+        timers.add(id); return id;
+    }
+    function clearTimeout(id) { globalThis.clearTimeout(id); timers.delete(id); }
+    function setInterval(fn, ms) {
+        if (disposed) return null;
+        const id = globalThis.setInterval(() => { if (!disposed) fn(); }, ms);
+        intervals.add(id); return id;
+    }
+    function clearInterval(id) { globalThis.clearInterval(id); intervals.delete(id); }
+    function requestAnimationFrame(fn) {
+        if (disposed) return null;
+        const id = globalThis.requestAnimationFrame(time => { frames.delete(id); if (!disposed) fn(time); });
+        frames.add(id); return id;
+    }
+    function listen(target, type, fn, options = {}) {
+        target.addEventListener(type, fn, { ...(typeof options === 'boolean' ? { capture: options } : options), signal: lifecycle.signal });
+    }
+    function stopLifecycle() {
+        disposed = true; lifecycle.abort();
+        timers.forEach(id => globalThis.clearTimeout(id)); timers.clear();
+        intervals.forEach(id => globalThis.clearInterval(id)); intervals.clear();
+        frames.forEach(id => globalThis.cancelAnimationFrame(id)); frames.clear();
+        cleanupTasks.forEach(fn => { try { fn(); } catch (error) { console.warn(error); } });
+        cleanupTasks.clear();
+    }
+    function waitFor(check, interval = 200, timeout = 0) {
+        return new Promise(resolve => {
+            let timer; const started = Date.now();
+            const finish = value => { clearTimeout(timer); lifecycle.signal.removeEventListener('abort', cancel); resolve(value); };
+            const cancel = () => finish(false);
+            function poll() {
+                if (disposed) return finish(false);
+                try { if (check()) return finish(true); } catch {}
+                if (timeout && Date.now() - started >= timeout) return finish(false);
+                timer = setTimeout(poll, interval);
+            }
+            lifecycle.signal.addEventListener('abort', cancel, { once: true });
+            poll();
+        });
+    }
     window.Liko = window.Liko ?? {};
-    const MOD_Version = "2.2.0";
+    const MOD_Version = "2.2.1";
     if (window.Liko.LT) return;
     window.Liko.LT = MOD_Version;
     let modApi = null;
@@ -635,44 +681,13 @@
     // ──────────────────────────────────────────
     // 等待系列
     // ──────────────────────────────────────────
-    function waitForBcModSdk() {
-        return new Promise(resolve => {
-            const check = () => {
-                if (typeof bcModSdk !== 'undefined' && bcModSdk?.registerMod) resolve(true);
-                else setTimeout(check, 100);
-            };
-            check();
-        });
-    }
-
-    function waitFor(condition) {
-        return new Promise(resolve => {
-            const check = () => {
-                if (condition()) resolve();
-                else setTimeout(check, 500);
-            };
-            check();
-        });
-    }
-    function waitForLogin() {
-        if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
-        return new Promise(resolve => {
-            const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
-                const result = next(args);
-                queueMicrotask(() => {
-                    if (window.Player?.MemberNumber === undefined) return;
-                    remove(); resolve();
-                });
-                return result;
-            });
-        });
-    }
-
     // ──────────────────────────────────────────
     // 初始化 modApi
     // ──────────────────────────────────────────
+    function waitForLogin() { return waitFor(() => window.Player?.MemberNumber !== undefined); }
+
     async function initializeModApi() {
-        await waitForBcModSdk();
+        if (!(await waitFor(() => typeof bcModSdk !== "undefined" && bcModSdk?.registerMod)) || disposed) return;
         try {
             modApi = bcModSdk.registerMod({
                 name: "Liko - tool",
@@ -693,8 +708,21 @@
             if (window.ChatRoomSendLocalStyled) { resolve(); return; }
             const script = document.createElement('script');
             script.src = "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_toast_system.user.js";
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error("Toast 载入失敗"));
+            let settled = false;
+            const finish = error => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeout);
+                lifecycle.signal.removeEventListener('abort', cancel);
+                script.onload = script.onerror = null;
+                script.remove();
+                if (error) reject(error); else resolve();
+            };
+            const cancel = () => finish();
+            const timeout = setTimeout(() => finish(new Error('Toast load timed out')), 10000);
+            lifecycle.signal.addEventListener('abort', cancel, { once: true });
+            script.onload = () => finish();
+            script.onerror = () => finish(new Error("Toast 载入失敗"));
             document.head.appendChild(script);
         });
     }
@@ -1156,14 +1184,17 @@
     const ALL_ACTIONS = [
         { id: 'free',      icon: SVG.free,      label: 'actFree',      title: 'actFreeT', fn: async function() {
             const target = await requestCharacter(t('pickFree'));
+            if(disposed) return;
             if (target) free(getNickname(target));
         }},
         { id: 'undo',      icon: SVG.undo,      label: 'actUndo',      title: 'actUndoT', fn: async function() {
             const target = await requestCharacter(t('pickUndo'));
+            if(disposed) return;
             if (target) undoCommand(getNickname(target));
         }},
         { id: 'lock',      icon: SVG.lock,      label: 'actLock',      title: 'actLockT', fn: async function() {
             const target = await requestCharacter(t('pickLock'));
+            if(disposed) return;
             if (!target) return;
             const itemMiscGroup = AssetGroupGet(Player.AssetFamily, "ItemMisc");
             if (!itemMiscGroup) { ChatRoomSendLocal(t('lockTypeFail')); return; }
@@ -1171,6 +1202,7 @@
             if (!validLocks.length) { ChatRoomSendLocal(t('lockTypeNone')); return; }
             const lockOpts = validLocks.map(l => ({ text: l.Description }));
             const selectedLock = await requestButtons(t('lockTypeTitle'), lockOpts, false);
+            if(disposed) return;
             if (!selectedLock) return;
             const lock = validLocks.find(l => l.Description === selectedLock);
             if (!lock) return;
@@ -1178,19 +1210,23 @@
         }},
         { id: 'unlock',    icon: SVG.unlock,    label: 'actUnlock',    title: 'actUnlockT', fn: async function() {
             const target = await requestCharacter(t('pickUnlock'));
+            if(disposed) return;
             if (target) fullUnlock(getNickname(target));
         }},
         { id: 'editcraft', icon: SVG.craftEdit, label: 'actEditCraft', title: 'actEditCraftT', fn: async function() {
             const target = await requestCharacter(t('pickEditCraft'));
+            if(disposed) return;
             if (target) editCraftBatch(target);
         }},
         { id: 'clearcraft',icon: SVG.craftClear,label: 'actClearCraft',title: 'actClearCraftT', fn: async function() {
             const target = await requestCharacter(t('pickClearCraft'));
+            if(disposed) return;
             if (target) clearAllCraft(target);
         }},
         { id: 'wardrobe',  icon: SVG.wardrobe,  label: 'actWardrobe',  title: 'actWardrobeT', fn: function() { wardrobe(); } },
         { id: 'bcx',       icon: SVG.bcx,       label: 'actBcx',       title: 'actBcxT', fn: async function() {
             const target = await requestCharacter(t('pickBcx'));
+            if(disposed) return;
             if (target) bcxImport(getNickname(target));
         }},
         { id: 'struggle',  icon: SVG.struggle,  label: 'actStruggle',  title: 'actStruggleT', fn: function() { execChatCommand('/lscg escape'); } },
@@ -1453,8 +1489,11 @@
         // ── Drag logic (panel move) ──
         let drag = { on: false, dx: 0, dy: 0 };
 
-        hdr.addEventListener('mousedown', function (e) {
+        hdr.style.touchAction = 'none';
+        hdr.addEventListener('pointerdown', function (e) {
             if (e.target.closest('.ltq-icon-btn') || e.target.closest('.ltq-back')) return;
+            if (e.button !== 0 || !e.isPrimary) return;
+            hdr.setPointerCapture(e.pointerId);
             drag.on = true;
             drag.dx = e.clientX - toolPanelEl.offsetLeft;
             drag.dy = e.clientY - toolPanelEl.offsetTop;
@@ -1462,7 +1501,7 @@
             e.preventDefault();
         });
 
-        document.addEventListener('mousemove', function (e) {
+        listen(document, 'pointermove', function (e) {
             if (!drag.on) return;
             toolPanelPos.x = e.clientX - drag.dx;
             toolPanelPos.y = e.clientY - drag.dy;
@@ -1470,16 +1509,19 @@
             toolPanelEl.style.top  = toolPanelPos.y + 'px';
         });
 
-        document.addEventListener('mouseup', function () {
+        function finishPanelDrag() {
             if (drag.on) {
                 drag.on = false;
                 _toolDragging = false;
+                clampToolPanelPos();
                 saveToolPanelPos();
             }
-        });
+        }
+        listen(document, 'pointerup', finishPanelDrag);
+        listen(document, 'pointercancel', finishPanelDrag);
 
         // ── ESC：有子页面则返回，否则关闭 ──
-        document.addEventListener('keydown', function(e) {
+        listen(document, 'keydown', function(e) {
             if (e.key !== 'Escape' || !toolPanelVisible) return;
             if (phonePages.length) phoneBack();
             else hideToolPanel();
@@ -1517,6 +1559,25 @@
             btn.appendChild(iconEl);
             btn.appendChild(labelEl);
             btn.appendChild(gripEl);
+            const reorder=document.createElement('span');
+            reorder.style.cssText='display:flex;gap:4px;';
+            btn.appendChild(reorder);
+            for (const [delta, label] of [[-1, '←'], [1, '→']]) {
+                const move = document.createElement('button');
+                move.type = 'button'; move.textContent = label;
+                move.title = isZh() ? (delta < 0 ? '向前移动' : '向后移动') : (delta < 0 ? 'Move earlier' : 'Move later');
+                move.setAttribute('aria-label', move.title);
+                move.style.cssText='color:inherit;background:var(--lt-surface);border:1px solid var(--lt-border);border-radius:4px;min-width:24px;cursor:pointer;';
+                move.draggable = false;
+                move.addEventListener('click', event => {
+                    event.stopPropagation();
+                    const order = loadBtnOrder(), from = order.indexOf(a.id), to = from + delta;
+                    if (from < 0 || to < 0 || to >= order.length) return;
+                    [order[from], order[to]] = [order[to], order[from]];
+                    saveBtnOrder(order); rebuildActionGrid();
+                });
+                reorder.appendChild(move);
+            }
 
             // Click action
             btn.addEventListener('click', function(e) {
@@ -1591,6 +1652,7 @@
     }
 
     function toggleToolPanel() {
+        if(disposed) return;
         if (toolPanelVisible) hideToolPanel(); else showToolPanel();
     }
 
@@ -1881,7 +1943,8 @@
     // ──────────────────────────────────────────
     // Undo 系統
     // ──────────────────────────────────────────
-    const UNDO_MAX_PER_CHARACTER = 20;
+    const UNDO_MAX_PER_CHARACTER = 30;
+    const UNDO_MAX_CHARACTERS = 100;
     const undoHistory = {};
 
     function saveUndoSnapshot(target, changedByNumber) {
@@ -1894,8 +1957,22 @@
             if (JSON.stringify(last.bundle) === JSON.stringify(bundle)) return;
         }
         if (!undoHistory[id]) undoHistory[id] = [];
-        undoHistory[id].push({ timestamp: Date.now(), changedBy: changedByNumber ?? null, bundle });
+        undoHistory[id].push({ timestamp: Date.now(), changedBy: changedByNumber ?? null, bundle: structuredClone(bundle) });
         if (undoHistory[id].length > UNDO_MAX_PER_CHARACTER) undoHistory[id].shift();
+        const ids = Object.keys(undoHistory);
+        if (ids.length > UNDO_MAX_CHARACTERS) {
+            ids.sort((a, b) => undoHistory[a].at(-1).timestamp - undoHistory[b].at(-1).timestamp);
+            delete undoHistory[ids[0]];
+        }
+    }
+
+    function summarizeAppearanceDiff(before, after) {
+        const index = bundle => new Map(bundle.map(item => [item.Group, item]));
+        const old = index(before), next = index(after);
+        let added=0, removed=0, changed=0;
+        next.forEach((item,key) => { if (!old.has(key)) added++; else if (JSON.stringify(old.get(key)) !== JSON.stringify(item)) changed++; });
+        old.forEach((_item,key) => { if (!next.has(key)) removed++; });
+        return {added,removed,changed};
     }
 
     function scanAllCharacters() {
@@ -1908,7 +1985,7 @@
     // ──────────────────────────────────────────
     async function openUndoPanel(target) {
         const id = target?.MemberNumber;
-        const history = undoHistory[id];
+        const history = structuredClone(undoHistory[id] || []);
         if (!history?.length) { ChatRoomSendLocal(getNickname(target) + "：" + t('undoNoRecord')); return; }
 
         injectLtStyles();
@@ -1938,7 +2015,9 @@
         metaEl.className = "lt-undo-meta"; metaEl.style.marginBottom = "8px";
         const timeRow = document.createElement("div"); timeRow.className = "lt-undo-meta-row";
         const byRow   = document.createElement("div"); byRow.className   = "lt-undo-meta-row";
+        const diffRow = document.createElement('div'); diffRow.className = 'lt-undo-meta-row';
         metaEl.appendChild(timeRow); metaEl.appendChild(byRow);
+        metaEl.appendChild(diffRow);
         topNavEl.appendChild(prevBtn); topNavEl.appendChild(counterEl); topNavEl.appendChild(nextBtn);
 
         const canvasWrap = document.createElement("div");
@@ -1963,35 +2042,48 @@
         panel.style.width = "320px";
         closeBtn.onclick = () => panel.remove();
 
+        let renderedIndex = -1;
         function renderPreview() {
             if (!canvasCharacter) return;
             try {
                 const entry = history[currentIndex];
                 const ctx = canvas.getContext("2d");
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                canvasCharacter.Appearance = entry.bundle.map(b => ServerBundledItemToAppearanceItem(target.AssetFamily, b));
-                CharacterRefresh(canvasCharacter);
+                if (renderedIndex !== currentIndex) {
+                    canvasCharacter.Appearance = structuredClone(entry.bundle).map(b => ServerBundledItemToAppearanceItem(target.AssetFamily, b));
+                    CharacterRefresh(canvasCharacter);
+                    renderedIndex = currentIndex;
+                }
                 DrawCharacter(canvasCharacter, 40, 100, 0.85, false, ctx);
             } catch (e) { console.error("🐈‍⬛ [LT] ❌ 预览渲染失敗:", e.message); }
         }
 
         const renderInterval = setInterval(renderPreview, 200);
+        const cleanupPreview = () => {
+            clearInterval(renderInterval);
+            try { if (canvasCharacter) CharacterDelete(canvasCharacter.ID); } catch (e) {}
+            canvasCharacter = null;
+            undoObs.disconnect();
+            cleanupTasks.delete(cleanupPreview);
+        };
         const undoObs = new MutationObserver(() => {
             if (!document.body.contains(panel)) {
-                clearInterval(renderInterval);
-                try { if (canvasCharacter) CharacterDelete(canvasCharacter.ID); } catch (e) {}
-                undoObs.disconnect();
+                cleanupPreview();
             }
         });
         undoObs.observe(document.body, { childList: true, subtree: true });
+        cleanupTasks.add(cleanupPreview);
 
         function updateMeta() {
             const entry = history[currentIndex];
             const timeStr = new Date(entry.timestamp).toLocaleString();
             const byChar  = entry.changedBy ? ChatRoomCharacter?.find(c => c.MemberNumber === entry.changedBy) : null;
             const byName  = byChar ? getNickname(byChar) : entry.changedBy ? "#" + entry.changedBy : "—";
-            timeRow.innerHTML = t('undoChangedAt') + "：<span>" + timeStr + "</span>";
-            byRow.innerHTML   = t('undoChangedBy') + "：<span>" + byName + "</span>";
+            timeRow.textContent = t('undoChangedAt') + '：' + timeStr;
+            byRow.textContent = t('undoChangedBy') + '：' + byName;
+            const diff = summarizeAppearanceDiff(ServerAppearanceBundle(target.Appearance), entry.bundle);
+            diffRow.textContent = (isZh() ? '与目前外观比较：' : 'Compared with current appearance: ') + `+${diff.added} / −${diff.removed} / Δ${diff.changed}`;
+            diffRow.title = isZh() ? '新增 / 移除 / 修改的装备组数' : 'Added / removed / changed equipment groups';
             counterEl.textContent = (currentIndex + 1) + " / " + history.length + " " + t('undoCountUnit');
             prevBtn.disabled = currentIndex <= 0;
             nextBtn.disabled = currentIndex >= history.length - 1;
@@ -2012,7 +2104,7 @@
             const sizeKb = (Math.abs(JSON.stringify(oldBundle).length - JSON.stringify(entry.bundle).length) / 1024).toFixed(1);
             ChatRoomSendLocal(getNickname(target) + " " + t('undoApplyDone') + "（" + t('undoApplySize') + ": " + sizeKb + "kB）");
             chatSendCustomAction(t('actUndoMsg', { src: getNickname(Player), who: getNickname(target), time: new Date(entry.timestamp).toLocaleTimeString() }));
-            undoHistory[id].splice(currentIndex + 1);
+            // Keep live history intact: new snapshots may have arrived while previewing.
             panel.remove();
         };
 
@@ -2197,6 +2289,7 @@
         }
         if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('freeNoItem') + "！"); return true; }
         const selected = await requestButtons(t('freeTitle') + " — " + getNickname(target), restraints, true);
+            if(disposed) return;
         if (!selected.length) return true;
         try {
             selected.forEach(itemText => {
@@ -2232,6 +2325,7 @@
             }));
         if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('craftClearNone') + "！"); return; }
         const selected = await requestButtons(t('craftClearTitle') + " — " + getNickname(target), restraints, true);
+            if(disposed) return;
         if (!selected.length) return;
         try {
             let count = 0;
@@ -2255,8 +2349,10 @@
         }));
         if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('craftNoItem') + "！"); return; }
         const selected = await requestButtons(t('craftPickTitle') + " — " + getNickname(target), restraints, true);
+            if(disposed) return;
         if (!selected.length) return;
         const craft = await requestCraftEdit();
+            if(disposed) return;
         if (!craft) return;
         try {
             let count = 0;
@@ -2354,7 +2450,7 @@
         const target = getPlayer(args.trim());
         if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
         let bcxCode;
-        try { bcxCode = await navigator.clipboard.readText(); }
+        try { bcxCode = await navigator.clipboard.readText(); if(disposed) return; }
         catch (e) { ChatRoomSendLocal(t('clipboardFail')); return true; }
         try {
             const appearance = JSON.parse(LZString.decompressFromBase64(bcxCode));
@@ -2392,7 +2488,7 @@
         let held = false;
         let timer = null;
         const HOLD_MS = 1500;
-        document.addEventListener('keydown', function(e) {
+        listen(document, 'keydown', function(e) {
             if (e.repeat) return;
             if (e.ctrlKey || e.altKey || e.metaKey) return;
             if (e.key !== 'P' && e.key !== 'p') return;
@@ -2412,7 +2508,7 @@
                 ChatRoomSendLocal(t('stealthLabel') + ': ' + (s.stealthRp === 1 ? t('stealthOn') : t('stealthOff')));
             }, HOLD_MS);
         });
-        document.addEventListener('keyup', function(e) {
+        listen(document, 'keyup', function(e) {
             if (e.key === 'P' || e.key === 'p' || e.key === 'Shift') {
                 if (timer) { clearTimeout(timer); timer = null; }
                 held = false;
@@ -2439,6 +2535,7 @@
             });
         if (!locks.length) { ChatRoomSendLocal(getNickname(target) + " " + t('unlockNone') + "！"); return true; }
         const selected = await requestButtons(t('unlockTitle') + " — " + getNickname(target), locks, true);
+            if(disposed) return;
         if (!selected.length) return true;
         try {
             let count = 0;
@@ -2458,6 +2555,7 @@
     async function getEverything() {
         const options = [{ text: t('geItems') }, { text: t('geMoney') }, { text: t('geSkills') }];
         const selected = await requestButtons(t('geTitle'), options, true);
+            if(disposed) return;
         if (!selected.length) return true;
         try {
             if (selected.includes(t('geItems'))) {
@@ -2830,6 +2928,7 @@
     // 指令入口
     // ──────────────────────────────────────────
     function handleLtCommand(text) {
+        if (disposed) return;
         if (!Player.LikoTool) initializeStorage();
         const args       = text.trim().split(/\s+/);
         const subCommand = args[0]?.toLowerCase() || "";
@@ -2876,10 +2975,12 @@
     // ──────────────────────────────────────────
     async function initialize() {
         await initializeModApi();
+        if (disposed) return;
+        if (!modApi) throw new Error("SDK unavailable");
         try { await loadToastSystem(); }
         catch (e) { console.warn("🐈‍⬛ [LT] ❌ Toast system 载入失敗，備用模式運行:", e.message); }
 
-        await waitForLogin();
+        if (!(await waitForLogin()) || disposed) return;
 
         initializeStorage();
         applyFreeHands();
@@ -2895,6 +2996,7 @@
         startToolButtonInjector();
 
         const registerCommand = () => {
+            if (disposed) return;
             CommandCombine([{ Tag: "lt", Description: "Execute Liko Tool command", Action: handleLtCommand }]);
         };
         if (typeof CommandCombine === "function") {
@@ -2908,6 +3010,7 @@
         }
 
         waitFor(() => CurrentScreen === "ChatRoom").then(() => {
+            if (disposed) return;
             ChatRoomSendLocal(t('loaded', { v: MOD_Version }), 30000);
         });
         console.log("🐈‍⬛ [LT] ✅ v${MOD_Version}  loaded");
@@ -2916,20 +3019,26 @@
     // ──────────────────────────────────────────
     // 卸载清理
     // ──────────────────────────────────────────
-    function setupUnloadHandler() {
-        if (modApi && typeof modApi.onUnload === 'function') {
-            modApi.onUnload(() => {
-                if (heightTargetChar) { removeHeightHijack(heightTargetChar); heightTargetChar = null; }
-                _ibUnpatch();
-                if (_magicDefenseTimer) { clearInterval(_magicDefenseTimer); _magicDefenseTimer = null; }
-                restoreMagicDefenseHooks();
-                delete window.__LikoToolLoaded__;
-                console.log("🐈‍⬛ [LT] 🗑️ 插件卸载");
-            });
+    function destroy() {
+        if (disposed) return;
+        hideToolPanel();
+        stopLifecycle();
+        if (heightTargetChar) { removeHeightHijack(heightTargetChar); heightTargetChar=null; }
+        _ibUnpatch(); restoreMagicDefenseHooks();
+        try { modApi?.unload(); } catch (error) { console.warn(error); }
+        modApi=null;
+        window.Liko.__Sys_ChatRoomButtons__?.remove(TOOL_CRB_ID);
+        if (Array.isArray(window.Liko.__CRB_pending__)) window.Liko.__CRB_pending__ = window.Liko.__CRB_pending__.filter(s => s.id !== TOOL_CRB_ID);
+        toolPanelEl?.remove(); toolPanelEl=null;
+        document.getElementById('lt-styles')?.remove();
+        document.getElementById('lt-theme-vars')?.remove();
+        if (typeof Command !== 'undefined' && Array.isArray(Command)) {
+            for(let i=Command.length-1;i>=0;i--) if(Command[i].Action===handleLtCommand) Command.splice(i,1);
         }
+        for (const id of Object.keys(undoHistory)) delete undoHistory[id];
+        if (window.Liko.Tool?.Destroy === destroy) delete window.Liko.Tool;
+        delete window.Liko.LT;
     }
-
-    initialize().then(() => { setupUnloadHandler(); })
-    .catch(error => { console.error("🐈‍⬛ [LT] ❌ 初始化失敗:", error); });
-
+    window.Liko.Tool = { version: MOD_Version, Destroy: destroy };
+    initialize().catch(error => { console.error('[LT] Initialization failed:', error); destroy(); });
 })();

@@ -26,7 +26,7 @@
 	// 防重複載入：系統擴充統一掛 window.Liko.__Sys_* ，先搶先贏。
 	if (window.Liko.__Sys_ChatScrollFreeze__) return;
 
-	const MOD_VER = "1.3";
+	const MOD_VER = "1.4";
 	let disposed = false;
 	const FREEZE_THRESHOLD = 0.05; // 往上捲超過畫面高度的 5% 就凍結
 
@@ -125,8 +125,14 @@
 
 	/** 是否處於「預覽舊訊息」的凍結狀態 */
 	let frozen = false;
-	/** 凍結期間被攔截、尚未真正插入 DOM 的訊息節點 */
+	/** 凍結或回放期間等待執行的 append 回呼，依接收順序排列。 */
 	let messageQueue = [];
+	const MAX_PENDING_MESSAGES = 1000;
+	const REPLAY_BATCH_SIZE = 40;
+	const REPLAY_BUDGET_MS = 8;
+	let replayTimer = null;
+	let replayLog = null;
+	let replaying = false;
 	/** 目前 hook 住的 chat log 節點，用來偵測節點被整個換掉的情況 */
 	let boundChatLog = null;
 
@@ -213,7 +219,13 @@
 	/** 凍結期間攔截：放進佇列、更新提示條，不插入 DOM。 */
 	function captureWhileFrozen(append) {
 		messageQueue.push(append);
-		showBadge(messageQueue.length);
+		if (frozen) {
+			showBadge(messageQueue.length);
+			// 不丟棄聊天內容；達上限時自動結束預覽，分批追上最新訊息。
+			if (messageQueue.length >= MAX_PENDING_MESSAGES) {
+				exitFreezeToLatest();
+			}
+		}
 	}
 
 	/**
@@ -276,7 +288,7 @@
 				// priority 0：讓其他插件先跑完訊息處理，我們只在最外層決定插不插。
 				removeHook = sdkApi.hookFunction("ChatRoomAppendChat", 0, (args, next) => {
 					ensureBound();
-					if (frozen) { captureWhileFrozen(() => next(args)); return; }
+					if (frozen || replaying) { captureWhileFrozen(() => next(args)); return; }
 					return next(args);
 				});
 				// 自己發話＝已看完歷史 → 送出當下解除凍結，避免自己的訊息卡進佇列。
@@ -301,12 +313,12 @@
 		monkeyWrapper = window.ChatRoomAppendChat = function (div) {
 			if (disposed) return monkeyOriginal.apply(this, arguments);
 			ensureBound();
-			if (frozen) {
+			if (frozen || replaying) {
 				const context = this, args = [...arguments];
 				captureWhileFrozen(() => monkeyOriginal.apply(context, args));
 				return;
 			}
-			return monkeyOriginal.call(this, div);
+		return monkeyOriginal.apply(this, arguments);
 		};
 		if (typeof window.ChatRoomSendChat === "function") {
 			monkeySendOriginal = window.ChatRoomSendChat;
@@ -619,21 +631,50 @@
 	// 凍結／解除凍結主流程
 	// ---------------------------------------------------------------------
 
-	/** 結束預覽：把佇列中的訊息依序真正插入（frozen 已為 false，走正常流程），並捲到底 */
+	/** 結束預覽並開始分批回放；之後收到的訊息繼續排隊，直到追上最新。 */
 	function flushQueue() {
-		const chatLog = getChatLog();
-		const queued = messageQueue;
-		messageQueue = [];
 		hideBadge();
 		closeSearchBar();
+		replayLog = getChatLog();
+		replaying = true;
+		replayBatch();
+	}
 
-		if (!chatLog) return;
+	function cancelReplay() {
+		clearTimeout(replayTimer);
+		replayTimer = null;
+		replaying = false;
+		replayLog = null;
+		messageQueue = [];
+	}
 
-		for (const append of queued) {
-			if (getChatLog() !== chatLog) break;
+	function replayBatch(drainAll = false) {
+		clearTimeout(replayTimer);
+		replayTimer = null;
+		const chatLog = replayLog;
+		if (!chatLog || getChatLog() !== chatLog) {
+			cancelReplay();
+			return;
+		}
+		const started = performance.now();
+		let count = 0;
+		while (messageQueue.length) {
+			if (getChatLog() !== chatLog) {
+				cancelReplay();
+				return;
+			}
+			// 至少執行一則，避免極小時間預算下完全沒有進展。
+			if (!drainAll && count > 0 && (count >= REPLAY_BATCH_SIZE || performance.now() - started >= REPLAY_BUDGET_MS)) break;
+			const append = messageQueue.shift();
 			try { append(); } catch (error) { console.warn("[ChatScrollFreeze] queued append failed", error); }
+			count++;
 		}
 		chatLog.scrollTop = chatLog.scrollHeight;
+		if (messageQueue.length) {
+			replayTimer = setTimeout(replayBatch, 0);
+		} else {
+			cancelReplay();
+		}
 	}
 
 	/**
@@ -648,6 +689,7 @@
 	}
 
 	function onScroll() {
+		if (replaying) return;
 		const chatLog = getChatLog();
 		if (!chatLog) return;
 
@@ -685,7 +727,7 @@
 			if (boundChatLog) boundChatLog.removeEventListener("scroll", onScroll);
 			clearHighlights(boundChatLog);
 			frozen = false;
-			messageQueue = [];
+			cancelReplay();
 			hideBadge();
 			closeSearchBar();
 			suppressExitUntil = 0;
@@ -735,6 +777,8 @@
 	function teardown() {
 		if (disposed) return;
 		exitFreezeToLatest();
+		if (replaying) replayBatch(true);
+		cancelReplay();
 		disposed = true;
 		boundChatLog?.removeEventListener("scroll", onScroll);
 		boundChatLog = null;
@@ -767,6 +811,8 @@
 	window.Liko.__Sys_ChatScrollFreeze__ = {
 		v: MOD_VER,
 		isFrozen: () => frozen,
+		pendingCount: () => messageQueue.length,
+		isReplaying: () => replaying,
 		/** 立刻解除凍結、把佇列插入並捲到底（等同使用者手動捲到底） */
 		unfreeze: () => exitFreezeToLatest(),
 		/** 凍結中時打開搜尋框（沒凍結則忽略） */

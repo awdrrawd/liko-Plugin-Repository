@@ -3,7 +3,7 @@
 // @name:zh      Liko的聊天室音樂控制器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.3.2
+// @version      1.3.3
 // @description  Chat Music Controller with playlist sharing and lyrics support
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,9 +16,55 @@
 // ==/UserScript==
 
 (function() {
+let disposed = false;
+    const lifecycle = new AbortController();
+    const timers = new Set(), intervals = new Set(), frames = new Set(), cleanupTasks = new Set();
+    function setTimeout(fn, ms, ...args) {
+        if (disposed) return null;
+        const id = globalThis.setTimeout(() => { timers.delete(id); if (!disposed) fn(...args); }, ms);
+        timers.add(id); return id;
+    }
+    function clearTimeout(id) { globalThis.clearTimeout(id); timers.delete(id); }
+    function setInterval(fn, ms) {
+        if (disposed) return null;
+        const id = globalThis.setInterval(() => { if (!disposed) fn(); }, ms);
+        intervals.add(id); return id;
+    }
+    function clearInterval(id) { globalThis.clearInterval(id); intervals.delete(id); }
+    function requestAnimationFrame(fn) {
+        if (disposed) return null;
+        const id = globalThis.requestAnimationFrame(time => { frames.delete(id); if (!disposed) fn(time); });
+        frames.add(id); return id;
+    }
+    function listen(target, type, fn, options = {}) {
+        target.addEventListener(type, fn, { ...(typeof options === 'boolean' ? { capture: options } : options), signal: lifecycle.signal });
+    }
+    function stopLifecycle() {
+        disposed = true; lifecycle.abort();
+        timers.forEach(id => globalThis.clearTimeout(id)); timers.clear();
+        intervals.forEach(id => globalThis.clearInterval(id)); intervals.clear();
+        frames.forEach(id => globalThis.cancelAnimationFrame(id)); frames.clear();
+        cleanupTasks.forEach(fn => { try { fn(); } catch (error) { console.warn(error); } });
+        cleanupTasks.clear();
+    }
+    function waitFor(check, interval = 200, timeout = 0) {
+        return new Promise(resolve => {
+            let timer; const started = Date.now();
+            const finish = value => { clearTimeout(timer); lifecycle.signal.removeEventListener('abort', cancel); resolve(value); };
+            const cancel = () => finish(false);
+            function poll() {
+                if (disposed) return finish(false);
+                try { if (check()) return finish(true); } catch {}
+                if (timeout && Date.now() - started >= timeout) return finish(false);
+                timer = setTimeout(poll, interval);
+            }
+            lifecycle.signal.addEventListener('abort', cancel, { once: true });
+            poll();
+        });
+    }
     window.Liko = window.Liko ?? {};
     if (window.Liko.CMC) return;
-    const MOD_VER = "1.3.2";
+    const MOD_VER = "1.3.3";
     const CMC = window.Liko.CMC = { version: MOD_VER };
 
     CMC.debug = false;
@@ -34,39 +80,8 @@
         MAX_HISTORY_ROOMS: 10
     };
 
-    function waitFor(condition, timeout = 30000) {
-        const start = Date.now();
-        return new Promise(resolve => {
-            const check = () => {
-                if (condition()) resolve(true);
-                else if (Date.now() - start > timeout) resolve(false);
-                else setTimeout(check, 100);
-            };
-            check();
-        });
-    }
-
-    function isLoggedIn() {
-        return typeof Player !== 'undefined' && Player?.MemberNumber !== undefined;
-    }
-
-    function waitForLogin() {
-        if (isLoggedIn()) {
-            return Promise.resolve();
-        }
-
-        return new Promise(resolve => {
-            const removeLoginHook = modApi.hookFunction('LoginResponse', 0, (args, next) => {
-                const result = next(args);
-                queueMicrotask(() => {
-                    if (!isLoggedIn()) return;
-                    removeLoginHook();
-                    resolve();
-                });
-                return result;
-            });
-        });
-    }
+    function isLoggedIn() { return typeof Player !== 'undefined' && Player?.MemberNumber !== undefined; }
+    function waitForLogin() { return waitFor(isLoggedIn); }
 
     const COLORS = {
         primary: '#9370db', light: '#ba55d3', dark: '#1C0230',
@@ -83,7 +98,7 @@
     let musicPlayer = {
         currentPlaylist: [],
         personalPlaylist: [],
-        historyPlaylists: {},
+        historyPlaylists: Object.create(null),
         historyRoomList: [],
         activeTab: 'current',
         historyViewRoom: null,
@@ -414,11 +429,11 @@
         if (!target) { sendLocalMsg(`成員 ${targetMemberNumber} 不在控制者列表中`); return; }
         const myOldRank = getMyCmc().rank;
         const targetOldRank = target.rank;
-        setMyCmc(targetOldRank, musicPlayer.currentPlaylist.length);
         ServerSend("ChatRoomChat", {
             Type: "Hidden", Content: "CMCSync",
             Dictionary: [{ Action: "SwapRank", TargetMember: targetMemberNumber, NewRank: myOldRank, From: Player.MemberNumber }]
         });
+        setMyCmc(targetOldRank, musicPlayer.currentPlaylist.length);
         musicPlayer.myControllerRank = targetOldRank;
         sendLocalMsg(`已與 ${targetMemberNumber} 互換順位，我的新順位: ${musicPlayer.myControllerRank}`);
         updatePanelUI();
@@ -464,83 +479,97 @@
 
     // ============ IndexedDB (v2) ============
     async function initIndexedDB() {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open('CMC_Database', 2);
-            let settled = false;
-            const timeoutId = setTimeout(() => {
-                if (settled) return;
-                settled = true;
-                reject(new Error('IndexedDB initialization timed out'));
-            }, 10000);
-            request.addEventListener('success', () => { settled = true; clearTimeout(timeoutId); });
-            request.addEventListener('error', () => { settled = true; clearTimeout(timeoutId); });
-            request.onerror = () => { error('IndexedDB 打開失敗:', request.error); reject(request.error); };
-            request.onsuccess = () => { cmcDB = request.result; log('IndexedDB 初始化成功'); resolve(cmcDB); };
-            request.onupgradeneeded = (event) => {
-                const db = event.target.result;
-                if (!db.objectStoreNames.contains('settings')) {
-                    db.createObjectStore('settings', { keyPath: 'id' });
-                }
-                // Keys: 'cmc_settings', 'personal_playlist', 'history_playlists'
-                // Legacy 'cmc_data' is ignored (no migration needed, playlist is now in-memory only)
+        return new Promise((resolve,reject)=>{
+            const request=indexedDB.open('CMC_Database',2);
+            let settled=false;
+            const finish=(err,db)=>{
+                if(settled){if(db)db.close();return;}
+                settled=true;clearTimeout(timer);lifecycle.signal.removeEventListener('abort',cancel);
+                if(err){if(db)db.close();reject(err);}else{cmcDB=db;db.onversionchange=()=>{db.close();if(cmcDB===db)cmcDB=null;};resolve(db);}
             };
-            request.onblocked = () => {
-                if (settled) return;
-                settled = true;
-                clearTimeout(timeoutId);
-                reject(new Error('IndexedDB upgrade blocked by another tab'));
-            };
+            const cancel=()=>finish(new Error('CMC stopped'));
+            const timer=setTimeout(()=>finish(new Error('IndexedDB initialization timed out')),10000);
+            lifecycle.signal.addEventListener('abort',cancel,{once:true});
+            request.onsuccess=()=>finish(disposed?new Error('CMC stopped'):null,request.result);
+            request.onerror=()=>finish(request.error);
+            request.onblocked=()=>finish(new Error('IndexedDB upgrade blocked by another tab'));
+            request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains('settings'))db.createObjectStore('settings',{keyPath:'id'});};
         });
     }
     async function dbGet(key) {
-        return new Promise((resolve, reject) => {
-            const tx = cmcDB.transaction(['settings'], 'readonly');
-            const req = tx.objectStore('settings').get(key);
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
+        return new Promise((resolve,reject)=>{
+            const tx=cmcDB.transaction(['settings'],'readonly');
+            let value;
+            const req=tx.objectStore('settings').get(key);
+            req.onsuccess=()=>{value=req.result;};
+            tx.oncomplete=()=>resolve(value);
+            tx.onabort=tx.onerror=()=>reject(tx.error || new Error('IndexedDB read aborted'));
         });
     }
     async function dbPut(data) {
-        return new Promise((resolve, reject) => {
-            const tx = cmcDB.transaction(['settings'], 'readwrite');
-            const req = tx.objectStore('settings').put(data);
-            req.onsuccess = () => resolve();
-            req.onerror = () => reject(req.error);
+        return new Promise((resolve,reject)=>{
+            const tx=cmcDB.transaction(['settings'],'readwrite');
+            tx.objectStore('settings').put(data);
+            tx.oncomplete=()=>resolve();
+            tx.onabort=tx.onerror=()=>reject(tx.error || new Error('IndexedDB write aborted'));
         });
     }
+    const MAX_TRACKS=500;
+    function normalizePlaylist(value,strict=false) {
+        if(!Array.isArray(value) || value.length>MAX_TRACKS){if(strict)throw new Error('歌單格式錯誤或超過500首');return [];}
+        const seen=new Set(), tracks=[];
+        for(const track of value){
+            if(!track || typeof track.url!=='string' || track.url.length>4096 || !isSafeMediaURL(track.url) || typeof track.name!=='string' || !track.name.trim() || track.name.length>500){if(strict)throw new Error('曲目名稱或網址不合法');continue;}
+            if(!seen.has(track.url)){seen.add(track.url);tracks.push({name:track.name.trim(),url:track.url});}
+        }
+        return tracks;
+    }
+    function normalizedVolume(value) { return typeof value==='number' && Number.isFinite(value)?Math.max(0,Math.min(1,value)):CONSTANTS.DEFAULT_VOLUME; }
     async function loadSettingsFromDB() {
         if (!cmcDB) return;
         const settings = await dbGet('cmc_settings').catch(() => null);
         if (settings) {
-            musicPlayer.volume = settings.volume ?? CONSTANTS.DEFAULT_VOLUME;
-            musicPlayer.isLooping = settings.isLooping ?? false;
+            musicPlayer.volume = normalizedVolume(settings.volume);
+            musicPlayer.isLooping = settings.isLooping === true;
         }
         const personal = await dbGet('personal_playlist').catch(() => null);
-        if (personal) musicPlayer.personalPlaylist = personal.tracks || [];
+        if(disposed) return;
+        if (personal) musicPlayer.personalPlaylist = normalizePlaylist(personal.tracks);
         const history = await dbGet('history_playlists').catch(() => null);
         if (history) {
-            musicPlayer.historyPlaylists = history.rooms || {};
-            musicPlayer.historyRoomList = history.roomList || [];
+            musicPlayer.historyPlaylists = Object.create(null);
+            musicPlayer.historyRoomList = [...new Set(Array.isArray(history.roomList)?history.roomList.filter(key=>typeof key==='string' && key.length<=300):[])].slice(0,CONSTANTS.MAX_HISTORY_ROOMS);
+            for(const key of musicPlayer.historyRoomList) musicPlayer.historyPlaylists[key]=normalizePlaylist(Object.hasOwn(history.rooms||{},key)?history.rooms[key]:[]);
         }
         log('設定已從 IndexedDB 載入');
     }
-    async function saveSettings() {
+    let settingsWriteTimer=null;
+    function saveSettings(immediate=false) {
+        clearTimeout(settingsWriteTimer);settingsWriteTimer=null;
+        if(immediate)return persistSettings();
+        settingsWriteTimer=setTimeout(()=>{settingsWriteTimer=null;persistSettings();},250);
+    }
+    async function persistSettings() {
         if (!cmcDB) return;
-        await dbPut({ id: 'cmc_settings', volume: musicPlayer.volume, isLooping: musicPlayer.isLooping }).catch(e => error('saveSettings失敗:', e));
+        await dbPut({ id: 'cmc_settings', volume: musicPlayer.volume, isLooping: musicPlayer.isLooping }).catch(e => reportStorageError('saveSettings',e));
+    }
+    function reportStorageError(operation,err) {
+        error(operation+'失敗:',err);
+        if(!disposed)sendLocalMsg('CMC 儲存失敗；目前修改尚未保存，請檢查瀏覽器儲存空間。');
     }
     async function savePersonalPlaylist() {
         if (!cmcDB) return;
-        await dbPut({ id: 'personal_playlist', tracks: musicPlayer.personalPlaylist }).catch(e => error('savePersonal失敗:', e));
+        await dbPut({ id: 'personal_playlist', tracks: musicPlayer.personalPlaylist }).catch(e => reportStorageError('savePersonal',e));
     }
     async function saveHistoryPlaylists() {
         if (!cmcDB) return;
-        await dbPut({ id: 'history_playlists', roomList: musicPlayer.historyRoomList, rooms: musicPlayer.historyPlaylists }).catch(e => error('saveHistory失敗:', e));
+        await dbPut({ id: 'history_playlists', roomList: musicPlayer.historyRoomList, rooms: musicPlayer.historyPlaylists }).catch(e => reportStorageError('saveHistory',e));
     }
 
     // ============ 歷史歌單管理 ============
     function saveCurrentToHistory() {
         if (musicPlayer.currentPlaylist.length === 0) return;
-        const roomName = getCurrentRoomName();
+        const roomName = musicPlayer.currentRoomName || getCurrentRoomName();
         // Find a unique key for this room
         let key = roomName;
         let suffix = 0;
@@ -569,6 +598,7 @@
 
     // ============ 歌單操作 ============
     function addToPersonal(track) {
+        if(!normalizePlaylist([track]).length || musicPlayer.personalPlaylist.length>=MAX_TRACKS) return;
         if (musicPlayer.personalPlaylist.some(t => t.url === track.url)) {
             sendLocalMsg(`已在個人歌單中: ${track.name || 'Unknown'}`);
             return;
@@ -579,6 +609,7 @@
         if (musicPlayer.activeTab === 'personal') renderPlaylistTab();
     }
     function addToCurrent(track) {
+        if(!normalizePlaylist([track]).length || musicPlayer.currentPlaylist.length>=MAX_TRACKS) return;
         if (!canEditPlaylist()) { sendLocalMsg("你沒有歌單編輯權限"); return; }
         if (musicPlayer.currentPlaylist.some(t => t.url === track.url)) {
             sendLocalMsg(`已在當前歌單中: ${track.name || 'Unknown'}`);
@@ -618,7 +649,9 @@
             Dictionary: [{ Action: "RequestSync", From: Player.MemberNumber }]
         });
     }
+    const requestedSync=new Map();
     function requestMusicSyncFrom(targetMember) {
+        requestedSync.set(targetMember,Date.now()+10000);
         // Request from a specific member (they respond if they have the list)
         ServerSend("ChatRoomChat", {
             Type: "Hidden", Content: "CMCSync",
@@ -685,22 +718,44 @@
         });
         log('已廣播清空播放列表');
     }
+    function replaceCurrentPlaylist(list) {
+        const url=musicPlayer.currentPlaylist[musicPlayer.currentIndex]?.url;
+        const index=url?list.findIndex(track=>track.url===url):-1;
+        if(index<0)stopMusic();
+        musicPlayer.currentPlaylist=list;musicPlayer.currentIndex=index;
+    }
     function handleMusicSync(data) {
         if (!data.Dictionary?.[0]) return;
-        const msg = data.Dictionary[0];
+        let msg = data.Dictionary[0];
+        if(disposed || !msg || !Number.isInteger(data.Sender) || msg.From!==data.Sender || data.Sender===Player.MemberNumber) return;
+        const sender=ChatRoomData?.Character?.find(c=>c.MemberNumber===data.Sender);
+        if(!sender)return;
+        const rank=sender.OnlineSharedSettings?.cmc?.rank || 0;
+        const admin=ChatRoomCharacterIsAdmin(data.Sender);
+        const permission=getPermission(data.Sender);
+        if(['PlaylistUpdate','TrackAdd','TrackRemove','PlaylistClear'].includes(msg.Action) && rank!==1 && !permission.canEdit)return;
+        if(msg.Action==='PlayRequest' && !permission.canPlay)return;
+        if(msg.Action==='PermUpdate' && !admin)return;
+        if(msg.Action==='GrabControl' && (!admin || msg.NewController!==data.Sender))return;
+        if(['PromoteController','SwapRank'].includes(msg.Action) && rank!==1)return;
+        if(msg.Action==='SwapRank' && msg.NewRank!==1)return;
+        try {
+            if(['PlaylistUpdate','SyncState'].includes(msg.Action))msg={...msg,Playlist:normalizePlaylist(msg.Playlist,true)};
+            if(msg.Action==='TrackAdd')msg={...msg,Track:normalizePlaylist([msg.Track],true)[0]};
+        } catch {return;}
 
         if (msg.Action === "PlaylistUpdate") {
             // Full sync — accept from rank-1 controller
             const fromRank = ChatRoomData?.Character?.find(c => c.MemberNumber === msg.From)?.OnlineSharedSettings?.cmc?.rank ?? 0;
-            if (!isFirstController() && fromRank === 1) {
-                musicPlayer.currentPlaylist = msg.Playlist || [];
+            if (fromRank === 1 || permission.canEdit) {
+                replaceCurrentPlaylist(msg.Playlist);
                 updatePanelUI();
             }
             return;
         }
 
         if (msg.Action === "TrackAdd") {
-            if (!isFirstController() && msg.Track) {
+            if (msg.Track && musicPlayer.currentPlaylist.length<MAX_TRACKS) {
                 const track = msg.Track;
                 if (!musicPlayer.currentPlaylist.some(t => t.url === track.url)) {
                     musicPlayer.currentPlaylist.push(track);
@@ -712,7 +767,7 @@
         }
 
         if (msg.Action === "TrackRemove") {
-            if (!isFirstController() && msg.TrackUrl) {
+            if (typeof msg.TrackUrl==='string') {
                 const idx = musicPlayer.currentPlaylist.findIndex(t => t.url === msg.TrackUrl);
                 if (idx >= 0) {
                     if (musicPlayer.currentIndex === idx) {
@@ -730,13 +785,11 @@
         }
 
         if (msg.Action === "PlaylistClear") {
-            if (!isFirstController()) {
-                musicPlayer.currentPlaylist = [];
-                musicPlayer.currentIndex = -1;
-                stopMusic();
-                updatePanelUI();
-                log('接收到清空播放列表');
-            }
+            musicPlayer.currentPlaylist = [];
+            musicPlayer.currentIndex = -1;
+            stopMusic();
+            updatePanelUI();
+            log('接收到清空播放列表');
             return;
         }
 
@@ -798,7 +851,7 @@
             // Someone with canPlay permission asked us (rank-1) to play a track
             if (isFirstController()) {
                 const idx = msg.TrackIndex;
-                if (idx >= 0 && idx < musicPlayer.currentPlaylist.length) {
+                if (Number.isInteger(idx) && idx >= 0 && idx < musicPlayer.currentPlaylist.length) {
                     playTrack(idx, true, msg.From);
                     // Broadcast so non-rank-1 UIs update to the new track
                     setTimeout(() => sendMusicState(null, false), 600);
@@ -809,27 +862,19 @@
 
         if (msg.Action === "SyncState") {
             const senderRank = ChatRoomData?.Character?.find(c => c.MemberNumber === msg.From)?.OnlineSharedSettings?.cmc?.rank ?? 0;
-            if (senderRank !== 1) return;
-            if (isFirstController()) return;
+            const requested=(requestedSync.get(data.Sender)||0)>Date.now();
+            if (senderRank !== 1 && !requested) return;
+            if (isFirstController() && !requested) return;
+            requestedSync.delete(data.Sender);
 
-            musicPlayer.currentPlaylist = msg.Playlist || [];
-            musicPlayer.volume = msg.Volume ?? CONSTANTS.DEFAULT_VOLUME;
-            musicPlayer.isLooping = msg.IsLooping ?? false;
-
-            if (msg.CurrentIndex >= 0 && msg.CurrentIndex < musicPlayer.currentPlaylist.length) {
-                if (msg.CurrentIndex !== musicPlayer.currentIndex) playTrack(msg.CurrentIndex, false);
-                if (musicPlayer.audioPlayer && msg.CurrentTime !== undefined) {
-                    const diff = Math.abs(musicPlayer.audioPlayer.currentTime - msg.CurrentTime);
-                    if (diff > CONSTANTS.SYNC_TIME_THRESHOLD) musicPlayer.audioPlayer.currentTime = msg.CurrentTime;
-                }
-                if (!msg.IsPlaying && musicPlayer.isPlaying) {
-                    musicPlayer.audioPlayer?.pause();
-                    musicPlayer.isPlaying = false;
-                } else if (msg.IsPlaying && !musicPlayer.isPlaying) {
-                    musicPlayer.audioPlayer?.play();
-                    musicPlayer.isPlaying = true;
-                }
-            }
+            replaceCurrentPlaylist(msg.Playlist);
+            musicPlayer.volume=normalizedVolume(msg.Volume);
+            musicPlayer.isLooping=msg.IsLooping===true;
+            if(Number.isInteger(msg.CurrentIndex) && msg.CurrentIndex>=0 && msg.CurrentIndex<musicPlayer.currentPlaylist.length){
+                if(msg.CurrentIndex!==musicPlayer.currentIndex || !(musicPlayer.audioPlayer || musicPlayer.ytPlayer || musicPlayer.isBilibili))playTrack(msg.CurrentIndex,false);
+                pendingPlayback={token:playbackToken,time:msg.CurrentTime,playing:msg.IsPlaying===true};
+                if(!musicPlayer.isLoading)applyPendingPlayback();
+            }else{stopMusic();musicPlayer.currentIndex=-1;}
             updatePanelUI();
             saveSettings();
         }
@@ -890,11 +935,42 @@
         const iframe = document.getElementById('cmc-bili-player');
         if (!iframe?.contentWindow) return;
         // Bilibili unofficial postMessage API (may vary by player version)
-        iframe.contentWindow.postMessage(data, '*');
+        iframe.contentWindow.postMessage(data, 'https://player.bilibili.com');
     }
 
+    let playbackToken=0, pendingPlayback=null;
+    function applyPendingPlayback() {
+        const state=pendingPlayback;
+        if(!state || state.token!==playbackToken || disposed)return;
+        pendingPlayback=null;
+        setVolume(musicPlayer.volume);
+        if(musicPlayer.audioPlayer)musicPlayer.audioPlayer.loop=musicPlayer.isLooping;
+        if(Number.isFinite(state.time) && state.time>=0){
+            try{
+                if(musicPlayer.isYouTube && musicPlayer.ytReady)musicPlayer.ytPlayer.seekTo(state.time,true);
+                else if(musicPlayer.isBilibili)biliSend({type:'seek',payload:{time:state.time}});
+                else if(musicPlayer.audioPlayer && Math.abs(musicPlayer.audioPlayer.currentTime-state.time)>CONSTANTS.SYNC_TIME_THRESHOLD)musicPlayer.audioPlayer.currentTime=state.time;
+            }catch(err){log('同步進度未就緒',err);}
+        }
+        if(state.playing){if(!musicPlayer.isPlaying)resumeMusic();}else pauseMusic();
+    }
+    const mediaTimers=new Set();
+    let lyricAbort=null;
+    function mediaLater(token,fn,delay) {
+        const id=setTimeout(()=>{mediaTimers.delete(id);if(!disposed && token===playbackToken)fn();},delay);
+        mediaTimers.add(id);return id;
+    }
+    function cancelMediaWork() {
+        playbackToken++;pendingPlayback=null;
+        mediaTimers.forEach(clearTimeout);mediaTimers.clear();
+        lyricAbort?.abort();lyricAbort=null;
+        musicPlayer.currentLyrics=[];musicPlayer.currentLyricIndex=-1;
+    }
     // ============ 音頻加載 ============
     function loadAudioTrack(url, onSuccess, onError) {
+        const token=playbackToken;
+        const current=()=>!disposed && token===playbackToken;
+        const later=(fn,delay)=>mediaLater(token,fn,delay);
         if (musicPlayer.isLoading) { log('正在加載中，忽略請求'); return; }
         if (!isSafeMediaURL(url)) { if (onError) onError(new Error('無效或不允許的URL')); return; }
 
@@ -906,13 +982,13 @@
         cleanupYouTubePlayer();
         cleanupAudioPlayer();
 
-        setTimeout(() => {
+        later(() => {
             try {
                 musicPlayer.audioPlayer = new Audio();
                 musicPlayer.audioPlayer.src = url;
                 musicPlayer.audioPlayer.volume = musicPlayer.volume;
 
-                const forceUnlock = setTimeout(() => {
+                const forceUnlock = later(() => {
                     if (musicPlayer.isLoading) {
                         error('強制解除 isLoading 鎖');
                         musicPlayer.isLoading = false;
@@ -928,6 +1004,7 @@
 
                 musicPlayer.audioPlayer.play()
                     .then(() => {
+                        if(!current()) return;
                         // Re-apply volume after play starts (guards against any external mute interfering)
                         if (musicPlayer.audioPlayer) musicPlayer.audioPlayer.volume = musicPlayer.volume;
                         musicPlayer.isPlaying = true;
@@ -936,6 +1013,7 @@
                         if (onSuccess) onSuccess();
                     })
                     .catch(err => {
+                        if(!current()) return;
                         error('播放失敗:', err.name, err.message);
                         musicPlayer.isLoading = false;
                         musicPlayer.isPlaying = false;
@@ -949,48 +1027,31 @@
         }, 50);
     }
     function ensureYouTubeAPI() {
-        if (window.YT?.Player) return Promise.resolve(window.YT);
-        if (youtubeApiPromise) return youtubeApiPromise;
-
-        youtubeApiPromise = new Promise((resolve, reject) => {
-            let tag = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
-            if (!tag) {
-                tag = document.createElement('script');
-                tag.src = 'https://www.youtube.com/iframe_api';
-                document.head.appendChild(tag);
-            }
-
-            const started = Date.now();
-            const timer = setInterval(() => {
-                if (window.YT?.Player) {
-                    clearInterval(timer);
-                    resolve(window.YT);
-                } else if (Date.now() - started >= 10000) {
-                    clearInterval(timer);
-                    reject(new Error('YouTube API initialization timed out'));
-                }
-            }, 100);
-            tag.addEventListener('error', () => {
-                clearInterval(timer);
-                reject(new Error('YouTube API failed to load'));
-            }, { once: true });
-        }).catch(err => {
-            youtubeApiPromise = null;
-            throw err;
-        });
+        if(window.YT?.Player)return Promise.resolve(window.YT);
+        if(youtubeApiPromise)return youtubeApiPromise;
+        let tag=document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+        if(!tag){tag=document.createElement('script');tag.src='https://www.youtube.com/iframe_api';document.head.appendChild(tag);}
+        youtubeApiPromise=waitFor(()=>!!window.YT?.Player,100,10000).then(ready=>{
+            if(!ready || disposed)throw new Error('YouTube API initialization cancelled or timed out');
+            return window.YT;
+        }).catch(err=>{youtubeApiPromise=null;throw err;});
         return youtubeApiPromise;
     }
-
     function loadYouTubeTrack(url, onSuccess, onError) {
+        const token=playbackToken;
+        const current=()=>!disposed && token===playbackToken;
+        const later=(fn,delay)=>mediaLater(token,fn,delay);
         const id = getYouTubeID(url);
         if (!id) { if (onError) onError(new Error('無法解析YouTube ID')); return; }
 
         if (!window.YT?.Player) {
             musicPlayer.isLoading = true;
             ensureYouTubeAPI().then(() => {
+                        if(!current()) return;
                 musicPlayer.isLoading = false;
                 loadYouTubeTrack(url, onSuccess, onError);
             }).catch(err => {
+                        if(!current()) return;
                 musicPlayer.isLoading = false;
                 musicPlayer.isPlaying = false;
                 updatePanelUI();
@@ -1013,7 +1074,7 @@
         iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;border:none;';
         document.body.appendChild(iframe);
 
-        const forceUnlock = setTimeout(() => {
+        const forceUnlock = later(() => {
             if (musicPlayer.isLoading) {
                 error('YouTube強制解除isLoading鎖');
                 musicPlayer.isLoading = false;
@@ -1025,6 +1086,7 @@
         musicPlayer.ytPlayer = new YT.Player('cmc-yt-player', {
             events: {
                 onReady: (e) => {
+                    if(!current()) return;
                     clearTimeout(forceUnlock);
                     e.target.setVolume(musicPlayer.volume * 100);
                     musicPlayer.ytReady = true;
@@ -1036,12 +1098,13 @@
                     if (onSuccess) onSuccess();
                 },
                 onStateChange: (e) => {
+                    if(!current()) return;
                     if (e.data === 0) { // ended
                         if (musicPlayer.isLooping) {
                             try { musicPlayer.ytPlayer.seekTo(0, true); musicPlayer.ytPlayer.playVideo(); } catch(e2) {}
                         } else if (isFirstController()) {
                             const next = (musicPlayer.currentIndex + 1) % Math.max(musicPlayer.currentPlaylist.length, 1);
-                            setTimeout(() => {
+                            later(() => {
                                 if (musicPlayer.currentPlaylist.length > 0) playTrack(next, true);
                             }, 300);
                         } else {
@@ -1051,6 +1114,7 @@
                     }
                 },
                 onError: (e) => {
+                    if(!current()) return;
                     clearTimeout(forceUnlock);
                     error('YouTube播放錯誤:', e.data);
                     musicPlayer.isLoading = false;
@@ -1061,6 +1125,9 @@
         });
     }
     function loadBilibiliTrack(url, onSuccess, onError) {
+        const token=playbackToken;
+        const current=()=>!disposed && token===playbackToken;
+        const later=(fn,delay)=>mediaLater(token,fn,delay);
         const info = getBilibiliInfo(url);
         if (!info) { if (onError) onError(new Error('無法解析Bilibili連結')); return; }
         const embedURL = getBilibiliEmbedURL(info);
@@ -1084,8 +1151,9 @@
 
         // Listen for unofficial postMessage events from Bilibili player
         const biliMsgHandler = (e) => {
+            if(!current()) return;
             if (!musicPlayer.isBilibili) { window.removeEventListener('message', biliMsgHandler); return; }
-            if (e.origin !== 'https://player.bilibili.com') return;
+            if (e.origin !== 'https://player.bilibili.com' || e.source !== iframe.contentWindow) return;
             try {
                 const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
                 if (!d) return;
@@ -1101,7 +1169,7 @@
                     if (!musicPlayer.isLooping) {
                         if (isFirstController()) {
                             const next = (musicPlayer.currentIndex + 1) % Math.max(musicPlayer.currentPlaylist.length, 1);
-                            setTimeout(() => { if (musicPlayer.currentPlaylist.length > 0) playTrack(next, true); }, 300);
+                            later(() => { if (musicPlayer.currentPlaylist.length > 0) playTrack(next, true); }, 300);
                         } else {
                             biliSend({ type: 'seek', payload: { time: 0 } });
                             biliSend({ type: 'play' });
@@ -1111,9 +1179,9 @@
             } catch(ex) {}
         };
         musicPlayer.bilibiliMessageHandler = biliMsgHandler;
-        window.addEventListener('message', biliMsgHandler);
+        listen(window, 'message', biliMsgHandler);
 
-        const forceUnlock = setTimeout(() => {
+        const forceUnlock = later(() => {
             if (musicPlayer.isLoading) {
                 error('Bilibili強制解除isLoading鎖');
                 musicPlayer.isLoading = false;
@@ -1122,7 +1190,7 @@
             }
         }, CONSTANTS.LOADING_TIMEOUT + 2000);
 
-        setTimeout(() => {
+        later(() => {
             clearTimeout(forceUnlock);
             if (!musicPlayer.isBilibili) return;
             musicPlayer.isLoading = false;
@@ -1152,8 +1220,9 @@
     // ============ 播放控制 ============
     function playTrack(trackIndex, sendNotification = true, requesterNumber = null) {
         if (trackIndex < 0 || trackIndex >= musicPlayer.currentPlaylist.length) return;
-        if (musicPlayer.isLoading) return;
+        if(disposed) return;
         if (musicPlayer.isPlaying && musicPlayer.currentIndex === trackIndex) return;
+        stopMusic();
 
         muteBCMusic();
         const track = musicPlayer.currentPlaylist[trackIndex];
@@ -1172,7 +1241,7 @@
                     if (isFirstController()) {
                         // Rank-0: advance to next track and broadcast
                         const next = (musicPlayer.currentIndex + 1) % musicPlayer.currentPlaylist.length;
-                        setTimeout(() => playTrack(next, true), 300);
+                        mediaLater(playbackToken, () => playTrack(next, true), 300);
                     } else {
                         // Non-rank-0: replay current song and wait for rank-0 to decide
                         if (musicPlayer.audioPlayer) {
@@ -1192,6 +1261,7 @@
             musicPlayer.bcMusicURL = track.url;
             if (needUpdate && isFirstController()) updateRoomMusicURL(track.url);
             if (sendNotification && isFirstController()) sendTrackNotification(track.name, requesterNumber);
+            applyPendingPlayback();
         }, () => {
             sendLocalMsg(`播放失敗: ${track.name}`);
         });
@@ -1199,7 +1269,8 @@
 
     // Play a URL not in the current playlist (show as Unknown)
     function playUnknownTrack(url) {
-        if (musicPlayer.isLoading) return;
+        if(disposed) return;
+        stopMusic();
         const loader = isYouTubeURL(url) ? loadYouTubeTrack
                      : isBilibiliURL(url) ? loadBilibiliTrack
                      : loadAudioTrack;
@@ -1228,6 +1299,7 @@
         if (isFirstController()) sendMusicState();
     }
     function resumeMusic() {
+        const token=playbackToken;
         if (musicPlayer.isYouTube && musicPlayer.ytPlayer && musicPlayer.ytReady) {
             try {
                 musicPlayer.ytPlayer.playVideo();
@@ -1248,16 +1320,21 @@
         } else if (musicPlayer.audioPlayer && musicPlayer.audioPlayer.paused) {
             musicPlayer.audioPlayer.play()
                 .then(() => {
+                    if(disposed || token!==playbackToken)return;
                     musicPlayer.isPlaying = true;
                     updatePanelUI();
                     muteBCMusic();
                     startProgressUpdate();
                     if (isFirstController()) sendMusicState();
                 })
-                .catch(err => { error('恢復播放失敗:', err); musicPlayer.isPlaying = false; });
+                .catch(err => { if(disposed || token!==playbackToken)return; error('恢復播放失敗:', err); musicPlayer.isPlaying = false; });
         }
     }
     function stopMusic() {
+        cancelMediaWork();
+        musicPlayer.isLoading=false;
+        clearTimeout(musicPlayer.loadingTimeout);musicPlayer.loadingTimeout=null;
+        if(musicPlayer.preloadPlayer){musicPlayer.preloadPlayer.pause();musicPlayer.preloadPlayer.src='';musicPlayer.preloadPlayer=null;}
         cleanupAudioPlayer();
         cleanupYouTubePlayer();
         cleanupBilibiliPlayer();
@@ -1297,7 +1374,7 @@
         playTrack(prev, true);
     }
     function setVolume(vol) {
-        musicPlayer.volume = Math.max(0, Math.min(1, vol));
+        musicPlayer.volume = normalizedVolume(vol);
         if (musicPlayer.isYouTube && musicPlayer.ytPlayer && musicPlayer.ytReady) {
             try { musicPlayer.ytPlayer.setVolume(musicPlayer.volume * 100); } catch(e) {}
         } else if (musicPlayer.isBilibili) {
@@ -1470,18 +1547,23 @@
 
     // ============ 歌詞 ============
     async function loadLyrics(songName) {
+        lyricAbort?.abort();
+        const controller=lyricAbort=new AbortController();
+        const token=playbackToken;
+        musicPlayer.currentLyrics=[];renderLyrics();
+        const timeout=setTimeout(()=>controller.abort(),10000);
         try {
             const API_BASE = "https://netease-cloud-music-api-ochre.vercel.app";
-            const res = await fetch(`${API_BASE}/search?keywords=${encodeURIComponent(songName)}`);
+            const res = await fetch(`${API_BASE}/search?keywords=${encodeURIComponent(songName)}`,{signal:controller.signal});
             const data = await res.json();
             if (!data.result?.songs?.length) { log('未找到歌詞:', songName); return; }
             const songId = data.result.songs[0].id;
-            const lyricRes = await fetch(`${API_BASE}/lyric?id=${songId}`);
+            const lyricRes = await fetch(`${API_BASE}/lyric?id=${songId}`,{signal:controller.signal});
             const lyricData = await lyricRes.json();
-            if (!lyricData.lrc?.lyric) return;
+            if (disposed || token!==playbackToken || controller!==lyricAbort || !lyricData.lrc?.lyric) return;
             musicPlayer.currentLyrics = parseLRC(lyricData.lrc.lyric);
             renderLyrics();
-        } catch(e) { error('歌詞加載失敗:', e); }
+        } catch(e) { if(e.name!=='AbortError')error('歌詞加載失敗:', e); } finally {clearTimeout(timeout);}
     }
     function parseLRC(lrc) {
         return lrc.split("\n").reduce((acc, line) => {
@@ -1689,7 +1771,7 @@
     function sendLocalMsg(msg, timeout = 5000) {
         try {
             if (typeof ChatRoomSendLocal === 'function') {
-                ChatRoomSendLocal(`<font color="${COLORS.accent}">[CMC] ${msg}</font>`, timeout);
+                ChatRoomSendLocal(`<font color="${COLORS.accent}">[CMC] ${sanitizeHTML(msg)}</font>`, timeout);
             }
         } catch(e) { console.log('[CMC]', msg); }
     }
@@ -1824,24 +1906,22 @@
         }
     }
 
-    function makeDraggable(element, handle) {
-        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-        handle.onmousedown = (e) => {
-            e.preventDefault();
-            pos3 = e.clientX; pos4 = e.clientY;
-            document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
-            document.onmousemove = (ev) => {
-                ev.preventDefault();
-                pos1 = pos3 - ev.clientX; pos2 = pos4 - ev.clientY;
-                pos3 = ev.clientX; pos4 = ev.clientY;
-                const newTop = Math.max(0, Math.min(element.offsetTop - pos2, window.innerHeight - 100));
-                const newLeft = Math.max(0, Math.min(element.offsetLeft - pos1, window.innerWidth - 100));
-                element.style.top = newTop + 'px';
-                element.style.left = newLeft + 'px';
-                element.style.right = 'auto';
-                element.style.bottom = 'auto';
-            };
-        };
+    function makeDraggable(element,handle) {
+        let drag=null;
+        handle.style.touchAction='none';
+        handle.addEventListener('pointerdown',e=>{
+            if(e.button!==0 || !e.isPrimary || e.target.closest('button,input,select,a'))return;
+            drag={id:e.pointerId,x:e.clientX,y:e.clientY,left:element.offsetLeft,top:element.offsetTop};
+            handle.setPointerCapture(e.pointerId);e.preventDefault();
+        });
+        handle.addEventListener('pointermove',e=>{
+            if(!drag || drag.id!==e.pointerId)return;
+            element.style.left=Math.max(0,Math.min(window.innerWidth-100,drag.left+e.clientX-drag.x))+'px';
+            element.style.top=Math.max(0,Math.min(window.innerHeight-100,drag.top+e.clientY-drag.y))+'px';
+            element.style.right='auto';element.style.bottom='auto';
+        });
+        const end=()=>{drag=null;};
+        handle.addEventListener('pointerup',end);handle.addEventListener('pointercancel',end);handle.addEventListener('lostpointercapture',end);
     }
 
     function toggleMinimize() {
@@ -1976,10 +2056,12 @@
         saveCurrentToHistory(); // save playlist before clearing
         musicPlayer.currentPlaylist = [];
         musicPlayer.currentIndex = -1;
-        removeFromControllers(); // promotes next if we were rank-1
+        if(isLoggedIn())removeFromControllers(); // promotes next if we were rank-1
+        unmuteBCMusic();
         log('CMC 已關閉，音樂停止，歌單存入歷史，順位移除');
     }
     function showPanel() {
+        if(disposed)return;
         if (!musicPlayer.floatingPanel) createFloatingPanel();
         musicPlayer.floatingPanel.style.display = 'block';
         musicPlayer.isPanelVisible = true;
@@ -2309,7 +2391,12 @@
                 if (!isSafeMediaURL(url)) { showAlertDialog(`不允許的網址: ${url}`); return; }
                 newList.push({ name, url });
             }
-            musicPlayer.currentPlaylist = newList;
+            if(!canEditPlaylist()){showAlertDialog('編輯權限已變更');return;}
+            let validated;
+            try{validated=normalizePlaylist(newList,true);if(!validated.length)throw new Error('歌單不能是空白');}
+            catch(err){showAlertDialog(err.message);return;}
+            saveCurrentToHistory(); stopMusic();
+            musicPlayer.currentPlaylist = validated;
             musicPlayer.currentIndex = -1;
             updatePanelUI();
             closeDialog(dialog);
@@ -2338,22 +2425,26 @@
         `);
         dialog.querySelector('#cmc-alert-ok').onclick = () => closeDialog(dialog);
     }
+    const dialogs=new Set();
     function createDialog(html) {
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:10001;display:flex;align-items:center;justify-content:center;';
         const dialog = document.createElement('div');
-        dialog.style.cssText = `background:linear-gradient(135deg,#1a0d2e,#2d1a4a);padding:20px;border-radius:10px;border:2px solid ${COLORS.primary};box-shadow:0 0 30px rgba(147,112,219,0.5);min-width:400px;max-width:600px;`;
+        dialog.style.cssText = `background:linear-gradient(135deg,#1a0d2e,#2d1a4a);padding:20px;border-radius:10px;border:2px solid ${COLORS.primary};box-shadow:0 0 30px rgba(147,112,219,0.5);width:min(600px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;box-sizing:border-box;`;
         dialog.innerHTML = html;
         overlay.appendChild(dialog);
+        dialogs.add(overlay);
         document.body.appendChild(overlay);
         return dialog;
     }
     function closeDialog(dialog) {
+        dialogs.delete(dialog.parentElement);
         dialog.parentElement?.remove();
     }
 
     // ============ 清理 ============
     function cleanup() {
+        if(disposed) return;
         log('開始清理資源...');
 
         // Save current playlist to history before clearing
@@ -2374,11 +2465,13 @@
         hidePanel();
         if (musicPlayer.lyricsPanel) musicPlayer.lyricsPanel.style.display = 'none';
 
-        removeFromControllers();
+        if(isLoggedIn())removeFromControllers();
+        musicPlayer.permissions.clear();requestedSync.clear();
+        musicPlayer.currentRoomName="";
         musicPlayer.bcMusicURL = "";
         unmuteBCMusic(); // 還原玩家原本的 BC 音樂音量，避免帳號設定被永久改成 0
 
-        saveSettings();
+        saveSettings(true);
         log('資源清理完成');
     }
 
@@ -2393,6 +2486,7 @@
     }
 
     function handleRoomLoaded() {
+        if(disposed)return;
         if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom' || !ChatRoomData) return;
         if (!ChatRoomData.Custom) ChatRoomData.Custom = {};
         musicPlayer.currentRoomName = getCurrentRoomName();
@@ -2503,6 +2597,7 @@
 
     // ============ 命令 ============
     function handleCMCCommand(text) {
+        if(disposed)return;
         const args = text.trim().split(/\s+/).filter(x => x);
         const cmd = (args[0] || "").toLowerCase();
 
@@ -2604,11 +2699,14 @@
         try {
             await initIndexedDB();
         } catch(e) {
+            if(disposed)return;
             error('IndexedDB 初始化失敗:', e);
             sendLocalMsg('CMC 存儲初始化失敗，部分功能受限');
         }
 
+        if(disposed) return;
         await loadSettingsFromDB();
+        if(disposed) return;
 
         if (typeof CommandCombine === 'function') {
             CommandCombine([{ Tag: "cmc", Description: "Chat Music Controller", Action: handleCMCCommand }]);
@@ -2631,9 +2729,25 @@
         log('初始化完成');
     }
 
+    function destroy() {
+        if(disposed)return;
+        cleanup();
+        stopLifecycle();
+        try{modApi?.unload();}catch(e){error('卸載SDK失敗',e);}modApi=null;
+        cmcDB?.close();cmcDB=null;
+        for(const key of ['floatingPanel','lyricsPanel','userListPanel']){musicPlayer[key]?.remove();musicPlayer[key]=null;}
+        dialogs.forEach(el=>el.remove());dialogs.clear();
+        document.querySelectorAll('.cmcShareButton').forEach(el=>el.remove());
+        document.querySelectorAll('[data-cmc-processed]').forEach(el=>delete el.dataset.cmcProcessed);
+        if(typeof Command!=='undefined' && Array.isArray(Command))for(let i=Command.length-1;i>=0;i--)if(Command[i].Action===handleCMCCommand)Command.splice(i,1);
+        CMC.ready=false;
+        if(window.Liko.CMC===CMC)delete window.Liko.CMC;
+    }
+    CMC.Destroy=destroy;
     // ============ 啟動 ============
     (async () => {
-        const sdkReady = await waitFor(() => typeof bcModSdk !== 'undefined' && !!bcModSdk?.registerMod, 30000);
+        const sdkReady = await waitFor(() => typeof bcModSdk !== 'undefined' && !!bcModSdk?.registerMod, 200, 30000);
+        if(disposed) return;
         if (!sdkReady) throw new Error('bcModSdk initialization timed out');
 
         modApi = bcModSdk.registerMod({
@@ -2644,12 +2758,13 @@
         });
         console.log(`🐈‍⬛ [CMC] ✅ v${MOD_VER} loaded`);
 
-        await waitForLogin();
+        if (!(await waitForLogin()) || disposed) return;
         await initialize();
     })().catch(e => {
         CMC.error = e;
         error('CMC initialization failed:', e);
+        destroy();
     });
 
-    window.addEventListener('beforeunload', cleanup);
+    listen(window, 'beforeunload', destroy);
 })();

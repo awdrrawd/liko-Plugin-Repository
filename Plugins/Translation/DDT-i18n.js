@@ -9,6 +9,13 @@
         return;
     }
     window.Liko.__Sys_i18n__.register('DDT', {
+        pen_undo: { TW: '復原', EN: 'Undo' },
+        pen_redo: { TW: '重做', EN: 'Redo' },
+        import_merge: { TW: '合併匯入', EN: 'Merge import' },
+        import_replace: { TW: '取代匯入', EN: 'Replace import' },
+        restore_backup: { TW: '還原匯入前備份', EN: 'Restore pre-import backup' },
+        replace_confirm: { TW: '取代目前的繪圖物件？匯入前會保留一份備份。', EN: 'Replace current objects? A pre-import backup will be kept.' },
+        storage_failed: { TW: '儲存失敗，請檢查瀏覽器儲存空間；目前修改尚未保存。', EN: 'Saving failed. Check browser storage; current changes are not saved.' },
 
         // ── 氣球 / 選單 / 全域 ────────────────────────────────────────────
         balloon_title: { TW: "點一下展開工具（Pen / Ruler / Setting）；可拖曳搬家", EN: "Click to open tools (Pen / Ruler / Setting); drag to move" },

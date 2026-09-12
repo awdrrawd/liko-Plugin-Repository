@@ -46,6 +46,7 @@
      * @param {boolean} hiddenByDefault
      */
     function seedDefaultVisibility(id, hiddenByDefault) {
+        if (typeof Player === 'undefined' || !Player) return;
         const value = settings();
         if (value.seeded.includes(id)) return;
         value.seeded.push(id);
@@ -563,7 +564,7 @@
         applyLayout();
     });
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded', 'hidden'] });
-    setInterval(() => { specs.forEach((_spec, id) => ensureButton(id)); applyLayout(); }, HEAL_INTERVAL_MS);
+    setInterval(() => { applyDefaultSeeds(); specs.forEach((_spec, id) => ensureButton(id)); applyLayout(); }, HEAL_INTERVAL_MS);
     injectStyle();
 
     /** 集中列出「第一次出現時預設隱藏」的按鈕 id，bootstrap 跟設定面板的

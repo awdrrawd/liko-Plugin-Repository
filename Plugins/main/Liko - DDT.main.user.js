@@ -3,7 +3,7 @@
 // @name:zh        繪圖檢測工具
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.3.0
+// @version        0.3.1
 // @description    Detects canvas/DOM properties (Ruler), draws editable overlay objects (Pen), and exports/imports layouts (Setting).
 // @description:zh 偵測 canvas & DOM 物件的屬性、疊加可編輯繪圖物件、匯出/匯入版面座標
 // @author         likolisu
@@ -43,11 +43,57 @@
  *   4. DOM → 直接寫 element.style，位置與顏色都能改。
  */
 (function () {
+let disposed = false;
+    const lifecycle = new AbortController();
+    const timers = new Set(), intervals = new Set(), frames = new Set(), cleanupTasks = new Set();
+    function setTimeout(fn, ms, ...args) {
+        if (disposed) return null;
+        const id = globalThis.setTimeout(() => { timers.delete(id); if (!disposed) fn(...args); }, ms);
+        timers.add(id); return id;
+    }
+    function clearTimeout(id) { globalThis.clearTimeout(id); timers.delete(id); }
+    function setInterval(fn, ms) {
+        if (disposed) return null;
+        const id = globalThis.setInterval(() => { if (!disposed) fn(); }, ms);
+        intervals.add(id); return id;
+    }
+    function clearInterval(id) { globalThis.clearInterval(id); intervals.delete(id); }
+    function requestAnimationFrame(fn) {
+        if (disposed) return null;
+        const id = globalThis.requestAnimationFrame(time => { frames.delete(id); if (!disposed) fn(time); });
+        frames.add(id); return id;
+    }
+    function listen(target, type, fn, options = {}) {
+        target.addEventListener(type, fn, { ...(typeof options === 'boolean' ? { capture: options } : options), signal: lifecycle.signal });
+    }
+    function stopLifecycle() {
+        disposed = true; lifecycle.abort();
+        timers.forEach(id => globalThis.clearTimeout(id)); timers.clear();
+        intervals.forEach(id => globalThis.clearInterval(id)); intervals.clear();
+        frames.forEach(id => globalThis.cancelAnimationFrame(id)); frames.clear();
+        cleanupTasks.forEach(fn => { try { fn(); } catch (error) { console.warn(error); } });
+        cleanupTasks.clear();
+    }
+    function waitFor(check, interval = 200, timeout = 0) {
+        return new Promise(resolve => {
+            let timer; const started = Date.now();
+            const finish = value => { clearTimeout(timer); lifecycle.signal.removeEventListener('abort', cancel); resolve(value); };
+            const cancel = () => finish(false);
+            function poll() {
+                if (disposed) return finish(false);
+                try { if (check()) return finish(true); } catch {}
+                if (timeout && Date.now() - started >= timeout) return finish(false);
+                timer = setTimeout(poll, interval);
+            }
+            lifecycle.signal.addEventListener('abort', cancel, { once: true });
+            poll();
+        });
+    }
     window.Liko = window.Liko ?? {};
     if (window.Liko.DDT) return;
 
 	const MOD_NAME = "DDT";
-	const MOD_VERSION = "0.3.0";
+	const MOD_VERSION = "0.3.1";
 	window.Liko.DDT = MOD_VERSION; // 佔位，避免重複載入；initialize 尾端會換成完整控制台 API
 	const UI_Z = 2147483000;
 
@@ -96,6 +142,7 @@
 	const uiOverrides = new Map();
 	/** 角色裝備的原始顏色備份，供還原用：item -> 原本的 Color */
 	const colorBackups = new Map();
+    const colorOwners=new Map(), domBackups=new Map(), downloadUrls=new Set();
 	/** 吞掉點擊手勢殘留事件（mouseup / click）用的時間戳 */
 	let swallowUntil = 0;
 	/** 每個角色的「圖層繪製紀錄」（角色離屏畫布座標系）：Character -> [{layer, src, x, y}] */
@@ -203,28 +250,8 @@
 
 	// ---------------------------------------------------------------- 小工具
 
-	function waitFor(check, interval = 200) {
-		return new Promise((resolve) => {
-			const t = setInterval(() => {
-				let ok = false;
-				try { ok = !!check(); } catch { ok = false; }
-				if (ok) { clearInterval(t); resolve(); }
-			}, interval);
-		});
-	}
-	function waitForLogin() {
-		if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
-		return new Promise(resolve => {
-			const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
-				const result = next(args);
-				queueMicrotask(() => {
-					if (window.Player?.MemberNumber === undefined) return;
-					remove(); resolve();
-				});
-				return result;
-			});
-		});
-	}
+
+    function waitForLogin() { return waitFor(() => window.Player?.MemberNumber !== undefined); }
 
 	/** 螢幕座標 → BC 的 2000x1000 虛擬座標 */
 	function toVirtual(clientX, clientY) {
@@ -374,6 +401,7 @@
 	function hookRecord(name, extract) {
 		if (typeof window[name] !== "function") return;
 		modApi.hookFunction(name, 0, (args, next) => {
+            if ((!recording || frozen) && !uiOverrides.size && scrubLimit < 0) return next(args);
 			// 只有「頂層」呼叫才拿新的序號。
 			// 為什麼不連巢狀的一起編號：DrawButton 內部會再呼叫 DrawTextFit / DrawImage，
 			// 一旦回放切在 DrawButton 上、它的子呼叫就不會執行，後面呼叫的序號就會整個往前位移，
@@ -400,7 +428,7 @@
 			try { applyOverride(name, args); } catch { /* 覆寫失敗不能影響遊戲繪製 */ }
 
 			let rec = null;
-			if (recording && depth < 6) {
+			if (recording && !frozen && depth < 6) {
 				try {
 					rec = extract(args);
 					if (rec && rec.rect && isFinite(rec.rect[0])) {
@@ -969,9 +997,39 @@
 		savePenObjects();
 	}
 
-	function savePenObjects() {
-		try { localStorage.setItem(LS_PEN, JSON.stringify(penObjects)); } catch {}
-	}
+	const LS_BACKUP = 'DDTPenImportBackup';
+    const PEN_HISTORY_LIMIT = 30;
+    let penSaveTimer=null, settingsSaveTimer=null;
+    let committedPen='[]';
+    const penUndo=[], penRedo=[];
+    function storageError(error) { console.warn('[DDT] Storage failed:', error); alert(T('storage_failed')); }
+    function savePenObjects(immediate = false) {
+        clearTimeout(penSaveTimer); penSaveTimer=null;
+        if (immediate) return flushPenObjects();
+        penSaveTimer=setTimeout(flushPenObjects, 250);
+    }
+    function flushPenObjects() {
+        clearTimeout(penSaveTimer); penSaveTimer=null;
+        const next=JSON.stringify(penObjects);
+        if (next===committedPen) return true;
+        try { localStorage.setItem(LS_PEN,next); } catch(error) { storageError(error); return false; }
+        penUndo.push(committedPen);
+        if(penUndo.length>PEN_HISTORY_LIMIT) penUndo.shift();
+        penRedo.length=0; committedPen=next;
+        return true;
+    }
+    function stepPenHistory(redo=false) {
+        if(disposed) return false;
+        if (!flushPenObjects()) return false;
+        const from=redo?penRedo:penUndo, to=redo?penUndo:penRedo;
+        if (!from.length) return false;
+        const next=from.at(-1);
+        try { localStorage.setItem(LS_PEN,next); } catch(error) { storageError(error); return false; }
+        from.pop(); to.push(committedPen); committedPen=next;
+        penObjects=JSON.parse(next); penSel=null;
+        penSeq=Math.max(1,...penObjects.map(o=>Number(o.id)||0))+1;
+        renderPenPanel(); return true;
+    }
 
 	function loadPenObjects() {
 		try {
@@ -979,20 +1037,27 @@
 			if (!raw) return;
 			const arr = JSON.parse(raw);
 			if (!Array.isArray(arr)) return;
-			penObjects = arr.filter((o) => o && isFinite(o.x)).map(normalizePenObj);
+			penObjects = validatePenImport(arr);
 			penSeq = 1; penObjects.forEach((o) => (o.id = newPenId()));
+            committedPen=JSON.stringify(penObjects);
 		} catch {}
 	}
 
 	/** 保存 Pen 工具偏好（網格 / 背景 / 貼齊 / 各類型繪製預設）到本地 */
-	function saveSettings() {
+    function saveSettings(immediate=false) {
+        clearTimeout(settingsSaveTimer); settingsSaveTimer=null;
+        if(immediate) return flushSettings();
+        settingsSaveTimer=setTimeout(flushSettings,250);
+    }
+    function flushSettings() {
+        clearTimeout(settingsSaveTimer); settingsSaveTimer=null;
 		try {
 			localStorage.setItem(LS_SET, JSON.stringify({
 				gridOn, gridSize, gridAlpha, gridWidth, snapOn,
 				sheetOn, sheetAlpha, bgOn, bgColor, bgAlpha,
 				variant: VARIANT, drawType,
 			}));
-		} catch {}
+		} catch (error) { storageError(error); }
 	}
 
 	function loadSettings() {
@@ -1121,6 +1186,7 @@
 	}
 
 	function applyItemColor(C, item, hex) {
+        colorOwners.set(item,C);
 		if (!colorBackups.has(item)) {
 			colorBackups.set(item, Array.isArray(item.Color) ? item.Color.slice() : item.Color);
 		}
@@ -1147,6 +1213,7 @@
 
 	/** 只染某一層：layer.ColorIndex 就是它在 item.Color 陣列裡的位置 */
 	function applyLayerColor(C, item, layer, hex) {
+        colorOwners.set(item,C);
 		if (!colorBackups.has(item)) {
 			colorBackups.set(item, Array.isArray(item.Color) ? item.Color.slice() : item.Color);
 		}
@@ -1164,7 +1231,7 @@
 	function resetItemColor(C, item) {
 		if (!colorBackups.has(item)) return;
 		item.Color = colorBackups.get(item);
-		colorBackups.delete(item);
+		colorBackups.delete(item); colorOwners.delete(item);
 		CharacterLoadCanvas(C);
 	}
 
@@ -1172,6 +1239,7 @@
 	function pushToServer(C) {
 		if (!C.IsPlayer || !C.IsPlayer()) return false;
 		CharacterRefresh(C, true, false);
+        for(const [item,owner] of colorOwners) if(owner===C) { colorOwners.delete(item); colorBackups.delete(item); }
 		return true;
 	}
 
@@ -1322,6 +1390,8 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		root = document.createElement("div");
 		root.id = "DDT-root";
 		const shadow = root.attachShadow({ mode: "open" });
+        shadow.addEventListener('change', () => { if(penSaveTimer)flushPenObjects(); if(settingsSaveTimer)flushSettings(); });
+        shadow.addEventListener('pointerup', () => { if(penSaveTimer)flushPenObjects(); if(settingsSaveTimer)flushSettings(); });
 		const style = document.createElement("style");
 		style.textContent = CSS;
 		shadow.appendChild(style);
@@ -1586,9 +1656,10 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 			let lastErr;
 			for (const base of _EXPAND_BASES) {
 				try {
-					const res = await fetch(base + rel, { cache: "no-store" });
+					const res = await fetch(base + rel, { cache: "no-store", signal:lifecycle.signal });
 					if (!res.ok) throw new Error("HTTP " + res.status);
 					const text = await res.text();
+                    if(disposed) return;
 					if (!text || text.trimStart().startsWith("<")) throw new Error("bad content");
 					const s = document.createElement("script");
 					s.textContent = text + "\n//# sourceURL=" + rel;
@@ -1654,6 +1725,11 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 			<div class="bd"></div>
 			<div class="footbar" data-footbar style="display:none"></div>`;
 		shadow.appendChild(penPanel);
+        for(const [key,redo,label] of [['pen_undo',false,'↶'],['pen_redo',true,'↷']]) {
+            const button=document.createElement('button'); button.textContent=label; button.title=T(key); button.setAttribute('aria-label',T(key));
+            button.addEventListener('click',()=>stepPenHistory(redo));
+            penPanel.querySelector('.hd').insertBefore(button,penPanel.querySelector('[data-x]'));
+        }
 
 		// 圖層側邊面板：獨立的浮動面板，開關由「圖層」頁籤切換，不受其他分頁影響
 		penLayerPanel = document.createElement("div");
@@ -1935,7 +2011,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 	function renderSetPanel() {
 		if (!setPanel || !setPanel.classList.contains("show")) return;
 		const bd = setPanel.querySelector(".bd");
-		let h = `<h4>${T("set_h_io")}</h4>`;
+		let h = `<h4>${T("set_h_io")}</h4><div class="row"><select data-importmode><option value="merge">${T("import_merge")}</option><option value="replace">${T("import_replace")}</option></select><button class="act" data-backup>${T("restore_backup")}</button></div>`;
 		h += `<div class="row"><button class="act pri" data-exportfile>${T("btn_exportfile")}</button><button class="act" data-export>${T("btn_showjson")}</button><button class="act" data-copy>${T("btn_copy")}</button></div>`;
 		h += `<div class="row"><textarea data-io rows="6" placeholder="${T("io_placeholder")}" style="flex:1;width:100%;background:#2b2b3d;color:#e8e8f0;border:1px solid #4a4a66;border-radius:5px;padding:6px;font-family:ui-monospace,Consolas,monospace;font-size:calc(var(--fs) - 2px);resize:vertical"></textarea></div>`;
 		h += `<div class="row"><button class="act" data-import>${T("btn_import")}</button><button class="act" data-importfile>${T("btn_importfile")}</button>
@@ -1948,20 +2024,27 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 	function wireSetPanel() {
 		const q = (s) => setPanel.querySelector(s);
 		const io = q("[data-io]");
+        q("[data-backup]")?.addEventListener("click",restoreImportBackup);
+        const importCurrent = text => { const mode=q("[data-importmode]").value; if(mode==="replace" && !confirm(T("replace_confirm"))) return false; return importPenJSON(text,mode); };
 		q("[data-exportfile]")?.addEventListener("click", exportPenToFile);
 		q("[data-export]")?.addEventListener("click", () => { io.value = exportPenJSON(); });
 		q("[data-copy]")?.addEventListener("click", async () => {
 			const t = exportPenJSON(); io.value = t;
 			try { await navigator.clipboard.writeText(t); } catch { /* 沒剪貼簿權限就算了，內容已在框裡 */ }
 		});
-		q("[data-import]")?.addEventListener("click", () => { if (importPenJSON(io.value)) { renderPenPanel(); renderSetPanel(); } });
+		q("[data-import]")?.addEventListener("click", () => { if (importCurrent(io.value)) { renderPenPanel(); renderSetPanel(); } });
 		const file = q("[data-file]");
 		q("[data-importfile]")?.addEventListener("click", () => file.click());
 		file?.addEventListener("change", () => {
 			const f = file.files && file.files[0];
 			if (!f) return;
+            file.value="";
+            if(f.size>2*1024*1024) { alert(T("import_bad_format")); return; }
 			const rd = new FileReader();
-			rd.onload = () => { io.value = String(rd.result); if (importPenJSON(io.value)) { renderPenPanel(); renderSetPanel(); } };
+            const cancelRead=()=>rd.abort();
+            cleanupTasks.add(cancelRead);
+            rd.onloadend=()=>cleanupTasks.delete(cancelRead);
+            rd.onload = () => { if(disposed || !setPanel.isConnected) return; io.value = String(rd.result); if (importCurrent(io.value)) { renderPenPanel(); renderSetPanel(); } };
 			rd.readAsText(f);
 		});
 	}
@@ -1970,32 +2053,62 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		return JSON.stringify({ mod: "DDT", type: "pen-objects", version: MOD_VERSION, objects: penObjects }, null, 2);
 	}
 
-	function importPenJSON(text) {
-		try {
-			const data = JSON.parse(text);
-			const arr = Array.isArray(data) ? data : data && data.objects;
-			if (!Array.isArray(arr)) throw new Error(T("import_bad_format"));
-			penObjects = arr.filter((o) => o && isFinite(o.x) && isFinite(o.y)).map(normalizePenObj);
-			penSeq = 1; penObjects.forEach((o) => (o.id = newPenId()));
-			penSel = null;
-			savePenObjects();
-			return true;
-		} catch (e) {
-			alert(T("import_fail", { msg: e && e.message ? e.message : e }));
-			return false;
-		}
-	}
+    function validatePenImport(arr) {
+        if(!Array.isArray(arr) || arr.length>1000) throw new Error(T('import_bad_format'));
+        return arr.map(o=>{
+            if(!o || !Number.isFinite(o.x) || !Number.isFinite(o.y) || Math.abs(o.x)>100000 || Math.abs(o.y)>100000) throw new Error(T('import_bad_format'));
+            for(const key of ['w','h','fontSize','borderW','rot']) if(o[key]!=null && (!Number.isFinite(o[key]) || Math.abs(o[key])>100000 || (key!=='rot' && o[key]<0))) throw new Error(T('import_bad_format'));
+            for(const key of ['text','fill','border','textColor']) if(o[key]!=null && (typeof o[key]!=='string' || o[key].length>10000)) throw new Error(T('import_bad_format'));
+            return normalizePenObj(o);
+        });
+    }
+    function importPenJSON(text, mode='merge') {
+        if(disposed) return false;
+        try {
+            if(typeof text!=='string' || text.length>2*1024*1024) throw new Error(T('import_bad_format'));
+            const data=JSON.parse(text);
+            if(!Array.isArray(data) && (!data || data.mod!=='DDT' || data.type!=='pen-objects')) throw new Error(T('import_bad_format'));
+            if(mode!=='merge' && mode!=='replace') throw new Error(T('import_bad_format'));
+            const incoming=validatePenImport(Array.isArray(data)?data:data.objects);
+            if(!incoming.length) throw new Error(T('import_bad_format'));
+            if(!flushPenObjects()) return false;
+            const oldSeq=penSeq;
+            const next=(mode==='merge'?structuredClone(penObjects):[]).concat(incoming.map(o=>({...o,id:newPenId()})));
+            if(next.length>1000) { penSeq=oldSeq; throw new Error(T('import_bad_format')); }
+            const serialized=JSON.stringify(next);
+            try {
+                localStorage.setItem(LS_BACKUP,committedPen);
+                localStorage.setItem(LS_PEN,serialized);
+            } catch(error) { penSeq=oldSeq; throw error; }
+            penUndo.push(committedPen); if(penUndo.length>PEN_HISTORY_LIMIT) penUndo.shift();
+            penRedo.length=0; committedPen=serialized; penObjects=next; penSel=null;
+            return true;
+        } catch(error) { alert(T('import_fail',{msg:error.message})); return false; }
+    }
+    function restoreImportBackup() {
+        try {
+            const raw=localStorage.getItem(LS_BACKUP);
+            if(raw==null) return;
+            const objects=validatePenImport(JSON.parse(raw));
+            if(!flushPenObjects()) return;
+            objects.forEach(o=>o.id=newPenId());
+            const next=JSON.stringify(objects);
+            localStorage.setItem(LS_PEN,next);
+            penUndo.push(committedPen); if(penUndo.length>PEN_HISTORY_LIMIT)penUndo.shift();
+            penRedo.length=0; committedPen=next; penObjects=objects; penSel=null; renderPenPanel();
+        } catch(error) { storageError(error); }
+    }
 
 	/** 需求 3：直接把 Pen 物件下載成 .json 檔 */
 	function exportPenToFile() {
 		try {
 			const blob = new Blob([exportPenJSON()], { type: "application/json" });
-			const url = URL.createObjectURL(blob);
+			const url = URL.createObjectURL(blob); downloadUrls.add(url);
 			const a = document.createElement("a");
 			const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
 			a.href = url; a.download = `DDT-pen-${ts}.json`;
 			document.body.appendChild(a); a.click(); a.remove();
-			setTimeout(() => URL.revokeObjectURL(url), 1000);
+			setTimeout(() => { URL.revokeObjectURL(url); downloadUrls.delete(url); }, 1000);
 		} catch (e) { alert(T("export_fail", { msg: e && e.message ? e.message : e })); }
 	}
 
@@ -2023,11 +2136,16 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 			el.style.top = Math.max(0, Math.min(window.innerHeight - 30, oy + dy)) + "px";
 			if (onDrag) onDrag();
 		});
+        const cancelDrag=()=>{ dragging=false; moved=false; };
+        handle.addEventListener('pointercancel',cancelDrag);
+        handle.addEventListener('lostpointercapture',cancelDrag);
+        handle.style.touchAction='none';
 		handle.addEventListener("pointerup", (e) => {
 			if (!dragging) return;
 			dragging = false;
-			handle.releasePointerCapture(e.pointerId);
-			if (!moved && onClick) onClick();
+			const clicked=!moved;
+            handle.releasePointerCapture(e.pointerId);
+			if (clicked && onClick) onClick();
 		});
 	}
 
@@ -2121,7 +2239,10 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 
 	function nextFrames(n) {
 		return new Promise((resolve) => {
-			const step = () => (--n <= 0 ? resolve() : requestAnimationFrame(step));
+			const finish = () => { lifecycle.signal.removeEventListener('abort', finish); resolve(); };
+			if (disposed) return finish();
+			lifecycle.signal.addEventListener('abort', finish, { once: true });
+			const step = () => (--n <= 0 ? finish() : requestAnimationFrame(step));
 			requestAnimationFrame(step);
 		});
 	}
@@ -2137,6 +2258,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 			// 剛開錄時 lastLog 還是空的，要等一整幀 DrawProcess 跑完才有東西可以命中
 			recording = true;
 			await nextFrames(2);
+            if(disposed) return;
 		}
 		if (picking) stopPicking();
 		if (document.elementFromPoint(x, y) === root) return; // 游標在自己 UI 上（先用未穿透版判斷，穿透後就不是 root 了）
@@ -2229,25 +2351,29 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
 		swallowUntil = Date.now() + 500;
 		const d = penDrag; penDrag = null;
-		if (d.mode === "move") { savePenObjects(); renderPenPanel(); return; }
+        if(e.type==='pointercancel') {
+            if(d.mode==='move') { d.obj.x=d.ox; d.obj.y=d.oy; }
+            renderPenPanel(); return;
+        }
+		if (d.mode === "move") { savePenObjects(true); renderPenPanel(); return; }
 		commitNew(d, toVirtual(e.clientX, e.clientY));
 	}
 
 	function installInput() {
 		// 永遠追蹤游標位置，F2 才知道要看哪裡
-		window.addEventListener("pointermove", (e) => {
+		listen(window, "pointermove", (e) => {
 			lastMouse = { x: e.clientX, y: e.clientY };
 		}, true);
 
 		// capture 階段搶在 BC 之前：Pen 的 penPointerDown 與 Ruler 的 onPick 各自 gate（penMode / picking）
-		window.addEventListener("pointerdown", penPointerDown, true);
-		window.addEventListener("pointerdown", onPick, true);
-		window.addEventListener("pointermove", penPointerMove, true);
-		window.addEventListener("pointermove", onMove, true);
-		window.addEventListener("pointerup", penPointerUp, true);
-		window.addEventListener("pointercancel", penPointerUp, true);
+		listen(window, "pointerdown", penPointerDown, true);
+		listen(window, "pointerdown", onPick, true);
+		listen(window, "pointermove", penPointerMove, true);
+		listen(window, "pointermove", onMove, true);
+		listen(window, "pointerup", penPointerUp, true);
+		listen(window, "pointercancel", penPointerUp, true);
 		for (const t of ["mousedown", "mouseup", "click", "touchstart", "touchend"]) {
-			window.addEventListener(t, onSwallow, true);
+			listen(window, t, onSwallow, true);
 		}
 		// 需求 3：繪圖狀態(penMode)下，把所有會傳到 BC 的滑鼠/觸控/滾輪事件擋在 window capture，
 		// 讓 BC 的 canvas 與 DOM 元件都收不到 → 點擊與懸停顯示都暫停。
@@ -2256,9 +2382,9 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		for (const t of ["pointerdown", "pointerup", "pointermove", "pointercancel",
 			"mousedown", "mouseup", "mousemove", "click", "dblclick", "wheel",
 			"contextmenu", "touchstart", "touchmove", "touchend"]) {
-			window.addEventListener(t, blockBcInteraction, true);
+			listen(window, t, blockBcInteraction, true);
 		}
-		window.addEventListener("keydown", (e) => {
+		listen(window, "keydown", (e) => {
 			if (e.key === "F2") {
 				e.preventDefault();
 				e.stopPropagation();
@@ -2921,7 +3047,8 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		const el = selection.kind === "dom" ? selection.el : null;
 		if (el) {
 			const backup = () => {
-				if (selection.domBackup == null) selection.domBackup = el.getAttribute("style") || "";
+				if (!domBackups.has(el)) domBackups.set(el,el.getAttribute("style"));
+                if (selection.domBackup == null) selection.domBackup = domBackups.get(el) || "";
 			};
 			qa("[data-css]").forEach((n) => n.addEventListener("input", () => {
 				backup();
@@ -2934,7 +3061,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 			q("[data-domreset]")?.addEventListener("click", () => {
 				if (selection.domBackup != null) {
 					el.setAttribute("style", selection.domBackup);
-					selection.domBackup = null;
+					selection.domBackup = null; domBackups.delete(el);
 				}
 				renderPanel();
 			});
@@ -2945,7 +3072,7 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 
 	async function initialize() {
 		// Phase 1：SDK 就緒就先註冊，不等登入
-		await waitFor(() => !!window.bcModSdk);
+		if (!(await waitFor(() => !!window.bcModSdk)) || disposed) return;
 		modApi = window.bcModSdk.registerMod({
 			name: "Liko - DDT",
 			fullName: "Draw Detection Tool",
@@ -2955,16 +3082,17 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 
 		// i18n：等共用引擎就緒，載入 DDT 字庫（失敗就退回 key，不擋插件啟動）
 		try {
-			await waitFor(() => !!window.Liko?.__Sys_i18n__?.register);
+			if (!(await waitFor(() => !!window.Liko?.__Sys_i18n__?.register,200,10000))) throw new Error("i18n unavailable");
 			await window.Liko.__Sys_i18n__.ensure("DDT", I18N_URL);
 		} catch (e) { console.warn(`🐈‍⬛ [${MOD_NAME}] i18n load failed, using keys`, e); }
 
+		if(disposed) return;
 		installDrawHooks();
 
 		// Phase 2：等玩家真的登入、資源就緒才掛 UI
 		// 注意：MainCanvas 在 Drawing.js 是用 let 宣告的，不會掛到 window 上，只能用裸識別字讀
-		await waitForLogin();
-		await waitFor(() => typeof MainCanvas !== "undefined" && !!MainCanvas);
+		if (!(await waitForLogin()) || disposed) return;
+		if (!(await waitFor(() => typeof MainCanvas !== "undefined" && !!MainCanvas)) || disposed) return;
 		buildUI();
 		installInput();
 		setupChatButton(); // 氣球預設隱藏，靠 #chat-room-buttons 的 DDT 鈕叫出/收起
@@ -2972,15 +3100,36 @@ try { localStorage.setItem("DDTFontSize", String(curFontSize)); } catch {}
 		// 控制台 API（氣球平時靠 #chat-room-buttons 的 DDT 鈕叫出/收起；這裡也留手動入口）
 		window.Liko.DDT = {
 			version: MOD_VERSION,
+            Destroy: destroy, undoPen:()=>stepPenHistory(false), redoPen:()=>stepPenHistory(true),
 			showBalloon,
 			hideBalloon,
 			exportPen: exportPenJSON,
-			importPen: (t) => importPenJSON(t) && renderPenPanel(),
+			importPen: (text,mode="merge") => importPenJSON(text,mode) && (renderPenPanel(),true),
 			clearPen: () => { clearPenObjects(); renderPenPanel(); },
 		};
 
 		console.log(`🐈‍⬛ [${MOD_NAME}] ✅ v${MOD_VERSION} loaded `);
 	}
 
-	initialize().catch((e) => console.error(`🐈‍⬛ [${MOD_NAME}] init error`, e));
+    function destroy() {
+        if(disposed) return;
+        if(penSaveTimer) flushPenObjects();
+        if(settingsSaveTimer) flushSettings();
+        stopLifecycle();
+        recording=false; picking=false; penMode=false; penDrag=null; recolorPending=null;
+        uiOverrides.clear(); scrubLimit=-1; frozen=false; curLog=[]; lastLog=[];
+        const refresh=new Set();
+        colorBackups.forEach((color,item)=>{item.Color=color;const owner=colorOwners.get(item);if(owner)refresh.add(owner);});
+        colorBackups.clear(); colorOwners.clear();
+        refresh.forEach(C=>{try{CharacterLoadCanvas(C);}catch{}});
+        domBackups.forEach((style,el)=>{if(style===null)el.removeAttribute('style');else el.setAttribute('style',style);});
+        domBackups.clear(); downloadUrls.forEach(url=>URL.revokeObjectURL(url)); downloadUrls.clear();
+        clearSelection(); root?.remove(); fxCanvas?.remove();
+        try{modApi?.unload();}catch(error){console.warn(error);} modApi=null;
+        window.Liko.__Sys_ChatRoomButtons__?.remove('ddt');
+        if(Array.isArray(window.Liko.__CRB_pending__)) window.Liko.__CRB_pending__=window.Liko.__CRB_pending__.filter(s=>s.id!=='ddt');
+        delete window.Liko.DDT;
+    }
+    window.Liko.DDT={version:MOD_VERSION,Destroy:destroy};
+    initialize().catch(error=>{console.error('[DDT] Initialization failed:',error);destroy();});
 })();

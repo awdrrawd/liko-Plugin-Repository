@@ -109,6 +109,8 @@ crb.remove('my-plugin');
 
 資料存在 `Player.ExtensionSettings.LikoChatRoomButtons`：
 
+內建 `msg-Send`（傳送訊息）首次初始化時預設隱藏。若玩家資料尚未就緒，會等資料載入後再套用一次；使用者之後手動改成顯示或常駐，不會被輪詢覆蓋。還原預設會重新將它隱藏。
+
 ```js
 {
     order: ['ddt', 'likotool', 'kaomoji', 'mat', 'liko-image-cache'],
