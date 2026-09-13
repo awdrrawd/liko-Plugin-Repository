@@ -26,7 +26,7 @@
 	// 防重複載入：系統擴充統一掛 window.Liko.__Sys_* ，先搶先贏。
 	if (window.Liko.__Sys_ChatScrollFreeze__) return;
 
-	const MOD_VER = "1.4";
+	const MOD_VER = "1.4.1";
 	let disposed = false;
 	const FREEZE_THRESHOLD = 0.05; // 往上捲超過畫面高度的 5% 就凍結
 
@@ -244,6 +244,11 @@
 	 */
 	function triggerNativeResize() {
 		try {
+			// Initial binding or screen transitions may run while BC hides the room.
+			// A zero measurement would collapse the log and cache the input height,
+			// preventing recovery until the next explicit resize.
+			const parent = document.getElementById("chat-room-div");
+			if (!parent || parent.getBoundingClientRect().height <= 0) return;
 			const chatInput = document.getElementById("InputChat");
 			if (chatInput && typeof window.ChatRoomInputResize === "function") {
 				window.ChatRoomInputResize(chatInput);
@@ -631,7 +636,9 @@
 		clearTimeout(searchDebounceHandle);
 		searchDebounceHandle = null;
 		clearHighlights();
-		document.getElementById(SEARCH_BAR_ID)?.remove();
+		const bar = document.getElementById(SEARCH_BAR_ID);
+		if (!bar) return; // ensureBound() also calls this before any search UI exists.
+		bar.remove();
 		triggerNativeResize(); // 移出文件流後同樣立刻重算，避免殘留放大的舊 chatLog 高度
 	}
 
