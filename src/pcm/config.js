@@ -1,5 +1,5 @@
 export const PCM_VERSION = '2.2.0';
-export const NETWORK_TIMEOUT_MS = 12_000;
+export const NETWORK_TIMEOUT_MS = 30_000;
 
 export const STORAGE_KEYS = Object.freeze({
   settings: 'BC_PluginManager_Settings',

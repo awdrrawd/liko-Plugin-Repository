@@ -316,7 +316,7 @@
         "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
         "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
     ].filter(Boolean);
-    const NETWORK_TIMEOUT_MS = 12000;
+    const NETWORK_TIMEOUT_MS = 30000;
     async function fetchTextWithTimeout(url, options = {}, timeoutMs = NETWORK_TIMEOUT_MS) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
