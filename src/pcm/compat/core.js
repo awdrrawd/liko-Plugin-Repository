@@ -46,6 +46,10 @@
     function registerI18n() {
         // EN strings are the authoritative fallback — other languages live in PCM-i18n.js
         const _enStrings = {
+            hideBalloon: { EN: "Hide balloon" },
+            hideMainHall: { EN: "Main hall" },
+            hidePreference: { EN: "Settings page" },
+            hideInformationSheet: { EN: "Profile" },
             'loaded':           { EN: 'Liko\'s Plugin Collection Manager v{ver} loaded! Click the floating button to manage plugins.' },
             'shortLoaded':      { EN: '📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button to open panel\n• Toggle switches to enable/disable plugins\n• Three-state toggle: OFF → ON → BETA\n\n📝 Commands:\n/pcm help — show this\n/pcm list — list all plugins\n\n💡 Plugins load on enable, or take effect on next refresh.' },
             'welcomeTitle':     { EN: '🐈‍⬛ Plugin Manager' },
@@ -147,7 +151,8 @@
                 Player.PCM = { version: MOD_VER };
                 refreshAccountSettingsFromPlayer();
                 const cfg = loadAccountConfig();
-                accountFloatingBtnVisible = cfg.showFloatingBtn !== false;
+                floatingButtonHidden = readFloatingButtonHidden(cfg);
+                if (!cfg.floatingButtonHidden) { cfg.floatingButtonHidden = { ...floatingButtonHidden }; saveAccountConfig(cfg); }
                 applyFloatingBtnVisibility();
             } catch(e) {}
         };
@@ -283,7 +288,7 @@
             const r = next(args);
             try {
                 const cur = (window.bcx?.inBcxSubscreen?.() ?? false) || (window.LITTLISH_CLUB?.inModSubscreen?.() ?? false);
-                if (cur !== _lastBcxState) { _lastBcxState = cur; lastScreenCheck = null; lastScreenCheckTime = 0; currentUIState = null; createManagerUI(); }
+                if (currentUIState !== shouldShowUI() || cur !== _lastBcxState) { _lastBcxState = cur; lastScreenCheck = null; lastScreenCheckTime = 0; currentUIState = null; createManagerUI(); }
             } catch(e) {}
             return r;
         });
@@ -388,7 +393,12 @@
             ServerPlayerExtensionSettingsSync("PCMAccount");
         } catch(e) {}
     }
-    let accountFloatingBtnVisible = true;
+    let floatingButtonHidden = { mainHall: false, preference: false, informationSheet: false };
+    function readFloatingButtonHidden(cfg) {
+        const oldHidden = cfg.showFloatingBtn === false;
+        const flags = cfg.floatingButtonHidden || {};
+        return { mainHall: flags.mainHall === true, preference: flags.preference ?? oldHidden, informationSheet: flags.informationSheet ?? oldHidden };
+    }
     function loadAccountConfig() { try { const raw = Player?.ExtensionSettings?.PCMConfig; if (!raw) return {}; return typeof raw === 'object' ? raw : JSON.parse(raw) || {}; } catch(e) { return {}; } }
     function saveAccountConfig(cfg) { try { if (!Player?.ExtensionSettings) return; Player.ExtensionSettings.PCMConfig = JSON.stringify(cfg); ServerPlayerExtensionSettingsSync("PCMConfig"); } catch(e) {} }
 
@@ -1199,21 +1209,19 @@
     }
 
     function shouldShowUI() {
-        const isLogin = window.location.href.includes('/login') || window.location.href.includes('Login.html');
-        if (isLogin) return true;
-        if (typeof Player === 'undefined' || !Player.Name) return true;
-        if (typeof CurrentScreen !== 'undefined') {
-            if (CurrentScreen === 'InformationSheet') {
-                if (window.bcx?.inBcxSubscreen?.() || window.LITTLISH_CLUB?.inModSubscreen?.() || window.MPA?.menuLoaded || window.LSCG_REMOTE_WINDOW_OPEN) return false;
-                const vc = getCurrentViewingCharacter();
-                return vc && vc.MemberNumber === Player.MemberNumber;
-            }
-            if (CurrentScreen === 'Preference') {
-                const isExtensionPreference = typeof PreferenceExtensionsCurrent !== 'undefined'
-                    && PreferenceExtensionsCurrent?.Identifier != undefined;
-                return !(isExtensionPreference || window.bcx?.inBcxSubscreen?.() || window.MPA?.menuLoaded || window.LITTLISH_CLUB?.inModSubscreen?.());
-            }
-            if (['Login', 'Character', 'MainHall', 'Introduction'].includes(CurrentScreen)) return true;
+        const screen = typeof CurrentScreen === 'undefined' ? '' : CurrentScreen;
+        if (screen === 'Login' || (!screen && /\/login|Login\.html/i.test(window.location.href))) return true;
+        if (window.bcx?.inBcxSubscreen?.() || window.LITTLISH_CLUB?.inModSubscreen?.() || window.MPA?.menuLoaded || window.LSCG_REMOTE_WINDOW_OPEN) return false;
+        if (screen === 'MainHall') return !floatingButtonHidden.mainHall;
+        if (screen === 'InformationSheet') {
+            if (floatingButtonHidden.informationSheet || typeof Player === 'undefined') return false;
+            const vc = getCurrentViewingCharacter();
+            return !!vc && vc.MemberNumber === Player.MemberNumber;
+        }
+        if (screen === 'Preference') {
+            const identifier = typeof PreferenceExtensionsCurrent === 'undefined' ? undefined : PreferenceExtensionsCurrent?.Identifier;
+            if (identifier === 'PCMSettings') return true;
+            return identifier == null && !floatingButtonHidden.preference;
         }
         return false;
     }
@@ -2077,7 +2085,7 @@
     function applyFloatingBtnVisibility() {
         const g = document.getElementById("bc-plugin-btn-group");
         if (!g) return;
-        g.style.display = (!shouldShowUI() || !accountFloatingBtnVisible) ? 'none' : '';
+        g.style.display = !shouldShowUI() ? 'none' : '';
     }
 
     function enableMomentumScroll(container) {
@@ -2612,13 +2620,22 @@
             DrawText(isCJK() ? "- PCM 插件管理器設定 -" : "- PCM Plugin Manager Settings -", 500, 125, "Black", "Gray");
             DrawText(isCJK() ? `📱 本地已啟用：${subPlugins.filter(p => isPluginEnabled(p)).length} 個` : `📱 Local enabled: ${subPlugins.filter(p => isPluginEnabled(p)).length}`, 500, 280, "Black", "Gray");
             DrawText(isCJK() ? `☁️ 帳戶已啟用：${subPlugins.filter(p => isPluginEnabledInAccount(p)).length} 個` : `☁️ Account enabled: ${subPlugins.filter(p => isPluginEnabledInAccount(p)).length}`, 500, 355, "Black", "Gray");
-            DrawCheckbox(500, 455, 64, 64, "", !accountFloatingBtnVisible);
-            DrawText(isCJK() ? "隱藏浮動按鈕" : "Hide floating button", 580, 480, "Black", "Gray");
+            DrawText(t('hideBalloon'), 500, 440, "Black", "Gray");
+            [['mainHall', 'hideMainHall'], ['preference', 'hidePreference'], ['informationSheet', 'hideInformationSheet']].forEach(([key, label], i) => {
+                const x = 500 + i * 370;
+                DrawCheckbox(x, 490, 64, 64, '', floatingButtonHidden[key]);
+                DrawText(t(label), x + 80, 520, 'Black', 'Gray');
+            });
             MainCanvas.textAlign = "center";
         };
         window.PreferenceSubscreenPCMSettingsClick = () => {
             if (MouseIn(1815, 75, 90, 90)) { PreferenceSubscreenPCMSettingsExit(); return; }
-            if (MouseIn(500, 455, 64, 64)) { accountFloatingBtnVisible = !accountFloatingBtnVisible; const cfg = loadAccountConfig(); cfg.showFloatingBtn = accountFloatingBtnVisible; saveAccountConfig(cfg); applyFloatingBtnVisibility(); }
+            ['mainHall', 'preference', 'informationSheet'].forEach((key, i) => {
+                if (!MouseIn(500 + i * 370, 490, 330, 64)) return;
+                floatingButtonHidden[key] = !floatingButtonHidden[key];
+                const cfg = loadAccountConfig(); cfg.floatingButtonHidden = { ...floatingButtonHidden }; saveAccountConfig(cfg);
+                currentUIState = null; createManagerUI();
+            });
         };
         window.PreferenceSubscreenPCMSettingsExit = () => PreferenceSubscreenExtensionsClear();
 

@@ -5,6 +5,10 @@
     window.Liko = window.Liko ?? {};
 
     const _strings = {
+        hideBalloon: {"TW":"隱藏氣球","CN":"隐藏气球","DE":"Sprechblase ausblenden","FR":"Masquer la bulle","RU":"Скрывать значок","UA":"Приховувати значок"},
+        hideMainHall: {"TW":"大廳","CN":"大厅","DE":"Haupthalle","FR":"Hall principal","RU":"Главный зал","UA":"Головна зала"},
+        hidePreference: {"TW":"設定頁","CN":"设置页","DE":"Einstellungen","FR":"Paramètres","RU":"Настройки","UA":"Налаштування"},
+        hideInformationSheet: {"TW":"個人資料","CN":"个人资料","DE":"Profil","FR":"Profil","RU":"Профиль","UA":"Профіль"},
         'loaded': {
             TW: 'Liko的插件管理器 v{ver} 載入完成！點擊浮動按鈕管理插件。',
             CN: 'Liko的插件管理器 v{ver} 载入完成！点击浮动按钮管理插件。',
