@@ -1,1425 +1,672 @@
-# Bondage Club 插件開發指南
+# BC 插件開發指南：從現有實作做出功能
 
-> \*\*定位：給第一次寫 BC 插件的人看的實用起手式，也給 AI 當作 BC 插件開發的結構化參考。\*\*
->
-> 本指南以本次提供的 \*\*Bondage Club 源碼\*\*、\*\*ECHO Clothing Extension\*\* 與 `liko-Plugin-Repository` 實作為主要分析材料。  
-> 原則是：\*\*先講能直接使用的做法，再集中放容易混淆的特殊情況與實務限制。\*\*
+> 適用對象：開發本工作區 BC 插件的人與 AI。
+> 原則：先做出可驗收的效果，再把必要的原生流程、相容性與限制補齊。
+> 核對日期：2026-09-14。遊戲基準：本地 `BCJS/Bondage-College-master/BondageClub`，`GameVersion = "R131"`；SDK 基準：`Plugins/expand/bcmodsdk.js`，版本 1.2.0。
+> 本文件已對照原始碼；範例尚未在遊戲內執行驗證。實作案例代表現有程式的做法，不代表所有版本、姿勢或插件組合都已測通。
 
-\---
+## 1. 怎麼使用這份指南
 
-## 目錄
+先把需求寫成一句可驗收的描述，例如：「直式畫面點一下按鈕，原生對話框只執行一次操作」，或「好友列表顯示完整頭像，載入失敗時保留替代圖」。再依下面的索引找實作。
 
-1. [先理解 BC 插件的基本模型](#1-先理解-bc-插件的基本模型)
-2. [一個插件應該怎麼開始](#2-一個插件應該怎麼開始)
-3. [bcModSdk：插件與 BC 原生函式的橋樑](#3-bcmodsdk插件與-bc-原生函式的橋樑)
-4. [資料與伺服器：ExtensionSettings、ServerSend 與登入生命週期](#4-資料與伺服器extensionsettingsserversend-與登入生命週期)
-5. [Preference 設定頁與 Commander](#5-preference-設定頁與-commander)
-6. [Canvas：文字、按鈕、勾選箱與 Hover](#6-canvas文字按鈕勾選箱與-hover)
-7. [DOM 與 Canvas 混用](#7-dom-與-canvas-混用)
-8. [Character、Drawing 與 GLDraw：到底是哪一套渲染在工作](#8-characterdrawing-與-gldraw到底是哪一套渲染在工作)
-9. [Inventory 與 Extended Item](#9-inventory-與-extended-item)
-10. [Dialog 與 InformationSheet：在角色互動／資訊畫面加入功能](#10-dialog-與-informationsheet在角色互動資訊畫面加入功能)
-11. [聊天室訊息與插件間通訊](#11-聊天室訊息與插件間通訊)
-12. [插件共用工具與專案慣例](#12-插件共用工具與專案慣例)
-13. [開發時的快速檢查順序](#13-開發時的快速檢查順序)
-14. [附錄：實務限制、特殊案例與容易誤判的地方](#14-附錄實務限制特殊案例與容易誤判的地方)
+| 想做出的成果 | 優先參考 | 先確認的事情 |
+| --- | --- | --- |
+| 第一個按鈕與設定 | 第 3 節的最小插件 | 載入時機、Draw／Click 成對處理 |
+| 直式 UI、原生按鈕映射 | LCE，第 5 節 | 原畫面區域、顯示區域、輸入事件路徑 |
+| 頭像、角色快照 | FCM，第 6 節 | 資料來源、材質就緒、裁切、快取 |
+| 道具圖層變形或拾取 | AEE，第 7 節 | 哪個角色、哪個圖層、哪個渲染後端 |
+| 貼著角色的特效 | HSC，第 7 節 | 姿勢／身高／縮放、Canvas 到 DOM 座標 |
+| 個人設定、公開狀態 | 第 8 節 | 誰需要讀取、保存在哪裡、何時同步 |
+| 原生道具／互動功能 | 第 9 節 | 權限、驗證、外觀與聊天室同步 |
+| 更新後功能失效 | 第 10、11 節 | 原生入口是否改動、hook 是否執行、資料是否被覆寫 |
 
-\---
+每個完成的功能至少留下：入口函式、參考來源、操作步驟、預期結果，以及實際驗證結果。只有建置通過，還不能證明遊戲內功能完成。
 
-## 1\. 先理解 BC 插件的基本模型
+## 2. 原始碼與實作來源
 
-BC 插件最常見的工作可以分成五類：
+以下相對連結以本文件所在的 `liko-Plugin-Repository/docs` 為起點；跨專案連結依賴工作區維持目前的並列目錄結構。上傳到單一 Git 倉庫後，跨倉庫連結不一定能開啟。
 
-|類型|常見需求|主要入口|
-|-|-|-|
-|UI|按鈕、文字、設定頁、面板|`DrawText`、`DrawButton`、`ElementCreate`、`PreferenceRegisterExtensionSetting`|
-|遊戲資料|自己的設定、狀態|`Player.ExtensionSettings`、`ServerPlayerExtensionSettingsSync`|
-|遊戲內容|Asset、Inventory、Extended Item|`AssetAdd`、`Inventory...`、`ExtendedItem...`|
-|遊戲流程|攔截或增加原生行為|`bcModSdk.hookFunction`|
-|網路／多人|聊天、同步、插件間通訊|`ServerSend`、`ChatRoomMessage`、`AccountBeep`|
+| 來源 | 用途與閱讀入口 |
+| --- | --- |
+| [BC 遊戲本體](../../BCJS/Bondage-College-master/BondageClub) | 原生函式簽名、狀態、副作用的基準 |
+| [指定 SDK](../Plugins/expand/bcmodsdk.js) | `registerMod`、hook chain、patch、卸載；這是 SDK，不是完整插件載入器 |
+| [SDK 型別](../../BCJS/Bondage-College-master/BondageClub/Scripts/lib/bcmodsdk.d.ts) | 查 API 合約；與指定 SDK 有差異時以實際載入版本為準 |
+| [LCE 直式入口](../../BC-LCE/src/features/vertical/index.js) | 畫面判定、resize、安裝與移除 |
+| [LCE 聊天室／Dialog 映射](../../BC-LCE/src/features/vertical/chatroom.js) | Canvas 區域複製、座標反算、事件注入、DOM 搬移 |
+| [FCM 頭像與資料庫](../../BC-FCM/src/data/profile-db.js) | 擷取、等待穩定、IndexedDB、角色重建及清理 |
+| [FCM 原生事件 hooks](../../BC-FCM/src/core/hooks.js) | 角色進房／更新後接續處理、UI 插入 |
+| [AEE 繪圖 hooks](../../BC-AEE/src/hooks/drawingHooks.ts) | `CharacterLoadCanvas`、`GLDrawImage`、圖層擷取 |
+| [AEE 渲染 hooks](../../BC-AEE/src/hooks/renderHooks.ts) | 變形作用域、Canvas／WebGL 處理 |
+| [AEE 圖層拾取](../../BC-AEE/src/controllers/appearancePickerController.ts) | 從實際繪圖參數回推點擊圖層 |
+| [HSC 座標](../../BC-HSC/src/util/geometry.js) | 角色錨點、身高／姿勢轉換、DOM 定位 |
+| [HSC hooks](../../BC-HSC/src/core/hooks.js) | 繪製位置與遊戲事件整合 |
+| [HSC 特效生命週期](../../BC-HSC/src/effects/lifecycle.js) | 取消工作、避免舊非同步回呼復活 |
 
-寫插件時先問自己：
+搜尋優先讀 `src` 與原生呼叫端。`dist`、壓縮 userscript、`Plugins/Temp` 用來確認實際發布內容；不要把不同版本的片段混成一個假想 API。複用程式前也要確認來源授權與署名要求。
 
-> \*\*我要改的是 UI、角色畫面、Inventory、Dialog、聊天資料，還是 BC 原生流程？\*\*
+## 3. 第一個可運行插件
 
-通常可以藉此直接找到正確的切入點，而不是從 `ServerSend` 或 `DrawImage` 開始亂 hook。
+### 3.1 登入與載入是不同階段
 
-### Canvas 與 DOM 的基本分工
+這份 R131 提供公開函式 `ServerIsLoggedIn()` 與 `ServerIsLoggedInAsync()`，見 [Server.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Server.js)。後者先等遊戲載入，再等登入成功。
 
-BC 本身大量 UI 使用 Canvas；DOM 則用於需要真正 HTML 元素的場景，例如輸入框、滑桿、文字輸入、瀏覽器元素等。
+[Game.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Game.js) 將 `GameReadyState.login` 標為 private，註解要求使用 `ServerIsLoggedInAsync`。不要直接依賴這個內部 Promise，也不要把頂層 `const` 一律當作 `window` 屬性。
 
-* **Canvas**：適合固定版面、按鈕、圖示、文字、遊戲畫面。
-* **DOM**：適合文字輸入、原生 HTML 控制項、需要瀏覽器互動能力的 UI。
-* **混用時**：一定要考慮兩邊的座標、縮放、層級與遮擋。
+初始化順序：
 
-不要把「Canvas 座標」直接當成「瀏覽器 CSS 像素」。
+1. 等必要函式與 SDK 存在。
+2. 註冊 mod；若有必須攔到的早期事件，此時安裝不依賴玩家資料的 hook。
+3. 等登入成功。
+4. 初始化設定與功能；額外圖片、外部資料或特定資源另外等待。
 
-\---
+`Player` 存在不等於已登入。對這份版本優先用公開登入 API；相容舊版本時，才另外實作 `LoginResponse` hook，先 `next(args)` 再檢查成功狀態。失敗回應不能消耗掉一次性初始化。
 
-## 2\. 一個插件應該怎麼開始
+### 3.2 完整起手式：主廳按鈕與持久設定
 
-建議把初始化分成兩階段，兩者責任要分開：
+**執行前提：** BC 頁面已載入指定 SDK，以下程式在頁面 JS 環境執行。使用 userscript 時，設定符合目標站台的 `@match`；`@grant none` 是常見做法，仍需確認腳本管理器的實際注入環境。SDK 自身不會替你下載或啟動插件。
 
-1. **Phase 1（早期階段）**：等待並 `registerMod` 註冊 `bcModSdk`，安裝不依賴玩家資料的 hook。**這一步不需要等登入，越早做越好。**
-2. **Phase 2（登入後階段）**：等玩家真的登入、遊戲資源就緒後，才初始化設定、UI、Inventory、指令等業務邏輯。
-
-**為什麼要拆開：** 如果把「註冊 SDK」也拖到登入之後才做，一旦頁面上其他插件已經在你之前 hook 了同一個函式，你自己的 mod 卻還沒註冊，可能發生載入順序依賴、或你需要的 hook 因為註冊太晚而錯過某次呼叫時機。及早註冊、延後執行，就不會出現「因為登入判斷卡住，導致 SDK 註冊太晚」這種連動問題。
-
-### 2.1 登入判定不能只看 `Player` 是否存在
-
-`Player` 這個全域物件在玩家還沒登入（甚至還在讀取登入畫面）時就已經存在，是一個空殼物件，所以：
+這個範例只示範主廳按鈕切換設定，不包含特效。按鈕位置只是示範，正式整合須確認與其他 UI 不重疊。
 
 ```js
-// ❌ 一定會誤判
-if (window.Player) { ... }
-```
+(async () => {
+    const NAME = "ExampleBCGuide";
+    const SLOT = "__exampleBCGuide";
+    if (globalThis[SLOT]) return;
+    const state = { disposed: false, mod: null };
+    globalThis[SLOT] = state;
 
-正確作法是看 `Player` 底下「登入後才會被賦值」的欄位，最常用、最可靠的是 `Player.MemberNumber`。**未登入時它不是 `0`、不是空字串，而是貨真價實的 `undefined`**，所以要用 `!== undefined` 判斷，不要用 truthy 判斷（否則 0 號會員會被誤判成未登入）：
+    state.dispose = () => {
+        state.disposed = true;
+        state.mod?.unload();
+        if (globalThis[SLOT] === state) delete globalThis[SLOT];
+    };
 
-```js
-if (window.Player?.MemberNumber !== undefined) {
-    // 已登入
-}
-```
+    async function waitForAPIs(timeout = 15000) {
+        const started = Date.now();
+        while (!state.disposed) {
+            if (globalThis.bcModSdk?.registerMod
+                && typeof ServerIsLoggedInAsync === "function"
+                && typeof MainHallRun === "function"
+                && typeof MainHallClick === "function"
+                && typeof ServerPlayerExtensionSettingsSync === "function") return;
+            if (Date.now() - started > timeout) throw new Error("必要 API 尚未就緒");
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        throw new Error("初始化已取消");
+    }
 
-統一使用 `!== undefined` 這個寫法；不要混用 `Player.ID`、`AccountName` 或其他 truthy 判斷登入狀態。
+    try {
+        await waitForAPIs();
+        if (state.disposed) return;
+        const mod = state.mod = bcModSdk.registerMod({
+            name: NAME, fullName: "BC Guide Example", version: "1.0.0",
+        });
+        await ServerIsLoggedInAsync();
+        if (state.disposed) return;
 
-### 2.2 尚未登入時：用 `LoginResponse` hook，不要輪詢 `Player`
+        Player.ExtensionSettings ??= {};
+        let enabled = false;
+        try {
+            const saved = JSON.parse(Player.ExtensionSettings[NAME] ?? "null");
+            enabled = saved?.enabled === true;
+        } catch (error) {
+            console.warn(`[${NAME}] 設定解析失敗，使用預設值`, error);
+        }
+        const button = { x: 1600, y: 800, w: 300, h: 65 };
 
-`bcModSdk` 本身沒有獨立的「登入完成」事件 API；`LoginResponse` 是 BC 遊戲原生函式（登入成功後被呼叫，內部會把 `Player.MemberNumber` 等欄位賦值），可以透過通用的 `hookFunction` 訂閱它來取代輪詢：
-
-```js
-function isLoggedIn() {
-    return typeof Player !== "undefined" \&\& Player?.MemberNumber !== undefined;
-}
-
-function waitForLogin(modApi) {
-    if (isLoggedIn()) return Promise.resolve();
-
-    return new Promise(resolve => {
-        const removeLoginHook = modApi.hookFunction("LoginResponse", 0, (args, next) => {
-            const result = next(args); // 一定先讓原生 LoginResponse 執行完，Player 才會被賦值
-            queueMicrotask(() => {
-                if (!isLoggedIn()) return; // 登入失敗（例如密碼錯誤）時保留 hook，等下一次回應
-                removeLoginHook();
-                resolve();
-            });
+        mod.hookFunction("MainHallRun", 0, (args, next) => {
+            const result = next(args);
+            DrawButton(button.x, button.y, button.w, button.h,
+                `Example: ${enabled ? "ON" : "OFF"}`, "White");
             return result;
         });
-    });
-}
-
-async function bootstrap() {
-    await waitFor(() => !!window.bcModSdk?.registerMod);
-
-    const modApi = window.bcModSdk.registerMod({
-        name: "MyMod",
-        fullName: "My Mod",
-        version: "1.0.0",
-        repository: "https://github.com/example/example",
-    });
-
-    installEarlyHooks(modApi); // 不依賴 Player 的 hook 先掛，避免錯過事件
-
-    await waitForLogin(modApi);
-    initializeAfterLogin(modApi);
-}
-
-bootstrap().catch(error => console.error("\[MyMod] init error:", error));
+        mod.hookFunction("MainHallClick", 0, (args, next) => {
+            if (!MouseIn(button.x, button.y, button.w, button.h)) return next(args);
+            enabled = !enabled;
+            Player.ExtensionSettings[NAME] = JSON.stringify({ version: 1, enabled });
+            ServerPlayerExtensionSettingsSync(NAME);
+            // 此點擊已由本按鈕消耗，避免繼續觸發下方的原生按鈕。
+            return;
+        });
+        console.info(`[${NAME}] ready`);
+    } catch (error) {
+        state.dispose();
+        console.error(`[${NAME}] 初始化失敗`, error);
+    }
+})();
 ```
 
-幾個重點：
+驗收：登入前注入與登入後注入都能出現按鈕；按一次只切換一次；重複注入不重複註冊；重新載入後設定保留；執行 `globalThis.__exampleBCGuide.dispose()` 後按鈕消失。若儲存失敗，要檢查送出與下次登入讀回的結果，不能只看按鈕文字。
 
-* `LoginResponse` 必須先呼叫 `next(args)` 讓原生流程真正把 `Player.MemberNumber` 等欄位賦值完，才檢查 `isLoggedIn()`；不要在呼叫 `next` 之前就判斷。
-* **BC 沒有「登出」這個選單項目。** 畫面上看起來像登出的操作（回到登入畫面、切換角色等），底層走的其實都是 `window.location.reload()`——整個頁面連同所有插件都會被完整重新載入，不是在同一份 JS 執行環境裡切換 `Player`。這代表**正常情況下，一個頁面生命週期內 `LoginResponse` 只會真正觸發一次**，不會有「同一頁面內登出又登入另一個帳號」這種情境需要處理。
-* 因此上面「一次性登入初始化模板」對絕大多數插件已經足夠：初始化成功後呼叫 `hookFunction` 回傳的移除函式（`removeLoginHook`），把 hook 拆掉即可，不需要額外設計「換帳號」的邏輯。
-* 唯一會讓 `LoginResponse` 在同一頁面內被呼叫多次的情況是**暫時斷線後自動重連**（`ServerHandleRelog`）——這種情況下帳號沒有變、`Player.MemberNumber` 也不會被清掉，所以就算沒移除 hook 也不會有副作用；如果真的想保守一點、讓插件在這種重連情境下也能自我修復，才用 `MemberNumber` 做冪等判斷取代「移除 hook」：
+## 4. SDK：精確改動原生流程
+
+### 4.1 hook 的執行順序
 
 ```js
-let initializedMemberNumber;
-
-function initializeCurrentAccount() {
-    if (!isLoggedIn() || initializedMemberNumber === Player.MemberNumber) return;
-    initializedMemberNumber = Player.MemberNumber;
-    initializeAfterLogin();
-}
-
-modApi.hookFunction("LoginResponse", 0, (args, next) => {
+const removeHook = mod.hookFunction("SomeFunction", 5, (args, next) => {
+    // 原生流程前：讀取或調整參數
     const result = next(args);
-    queueMicrotask(initializeCurrentAccount);
+    // 原生流程後：補畫、讀取結果
     return result;
 });
-
-initializeCurrentAccount(); // 插件可能在登入完成「後」才由載入器注入，載入當下就先檢查一次
+// 停用該功能時：removeHook();
 ```
 
-這只是「一次性模板」的保守版本，不是因為 BC 真的支援同頁面換帳號才需要。
-
-* 輪詢（`setInterval` 或 `waitFor(() => Player...)`）只保留給「沒有可靠事件、且確實會延後建立」的其他 BC API；登入狀態一律用 `LoginResponse` hook，Hook 不是輪詢，只有函式真的被呼叫時才會執行，不會浪費資源。
-
-如果插件還需要 Asset 或其他遊戲資源，登入完成後再另外等待（這屬於「資源就緒」而非「登入判定」，不要混在一起）：
-
-```js
-await waitFor(() =>
-    !!window.AssetFemale3DCG \&\&
-    typeof AssetGroupGet === "function"
-);
-```
-
-\---
-
-## 3\. bcModSdk：插件與 BC 原生函式的橋樑
-
-常用 API：
-
-```js
-bcModSdk.registerMod(...)
-modApi.hookFunction(name, priority, hook)
-modApi.patchFunction(name, patches)
-modApi.callOriginal(name, args)
-modApi.unload()
-```
-
-最常用的是：
-
-```js
-modApi.hookFunction("SomeBCFunction", 5, (args, next) => {
-    // 修改 args、在原函式前做事
-    const result = next(args);
-    // 原函式後做事
-    return result;
-});
-```
-
-### Hook 的基本原則
-
-* 不需要改原流程時，**呼叫 `next(args)`**。
-* 真的要阻止原流程時，才不呼叫 `next`。
-* 修改參數前先確認資料結構。
-* 同一個 BC 函式可能有多支插件 hook，因此 priority 要有意識地選擇：**數字越大越先執行**（`bcModSdk` 官方型別定義裡寫的是「Higher number is called first」），不是越大越晚。
-* 不要為了「保險」而大量 hook；優先找更上層、語意更清楚的入口。
-
-### Hook 要挑對「層級」，不是挑最底層
-
-同一個效果幾乎都能在好幾個不同層級攔到。以「修改角色身上某個道具的顯示」為例，從高到低可能的入口大致是：
+指定 SDK 以 priority 由大到小排序。若 A=10、B=5，兩者都正常呼叫 `next`：
 
 ```text
-語意最高（建議）
-  ExtendedItem 相關函式 / Asset.DynamicScriptDraw
-  ↓
-  CharacterRefresh / DrawCharacter
-  ↓
-  DrawImage / DrawImageEx（Canvas 2D 路徑）
-  ↓
-  GLDrawImage（WebGL 路徑）
-  ↓
-  uniformMatrix4fv 之類的 WebGL 底層呼叫
-語意最低（不建議）
+A 前置 → B 前置 → 原生函式 → B 後置 → A 後置
 ```
 
-`uniformMatrix4fv` 這種等級的 hook 技術上做得到（BC 走 WebGL 渲染時，角色每一層道具的每一次繪製最終都會呼叫到這類 GL API），但**這已經是瀏覽器 WebGL context 本身的原生方法，不是 BC 定義的語意函式**。挑這個層級下手，代表：
+因此「先進入 hook」與「最後疊畫」不是同一件事。沒有通用的 priority 區間可以保證不與其他插件衝突；還要看對方是否呼叫 `next`、是否切換子畫面，以及你的 Draw 與 Click 是否使用同一個啟用條件。
 
-* 任何跟繪圖矩陣、著色器管線有關的呼叫都會經過你的 hook，不只是你想改的那個道具，**影響範圍遠大於你的實際需求**。
-* BC 或瀏覽器只要調整渲染管線的實作細節（哪怕只是效能優化、換一種 WebGL 呼叫方式），你的 hook 完全不會有任何語意上的警告，就直接壞掉、或做出跟預期不同的結果，而且很難排查——因為問題出現的地方（`uniformMatrix4fv`）跟你真正想改的東西（某個道具的顯示）中間隔了好幾層。
-* 一旦這支插件跟其他也在做繪圖相關 hook 的插件同時安裝，大家都卡在最底層互相搶同一組呼叫，衝突機率和除錯難度都會被放大。
+- 一般延伸只呼叫一次 `next(args)`，保留參數與回傳值。
+- 吞掉 `next` 代表接管該次呼叫，會同時略過後續 hooks 與原生流程。
+- `callOriginal` 在指定 SDK 中呼叫保存的原始函式，繞過 SDK 的 hook 與 patch；不能當作 `next` 的替代品。
+- 不要任意把同步 hook 改成 `async`，否則原呼叫端收到的值會變成 Promise。
+- 原函式本來是非同步時，必須等它完成才能讀取完成後狀態。例如 R131 的 `ChatRoomSync` 是 `async`；「呼叫 next 後馬上讀資料」不保證同步已結束。
 
-**多數效果並不需要做到這個程度**，官方也不希望插件開發者往這個方向走——BC 提供 `DynamicScriptDraw`、`ExtendedItem\*` 系列函式、`ScriptPermissions` 這類語意化的入口，就是希望插件透過這些管道跟遊戲互動，而不是直接鑽進渲染管線內部。**選擇 hook 目標時，先問「有沒有語意更高、影響範圍更小的函式可以做到同樣的事」，只有在真的沒有更高層入口、且效果非做到這個深度不可時，才考慮往下鑽**，並且要有心理準備：越底層的 hook，遇到官方更新時越容易整支插件一起壞掉，出問題時受影響的範圍也越大、越難定位。
+### 4.2 patch、診斷與卸載
 
-實務上一個常見情境是「在別人畫面上疊加自己的按鈕」（例如在 `InformationSheetRun` 上畫濾鏡設定按鈕）。這類 hook 慣例上把 priority 設在 **5 以上、但不超過 10**：BCX 這類主流管理型插件的子畫面掛在數字 10 的層級，5 以上又能確保排在大多數其他插件的按鈕之後、正常疊上去。跟這個慣例數字區間保持一致，通常就足夠避免衝突，不需要額外寫「偵測其他插件子畫面」的邏輯（例如 `window.bcx?.inBcxSubscreen?.()`）；那種偵測只在真的與某個知名插件確定衝突、且對方剛好有暴露對應查詢 API 時，才值得當補丁加上去。
+`patchFunction` 依函式文字替換。指定 SDK 在字串沒命中時發出警告，不保證自動阻止插件繼續跑。因此 patch 要記錄原文錨點、支援版本、命中檢查及失效時的處理。
 
-### `@grant`
+可用 `getOriginalHash`、`bcModSdk.getPatchingInfo()` 與 `getModsInfo()` 輔助診斷。雜湊只代表函式文字是否相同，不代表行為相容性已驗證。
 
-使用 `bcModSdk` 時，Userscript 建議使用：
+`mod.unload()` 移除該 mod 的 SDK hook／patch。它不會幫你清理 DOM、事件監聽、timer、RAF、Object URL、自己覆寫的 prototype 或自訂全域狀態。這些資源必須由插件自己的 dispose 處理。
 
-```js
-// @grant none
-```
+避免直接替換已被其他插件包裝的全域函式。若必須包裝 prototype，恢復時要確認目前仍是自己的 wrapper，避免覆蓋後來安裝的其他插件。
 
-因為 Mod SDK 需要直接操作頁面中的 BC 全域與函式。
+## 5. 實作案例：LCE 直式 UI 與按鈕映射
 
-\---
+### 5.1 做出的效果
 
-## 4\. 資料與伺服器：ExtensionSettings、ServerSend 與登入生命週期
+LCE 的 [chatroom.js](../../BC-LCE/src/features/vertical/chatroom.js) 將原生 Dialog 所在的 Canvas 右半部複製到直式畫面的另一區，再把點擊反算回原生位置，交回遊戲處理。它不是替每個原生按鈕重寫業務邏輯。
 
-### 4.1 ExtensionSettings 只保存自己的鍵
+必須分清三個座標空間：
 
-插件自己的設定應放在：
+| 空間 | 本案例的單位 |
+| --- | --- |
+| BC UI | 2000 × 1000 邏輯座標 |
+| 原始區域 | Dialog 右半部：x=1000、y=0、w=1000、h=1000 |
+| 目標區域 | 直式版面中的 CSS 像素矩形，位置與尺寸隨視窗改變 |
 
-```js
-Player.ExtensionSettings.MyPlugin
-```
-
-儲存時不要把整個 `Player.ExtensionSettings` 塞回 `AccountUpdate`。
-
-推薦：
+以下是可重用的純座標函式，不包含事件注入：
 
 ```js
-const EXTENSION\_KEY = "MyPlugin";
-
-Player.ExtensionSettings ??= {};
-Player.ExtensionSettings\[EXTENSION\_KEY] = JSON.stringify(mySettings);
-
-ServerPlayerExtensionSettingsSync(EXTENSION\_KEY);
-```
-
-BC 目前的 `ServerPlayerExtensionSettingsSync` 會只建立：
-
-```js
-{
-    "ExtensionSettings.MyPlugin": "..."
+function mapToSource(clientX, clientY, dest, source) {
+    if (dest.width <= 0 || dest.height <= 0) return null;
+    const u = (clientX - dest.left) / dest.width;
+    const v = (clientY - dest.top) / dest.height;
+    if (u < 0 || u >= 1 || v < 0 || v >= 1) return null;
+    return { x: source.x + u * source.width, y: source.y + v * source.height };
 }
 ```
 
-再送出 `AccountUpdate`。
+前提是目標矩形正好對應來源區域；若有留白、裁切或 `object-fit`，先算出真正的內容矩形。不要把容器外框直接當內容範圍。
 
-**核心原則：只同步自己的鍵，而且只在真的需要保存時同步。**
+### 5.2 事件不能只改 MouseX／MouseY
 
-> ⚠️ \*\*實務觀察（非 BC 原始碼證實，僅供參考）\*\*：`AccountUpdate` 單次傳輸似乎存在容量上限，社群實測抓到的門檻大約在 `180000` 字元量級。BC 客戶端原始碼裡沒有這個常數（只有 `ServerChatMessageMaxLength = 2000` 這類聊天字數上限），所以 `180000` 不是官方保證值，不要當成安全邊界寫死判斷。真正該守住的底線是：\*\*永遠只送出自己真正變更、確定歸屬自己的單一鍵，不要有「整包回傳」或「幫其他插件補送」的邏輯路徑\*\*；如果自己的單一鍵本身就大到有疑慮，才需要處理壓縮、拆鍵，或改用其他儲存方式（如 `localStorage`）。
+LCE 的 `drInjectClick` 除了設定 BC 滑鼠座標，也把映射結果換算成原 Canvas 的 `clientX/clientY`，派送 Pointer／Mouse 事件。它暫時處理合成 pointer 的 capture 問題，並在 `finally` 恢復方法，之後清除殘留滑鼠座標。
 
-### 4.2 ServerSend 不等於「直接送出」
+這是特定輸入管線的整合方案。移植時要追 [Mouse.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Mouse.js) 的事件處理與實際入口，不能假設同時派送多組事件一定安全：最重要的驗收是「一次觸控只觸發一次原生操作」。合成事件也不等同於可信的使用者手勢，不能假設能解鎖所有瀏覽器功能。
 
-插件常見：
+### 5.3 DOM 與生命週期
 
-```js
-ServerSend("ChatRoomChat", {...});
-ServerSend("AccountBeep", {...});
-ServerSend("ChatRoomAdmin", {...});
+Canvas 複製不會複製 Dialog 的 DOM 輸入框、選色器或第三方 React 面板。LCE 另外處理 DOM 位置，並記錄上次套用的位置，避免每幀累加偏移。
+
+需要一起處理：切換畫面、旋轉、resize、輸入框聚焦、虛擬鍵盤、關閉功能後還原樣式，以及取消鏡像 RAF。`CommonIsMobile` 是輸入裝置判斷，不能代替直式／可用空間判斷。
+
+驗收：按鈕中央與邊緣、區域外點擊、觸控與滑鼠、旋轉、鍵盤開合、離開再返回，以及 AEE 選色器等 DOM 元件的對齊。若只改顯示沒改輸入，這個功能尚未完成。
+
+## 6. 實作案例：FCM 頭像與角色快照
+
+### 6.1 完整處理鏈
+
+[profile-db.js](../../BC-FCM/src/data/profile-db.js) 提供兩條來源：已有角色 Canvas 的快照，以及保存的角色 bundle 重建。基本流程是：
+
+```text
+取得角色資料 → 取得／重建角色 → 等待貼圖與 Canvas 更新
+→ 裁切頭像 → 快取／保存 → 更新列表 → 清理暫存資源
 ```
 
-但 `ServerSend` 本身還會經過 BC 的送出佇列與限制。因此：
+有 `C.Canvas` 或 Canvas 寬度非零，不代表貼圖已載完。FCM 的 `captureFace` 會暖機、觀察 `C.MustDraw`、重建 Canvas、比較多次結果，並設定逾時。這是避免半張頭像的實務啟發式，不是原生的「所有材質載入完成」保證；動畫角色也可能一直不穩定。
 
-> \*\*不要假設呼叫 `ServerSend()` 就代表資料已經立即抵達伺服器。\*\*
+### 6.2 裁切參數是案例設定
 
-若需求是「攔截原生流程」，優先考慮 hook BC 函式，而不是自行掛 socket。
+FCM 的 `_face` 從 `C.Canvas` 以 `cropSize = 210`、來源 y=740 裁切，輸出 WebP。這是該實作對角色 Canvas 的選擇，不是通用的「頭部 y 座標」。
 
-### 4.3 `OnlineSharedSettings`：核心功能是「分享你想分享的資訊」，不只是存資料
+複用時要確認來源 Canvas 的 padding、姿勢、身高與其他插件的影響，至少測站立、跪姿、趴姿及不同身高。輸出為空、透明或頭部被切掉時，應保留替代圖並記錄失敗，不把空圖當成功快取。
 
-`Player.OnlineSharedSettings` 跟 `ExtensionSettings` 最根本的差異，不是同步機制細節，而是**用途本身**：`ExtensionSettings` 是插件寫給自己看的私有資料，其他玩家的用戶端完全看不到；`OnlineSharedSettings` 則會**隨角色資料一起同步給場景裡看得到你的其他人**，本質上是「你主動公開讓別人（的角色、對方的插件）能讀到的一組宣告」。BC 原生的 `AllowFullWardrobeAccess`（願不願意讓對方直接用完整衣櫃）、`BlockBodyCosplay`（願不願意讓人 cosplay 你的身體）、`ScriptPermissions`（願意讓哪個關係等級的腳本做 Hide/Block）都是這個用途的例子——這些欄位存在的意義就是「讓別人知道並尊重你的選擇」，不是單純的個人儲存空間。
+### 6.3 重建角色的副作用
 
-所以插件在思考要不要用 `OnlineSharedSettings` 時，該問的第一個問題是：**這筆資料是不是本來就該讓別人看到、讓別人的邏輯可以據此判斷？** 如果答案是「不需要別人知道，只是我自己插件要記住的狀態」，就應該用 `ExtensionSettings`，不要往 `OnlineSharedSettings` 塞。
+`loadAvatarFromBundle` 使用 `CharacterLoadOnline`、`CharacterRefresh(C, false, undefined)`，等待擷取後再清理。原生 `CharacterLoadOnline` 涉及全域角色集合，不是純 JSON 解碼函式。
 
-理解了用途之後，再看兩者在**同步機制**上的具體差異，混用會直接出錯：
+新的實作應明確追蹤角色所有權：只清理本次確定建立且不再被使用的臨時角色。呼叫 `CharacterDelete(C, false)` 前檢查是否仍被玩家、聊天室、Dialog、Appearance 或其他功能持有；不要只因「不在房間」就刪掉共用角色。
 
-||`ExtensionSettings`|`OnlineSharedSettings`|
-|-|-|-|
-|結構|開放式，鍵是插件自訂的字串|封閉式，只有 BC 定義好的固定欄位（`AllowFullWardrobeAccess`、`BlockBodyCosplay`、`AllowPlayerLeashing`、`AllowRename`、`DisablePickingLocksOnSelf`、`ItemsAffectExpressions`、`WheelFortune`、`ScriptPermissions` 等）|
-|同步方式|逐鍵 dot-notation（`ServerPlayerExtensionSettingsSync`），只送自己的鍵|整包物件當成**單一頂層欄位**送出，沒有逐欄位同步 API|
-|驗證|插件自己的資料，BC 不檢查內容|每次都會經過 `PreferenceOnlineSharedSettingsValidate` 逐欄位驗證，**未定義的多餘欄位會被丟棄**，不是「先放著、以後兼容」|
+`CharacterRefresh` 的第二參數設為 false 可避免玩家外觀推送，但仍有其他刷新副作用，見第 10 節。不能把它理解成純渲染 API。
 
-實務上這代表幾件事：
+### 6.4 快取與驗收
 
-1. **對插件來說，`OnlineSharedSettings` 最常見的使用情境其實是「讀」，不是「寫」。** 想知道場景裡某個角色是否允許被使用完整衣櫃、是否封鎖 Body Cosplay、願意開放哪個等級的腳本權限，直接讀 `C.OnlineSharedSettings.欄位名稱` 即可——這份資料已經隨對方的角色資料同步給你，是對方主動公開的宣告，插件應該讀取並尊重它，而不是自己另外設計一套「詢問對方權限」的通訊協定。
-2. **不要把 `OnlineSharedSettings` 當成另一個可以塞自訂資料的地方。** 它的 schema 是封閉的，插件自己加的欄位會在下一次驗證時被丟掉，不會保留。插件自己的私有資料一律走 `ExtensionSettings`；只有「這件事本來就該讓別人知道」的資訊才考慮 `OnlineSharedSettings`——而目前開放的欄位是 BC 自己定義好的，插件基本上只會是這些既有欄位的讀者，不太會有自己造新欄位的空間。
-3. **如果真的需要修改自己的 `OnlineSharedSettings`（例如做一個 UI 讓玩家快速切換 `AllowFullWardrobeAccess`），必須讀出目前完整的物件、只改自己要改的欄位，再把整包物件送回去**，不要自己组一個只有部分欄位的新物件：
+FCM 使用 IndexedDB 保存頭像，並有記憶體快取、更新事件及舊資料轉換。新功能至少要定義：快取鍵、何時失效、請求去重、容量清理、失敗重試上限，以及停用後如何處理未完成工作。使用 Blob URL 時，移除或替換圖片後要適時 `URL.revokeObjectURL`。
+
+驗收：首次遇見、已有快取、重建離線角色、慢速貼圖、逾時、更新外觀、資料庫失敗，以及反覆操作後角色集合／記憶體是否持續增長。不能用假頭像通過 UI 測試後，就宣稱角色擷取已驗證。
+
+## 7. 實作案例：AEE／HSC 繪圖
+
+### 7.1 先選正確入口
+
+| 效果 | 起查位置 | 注意事項 |
+| --- | --- | --- |
+| 畫面上的按鈕、文字 | 所屬畫面的 Run／Click、Drawing.js | 顯示與點擊條件一致 |
+| 整個角色旁的標記 | `DrawCharacter` 或該場景 overlay | 檢查實際角色位置與疊畫順序 |
+| 貼著嘴、眼睛的 DOM 特效 | DrawCharacter 位置＋角色座標轉換 | 姿勢、身高、縮放與 DOM 位置都要算 |
+| 道具顯示、排序、遮罩 | `CharacterLoadCanvas`、角色 hooks、CommonDraw | 先理解渲染用資料與實際 Appearance 的區別 |
+| 單層翻轉、斜切、拾取 | AEE 的 GLDrawImage／renderHooks／picker | 包含變換作用域與後端差異 |
+| 道具自己的動態繪製 | Asset 的 DynamicScriptDraw 與對應實作 | 依具體資產查看呼叫契約 |
+
+不是所有圖片都經過 `DrawImage`。原生 [Character.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Character.js)、[CommonDraw.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/CommonDraw.js)、[GLDraw.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/GLDraw.js) 與 [Drawing.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Drawing.js) 分別承擔角色資料整理、圖層組合、渲染與畫面繪製。
+
+### 7.2 AEE：深入圖層時如何限制作用範圍
+
+AEE 在 `CharacterLoadCanvas` 附近追蹤角色與拾取資料，在 `GLDrawImage` 擷取圖片及位置參數。`renderGlImage` 複製 DrawOptions 後調整翻轉，並以 `try/finally` 管理活動中的變形狀態。
+
+它也確實包裝 `WebGL2RenderingContext.prototype.uniformMatrix4fv` 等方法，處理斜切／鏡像。這說明底層操作有實際用途；移植時必須保留完整的角色／圖層作用域、狀態恢復、停用路徑與相容性檢查，不能只複製矩陣片段。
+
+尤其要確認：一般圖與眨眼圖的連續呼叫、錯誤中斷、巢狀繪製、另一個 WebGL context、其他插件再次包裝同一個方法，以及 Canvas2D fallback。某後端不支援時可以明確停用該效果，不要宣稱兩條路徑等價。
+
+圖層拾取應使用實際繪製取得的轉換參數，讓命中判定與顯示一致。變形後仍用變形前矩形判定，會出現「看得到但點不到」。
+
+### 7.3 HSC：從角色位置到 DOM 位置
+
+[geometry.js](../../BC-HSC/src/util/geometry.js) 的基本方式是使用實際繪製的 x／y／zoom，加上身高比例與原生 `CharacterAppearanceXOffset`、`CharacterAppearanceYOffset`，再把 BC 座標換成 CSS 像素。
+
+```js
+function bcToClient(x, y, canvas) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: rect.left + x * rect.width / 2000,
+        y: rect.top + y * rect.height / 1000,
+    };
+}
+```
+
+這個函式假設 Canvas 顯示整個 2000×1000 UI、沒有旋轉／額外裁切，回傳 viewport 座標，適合 `position: fixed`。若元素相對其他容器定位，要再扣除容器位置；若 LCE 正在鏡像區域，要套用該區域映射。
+
+HSC 優先取 `DrawCharacter` 記錄的實際錨點，再回退到 overlay 的位置。這可處理部分其他插件造成的角色位移，但不是對所有變換的保證。嘴部／眼睛位置中的校正值也屬於效果設定，需要視覺驗收。
+
+resize、捲動或版面改變後應更新快取矩形。離房、換頁、目標消失或停用時，除了取消動畫，也要使舊的非同步工作失效；可參考 HSC 的 generation／checkpoint 與 [run.js](../../BC-HSC/src/effects/run.js)。
+
+驗收：不同姿勢與身高、不同 zoom、角色移動／重排／分頁、視窗縮放、直式模式、停用時仍有排程中的效果，以及同時啟用其他角色繪圖插件。
+
+## 8. 設定、同步與多人資料
+
+### 8.1 先決定誰需要看見
+
+| 資料 | 優先儲存方式 | 實作要求 |
+| --- | --- | --- |
+| 個人設定、希望隨帳號保存 | `Player.ExtensionSettings.<插件鍵>` | 版本化、驗證、只同步自己的鍵 |
+| 圖片快取、大量本機資料 | IndexedDB | 容量、失效、清除；不假設跨裝置存在 |
+| 當前頁面的暫態狀態 | 記憶體 | 離房／停用／重新載入時清理 |
+| 要讓其他客戶端讀取的角色宣告 | `OnlineSharedSettings` 或明確的插件通訊 | 命名空間、資料最小化、接收端驗證 |
+| 即時事件 | 原生聊天／插件訊息流程 | 版本、來源、目標、去重、節流 |
+
+### 8.2 ExtensionSettings：單鍵更新
+
+```js
+Player.ExtensionSettings ??= {};
+Player.ExtensionSettings.MyPlugin = JSON.stringify({ version: 1, enabled: true });
+ServerPlayerExtensionSettingsSync("MyPlugin");
+```
+
+指定版本的 `ServerPlayerExtensionSettingsSync` 會檢查該鍵不是 undefined，建立 `ExtensionSettings.MyPlugin` 欄位，再呼叫 `ServerSend("AccountUpdate", obj)`。不要把整包其他插件設定重新送回去。
+
+讀取 JSON 要處理舊版格式與損壞資料。高頻滑桿／拖曳在提交或 debounce 後保存，不要每幀送出。單鍵過大時先減少資料、壓縮或改存本地；這次沒有檢查伺服器實作，不宣稱固定的安全容量上限。
+
+### 8.3 OnlineSharedSettings：本地 R131 會保留額外欄位
+
+這點修正舊版指南：本地 [Preference.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Preference.js) 與 Server 的角色驗證，使用 `ValidationApplyRecord(..., true)`；[Validation.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Validation.js) 的 `allowExtraKeys` 會保留額外欄位。因此不能說「自訂欄位一律會被丟棄」。
+
+客戶端行為不等於伺服器對任意內容／大小的保證。使用自訂公開狀態時，以插件名稱分組並帶版本，只傳需要公開的資料；不能把它當成秘密儲存區。接收端須驗證型別、長度、允許值，不能把其他玩家送來的欄位直接當作操作授權。
+
+修改既有公開選項時，保留其他欄位：
 
 ```js
 Player.OnlineSharedSettings.AllowFullWardrobeAccess = true;
 ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
 ```
 
-`ServerAccountUpdate.QueueData` 內部用 `Map` 依「頂層欄位名稱」去重、debounce 2 秒後（最長不超過 8 秒）合併送出一次 `AccountUpdate`；同一個 2～8 秒視窗內若有多次呼叫都動到 `OnlineSharedSettings` 這個 key，**最後一次覆蓋前一次**，不是深層合併。所以如果插件在這個視窗內只送出「部分欄位」的物件，會直接把玩家其他還沒送出的 `OnlineSharedSettings` 變更（例如玩家剛好也在 Preference 頁面改了別的選項）一起蓋掉。**一律基於當下的 `Player.OnlineSharedSettings` 做修改，而不是自己另外持有一份副本。**
+這是帳號資料排程更新。若要求同房者立即看見，還要核對原生對應操作的角色廣播流程，並以第二個客戶端驗證。
 
-4. **`ScriptPermissions` 是 BC 官方提供給「腳本／插件」的授權欄位，不是插件自訂資料，但插件應該讀它、尊重它。** 它記錄玩家願意讓哪個關係等級（Self／Owner／Lovers／Friends／Whitelist／Public）的腳本去做「跳過嚴格驗證的 Hide / Block 操作」。查詢時用 BC 原生的 `ValidationHasScriptPermission(character, property, permissionLevel)`：
+`QueueData` 按提交的欄位名稱存入 Map，同鍵後值取代前值，不做深層合併。它使用 2 秒 timer，並以 8 秒條件限制持續重新排程；不要把這簡化為嚴格的「8 秒內必定送達」。
 
-```js
-if (ValidationHasScriptPermission(targetCharacter, "Block", ScriptPermissionLevel.FRIENDS)) {
-    // 對方已經在 Preference → Scripts 開放「朋友」等級的 Block 權限，可以照這個授權做事
-}
-```
+### 8.4 多人功能的完成條件
 
-這跟本文一貫強調的「找語意最高的入口，而不是繞過去硬做」是同一個原則：**BC 本身就有這條 official 的授權管道**，插件要修改別人身上道具的 Hide/Block 屬性時，應該先查這個權限，而不是直接無視對方的 Preference 設定用 hook 硬改。玩家自己的 `ScriptPermissions` 則在 Preference → Scripts 分頁調整，插件通常不需要、也不應該自己另開一套 UI 去改這個欄位。
+追蹤完整路徑：本地狀態 → 原生送出函式 → 伺服器回應／廣播 → 對方接收 → 對方顯示。`ServerSend` 被呼叫只證明進入客戶端送出流程，不代表對方已收到。
 
-\---
+協定應定義名稱、版本、訊息大小、來源及目標檢查、重複訊息處理、節流與未知版本處理。對方未安裝插件時要有可預期行為。不要用接收者提供的角色識別值取代可信的訊息來源，也不要在日誌輸出完整私人資料。
 
-## 5\. Preference 設定頁與 Commander
+## 9. 道具、互動與設定頁：按需求深入
 
-### 5.1 `PreferenceRegisterExtensionSetting`
+這些區域保留為查找入口，沒有需要時不用先讀完。
 
-插件可以在：
+| 需求 | 查找入口 | 完成標準 |
+| --- | --- | --- |
+| 插件設定頁（9.1） | `PreferenceRegisterExtensionSetting` 與現有插件註冊處 | 開啟、修改、保存、退出；DOM 清理 |
+| Dialog／InformationSheet 按鈕 | 同畫面的 Run／Draw、Click、Exit 與選中角色狀態 | 對正確角色操作；子畫面中不誤觸 |
+| 穿戴／移除／修改道具 | `InventoryWear`、`InventoryRemove`、`CharacterAppearanceSetItem` 及呼叫端 | 權限通過、驗證後仍保留、同步結果正確 |
+| Extended Item | `ExtendedItem.js` 與最接近的原生道具實作 | Load／Draw／Click／Exit、Property、鎖與權限一致 |
+| 自訂 Asset／鎖 | `Asset.js`、對應 Inventory 與 Extended Item 流程 | 圖片、設定、互動、對方顯示；新增 Asset 不等於新增解鎖系統 |
+| 自訂 Activity | `Activity.js`、資產資料及聊天字典 | 前置條件、目標、權限與訊息完整 |
+| 房間管理 | `ChatAdmin.js` 中相同 Action 的原生呼叫 | 管理員權限、完整 payload、伺服器結果 |
 
-**Preference → Extensions / 其他插件設定**
+涉及 ECHO／WCE 或其他插件時，應列明實際 hook／patch 的共同入口與測試組合；不要把某插件的影響概括成「所有 UI 都受它控制」。
 
-加入自己的設定頁。
+### 9.1 完整設定頁：Canvas 按鈕與 DOM 輸入框
 
-基本形式：
+原生入口分成兩個檔案：[Preference.js](../../BCJS/Bondage-College-master/BondageClub/Screens/Character/Preference/Preference.js) 負責註冊，[Extensions.js](../../BCJS/Bondage-College-master/BondageClub/Screens/Character/Preference/Extensions.js) 負責開啟、執行與清理。可搭配 [LCE 設定頁](../../BC-LCE/src/settings/settings-page.js) 與 [HSC 設定頁](../../BC-HSC/src/ui/preference.js) 閱讀。
 
-```js
-PreferenceRegisterExtensionSetting({
-    Identifier: "MYMOD\_SETTING",
-    ButtonText: "My Mod 設定",
-    Image: "Icons/Settings.png",
+| callback／欄位 | R131 的實際契約 |
+| --- | --- |
+| `Identifier` | 唯一的非空字串；重複註冊只記錄錯誤，不會替換舊頁 |
+| `ButtonText` | 字串或回傳字串的函式；註冊時也用來排序 |
+| `Image` | 可省略，或使用字串／函式 |
+| `load` | 開啟頁面時執行；Extensions 呼叫端沒有等待其 Promise |
+| `run`／`click` | 小寫名稱，分別繪製與處理點擊 |
+| `exit` | 原生返回路徑會直接呼叫；回傳 `false` 阻止離開 |
+| `unload` | 清除頁面或外部切換畫面時的清理入口 |
+| `resize` | 可選，更新 DOM 位置與尺寸 |
 
-    load: () => MyModScreen.load(),
-    run: () => MyModScreen.run(),
-    click: () => MyModScreen.click(),
-    unload: () => MyModScreen.unload(),
-    exit: () => MyModScreen.exit(),
-});
-```
+註冊函式只驗證部分欄位，**沒檢查 `exit` 不代表可以不提供**。Extensions 的返回路徑直接執行 `.exit()`。而且該層未等待 `exit()` 的 Promise；`async exit()` 最終 resolve false 並不能可靠阻止離開。需要非同步保存時，使用顯式「儲存」操作與 loading 狀態，保存期間由同步 `exit` 回傳 false。
 
-BC 會檢查：
-
-* `Identifier` 必須是非空字串且唯一。
-* `load`、`run`、`click` 必須是函式。
-* `ButtonText` 必須是文字或函式。
-* `Image` 可以是文字、函式或省略。
-
-### 5.2 Preference 返回鍵
-
-如果自己的設定頁沒有特殊 UI 規劃，可以沿用目前常見的 BC 插件版面：
+以下範例可在第 3 節的登入完成後另外呼叫一次。它有獨立設定鍵；點「儲存」寫回，離開時丟棄未保存草稿。這是頁面範例，不包含熱卸載註冊項目的機制。
 
 ```js
-DrawButton(
-    1815, 75, 90, 90,
-    "",
-    "White",
-    "Icons/Exit.png",
-    T.back
-);
-```
-
-點擊：
-
-```js
-if (MouseIn(1815, 75, 90, 90)) {
-    PreferenceExit();
-    return;
-}
-```
-
-這不是 BC 強制規格，而是很實用的**版面慣例**。
-
-### 5.3 Commander 快速前往設定
-
-如果插件同時有 Commander 說明／指令，並且使用 `PreferenceRegisterExtensionSetting`，建議在 Commander 中提供「前往設定」。
-
-`PreferenceRegisterExtensionSetting` 的：
-
-```js
-Identifier: "MYMOD\_SETTING"
-```
-
-可以直接配合：
-
-```js
-PreferenceSubscreenExtensionsOpen("MYMOD\_SETTING");
-```
-
-也就是：
-
-```js
-const modname\_setting = PreferenceRegisterExtensionSetting.Identifier;
-
-PreferenceSubscreenExtensionsOpen(modname\_setting);
-```
-
-實際程式通常會把 Identifier 抽成常數，避免重複字串：
-
-```js
-const SETTING\_ID = "MYMOD\_SETTING";
-```
-
-然後：
-
-```js
-PreferenceRegisterExtensionSetting({
-    Identifier: SETTING\_ID,
-    ...
-});
-
-// Commander
-PreferenceSubscreenExtensionsOpen(SETTING\_ID);
-```
-
-\---
-
-## 6\. Canvas：文字、按鈕、勾選箱與 Hover
-
-### 6.1 文字
-
-BC 最基本的文字繪製：
-
-```js
-DrawText("Hello", X, Y, "White", "Gray");
-```
-
-更適合 UI 的通常是：
-
-```js
-DrawTextFit("Hello", X, Y, Width, "White", "Gray");
-```
-
-需要注意：
-
-* Canvas 文字的 `X/Y` 是繪製基準點，不一定是左上角。
-* `textAlign`、`textBaseline` 會影響位置。
-* 長文字不要只靠固定寬度硬塞，優先使用 `DrawTextFit` 或換行工具。
-* 多語言後文字長度可能完全不同，版面不要只用英文測試。
-
-### 6.2 按鈕
-
-BC 的原生：
-
-```js
-DrawButton(
-    Left, Top, Width, Height,
-    Label,
-    Color,
-    Image,
-    HoveringText,
-    Disabled,
-    tooltipPosition
-);
-```
-
-例如：
-
-```js
-DrawButton(
-    1400, 800, 300, 80,
-    "儲存",
-    "White",
-    null,
-    "儲存目前設定"
-);
-```
-
-`DrawButton` 會：
-
-1. 畫背景與邊框。
-2. 畫文字。
-3. 有圖片時在按鈕內畫圖片。
-4. 有 Hover 文字時加入 BC 的 Hover 系統。
-
-### 6.3 勾選箱
-
-BC 已經有：
-
-```js
-DrawCheckbox(
-    Left, Top, Width, Height,
-    Text,
-    IsChecked
-);
-```
-
-它的結構其實很簡單：
-
-```js
-DrawText(Text, Left + 100, Top + 33, ...);
-DrawButton(
-    Left, Top, Width, Height,
-    "",
-    ...,
-    IsChecked ? "Icons/Checked.png" : ""
-);
-```
-
-**重要：預設 Checked 圖片本身可能很大。**
-
-如果你的 Checkbox UI 比較小，不能只把按鈕縮小後就認為圖片會自動變成理想尺寸。必要時應該：
-
-* 自己指定適合尺寸的 Checked 圖片；
-* 或不要直接使用 `DrawCheckbox`，自行畫 `DrawButton` / `DrawImageResize`；
-* 點擊區域與圖片顯示尺寸分開思考。
-
-例如需要小型 Checkbox 時：
-
-```js
-DrawButton(
-    100, 100, 45, 45,
-    "",
-    "White",
-    checked ? "Images/MyChecked.png" : ""
-);
-```
-
-這樣可以完全控制圖片尺寸與點擊區域。
-
-### 6.4 Hover 說明的特殊規則
-
-BC 的 `DrawButtonHover` 有非常明確的左右判定：
-
-```js
-Left = (MouseX > 1000)
-    ? Left - 475
-    : Left + Width + 25;
-```
-
-也就是：
-
-* 滑鼠在 **X ≤ 1000**：Hover 文字往物件右邊顯示。
-* 滑鼠在 **X > 1000**：Hover 文字往物件左邊顯示。
-
-因此開發 Canvas UI 時不要只想「我的按鈕放哪裡」，還要想：
-
-> \*\*Hover 框會跑去哪裡？那個方向有沒有 DOM 或其他重要 UI？\*\*
-
-尤其當 Canvas 旁邊有 DOM 元素時：
-
-* X ≤ 1000 的物件，Hover 可能往右蓋到 DOM。
-* X > 1000 的物件，Hover 可能往左蓋到 DOM。
-
-必要時可以傳入 `tooltipPosition`，自行控制 Hover 區域。
-
-\---
-
-## 7\. DOM 與 Canvas 混用
-
-BC 的 DOM 元素通常會使用 Canvas 座標系轉成實際瀏覽器位置，例如：
-
-```js
-ElementPosition(element, X, Y, W, H);
-ElementPositionFixed(element, X, Y, W, H);
-```
-
-因此不要直接寫：
-
-```js
-element.style.left = X + "px";
-```
-
-然後期待它與 Canvas 的 `X` 完全一致。
-
-### DOM 開發要特別注意
-
-不同視窗尺寸、瀏覽器縮放、裝置比例下，Canvas 與 DOM 的實際 CSS 尺寸都可能改變。
-
-因此：
-
-* 優先使用 BC 的 `ElementPosition` / `ElementPositionFixed` 等工具。
-* 不要把某個螢幕上的瀏覽器像素位置當成永久座標。
-* 輸入框、滑桿等 DOM 元件要跟 Canvas 的設計座標建立清楚的對應。
-* DOM 如果蓋住 Canvas，反過來也可能影響 Canvas 的 Hover 或操作體驗。
-* 測試至少要包含一般桌面尺寸與較窄／較矮的視窗。
-
-**Canvas UI 看起來正常，不代表 DOM UI 也會正常。**
-
-\---
-
-## 8\. Character、Drawing 與 GLDraw：到底是哪一套渲染在工作
-
-這是 BC 插件開發最容易因為「看起來應該可以」而踩坑的區域。
-
-### 8.1 `DrawImage` 不代表所有角色圖片都會經過它
-
-BC 的一般 UI 繪圖大量使用：
-
-```js
-DrawImage(...)
-DrawImageResize(...)
-DrawImageEx(...)
-```
-
-但角色本體的生成與繪製有自己的流程。
-
-`DrawCharacter()` 會使用角色自己的 Canvas，角色外觀中的 Asset 會在角色 Canvas 建立／更新時被組合。
-
-因此：
-
-> \*\*如果你只是畫自己的 UI，使用 `DrawButton`、`DrawText`、`DrawImage` 就好。\*\*
->
-> \*\*如果你要修改角色身上的 Asset 渲染，就必須理解 Character → Asset → Drawing / GLDraw 的流程。\*\*
-
-### 8.2 Character：角色是「組合後的畫布」
-
-角色不是每一幀都把所有 Asset 當成獨立 DOM 元素。
-
-BC 會建立角色 Canvas，將：
-
-* 身體
-* 髮型
-* 衣服
-* 配件
-* 束縛
-* 其他 Asset
-
-依照 BC 的 Asset / Layering 規則組合。
-
-之後 `DrawCharacter()` 再把組合好的角色 Canvas 畫到目前畫面。
-
-因此如果你的目的是：
-
-* 在角色最上方加一個 UI 圖示 → 不要改 Asset 渲染，直接在較上層畫。
-* 改某個 Asset 的實際材質 → 才需要深入 Asset / Drawing / GLDraw。
-* 做角色動態效果 → 優先研究 `DynamicScriptDraw` / `ScriptDraw` 等 BC 已提供的角色繪製入口。
-
-### 8.3 GLDraw：角色 Asset 可能走另一條渲染路徑
-
-BC 有 WebGL 渲染路徑，包含：
-
-```js
-GLDrawLoad
-GLDrawImage
-GLDraw2DCanvas
-...
-```
-
-因此這個判斷非常重要：
-
-> \*\*你 hook `DrawImage`，不代表你一定攔得到角色 Asset。\*\*
-
-如果角色 Asset 當下走 GL 路徑，實際圖片可能是在 `GLDrawImage` 中處理。
-
-如果 WebGL 不可用或發生 context 問題，BC 又可能退回 Canvas 2D 路徑。
-
-所以要做「Asset 級別的渲染修改」時：
-
-```text
-只 hook DrawImage
-        ↓
-可能只攔到 Canvas UI
-        ↓
-角色 Asset 仍然走 GLDraw
-        ↓
-結果與預期不同
-```
-
-> 這種情況常常會讓人想乾脆往更底層 hook（甚至到 `GLDrawImage` 內部呼叫的 WebGL 原生方法），確保「不管走哪條路徑都攔得到」。但如第 3 節提過的，\*\*越底層的入口影響範圍越大、跟 BC 內部實作耦合也越深\*\*，多數情況下更好的做法是透過 `DynamicScriptDraw` 這類語意化入口，讓 BC 自己決定要走 Canvas 2D 還是 GL，你只需要在它前後插入邏輯。
-
-### 8.4 只有動到「角色外觀／繪製」時才需要留意 ECHO 這層
-
-> \*\*先判斷你的情境用不用得到這節\*\*：如果你的插件只是畫自己的 UI（面板、按鈕、文字、Preference 頁面）、處理 Inventory 資料、或做跟角色外觀無關的邏輯，\*\*通常完全不需要理會 ECHO\*\*，直接跳過這節即可。只有當你要\*\*對角色外觀本身動手\*\*——例如疊自己的圖層在角色身上、計算角色某個部位在畫面上的座標、或修改角色 Canvas 的繪製方式——才需要往下看，因為這類操作剛好會踩進 ECHO 動過手腳的繪製層。
-
-> 這一節內容依實際使用 ECHO 時觀察與確認過的行為整理，本次工作階段拿到的原始碼只有 BC 本體分支，沒有 ECHO 自己的原始碼分支可以逐行核對，如果要精確追某個函式的實作，仍建議直接翻 ECHO 對應分支的原始碼確認。
-
-ECHO Clothing / Activity Extension 不是單純「使用 BC API 多畫幾張圖片」的插件，它的核心工作其實是在**角色渲染的座標系統本身**動手腳：
-
-* **擴大角色可繪製的座標範圍**，例如把原本大致 `0\~250` 的角色繪製範圍延伸到 `-125\~375` 這種更大的區間，讓超出原本身體邊界的服裝/道具素材有地方可以畫。
-* **搬動角色本身的繪製座標**，不是只加大畫布，而是實際去調整角色在畫面上的定位/位移。
-* **替換原生身體素材**，用自己的身體圖層取代 BC 原本的身體，作為它擴充服裝系統的基礎。
-
-因此：
-
-> \*\*在裝有 ECHO 的環境中，角色的繪製座標系統本身就跟純 BC 原生不同\*\*，不只是「多畫了什麼」，而是「角色本來畫在哪裡、佔多大範圍」都可能被改變。
-
-如果你的插件也要對角色繪製動手（例如疊自己的圖層、算角色某個部位在畫面上的座標），要先確認：
-
-1. 你算座標時用的基準，是 BC 原生的角色繪製範圍，還是要考慮 ECHO 擴張後的範圍——兩者不一致時，疊加的圖層位置會跟角色本體對不上。
-2. 你 hook／依賴的繪製函式，是不是剛好被 ECHO patch 過（例如角色 Canvas 尺寸、身體素材來源），導致你原本假設的輸入/輸出跟純 BC 原生不同。
-3. 你的效果是否只需要作用在「角色內部 Canvas」畫完之後的結果（例如疊一個跟角色位置無關的 UI 圖示），還是真的需要理解角色內部座標系統（例如要疊在角色身體的某個特定部位上）——只有後者才需要深入研究 ECHO 怎麼改座標，前者通常不受影響。
-4. 是否能改用更高層的 BC API（例如 `DynamicScriptDraw`），讓 BC／ECHO 自己決定實際座標，你只在它前後插入邏輯，而不要自己重新計算一套座標。
-
-### 8.5 Layering 的思考方式
-
-BC 沒有 CSS 那種「所有東西都有 z-index」的模型。
-
-對角色 Asset 而言，最終效果主要由：
-
-* Asset Group；
-* Layering；
-* Asset 本身的繪製流程；
-* Dynamic Script Draw；
-* 繪製先後；
-
-共同決定。
-
-因此想「畫在最上面」時，先問：
-
-> 我要的是「角色內部最上層」，還是「整個遊戲 Canvas 最上層」？
-
-這兩者不是同一件事。
-
-\---
-
-## 9\. Inventory 與 Extended Item
-
-### 9.1 Inventory 的核心
-
-Inventory 開發通常會接觸：
-
-```js
-InventoryGet(...)
-InventoryWear(...)
-InventoryRemove(...)
-InventoryAdd(...)
-ChatRoomCharacterItemUpdate(...)
-CharacterRefresh(...)
-```
-
-一個最基本的思路是：
-
-```js
-InventoryWear(C, "MyAsset", "ItemMisc");
-CharacterRefresh(C);
-```
-
-如果是在聊天室角色上更新，通常還要考慮：
-
-```js
-ChatRoomCharacterItemUpdate(C, "ItemMisc");
-```
-
-不要只改本地物件後就假設其他玩家一定知道。
-
-### 9.2 Extended Item
-
-BC 對 `Asset.Extended === true` 的道具，有一套既有的 Extended Item 流程。
-
-很多原生道具會使用：
-
-```text
-Load
-Draw
-Click
-Exit
-```
-
-等生命週期。
-
-如果新增真正的 Extended Asset，BC 會依照：
-
-```text
-Inventory + Group + Asset
-```
-
-組合出對應的 Extended Item 函式名稱。
-
-因此要做自己的 Extended Item 時，優先研究 BC `Scripts/ExtendedItem.js` 與現有 Inventory 道具，而不是自己發明另一套畫面生命週期。
-
-### 9.3 自訂 Extended Item UI
-
-BC 已提供像：
-
-```js
-ExtendedItemCustomDraw(...)
-ExtendedItemCustomClick(...)
-ExtendedItemCustomClickAndPush(...)
-```
-
-以及 `ExtendedXY` 等既有版面資料。
-
-如果你的選項本質上就是 Extended Item 的幾個選擇按鈕，優先沿用這些工具。
-
-這樣可以：
-
-* 跟 BC 其他 Extended Item 的版面一致；
-* 少處理 hover / permission；
-* 少處理選項位置；
-* 減少不同尺寸下的 UI 問題。
-
-\---
-
-## 10\. Dialog 與 InformationSheet：在角色互動／資訊畫面加入功能
-
-> Dialog（10.1、10.2）與 InformationSheet（10.3）是\*\*兩個完全不同的畫面、各自獨立的注入點\*\*，只是剛好都是插件常見的「疊加按鈕/功能」目標，才放在同一節方便對照，不代表兩者共用同一套機制或該互相參照著寫。
-
-Dialog 是玩家點擊角色／身體部位後的互動畫面。
-
-常見概念：
-
-```js
-DialogFocusItem
-CharacterGetCurrent()
-DialogCanUnlock(...)
-```
-
-以及：
-
-```js
-DialogClick(...)
-```
-
-### 10.1 不要只看「按鈕在哪裡」
-
-Dialog 裡常常同時存在：
-
-* 角色；
-* 身體部位；
-* Item；
-* 操作按鈕；
-* Item 參數；
-* Exit；
-* DOM 控制項。
-
-因此加入自訂按鈕前，先確認：
-
-1. 你要的是「對角色」的操作還是「對 Item」的操作。
-2. 是否需要權限檢查。
-3. 是否會跟 BC 原生按鈕重疊。
-4. Hover 說明會往哪邊跑。
-5. 操作後是否需要 `CharacterRefresh` 或 `ChatRoomCharacterItemUpdate`。
-
-實務上要在 Dialog 選單裡加一個新的選項，通常不需要自己刻 Canvas 按鈕，而是直接把一筆符合 BC 原生格式的資料塞進 `CurrentCharacter.Dialog` 這個陣列，讓 BC 原生的 Dialog 渲染／點擊流程照常處理它。`liko-Plugin-Repository` 的 `Abundantia Florum Chromatica` 就是這樣做的，可以直接參考這個模式：
-
-```js
-const AFC\_MARKER = "\_\_AFC\_\_";
-
-// 組出一筆符合 BC Dialog 資料格式的選項
-function makeDialog(option, result, fn, marker) {
-    return {
-        Stage:        "RelationshipSubmenu", // 掛在哪個既有子選單
-        NextStage:    "0",
-        Function:     fn,       // 點擊後要呼叫的（全域）函式名稱字串
-        Option:       option,   // 選項文字
-        Result:       result,   // 點擊後顯示的結果文字
-        \[AFC\_MARKER]: marker,   // 自訂標記，方便之後辨識/移除自己插進去的項目
-    };
-}
-
-// 每次 Dialog 陣列可能被 BC 重建時，重新插入自己的選項
-function injectMyDialogOptions(C) {
-    if (!C) return;
-    const dialog = C.Dialog;
-    if (!Array.isArray(dialog) || dialog.length === 0) return;
-
-    // 先清掉自己上次插入的，避免重複疊加
-    for (let i = dialog.length - 1; i >= 0; i--)
-        if (dialog\[i]?.\[AFC\_MARKER]) dialog.splice(i, 1);
-
-    // 找到要插入的位置（例如某個既有選單的「返回」項目前）
-    const anchorIndex = dialog.findIndex(d =>
-        d?.Stage === "RelationshipSubmenu" \&\& d?.NextStage === "10"
-    );
-    if (anchorIndex === -1) return;
-
-    dialog.splice(anchorIndex, 0, makeDialog("我的選項", "點擊後的結果文字", "MyDialogAction()", "myOption"));
-}
-
-// Dialog 陣列會隨畫面重繪被 BC 重新產生，所以要在對應的繪製時機重新注入，
-// 而不是只在角色進入 Dialog 那一刻插入一次
-modApi.hookFunction("ChatRoomCharacterViewDraw", 1, (args, next) => {
-    const result = next(args);
-    if (CurrentCharacter) injectMyDialogOptions(CurrentCharacter);
-    return result;
-});
-```
-
-幾個重點：
-
-* **這是資料驅動，不是畫面驅動**：不需要自己算座標、畫按鈕、處理 Hover，BC 原生的 Dialog 渲染與點擊邏輯會直接接手這筆資料。
-* **要重複注入、並用標記去重**：Dialog 陣列在畫面重繪時常常會被 BC 重新產生或洗掉你加的項目，所以要掛在會重複觸發的時機（例如 `ChatRoomCharacterViewDraw`）反覆插入，並用一個自訂標記（如上面的 `AFC\_MARKER`）先清掉舊的，避免同一個選項疊加好幾次。
-* **`Function` 是字串**：BC 原生 Dialog 用字串形式呼叫函式，所以對應的處理函式需要掛在 `window` 上才能被找到。
-
-### 10\.2 在 InformationSheet（角色資訊卡）上加按鈕
-
-除了 Dialog，另一個插件常疊加功能的畫面是角色的「資訊卡」（InformationSheet），例如濾鏡設定、背景設定等按鈕。做法通常是 hook `InformationSheetRun`：
-
-```js
-modApi.hookFunction("InformationSheetRun", 5, (args, next) => {
-    const result = next(args); // 先讓原本（以及優先度更高的其他 mod）畫完
-    if (shouldShowMyButton()) drawMyButton();
-    return result;
-});
-```
-
-priority 慣例上設在 **5 以上、不超過 10**（見第 3 節）。另外記得同時 hook 對應的 `InformationSheetExit`（離開畫面時清理狀態/計時器）與必要時的 `InformationSheetResize`（視窗縮放時重新定位自己畫的面板座標），否則容易發生「切換角色或縮放視窗後按鈕位置飄掉、或殘留在錯誤畫面」的問題。
-
-InformationSheet 和 Dialog 是兩個不同畫面、不同的注入點，不要搞混。
-
-\---
-
-## 11\. 聊天室訊息與插件間通訊
-
-### 11.1 `ChatRoomChat`
-
-送出：
-
-```js
-ServerSend("ChatRoomChat", {
-    Type: "Hidden",
-    Content: "MyMod\_Sync",
-    Dictionary: \[
-        { Tag: "MyMod\_Sync", Value: "..." }
-    ],
-});
-```
-
-接收時通常在：
-
-```js
-ChatRoomMessage(data)
-```
-
-中判斷。
-
-### 11.2 `Hidden`
-
-適合：
-
-> \*\*同一聊天室內，已安裝插件的玩家之間同步資料。\*\*
-
-它不應該被當成一般聊天訊息。
-
-接收端一定要先檢查自己的識別：
-
-```js
-if (
-    data.Type === "Hidden" \&\&
-    data.Content === "MyMod\_Sync"
-) {
-    // 處理自己的資料
-}
-```
-
-### 11.3 `AccountBeep`
-
-適合：
-
-> \*\*指定某一個會員進行跨聊天室的插件通訊。\*\*
-
-例如：
-
-```js
-ServerSend("AccountBeep", {
-    MemberNumber: targetMemberNumber,
-    BeepType: "MyMod",
-    Message: JSON.stringify(payload),
-});
-```
-
-接收：
-
-```js
-ServerSocket.on("AccountBeep", data => {
-    if (data.BeepType !== "MyMod") return;
-
-    const payload = JSON.parse(data.Message);
-});
-```
-
-不要把 `AccountBeep` 當成無限制的網路通道；是否能送達仍受 BC / 伺服器規則影響。**目前確認 `AccountBeep` 需要雙方互為好友**，非好友會被伺服器端擋下、完全收不到，一般或自訂 `BeepType` 都繞不過。唯一的例外是原生的 `BeepType: "Leash"` 通道：即使對象不是好友，只要彼此已有牽繩關係就能送達，且只要酬載不夾帶 `ChatRoomName`（否則會觸發跳轉房間），風險不高。
-
-如果需求是「即時問答」而不是單向推送，可以在 `AccountBeep` 之上疊一層自訂的 Query-Reply：發送端夾帶自己的識別與一個 Query 標記，接收端在監聽中判斷 `Target` 是自己就原地回覆——這跟 BC 原生的 `AccountQuery` / `AccountQueryResult` 是完全不同的兩回事，不要混用或搞混名稱。
-
-### 11.4 `hookFunction` 還是 `ServerSocket.on`？
-
-簡單選擇：
-
-|需求|優先|
-|-|-|
-|只想旁聽 socket 事件|`ServerSocket.on`|
-|要修改／阻止 BC 原生處理|`hookFunction`|
-|要與其他 hook 協調順序|`hookFunction`|
-|只是自己的 `BeepType` 監聽|`ServerSocket.on`|
-
-\---
-
-## 12\. 插件共用工具與專案慣例（`liko-Plugin-Repository`）
-
-這幾支都是掛在 `window.Liko` 底下、以 `\_\_Sys\_` 開頭的共用小工具，設計上都可被多個插件同時載入而不互相衝突（檔頭都有「已存在就 `return`」的防重複載入判斷，晚載入者自動跳過）。**引用時不需要在自己插件裡寫死版本號**；真的要寫，先核對倉庫內該檔案頂端目前的版本號，並確認工具實際行為沒有跟這裡的描述出現落差——工具持續在更新。
-
-### 12.1 `BC\_i18n.js` — 多語翻譯引擎
-
-一份檔案含兩個子系統：
-
-|掛載點|用途|
-|-|-|
-|`window.Liko.\_\_Sys\_i18n\_\_`|介面字串翻譯（同步取字）|
-|`window.Liko.\_\_Sys\_L10N\_\_`|聊天訊息在地化（送出英文底本，各收訊端依自己語言重寫顯示）|
-
-**核心設計原則：語言由插件自己決定，引擎只負責翻譯。** 不要依賴引擎幫你判斷語言，因為每個插件的語言選單邏輯不同：
-
-```js
-// 插件自己算出最終語言碼
-function myLang() {
-    const sel = CONFIG.lang || "auto";
-    if (sel !== "auto") return sel;
-    return Liko.\_\_Sys\_i18n\_\_.detectLang(); // auto 才借用引擎的偵測
-}
-
-// 註冊字庫
-Liko.\_\_Sys\_i18n\_\_.register("MYMOD", {
-    loaded: { EN: "MyMod v{v} loaded", TW: "MyMod v{v} 已載入", CN: "MyMod v{v} 已载入" },
-});
-
-// 取字（vars 傳物件 → 具名 {v}；傳陣列 → 位置式 {0}{1}）
-Liko.\_\_Sys\_i18n\_\_.t("MYMOD", "loaded", { v: "1.0" }, myLang());
-```
-
-`detectLang()` 偵測順序是 `localStorage\['BondageClubLanguage']` → `TranslationLanguage` → `navigator.language` → `EN`（優先讀 `localStorage` 是因為 BC 剛啟動時 `TranslationLanguage` 會先短暫是預設值 `"EN"`，之後才被 `TranslationLoad()` 覆寫成真正語系）。
-
-> \*\*BC 官方語系只有 7 種：`TW` `CN` `EN` `DE` `FR` `RU` `UA`\*\*，由全域變數 `TranslationLanguage` 決定，做翻譯優先照顧這 7 種就涵蓋絕大多數玩家。引擎另外多支援 `JA`/`KO`（超出官方的擴充語系）——可以做超過官方的語系，但 `TranslationLanguage` 不會給這些值，得靠插件自己的語言選單指定。取語言用「三段判定」最穩：\*\*① 插件自己的語系設定（使用者手動選）→ ② `TranslationLanguage` 的設定（`auto` 時即 `detectLang()`）→ ③ 最後退回英文 `EN`\*\*（任何語言缺字一律退 `EN`）。
-
-聊天訊息在地化（`\_\_Sys\_L10N\_\_`）用法：
-
-```js
-L10N.register("MYMOD", { propose: { EN: "{0} proposed to {1}", TW: "{0} 向 {1} 求婚" } });
-L10N.install(modApi);  // 載入時裝一次 ChatRoomMessage hook 即可，多插件共用同一個 hook
-L10N.send("MYMOD", "propose", myName, targetName);
-```
-
-字庫一律用**純字串**（不要用函式字串），才能被 JSON 化與正確讀取。
-
-> \*\*想在多語介面顯示萬國旗 emoji（🇹🇼 🇯🇵 🇨🇳…）？指定 `"Twemoji Country Flags"` 字型即可，不必自己載字型。\*\* BC 在 `index.html` 已載入 `country-flag-emoji-polyfill`，會在瀏覽器本身不會畫國旗 emoji 的情況下（最典型是 Windows 上的 Chrome/Edge）自動注入一個全域 `@font-face`，把這個字型族註冊到整份文件。插件只要把字型名稱加進 `font-family` 就會正常顯示：
-> ```js
-> el.style.fontFamily = '"Twemoji Country Flags", sans-serif'; // DOM
-> ctx.font = '36px "Twemoji Country Flags", sans-serif';       // Canvas（DrawText 前設定）
-> ```
-> 在原生就能畫國旗的平台（多數 macOS／iOS／Android）上 polyfill 不會注入這個字型，但那些平台本來就會用系統 emoji 正常畫出國旗，所以當 fallback 指定在各平台都安全。
-
-### 12.2 `BC\_ThemeColorCheck.js` — 介面主題顏色偵測
-
-掛在 `window.Liko.\_\_Sys\_ColorAPI\_\_`。BC 有淺色/深色兩套介面主題，插件想讓自己畫的按鈕、文字顏色跟著主題自動變化時，用這支工具讀出目前主題底色來判斷亮暗，不必猜測或寫死顏色規則：
-
-```js
-const Color = Liko.\_\_Sys\_ColorAPI\_\_;
-Color.getThemeColor();                // ★建議用這個：取目前介面主題底色 '#rrggbb'（已自動處理下述三條路線 + 保底）
-Color.getUIColor({ x, y });           // 讀某座標上該元件「宣告時傳入」的顏色（需 bcModSdk）
-Color.getCanvasColor({ x, y, size }); // 讀某區域「實際渲染出來」的顏色（取眾數，避免混入抗鋸齒髒色）
-Color.isDark(color, threshold);       // 用 WCAG 相對亮度判斷亮/暗（threshold 預設 0.5）
-Color.setOverride(color, isDark);     // 演算法判斷錯時手動覆寫
-Color.getMode();                      // 除錯：目前走哪條路線、是否偵測到 LCE 等
-```
-
-`getThemeColor()` 內部依序試三條取色路線，呼叫端完全無感：
-
-1. **LCE 主題 API**（最準）：玩家裝了 Liko Club Extensions（LCE）並開啟染色時，直接讀它算好的 `window.Liko.LCE.Theme.Main` 主色。
-2. **宣告值**（需 `bcModSdk`）：hook `DrawRect`/`DrawButton`/`DrawEmptyRect` 直接讀傳進去的顏色字串，比取樣精確。
-3. **像素取樣**（後備、無相依）：從 canvas 上取樣實際渲染結果取眾數，最後再保底用「上次成功值 → DOM 背景色」。
-
-```js
-const c = Liko.\_\_Sys\_ColorAPI\_\_.getThemeColor();
-if (c \&\& Liko.\_\_Sys\_ColorAPI\_\_.isDark(c)) { /\* 深色主題 \*/ } else { /\* 淺色主題 \*/ }
-```
-
-### 12.3 `BC\_toast\_system.user.js` — 全域浮動提示訊息
-
-掛在 `window.Liko.\_\_Sys\_Toast\_\_`（同時保留全域別名 `window.ChatRoomSendLocalStyled` 供舊插件呼叫）：
-
-```js
-window.Liko.\_\_Sys\_Toast\_\_(message, duration = 3000, color = "#ff69b4", x = null, y = null, fontSize = "24px");
-// 或用相容別名
-window.ChatRoomSendLocalStyled("已儲存設定", 2000, "#00ff00");
-```
-
-功能是浮出一則會自動淡出、可堆疊排列（多則訊息自動往上疊、消失後自動補位）的提示文字，不需要自己刻 DOM 動畫。`x`/`y` 省略時置中在畫面下方；有指定時走絕對定位、不參與自動排列。
-
-### 12.4 `BC\_ChatRoomButtons.js` — 聊天室按鈕列共用協調器
-
-目前 API 為 v5：用 `add({ id, buttonId, order, icon, tooltip, background, active, collapse, onClick })` 註冊按鈕，並以 `setActive(id, on)` / `setState(id, patch)` 更新狀態。掛在 `window.Liko.\_\_Sys\_ChatRoomButtons\_\_`。協調器統一負責建立與重建、排序、收合動畫、底色/外框、懸停說明、顯示/隱藏、可視數量（預設 5 顆插件按鈕，不含送出鈕）及動圖播放；插件只需交付已完成顏色處理的圖示、按鈕樣式資料與行為，協調器不修改 SVG fill/stroke 或圖片內容。
-
-```js
-const L = window.Liko = window.Liko || {};
-const spec = {
-    id: "myplugin",
-    buttonId: "myplugin-chat-button",
-    order: 99,
-    icon: { src: ICON\_URL, animated: true }, // GIF/APNG/WebP；靜態圖片不用 animated
-    tooltip: "開啟插件",
-    background: "#455a64",
-    onClick: openMyPlugin,
-};
-// 協調器已載入就直接 add；否則推進待處理佇列，等它（無論被誰載入）初始化時自動排空
-if (L.\_\_Sys\_ChatRoomButtons\_\_?.add) L.\_\_Sys\_ChatRoomButtons\_\_.add(spec);
-else (L.\_\_CRB\_pending\_\_ = L.\_\_CRB\_pending\_\_ || \[]).push(spec);
-```
-
-兩個關鍵坑：
-
-* **登記與載入要解耦**：務必**同步**把 spec 交出去（直接 `add` 或 push 進 `\_\_CRB\_pending\_\_`），**別**寫成 `ensureCRB().then(() => add(...))`——協調器可能由別的插件載入，你的 `.then` 沒在對的時機跑，按鈕就永遠不出現。
-* **圖示由插件先處理完成**：協調器不染色。動圖可提供 `{ src, animated: true, poster? }`；沒有 `poster` 時會嘗試擷取影格，跨來源沒有 CORS 時應自行提供 poster。特殊 DOM 才用 `createButton`，每次呼叫都要回傳新元素。
-
-> 這幾支加上 `bcModSdk` 都遵循同一套「系統擴充命名規則」：統一掛在 `window.Liko.\_\_Sys\_<name>\_\_`，頂部都用「已存在就 `return`」防止重複載入，多個插件重複 `<script>` 引入也不會出錯。
-
-\---
-
-## 13\. 開發時的快速檢查順序
-
-遇到「程式有執行但效果不對」，依照以下順序檢查：
-
-### A. 插件是否真的初始化？
-
-```text
-Userscript 載入
- ↓
-bcModSdk 是否存在？
- ↓
-registerMod 是否成功？
- ↓
-Player.MemberNumber 是否存在？
- ↓
-需要的 Asset / Screen / Function 是否存在？
-```
-
-### B. 你 hook 的函式真的被呼叫嗎？
-
-先確認：
-
-```js
-console.log("hook reached");
-```
-
-如果完全沒出現，先不要修改邏輯。
-
-### C. 你是否 hook 到「錯的渲染層」？
-
-尤其是角色 Asset：
-
-```text
-UI → DrawImage
-角色 → Character Canvas
-角色 Asset → Drawing / GLDraw
-（若涉及角色外觀繪製，且環境裝有 ECHO → 這一層可能再被 ECHO patch / 包裝，見 8.4）
-```
-
-### D. Canvas 與 DOM 是否互相遮住？
-
-檢查：
-
-* Canvas 座標；
-* DOM 實際 CSS 位置；
-* Hover 方向；
-* 視窗尺寸。
-
-### E. 多人資料是否真的同步？
-
-確認：
-
-* 本地資料是否改變；
-* 是否呼叫正確的同步 API；
-* 伺服器訊息是否送出；
-* 對方是否能收到；
-* 對方是否安裝對應插件。
-
-\---
-
-## 14\. 附錄：實務限制、特殊案例與容易誤判的地方
-
-本節集中放「知道它很重要，但不適合塞進每一個基本 API 說明旁邊」的內容。  
-這樣主體可以保持簡單；日後新增特殊案例也可以直接補在這裡。
-
-### A. `Player.ID`、`Player.MemberNumber` 不要混用
-
-一般來說：
-
-* `Player.MemberNumber`：玩家的會員編號。
-* `Player.ID`：BC 內部使用的另一個識別值。
-
-不要因為某個伺服器資料欄位叫 `MemberNumber`，就自動認為它一定要放 `Player.MemberNumber`。
-
-例如 `ChatRoomAdmin` 的某些 Update 流程就是特殊情況。遇到這種 API：
-
-> \*\*以 BC 原生呼叫位置與現有可工作的實例為準，不要只依欄位名稱猜。\*\*
-
-### B. `ChatRoomAdmin` 更新房間設定
-
-想更新房間本身的設定（背景圖、音樂網址、密碼、人數上限等）走的是 `ServerSend("ChatRoomAdmin", { ..., Action: "Update" })`。這裡的 `MemberNumber` 欄位**要填 `Player.ID`，不是 `Player.MemberNumber`**——這點已對照 BC 原生 `Screens/Online/ChatAdmin/ChatAdmin.js` 內 `ServerSend("ChatRoomAdmin", { MemberNumber: Player.ID, ..., Action: "Update" })` 的寫法確認過，不是憑欄位名稱猜的。`Player.ID` 在 `Scripts/Character.js` 裡對玩家角色恆為 `0`，跟「帳號會員編號」完全是兩件事，只是這個特定指令的欄位剛好取名為 `MemberNumber`：
-
-```js
-function updateRoomMusicURL(url) {
-    if (!isFirstController() || !ChatRoomPlayerIsAdmin()) return; // 先確認自己有權限
-    ChatRoomData.Custom = ChatRoomData.Custom || {};
-    ChatRoomData.Custom.MusicURL = url;
-    ServerSend("ChatRoomAdmin", {
-        MemberNumber: Player.ID,                 // ⚠️ 這裡要 Player.ID，不是 Player.MemberNumber
-        Room: ChatRoomGetSettings(ChatRoomData),  // 用原生 ChatRoomGetSettings() 包裝整包房間資料再送出
-        Action: "Update",
+function registerExampleSettingsPage() {
+    const key = "ExampleBCGuideSettings";
+    const inputId = "example-bc-guide-label";
+    let input = null;
+    let enabled = false;
+    let status = "";
+
+    function cleanup() {
+        input?.remove();
+        input = null;
+    }
+    function resize() {
+        if (input) ElementPosition(input, 1150, 350, 500, 65);
+    }
+    function load() {
+        cleanup();
+        let saved;
+        try { saved = JSON.parse(Player.ExtensionSettings?.[key] ?? "null"); }
+        catch { saved = null; }
+        enabled = saved?.enabled === true;
+        const label = typeof saved?.label === "string" ? saved.label.slice(0, 40) : "";
+        input = ElementCreateInput(inputId, "text", label, 40);
+        input.setAttribute("aria-label", "插件顯示文字");
+        status = "未修改";
+        resize();
+    }
+    PreferenceRegisterExtensionSetting({
+        Identifier: key,
+        ButtonText: "Guide Example Settings",
+        load,
+        run() {
+            DrawText("顯示文字", 1150, 260, "Black", "Gray");
+            DrawButton(900, 460, 500, 65, enabled ? "已啟用" : "已停用", "White");
+            DrawButton(900, 560, 500, 65, "儲存", "White");
+            DrawText(status, 1150, 680, "Black", "Gray");
+        },
+        click() {
+            if (MouseIn(900, 460, 500, 65)) {
+                enabled = !enabled;
+                status = "尚未儲存";
+            } else if (MouseIn(900, 560, 500, 65) && input) {
+                try {
+                    Player.ExtensionSettings ??= {};
+                    Player.ExtensionSettings[key] = JSON.stringify({
+                        version: 1, enabled, label: input.value.trim().slice(0, 40),
+                    });
+                    ServerPlayerExtensionSettingsSync(key);
+                    status = "已提交儲存，重新登入可驗證";
+                } catch (error) {
+                    status = "提交失敗，請查看主控台";
+                    console.error("[Guide settings]", error);
+                }
+            }
+        },
+        exit() { return true; },
+        unload: cleanup,
+        resize,
     });
 }
 ```
 
-這是 `ChatRoomAdmin` 這個特定指令、特定 `Action` 的特例，**不應推論成「所有 `MemberNumber` 欄位都應該放 `Player.ID`」**。遇到任何「同名欄位、不同指令期望值不同」的情況，最保險的做法是在倉庫或其他已知能動的插件裡找一個實際案例照抄欄位怎麼填，而不是憑欄位名稱猜。另外，改房間設定前務必先確認自己有房主/管理員權限（`ChatRoomPlayerIsAdmin()`），且要先改本地 `ChatRoomData`，再用 `ChatRoomGetSettings(ChatRoomData)` 包裝整包送出，不是只送單一改動欄位。
+`ElementPosition` 使用**中心座標**，`DrawButton` 使用左上角；這正是 Canvas 與 DOM 混用時容易差半個寬度的原因。`ElementCreateInput` 遇到相同 ID 會重用現有元素，不能靠重複呼叫保證值與監聽器已重設。每個插件使用自己的 DOM ID。
 
-### C. ExtensionSettings 的大小
+若要在設定頁內放自訂返回鈕，可呼叫 `PreferenceSubscreenExtensionsClear()`；此路徑會清理頁面，但不代替你的保存驗證。需要離開檢查時，先呼叫自己的同步判定，再執行 clear 並處理 Promise 錯誤。
 
-不要把整個：
+指定註冊函式沒有回傳 remover。`mod.unload()` 不會移除這個設定頁；若產品要求熱卸載，需額外設計停用狀態、頁面關閉與版本相依的註冊清理，不能重複呼叫註冊假裝替換成功。
 
-```js
-Player.ExtensionSettings
-```
+驗收：進入、保存、退出再開、未保存退出、resize、觸控鍵盤、透過其他功能直接切換畫面。關閉後 DOM 必須消失；重新開啟不得留下重複 listener。
 
-拿來計算「我的插件還剩多少空間」。
+### 9.2 InformationSheet：顯示與操作使用同一個角色
 
-真正應該關心的是自己送出的：
+R131 的 [InformationSheet.js](../../BCJS/Bondage-College-master/BondageClub/Screens/Character/InformationSheet/InformationSheet.js) 把 `InformationSheetSelection` 定義為角色物件或 null；不是會員編號。FCM 中同時接受數字與物件是其相容做法，不能反推原生型別。
 
-```text
-ExtensionSettings.<自己的鍵>
-```
-
-如果自己的單一設定過大，應從資料設計本身處理，例如：
-
-* 減少資料；
-* 壓縮；
-* 分拆；
-* 改用其他儲存方式。
-
-不要靠「把所有插件一起送一次」解決。
-
-### D. Activity
-
-自訂 Activity 涉及：
-
-* `ActivityFemale3DCG`
-* `ActivityID`
-* `ActivityDictionary`
-* 前置條件；
-* 權限；
-* Server / ChatRoom 流程。
-
-如果只是想做一般按鈕功能，不要為了方便就新增 Activity。
-
-只有當需求本身就是：
-
-> \*\*讓玩家在 BC 的 Activity / 互動動作系統裡看到一個新的動作\*\*
-
-才進入這條路。
-
-### E. Asset 與鎖
-
-`AssetAdd()` 可以讓新的 Asset 存在，但：
-
-> \*\*「有一個新的鎖 Asset」與「有一套新的獨立解鎖系統」是兩件不同的事情。\*\*
-
-如果只是想做外觀不同、但沿用既有鎖規則，可以借用原生鎖的資料／流程。
-
-如果真的需要全新解鎖流程，則應把它視為一個完整的 Extended Item / Inventory UI 專案，而不是單純新增 Asset。
-
-### F. `DrawImage` 與角色 Asset 的渲染陷阱
-
-如果效果只針對 UI：
+下面是可整合的按鈕安裝函式。傳入已註冊的 mod API，以及開啟自己面板的同步 callback；位置沿用 FCM 案例附近的區域，**與 FCM 同時啟用時需另行安排位置**。
 
 ```js
-DrawImage
-DrawButton
-DrawText
-```
-
-通常就夠。
-
-如果效果針對角色 Asset：
-
-```text
-DrawImage
-    ≠
-GLDrawImage
-    ≠
-Character Canvas
-```
-
-若環境裝有 ECHO，這條角色渲染路徑還可能再被它 patch（見 8.4）；但這僅限於**角色外觀本身**的繪製，跟一般 UI 繪製無關。
-
-所以遇到「我 hook 了 DrawImage，但角色圖片沒有改變」時，第一個問題不是「hook 寫錯」，而是：
-
-> \*\*那張圖片到底是哪個渲染路徑畫出來的？\*\*
-
-### G. Canvas Hover 與 DOM 遮擋
-
-BC Hover 的左右方向由滑鼠 X 決定：
-
-```text
-MouseX ≤ 1000 → 向右
-MouseX > 1000 → 向左
-```
-
-所以 UI 版面應該預留 Hover 空間。
-
-特別是 Canvas + DOM 混用時：
-
-```text
-Canvas 按鈕
-    ↓
-Hover
-    ↓
-DOM
-```
-
-可能造成 DOM 被遮住或玩家誤以為 DOM 消失。
-
-### H. 不同畫面尺寸
-
-不要只在自己目前的 1920×1080 視窗測試。
-
-至少思考：
-
-* 寬度縮小；
-* 高度縮小；
-* 瀏覽器縮放；
-* DOM 元件縮放；
-* Canvas Hover；
-* 按鈕是否仍在可點擊範圍；
-* 文字是否超出按鈕。
-
-### I. 判斷手機模式：`CommonIsMobile`
-
-BC 是否進入「手機模式」由全域旗標 `CommonIsMobile`（宣告在 `Scripts/Common.js`）決定，判斷依據不是 User Agent、也不是螢幕寬度，而是：
-
-```js
-function CommonDetectMobile() {
-    return globalThis.matchMedia("(pointer: coarse)").matches;
+function installProfileButton(mod, openPanel) {
+    const box = { x: 1715, y: 420, w: 90, h: 90 };
+    function getTarget() {
+        if (CurrentScreen !== "InformationSheet" || InformationSheetSecondScreen) return null;
+        const C = InformationSheetSelection;
+        return C?.IsPlayer?.() ? C : null;
+    }
+    const removeDraw = mod.hookFunction("InformationSheetRun", 0, (args, next) => {
+        const result = next(args);
+        if (getTarget()) DrawButton(box.x, box.y, box.w, box.h, "Mod", "White");
+        return result;
+    });
+    const removeClick = mod.hookFunction("InformationSheetClick", 0, (args, next) => {
+        const C = getTarget();
+        if (!C || !MouseIn(box.x, box.y, box.w, box.h)) return next(args);
+        openPanel(C);
+        return;
+    });
+    return () => { removeDraw(); removeClick(); };
 }
 ```
 
-也就是「輸入裝置是不是粗略指標（觸控）」，跟視窗尺寸、瀏覽器縮放無關——桌機把視窗縮到很窄也不會被判斷成手機模式；反過來，平板／手機瀏覽器就算開到很大的外接螢幕，一樣算手機模式。
+這個範例只開啟自己的面板。若要處理他人資料，重新定義 `getTarget` 的適用條件，並在真正執行操作時再次驗證目標與權限。面板內的非同步查詢不能晚到後覆蓋已切換的角色；保存 MemberNumber 與請求世代，回傳時確認仍是同一個對象。
 
-`CommonIsMobile` **只在 `GameStart()`（`Scripts/Game.js`）一開始被賦值一次**，而 `GameStart()` 又是在 `window` 的 `load` 事件裡才被觸發：
+開啟原生資訊頁可用 `InformationSheetLoadCharacter(C)`，它同時設定 selection、記錄返回畫面並啟動切換；該 wrapper 本身沒有回傳切換 Promise。不要對它寫 `await` 就假設畫面載入完成。
+
+Dialog 的焦點則要沿 `CharacterGetCurrent()`、`FocusGroup`、`DialogFocusItem` 與對應選單狀態追蹤，不能直接使用資訊頁的 selection。驗收至少涵蓋自己／他人、第二頁、面板關閉、切換角色，以及與會接管資訊頁的插件共存。
+
+### 9.3 Inventory：操作、刷新與同步分三步
+
+原生 [Inventory.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Inventory.js) 與 [Appearance.js](../../BCJS/Bondage-College-master/BondageClub/Screens/Character/Appearance/Appearance.js) 的幾個關鍵行為：
+
+| 函式 | 核對到的行為 | 不應假設的事情 |
+| --- | --- | --- |
+| `InventoryWear` | 找 Asset、建立 Item、套表情／Craft，預設 `CharacterRefresh(C, true)`，回傳 item 或 null | 呼叫成功不等於完整穿戴權限與互動流程已檢查 |
+| `CharacterAppearanceSetItem` | 移除舊項、建立 `AppearanceItem`、執行 `ExtendedItemInit`、加入 Appearance | 不只是替換陣列值；舊 Property 不保證保留 |
+| `InventoryRemove` | 接受單一或多個群組，委派 `InventoryRemoveItems`，回傳被移除項目陣列 | 回傳值不是 boolean，也不保證只移除一項 |
+| `InventoryRemoveItems` | 依 `RemoveItemOnRemove` 遞迴處理關聯道具，預設刷新角色 | 直接 `splice`／`filter` 可能漏掉連帶移除與刷新 |
+
+`InventoryRemove(C, group, { refresh: false })` 的 false 是停用刷新，不是乾跑；Appearance 仍已改變。`InventoryWear` 最後一個 `Refresh=false` 也是同理，而且不會停用前面的表情或 Craft 邏輯。
+
+開發批次操作時採以下順序：
+
+1. 依最接近的原生操作確認 Asset、群組、前置條件、鎖、角色關係與使用權限。`InventoryAllow` 只是其中一環，不是通用授權函式。
+2. 完成所有可預先做的驗證，再執行修改。關閉逐項刷新可減少重建，但操作不是自動交易；中途失敗要有已定義的部分成功或回復方式。
+3. 依需求執行一次角色刷新，決定是否推送玩家外觀，以及是否需要聊天室項目／角色更新。
+4. 重新取得 `InventoryGet(C, group)` 確認結果。原 Item 可能已被替換，不要長期保存過期物件引用。
+
+視覺預覽優先使用隔離的預覽角色。若暫改真實角色，即使事後恢復 Appearance，也可能已產生表情、動畫、網路或 Dialog 副作用，不能只靠陣列備份保證回復完整。
+
+驗收：Asset 不存在、被封鎖、群組占用、帶鎖項目、Extended Item 預設 Property、關聯道具移除、Craft 與顏色、批次中途失敗、對方客戶端與重新登入後結果。
+
+### 9.4 聊天室更新：函式名稱不能代替 payload 檢查
+
+在本地 [ChatRoom.js](../../BCJS/Bondage-College-master/BondageClub/Screens/Online/ChatRoom/ChatRoom.js) 中：
+
+| 呼叫 | 客戶端實際送出的重點 | 使用前提／副作用 |
+| --- | --- | --- |
+| `ChatRoomCharacterUpdate(C)` | `ID: C.CharacterID`、ActivePose、Appearance bundle | 檢查在房間且允許更新；payload 本身沒包含任意 OnlineSharedSettings |
+| `ChatRoomCharacterItemUpdate(C, Group)` | 指定群組的 Item 名稱、顏色、Property、Craft 等 | 群組省略時會依焦點判定，獨立插件操作應明確指定 |
+| `ChatRoomPublishCustomAction(msg, LeaveDialog, Dictionary)` | `ChatRoomChat` 的 Action | 同時更新目前角色的項目，並可能離開 Dialog；不是純訊息函式 |
+| `ServerSend("ChatRoomChat", payload)` | 指定類型、內容、目標與字典 | 經過送出佇列；接收與顯示仍是另一條流程 |
+
+`ChatRoomCharacterUpdate` 周圍註解有「更新資料庫」與「不更新資料庫」的矛盾描述。這種情況應以函式本體確認客戶端送了什麼，再查伺服器或實測持久化，不能挑一句註解當保證。
+
+`ChatRoomCharacterItemUpdate` 還會先更新本地 `ChatRoomData.Character` 中的 Appearance bundle；原生註解指出單項更新不會回送給來源成員。因此只手寫相似的 ServerSend，可能漏掉本地房間快取更新。
+
+同理，AEE 的公開設定案例在 QueueData 後呼叫 `ChatRoomCharacterUpdate(Player)`；只能確認它觸發了角色更新，不能據此宣稱該 payload 直接帶著公開設定。若需要保證同房立即取得最新值，要追伺服器回應並以第二客戶端驗收。
+
+Action 的 Content 通常與原生字典／本地化標籤配合。自訂標籤要確認未安裝插件的接收者會看到什麼，不能假設任意字串都能依預期翻譯。
+
+### 9.5 多人插件偵測：公開設定不代表插件正在執行
+
+[AEE presence](../../BC-AEE/src/core/aeePresence.ts) 是可閱讀的完整案例：公開設定保存版本與功能宣告；實際在線狀態使用 Hidden 訊息的 request／reply、nonce、有效期限與房間成員檢查。
+
+值得複用的是這個區分：角色帳號上還留著插件資料，不代表目前瀏覽器仍載入插件。反過來，沒有收到回應也可能是延遲，UI 宜顯示「尚未確認」，不要當成永久不支援。
+
+以下純解析函式可作為接收端的起點，尚不包含網路發送、待回覆 nonce 管理與限流：
 
 ```js
-window.addEventListener("load", () => {
-    CommonPromiseCatch(GameStart().then(resolve));
-});
-
-async function GameStart(isNode = false) {
-    // ...
-    CommonIsMobile = CommonDetectMobile();
-    // ...
+function parseGuideReply(data, roomMembers) {
+    const prefix = "ExampleBCGuide:presence:";
+    if (data?.Type !== "Hidden" || typeof data.Content !== "string") return null;
+    if (!Number.isInteger(data.Sender) || !roomMembers.has(data.Sender)) return null;
+    if (!data.Content.startsWith(prefix) || data.Content.length > 1024) return null;
+    try {
+        const value = JSON.parse(data.Content.slice(prefix.length));
+        if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+        if (value.protocol !== 1 || value.type !== "reply") return null;
+        if (typeof value.nonce !== "string" || value.nonce.length < 1 || value.nonce.length > 64) return null;
+        if (typeof value.version !== "string" || value.version.length > 64) return null;
+        return { sender: data.Sender, nonce: value.nonce, version: value.version };
+    } catch { return null; }
 }
 ```
 
-因此：
+1024 是這個範例自己訂的處理上限，不是 BC 伺服器上限。解析成功後仍要核對 nonce 是否由本機發出且未過期，確認房間世代未改變，再更新狀態。對 request 限制每個 sender 的回應頻率，對 changed 通知合併重查，避免大家互相觸發大量廣播。
 
-* **整個頁面生命週期只判斷一次**，之後不會因為玩家縮放視窗或旋轉裝置而重新偵測；BC 把它當成「這台裝置從一開始就是手機還是桌機」這種固定屬性使用，插件也應該比照辦理，不要自己另外監聽 `resize` 去猜。
-* 若插件在 `window` 的 `load` 事件觸發**之前**就讀取 `CommonIsMobile`，讀到的會是 `Scripts/Common.js` 裡的預設值 `false`（誤判成非手機模式），因為賦值還沒發生。實務上，只要照本指南「先 `registerMod`，再等 `LoginResponse` / `Player.MemberNumber` 就緒」的流程走，正常情況下已經夠晚，很少真的會搶在 `load` 之前跑到判斷手機模式的程式碼；如果真的需要保守處理，可以自行多判斷一次 `globalThis.matchMedia("(pointer: coarse)").matches`，或等待 BC 暴露的 `GameReadyState.load`（`Scripts/Game.js`，代表「頁面載入完成、登入前」）resolve 之後再讀 `CommonIsMobile`，不需要自己重新設計一套偵測邏輯。
+Hidden 表示訊息類型，不表示加密或秘密；不要用它傳秘密資料。它也沒有替你證明對方真的使用某個可信插件，回應內容只是對方客戶端的宣告，不授予任何道具或遠端控制權限。
 
-用法上直接讀全域變數即可，不需要呼叫函式或訂閱事件：
+停用／離房時清除 peers、待回覆 nonce、timer 與延遲請求。AEE 的既有 interval／callback 仍需按新插件的卸載需求補完整生命週期，不能假設 SDK 會清理。
 
-```js
-if (CommonIsMobile) {
-    // 手機模式：例如放大按鈕、拿掉只有滑鼠才有意義的 Hover 提示
-} else {
-    // 桌機模式
-}
-```
+### 9.6 原生訊息 handler 與 SDK hook 的 priority 不同
 
-BC 原生大量使用這個旗標，插件可以照抄同樣的判斷邏輯：
+R131 提供 `ChatRoomRegisterMessageHandler`。其 `ChatRoomMessageRunHandlers` 按 Priority **由小到大**執行，負數為 pre，非負數為 post；這與 SDK 的高數字先進入完全不同。
 
-* **關閉滑鼠專屬效果**：`!CommonIsMobile` 常跟 Hover／高亮判斷放在一起，例如「滑鼠停在按鈕上才顯示高亮」要寫成 `MouseIn(...) && !CommonIsMobile`，因為手機模式下沒有「滑鼠停在上面但沒點」這種中間狀態，只有點下去。
-* **調整版面／可點擊區域**：例如按鈕文字可用寬度在手機模式下預留的邊界通常比桌機小，因為觸控目標本身需要更大的可點擊範圍。
-* **調整小遊戲操作方式或難度**：像 Struggle、KinkyDungeon、MaidCleaning 這類小遊戲會依 `CommonIsMobile` 切換操作方式（例如改成點擊移動而不是方向鍵）或調整難度係數；插件如果自製需要「連續按鍵／方向鍵」的互動，也該替手機模式準備替代操作方式，不要假設玩家一定有實體鍵盤。
+原生 handler 的 callback 回傳 true 會中止該 handler 處理鏈；false 繼續，也可回傳轉換物件。不要把 SDK 的 `(args, next)` 契約套到這裡。R131 的 `ChatRoomMessage` 在基本資料／房間成員檢查後先跑 pre handlers，接著對 Hidden 提前返回；只有其餘訊息繼續抽取 metadata、替換文字，再跑 post handlers。因此 Hidden 可以進 pre，卻不會進 post；不要把兩階段視為等價。
 
-不要拿 `CommonIsMobile` 來判斷「螢幕是不是很小」——那是另一個問題（見上一節「不同畫面尺寸」），兩者要分開處理：桌機瀏覽器把視窗縮到很窄，`CommonIsMobile` 仍然是 `false`，但版面一樣可能被擠壓；反過來手機接上大螢幕橫向使用，空間可能很充裕，但 `CommonIsMobile` 仍然是 `true`。
+指定版本的 handler 註冊會 push 到列表，沒有回傳 remover。若只是跟隨 AEE 處理 Hidden 協定，可先沿用 SDK 對 `ChatRoomMessage` 的 hook；解析失敗或不屬於自己時正常 `next(args)`，避免吞掉其他插件或原生訊息。
 
-### J. ECHO 與 BC 的責任邊界
+## 10. BC 大型程式碼：插件最需要在意的部分
 
-**這節只適用於「動到角色外觀／角色繪製」的情境**（見 8.4）；純 UI 繪製等其他情境不受影響，不需要套用這節的判斷。
+本次是針對插件入口與副作用的原始碼檢查，不是整個遊戲的完整 bug、安全或效能審計。核心 Scripts 中較大的檔案包括 Dialog、Element、Character、Common、Inventory、Drawing、Server、Validation；檔案大小只是閱讀導航，風險取決於實際呼叫路徑。
 
-當你的效果確實涉及角色外觀，且環境裝有 ECHO 時，最重要的判斷不是：
+| 區域／來源 | 已確認或應檢查的行為 | 對插件的影響 |
+| --- | --- | --- |
+| [Character.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Character.js)：`CharacterRefresh` | 預設 `Push=true`；整理 effect／pose、重建 Canvas，玩家會同步外觀，預設也可能刷新 Dialog | 不能當成便宜的純重畫；預覽要明確決定 push 與 Dialog 行為 |
+| 同檔：`CharacterLoadCanvas` | 從 Appearance 建立 DrawAppearance／DrawPoseMapping，排序、遮罩、角色 hooks、身高與 Canvas 重建，最後清 MustDraw | 瞬間改 DrawAppearance 可能在下一次重建消失；需找穩定的渲染入口 |
+| 同檔：`CharacterDelete` | 依 ID 找到角色，清動畫並從全域集合移除 | 預覽／頭像角色需要所有權，不能刪仍被其他功能共用的角色 |
+| [ChatRoom.js](../../BCJS/Bondage-College-master/BondageClub/Screens/Online/ChatRoom/ChatRoom.js)：`ChatRoomSync` | 本版本為 async | 等完成後再讀新房間／角色狀態；延遲工作也要防止已離房 |
+| [Server.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Server.js) | 登入 API、欄位佇列、ExtensionSettings 單鍵更新 | 不混用登入、連線與資源就緒；保存與廣播分開驗證 |
+| [Validation.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Validation.js) | `ValidationApplyRecord` 是否保留額外欄位由參數決定 | 必須讀呼叫端，不能只看驗證表就推斷封閉 schema |
+| [GLDraw.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/GLDraw.js) | 含 context lost／恢復相關處理 | 只攔 WebGL 的效果要定義失效與 fallback 行為 |
+| [Dialog.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Dialog.js) | 多種選單與角色互動狀態，應沿實際按鈕呼叫追蹤 | 顯示、點擊、權限與退出不是單一 Draw hook 就能完成 |
+| [Element.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Element.js)、[Mouse.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Mouse.js) | 核對 DOM 定位與事件轉換 | 直式映射必須同時驗證畫面與輸入，避免重複位移與重複點擊 |
+| [Inventory.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Inventory.js)、[ExtendedItem.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/ExtendedItem.js) | 應沿原生操作追蹤 Property、權限與同步 | 直接改物件成功不代表原生驗證與多人流程成功 |
 
-> 「這是不是 BC 的畫面？」
+高頻路徑另查：是否每幀掃描全部角色、建立 DOM／圖片、序列化設定、重建所有 Canvas 或送網路訊息。把資料更新與繪製分開，使用有失效條件的快取；沒有量測前，不宣稱某個 hook 必然造成效能問題。
 
-而是：
+### 10.1 CommonSetScreen：畫面切換是非同步流程
 
-> 「這個畫面／圖片目前到底由 BC 哪一層、ECHO 哪一層負責？」
+本地 `CommonSetScreen` 先呼叫舊畫面的 Unload，檢查新畫面的 Run／Click，再設定 CurrentModule／CurrentScreen，等待文字資源與新畫面 Load，最後 resize。Load 失敗時會嘗試載回舊畫面。
 
-尤其是：
+這表示四件事：
+
+- `CurrentScreen` 已改變不代表新畫面的 Load 已完成；依賴完成狀態時應等待 `CommonSetScreen` 本身的 Promise。
+- 自訂畫面的必要全域 Run／Click 要先準備好。函式存在性檢查之前，舊畫面可能已經卸載。
+- 直接改 `CurrentScreen`／`CurrentModule` 會跳過正式流程，不適合作為一般切換方式。
+- Unload 要能重複安全執行。只在 Exit 清理不夠，因為外部功能可以直接切換畫面。
+
+若只是在原畫面上開一個 DOM 面板，不一定需要創建新 BC 畫面。選擇完整畫面時，才提供對應 Load／Run／Click／Unload／Resize 與返回策略。
+
+### 10.2 ServerSend：排隊中的 payload 仍可能被修改
+
+本地 `ServerSend` 把 `{ Message, args }` 放入佇列，沒有深拷貝 payload。`ServerAccountUpdate.QueueData` 的 Map 也保存傳入 value。佇列受到限流時，呼叫之後再改原物件，可能影響稍後真正送出的內容。
+
+對必須固定在提交瞬間的插件資料，先建立只含可序列化欄位的新 payload；巢狀欄位也要考慮引用，只有 `{ ...obj }` 不會複製內部物件。不要整包 clone 活的 Character，它含有方法與其他執行狀態；使用對應的 bundle／資料投影。
+
+`ServerSendQueueProcess` 還會為 Chat／Emote／Whisper 類型加入 MsgId 字典項目。每次發送建立新物件與 Dictionary，避免重用後殘留欄位。這是排程與共享物件的注意事項，並不代表每次呼叫都會延遲發送。
+
+### 10.3 文件審查發現，不等於遊戲 bug 報告
+
+本輪已確認的高價值注意點是：設定頁 callback 的非同步限制、不同 priority 系統、畫面載入時序、道具連帶移除、更新 payload 範圍，以及排隊物件引用。這些應直接影響插件設計。
+
+要將其中一項升級為 BC bug 報告，還需要：最小重現、實際／預期結果、版本、原生環境能否重現，以及排除插件攔截的結果。不要只因函式很大、註解矛盾或存在低階 API 就斷言遊戲有漏洞。
+
+## 11. 實作與驗收流程
+
+### 11.1 開始改動前
+
+1. 描述使用者操作與預期效果，確認是否需要多人同步。
+2. 找最接近的現有案例，讀入口與清理路徑。
+3. 在指定 BC 原始碼搜尋入口，確認參數、回傳值、同步／非同步、副作用。
+4. 記錄支援版本與必要插件；優先利用現有工具，不為一次功能建立整套框架。
+5. 先完成最小效果，再加狀態、快取與設定。
+
+### 11.2 最小驗收矩陣
+
+| 類型 | 必測情境 |
+| --- | --- |
+| 載入 | 登入前／後注入、重複注入、停用、初始化失敗 |
+| UI | 滑鼠／觸控、窄視窗／直式、退出返回、其他子畫面 |
+| 繪圖 | 姿勢／身高／縮放、貼圖延遲、後端或 fallback、效果取消 |
+| 資料 | 首次使用、舊格式／損壞資料、保存後重讀 |
+| 多人 | 自己與第二客戶端、對方未安裝、離房／重連、重複事件 |
+| 共存 | 實際會碰到相同入口的插件組合、不同載入順序 |
+
+### 11.3 出錯時的查找順序
+
+- **完全沒效果：** 確認執行環境、API 就緒、SDK 註冊、hook 是否進入及啟用條件。
+- **有畫面不能點：** 比較 Draw 與 Click 條件、邏輯座標與 CSS 座標、DOM 遮擋。
+- **只在部分角色／道具失效：** 確認渲染後端、Canvas 是否重建、真實圖層參數及來源版本。
+- **設定下一次就消失：** 查保存 payload、驗證路徑、讀回及資料遷移。
+- **只有自己看得到：** 查廣播與接收端，不以本地變數改變當同步成功。
+- **離開畫面仍有特效：** 查 listener、timer、RAF、非同步回呼與 generation 失效機制。
+
+### 11.4 交付記錄
 
 ```text
-BC MainCanvas
-  ├─ BC UI
-  ├─ Character Canvas
-  │    ├─ Asset
-  │    ├─ DynamicScriptDraw
-  │    └─ GLDraw / Canvas2D
-  └─ DOM
-
-ECHO
-  └─ 可能 patch Character / GLDraw / 自己的 draw layer
+功能：
+BC／SDK／相關插件版本：
+參考實作：
+修改檔案與原生入口：
+操作步驟與預期結果：
+已執行的建置／測試：
+遊戲內實際結果：
+尚未驗證的情境：
+已知限制與停用／恢復方式：
 ```
 
-插件應盡量選擇**語意最高、依賴最少的入口**。
+測試投入要對準效果：純座標映射適合單元測試；頭像完整度與角色錨點需要視覺驗收；多人同步需要第二個客戶端。不要只測自己寫的 mock，再推論整個遊戲流程已完成。
 
-\---
+### 11.5 本文件目前的驗證紀錄
 
-## 最後：給新插件作者的一句話
+2026-09-14：已檢查本文件所有本地檔案連結、9 段 JavaScript 的語法，以及 Git 差異空白檢查。另對純座標函式驗證中心映射、邊界排除與零尺寸；對 presence 解析函式驗證合法回覆、非房間成員、損壞 JSON、錯誤訊息類型與超長內容。
 
-不要一開始就研究整個 BC。
+尚未執行遊戲內設定頁、按鈕點擊、繪圖、多插件共存或第二客戶端同步測試。上述檢查只驗證文件與純函式，不能代替每個案例列出的遊戲內驗收。
 
-先回答四個問題：
+## 12. 文件維護與 skill 的界線
 
-1. **我要改什麼？** UI / Character / Inventory / Dialog / Chat / Data
-2. **BC 原生哪個函式已經在做這件事？**
-3. **我要加入它、在它前後做事，還是完全取代它？**
-4. **有沒有語意更高、影響範圍更小的入口可以做到同樣的事？** 不要預設答案就是 Canvas、Character Canvas、GLDraw 這類最底層的繪圖管線——那是「其他方法都用過還是不行」時才走的最後一步，不是起手式。
+本 MD 維持開發知識、實作索引與驗收方式。新增案例時，補「成果、原生入口、來源、限制、驗收」，不要只累積 API 名稱。
 
-只要這四題能回答清楚，大部分 BC 插件開發問題都會從「不知道該從哪裡開始」變成「找到正確的函式，然後寫自己的邏輯」；而第四題同時也是在提醒自己：**選對 hook 的目標，比 hook 得夠深更重要。**
-
+目前不另建 skill。之後若要讓 AI 固定遵循開發流程，可抽成短 skill：讀本指南 → 查本地版本 → 找現有實例 → 完成最小功能 → 執行對應驗收 → 記錄未驗證項目。詳細案例仍連回本文件，避免維護兩份互相矛盾的內容。
