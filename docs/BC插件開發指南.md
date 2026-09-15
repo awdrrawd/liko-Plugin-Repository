@@ -2,7 +2,7 @@
 
 > 適用對象：開發本工作區 BC 插件的人與 AI。
 > 原則：先做出可驗收的效果，再把必要的原生流程、相容性與限制補齊。
-> 核對日期：2026-09-14。遊戲基準：本地 `BCJS/Bondage-College-master/BondageClub`，`GameVersion = "R131"`；SDK 基準：`Plugins/expand/bcmodsdk.js`，版本 1.2.0。
+> 核對日期：2026-09-14；續寫與容量限制補正：2026-09-15。遊戲基準：本地 `BCJS/Bondage-College-master/BondageClub`，`GameVersion = "R131"`；SDK 基準：`Plugins/expand/bcmodsdk.js`，版本 1.2.0。
 > 本文件已對照原始碼；範例尚未在遊戲內執行驗證。實作案例代表現有程式的做法，不代表所有版本、姿勢或插件組合都已測通。
 
 ## 1. 怎麼使用這份指南
@@ -17,6 +17,7 @@
 | 道具圖層變形或拾取 | AEE，第 7 節 | 哪個角色、哪個圖層、哪個渲染後端 |
 | 貼著角色的特效 | HSC，第 7 節 | 姿勢／身高／縮放、Canvas 到 DOM 座標 |
 | 個人設定、公開狀態 | 第 8 節 | 誰需要讀取、保存在哪裡、何時同步 |
+| 180K 限制、大資料保存與遷移 | 第 8.5～8.7 節 | 完整 payload 位元組數、預算、超限後的處理 |
 | 原生道具／互動功能 | 第 9 節 | 權限、驗證、外觀與聊天室同步 |
 | 更新後功能失效 | 第 10、11 節 | 原生入口是否改動、hook 是否執行、資料是否被覆寫 |
 
@@ -300,17 +301,27 @@ resize、捲動或版面改變後應更新快取矩形。離房、換頁、目�
 
 ## 8. 設定、同步與多人資料
 
+> **AccountUpdate 提交原則：180K 限制套用在每次傳輸。每次只提交此次操作必要的變更欄位，不以整份插件 key 作為預設更新單位。** 例如只改 RULE，就提交 `ExtensionSettings.MyPlugin.RULE`；若只改 RULE 中一個可獨立更新的欄位，則再縮小到該欄位。未變更的 TEST 或其他設定不隨包重送。每個實際送出的 AccountUpdate（包括 QueueData 合併結果）都要符合大小限制。
+
+「重點請求」在本指南指這種最小必要更新，不是把大型父物件換個 key 名稱後照樣整包提交。巢狀更新前先確認儲存結構與該欄位的更新契約；JSON 字串與必須整體替換的值不能直接假裝是可拆的物件。
+
 ### 8.1 先決定誰需要看見
 
 | 資料 | 優先儲存方式 | 實作要求 |
 | --- | --- | --- |
-| 個人設定、希望隨帳號保存 | `Player.ExtensionSettings.<插件鍵>` | 版本化、驗證、只同步自己的鍵 |
+| 個人設定、希望隨帳號保存 | `Player.ExtensionSettings.<插件鍵>` | 版本化、驗證、只同步自己實際變更的欄位 |
 | 圖片快取、大量本機資料 | IndexedDB | 容量、失效、清除；不假設跨裝置存在 |
 | 當前頁面的暫態狀態 | 記憶體 | 離房／停用／重新載入時清理 |
 | 要讓其他客戶端讀取的角色宣告 | `OnlineSharedSettings` 或明確的插件通訊 | 命名空間、資料最小化、接收端驗證 |
 | 即時事件 | 原生聊天／插件訊息流程 | 版本、來源、目標、去重、節流 |
 
-### 8.2 ExtensionSettings：單鍵更新
+### 8.2 ExtensionSettings：依實際變更欄位局部更新
+
+**180K 是單次傳輸限制，不是整個 ExtensionSettings 或單一插件累積儲存量的上限。** 依維護者確認，假設 `ExtensionSettings.BCX` 合計 300K，分成符合限制的 180K 與 120K 兩次傳輸，不會因累積超過 180K 而被此限制阻擋。這裡的大小指完整單次傳輸；實作仍需計入封裝開銷。
+
+所以「只送自己的插件鍵」還不夠精確：當只改 RULE 時，送 `ExtensionSettings.BCX.RULE`，不要重送整包 `ExtensionSettings.BCX`。TEST 有改再送 `ExtensionSettings.BCX.TEST`。BCX 在這裡是維護者提供的路徑示例，不代表本指南已核對該版本 BCX 的實際儲存 schema；自己的插件不能寫入 BCX 的資料。
+
+**既有小型字串設定範例：** 第 3、9.1 節為展示初始化／UI，把小型設定存成單一 JSON 字串，以下 helper 會整個替換該字串。這是原子值保存示例，不能當成大型設定的更新架構；正式設計可局部更新的設定時，應採下方的必要欄位提交方式。
 
 ```js
 Player.ExtensionSettings ??= {};
@@ -320,7 +331,36 @@ ServerPlayerExtensionSettingsSync("MyPlugin");
 
 指定版本的 `ServerPlayerExtensionSettingsSync` 會檢查該鍵不是 undefined，建立 `ExtensionSettings.MyPlugin` 欄位，再呼叫 `ServerSend("AccountUpdate", obj)`。不要把整包其他插件設定重新送回去。
 
-讀取 JSON 要處理舊版格式與損壞資料。高頻滑桿／拖曳在提交或 debounce 後保存，不要每幀送出。單鍵過大時先減少資料、壓縮或改存本地；這次沒有檢查伺服器實作，不宣稱固定的安全容量上限。
+**大型物件型設定：** 若伺服器中自己的插件資料是可局部更新的物件，依變更葉節點送 dot-notation 欄位。以下是整合片段；`nextRule` 是呼叫端已驗證的 JSON 值，大小檢查沿用 8.5 的保守預算：
+
+```js
+function saveMyPluginRule(nextRule) {
+    // 固定屬於本插件的路徑；不接受外部輸入任意指定更新路徑。
+    const serialized = JSON.stringify(nextRule);
+    if (serialized === undefined) throw new TypeError("RULE 不能是 undefined");
+    const value = JSON.parse(serialized);
+    const payload = { "ExtensionSettings.MyPlugin.RULE": value };
+    const bytes = new TextEncoder().encode(JSON.stringify(["AccountUpdate", payload])).byteLength;
+    if (bytes > 150_000) throw new RangeError("RULE 單次提交超過插件預算");
+
+    Player.ExtensionSettings ??= {};
+    const settings = Player.ExtensionSettings.MyPlugin;
+    if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+        throw new TypeError("需要先建立／遷移物件型 MyPlugin 設定");
+    }
+    settings.RULE = value;
+    ServerSend("AccountUpdate", payload);
+    // 沒有重送 TEST，也沒有重送整包 MyPlugin。
+}
+```
+
+不能直接呼叫 `ServerPlayerExtensionSettingsSync("MyPlugin.RULE")` 期待 helper 自動走訪物件：它讀的是 `Player.ExtensionSettings[dataKeyName]`，沒有拆解巢狀路徑。局部更新使用明確的 AccountUpdate payload，並同步維護本地對應欄位。
+
+也不能對已序列化的 JSON 字串做物件路徑更新。若 `ExtensionSettings.MyPlugin` 現在是字串，`.RULE` 並不是其可更新子欄位；要先規劃遷移為物件型結構或獨立可更新欄位。只有單一不可再拆的值本身仍超過傳輸預算時，才進一步考慮壓縮、應用層分塊或本機儲存。
+
+讀取 JSON 要處理舊版格式與損壞資料。高頻滑桿／拖曳在提交或 debounce 後保存，不要每幀送出。**官方限制單次傳輸大小為 180K，用於防止一次性大資料造成服務負擔與 DDoS 風險；插件必須將它當成硬性設計約束。** 先只傳必要的變更欄位，再檢查每次 payload 大小；整個插件資料超過 180K 本身不是要求刪減資料或改存本機的理由。
+
+來源說明（2026-09-15 補正）：官方限制與用途由本工作區維護者確認。本次另核對到本地 BCX 的 `PROBLEMATIC_MESSAGE_SIZE = 180_000`、LSCG 的 `MAX_BYTES = 180000`；它們是插件端佐證，不冒充官方伺服器原始碼。舊文因客戶端沒有此常數而省略限制，已更正。實作方法及量測範圍見 8.5。
 
 ### 8.3 OnlineSharedSettings：本地 R131 會保留額外欄位
 
@@ -344,6 +384,84 @@ ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSetting
 追蹤完整路徑：本地狀態 → 原生送出函式 → 伺服器回應／廣播 → 對方接收 → 對方顯示。`ServerSend` 被呼叫只證明進入客戶端送出流程，不代表對方已收到。
 
 協定應定義名稱、版本、訊息大小、來源及目標檢查、重複訊息處理、節流與未知版本處理。對方未安裝插件時要有可預期行為。不要用接收者提供的角色識別值取代可信的訊息來源，也不要在日誌輸出完整私人資料。
+
+### 8.5 180K 單次限制：量測完整提交並預留餘量
+
+本指南採 `180_000` bytes 作為 180K 的開發限制值，**不是 180,000 個 JavaScript 字元，也不是 180 KiB（184,320 bytes）**。精確的伺服器計量範圍、封包外層開銷與邊界比較式尚未從伺服器碼核對，所以不能把剛好低於這個值當成必定可送。
+
+本地對照來源：
+
+- [BCX errorReporting.ts](../../BCJS/bondage-club-extended-master/src/errorReporting.ts)：量測 outgoing message，在超過 `180_000` 時回報問題。
+- [BCX utils.ts](../../BCJS/bondage-club-extended-master/src/utils.ts)：`measureDataSize` 使用 JSON 序列化與 `TextEncoder` 量測位元組，不是 `.length`。
+- [LSCG outfitCollection.ts](../../BCJS/LSCG-main/src/Settings/OutfitCollection/outfitCollection.ts)：衣櫃儲存採 `MAX_BYTES = 180000`。
+
+要量測的是**實際提交的整個 payload**，包括鍵名、JSON 包裝、巢狀 JSON 字串的跳脫、同包其他欄位及協定開銷。設定值能塞進 180K，不表示裝進 AccountUpdate 後仍能送出。中文、emoji 的字元數與 UTF-8 bytes 也不相同。
+
+下面的函式可供第 3、9.1 節這類 JSON 單鍵設定保存使用。它在修改 Player 與提交前先檢查，採 **150,000 bytes 的插件自訂預算**；150K 是預留餘量的範例政策，不是另一個官方上限，也不是適用所有訊息類型的安全保證。
+
+```js
+function prepareExtensionUpdate(key, settings, budgetBytes = 150_000) {
+    if (typeof key !== "string" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(key)) {
+        throw new TypeError("請使用插件自己的單一設定鍵");
+    }
+    if (!Number.isSafeInteger(budgetBytes) || budgetBytes <= 0 || budgetBytes >= 180_000) {
+        throw new RangeError("提交預算必須低於 180K 並保留餘量");
+    }
+    const value = JSON.stringify(settings);
+    if (value === undefined) throw new TypeError("設定不能是 undefined");
+    const payload = { [`ExtensionSettings.${key}`]: value };
+    // JSON 訊息的保守估算，包含事件名稱；不是底層傳輸封包的逐位元組重建。
+    const bytes = new TextEncoder().encode(JSON.stringify(["AccountUpdate", payload])).byteLength;
+    if (bytes > budgetBytes) throw new RangeError(`提交過大：${bytes} bytes／預算 ${budgetBytes}`);
+    return { value, bytes };
+}
+
+// 僅適用必須整體替換的小型 JSON 字串；物件型設定改用必要欄位更新。
+function saveGuideSettings(settings) {
+    const key = "ExampleBCGuide";
+    const prepared = prepareExtensionUpdate(key, settings);
+    Player.ExtensionSettings ??= {};
+    Player.ExtensionSettings[key] = prepared.value;
+    ServerPlayerExtensionSettingsSync(key);
+    return prepared.bytes;
+}
+```
+
+這個 helper 的輸入限定為已驗證的 JSON 設定資料；它不負責 schema 驗證，也不攔截其他插件。循環引用、BigInt 等序列化錯誤直接交給保存 UI 顯示，不能把量測失敗視為 0 bytes 然後照送。
+
+欄位檢查與完整訊息檢查各有用途：平常只送自己實際變更的欄位，必要時深入到 RULE／TEST 等子欄位；每次仍檢查真正的整包提交。不要把插件資料累積大小當成「剩餘傳輸容量」，也不能把其他插件的資料刪掉來讓自己的提交通過。
+
+`QueueData` 可能把多次欄位更新合成一包。每個欄位各自低於預算，不代表合併後安全；需要分開的 RULE／TEST 更新不能因排程合併而又形成超大包。可建立各自符合預算的 AccountUpdate 呼叫，交給正常 ServerSend 佇列處理。合理分次局部更新是遵守限制的方式；仍應避免高頻切片與無限重試。
+
+### 8.6 資料太大時，依用途處理
+
+| 資料用途 | 優先做法 | 必須留下的行為 |
+| --- | --- | --- |
+| 少量設定 | 移除預設值、重複與可計算欄位 | 讀取時補預設，格式帶版本 |
+| 頭像、歷史快照、素材 | IndexedDB；必要時提供匯出 | 顯示本機儲存範圍、容量及清除操作 |
+| 可重建的列表／索引 | 保存來源 ID 與必要差異 | 缺資料時能重新取得或顯示替代內容 |
+| 確實需要跨裝置的文字資料 | 規劃壓縮格式、版本與大小預算 | 檢查最終編碼後 payload，解壓也限制輸出大小 |
+| 真正需要分批的操作 | 使用支援分批的協定與有限速排程 | 批次 ID、順序、確認、逾時、取消及中斷恢復 |
+
+Base64 是編碼，不是壓縮，通常會增加大小。壓縮後再 Base64 的資料也應量測最終送出的字串。不要因壓縮後能送，就允許接收端無上限解壓或解析。
+
+獨立設定欄位可以分次局部更新，不需要為 RULE／TEST 這類各自完整的值另外建立檔案分塊協定。只有把同一個值切成多段、需要接收端重新組合時，才要批次 ID、順序與完整性處理。分次更新仍要控制頻率；其他同步路徑也不要再把整個大型插件物件重送一次。這不表示累積資料另有 180K 上限。
+
+提交超出預算時保留目前可用設定，提示減少資料／改存本機或匯出，停止自動重試。不得靠一連串失敗傳輸來試探邊界。
+
+### 8.7 設定遷移：先讀懂舊資料，再決定是否寫回
+
+持久設定建議採 `{ version, ...fields }`。讀取時把解析、版本判定、遷移、驗證與保存分開：
+
+1. 無資料：建立預設值，不必立即送一次 AccountUpdate。
+2. 已知舊版本：轉換到新格式，保留既有使用者選擇；測量新 payload 後再保存。
+3. 格式損壞：顯示可恢復的錯誤或使用暫時預設，不要立即覆寫原始資料。
+4. 未知新版本：避免舊版插件把新欄位全部清空後寫回；停用該保存路徑或提供相容讀取。
+5. 遷移失敗／超出容量：保留原資料，提供匯出與重試入口；重試需要使用者操作或有上限的策略。
+
+備份不應為了方便又塞進同一個 ExtensionSettings 值，讓提交大小加倍。適合的本機備份可放 IndexedDB 或下載檔案；日誌只記錄格式版本、大小與錯誤，不印出整包私人資料。
+
+驗收：ASCII／中文／emoji、字串內引號與換行、接近預算／超過預算、循環引用、壓縮後變大、佇列合併、離線重試，以及遷移前後設定不遺失。180K 限制與可恢復的失敗提示都是功能完成條件。
 
 ## 9. 道具、互動與設定頁：按需求深入
 
@@ -567,6 +685,30 @@ R131 提供 `ChatRoomRegisterMessageHandler`。其 `ChatRoomMessageRunHandlers` 
 
 指定版本的 handler 註冊會 push 到列表，沒有回傳 remover。若只是跟隨 AEE 處理 Hidden 協定，可先沿用 SDK 對 `ChatRoomMessage` 的 hook；解析失敗或不屬於自己時正常 `next(args)`，避免吞掉其他插件或原生訊息。
 
+### 9.7 Extended Item：沿用原生選項與驗證流程
+
+先查 Item 的 `Asset.Archetype` 與對應資料，不能把所有道具都當成只有一個 `Property.Type`。本地 Typed／Vibrating／Modular 等系統使用自己的選項資料與 TypeRecord；從最接近的原生道具移植時，要一起讀選項定義、初始化、驗證、套用、更新與發布訊息。
+
+本輪對照 [ExtendedItem.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/ExtendedItem.js) 與 [TypedItem.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/TypedItem.js)，確認以下行為：
+
+| 入口 | 重要細節 |
+| --- | --- |
+| `ExtendedItemInit(C, Item, Push, Refresh)` | 對 Extended Asset 動態呼叫 `Inventory<群組><道具>Init`；不是所有自訂 Asset 都能只加圖片就完成 |
+| `ExtendedItemInitNoArch` | 深拷貝預設 Property，只補缺少的欄位；Refresh 與 Push 控制不同副作用 |
+| `ExtendedItemValidate` | 檢查鎖、ChangeWhenLocked、Prerequisite、選項是否已套用等；回傳值可能是 null 或字串，部分分支是空字串 |
+| `TypedItemSetOptionByName` | 只適用支援的 Typed／Vibrating archetype，先按名稱找選項，再委派 TypeRecord 設定 |
+| `ExtendedItemSetOptionByRecord` | 合併 TypeRecord、逐選項驗證與套用；依 `C_Source` 是否為玩家選擇驗證路徑 |
+
+`TypedItemSetOptionByName` 的註解描述字串錯誤，但本地實作委派 `ExtendedItemSetOptionByRecord` 時沒有回傳其結果，而且找不到 item 時也直接返回。因此 `undefined` **不能單獨當成成功證據**。套用後應重新讀取 Item 與選項，核對實際狀態。
+
+多個 Modular 選項也不能預設為全有或全無的交易：本地 TypeRecord 流程逐項驗證，失敗項目可能記錄錯誤，而其他項目仍繼續。批次設定 UI 要顯示實際成功與失敗，不能只彈出「全部完成」。
+
+預覽角色 `C.IsSimple()` 在部分驗證中走不同分支。因此「在 CraftingPreview 可以改」不能推論成「在真人鎖定道具上也可以改」。實際使用者操作必須帶入正確來源角色，不能為了通過驗證省略來源或把真實角色假裝成預覽。
+
+新增自訂 Extended Item 的最小成果應包含：預設 Property、至少一個可切換選項、正確的返回／清理、保存後重新穿戴或載入仍一致，以及需要同步時的對方顯示。先做通一個選項，再擴充複雜 UI。
+
+驗收：同選項重複套用、無效名稱、不同 archetype、鎖定不可改、前置條件失敗、自己／他人、預覽／真實角色、多模組部分失敗、重新載入及聊天室訊息。不要以「Property 變了」取代完整驗收。
+
 ## 10. BC 大型程式碼：插件最需要在意的部分
 
 本次是針對插件入口與副作用的原始碼檢查，不是整個遊戲的完整 bug、安全或效能審計。核心 Scripts 中較大的檔案包括 Dialog、Element、Character、Common、Inventory、Drawing、Server、Validation；檔案大小只是閱讀導航，風險取決於實際呼叫路徑。
@@ -661,7 +803,11 @@ BC／SDK／相關插件版本：
 
 ### 11.5 本文件目前的驗證紀錄
 
+180K 局部更新補正後：11 段 JavaScript 語法及所有本地連結重新檢查通過。巢狀 AccountUpdate 的伺服器行為依維護者提供的確認記錄，範例尚未送出至遊戲伺服器驗證。
+
 2026-09-14：已檢查本文件所有本地檔案連結、9 段 JavaScript 的語法，以及 Git 差異空白檢查。另對純座標函式驗證中心映射、邊界排除與零尺寸；對 presence 解析函式驗證合法回覆、非房間成員、損壞 JSON、錯誤訊息類型與超長內容。
+
+2026-09-15：續寫後重新檢查所有本地連結、10 段 JavaScript 語法與差異空白。新增提交大小函式已測中文／emoji、剛好等於自訂預算、超出預算、180K 大資料、不合法預算／鍵名、undefined 與循環引用。這些是本機資料檢查，沒有向伺服器發送大封包或測試限制邊界。
 
 尚未執行遊戲內設定頁、按鈕點擊、繪圖、多插件共存或第二客戶端同步測試。上述檢查只驗證文件與純函式，不能代替每個案例列出的遊戲內驗收。
 
