@@ -16,7 +16,41 @@ const result = await translateWithMAT('Hello', 'zh-TW');
 if (!result.error) myElement.textContent = result.translated;
 ```
 
-## 輸入與結果
+## 設定與依方向翻譯
+
+以下介面均位於 `window.Liko.MAT`，新增功能沿用相容的 `apiVersion: 1`：
+
+| 介面 | 用途 |
+| --- | --- |
+| `recvLang` / `sendLang` | 即時讀取接收／發送目標語言 |
+| `settingsReady` | 登入設定是否已載入 |
+| `getLanguages()` | MAT 設定介面支援的語言代碼副本；設定未就緒時為空陣列 |
+| `getHistory()` | 查詢仍在快取中的成功翻譯片段，依完成時間由新到舊回傳副本 |
+| `getCachedTranslation(text, targetLang)` | 只查快取，不送請求；完整命中回傳譯文，缺少任一片段或輸入無效則回傳 `null` |
+| `translateReceivedText(text, options)` | 使用目前接收語言，遵守總開關與接收開關 |
+| `translateSentText(text, options)` | 使用目前發送語言，遵守總開關與發送開關；**不會發送訊息** |
+
+API 不提供設定或開關的修改介面。歷史沿用共用快取，最多 300 個片段、有效 30 分鐘；
+不是永久聊天紀錄，不包含失敗紀錄、發話者或 Bio 整篇快取。重新整理後清空。
+每筆為 `{ text, targetLang, translated, detectedLang, translatedAt, expiresAt }`，時間為 Unix 毫秒。
+重複翻譯命中快取不會新增歷史；查詢歷史或快取不會延長期限或改變淘汰順序。
+
+`liko:mat-ready` 表示 API 可呼叫；登入設定載入後另發出 `liko:mat-settings-ready`。
+設定未就緒時，讀取值可能是預設值（`recvLang` 可能為 `null`）；先檢查 `settingsReady`。
+依方向翻譯在設定未就緒時回傳 `not_ready`，對應開關停用時回傳 `disabled`。
+它們與 `translate()` 共用快取、佇列及回傳格式，不套用聊天室的內容略過規則。
+
+```js
+const mat = window.Liko.MAT;
+if (mat.settingsReady) {
+    console.log(mat.recvLang, mat.sendLang);
+    const result = await mat.translateReceivedText('Hello');
+    const history = mat.getHistory();
+    const cached = mat.getCachedTranslation('Hello', mat.recvLang);
+}
+```
+
+## 指定語言翻譯的輸入與結果
 
 - `text`：字串，最多 10,000 個 UTF-16 code units（JavaScript 的 `.length`）。
 - `targetLang`：Google 翻譯語言代碼，例如 `en`、`ja`、`zh-TW`；API 檢查代碼格式，實際支援由服務端決定。

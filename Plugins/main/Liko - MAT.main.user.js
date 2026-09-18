@@ -253,8 +253,9 @@
     // ============================================================
     // 所有翻譯入口共用；一筆是送往 API 的一段文字（最多 500 字元）。
     const translationCache = new Map();
+    let matSettingsReady = false;
     const translationPending = new Map();
-    const TRANSLATION_CACHE_TTL = 10 * 60 * 1000;
+    const TRANSLATION_CACHE_TTL = 30 * 60 * 1000;
     const TRANSLATION_CACHE_LIMIT = 300;
     const TRANSLATION_ATTEMPT_TIMEOUTS = [3000, 1000, 1000];
     const TRANSLATION_MAX_ATTEMPTS = TRANSLATION_ATTEMPT_TIMEOUTS.length;
@@ -418,6 +419,40 @@
     window.Liko.MAT = Object.freeze({
         version: MOD_VER,
         apiVersion: 1,
+        get settingsReady() { return matSettingsReady; },
+        get recvLang() { return config.recvLang; },
+        get sendLang() { return config.sendLang; },
+        getLanguages() { return matSettingsReady ? [...langCodes] : []; },
+        getHistory() {
+            pruneTranslationCache();
+            return [...translationCache.entries()].map(([key, entry]) => {
+                const [targetLang, text] = JSON.parse(key);
+                return { text, targetLang, ...entry.result, translatedAt: entry.ts,
+                    expiresAt: entry.ts + TRANSLATION_CACHE_TTL };
+            }).sort((a, b) => b.translatedAt - a.translatedAt);
+        },
+        getCachedTranslation(text, targetLang) {
+            if (typeof text !== 'string' || typeof targetLang !== 'string' || text.length > 10000) return null;
+            pruneTranslationCache();
+            let translated = '', detectedLang = null;
+            for (const chunk of splitTextForTranslation(text, MAX_TRANSLATE_LEN)) {
+                const entry = translationCache.get(JSON.stringify([targetLang, chunk]));
+                if (!entry) return null;
+                translated += entry.result.translated;
+                detectedLang ||= entry.result.detectedLang;
+            }
+            return { translated, detectedLang };
+        },
+        async translateReceivedText(text, options = {}) {
+            if (!matSettingsReady) return { translated: null, detectedLang: null, error: 'not_ready' };
+            if (!config.translateReceived) return { translated: null, detectedLang: null, error: 'disabled' };
+            return window.Liko.MAT.translate(text, config.recvLang, options);
+        },
+        async translateSentText(text, options = {}) {
+            if (!matSettingsReady) return { translated: null, detectedLang: null, error: 'not_ready' };
+            if (!config.translateSent) return { translated: null, detectedLang: null, error: 'disabled' };
+            return window.Liko.MAT.translate(text, config.sendLang, options);
+        },
         async translate(text, targetLang, options = {}) {
             const error = reason => ({ translated: null, detectedLang: null, error: reason });
             if (typeof text !== 'string' || typeof targetLang !== 'string' ||
@@ -2831,6 +2866,8 @@
             waitForSettings(() => {
                 migrateSettingsKey();
                 loadSettings();
+                matSettingsReady = true;
+                window.dispatchEvent(new CustomEvent('liko:mat-settings-ready'));
 
                 // 先確保 i18n 就緒，再註冊 UI 與指令（載入失敗則以 key 原文 fallback）
                 ensureI18n()
