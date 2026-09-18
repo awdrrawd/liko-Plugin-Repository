@@ -55,22 +55,22 @@
 
         // ── API / 翻譯失敗 ────────────────────────────────────────────────
         'apiFail': {
-            TW: "⚠️ [MAT] Google 翻譯請求失敗\n・{hint}",
-            CN: "⚠️ [MAT] Google 翻译请求失败\n・{hint}",
-            EN: "⚠️ [MAT] Google Translate request failed\n・{hint}",
-            DE: "⚠️ [MAT] Google-Übersetzungsanfrage fehlgeschlagen\n・{hint}",
-            FR: "⚠️ [MAT] Échec de la requête Google Traduction\n・{hint}",
-            RU: "⚠️ [MAT] Сбой запроса Google Переводчика\n・{hint}",
-            UA: "⚠️ [MAT] Помилка запиту Google Перекладача\n・{hint}"
+            TW: "⚠️ [MAT] Google 翻譯請求失敗\n・{hint}\n請稍後再試。",
+            CN: "⚠️ [MAT] Google 翻译请求失败\n・{hint}\n请稍后再试。",
+            EN: "⚠️ [MAT] Google Translate request failed\n・{hint}\nPlease try again later.",
+            DE: "⚠️ [MAT] Google-Übersetzungsanfrage fehlgeschlagen\n・{hint}\nBitte später erneut versuchen.",
+            FR: "⚠️ [MAT] Échec de la requête Google Traduction\n・{hint}\nVeuillez réessayer plus tard.",
+            RU: "⚠️ [MAT] Сбой запроса Google Переводчика\n・{hint}\nПовторите попытку позже.",
+            UA: "⚠️ [MAT] Помилка запиту Google Перекладача\n・{hint}\nСпробуйте ще раз пізніше."
         },
         'translateFail': {
-            TW: "⚠️ [MAT] 翻譯失敗\n・{hint}",
-            CN: "⚠️ [MAT] 翻译失败\n・{hint}",
-            EN: "⚠️ [MAT] Translation failed\n・{hint}",
-            DE: "⚠️ [MAT] Übersetzung fehlgeschlagen\n・{hint}",
-            FR: "⚠️ [MAT] Échec de la traduction\n・{hint}",
-            RU: "⚠️ [MAT] Сбой перевода\n・{hint}",
-            UA: "⚠️ [MAT] Помилка перекладу\n・{hint}"
+            TW: "⚠️ [MAT] 翻譯失敗\n・{hint}\n請稍後再試。",
+            CN: "⚠️ [MAT] 翻译失败\n・{hint}\n请稍后再试。",
+            EN: "⚠️ [MAT] Translation failed\n・{hint}\nPlease try again later.",
+            DE: "⚠️ [MAT] Übersetzung fehlgeschlagen\n・{hint}\nBitte später erneut versuchen.",
+            FR: "⚠️ [MAT] Échec de la traduction\n・{hint}\nVeuillez réessayer plus tard.",
+            RU: "⚠️ [MAT] Сбой перевода\n・{hint}\nПовторите попытку позже.",
+            UA: "⚠️ [MAT] Помилка перекладу\n・{hint}\nСпробуйте ще раз пізніше."
         },
         'hint_rate_limit': {
             TW: "請求過於頻繁，稍候即可恢復",

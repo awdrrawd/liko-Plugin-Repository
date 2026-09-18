@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.10
+// @version      1.7.11
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,9 +16,9 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.10";
+    const MOD_VER = "1.7.11";
     if (window.Liko.MAT) return;
-    window.Liko.MAT = MOD_VER;
+    window.Liko.MAT = { version: MOD_VER };
 
     // MAT 圖示（偏好設定按鈕 + 聊天室快捷按鈕共用）。以 data URI 交給 <img> / BC 圖片載入器。
     const MAT_ICON_SVG = `<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><style>.s0 { opacity: .99;fill: #000000 } </style><path id="Path 0" fill-rule="evenodd" class="s0" d="m49.97 7.98c25.92-0.02 26.63 0.03 31.03 2.33 2.51 1.3 5.83 4.23 10.5 10.86v28.17c0 26.62-0.11 28.38-2.09 32.16-1.15 2.2-4 5.35-10.58 10h-57.66l-4.26-3c-2.34-1.65-5.33-5.03-6.64-7.5-2.36-4.47-2.37-4.68-1.77-59.83l3.01-4.25c1.65-2.33 5.01-5.3 7.46-6.58 4.35-2.28 5.14-2.34 31-2.36zm-34.63 9.89c-1.29 1.72-2.59 4.59-2.9 6.38-0.3 1.79-0.42 14.58-0.25 28.43 0.29 23.34 0.46 25.38 2.31 27.88 1.1 1.48 3.27 3.65 4.82 4.82 2.72 2.04 3.85 2.12 30.68 2.12 26.29 0 28.01-0.11 30.56-2 1.48-1.1 3.65-3.27 4.82-4.82 2.04-2.72 2.12-3.85 2.12-30.68 0-26.83-0.08-27.96-2.12-30.68-1.17-1.55-3.34-3.72-4.82-4.82-2.52-1.87-4.47-2.02-29.38-2.23-20.53-0.19-27.47 0.07-30.09 1.11-1.87 0.75-4.46 2.76-5.75 4.49zm36.66 2.53c4.02 0.31 8.41 1.44 11.5 2.96 2.75 1.35 6.54 4.19 8.43 6.3 1.88 2.11 4.3 5.86 5.37 8.34 1.07 2.48 2.17 6.75 2.93 14.5l-28.23-0.5-0.01 23.5 5.51 3.35-3 0.72c-1.65 0.39-5.25 0.42-8 0.08-2.75-0.35-7.25-1.72-10-3.05-2.75-1.33-6.54-4.15-8.43-6.26-1.88-2.11-4.22-5.64-5.19-7.84-0.97-2.2-2.1-6.02-3.27-13l2.19 2.25c1.21 1.24 2.89 4.16 3.74 6.5 0.85 2.34 2.2 5.04 3 6 1.25 1.5 1.83 1.57 3.99 0.5 1.48-0.73 2.51-2.08 2.49-3.25-0.02-1.1-0.37-3.7-0.78-5.77-0.47-2.39-1.29-3.75-2.24-3.71-0.89 0.03-0.38-0.78 1.25-1.99 2.05-1.51 4.28-2.03 14.75-2.03l0.03-11.75c0.02-11.54-0.02-11.78-2.52-13.25-1.85-1.09-2.19-1.72-1.27-2.3 0.69-0.44 4.18-0.58 7.76-0.3zm0 15.6c5.04-1 6.73-1.46 7-1.67 0.28-0.21-0.29-1.94-1.25-3.85-0.96-1.92-2.62-3.95-3.69-4.52-1.81-0.96-1.95-0.66-2 4.5zm10-5.5c0.88 2.2 1.27 2.37 3.25 1.37l2.25-1.13c-3.88-2.96-5.34-3.8-5.75-3.78-0.41 0.03-0.75 0.27-0.75 0.54 0 0.28 0.45 1.63 1 3zm3.5 11.94l1 5.59 9.5-0.03c-0.95-5.03-2.18-8.19-3.36-10.27-1.18-2.07-2.37-3.74-2.64-3.71-0.28 0.04-1.63 0.69-3 1.45-2.42 1.33-2.47 1.57-1.5 6.97zm-13.74 1.64l0.24 3.92c8.32 0 10-0.41 10.01-1.25 0.01-0.68-0.33-2.72-0.75-4.52-0.62-2.68-1.22-3.25-3.26-3.13-1.38 0.07-3.4 0.34-4.49 0.59-1.63 0.38-1.95 1.18-1.75 4.39zm-13.02 13.7c0.55 2.37 1.31 3.26 2.76 3.23 1.1-0.02 3.01-0.25 4.25-0.52 1.87-0.4 2.25-1.15 2.25-4.49v-4c-8.33 0-10.01 0.42-10.01 1.25-0.01 0.69 0.33 2.73 0.75 4.53zm2.23 8.47c-0.02 0.69 1 2.8 2.25 4.68 1.25 1.88 2.84 3.57 3.53 3.75 0.89 0.23 1.25-1.27 1.25-5.18 0-3.02-0.11-5.42-0.25-5.34-0.14 0.09-1.71 0.32-3.5 0.5-1.79 0.19-3.26 0.91-3.28 1.59zm-5.58 5c1.44 0.97 2.83 1.53 3.11 1.25 0.27-0.27-0.08-1.63-0.79-3.01-1.11-2.18-1.53-2.35-3.1-1.25-1.72 1.19-1.67 1.37 0.78 3.01zm-4.39-47.25c7.66 0 9.29 0.3 11 2 1.55 1.56 2 3.34 2 8 0 4.67-0.45 6.45-2 8-1.1 1.1-3.13 2-4.5 2-1.38 0-4.41 1.4-6.75 3.11-2.34 1.71-4.81 2.84-5.5 2.5-0.69-0.33-1.25-1.73-1.25-3.11 0-1.37-0.45-2.5-1-2.5-0.55 0-1.9-0.9-3-2-1.56-1.55-2-3.33-2-8 0-4.66 0.44-6.44 2-8 1.7-1.7 3.33-2 11-2zm-8.79 11c0.24 3.83 0.63 4.54 2.54 4.75 1.24 0.14 2.59 1.15 3 2.24 0.71 1.9 0.84 1.91 2.63 0.25 1.03-0.95 3.51-1.97 5.5-2.25l3.62-0.52v-10.97c-14.23-0.5-16.62-0.23-17.03 0.71-0.31 0.71-0.43 3.32-0.26 5.79zm46.79 21c7.66 0 9.29 0.3 11 2 1.55 1.56 2 3.34 2 8 0 4.67-0.45 6.45-2 8-1.1 1.1-2.45 2-3 2-0.55 0-1 1.13-1 2.5 0 1.38-0.56 2.78-1.25 3.11-0.69 0.34-3.16-0.79-5.5-2.5-2.34-1.71-5.38-3.11-6.75-3.11-1.38 0-3.4-0.9-4.5-2-1.56-1.55-2-3.33-2-8 0-4.66 0.44-6.44 2-8 1.7-1.7 3.33-2 11-2zm-8.79 10.99c0.28 4.33 0.42 4.51 3.91 5 1.99 0.28 4.46 1.3 5.5 2.25 1.79 1.66 1.91 1.65 2.63-0.25 0.41-1.09 1.76-2.1 3-2.24 2.03-0.22 2.25-0.78 2.25-5.75v-5.5c-14.23-0.5-16.62-0.23-17.03 0.71-0.31 0.71-0.43 3.31-0.26 5.78z"/></svg>`;
@@ -251,6 +251,21 @@
     // ============================================================
     // 翻譯請求隊列
     // ============================================================
+    // 所有翻譯入口共用；一筆是送往 API 的一段文字（最多 500 字元）。
+    const translationCache = new Map();
+    const translationPending = new Map();
+    const TRANSLATION_CACHE_TTL = 10 * 60 * 1000;
+    const TRANSLATION_CACHE_LIMIT = 300;
+    const TRANSLATION_ATTEMPT_TIMEOUTS = [3000, 1000, 1000];
+    const TRANSLATION_MAX_ATTEMPTS = TRANSLATION_ATTEMPT_TIMEOUTS.length;
+
+    function pruneTranslationCache() {
+        const now = Date.now();
+        for (const [key, entry] of translationCache) {
+            if (now - entry.ts >= TRANSLATION_CACHE_TTL) translationCache.delete(key);
+        }
+    }
+
     const translateQueue = {
         queue: [], processing: false, lastRequestTime: 0,
         baseInterval: 300, minInterval: 300, maxInterval: 3000,
@@ -261,39 +276,90 @@
                 this.minInterval = Math.max(this.baseInterval, Math.floor(this.minInterval / 1.5));
             }
         },
-        async add(text, targetLang) {
-            return new Promise(resolve => {
-                this.queue.push({ text, targetLang, resolve, queuedAt: Date.now() });
-                if (!this.processing) this.process();
+        start() {
+            if (!this.processing) {
+                this.processing = true;
+                queueMicrotask(() => this.process());
+            }
+        },
+        async add(text, targetLang, bioToken = null, priority = bioToken ? 1 : 0) {
+            pruneTranslationCache();
+            const key = JSON.stringify([targetLang, text]);
+            const cached = translationCache.get(key);
+            if (cached) {
+                // LRU：使用時移到末尾，但不延長 10 分鐘有效期。
+                translationCache.delete(key);
+                translationCache.set(key, cached);
+                return cached.result;
+            }
+            if (translationPending.has(key)) {
+                const existing = translationPending.get(key);
+                existing.consumers.push({ bioToken, priority });
+                return existing.promise;
+            }
+            const item = { text, targetLang, consumers: [{ bioToken, priority }], attempts: 0 };
+            const pending = new Promise(resolve => {
+                item.resolve = resolve;
+                this.queue.push(item);
+            }).then(result => {
+                if (!result.error && typeof result.translated === 'string') {
+                    pruneTranslationCache();
+                    translationCache.set(key, { result, ts: Date.now() });
+                    while (translationCache.size > TRANSLATION_CACHE_LIMIT) {
+                        translationCache.delete(translationCache.keys().next().value);
+                    }
+                }
+                return result;
+            }).finally(() => {
+                translationPending.delete(key);
             });
+            item.promise = pending;
+            translationPending.set(key, item);
+            // 讓同步建立的整批 Bio 項目先入列，再啟動網路請求。
+            this.start();
+            return pending;
         },
         async process() {
             if (this.queue.length === 0) { this.processing = false; return; }
             this.processing = true;
             const elapsed = Date.now() - this.lastRequestTime;
             if (elapsed < this.minInterval) await new Promise(r => setTimeout(r, this.minInterval - elapsed));
-            const item = this.queue.shift();
-            // 聊天翻譯具有時效性。佇列塞車時直接捨棄舊項目，避免幾秒後才突然插入過時譯文。
-            if (Date.now() - item.queuedAt > MAX_QUEUE_WAIT) {
-                item.resolve({ translated: null, detectedLang: null, error: 'stale' });
-                this.process();
-                return;
+            // 取消的 Bio 不再送出；若聊天也在等同一筆，仍保留該請求。
+            for (let i = this.queue.length - 1; i >= 0; i--) {
+                if (this.queue[i].consumers.every(c => c.bioToken?.cancelled)) {
+                    this.queue.splice(i, 1)[0].resolve({ translated: null, detectedLang: null, error: 'cancelled' });
+                }
             }
+            if (!this.queue.length) { this.processing = false; return; }
+            // 手動／整句 (2) > Bio (1) > 聊天與預設外部 API (0)。
+            // 合併請求採仍有效呼叫者中的最高順位，同順位維持入列順序。
+            const priorityOf = item => item.consumers.reduce((priority, c) =>
+                c.bioToken?.cancelled ? priority : Math.max(priority, c.priority), -1);
+            let nextIndex = 0;
+            for (let i = 1; i < this.queue.length; i++) {
+                if (priorityOf(this.queue[i]) > priorityOf(this.queue[nextIndex])) nextIndex = i;
+            }
+            const [item] = this.queue.splice(nextIndex, 1);
             this.lastRequestTime = Date.now();
+            item.attempts++;
+            let res;
             try {
-                const res = await translateGoogle(item.text, item.targetLang);
-                if (res.error) this.backoff(); else this.recover();
-                item.resolve(res);
+                res = await translateGoogle(item.text, item.targetLang, TRANSLATION_ATTEMPT_TIMEOUTS[item.attempts - 1]);
             } catch (e) {
-                this.backoff();
-                item.resolve({ translated: null, detectedLang: null, error: e.message });
+                res = { translated: null, detectedLang: null, error: e.message || 'unknown' };
             }
+            // 只有服務端限流才延長全域間隔；一般逾時不再額外堆疊等待。
+            if (res.error === 'rate_limit') this.backoff(); else this.recover();
+            if (res.error && item.attempts < TRANSLATION_MAX_ATTEMPTS &&
+                item.consumers.some(c => !c.bioToken?.cancelled)) {
+                // 重試回到相同順位尾端，仍受共用節流約束，不額外等待 3 秒。
+                this.queue.push(item);
+            } else item.resolve(res);
             this.process();
         }
     };
 
-    // 佇列最長等待時間：聊天室訊息過期後不再翻譯。
-    const MAX_QUEUE_WAIT = 3000;
+    // 等待中的聊天不過期；Bio 完成或取消後依入列順序補做。
 
     // 單筆翻譯字數上限：超過就在標點／分段處切成多段送出，避免過長 URL 觸發 http_500
     const MAX_TRANSLATE_LEN = 500;
@@ -337,12 +403,11 @@
     }
 
     // 長文字分段翻譯後再接回；任一段失敗即視為整體失敗。各段仍走佇列以維持節流。
-    async function translateChunked(text, target) {
+    async function translateChunked(text, target, bioToken = null, priority = bioToken ? 1 : 0) {
         const chunks = splitTextForTranslation(text, MAX_TRANSLATE_LEN);
-        if (chunks.length <= 1) return translateQueue.add(text, target);
+        const results = await Promise.all(chunks.map(chunk => translateQueue.add(chunk, target, bioToken, priority)));
         let combined = '', detectedLang = null;
-        for (const chunk of chunks) {
-            const res = await translateQueue.add(chunk, target);
+        for (const res of results) {
             if (res.error || res.translated === null) {
                 return { translated: null, detectedLang: null, error: res.error || 'unknown' };
             }
@@ -352,10 +417,27 @@
         return { translated: combined, detectedLang };
     }
 
-    // API 失敗通知器：30 秒 cooldown，避免洗頻
+    // 公開 API 不套用聊天室專屬的略過規則，也不直接操作聊天 UI。
+    window.Liko.MAT = Object.freeze({
+        version: MOD_VER,
+        apiVersion: 1,
+        async translate(text, targetLang, options = {}) {
+            const error = reason => ({ translated: null, detectedLang: null, error: reason });
+            if (typeof text !== 'string' || typeof targetLang !== 'string' ||
+                !/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(targetLang)) return error('invalid_argument');
+            if (text.length > 10000) return error('text_too_long');
+            if (!options || !['chat', 'manual'].includes(options.priority ?? 'chat')) return error('invalid_argument');
+            if (!config.enabled) return error('disabled');
+            if (!text.trim()) return { translated: text, detectedLang: null };
+            return { ...await translateChunked(text, targetLang, null, options.priority === 'manual' ? 2 : 0) };
+        },
+    });
+    window.dispatchEvent(new CustomEvent('liko:mat-ready'));
+
+    // API 失敗通知器：5 分鐘內不重複提醒，不限制請求或重試。
     const apiErrorNotifier = {
-        lastNotified: 0,
-        cooldown: 30000,
+        lastNotified: -Infinity,
+        cooldown: 5 * 60 * 1000,
         notify(reason) {
             const now = Date.now();
             if (now - this.lastNotified < this.cooldown) return;
@@ -364,8 +446,7 @@
         }
     };
 
-    // 單次請求逾時。聊天翻譯不延後重試；逾時或失敗就略過該則，避免過時譯文稍後才出現。
-    const FETCH_TIMEOUT = 6000;
+    // 單次請求逾時由佇列傳入：首次 3 秒，兩次重試各 1 秒。
 
     function classifyFetchFailure(err) {
         if (err.name === 'AbortError') return 'timeout';
@@ -376,9 +457,9 @@
         return 'network';
     }
 
-    async function translateGoogle(text, target) {
+    async function translateGoogle(text, target, timeoutMs = TRANSLATION_ATTEMPT_TIMEOUTS[0]) {
         const ctrl = new AbortController();
-        const to = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
+        const to = setTimeout(() => ctrl.abort(), timeoutMs);
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
         try {
             const resp = await fetch(url, { signal: ctrl.signal });
@@ -388,8 +469,14 @@
             if (!resp.ok) throw new Error(`http_${resp.status}`);
 
             const data = await resp.json();
-            const translated = data[0]?.map(seg => seg?.[0] || '').join('') || text;
-            return { translated, detectedLang: data[2] || null };
+            // HTTP 成功不代表譯文有效；不可把異常回應當成原文成功並快取。
+            if (!Array.isArray(data?.[0]) || !data[0].length ||
+                data[0].some(seg => !Array.isArray(seg) || typeof seg[0] !== 'string')) {
+                throw new Error('invalid_response');
+            }
+            const translated = data[0].map(seg => seg[0]).join('');
+            if (!translated && text.trim()) throw new Error('invalid_response');
+            return { translated, detectedLang: typeof data[2] === 'string' ? data[2] : null };
         } catch (e) {
             const reason = classifyFetchFailure(e);
             return { translated: null, detectedLang: null, error: reason };
@@ -555,7 +642,6 @@
         try {
             const { translated, error } = await translateChunked(text, targetLang);
             if (error || translated === null) {
-                if (error === 'stale') return null;
                 apiErrorNotifier.notify(error || '');
                 return null;
             }
@@ -1151,7 +1237,10 @@
     // ============================================================
     // 手動翻譯核心
     // ============================================================
+    const manualTranslationRequests = new WeakMap();
     async function manualTranslateMessage(node, targetLang) {
+        const request = {};
+        manualTranslationRequests.set(node, request);
         const lang = targetLang || config.recvLang;
 
         let sibling = node.nextElementSibling;
@@ -1166,7 +1255,8 @@
 
         updateClickToolbarStatus(ui('translating'));
 
-        const { translated, error } = await translateChunked(message, lang);
+        const { translated, error } = await translateChunked(message, lang, null, 2);
+        if (manualTranslationRequests.get(node) !== request || !node.isConnected) return;
 
         if (error || translated === null) {
             updateClickToolbarStatus(null);
@@ -1282,7 +1372,9 @@
         selectionPopup.style.top = `${top}px`;
     }
 
+    let selectionRequestId = 0;
     function hideSelectionPopup() {
+        selectionRequestId++;
         if (!selectionPopup) return;
         selectionPopup.style.display = 'none';
         const result = document.getElementById('mat-selection-result');
@@ -1290,6 +1382,7 @@
     }
 
     async function translateSelectedText(targetLang) {
+        const requestId = ++selectionRequestId;
         const lang = targetLang || config.recvLang;
         const selected = window.getSelection()?.toString().trim();
         if (!selected) return;
@@ -1298,10 +1391,11 @@
         result.style.display = 'block';
         result.style.color = '#888';
         result.textContent = ui('translating');
-        const { translated, error } = await translateChunked(selected, lang);
+        const { translated, error } = await translateChunked(selected, lang, null, 2);
+        if (requestId !== selectionRequestId || !result.isConnected) return;
         if (error || translated === null) {
             result.style.color = '#ff8a80';
-            result.textContent = ui('selectionFail');
+            result.textContent = ui('translateFail', { hint: apiHint(error) });
             return;
         }
         result.style.color = '#aeffae';
@@ -2254,23 +2348,25 @@
     async function translateBioSmart(normalized, targetLang, abortToken) {
         const lines = normalized.split('\n');
         const resultLines = [...lines];
-        for (let i = 0; i < lines.length; i++) {
-            if (abortToken.cancelled) break;
-            if (isBioSkipLine(lines[i])) continue;
+        // map 同步完成所有行及其分段入列，網路請求由共用佇列逐筆執行。
+        await Promise.all(lines.map(async (line, i) => {
+            if (abortToken.cancelled || isBioSkipLine(line)) return;
             try {
-                const { translated, error } = await translateChunked(lines[i], targetLang);
-                if (abortToken.cancelled) break;
+                const { translated, error } = await translateChunked(line, targetLang, abortToken);
+                if (abortToken.cancelled) return;
                 if (error || translated === null) {
+                    abortToken.failed = true;
                     apiErrorNotifier.notify(error || '');
                     resultLines[i] = lines[i];
                 } else {
                     resultLines[i] = translated;
                 }
             } catch (e) {
+                abortToken.failed = true;
                 resultLines[i] = lines[i];
             }
             if (!abortToken.cancelled) updateBioTranslationDisplay(resultLines.join('\n'));
-        }
+        }));
         return resultLines.join('\n');
     }
 
@@ -2280,23 +2376,34 @@
     let bioAbortToken = null;
     const bioCache = new Map();
     const BIO_CACHE_TTL = 10 * 60 * 1000;
+    const BIO_CACHE_LIMIT = 10;
+
+    function pruneBioCache() {
+        for (const [key, entry] of bioCache) {
+            if (Date.now() - entry.ts >= BIO_CACHE_TTL) bioCache.delete(key);
+        }
+    }
 
     function bioCacheGet(memberNum, recvLang, contentHash) {
-        const key = `${memberNum}_${recvLang}`;
+        pruneBioCache();
+        const key = memberNum;
         const e = bioCache.get(key);
         if (!e) return null;
-        if (Date.now() - e.ts > BIO_CACHE_TTL) { bioCache.delete(key); return null; }
         if (e.hash !== contentHash) { bioCache.delete(key); return null; }
+        if (e.lang !== recvLang) return null;
+        bioCache.delete(key);
+        bioCache.set(key, e);
         return e.translated;
     }
 
     function bioCacheSet(memberNum, recvLang, contentHash, translated) {
-        const key = `${memberNum}_${recvLang}`;
-        if (bioCache.size >= 30) {
-            const oldest = [...bioCache.entries()].sort((a,b) => a[1].ts - b[1].ts)[0][0];
-            bioCache.delete(oldest);
+        pruneBioCache();
+        // 每人只保留最近一次成功翻譯的語言，確保上限真的是 10 人。
+        bioCache.delete(memberNum);
+        bioCache.set(memberNum, { hash: contentHash, lang: recvLang, translated, ts: Date.now() });
+        while (bioCache.size > BIO_CACHE_LIMIT) {
+            bioCache.delete(bioCache.keys().next().value);
         }
-        bioCache.set(key, { hash: contentHash, translated, ts: Date.now() });
     }
 
     function strHash(s) {
@@ -2304,6 +2411,9 @@
         for (let i = 0; i < s.length; i++) h = ((h << 5) + h) ^ s.charCodeAt(i);
         return (h >>> 0).toString(36);
     }
+
+    // 即使沒有新翻譯，也定期釋放過期文字。
+    setInterval(() => { pruneTranslationCache(); pruneBioCache(); }, 60 * 1000);
 
     // 字元對照表只需要建一次：原本放在函式內，每次呼叫（每次翻譯個人簡介）都重建一個
     // 900+ entry 的 Map，是白白浪費的 CPU/記憶體churn。挪到 module scope 用 lazy-init
@@ -2403,9 +2513,10 @@
         bioAbortToken = token;
         bioTranslating = true;
         try {
-            const result = await translateBioSmart(normalized, config.recvLang, token);
+            const targetLang = config.recvLang;
+            const result = await translateBioSmart(normalized, targetLang, token);
             if (!token.cancelled) {
-                bioCacheSet(memberNum, config.recvLang, contentHash, result);
+                if (!token.failed) bioCacheSet(memberNum, targetLang, contentHash, result);
                 showBioTranslation(result);
             }
         } finally {
