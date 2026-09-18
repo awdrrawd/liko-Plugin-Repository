@@ -269,17 +269,11 @@
     const translateQueue = {
         queue: [], processing: false, lastRequestTime: 0,
         baseInterval: 300, minInterval: 300, maxInterval: 3000,
-        // 連續失敗時拉長間隔，成功後逐步恢復，避免錯誤雪崩式連發
+        // 服務端限流時拉長間隔，其他結果逐步恢復。
         backoff() { this.minInterval = Math.min(this.maxInterval, this.minInterval * 2); },
         recover() {
             if (this.minInterval > this.baseInterval) {
                 this.minInterval = Math.max(this.baseInterval, Math.floor(this.minInterval / 1.5));
-            }
-        },
-        start() {
-            if (!this.processing) {
-                this.processing = true;
-                queueMicrotask(() => this.process());
             }
         },
         async add(text, targetLang, bioToken = null, priority = bioToken ? 1 : 0) {
@@ -316,7 +310,10 @@
             item.promise = pending;
             translationPending.set(key, item);
             // 讓同步建立的整批 Bio 項目先入列，再啟動網路請求。
-            this.start();
+            if (!this.processing) {
+                this.processing = true;
+                queueMicrotask(() => this.process());
+            }
             return pending;
         },
         async process() {
@@ -333,11 +330,11 @@
             if (!this.queue.length) { this.processing = false; return; }
             // 手動／整句 (2) > Bio (1) > 聊天與預設外部 API (0)。
             // 合併請求採仍有效呼叫者中的最高順位，同順位維持入列順序。
-            const priorityOf = item => item.consumers.reduce((priority, c) =>
-                c.bioToken?.cancelled ? priority : Math.max(priority, c.priority), -1);
-            let nextIndex = 0;
-            for (let i = 1; i < this.queue.length; i++) {
-                if (priorityOf(this.queue[i]) > priorityOf(this.queue[nextIndex])) nextIndex = i;
+            let nextIndex = 0, highestPriority = -1;
+            for (let i = 0; i < this.queue.length; i++) {
+                const priority = this.queue[i].consumers.reduce((highest, c) =>
+                    c.bioToken?.cancelled ? highest : Math.max(highest, c.priority), -1);
+                if (priority > highestPriority) { nextIndex = i; highestPriority = priority; }
             }
             const [item] = this.queue.splice(nextIndex, 1);
             this.lastRequestTime = Date.now();
@@ -764,7 +761,7 @@
                 if (sib.classList.contains('mat-broadcast')) {
                     // 有 dataset.matLang 才比對語言；沒有（理論上不會發生）就沿用舊版「有廣播就算」防呆。
                     if (!sib.dataset.matLang || langReadable(sib.dataset.matLang, config.recvLang)) return true;
-                } else if (sib.textContent.includes('[🌐]')) {
+                } else if (extractCleanMessage(sib).includes('[🌐]')) {
                     return true;   // 沒有旗標可比對語言的舊版/亂碼後備判斷
                 }
             }
@@ -783,7 +780,7 @@
                 !sib.classList.contains('mat-translated') &&
                 !sib.classList.contains('mat-manual-translated') &&
                 sib.dataset?.sender === broadcastNode.dataset?.sender &&
-                !sib.textContent.includes('[🌐]')) return sib;
+                !extractCleanMessage(sib).includes('[🌐]')) return sib;
             sib = sib.previousElementSibling; hops++;
         }
         return null;
@@ -818,9 +815,10 @@
         if (node.classList.contains("mat-processed") ||
             node.classList.contains("mat-translated") ||
             node.classList.contains("mat-manual-translated") ||
-            node.classList.contains("mat-broadcast") ||   // 對方翻譯廣播（憑旗標判定，抗亂碼）
-            node.textContent.includes(TRANSLATE_MARKER) ||
-            node.textContent.includes('[🌐]')) return;
+            node.classList.contains("mat-broadcast")) return;   // 對方翻譯廣播（憑旗標判定，抗亂碼）
+        // Reply 引用、姓名與選單不屬於正文，不能拿來判斷這則是否已翻譯。
+        const body = node.dataset.matBeepMsg ?? node._matRawMessage ?? extractCleanMessage(node);
+        if (body.includes(TRANSLATE_MARKER) || body.includes('[🌐]')) return;
 
         if (!recvGateAllows(node)) return;
 
@@ -872,7 +870,7 @@
         node.classList.add("mat-processed");
         // Action 優先使用 ChatRoomMessage hook 從原始 Dictionary 解出的權威內容；只有舊訊息或
         // hook 未接上時才從已本地化、可能被其他插件改寫過的 DOM 反推文字。
-        const message = typeof node._matRawMessage === 'string' ? node._matRawMessage : extractCleanMessage(node);
+        const message = body;
         if (!message) return;
         if (skipZhRecv(message)) return;
         // 對方已標記要翻成我的語言（mat-skip）：先等其 [🌐] 廣播，最多 1 秒；沒到（對方翻譯失敗）才自翻
@@ -902,7 +900,7 @@
         if (!(node instanceof HTMLElement) || !node.classList.contains('ChatMessage')) return;
         if (node.classList.contains('mat-translated') || node.classList.contains('mat-manual-translated') ||
             node.classList.contains('mat-folded') || node.classList.contains('mat-processed')) return;
-        if (!node.textContent.includes('[🌐]')) return;   // 只處理翻譯廣播回顯那則
+        if (!extractCleanMessage(node).includes('[🌐]')) return;   // 只處理翻譯廣播回顯那則
 
         const senderEl = node.querySelector('.chat-room-sender');
         if (senderEl?.textContent != Player?.MemberNumber) return;   // 只處理自己的訊息
@@ -912,7 +910,7 @@
             if (sib instanceof HTMLElement && sib.classList.contains('ChatMessage') &&
                 (sib.style.display !== 'none' || sib.classList.contains('mat-hidden-orig')) &&
                 !sib.classList.contains('mat-translated') && !sib.classList.contains('mat-manual-translated') &&
-                !sib.classList.contains('mat-broadcast') && !sib.textContent.includes('[🌐]')) {
+                !sib.classList.contains('mat-broadcast') && !extractCleanMessage(sib).includes('[🌐]')) {
                 const sSenderEl = sib.querySelector('.chat-room-sender');
                 if (sSenderEl?.textContent == Player?.MemberNumber) {
                     applyFoldUI(sib, node);
@@ -931,7 +929,7 @@
         const isAction = node.classList.contains('ChatMessageAction') ||
               node.classList.contains('ChatMessageNonDialogue');
         const clone = node.cloneNode(true);
-        clone.querySelectorAll('.chat-room-metadata, .menubar, .mat-action-btn-wrap, .mat-translated, .mat-manual-translated').forEach(el => el.remove());
+        clone.querySelectorAll('.chat-room-metadata, .chat-room-message-reply, .menubar, .mat-action-btn-wrap, .mat-translated, .mat-manual-translated').forEach(el => el.remove());
         let raw = clone.textContent || '';
         raw = raw.replace(/(上午|下午|凌晨|早上|晚上)?\s*\d{1,2}:\d{2}(:\d{2})?/g, '');
         raw = raw.replace(/\n\s*\n/g, '\n').trim();
@@ -964,11 +962,11 @@
         for (let i = kids.length - 1, hops = 0; i >= 0 && hops < 8; i--, hops++) {
             const n = kids[i];
             if (!(n instanceof HTMLElement) || !n.classList.contains('ChatMessage')) continue;
-            if (n.classList.contains('mat-translated') || n.classList.contains('mat-broadcast') ||
-                n.textContent.includes('[🌐]')) continue;
+            if (n.classList.contains('mat-translated') || n.classList.contains('mat-broadcast')) continue;
             const senderEl = n.querySelector('.chat-room-sender');
             if (!senderEl || senderEl.textContent != Player?.MemberNumber) continue;  // 只清自己那則回顯
             const msg = extractCleanMessage(n);
+            if (msg.includes('[🌐]')) continue;
             if (msg && texts.some(x => x && msg === x)) {
                 // 標記後再藏起來（而非直接藏死）：讓 handleOwnSentFold 稍後配對到翻譯廣播時，
                 // 能掛上「A/文」按鈕，使用者自己仍可還原查看原句；外部完全不受影響（原句本就沒送出）。
