@@ -3,7 +3,7 @@
 // @name:zh      熱修 - 製作物品的擴充物品資產保護 
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.1.1
+// @version      0.1.2
 // @description  Preserves crafted items while extension assets are unavailable and restores them after the assets load.
 // @description:zh 在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用。
 // @author       Likolisu
@@ -22,7 +22,9 @@
     window.Liko = window.Liko ?? {};
     if (window.Liko.HCR) return;
 
-    const MOD_VERSION = "0.1.1";
+    const MOD_VERSION = "0.1.2";
+    const MIGRATION_VERSION = "0.1.2";
+    let migrationReady = false;
     const UNKNOWN_ASSET = -1;
     const TAG = "🐈‍⬛ [HCR]";
     const BACKUP_KEY = "HCR";
@@ -89,23 +91,101 @@
         return assets;
     }
 
+    function preserveLegacyFields(craft, encoded) {
+        const fields = encoded.split(CraftingSerializeFieldSep);
+        if (craft.TypeRecord == null && typeof craft.Type === "string") fields[7] = craft.Type;
+        if (typeof craft.Property === "string") fields[1] = craft.Property;
+        if (Number.isInteger(craft.OverridePriority)) fields[8] = String(craft.OverridePriority);
+        return fields.map(value => value.replace(CraftingSerializeSanitize, "")).join(CraftingSerializeFieldSep);
+    }
+
     function encodeCrafting(crafting = Player?.Crafting) {
         if (!Array.isArray(crafting) || typeof CraftingSerialize !== "function" || typeof LZString !== "object") return null;
-        let serialized = crafting.map((craft) => craft == null ? "" : CraftingSerialize(craft)).join("§");
+        let serialized = crafting.map((craft) => {
+            if (craft == null) return "";
+            const encoded = CraftingSerialize(craft);
+            // A missing extension asset prevents Type -> TypeRecord conversion. Keep the
+            // legacy wire field until it can be converted, including across login/reload.
+            return preserveLegacyFields(craft, encoded);
+        }).join("§");
         while (serialized.endsWith("§")) serialized = serialized.slice(0, -1);
         return LZString.compressToUTF16(serialized);
     }
 
-    function readBackupPacket() {
+    function readBackup() {
         try {
             let backup = Player?.ExtensionSettings?.[BACKUP_KEY];
             if (typeof backup === "string") backup = JSON.parse(backup);
             if (!backup || backup.v !== BACKUP_VERSION || typeof backup.p !== "string") return null;
-            return backup.p;
+            return backup;
         } catch (error) {
             console.warn(`${TAG} invalid ExtensionSettings backup`, error);
             return null;
         }
+    }
+
+    function readBackupPacket() {
+        return readBackup()?.p ?? null;
+    }
+
+    function hasLegacyCraft(craft) {
+        if (!CommonIsObject(craft)) return false;
+        return craft.Partial !== false
+            || (craft.TypeRecord == null && typeof craft.Type === "string")
+            || typeof craft.Property === "string"
+            || Number.isInteger(craft.OverridePriority);
+    }
+
+    function needsMigration(currentData, backupData) {
+        const version = readBackup()?.version;
+        if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) return true;
+        const parts = version.split(".").map(Number);
+        const target = MIGRATION_VERSION.split(".").map(Number);
+        for (let i = 0; i < target.length; i++) {
+            if (parts[i] !== target[i]) return parts[i] < target[i];
+        }
+        // The version is an account-level marker, not proof that every extension
+        // item has been converted. Inspect both lists even when already at 0.1.2.
+        return currentData.some(hasLegacyCraft) || backupData.some(hasLegacyCraft);
+    }
+
+    function migrateCrafting(data) {
+        let complete = true;
+        for (const craft of data) {
+            if (!CommonIsObject(craft)) continue;
+            // Only crafting slots and the HCR backup enter here, never Appearance.Craft.
+            craft.Partial = false;
+            if (typeof craft.Color !== "string") craft.Color = "";
+            if (typeof craft.Lock !== "string") craft.Lock = "";
+            if (!CommonIsObject(craft.ItemProperty)) craft.ItemProperty = {};
+            if (!CommonIsObject(craft.Effects)) craft.Effects = {};
+            if (typeof craft.Name !== "string" || !craft.Name) craft.Name = craft.Item || "Crafted Item";
+            if (typeof craft.Description !== "string") craft.Description = "";
+            if (typeof craft.Private !== "boolean") craft.Private = false;
+            if (craft.TypeRecord === undefined) craft.TypeRecord = null;
+            if (Number.isInteger(craft.OverridePriority)) {
+                craft.ItemProperty.OverridePriority ??= craft.OverridePriority;
+                delete craft.OverridePriority;
+            }
+            if (craft.Property === "Normal") delete craft.Property;
+            else if (typeof CraftingPropertyMap !== "undefined" && CraftingPropertyMap.has(craft.Property)) {
+                craft.Effects[craft.Property] ||= 1;
+                delete craft.Property;
+            }
+            if (craft.TypeRecord == null && typeof craft.Type === "string") {
+                const assets = assetsFor(craft.Item);
+                if (assets.length === 1 && typeof ExtendedItemTypeToRecord === "function") {
+                    try {
+                        craft.TypeRecord = ExtendedItemTypeToRecord(assets[0], craft.Type);
+                        delete craft.Type;
+                    } catch (error) {
+                        complete = false;
+                        console.warn(`${TAG} deferred legacy Type migration`, error);
+                    }
+                } else complete = false;
+            }
+        }
+        return complete;
     }
 
     function extensionSettingsSize(settings) {
@@ -116,9 +196,10 @@
     function saveBackupPacket(packet, reason = "save") {
         if (typeof packet !== "string" || !Player?.ExtensionSettings) return false;
         const previous = Player.ExtensionSettings[BACKUP_KEY];
-        if (readBackupPacket() === packet) return true;
+        const version = migrationReady ? MIGRATION_VERSION : readBackup()?.version;
+        if (readBackupPacket() === packet && readBackup()?.version === version) return true;
 
-        const backup = { v: BACKUP_VERSION, t: Date.now(), p: packet };
+        const backup = { v: BACKUP_VERSION, version, t: Date.now(), p: packet };
         Player.ExtensionSettings[BACKUP_KEY] = backup;
         // ServerPlayerExtensionSettingsSync sends only { "ExtensionSettings.HCR": value },
         // so the relevant limit is this key's serialized value, not every extension's settings.
@@ -144,9 +225,14 @@
 
     function mergeBackup(currentData) {
         const backupPacket = readBackupPacket();
-        if (!backupPacket || !Array.isArray(currentData)) return { data: currentData, restored: 0, indices: [] };
-        const backupData = CraftingDecompressServerData(backupPacket);
-        if (!Array.isArray(backupData) || !backupData.length) return { data: currentData, restored: 0, indices: [] };
+        if (!Array.isArray(currentData)) return { data: currentData, restored: 0, indices: [], migrated: false };
+        const backupData = backupPacket ? CraftingDecompressServerData(backupPacket) : [];
+        const migrated = needsMigration(currentData, backupData);
+        if (migrated) {
+            const currentReady = migrateCrafting(currentData);
+            const backupReady = migrateCrafting(backupData);
+            migrationReady = currentReady && backupReady;
+        } else migrationReady = false;
 
         const data = currentData.slice(0, 200);
         let restored = 0;
@@ -162,7 +248,7 @@
                 indices.push(i);
             }
         }
-        return { data, restored, indices };
+        return { data, restored, indices, migrated };
     }
 
     function announceRestoration(indices, phase) {
@@ -176,14 +262,13 @@
         const ready = await waitFor(() => Player?.MemberNumber != null
             && Player.ExtensionSettings !== undefined
             && Array.isArray(Player.Crafting), 30000);
-        if (!ready || readBackupPacket()) return false;
+        if (!ready) return false;
 
         // Allow an in-flight account packet to settle. If it arrives later, the
         // CraftingLoadServer hook below replaces this first snapshot immediately.
         await new Promise((resolve) => setTimeout(resolve, 500));
-        if (readBackupPacket()) return true;
-        const packet = encodeCrafting(Player.Crafting);
-        return packet ? saveBackupPacket(packet, "first-run") : false;
+        reconcileLoadedCrafting();
+        return true;
     }
 
     function reconcileLoadedCrafting() {
@@ -192,13 +277,13 @@
         // An empty array also exists before the account Crafting packet is loaded. Do not let
         // that transient state become the first account backup.
         if (!existingBackup && !Player.Crafting.some((craft) => craft != null)) return 0;
-        const { data, restored, indices } = mergeBackup(Player.Crafting);
-        if (!restored) {
+        const { data, restored, indices, migrated } = mergeBackup(Player.Crafting);
+        if (!restored && !migrated) {
             const packet = encodeCrafting(Player.Crafting);
-            if (!existingBackup && packet) saveBackupPacket(packet, "initial");
+            if (!existingBackup && packet != null) saveBackupPacket(packet, "initial");
             return 0;
         }
-        console.warn(`${TAG} restored ${restored} crafted item(s) from ExtensionSettings`);
+        if (restored) console.warn(`${TAG} restored ${restored} crafted item(s) from ExtensionSettings`);
         // Re-enter the public loader instead of assigning Player.Crafting directly. This lets
         // BC and every already-loaded extension hook observe and rebuild from the restored data.
         CraftingLoadServer(data);
@@ -282,9 +367,16 @@
 
         try { CraftingStatusType.UNKNOWN_ASSET = UNKNOWN_ASSET; } catch (_) { /* optional diagnostic enum */ }
 
+        modApi.hookFunction("CraftingSerialize", 100, (args, next) => {
+            const encoded = next(args);
+            // Preserve unresolved legacy values in the normal account save as well.
+            return Player?.Crafting?.includes(args[0]) ? preserveLegacyFields(args[0], encoded) : encoded;
+        });
+
         modApi.hookFunction("CraftingValidate", 100, (args, next) => {
             const [craft, suppliedAsset] = args;
-            if (CommonIsObject(craft) && suppliedAsset == null) {
+            if (CommonIsObject(craft) && suppliedAsset == null && !args[4]
+                && typeof craft.Item === "string" && craft.Item) {
                 const assets = assetsFor(craft.Item);
                 if (!assets.length) return UNKNOWN_ASSET;
                 // Passing the resolved asset bypasses a stale CraftingAssets snapshot in the original validator.
@@ -295,7 +387,7 @@
 
         modApi.hookFunction("CraftingSaveServer", 100, (args, next) => {
             const packet = encodeCrafting();
-            if (packet) saveBackupPacket(packet, "crafting-change");
+            if (packet != null) saveBackupPacket(packet, "crafting-change");
             return next(args);
         });
 
@@ -307,6 +399,7 @@
             // Reconcile on every account initialization, not only when creating the first backup.
             const merged = mergeBackup(serverData);
             const data = merged.data;
+            refresh = merged.migrated;
 
             // When every asset is already available (including the case where an extension
             // initialized before HCR), keep the normal loader chain intact. Other extensions
@@ -315,12 +408,12 @@
             if (allAssetsReady) {
                 if (merged.restored) console.warn(`${TAG} restored ${merged.restored} crafted item(s) during initialization`);
                 const result = next([data]);
-                if (merged.restored) {
+                if (merged.restored || merged.migrated) {
                     CraftingSaveServer();
                     announceRestoration(merged.indices, "initialization");
                 } else {
                     const packet = encodeCrafting(Player.Crafting);
-                    if (packet) saveBackupPacket(packet, "initialization");
+                    if (packet != null) saveBackupPacket(packet, "initialization");
                 }
                 return result;
             }
@@ -357,7 +450,7 @@
                 if (merged.restored) announceRestoration(merged.indices, "initialization");
             } else {
                 const packet = encodeCrafting(Player.Crafting);
-                if (packet) saveBackupPacket(packet, "initialization");
+                if (packet != null) saveBackupPacket(packet, "initialization");
             }
         });
 
@@ -372,16 +465,13 @@
                 read: readBackupPacket,
                 save: () => {
                     const packet = encodeCrafting();
-                    return packet ? saveBackupPacket(packet, "manual") : false;
+                    return packet != null ? saveBackupPacket(packet, "manual") : false;
                 },
                 reconcile: reconcileLoadedCrafting,
             },
         };
-        // Create the first cross-device snapshot as soon as account data is available, rather
-        // than waiting for the player to manually add/remove a crafted item.
+        // Also reconcile/migrate when HCR is installed after the account packet loaded.
         ensureInitialBackup();
-        // Late-load recovery: compare an already-loaded crafting list with the account backup.
-        reconcileLoadedCrafting();
         console.log(`${TAG} v${MOD_VERSION} loaded`);
     });
 })();
