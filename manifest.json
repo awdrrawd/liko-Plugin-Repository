@@ -283,7 +283,7 @@
         }
       ],
       "priority": 4,
-      "version": "1.7.9"
+      "version": "1.7.10"
     },
     {
       "id": "Liko-Tool",
@@ -311,7 +311,7 @@
         }
       ],
       "priority": 5,
-      "version": "2.2.0"
+      "version": "2.2.2"
     },
     {
       "id": "Liko-ACV",
