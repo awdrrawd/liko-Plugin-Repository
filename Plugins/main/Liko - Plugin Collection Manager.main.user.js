@@ -15,6 +15,12 @@
 // @updateURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
 // ==/UserScript==
 (function() {
+    // BEGIN GENERATED DOWNLOAD HELPERS
+var __pcmDownloads=(()=>{var p=Object.defineProperty;var E=Object.getOwnPropertyDescriptor;var v=Object.getOwnPropertyNames;var P=Object.prototype.hasOwnProperty;var T=(r,t)=>{for(var e in t)p(r,e,{get:t[e],enumerable:!0})},y=(r,t,e,s)=>{if(t&&typeof t=="object"||typeof t=="function")for(let o of v(t))!P.call(r,o)&&o!==e&&p(r,o,{get:()=>t[o],enumerable:!(s=E(t,o))||s.enumerable});return r};var _=r=>y(p({},"__esModule",{value:!0}),r);var $={};T($,{downloads:()=>u,fetchText:()=>f});var M=Object.freeze({settings:"BC_PluginManager_Settings",account:"PCMAccount",accountConfig:"PCMConfig",pluginCache:"pcm_plugin_cache",jsonCache:"pcm_json_cache",customPlugins:"pcm_custom_plugins",lastPluginError:"pcm_last_plugin_error"});var w=class{constructor(t=3){this.limit=t,this.active=0,this.waiting=[]}run(t,e){return new Promise((s,o)=>{let i={task:t,resolve:s,reject:o,signal:e},a=()=>{let c=this.waiting.indexOf(i);c>=0&&this.waiting.splice(c,1),o(e.reason??new DOMException("Aborted","AbortError"))};if(i.detach=()=>e?.removeEventListener("abort",a),e?.aborted){a();return}e?.addEventListener("abort",a,{once:!0}),this.waiting.push(i),this.drain()})}drain(){for(;this.active<this.limit&&this.waiting.length;){let t=this.waiting.shift();t.detach(),this.active++,Promise.resolve().then(t.task).then(t.resolve,t.reject).finally(()=>{this.active--,this.drain()})}}},u=new w(3);var g=class extends Error{constructor(t,e){super(`Timeout after ${e}ms: ${t}`),this.name="NetworkTimeoutError",this.url=t,this.timeoutMs=e}};function f(r,t={},e=3e4){return u.run(()=>k(r,t,e),t.signal)}async function k(r,t,e){let s=new AbortController,o,i,a,c=(n,l)=>{clearTimeout(o),o=setTimeout(()=>{i=new g(r,n),i.message=`No download progress (${l}) for ${n}ms: ${r}`,s.abort(i)},n)},h=()=>s.abort(t.signal.reason);t.signal?.addEventListener("abort",h,{once:!0}),t.signal?.aborted&&h(),c(Math.max(45e3,e),"first byte");try{let n=await fetch(r,{priority:"low",...t,signal:s.signal});if(!n.ok)throw await n.body?.cancel(),new Error(`HTTP ${n.status}`);if(!n.body?.getReader)throw new Error("Readable response body unavailable");a=n.body.getReader();let l=new TextDecoder,d=[];for(;;){let{done:x,value:m}=await a.read();if(x)break;m.byteLength&&(c(e,"body"),d.push(l.decode(m,{stream:!0})))}d.push(l.decode());let b=d.join("");return{response:n,text:b,url:r}}catch(n){throw i||n}finally{clearTimeout(o),a?.releaseLock(),t.signal?.removeEventListener("abort",h)}}return _($);})();
+
+    // END GENERATED DOWNLOAD HELPERS
+    const downloads = __pcmDownloads.downloads;
+    const downloadText = __pcmDownloads.fetchText;
     window.Liko = window.Liko ?? {};
     const MOD_VER = "2.2.0";
     if (window.Liko.PCM) return;
@@ -318,18 +324,8 @@
     ].filter(Boolean);
     const NETWORK_TIMEOUT_MS = 12000;
     async function fetchTextWithTimeout(url, options = {}, timeoutMs = NETWORK_TIMEOUT_MS) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            const res = await fetch(url, { ...options, signal: controller.signal });
-            const text = await res.text();
-            return { res, text };
-        } catch(e) {
-            if (e?.name === 'AbortError') throw new Error(`Timeout after ${timeoutMs}ms`);
-            throw e;
-        } finally {
-            clearTimeout(timer);
-        }
+        const {response: res, text} = await downloadText(url, options, timeoutMs);
+        return {res, text};
     }
 
     // === 設定存取 ================================================
@@ -860,7 +856,7 @@
     async function tryImportModule(urls, id) {
         for (const url of urls) {
             try {
-                await import(url);
+                await downloads.run(() => import(url));
                 registerPluginSource(id, url);
                 return true;
             }
@@ -891,17 +887,17 @@
     }
 
     function loadViaScriptTag(url, id) {
-        return new Promise((resolve, reject) => {
+        return downloads.run(() => new Promise((resolve, reject) => {
             const s = document.createElement('script');
             let settled = false;
-            const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); fn(value); };
+            const finish = (fn, value) => { if (settled) return; settled = true; s.onload = s.onerror = null; fn(value); };
             s.src = url;
             s.setAttribute('data-plugin', id);
             s.onload  = () => { registerPluginSource(id, url); finish(resolve); };
             s.onerror = () => finish(reject, new Error('script load error'));
-            const timer = setTimeout(() => { s.remove(); finish(reject, new Error(`Timeout after ${NETWORK_TIMEOUT_MS}ms`)); }, NETWORK_TIMEOUT_MS);
+            s.fetchPriority = 'low'; // Native loads expose no byte progress; defer failure to the browser.
             document.body.appendChild(s);
-        });
+        }));
     }
 
     async function tryLoadScriptTag(urls, id) {
@@ -1039,13 +1035,12 @@
         if (!plugins.length) return;
         isLoadingPlugins = true;
         try {
-            const batchSize = 3; let ok = 0, fail = 0;
-            for (let i = 0; i < plugins.length; i += batchSize) {
-                const batch = plugins.slice(i, i + batchSize);
-                const results = await Promise.allSettled(batch.map(p => loadSubPlugin(p, source)));
-                results.forEach((r, idx) => { if (r.status === 'fulfilled') ok++; else { fail++; console.error(`🐈‍⬛ [PCM] ❌ ${batch[idx].name}`); } });
-                if (i + batchSize < plugins.length) await new Promise(r => setTimeout(r, 800));
-            }
+            let ok = 0, fail = 0;
+            const results = await Promise.allSettled(plugins.map(p => loadSubPlugin(p, source)));
+            results.forEach((r, idx) => {
+                if (r.status === 'fulfilled') ok++;
+                else { fail++; console.error(`🐈‍⬛ [PCM] ❌ ${plugins[idx].name}`); }
+            });
         if (plugins.length > 0) {
             if (ok > 0) showLoadNotification("✅", t(source === 'fusam' ? 'fusamLoadedCount' : 'pcmLoadedCount', { count: ok }), '');
             if (fail > 0) showLoadNotification("❌", t(source === 'fusam' ? 'fusamFailedCount' : 'pcmFailedCount', { count: fail }), '');

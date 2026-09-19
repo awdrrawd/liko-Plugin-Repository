@@ -62,11 +62,7 @@ export class PCMApp {
   }
 
   async loadBatch(plugins, source) {
-    for (let index = 0; index < plugins.length; index += 4) {
-      const batch = plugins.slice(index, index + 4);
-      await Promise.allSettled(batch.map(plugin => this.services.loader.load(plugin, source)));
-      if (index + 4 < plugins.length) await new Promise(resolve => setTimeout(resolve, 800));
-    }
+    await Promise.allSettled(plugins.map(plugin => this.services.loader.load(plugin, source)));
   }
 
   showPreviousError() {

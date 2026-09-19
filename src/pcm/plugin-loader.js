@@ -1,4 +1,4 @@
-import {NETWORK_TIMEOUT_MS} from './config.js';
+import {downloads} from './download-queue.js';
 import {fetchFirstText, fetchText, isJavaScriptText} from './network.js';
 
 const OWN_RAW = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/';
@@ -120,7 +120,7 @@ export class PluginLoader {
     const errors = [];
     for (const url of urls) {
       try {
-        await import(url);
+        await downloads.run(() => import(url));
         this.sourceRegistry.set(url, pluginId);
         return url;
       } catch (directError) {
@@ -138,19 +138,16 @@ export class PluginLoader {
   }
 
   injectExternal(pluginId, url, type) {
-    return new Promise((resolve, reject) => {
+    return downloads.run(() => new Promise((resolve, reject) => {
       const script = this.document.createElement('script');
-      const timer = setTimeout(() => {
-        script.remove();
-        reject(new Error(`Timeout after ${NETWORK_TIMEOUT_MS}ms`));
-      }, NETWORK_TIMEOUT_MS);
+      script.fetchPriority = 'low';
       script.dataset.plugin = pluginId;
       script.type = type;
       script.src = url;
-      script.onload = () => { clearTimeout(timer); resolve(); };
-      script.onerror = () => { clearTimeout(timer); reject(new Error(`Script load failed: ${url}`)); };
+      script.onload = () => { resolve(); };
+      script.onerror = () => { reject(new Error(`Script load failed: ${url}`)); };
       this.document.head.appendChild(script);
-    });
+    }));
   }
 }
 

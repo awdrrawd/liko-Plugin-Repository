@@ -1,4 +1,5 @@
 import {NETWORK_TIMEOUT_MS} from './config.js';
+import {downloads} from './download-queue.js';
 
 export class NetworkTimeoutError extends Error {
   constructor(url, timeoutMs) {
@@ -9,18 +10,55 @@ export class NetworkTimeoutError extends Error {
   }
 }
 
-export async function fetchText(url, options = {}, timeoutMs = NETWORK_TIMEOUT_MS) {
+export function fetchText(url, options = {}, timeoutMs = NETWORK_TIMEOUT_MS) {
+  return downloads.run(() => receiveText(url, options, timeoutMs), options.signal);
+}
+
+async function receiveText(url, options, timeoutMs) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timer, timeoutError, reader;
+  const arm = (delay, stage) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timeoutError = new NetworkTimeoutError(url, delay);
+      timeoutError.message = `No download progress (${stage}) for ${delay}ms: ${url}`;
+      controller.abort(timeoutError);
+    }, delay);
+  };
+  const abort = () => controller.abort(options.signal.reason);
+  options.signal?.addEventListener('abort', abort, {once: true});
+  if (options.signal?.aborted) abort();
+  arm(Math.max(45000, timeoutMs), 'first byte');
   try {
-    const response = await fetch(url, {...options, signal: controller.signal});
-    const text = await response.text();
+    const response = await fetch(url, {priority: 'low', ...options, signal: controller.signal});
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new Error(`HTTP ${response.status}`);
+    }
+    // Native script/module requests are handled separately; opaque responses
+    // cannot safely be executed as fetched JavaScript.
+    if (!response.body?.getReader) throw new Error('Readable response body unavailable');
+    reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const parts = [];
+    for (;;) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      if (value.byteLength) {
+        arm(timeoutMs, 'body');
+        parts.push(decoder.decode(value, {stream: true}));
+      }
+    }
+    parts.push(decoder.decode());
+    const text = parts.join('');
     return {response, text, url};
   } catch (error) {
-    if (error?.name === 'AbortError') throw new NetworkTimeoutError(url, timeoutMs);
+    if (timeoutError) throw timeoutError;
     throw error;
   } finally {
     clearTimeout(timer);
+    reader?.releaseLock();
+    options.signal?.removeEventListener('abort', abort);
   }
 }
 

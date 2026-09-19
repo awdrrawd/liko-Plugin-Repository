@@ -1,3 +1,6 @@
+import {fetchText as downloadText} from '../network.js';
+import {downloads} from '../download-queue.js';
+
 // ==UserScript==
 // @name         Liko - Plugin Collection Manager
 // @name:zh      Liko的插件管理器
@@ -323,18 +326,8 @@
     ].filter(Boolean);
     const NETWORK_TIMEOUT_MS = 30000;
     async function fetchTextWithTimeout(url, options = {}, timeoutMs = NETWORK_TIMEOUT_MS) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            const res = await fetch(url, { ...options, signal: controller.signal });
-            const text = await res.text();
-            return { res, text };
-        } catch(e) {
-            if (e?.name === 'AbortError') throw new Error(`Timeout after ${timeoutMs}ms`);
-            throw e;
-        } finally {
-            clearTimeout(timer);
-        }
+        const {response: res, text} = await downloadText(url, options, timeoutMs);
+        return {res, text};
     }
 
     // === 設定存取 ================================================
@@ -917,7 +910,7 @@
     async function tryImportModule(urls, id) {
         for (const url of urls) {
             try {
-                await import(url);
+                await downloads.run(() => import(url));
                 registerPluginSource(id, url);
                 return true;
             }
@@ -948,17 +941,18 @@
     }
 
     function loadViaScriptTag(url, id) {
-        return new Promise((resolve, reject) => {
+        return downloads.run(() => new Promise((resolve, reject) => {
             const s = document.createElement('script');
             let settled = false;
-            const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); fn(value); };
+            const finish = (fn, value) => { if (settled) return; settled = true; s.onload = s.onerror = null; fn(value); };
             s.src = url;
             s.setAttribute('data-plugin', id);
             s.onload  = () => { registerPluginSource(id, url); finish(resolve); };
             s.onerror = () => finish(reject, new Error('script load error'));
-            const timer = setTimeout(() => { s.remove(); finish(reject, new Error(`Timeout after ${NETWORK_TIMEOUT_MS}ms`)); }, NETWORK_TIMEOUT_MS);
+            // Native script loads expose no byte progress: let the browser report failure.
+            s.fetchPriority = 'low';
             document.body.appendChild(s);
-        });
+        }));
     }
 
     async function tryLoadScriptTag(urls, id) {
@@ -1104,13 +1098,12 @@
         if (!plugins.length) return;
         isLoadingPlugins = true;
         try {
-            const batchSize = 3; let ok = 0, fail = 0;
-            for (let i = 0; i < plugins.length; i += batchSize) {
-                const batch = plugins.slice(i, i + batchSize);
-                const results = await Promise.allSettled(batch.map(p => loadSubPlugin(p, source)));
-                results.forEach((r, idx) => { if (r.status === 'fulfilled') ok++; else { fail++; console.error(`🐈‍⬛ [PCM] ❌ ${batch[idx].name}`); } });
-                if (i + batchSize < plugins.length) await new Promise(r => setTimeout(r, 800));
-            }
+            let ok = 0, fail = 0;
+            const results = await Promise.allSettled(plugins.map(p => loadSubPlugin(p, source)));
+            results.forEach((r, idx) => {
+                if (r.status === 'fulfilled') ok++;
+                else { fail++; console.error(`🐈‍⬛ [PCM] ❌ ${plugins[idx].name}`); }
+            });
         if (plugins.length > 0) {
             if (ok > 0) showLoadNotification("✅", t(source === 'fusam' ? 'fusamLoadedCount' : 'pcmLoadedCount', { count: ok }), '');
             if (fail > 0) showLoadNotification("❌", t(source === 'fusam' ? 'fusamFailedCount' : 'pcmFailedCount', { count: fail }), '');

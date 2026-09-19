@@ -6,6 +6,8 @@ on:
     paths:
       - 'src/pcm/**'
       - 'scripts/build-pcm.mjs'
+      - 'scripts/test-downloads.mjs'
+      - 'Plugins/main/Liko - Plugin Collection Manager.main.user.js'
       - 'package.json'
       - 'package-lock.json'
   workflow_dispatch:
@@ -28,14 +30,16 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: node --test scripts/test-downloads.mjs
+      - run: node scripts/test-pcm-dependencies.mjs && node scripts/test-pcm-visibility.cjs
       - run: npm run build:pcm
 
       - name: Commit bundle
         run: |
-          if [[ -n "$(git status --porcelain dist/pcm/PCM.js)" ]]; then
+          if [[ -n "$(git status --porcelain dist/pcm/PCM.js 'Plugins/main/Liko - Plugin Collection Manager.main.user.js')" ]]; then
             git config user.name  "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add dist/pcm/PCM.js
+            git add dist/pcm/PCM.js 'Plugins/main/Liko - Plugin Collection Manager.main.user.js'
             git commit -m "chore: build PCM bundle"
             git push
           else
