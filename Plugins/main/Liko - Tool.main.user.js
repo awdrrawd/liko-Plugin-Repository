@@ -2,8 +2,8 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.2.1
-// @description  Bondage Club - Likolisu's tool (R121 Compatible) + UI Panel + 角色选择器 + Canvas SVG图标 + 拖拽排序 + 主题自定义 + 无视绑缚 + 无视衣物阻挡 + 勿扰模式 + 说话总是OOC
+// @version      2.2.2
+// @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/LOGO_2.png
@@ -14,15 +14,8 @@
 // @run-at       document-end
 // ==/UserScript==
 
-/*
- * 原作者 (Original Author): Liko (Likolisu)
- *   脚本原始版本由 Liko 开发，感谢 Liko 提供如此优秀的工具！
- */
-
-// ── 防重複加载 guard ──────────────────────────────────────────────────────────
-
 (function () {
-let disposed = false;
+    let disposed = false;
     const lifecycle = new AbortController();
     const timers = new Set(), intervals = new Set(), frames = new Set(), cleanupTasks = new Set();
     function setTimeout(fn, ms, ...args) {
@@ -482,26 +475,26 @@ let disposed = false;
             actUndoMsg:     "{src} 将 {who} 的外观回滚到 {time} 的状态！",
 
             helpText:
-                "莉柯莉丝工具 使用说明\n\n" +
-                "/lt show              - 显示工具面板\n" +
-                "/lt free [目标]       - 选择移除束缚（面板可全选）\n" +
-                "/lt editcraft [目标]  - 批量编辑束缚的订制属性（名称/描述/私有）\n" +
-                "/lt clearcraft [目标] - 清除束缚的所有订制属性\n" +
-                "/lt bcximport [目标]  - 导入 BCX 外观\n" +
-                "/lt fullunlock [目标] - 移除所有锁\n" +
-                "/lt fulllock [目标] [锁名称] - 添加锁\n" +
-                "/lt undo [目标]       - 外观回滚\n" +
-                "/lt rpmode            - 切换 RP 模式\n" +
-                "/lt rpbtn             - 显示/隐藏 RP 按钮\n" +
-                "/lt heightfix         - 趴跪姿时自动拉高\n" +
-                "/lt heightlock        - 锁定身高为标准值\n" +
-                "/lt ooc               - 说话总是OOC（聊天/密语自动加括号转 OOC）\n" +
-                "/lt dnd               - 勿扰模式（除自己外，他人对你外观的编辑立即复原）\n" +
-                "/lt magicdefense      - 魔法防御（使 LSCG 魔法无法生效）\n" +
-                "/lt freehands         - 无视绑缚（被绑时仍可使用双手，不解开道具）\n" +
-                "/lt ignoreblock       - 无视衣物阻挡（被遮挡的格子仍可换装、装拘束）\n" +
-                "/lt geteverything     - 增强功能\n" +
-                "/lt wardrobe          - 开启衣柜",
+            "莉柯莉丝工具 使用说明\n\n" +
+            "/lt show              - 显示工具面板\n" +
+            "/lt free [目标]       - 选择移除束缚（面板可全选）\n" +
+            "/lt editcraft [目标]  - 批量编辑束缚的订制属性（名称/描述/私有）\n" +
+            "/lt clearcraft [目标] - 清除束缚的所有订制属性\n" +
+            "/lt bcximport [目标]  - 导入 BCX 外观\n" +
+            "/lt fullunlock [目标] - 移除所有锁\n" +
+            "/lt fulllock [目标] [锁名称] - 添加锁\n" +
+            "/lt undo [目标]       - 外观回滚\n" +
+            "/lt rpmode            - 切换 RP 模式\n" +
+            "/lt rpbtn             - 显示/隐藏 RP 按钮\n" +
+            "/lt heightfix         - 趴跪姿时自动拉高\n" +
+            "/lt heightlock        - 锁定身高为标准值\n" +
+            "/lt ooc               - 说话总是OOC（聊天/密语自动加括号转 OOC）\n" +
+            "/lt dnd               - 勿扰模式（除自己外，他人对你外观的编辑立即复原）\n" +
+            "/lt magicdefense      - 魔法防御（使 LSCG 魔法无法生效）\n" +
+            "/lt freehands         - 无视绑缚（被绑时仍可使用双手，不解开道具）\n" +
+            "/lt ignoreblock       - 无视衣物阻挡（被遮挡的格子仍可换装、装拘束）\n" +
+            "/lt geteverything     - 增强功能\n" +
+            "/lt wardrobe          - 开启衣柜",
 
             loaded: "莉柯莉丝工具 v{v} 载入！使用 /lt help 查看说明",
         },
@@ -644,26 +637,26 @@ let disposed = false;
             actUndoMsg:     "{src} rolled back {who}'s appearance to the {time} state!",
 
             helpText:
-                "Liko Tool Help\n\n" +
-                "/lt show              - Show the tool panel\n" +
-                "/lt free [target]     - Select restraints to remove (panel has Select All)\n" +
-                "/lt editcraft [target]- Batch-edit restraint craft (name/desc/private)\n" +
-                "/lt clearcraft [target]-Clear all craft on restraints\n" +
-                "/lt bcximport [target]- Import BCX appearance\n" +
-                "/lt fullunlock [target]-Remove all locks\n" +
-                "/lt fulllock [target] [lock] - Add lock\n" +
-                "/lt undo [target]     - Rollback appearance\n" +
-                "/lt rpmode            - Toggle RP mode\n" +
-                "/lt rpbtn             - Show/hide RP button\n" +
-                "/lt heightfix         - Auto-raise when kneeling/prone\n" +
-                "/lt heightlock        - Lock height to standard value\n" +
-                "/lt ooc               - Always OOC (auto-wrap chat/whisper in parentheses)\n" +
-                "/lt dnd               - Do Not Disturb (others' edits to your appearance auto-revert)\n" +
-                "/lt magicdefense      - Block LSCG magic from taking effect\n" +
-                "/lt freehands         - Free hands (use hands while restrained, keeps items on)\n" +
-                "/lt ignoreblock       - Ignore clothing block (equip on covered slots)\n" +
-                "/lt geteverything     - Enhancement menu\n" +
-                "/lt wardrobe          - Open wardrobe",
+            "Liko Tool Help\n\n" +
+            "/lt show              - Show the tool panel\n" +
+            "/lt free [target]     - Select restraints to remove (panel has Select All)\n" +
+            "/lt editcraft [target]- Batch-edit restraint craft (name/desc/private)\n" +
+            "/lt clearcraft [target]-Clear all craft on restraints\n" +
+            "/lt bcximport [target]- Import BCX appearance\n" +
+            "/lt fullunlock [target]-Remove all locks\n" +
+            "/lt fulllock [target] [lock] - Add lock\n" +
+            "/lt undo [target]     - Rollback appearance\n" +
+            "/lt rpmode            - Toggle RP mode\n" +
+            "/lt rpbtn             - Show/hide RP button\n" +
+            "/lt heightfix         - Auto-raise when kneeling/prone\n" +
+            "/lt heightlock        - Lock height to standard value\n" +
+            "/lt ooc               - Always OOC (auto-wrap chat/whisper in parentheses)\n" +
+            "/lt dnd               - Do Not Disturb (others' edits to your appearance auto-revert)\n" +
+            "/lt magicdefense      - Block LSCG magic from taking effect\n" +
+            "/lt freehands         - Free hands (use hands while restrained, keeps items on)\n" +
+            "/lt ignoreblock       - Ignore clothing block (equip on covered slots)\n" +
+            "/lt geteverything     - Enhancement menu\n" +
+            "/lt wardrobe          - Open wardrobe",
 
             loaded: "Liko Tool v{v} loaded! Use /lt help for help",
         }
@@ -730,31 +723,33 @@ let disposed = false;
     // ──────────────────────────────────────────
     // ExtensionSettings 存取器
     // ──────────────────────────────────────────
+    let _esRaw, _esObj = null, _esMember;
+    const ES_DEFAULTS = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, stealthRp: 0,
+                         rpModeLocal: 0, freeHands: 0, ignoreBlock: 0, dnd: 0, magicDefense: 0, alwaysOOC: 0 };
+
     function getES() {
         if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
-        if (!Player.ExtensionSettings.LikoTOOL) {
-            Player.ExtensionSettings.LikoTOOL = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, stealthRp: 0, rpModeLocal: 0, freeHands: 0, ignoreBlock: 0, dnd: 0, magicDefense: 0, alwaysOOC: 0 };
-        }
-        const s = Player.ExtensionSettings.LikoTOOL;
-        if (typeof s.heightFix        === 'undefined') s.heightFix        = 0;
-        if (typeof s.heightLock       === 'undefined') s.heightLock       = 0;
-        if (typeof s.rpBtnVisible     === 'undefined') s.rpBtnVisible     = 0;
-        if (typeof s.stealthRp        === 'undefined') s.stealthRp        = 0;
-        if (typeof s.rpModeLocal      === 'undefined') s.rpModeLocal      = 0;
-        if (typeof s.freeHands        === 'undefined') s.freeHands        = 0;
-        if (typeof s.ignoreBlock      === 'undefined') s.ignoreBlock      = 0;
-        if (typeof s.dnd              === 'undefined') s.dnd              = 0;
-        if (typeof s.magicDefense     === 'undefined') s.magicDefense     = 0;
-        if (typeof s.alwaysOOC        === 'undefined') s.alwaysOOC        = 0;
-        return s;
+        const raw = Player.ExtensionSettings.LikoTOOL;
+        if (_esObj && raw === _esRaw && _esMember === Player.MemberNumber) return _esObj;
+        let saved = {};
+        try {
+            if (typeof raw === 'string') saved = JSON.parse(LZString.decompressFromBase64(raw)) || {};
+            else if (raw && typeof raw === 'object') saved = raw;   // 相容舊格式
+        } catch (e) { /* 資料損毀就用預設值 */ }
+        _esObj = Object.assign({}, ES_DEFAULTS, saved);
+        _esRaw = raw;
+        _esMember = Player.MemberNumber;
+        return _esObj;
     }
 
     function saveES() {
+        if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
+        _esRaw = LZString.compressToBase64(JSON.stringify(getES()));
+        Player.ExtensionSettings.LikoTOOL = _esRaw;
         if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             ServerPlayerExtensionSettingsSync("LikoTOOL");
         }
     }
-
     // ──────────────────────────────────────────
     // 初始化储存
     // ──────────────────────────────────────────
@@ -789,7 +784,7 @@ let disposed = false;
         if (character.IsPlayer && character.IsPlayer()) {
             return getES().stealthRp === 1
                 ? getES().rpModeLocal === 1
-                : Player.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
+            : Player.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
         }
         return character.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
     }
@@ -844,19 +839,19 @@ let disposed = false;
         const poses  = C.ActivePose || [];
         const drawPM = C.DrawPoseMapping || C.PoseMapping || {};
         return GROUND_POSES.some(p =>
-            poses.includes(p) || Object.values(drawPM).includes(p)
-        );
+                                 poses.includes(p) || Object.values(drawPM).includes(p)
+                                );
     }
 
     function _ltGetRealRatio(C) {
         return Object.prototype.hasOwnProperty.call(C, '_ltRealHeightRatio')
             ? C._ltRealHeightRatio
-            : C.HeightRatio;
+        : C.HeightRatio;
     }
     function _ltGetRealModifier(C) {
         return Object.prototype.hasOwnProperty.call(C, '_ltRealHeightModifier')
             ? C._ltRealHeightModifier
-            : C.HeightModifier;
+        : C.HeightModifier;
     }
 
     function _ltClearHeightDefine(C) {
@@ -974,10 +969,10 @@ let disposed = false;
             return ChatRoomCharacter?.find(c => c.MemberNumber === parseInt(identifier)) || Player;
         }
         return ChatRoomCharacter?.find(c =>
-            c.Name.toLowerCase()        === identifier.toLowerCase() ||
-            c.Nickname?.toLowerCase()   === identifier.toLowerCase() ||
-            c.AccountName.toLowerCase() === identifier.toLowerCase()
-        ) || Player;
+                                       c.Name.toLowerCase()        === identifier.toLowerCase() ||
+                                       c.Nickname?.toLowerCase()   === identifier.toLowerCase() ||
+                                       c.AccountName.toLowerCase() === identifier.toLowerCase()
+                                      ) || Player;
     }
 
     function getNickname(character) {
@@ -1002,7 +997,7 @@ let disposed = false;
         if (Player.LikoTool?.bypassActivities) return true;
         return typeof ServerChatRoomGetAllowItem === "function"
             ? ServerChatRoomGetAllowItem(Player, target)
-            : true;
+        : true;
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2170,7 +2165,7 @@ let disposed = false;
                 (typeof CurrentCharacter === 'undefined' || CurrentCharacter === null)) {
                 if (getES().rpBtnVisible === 1) {
                     DrawButton(rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, '',
-                        getRpMode(Player) ? "Orange" : "Gray", "", t('rpBtnTip'));
+                               getRpMode(Player) ? "Orange" : "Gray", "", t('rpBtnTip'));
                     drawCanvasIconOnButton('rp', rpBtnX, rpBtnY, rpBtnSize, rpBtnSize, 24);
                 }
             }
@@ -2289,7 +2284,7 @@ let disposed = false;
         }
         if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('freeNoItem') + "！"); return true; }
         const selected = await requestButtons(t('freeTitle') + " — " + getNickname(target), restraints, true);
-            if(disposed) return;
+        if(disposed) return;
         if (!selected.length) return true;
         try {
             selected.forEach(itemText => {
@@ -2318,14 +2313,14 @@ let disposed = false;
         if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return; }
         // 只列出「确实带有 craft」的束缚，供逐个选或全选
         const restraints = collectRestraintItems(target)
-            .filter(r => r.item.Craft)
-            .map(r => ({
-                text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ")",
-                group: r.group
-            }));
+        .filter(r => r.item.Craft)
+        .map(r => ({
+            text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ")",
+            group: r.group
+        }));
         if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('craftClearNone') + "！"); return; }
         const selected = await requestButtons(t('craftClearTitle') + " — " + getNickname(target), restraints, true);
-            if(disposed) return;
+        if(disposed) return;
         if (!selected.length) return;
         try {
             let count = 0;
@@ -2349,10 +2344,10 @@ let disposed = false;
         }));
         if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('craftNoItem') + "！"); return; }
         const selected = await requestButtons(t('craftPickTitle') + " — " + getNickname(target), restraints, true);
-            if(disposed) return;
+        if(disposed) return;
         if (!selected.length) return;
         const craft = await requestCraftEdit();
-            if(disposed) return;
+        if(disposed) return;
         if (!craft) return;
         try {
             let count = 0;
@@ -2522,20 +2517,20 @@ let disposed = false;
         // 跳过主人锁 / 恋人锁 / AFC 心锁（拓展锁）
         const skipLocks = ["OwnerPadlock", "OwnerTimerPadlock", "LoversPadlock", "LoversTimerPadlock"];
         const locks = collectRestraintItems(target)
-            .filter(r => {
-                const lb = r.item.Property?.LockedBy;
-                return lb && !skipLocks.includes(lb) && !isHeartLock(r.item);
-            })
-            .map(r => {
-                const pw = r.item.Property?.Password || r.item.Property?.CombinationNumber || "";
-                return {
-                    text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ") [" + r.item.Property.LockedBy + (pw ? ", " + t('password') + ": " + pw : "") + "]",
-                    group: r.group
-                };
-            });
+        .filter(r => {
+            const lb = r.item.Property?.LockedBy;
+            return lb && !skipLocks.includes(lb) && !isHeartLock(r.item);
+        })
+        .map(r => {
+            const pw = r.item.Property?.Password || r.item.Property?.CombinationNumber || "";
+            return {
+                text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ") [" + r.item.Property.LockedBy + (pw ? ", " + t('password') + ": " + pw : "") + "]",
+                group: r.group
+            };
+        });
         if (!locks.length) { ChatRoomSendLocal(getNickname(target) + " " + t('unlockNone') + "！"); return true; }
         const selected = await requestButtons(t('unlockTitle') + " — " + getNickname(target), locks, true);
-            if(disposed) return;
+        if(disposed) return;
         if (!selected.length) return true;
         try {
             let count = 0;
@@ -2555,7 +2550,7 @@ let disposed = false;
     async function getEverything() {
         const options = [{ text: t('geItems') }, { text: t('geMoney') }, { text: t('geSkills') }];
         const selected = await requestButtons(t('geTitle'), options, true);
-            if(disposed) return;
+        if(disposed) return;
         if (!selected.length) return true;
         try {
             if (selected.includes(t('geItems'))) {
@@ -2706,7 +2701,7 @@ let disposed = false;
     // 非放行部分的指纹（依 Group 排序求稳定序），用来判断「除了贴贴之外有没有真的被改动」
     function _dndFingerprint(bundle) {
         return JSON.stringify(bundle.filter(i => !_dndIsExempt(i))
-            .slice().sort((a, b) => (a.Group > b.Group ? 1 : a.Group < b.Group ? -1 : 0)));
+                              .slice().sort((a, b) => (a.Group > b.Group ? 1 : a.Group < b.Group ? -1 : 0)));
     }
     // 复原用 bundle：非放行部分回到 baseline，贴贴则保留「当前」状态（让 ECHO 抱抱不被撤销）
     function _dndBuildRevertBundle(currentBundle) {
@@ -2851,7 +2846,7 @@ let disposed = false;
         // 重建 BC 原生 placeholder（密语目标 / 公开）
         let base;
         const tgt = (typeof ChatRoomTargetMemberNumber === 'number' && ChatRoomTargetMemberNumber >= 0)
-            ? ChatRoomCharacter?.find(c => c.MemberNumber === ChatRoomTargetMemberNumber) : null;
+        ? ChatRoomCharacter?.find(c => c.MemberNumber === ChatRoomTargetMemberNumber) : null;
         if (tgt) base = TextGetInScope("Screens/Online/ChatRoom/Text_ChatRoom.csv", "WhisperTo") + " " + CharacterNickname(tgt);
         else base = TextGetInScope("Screens/Online/ChatRoom/Text_ChatRoom.csv", "PublicChat");
         el.setAttribute("placeholder", on ? (tag + " · " + base) : base);
