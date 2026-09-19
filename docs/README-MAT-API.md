@@ -56,14 +56,14 @@ if (mat.settingsReady) {
 - `targetLang`：Google 翻譯語言代碼，例如 `en`、`ja`、`zh-TW`；API 檢查代碼格式，實際支援由服務端決定。
 - 回傳 Promise：成功為 `{ translated, detectedLang }`，失敗為 `{ translated: null, detectedLang: null, error }`。
 - 本地錯誤包含 `invalid_argument`、`text_too_long`、`disabled`；網路錯誤包含 `timeout`、`network`、`offline`、`rate_limit`、`blocked`、`http_狀態碼`。
-- 空白文字原樣回傳。MAT 停用時不接受 API 翻譯；已排隊項目仍完成。
+- 空白文字原樣回傳。MAT 停用時拒絕一般 API 翻譯，但使用者主動點擊的 `{ priority: 'manual' }` 請求仍可翻譯；已排隊項目仍完成。手動請求沿用 MAT 的快取與佇列，不會修改總開關或接收／發送開關。
 - `options` 可省略；`{ priority: 'manual' }` 用於使用者主動點擊的翻譯，預設為 `'chat'`，批次或背景工作應使用預設。
 - 不套用聊天符號過濾或結巴移除，不插入 UI。呼叫者自行顯示結果及錯誤。
 - 回傳結果是副本；快取與內部佇列不公開。此介面供同一頁面 JavaScript 環境使用。
 
 ## 快取與排程
 
-所有入口共用「目標語言＋精確原文片段」快取，10 分鐘、300 筆，命中不延長期限。
+所有入口共用「目標語言＋精確原文片段」快取，30 分鐘、300 筆，命中不延長期限。
 長文先切成最多 500 字元的片段；相同進行中請求合併，失敗不快取。
 
 Bio 先同步建立整批翻譯項目，再由佇列逐筆請求。順位為手動／整句 > Bio > 聊天／預設外部 API；

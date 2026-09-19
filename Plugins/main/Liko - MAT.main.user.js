@@ -445,12 +445,12 @@
         },
         async translateReceivedText(text, options = {}) {
             if (!matSettingsReady) return { translated: null, detectedLang: null, error: 'not_ready' };
-            if (!config.translateReceived) return { translated: null, detectedLang: null, error: 'disabled' };
+            if (!config.enabled || !config.translateReceived) return { translated: null, detectedLang: null, error: 'disabled' };
             return window.Liko.MAT.translate(text, config.recvLang, options);
         },
         async translateSentText(text, options = {}) {
             if (!matSettingsReady) return { translated: null, detectedLang: null, error: 'not_ready' };
-            if (!config.translateSent) return { translated: null, detectedLang: null, error: 'disabled' };
+            if (!config.enabled || !config.translateSent) return { translated: null, detectedLang: null, error: 'disabled' };
             return window.Liko.MAT.translate(text, config.sendLang, options);
         },
         async translate(text, targetLang, options = {}) {
@@ -459,7 +459,8 @@
                 !/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(targetLang)) return error('invalid_argument');
             if (text.length > 10000) return error('text_too_long');
             if (!options || !['chat', 'manual'].includes(options.priority ?? 'chat')) return error('invalid_argument');
-            if (!config.enabled) return error('disabled');
+            // Explicit manual API requests remain available while automatic translation is disabled.
+            if (!config.enabled && options.priority !== 'manual') return error('disabled');
             if (!text.trim()) return { translated: text, detectedLang: null };
             return { ...await translateChunked(text, targetLang, null, options.priority === 'manual' ? 2 : 0) };
         },
