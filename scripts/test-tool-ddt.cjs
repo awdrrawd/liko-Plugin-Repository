@@ -83,7 +83,11 @@ console.log('TOOL snapshot and DDT transactional history checks passed.');
         document.getElementById=()=>null;
         document.querySelectorAll=()=>[];
         const errors=[];
-        const sandbox=vm.createContext({window,document,AbortController,Event,structuredClone,
+        let lifecycleCount=0, documentListeners=0;
+        class TrackedAbortController extends AbortController { constructor(){super();lifecycleCount++;} }
+        const addDocumentListener=document.addEventListener.bind(document);
+        document.addEventListener=(...args)=>{documentListeners++;return addDocumentListener(...args);};
+        const sandbox=vm.createContext({window,document,AbortController:TrackedAbortController,Event,structuredClone,
             console:{log(){},warn(){},error(...args){errors.push(args);}},
             localStorage:{getItem:()=>null}, Image:class {},
             setTimeout(fn){jobs.set(++id,fn);return id;}, clearTimeout(id){jobs.delete(id);},
@@ -93,6 +97,14 @@ console.log('TOOL snapshot and DDT transactional history checks passed.');
         for(let round=0;round<2;round++) {
             vm.runInContext(source,sandbox);
             assert.equal(typeof window.Liko[name].Destroy,'function',name);
+            if(name==='Tool') {
+                const instance=window.Liko.Tool;
+                const before={lifecycleCount,documentListeners,jobs:jobs.size};
+                vm.runInContext(source,sandbox);
+                assert.equal(window.Liko.Tool,instance,'Duplicate load replaced active Tool');
+                assert.deepEqual({lifecycleCount,documentListeners,jobs:jobs.size},before,'Duplicate load allocated resources');
+                assert.equal(documentListeners,0,'Tool registered UI events before login');
+            }
             window.Liko[name].Destroy();
             await Promise.resolve(); await Promise.resolve();
             assert.equal(jobs.size,0,name+' leaked scheduled work');

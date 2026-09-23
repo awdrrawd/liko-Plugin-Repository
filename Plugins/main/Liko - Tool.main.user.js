@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.2.2
+// @version      2.3.0
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -15,29 +15,51 @@
 // ==/UserScript==
 
 (function () {
+    // 防重複載入必須先於生命週期資源、事件與初始化。
+    window.Liko = window.Liko ?? {};
+    if (window.Liko.LT) return;
+    const MOD_Version = "2.3.0";
+    window.Liko.LT = MOD_Version;
+
+    // 閱讀順序：生命週期 → 靜態資源／語系 → 設定 → 共用操作 → UI → 功能 → Hook → 啟動。
+    // 區塊以 SECTION 編號定位；功能所屬狀態與函式放在一起。
+    // 頂層僅定義資料與函式，事件／Hook 由 initialize() 在登入後註冊。
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 01 生命週期：排程、事件與等待
+    // ════════════════════════════════════════════════════════════════════════
     let disposed = false;
+
     const lifecycle = new AbortController();
+
     const timers = new Set(), intervals = new Set(), frames = new Set(), cleanupTasks = new Set();
+
     function setTimeout(fn, ms, ...args) {
         if (disposed) return null;
         const id = globalThis.setTimeout(() => { timers.delete(id); if (!disposed) fn(...args); }, ms);
         timers.add(id); return id;
     }
+
     function clearTimeout(id) { globalThis.clearTimeout(id); timers.delete(id); }
+
     function setInterval(fn, ms) {
         if (disposed) return null;
         const id = globalThis.setInterval(() => { if (!disposed) fn(); }, ms);
         intervals.add(id); return id;
     }
+
     function clearInterval(id) { globalThis.clearInterval(id); intervals.delete(id); }
+
     function requestAnimationFrame(fn) {
         if (disposed) return null;
         const id = globalThis.requestAnimationFrame(time => { frames.delete(id); if (!disposed) fn(time); });
         frames.add(id); return id;
     }
+
     function listen(target, type, fn, options = {}) {
         target.addEventListener(type, fn, { ...(typeof options === 'boolean' ? { capture: options } : options), signal: lifecycle.signal });
     }
+
     function stopLifecycle() {
         disposed = true; lifecycle.abort();
         timers.forEach(id => globalThis.clearTimeout(id)); timers.clear();
@@ -46,6 +68,7 @@
         cleanupTasks.forEach(fn => { try { fn(); } catch (error) { console.warn(error); } });
         cleanupTasks.clear();
     }
+
     function waitFor(check, interval = 200, timeout = 0) {
         return new Promise(resolve => {
             let timer; const started = Date.now();
@@ -61,33 +84,36 @@
             poll();
         });
     }
-    window.Liko = window.Liko ?? {};
-    const MOD_Version = "2.2.1";
-    if (window.Liko.LT) return;
-    window.Liko.LT = MOD_Version;
-    let modApi = null;
 
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 02 靜態資源：座標、圖示、徽章與色彩
+    // ════════════════════════════════════════════════════════════════════════
     const rpBtnX    = 955;
+
     const rpBtnY    = 855;
+
     const rpBtnSize = 45;
+
     const rpIconUrl = "https://raw.githubusercontent.com/awdrrawd/liko-tool-Image-storage/refs/heads/main/Images/likorp.png";
 
     const TOGGLE_MSG_MS = 5000; // 所有开关提示讯息 5 秒后消失
 
     /* ── 工具面板默认锚点（触发按钮已移至 #chat-room-buttons）── */
     const TOOL_BTN_X = 955;
+
     const TOOL_BTN_Y = 555;
-    const STORAGE_TOOL_PANEL = 'likoTool_ui_panel';
-    const STORAGE_TOOL_THEME = 'likoTool_theme';
-    const STORAGE_TOOL_ORDER = 'likoTool_btn_order';
-    let toolPanelEl = null;
-    let toolPanelVisible = false;
-    let _toolDragging = false;
-    let actionGridEl = null;
-    // 手机式导航：页面栈 + 视口/头部引用
-    let phonePages = [];
-    let phoneViewportEl = null;
-    let phoneHeaderEls = null;
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 聊天室触发按钮 — 注入到 #chat-room-buttons（顺位 9，参考 BC_ChatRoomButtons）
+    // ════════════════════════════════════════════════════════════════════════
+    const TOOL_CRB_ID = 'likotool';
+
+    const TOOL_CRB_ORDER = 9;
+
+    const TOOL_BTN_DOM_ID = 'lt-tool-trigger-btn';
+
+    // APNG 的懸停播放與靜止 poster 由 CRB 統一處理。
+    const TOOL_ICON_URL = 'https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/Tool/Tool-icon.png';
 
     // ════════════════════════════════════════════════════════════════════════
     // SVG 图标库 — 线条风格，stroke=currentColor
@@ -122,17 +148,29 @@
         magicDefense:'<svg viewBox="0 0 100 100" fill="currentColor"><path fill-rule="evenodd" d="m23.17 6c.57 0 2.04 3.49 5.48 15.5l7.69 2.5c4.22 1.38 7.68 2.84 7.67 3.25 0 .41-3.5 1.86-15.51 5.71L26 40.5c-1.38 4.14-2.84 7.53-3.25 7.52-.41-.01-1.7-3.06-2.87-6.77-1.16-3.71-2.63-7.26-3.25-7.88-.62-.62-4.17-2.09-7.88-3.25-3.71-1.17-6.76-2.46-6.77-2.87-.01-.41 3.38-1.88 15.06-5.75l2.55-7.75C20.99 9.49 22.6 6 23.17 6Zm41.97 16.59c.37.5 2.69 5.86 9.66 22.91l11.35 4.82c6.24 2.65 11.71 5.12 12.14 5.5.44.37-4.6 2.93-23.19 10.68L70.26 78c-2.65 6.33-5.23 11.5-5.71 11.5-.49 0-3.03-5.17-10.44-23l-12.05-5c-6.62-2.75-11.71-5.29-11.3-5.65.41-.36 5.46-2.56 11.24-4.91 5.78-2.34 11.02-4.75 11.66-5.35.63-.6 2.82-5.14 4.86-10.09 2.03-4.95 4.21-10.09 4.83-11.41.62-1.33 1.43-2 1.79-1.5ZM56 54.3l-4.5 1.99c8.16 3.53 9.39 4.76 11.07 8.55l2.08 4.66c3.53-7.95 4.98-9.47 8.21-11 2.31-1.1 4.2-2.23 4.2-2.5-.01-.28-1.86-1.17-4.12-2-3.27-1.19-4.5-2.37-6.03-5.75-1.05-2.34-2.16-4.25-2.47-4.25-.31 0-1.33 1.87-2.25 4.16-1.35 3.32-2.6 4.56-6.19 6.14ZM23.24 68c.56 0 1.55 2.14 2.19 4.75 1.06 4.28 1.58 4.9 5.28 6.25 2.26.83 4.49 1.8 4.95 2.17.46.38-1.41 1.37-4.16 2.22-4.62 1.42-5.11 1.89-6.5 6.1-.83 2.51-1.84 4.56-2.25 4.54-.41-.02-1.36-1.94-2.1-4.28-.75-2.34-1.99-4.58-2.75-4.98-.77-.41-2.98-1.36-4.9-2.13-3.11-1.24-3.28-1.49-1.5-2.17 1.1-.42 3.35-1.29 5-1.94 2.36-.92 3.29-2.18 4.36-5.85.74-2.58 1.81-4.68 2.38-4.68Z"/></svg>',
     };
 
+    // ──────────────────────────────────────────
+    // 通用按鈕选单
+    // ──────────────────────────────────────────
+    const ZONE_VIEW_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+
+    const LIST_VIEW_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
+
+    const TOOL_SETTINGS_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor" opacity=".99"><path fill-rule="evenodd" d="m50.05 4c5.78 0 7.02 0.29 7.39 1.75 0.25 0.96 0.7 3.89 1 6.5 0.49 4.18 0.97 4.96 7.5 8.25l5.28-3.73c2.91-2.05 5.73-3.76 6.28-3.79 0.55-0.04 2.91 1.98 5.25 4.48 2.34 2.5 4.25 4.77 4.25 5.04 0 0.27-1.69 3-3.75 6.05-3.7 5.47-3.73 5.59-2.14 8.75 1.44 2.89 2.23 3.3 14.39 5.2l0.27 7c0.19 4.87-0.12 7.21-1 7.69-0.7 0.37-3.63 0.94-6.52 1.25-4.76 0.51-5.41 0.88-8.75 7.5l3.73 5.28c2.05 2.91 3.73 5.73 3.74 6.28 0 0.55-1.9 2.92-4.23 5.26-2.33 2.35-4.58 4.26-4.99 4.25-0.41 0-3.25-1.7-11.85-7.51l-3.45 1.75c-3.03 1.54-3.52 2.33-4.01 6.5-0.3 2.61-0.75 5.54-1 6.5-0.37 1.46-1.61 1.75-7.44 1.75-4.72 0-7.13-0.41-7.4-1.25-0.23-0.69-0.79-3.68-1.25-6.65-0.74-4.71-1.26-5.61-4.05-7-3.15-1.58-3.28-1.54-8.75 2.15-3.05 2.06-5.89 3.76-6.3 3.76-0.41 0.01-2.66-1.9-4.99-4.25-2.33-2.34-4.24-4.71-4.25-5.26 0-0.55 1.57-3.36 3.49-6.25 3.31-4.96 3.43-5.43 2.17-8.5-1.15-2.84-1.95-3.35-6.25-4.06-2.7-0.44-5.71-1-6.67-1.25-1.46-0.37-1.75-1.61-1.75-7.44 0-4.72 0.41-7.13 1.25-7.4 0.69-0.23 3.69-0.79 6.67-1.25 4.96-0.78 5.54-1.14 6.8-4.35 1.34-3.37 1.26-3.69-2.17-8.75-1.95-2.89-3.54-5.59-3.54-6 0.01-0.41 1.89-2.66 4.19-5 2.29-2.34 4.65-4.25 5.23-4.25 0.59 0 3.46 1.69 11.71 7.5l3.43-1.75c3.16-1.61 3.48-2.2 4.03-7.5 0.33-3.16 0.8-6.09 1.05-6.5 0.25-0.41 3.58-0.75 7.4-0.75zm-4.98 10.25c-0.62 3.44-1.22 6.26-1.34 6.28-0.13 0.01-2.48 0.97-5.23 2.13l-5 2.11-10.55-7.27-5.45 5.4 7.34 10.6c-3.14 6.97-4.79 9.54-5.7 10.21-0.9 0.66-3.78 1.45-6.39 1.75l-4.75 0.54v8c7.36 0.84 10.24 1.63 11.14 2.29 0.91 0.67 2.55 3.23 3.65 5.71l2.01 4.5-7.3 10.55 5.4 5.45 10.6-7.32c7.75 3.31 10.1 4.28 10.23 4.29 0.12 0.02 0.68 2.84 1.25 6.28l1.02 6.25h8c1.59-9.69 2.15-12.51 2.27-12.53 0.13-0.01 2.48-0.98 5.23-2.16l5-2.13 10.6 7.32 5.4-5.4-7.32-10.6c3.31-7.75 4.28-10.1 4.29-10.23 0.02-0.12 2.84-0.68 6.28-1.25l6.25-1.02v-8c-9.69-1.59-12.51-2.15-12.53-2.27-0.01-0.13-0.98-2.48-2.16-5.23l-2.13-5 7.32-10.6-5.45-5.4-10.12 7c-10.63-3.92-10.88-4.18-11.89-8.75-0.57-2.61-1.04-5.43-1.04-6.25 0-1.08-1.1-1.5-3.91-1.5h-3.91zm4.69 19.79c1.78-0.02 4.71 0.56 6.5 1.29 1.78 0.74 4.48 2.76 6 4.5 1.51 1.74 3.02 4.86 3.36 6.92 0.33 2.06 0.29 5.33-0.11 7.25-0.41 2.02-2.26 5.04-4.36 7.14q-3.64 3.64-7.64 4.37c-2.2 0.39-5.58 0.39-7.5 0-2.02-0.42-5.05-2.26-7.15-4.37q-3.64-3.64-4.36-7.64c-0.39-2.2-0.44-5.46-0.11-7.25 0.34-1.79 1.67-4.66 2.96-6.38 1.29-1.73 3.87-3.73 5.75-4.46 1.87-0.73 4.87-1.35 6.66-1.37zm-8.9 8.39c-1.78 2.07-2.35 3.93-2.35 7.63 0 4.2 0.46 5.37 3.27 8.17 2.81 2.81 3.96 3.27 8.23 3.27 4.27 0 5.41-0.46 8.23-3.27 2.81-2.81 3.27-3.96 3.27-8.23 0-4.17-0.48-5.45-3-8.02-2.07-2.1-4.25-3.19-7-3.5-2.2-0.25-4.97-0.08-6.15 0.38-1.18 0.47-3.21 2.07-4.5 3.57z"/></svg>';
+
     // ════════════════════════════════════════════════════════════════════════
     // Canvas 图标渲染 — SVG → Image → MainCanvas.drawImage
     // ════════════════════════════════════════════════════════════════════════
     var _canvasIconCache = {};
+
     function _makeCanvasSvg(paths, color) {
         return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="' + (color || '#ffffff') + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
     }
+
     var CANVAS_ICONS = {
         tool: _makeCanvasSvg('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>'),
         rp:   _makeCanvasSvg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="22" y1="2" x2="2" y2="22"/>'),
     };
+
     function getCanvasIcon(key) {
         if (_canvasIconCache[key]) return _canvasIconCache[key];
         var img = new Image();
@@ -140,6 +178,7 @@
         _canvasIconCache[key] = img;
         return img;
     }
+
     function drawCanvasIconOnButton(key, btnX, btnY, btnW, btnH, iconSize) {
         var img = getCanvasIcon(key);
         if (img.complete && img.naturalWidth > 0) {
@@ -160,8 +199,11 @@
         free: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="#ffffff" d="m41 8.45c-4.67 0.64-9.51 1.7-10.75 2.36-1.42 0.75-2.25 2.12-2.25 3.69 0 1.38 0.68 2.73 1.5 3 0.82 0.27 6.56 0.49 12.75 0.48 10.5-0.01 11.47 0.15 14.5 2.5l3.25 2.52c-13.56 9.47-18.28 13.19-19.23 14.36-0.95 1.18-1.73 3.49-1.74 5.14-0.01 2.12 2.12 6.06 7.33 13.5l7.34 10.5c-17.98 1.55-23.76 2.34-24.45 2.75-0.69 0.41-1.25 2.1-1.25 3.75q0 3 2 4c1.1 0.55 9.83 1 19.5 1 9.67 0 18.4-0.45 19.5-1 1.28-0.64 1.99-1.98 1.98-3.75-0.02-1.68-2.78-7.03-7.12-13.75-6.68-10.37-6.98-11.08-5.22-12.34 1.02-0.73 6.14-4.11 11.36-7.5 7.37-4.78 9.56-6.72 9.78-8.66 0.17-1.51-1.03-4.48-3.01-7.5-2.28-3.47-5.89-6.76-11.78-10.77-6.69-4.54-9.23-5.73-11.99-5.6-1.92 0.08-7.33 0.68-12 1.32zm41.97 2.08c-2.24 2.46-3.18 4.45-3.1 6.5 0.09 1.95 1.33 4.17 3.63 6.47 2.13 2.13 4.48 3.5 6 3.5 1.38 0 3.74-0.62 5.25-1.38 1.51-0.76 3.31-2.56 4-4 0.69-1.44 1.25-3.52 1.25-4.62 0-1.1-0.5-3.01-1.12-4.25-0.61-1.24-2.07-3.03-3.25-3.98-1.17-0.95-3.77-1.74-5.78-1.75-2.92-0.02-4.3 0.69-6.88 3.51zm-82.42 14.47c-0.3 0.55-0.33 1.45-0.05 2 0.31 0.62 8.33 1 21 1 19.83 0 20.5-0.07 20.5-2 0-1.93-0.67-2-20.45-2-12.6 0-20.66 0.38-21 1zm0 10c-0.3 0.55-0.33 1.45-0.05 2 0.3 0.6 6.67 1 16 1 14.83 0 15.5-0.09 15.5-2 0-1.91-0.67-2-15.45-2-9.27 0-15.67 0.4-16 1zm0 10c-0.3 0.55-0.33 1.45-0.05 2 0.3 0.6 6.67 1 16 1 14.83 0 15.5-0.09 15.5-2 0-1.91-0.67-2-15.45-2-9.27 0-15.67 0.4-16 1zm0 10c-0.3 0.55-0.33 1.45-0.05 2 0.31 0.62 8 1 20 1 18.83 0 19.5-0.07 19.5-2 0-1.93-0.67-2-19.45-2-11.94 0-19.66 0.39-20 1zm34.05 32.25c-2.5 2.89-4.75 5.92-4.99 6.75-0.24 0.83 0.2 2.51 0.97 3.75 0.78 1.24 2.32 2.25 3.42 2.25 1.16 0 5.87-3.75 11.25-8.97l9.25-8.98-15.35-0.05zm40.36-45.94c-3.32 2.33-4.43 3.73-4.14 5.19 0.21 1.1 0.91 2.62 1.53 3.37 0.91 1.08 3.31 1.22 11.65 0.64 5.77-0.4 11.28-1.13 12.25-1.62 1.14-0.58 1.66-1.85 1.5-3.64-0.21-2.27-0.78-2.79-3.25-3-1.65-0.14-5.37-0.48-8.25-0.75-3.78-0.36-5.25-0.92-5.25-2 0-0.83-0.34-1.48-0.75-1.44-0.42 0.03-2.8 1.49-5.29 3.25z"/></svg>',
         magicDefense: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="#ffffff" fill-rule="evenodd" d="m23.17 6c.57 0 2.04 3.49 5.48 15.5l7.69 2.5c4.22 1.38 7.68 2.84 7.67 3.25 0 .41-3.5 1.86-15.51 5.71L26 40.5c-1.38 4.14-2.84 7.53-3.25 7.52-.41-.01-1.7-3.06-2.87-6.77-1.16-3.71-2.63-7.26-3.25-7.88-.62-.62-4.17-2.09-7.88-3.25-3.71-1.17-6.76-2.46-6.77-2.87-.01-.41 3.38-1.88 15.06-5.75l2.55-7.75C20.99 9.49 22.6 6 23.17 6Zm41.97 16.59c.37.5 2.69 5.86 9.66 22.91l11.35 4.82c6.24 2.65 11.71 5.12 12.14 5.5.44.37-4.6 2.93-23.19 10.68L70.26 78c-2.65 6.33-5.23 11.5-5.71 11.5-.49 0-3.03-5.17-10.44-23l-12.05-5c-6.62-2.75-11.71-5.29-11.3-5.65.41-.36 5.46-2.56 11.24-4.91 5.78-2.34 11.02-4.75 11.66-5.35.63-.6 2.82-5.14 4.86-10.09 2.03-4.95 4.21-10.09 4.83-11.41.62-1.33 1.43-2 1.79-1.5ZM56 54.3l-4.5 1.99c8.16 3.53 9.39 4.76 11.07 8.55l2.08 4.66c3.53-7.95 4.98-9.47 8.21-11 2.31-1.1 4.2-2.23 4.2-2.5-.01-.28-1.86-1.17-4.12-2-3.27-1.19-4.5-2.37-6.03-5.75-1.05-2.34-2.16-4.25-2.47-4.25-.31 0-1.33 1.87-2.25 4.16-1.35 3.32-2.6 4.56-6.19 6.14ZM23.24 68c.56 0 1.55 2.14 2.19 4.75 1.06 4.28 1.58 4.9 5.28 6.25 2.26.83 4.49 1.8 4.95 2.17.46.38-1.41 1.37-4.16 2.22-4.62 1.42-5.11 1.89-6.5 6.1-.83 2.51-1.84 4.56-2.25 4.54-.41-.02-1.36-1.94-2.1-4.28-.75-2.34-1.99-4.58-2.75-4.98-.77-.41-2.98-1.36-4.9-2.13-3.11-1.24-3.28-1.49-1.5-2.17 1.1-.42 3.35-1.29 5-1.94 2.36-.92 3.29-2.18 4.36-5.85.74-2.58 1.81-4.68 2.38-4.68Z"/></svg>',
     };
+
     const BADGE_COLOR = { dnd: '#d03030', free: '#2d8bc4', magicDefense: '#7a45c4' };
+
     var _badgeImgCache = {};
+
     function getBadgeImg(key) {
         if (_badgeImgCache[key]) return _badgeImgCache[key];
         var img = new Image();
@@ -169,6 +211,7 @@
         _badgeImgCache[key] = img;
         return img;
     }
+
     // 画一颗徽章：彩色圆底 + 白描边 + 白色图标
     function drawBadgeDisc(key, x, y, size) {
         try {
@@ -194,136 +237,17 @@
     // 强调色预设
     // ════════════════════════════════════════════════════════════════════════
     const ACCENT_PRESETS = [
-        { id: 'purple', name: '紫', accent: '#8b2dc4', accentDark: '#3a1070', accentLight: '#a060e0' },
-        { id: 'blue',   name: '蓝', accent: '#2d6bc4', accentDark: '#103a70', accentLight: '#6090e0' },
-        { id: 'teal',   name: '青', accent: '#1aaa88', accentDark: '#0a6048', accentLight: '#40c8a8' },
-        { id: 'pink',   name: '粉', accent: '#c42d8b', accentDark: '#70103a', accentLight: '#e060a0' },
-        { id: 'orange', name: '橙', accent: '#c47b2d', accentDark: '#704010', accentLight: '#e0a060' },
-        { id: 'red',    name: '红', accent: '#c42d2d', accentDark: '#701010', accentLight: '#e06060' },
+        { id: 'purple', accent: '#8b2dc4', accentDark: '#3a1070', accentLight: '#a060e0' },
+        { id: 'blue', accent: '#2d6bc4', accentDark: '#103a70', accentLight: '#6090e0' },
+        { id: 'teal', accent: '#1aaa88', accentDark: '#0a6048', accentLight: '#40c8a8' },
+        { id: 'pink', accent: '#c42d8b', accentDark: '#70103a', accentLight: '#e060a0' },
+        { id: 'orange', accent: '#c47b2d', accentDark: '#704010', accentLight: '#e0a060' },
+        { id: 'red', accent: '#c42d2d', accentDark: '#701010', accentLight: '#e06060' },
     ];
 
     // ════════════════════════════════════════════════════════════════════════
-    // 主题系统
+    // SECTION 03 語系：文字資料與翻譯入口
     // ════════════════════════════════════════════════════════════════════════
-    function loadTheme() {
-        try {
-            const s = localStorage.getItem(STORAGE_TOOL_THEME);
-            if (s) {
-                const parsed = JSON.parse(s);
-                if (parsed && parsed.mode && parsed.accentId) return parsed;
-            }
-        } catch (_) {}
-        return { mode: 'dark', accentId: 'purple' };
-    }
-
-    function saveTheme(theme) {
-        try { localStorage.setItem(STORAGE_TOOL_THEME, JSON.stringify(theme)); } catch (_) {}
-    }
-
-    let currentTheme = loadTheme();
-
-    function getAccentPreset() {
-        return ACCENT_PRESETS.find(function(p) { return p.id === currentTheme.accentId; }) || ACCENT_PRESETS[0];
-    }
-
-    function applyTheme() {
-        var preset = getAccentPreset();
-        var isDark = currentTheme.mode !== 'light';
-        var a = preset.accent;
-        var ad = preset.accentDark;
-        var al = preset.accentLight;
-
-        var styleEl = document.getElementById('lt-theme-vars');
-        if (!styleEl) {
-            styleEl = document.createElement('style');
-            styleEl.id = 'lt-theme-vars';
-            document.head.appendChild(styleEl);
-        }
-
-        if (isDark) {
-            styleEl.textContent = [
-                '#lt-quick-panel,.lt-panel{',
-                '--lt-bg:rgba(12,16,26,0.98);',
-                '--lt-surface:rgba(255,255,255,0.04);',
-                '--lt-surface-2:rgba(255,255,255,0.07);',
-                '--lt-surface-hover:' + a + '1a;',
-                '--lt-border:rgba(255,255,255,0.07);',
-                '--lt-border-hover:' + a + '4d;',
-                '--lt-text:#dde8f8;',
-                '--lt-text-secondary:#b8c8e0;',
-                '--lt-text-dim:#6a8ab0;',
-                '--lt-text-faint:#4a5a7a;',
-                '--lt-accent:' + a + ';',
-                '--lt-accent-dark:' + ad + ';',
-                '--lt-accent-light:' + al + ';',
-                '--lt-accent-glow:' + a + '40;',
-                '--lt-header-grad:linear-gradient(135deg,' + ad + ' 0%,' + a + ' 100%);',
-                '--lt-shadow:rgba(0,0,0,0.5);',
-                '--lt-scrollbar:' + a + '59;',
-                '--lt-switch-on:' + a + ';',
-                '--lt-switch-glow:' + a + '80;',
-                '}'
-            ].join('');
-        } else {
-            styleEl.textContent = [
-                '#lt-quick-panel,.lt-panel{',
-                '--lt-bg:rgba(248,250,252,0.98);',
-                '--lt-surface:rgba(0,0,0,0.025);',
-                '--lt-surface-2:rgba(0,0,0,0.05);',
-                '--lt-surface-hover:' + a + '14;',
-                '--lt-border:rgba(0,0,0,0.07);',
-                '--lt-border-hover:' + a + '40;',
-                '--lt-text:#2a3a4a;',
-                '--lt-text-secondary:#4a5a6a;',
-                '--lt-text-dim:#7a8a9a;',
-                '--lt-text-faint:#aab4c0;',
-                '--lt-accent:' + a + ';',
-                '--lt-accent-dark:' + ad + ';',
-                '--lt-accent-light:' + al + ';',
-                '--lt-accent-glow:' + a + '33;',
-                '--lt-header-grad:linear-gradient(135deg,' + ad + ' 0%,' + a + ' 100%);',
-                '--lt-shadow:rgba(0,0,0,0.15);',
-                '--lt-scrollbar:' + a + '40;',
-                '--lt-switch-on:' + a + ';',
-                '--lt-switch-glow:' + a + '80;',
-                '}'
-            ].join('');
-        }
-
-        document.querySelectorAll('#lt-quick-panel,.lt-panel').forEach(function(el) {
-            if (currentTheme.mode === 'light') el.classList.add('lt-light');
-            else el.classList.remove('lt-light');
-        });
-    }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // 按钮顺序系统
-    // ════════════════════════════════════════════════════════════════════════
-    function loadBtnOrder() {
-        try {
-            var s = localStorage.getItem(STORAGE_TOOL_ORDER);
-            if (s) {
-                var order = JSON.parse(s);
-                var validIds = ALL_ACTIONS.map(function(a) { return a.id; });
-                if (Array.isArray(order) && order.length === validIds.length && order.every(function(id) { return validIds.includes(id); })) {
-                    return order;
-                }
-            }
-        } catch (_) {}
-        return ALL_ACTIONS.map(function(a) { return a.id; });
-    }
-
-    function saveBtnOrder(order) {
-        try { localStorage.setItem(STORAGE_TOOL_ORDER, JSON.stringify(order)); } catch (_) {}
-    }
-
-    function getOrderedActions() {
-        var order = loadBtnOrder();
-        return order.map(function(id) {
-            return ALL_ACTIONS.find(function(a) { return a.id === id; });
-        }).filter(Boolean);
-    }
-
     // ──────────────────────────────────────────
     // 雙語言系統
     // ──────────────────────────────────────────
@@ -337,6 +261,49 @@
 
     const LANG = {
         zh: {
+            back: "返回",
+            toolbox: "工具箱",
+            menuEdit: "編輯順序與顯示功能",
+            toggleSection: "开关",
+            toggleRp: "RP模式",
+            toggleRpHelp: "开启后屏蔽游戏 Action 消息",
+            toggleDnd: "勿扰模式",
+            toggleDndHelp: "除自己外，任何人对你外观的编辑（换衣/拘束）都会立即复原",
+            toggleMagic: "魔法防御",
+            toggleMagicHelp: "抵御所有对你施放的 LSCG 魔法",
+            toggleFree: "无视绑缚",
+            toggleFreeHelp: "被绑缚时仍可使用双手（不会实际解开道具）",
+            toggleBlock: "无视衣物阻挡",
+            toggleBlockHelp: "被服装/道具遮挡的格子仍可换装、装拘束（不必先脱）",
+            toggleRaise: "拉高視角",
+            toggleRaiseHelp: "互動畫面消除 HeightModifier 位移，不改寫人物屬性",
+            toggleScale: "固定身高比例",
+            toggleScaleHelp: "人物與互動格使用顯示比例 1，不改寫人物屬性",
+            toggleOoc: "说话总是OOC",
+            toggleOocHelp: "聊天/密语时自动加括号转为 OOC（不会被口塞乱码）",
+            toggleRpButton: "显示RP按钮",
+            toggleRpButtonHelp: "在游戏画面显示 RP 切换按钮",
+            viewCharacterHint: "目前：人物模式；點擊切換清單",
+            viewListHint: "目前：清單模式；點擊切換人物",
+            craftItemChanged: "物品已變更，請重新選取。",
+            craftSaved: "已保存，可繼續編輯。",
+            export: "匯出",
+            craftCopyFailed: "複製失敗，請重試。",
+            craftCopied: "已複製，可在遊戲 Craft 匯入。",
+            craftSingleTitle: "單項屬性編輯",
+            craftBatch: "批量編輯",
+            craftSingle: "單項編輯",
+            undoDiffPrefix: "与目前外观比较：",
+            undoDiffHelp: "新增 / 移除 / 修改的装备组数",
+            fixedScalePrefix: "固定顯示比例：",
+            menuVisibility: "點擊隱藏／顯示；長按後拖移排序",
+            menuDragHint: "長按後拖移排序",
+            accentPurple: "紫色",
+            accentBlue: "藍色",
+            accentTeal: "青色",
+            accentPink: "粉色",
+            accentOrange: "橙色",
+            accentRed: "紅色",
             close:        "关闭",
             confirm:      "确认",
             cancel:       "取消",
@@ -386,10 +353,10 @@
             rpOff:           "RP模式已关闭",
             rpBtnShow:       "RP按钮已显示",
             rpBtnHide:       "RP按钮已隐藏",
-            heightFixOn:     "拉高功能已启用（趴跪姿自动拉高）",
+            heightFixOn:     "拉高視角已啟用（消除互動畫面的垂直位移）",
             heightFixOff:    "拉高功能已停用",
-            heightLockOn:    "身高锁定已启用（强制身高为标准值）",
-            heightLockOff:   "身高锁定已停用",
+            heightLockOn:    "固定顯示比例已啟用（人物與互動格使用顯示比例 1）",
+            heightLockOff:   "固定顯示比例已停用",
             fhOn:            "无视绑缚已启用（被绑时仍可使用双手，不解开道具）",
             fhOff:           "无视绑缚已停用",
             dndOn:           "勿扰模式已启用（除自己外，任何人对你外观的编辑都会立即复原）",
@@ -486,8 +453,8 @@
             "/lt undo [目标]       - 外观回滚\n" +
             "/lt rpmode            - 切换 RP 模式\n" +
             "/lt rpbtn             - 显示/隐藏 RP 按钮\n" +
-            "/lt heightfix         - 趴跪姿时自动拉高\n" +
-            "/lt heightlock        - 锁定身高为标准值\n" +
+            "/lt heightfix         - 拉高互動視角（消除垂直位移）\n" +
+            "/lt heightlock        - 固定人物與互動格顯示比例（不改人物資料）\n" +
             "/lt ooc               - 说话总是OOC（聊天/密语自动加括号转 OOC）\n" +
             "/lt dnd               - 勿扰模式（除自己外，他人对你外观的编辑立即复原）\n" +
             "/lt magicdefense      - 魔法防御（使 LSCG 魔法无法生效）\n" +
@@ -499,6 +466,49 @@
             loaded: "莉柯莉丝工具 v{v} 载入！使用 /lt help 查看说明",
         },
         en: {
+            back: "Back",
+            toolbox: "Toolbox",
+            menuEdit: "Edit feature order and visibility",
+            toggleSection: "Toggles",
+            toggleRp: "RP Mode",
+            toggleRpHelp: "Block game Action messages",
+            toggleDnd: "Do Not Disturb",
+            toggleDndHelp: "Anyone but you editing your appearance is instantly reverted",
+            toggleMagic: "Magic Defense",
+            toggleMagicHelp: "Prevent all LSCG magic cast on you from taking effect",
+            toggleFree: "Free Hands",
+            toggleFreeHelp: "Use hands while restrained (does not remove items)",
+            toggleBlock: "Ignore Clothing Block",
+            toggleBlockHelp: "Equip on slots covered by clothing/items (no need to strip first)",
+            toggleRaise: "Raise view",
+            toggleRaiseHelp: "Remove HeightModifier displacement in the dialog view only",
+            toggleScale: "Fixed view scale",
+            toggleScaleHelp: "Draw the character and zones at view scale 1 without changing character properties",
+            toggleOoc: "Always OOC",
+            toggleOocHelp: "Auto-wrap chat/whisper in parentheses as OOC",
+            toggleRpButton: "Show RP Btn",
+            toggleRpButtonHelp: "Show RP toggle button on canvas",
+            viewCharacterHint: "Character view; click for list",
+            viewListHint: "List view; click for character",
+            craftItemChanged: "Item changed. Select it again.",
+            craftSaved: "Saved. You can keep editing.",
+            export: "Export",
+            craftCopyFailed: "Copy failed. Please retry.",
+            craftCopied: "Copied. Import in Crafting.",
+            craftSingleTitle: "Edit item craft",
+            craftBatch: "Batch edit",
+            craftSingle: "Single edit",
+            undoDiffPrefix: "Compared with current appearance: ",
+            undoDiffHelp: "Added / removed / changed equipment groups",
+            fixedScalePrefix: "Fixed view scale: ",
+            menuVisibility: "Click to hide / show; hold to reorder",
+            menuDragHint: "Hold to reorder",
+            accentPurple: "Purple",
+            accentBlue: "Blue",
+            accentTeal: "Teal",
+            accentPink: "Pink",
+            accentOrange: "Orange",
+            accentRed: "Red",
             close:        "Close",
             confirm:      "Confirm",
             cancel:       "Cancel",
@@ -548,10 +558,10 @@
             rpOff:           "RP Mode disabled",
             rpBtnShow:       "RP button shown",
             rpBtnHide:       "RP button hidden",
-            heightFixOn:     "Height fix enabled (auto-raise when kneeling/prone)",
-            heightFixOff:    "Height fix disabled",
-            heightLockOn:    "Height lock enabled (forces standard height)",
-            heightLockOff:   "Height lock disabled",
+            heightFixOn:     "Raise view enabled (remove dialog vertical displacement)",
+            heightFixOff:    "Raise view disabled",
+            heightLockOn:    "Fixed view scale enabled (character and interaction grid use display scale 1)",
+            heightLockOff:   "Fixed view scale disabled",
             fhOn:            "Free Hands enabled (use hands while restrained, keeps items on)",
             fhOff:           "Free Hands disabled",
             dndOn:           "Do Not Disturb enabled (anyone but you editing your appearance is instantly reverted)",
@@ -648,8 +658,8 @@
             "/lt undo [target]     - Rollback appearance\n" +
             "/lt rpmode            - Toggle RP mode\n" +
             "/lt rpbtn             - Show/hide RP button\n" +
-            "/lt heightfix         - Auto-raise when kneeling/prone\n" +
-            "/lt heightlock        - Lock height to standard value\n" +
+            "/lt heightfix         - Raise dialog view (remove vertical offset)\n" +
+            "/lt heightlock        - Fixed dialog view scale (does not change character data)\n" +
             "/lt ooc               - Always OOC (auto-wrap chat/whisper in parentheses)\n" +
             "/lt dnd               - Do Not Disturb (others' edits to your appearance auto-revert)\n" +
             "/lt magicdefense      - Block LSCG magic from taking effect\n" +
@@ -671,61 +681,24 @@
         return str;
     }
 
-    // ──────────────────────────────────────────
-    // 等待系列
-    // ──────────────────────────────────────────
-    // ──────────────────────────────────────────
-    // 初始化 modApi
-    // ──────────────────────────────────────────
-    function waitForLogin() { return waitFor(() => window.Player?.MemberNumber !== undefined); }
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 04 設定：預設值、舊資料遷移、保存與廣播
+    // ════════════════════════════════════════════════════════════════════════
+    const STORAGE_TOOL_PANEL = 'likoTool_ui_panel';
 
-    async function initializeModApi() {
-        if (!(await waitFor(() => typeof bcModSdk !== "undefined" && bcModSdk?.registerMod)) || disposed) return;
-        try {
-            modApi = bcModSdk.registerMod({
-                name: "Liko - tool",
-                fullName: "Liko's tool",
-                version: MOD_Version,
-                repository: 'https://github.com/awdrrawd/liko-Plugin-Repository'
-            });
-        } catch (e) {
-            console.error("🐈‍⬛ [LT] ❌ 初始化 modApi 失敗:", e.message);
-        }
-    }
+    const STORAGE_TOOL_THEME = 'likoTool_theme';
 
-    // ──────────────────────────────────────────
-    // 载入 Toast 系統
-    // ──────────────────────────────────────────
-    function loadToastSystem() {
-        return new Promise((resolve, reject) => {
-            if (window.ChatRoomSendLocalStyled) { resolve(); return; }
-            const script = document.createElement('script');
-            script.src = "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_toast_system.user.js";
-            let settled = false;
-            const finish = error => {
-                if (settled) return;
-                settled = true;
-                clearTimeout(timeout);
-                lifecycle.signal.removeEventListener('abort', cancel);
-                script.onload = script.onerror = null;
-                script.remove();
-                if (error) reject(error); else resolve();
-            };
-            const cancel = () => finish();
-            const timeout = setTimeout(() => finish(new Error('Toast load timed out')), 10000);
-            lifecycle.signal.addEventListener('abort', cancel, { once: true });
-            script.onload = () => finish();
-            script.onerror = () => finish(new Error("Toast 载入失敗"));
-            document.head.appendChild(script);
-        });
-    }
+    const STORAGE_TOOL_ORDER = 'likoTool_btn_order';
+
+    const STORAGE_TOOL_LAYOUT = 'likoTool_ui_layout';
 
     // ──────────────────────────────────────────
     // ExtensionSettings 存取器
     // ──────────────────────────────────────────
     let _esRaw, _esObj = null, _esMember;
+
     const ES_DEFAULTS = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, stealthRp: 0,
-                         rpModeLocal: 0, freeHands: 0, ignoreBlock: 0, dnd: 0, magicDefense: 0, alwaysOOC: 0 };
+                         rpModeLocal: 0, freeHands: 0, ignoreBlock: 0, dnd: 0, magicDefense: 0, alwaysOOC: 0, bypassActivities: false, itemViewMode: 'list' };
 
     function getES() {
         if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
@@ -734,29 +707,60 @@
         let saved = {};
         try {
             if (typeof raw === 'string') saved = JSON.parse(LZString.decompressFromBase64(raw)) || {};
-            else if (raw && typeof raw === 'object') saved = raw;   // 相容舊格式
+            else if (raw && typeof raw === 'object' && !Array.isArray(raw)) saved = raw;   // 相容舊格式
         } catch (e) { /* 資料損毀就用預設值 */ }
+        if (!saved || typeof saved !== 'object' || Array.isArray(saved)) saved = {};
         _esObj = Object.assign({}, ES_DEFAULTS, saved);
-        _esRaw = raw;
+        if (saved.fixedZones === undefined) _esObj.fixedZones = saved.heightLock === 1 ? 1 : 0;
+        // One-time migration: account settings always take precedence over browser data.
+        const legacy = key => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
+        if (saved.uiSettingsMigrated !== true) {
+            _esObj.theme ??= legacy(STORAGE_TOOL_THEME);
+            _esObj.buttonOrder ??= legacy(STORAGE_TOOL_ORDER);
+            _esObj.menuLayout ??= legacy(STORAGE_TOOL_LAYOUT);
+            _esObj.panelPosition ??= legacy(STORAGE_TOOL_PANEL);
+            _esObj.uiSettingsMigrated = true;
+        }
+        if (!_esObj.theme?.mode || !_esObj.theme?.accentId) _esObj.theme = { mode: 'dark', accentId: 'purple' };
+        if (!Array.isArray(_esObj.buttonOrder)) _esObj.buttonOrder = [];
+        const layout = _esObj.menuLayout;
+        _esObj.menuLayout = { hidden: Array.isArray(layout?.hidden) ? layout.hidden : [], toggles: Array.isArray(layout?.toggles) ? layout.toggles : [] };
+        if (!Number.isFinite(_esObj.panelPosition?.x) || !Number.isFinite(_esObj.panelPosition?.y)) _esObj.panelPosition = { x: TOOL_BTN_X, y: TOOL_BTN_Y + 55 };
+        _esObj.itemViewMode = _esObj.itemViewMode === 'character' ? 'character' : 'list';
+        if (saved.rpMode === undefined) _esObj.rpMode = Player.OnlineSharedSettings?.LikoTOOL?.RPmode === 1 ? 1 : 0;
+        if (saved.bypassActivities === undefined) _esObj.bypassActivities = !!Player.LikoTool?.bypassActivities;
+        Player.ExtensionSettings.LikoTOOL = _esObj;
+        _esRaw = _esObj;
         _esMember = Player.MemberNumber;
         return _esObj;
     }
 
     function saveES() {
         if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
-        _esRaw = LZString.compressToBase64(JSON.stringify(getES()));
+        _esRaw = getES();
         Player.ExtensionSettings.LikoTOOL = _esRaw;
         if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             ServerPlayerExtensionSettingsSync("LikoTOOL");
         }
     }
+
+    function toggleSetting(key, { on, off, shared, update, apply, message } = {}) {
+        const settings = getES();
+        const enabled = settings[key] !== 1;
+        settings[key] = enabled ? 1 : 0;
+        update?.(settings, enabled);
+        saveES();
+        apply?.(enabled);
+        if (shared) broadcastShared(shared, enabled);
+        if (message || on) ChatRoomSendLocal(message ? message(enabled) : t(enabled ? on : off), TOGGLE_MSG_MS);
+        updateTogglesOwner?.();
+        return true;
+    }
+
     // ──────────────────────────────────────────
     // 初始化储存
     // ──────────────────────────────────────────
     function initializeStorage() {
-        if (!Player.LikoTool) {
-            Player.LikoTool = { bypassActivities: false };
-        }
         if (!Player.OnlineSharedSettings) Player.OnlineSharedSettings = {};
         if (!Player.OnlineSharedSettings.LikoTOOL) {
             Player.OnlineSharedSettings.LikoTOOL = { RPmode: 0 };
@@ -767,42 +771,14 @@
         if (typeof oss.FreeHands === 'undefined') oss.FreeHands = 0; // 广播：无视绑缚徽章
         if (typeof oss.MagicDefense === 'undefined') oss.MagicDefense = 0; // 广播：魔法防御徽章
         getES();
+        currentTheme = loadTheme();
+        toolPanelPos = loadToolPanelPos();
+        saveES();
+        oss.RPmode = getES().rpMode === 1 ? 1 : 0;
         // 把本地持久化的开关镜像到广播设定，让重登后徽章状态一致
         oss.DND       = getES().dnd === 1 ? 1 : 0;
         oss.FreeHands = getES().freeHands === 1 ? 1 : 0;
         oss.MagicDefense = getES().magicDefense === 1 ? 1 : 0;
-    }
-
-    // ──────────────────────────────────────────
-    // RP 模式（支持隐身：stealthRp=1 时状态纯本地，不广播）
-    //  - stealthRp ON  → 自己能看到图标，别人看不到（存 ExtensionSettings）
-    //  - stealthRp OFF → 所有人都能看到图标（存 OnlineSharedSettings 广播）
-    //  - Shift+P 长按 1.5 秒切换 stealthRp
-    // ──────────────────────────────────────────
-    function getRpMode(character) {
-        if (!character) return false;
-        if (character.IsPlayer && character.IsPlayer()) {
-            return getES().stealthRp === 1
-                ? getES().rpModeLocal === 1
-            : Player.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
-        }
-        return character.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
-    }
-
-    function setRpMode(enabled) {
-        const s = getES();
-        if (s.stealthRp === 1) {
-            s.rpModeLocal = enabled ? 1 : 0;
-            saveES();
-        } else {
-            if (!Player.OnlineSharedSettings) Player.OnlineSharedSettings = {};
-            if (!Player.OnlineSharedSettings.LikoTOOL) Player.OnlineSharedSettings.LikoTOOL = {};
-            Player.OnlineSharedSettings.LikoTOOL.RPmode = enabled ? 1 : 0;
-            if (typeof ServerAccountUpdate?.QueueData === 'function') {
-                ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
-            }
-        }
-        if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
     }
 
     // ──────────────────────────────────────────
@@ -813,8 +789,11 @@
         if (character.IsPlayer && character.IsPlayer()) return localFn();
         return character.OnlineSharedSettings?.LikoTOOL?.[key] === 1;
     }
+
     function getDndMode(character)  { return _readShared(character, 'DND',       () => getES().dnd === 1); }
+
     function getFreeHandsShared(character) { return _readShared(character, 'FreeHands', () => getES().freeHands === 1); }
+
     function getMagicDefenseShared(character) { return _readShared(character, 'MagicDefense', () => getES().magicDefense === 1); }
 
     // 把某个本地开关镜像到 OnlineSharedSettings 并广播（让别人看得到徽章）
@@ -822,130 +801,14 @@
         if (!Player.OnlineSharedSettings) Player.OnlineSharedSettings = {};
         if (!Player.OnlineSharedSettings.LikoTOOL) Player.OnlineSharedSettings.LikoTOOL = {};
         Player.OnlineSharedSettings.LikoTOOL[key] = enabled ? 1 : 0;
-        if (typeof ServerAccountUpdate?.QueueData === 'function') {
+        if (typeof globalThis.ServerAccountUpdate?.QueueData === 'function') {
             ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
         }
     }
 
-    // ──────────────────────────────────────────
-    // 身高系統
-    // ──────────────────────────────────────────
-    let heightTargetChar = null;
-
-    const GROUND_POSES = ['Kneel', 'Hogtied', 'AllFours', 'Suspension', 'KneelingSpread'];
-
-    function isGroundPose(C) {
-        if (!C) return false;
-        const poses  = C.ActivePose || [];
-        const drawPM = C.DrawPoseMapping || C.PoseMapping || {};
-        return GROUND_POSES.some(p =>
-                                 poses.includes(p) || Object.values(drawPM).includes(p)
-                                );
-    }
-
-    function _ltGetRealRatio(C) {
-        return Object.prototype.hasOwnProperty.call(C, '_ltRealHeightRatio')
-            ? C._ltRealHeightRatio
-        : C.HeightRatio;
-    }
-    function _ltGetRealModifier(C) {
-        return Object.prototype.hasOwnProperty.call(C, '_ltRealHeightModifier')
-            ? C._ltRealHeightModifier
-        : C.HeightModifier;
-    }
-
-    function _ltClearHeightDefine(C) {
-        const r = _ltGetRealRatio(C);
-        const m = _ltGetRealModifier(C);
-        try { delete C.HeightRatio;    } catch (e) {}
-        try { delete C.HeightModifier; } catch (e) {}
-        delete C._ltRealHeightRatio;
-        delete C._ltRealHeightModifier;
-        delete C._ltHeightLocked;
-        delete C._ltHeightFixed;
-        C.HeightRatio    = r;
-        C.HeightModifier = m;
-    }
-
-    function applyHeightLock(C) {
-        if (!C || C._ltHeightLocked) return;
-        if (C._ltHeightFixed) _ltClearHeightDefine(C);
-        const realRatio    = _ltGetRealRatio(C);
-        const realModifier = _ltGetRealModifier(C);
-        try { delete C.HeightRatio;    } catch (e) {}
-        try { delete C.HeightModifier; } catch (e) {}
-        C._ltRealHeightRatio    = realRatio;
-        C._ltRealHeightModifier = realModifier;
-        Object.defineProperty(C, 'HeightRatio', {
-            get()  { const r = this._ltRealHeightRatio; return (r < 0.8 || r > 1) ? 1.0 : r; },
-            set(v) { this._ltRealHeightRatio = v; },
-            configurable: true, enumerable: true
-        });
-        Object.defineProperty(C, 'HeightModifier', {
-            get()  { return 0; },
-            set(v) { this._ltRealHeightModifier = v; },
-            configurable: true, enumerable: true
-        });
-        C._ltHeightLocked = true;
-        console.log("🐈‍⬛ [LT] heightlock 套用 → " + C.Name);
-    }
-
-    function applyHeightFix(C) {
-        if (!C || C._ltHeightFixed || C._ltHeightLocked) return;
-        const realRatio    = _ltGetRealRatio(C);
-        const realModifier = _ltGetRealModifier(C);
-        try { delete C.HeightRatio;    } catch (e) {}
-        try { delete C.HeightModifier; } catch (e) {}
-        C._ltRealHeightRatio    = realRatio;
-        C._ltRealHeightModifier = realModifier;
-        Object.defineProperty(C, 'HeightRatio', {
-            get()  { return isGroundPose(this) ? 1.0 : this._ltRealHeightRatio; },
-            set(v) { this._ltRealHeightRatio = v; },
-            configurable: true, enumerable: true
-        });
-        Object.defineProperty(C, 'HeightModifier', {
-            get()  { return isGroundPose(this) ? 0 : this._ltRealHeightModifier; },
-            set(v) { this._ltRealHeightModifier = v; },
-            configurable: true, enumerable: true
-        });
-        C._ltHeightFixed = true;
-        console.log("🐈‍⬛ [LT] heightfix 套用 → " + C.Name);
-    }
-
-    function removeHeightHijack(C) {
-        if (!C || (!C._ltHeightLocked && !C._ltHeightFixed)) return;
-        _ltClearHeightDefine(C);
-        console.log("🐈‍⬛ [LT] 身高还原 → " + C.Name);
-    }
-
-    function applyHeightToTarget(C) {
-        if (!C) return;
-        const s = getES();
-        if (s.heightLock === 1)     applyHeightLock(C);
-        else if (s.heightFix === 1) applyHeightFix(C);
-    }
-
-    // ──────────────────────────────────────────
-    // Canvas：绘制头顶状态徽章（从固定高度往下堆叠；只画开启的，顺序 RP > 勿扰 > 无视绑缚）
-    // ──────────────────────────────────────────
-    function drawStateBadges(C, CharX, CharY, Zoom) {
-        const keys = [];
-        if (getRpMode(C))         keys.push('rp');
-        if (getDndMode(C))        keys.push('dnd');
-        if (getFreeHandsShared(C)) keys.push('free');
-        if (getMagicDefenseShared(C)) keys.push('magicDefense');
-        if (!keys.length) return;
-        const baseY = (C.IsKneeling && C.IsKneeling()) ? 300 : 40; // 固定锚点：跪姿往下移
-        const x = CharX +35+340 * Zoom;
-        const size = 45 * Zoom;
-        const step = 55 * Zoom;
-        keys.forEach((key, i) => {
-            const y = CharY +45+ baseY * Zoom + i * step;
-            if (key === 'rp') DrawImageResize(rpIconUrl, x, y, size, 50 * Zoom); // RP 沿用原本 PNG 徽章
-            else drawBadgeDisc(key, x, y, size);
-        });
-    }
-
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 05 共用遊戲操作：角色、權限與訊息
+    // ════════════════════════════════════════════════════════════════════════
     // ──────────────────────────────────────────
     // 工具函数
     // ──────────────────────────────────────────
@@ -979,6 +842,11 @@
         return character?.Nickname || character?.Name || character?.AccountName || t('unknown');
     }
 
+    function resolveToolTarget(target) {
+        if (target?.MemberNumber === Player.MemberNumber) return Player;
+        return window.ChatRoomCharacter?.find(C => C.MemberNumber === target?.MemberNumber) || null;
+    }
+
     function chatSendCustomAction(message) {
         if (CurrentScreen !== "ChatRoom") return;
         try {
@@ -994,10 +862,116 @@
     }
 
     function hasBCItemPermission(target) {
-        if (Player.LikoTool?.bypassActivities) return true;
+        if (getES().bypassActivities) return true;
         return typeof ServerChatRoomGetAllowItem === "function"
             ? ServerChatRoomGetAllowItem(Player, target)
         : true;
+    }
+
+    /* ── 执行聊天命令辅助函数 ── */
+    function execChatCommand(cmd) {
+        try {
+            if (typeof ElementValue === 'function' && typeof ChatRoomSendChat === 'function') {
+                ElementValue('InputChat', cmd);
+                ChatRoomSendChat();
+                return;
+            }
+            const input = document.getElementById('InputChat');
+            if (!input) { ChatRoomSendLocal(t('noInputBox')); return; }
+            input.value = cmd;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            const sendBtn = document.getElementById('ChatSend');
+            if (sendBtn) { sendBtn.click(); return; }
+            input.dispatchEvent(new KeyboardEvent('keydown', { key:'Enter', keyCode:13, bubbles:true, cancelable:true }));
+            input.dispatchEvent(new KeyboardEvent('keyup', { key:'Enter', keyCode:13, bubbles:true, cancelable:true }));
+        } catch(e) { ChatRoomSendLocal(t('execFail') + ': ' + e.message); }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 06 視覺樣式：主題與集中 CSS
+    // ════════════════════════════════════════════════════════════════════════
+    // Player is not available until login; hydrate in initializeStorage.
+    let currentTheme = { mode: 'dark', accentId: 'purple' };
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 主题系统
+    // ════════════════════════════════════════════════════════════════════════
+    function loadTheme() { return { ...getES().theme }; }
+
+    function saveTheme(theme) { getES().theme = { ...theme }; saveES(); }
+
+    function getAccentPreset() {
+        return ACCENT_PRESETS.find(function(p) { return p.id === currentTheme.accentId; }) || ACCENT_PRESETS[0];
+    }
+
+    function applyTheme() {
+        var preset = getAccentPreset();
+        var isDark = currentTheme.mode !== 'light';
+        var a = preset.accent;
+        var ad = preset.accentDark;
+        var al = preset.accentLight;
+
+        var styleEl = document.getElementById('lt-theme-vars');
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'lt-theme-vars';
+            document.head.appendChild(styleEl);
+        }
+
+        if (isDark) {
+            styleEl.textContent = [
+                '#lt-quick-panel{',
+                '--lt-bg:rgba(12,16,26,0.98);',
+                '--lt-surface:rgba(255,255,255,0.04);',
+                '--lt-surface-2:rgba(255,255,255,0.07);',
+                '--lt-surface-hover:' + a + '1a;',
+                '--lt-border:rgba(255,255,255,0.07);',
+                '--lt-border-hover:' + a + '4d;',
+                '--lt-text:#dde8f8;',
+                '--lt-text-secondary:#b8c8e0;',
+                '--lt-text-dim:#6a8ab0;',
+                '--lt-text-faint:#4a5a7a;',
+                '--lt-accent:' + a + ';',
+                '--lt-accent-dark:' + ad + ';',
+                '--lt-accent-light:' + al + ';',
+                '--lt-accent-glow:' + a + '40;',
+                '--lt-header-grad:linear-gradient(135deg,' + ad + ' 0%,' + a + ' 100%);',
+                '--lt-shadow:rgba(0,0,0,0.5);',
+                '--lt-scrollbar:' + a + '59;',
+                '--lt-switch-on:' + a + ';',
+                '--lt-switch-glow:' + a + '80;',
+                '}'
+            ].join('');
+        } else {
+            styleEl.textContent = [
+                '#lt-quick-panel{',
+                '--lt-bg:rgba(248,250,252,0.98);',
+                '--lt-surface:rgba(0,0,0,0.025);',
+                '--lt-surface-2:rgba(0,0,0,0.05);',
+                '--lt-surface-hover:' + a + '14;',
+                '--lt-border:rgba(0,0,0,0.07);',
+                '--lt-border-hover:' + a + '40;',
+                '--lt-text:#2a3a4a;',
+                '--lt-text-secondary:#4a5a6a;',
+                '--lt-text-dim:#7a8a9a;',
+                '--lt-text-faint:#aab4c0;',
+                '--lt-accent:' + a + ';',
+                '--lt-accent-dark:' + ad + ';',
+                '--lt-accent-light:' + al + ';',
+                '--lt-accent-glow:' + a + '33;',
+                '--lt-header-grad:linear-gradient(135deg,' + ad + ' 0%,' + a + ' 100%);',
+                '--lt-shadow:rgba(0,0,0,0.15);',
+                '--lt-scrollbar:' + a + '40;',
+                '--lt-switch-on:' + a + ';',
+                '--lt-switch-glow:' + a + '80;',
+                '}'
+            ].join('');
+        }
+
+        document.querySelectorAll('#lt-quick-panel').forEach(function(el) {
+            if (currentTheme.mode === 'light') el.classList.add('lt-light');
+            else el.classList.remove('lt-light');
+        });
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -1011,30 +985,14 @@
             "@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap');",
 
             // ── Global reset ──
-            ".lt-panel,.lt-panel *,#lt-quick-panel,#lt-quick-panel *{box-sizing:border-box;font-family:'Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;user-select:none;-webkit-user-select:none;}",
+            "#lt-quick-panel,#lt-quick-panel *{box-sizing:border-box;font-family:'Noto Sans TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;user-select:none;-webkit-user-select:none;}",
 
-            // ═══ 弹窗 Panel ════════════════════════════════════════════════════
-            ".lt-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);min-width:340px;max-width:600px;max-height:90vh;background:var(--lt-bg,rgba(14,18,30,0.98));backdrop-filter:blur(28px) saturate(1.4);-webkit-backdrop-filter:blur(28px) saturate(1.4);border:1px solid var(--lt-border,rgba(255,255,255,0.08));border-radius:18px;z-index:99999;display:flex;flex-direction:column;box-shadow:0 2px 4px rgba(0,0,0,0.2),0 8px 32px rgba(0,0,0,0.4),0 24px 64px var(--lt-shadow,rgba(0,0,0,0.5)),inset 0 1px 0 rgba(255,255,255,0.06),0 0 0 1px var(--lt-accent-glow,transparent);color:var(--lt-text,#d8e6f8);font-size:13px;overflow:hidden;animation:lt-modal-in 0.22s cubic-bezier(0.16,1,0.3,1);}",
-            "@keyframes lt-modal-in{from{opacity:0;transform:translate(-50%,-50%) scale(0.93)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}",
-
-            // ── Modal Header ──
-            ".lt-header{background:var(--lt-header-grad);padding:13px 18px;display:flex;align-items:center;justify-content:space-between;cursor:grab;flex-shrink:0;position:relative;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.15);}",
-            ".lt-header:active{cursor:grabbing;}",
-            ".lt-header::before{content:'';position:absolute;top:0;left:-100%;width:40%;height:100%;background:linear-gradient(to right,transparent,rgba(255,255,255,0.1),transparent);animation:lt-shimmer 6s ease-in-out infinite;pointer-events:none;}",
             "@keyframes lt-shimmer{0%{transform:translateX(0)}100%{transform:translateX(600%)}}",
-            ".lt-title{font-size:13px;font-weight:600;color:#fff;position:relative;z-index:1;letter-spacing:0.03em;text-shadow:0 1px 2px rgba(0,0,0,0.2);}",
-            ".lt-hclose{background:rgba(255,255,255,0.1);border:none;border-radius:7px;color:#fff;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.18s cubic-bezier(0.16,1,0.3,1);position:relative;z-index:1;flex-shrink:0;padding:0;box-shadow:inset 0 1px 0 rgba(255,255,255,0.1);}",
-            ".lt-hclose:hover{background:rgba(255,255,255,0.2);box-shadow:inset 0 1px 0 rgba(255,255,255,0.15),0 0 8px rgba(255,255,255,0.08);}",
-            ".lt-hclose:active{transform:scale(0.9);}",
-            ".lt-hclose svg{width:14px;height:14px;}",
-
             // ── Modal Content ──
-            ".lt-content{padding:16px 18px 8px;overflow-y:auto;overflow-x:hidden;flex:1;scrollbar-width:thin;scrollbar-color:var(--lt-scrollbar,rgba(139,45,196,0.4)) transparent;}",
+            ".lt-content{min-height:0;min-width:0;overscroll-behavior:contain;padding:16px 18px 8px;overflow-y:auto;overflow-x:hidden;flex:1;scrollbar-width:thin;scrollbar-color:var(--lt-scrollbar,rgba(139,45,196,0.4)) transparent;}",
             ".lt-content::-webkit-scrollbar{width:4px;}",
             ".lt-content::-webkit-scrollbar-thumb{background:var(--lt-scrollbar,rgba(139,45,196,0.4));border-radius:2px;}",
             ".lt-content::-webkit-scrollbar-track{background:transparent;}",
-            ".lt-section{margin-bottom:12px;}",
-            ".lt-hr{height:1px;background:var(--lt-border,rgba(255,255,255,0.05));margin:4px 0 12px;}",
 
             // ── Button List (modal) ──
             ".lt-btn-list{display:flex;flex-direction:column;gap:6px;}",
@@ -1046,7 +1004,7 @@
             ".lt-list-btn.selected .lt-check{opacity:1;}",
 
             // ── Undo Meta ──
-            ".lt-undo-meta{background:var(--lt-surface,rgba(255,255,255,0.03));border:1px solid var(--lt-border,rgba(255,255,255,0.05));border-radius:10px;padding:11px 13px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);}",
+            ".lt-undo-meta{margin-bottom:8px;background:var(--lt-surface,rgba(255,255,255,0.03));border:1px solid var(--lt-border,rgba(255,255,255,0.05));border-radius:10px;padding:11px 13px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.02);}",
             ".lt-undo-meta-row{font-size:11px;color:var(--lt-text-dim,#6a8ab0);margin-bottom:4px;}",
             ".lt-undo-meta-row:last-child{margin-bottom:0;}",
             ".lt-undo-meta-row span{color:var(--lt-accent-light,#a0c0e8);font-weight:500;}",
@@ -1057,8 +1015,20 @@
             ".lt-nav-btn:hover:not(:disabled){background:var(--lt-surface-hover);border-color:var(--lt-border-hover);color:var(--lt-accent-light);box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 2px 6px var(--lt-accent-glow);}",
             ".lt-nav-btn:disabled{opacity:0.25;cursor:not-allowed;}",
 
+            // ── Shared form / selection / navigation components ──
+            ".lt-button-row{display:flex;flex:1;gap:8px;width:100%;min-width:0;}",
+            ".lt-option-label{font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;}",
+            ".lt-self-option{border-color:var(--lt-accent);background:var(--lt-surface-hover);}",
+            ".lt-craft-fields>.lt-settings-label{display:block;}",
+            ".lt-craft-fields input[type=text],.lt-craft-fields textarea{box-sizing:border-box;width:100%;margin:5px 0 12px;padding:8px;background:var(--lt-surface);color:var(--lt-text);border:1px solid var(--lt-border);border-radius:8px;font-family:inherit;font-size:13px;font-weight:400;user-select:text;-webkit-user-select:text;}",
+            ".lt-craft-fields textarea{resize:vertical;}",
+            ".lt-checkbox-label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--lt-text);}",
+            ".lt-undo-nav{display:flex;align-items:center;gap:6px;margin-bottom:10px;}",
+            ".lt-undo-counter{flex:1;text-align:center;font-size:12px;color:var(--lt-accent);font-weight:600;white-space:nowrap;}",
+            "#lt-quick-panel .lt-single-craft-page>.lt-content{overflow:hidden;}",
+
             // ── Footer ──
-            ".lt-footer{display:flex;gap:8px;padding:12px 18px;background:rgba(0,0,0,0.15);flex-shrink:0;border-top:1px solid var(--lt-border,rgba(255,255,255,0.04));box-shadow:inset 0 1px 0 rgba(0,0,0,0.1);}",
+            ".lt-footer{flex-grow:0;display:flex;gap:8px;padding:12px 18px;background:rgba(0,0,0,0.15);flex-shrink:0;border-top:1px solid var(--lt-border,rgba(255,255,255,0.04));box-shadow:inset 0 1px 0 rgba(0,0,0,0.1);}",
             ".lt-btn{flex:1;padding:10px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.18s cubic-bezier(0.16,1,0.3,1);font-family:inherit;}",
             ".lt-btn-primary{background:var(--lt-header-grad);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,0.15),0 2px 8px rgba(0,0,0,0.2);}",
             ".lt-btn-primary:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,0.2),0 4px 16px var(--lt-accent-glow),0 2px 8px rgba(0,0,0,0.2);filter:brightness(1.08);}",
@@ -1069,18 +1039,61 @@
             ".lt-empty{text-align:center;color:var(--lt-text-dim,#4a6a8a);font-size:13px;padding:20px 0;}",
 
             // ═══ 快捷面板 Quick Panel ═══════════════════════════════════════════
-            "#lt-quick-panel{position:fixed;z-index:99998;width:340px;height:min(88vh,680px);display:flex;flex-direction:column;border-radius:26px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.15),0 12px 32px rgba(0,0,0,0.4),0 28px 72px var(--lt-shadow,rgba(0,0,0,0.5)),inset 0 1px 0 rgba(255,255,255,0.08),0 0 0 1px var(--lt-accent-glow,transparent);background:var(--lt-bg,rgba(14,18,30,0.98));backdrop-filter:blur(28px) saturate(1.4);-webkit-backdrop-filter:blur(28px) saturate(1.4);border:1px solid var(--lt-border,rgba(255,255,255,0.08));opacity:0;transform:scale(0.96) translateY(8px);pointer-events:none;transition:opacity 0.22s ease,transform 0.22s cubic-bezier(0.16,1,0.3,1);}",
+            "#lt-quick-panel{position:fixed;z-index:99998;width:340px;max-width:calc(100vw - 8px);height:min(88vh,680px);display:flex;flex-direction:column;border-radius:26px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.15),0 12px 32px rgba(0,0,0,0.4),0 28px 72px var(--lt-shadow,rgba(0,0,0,0.5)),inset 0 1px 0 rgba(255,255,255,0.08),0 0 0 1px var(--lt-accent-glow,transparent);background:var(--lt-bg,rgba(14,18,30,0.98));backdrop-filter:blur(28px) saturate(1.4);-webkit-backdrop-filter:blur(28px) saturate(1.4);border:1px solid var(--lt-border,rgba(255,255,255,0.08));opacity:0;transform:scale(0.96) translateY(8px);pointer-events:none;transition:width .28s ease,opacity 0.22s ease,transform 0.22s cubic-bezier(0.16,1,0.3,1);}",
             "#lt-quick-panel.show{opacity:1;transform:scale(1) translateY(0);pointer-events:auto;}",
             "#lt-quick-panel.lt-light{backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);}",
+            "#lt-quick-panel [hidden]{display:none!important;}",
+            "#lt-quick-panel .ltp-covered{visibility:hidden;opacity:0;pointer-events:none;}",
+            "#lt-quick-panel .ltq-toggles{display:flex;flex-direction:column;gap:3px;}",
+            "#lt-quick-panel .ltq-delete{display:none;background:transparent;color:inherit;border:0;padding:2px;cursor:pointer;width:24px;height:24px;flex-shrink:0;}",
+            "#lt-quick-panel .ltq-delete svg{width:18px;height:18px;fill:none;}",
+            "#lt-quick-panel .ltq-delete[aria-pressed=true]{color:var(--lt-accent-light);filter:drop-shadow(0 0 3px var(--lt-accent));}",
+            "#lt-quick-panel .ltq-delete[aria-pressed=true] svg{fill:currentColor;}",
+            "#lt-quick-panel.ltq-editing .ltq-delete{display:block;}",
+            "#lt-quick-panel .ltq-action .ltq-delete{position:absolute;right:0;top:0;}",
+            "#lt-quick-panel.ltq-editing .ltq-switch{display:none;}",
+            "#lt-quick-panel.ltq-editing [data-menu-id]{touch-action:none;cursor:grab;}",
+            "#lt-quick-panel .ltq-hidden-feature{filter:grayscale(1);opacity:.4;}",
+            "#lt-quick-panel .ltq-dragging{opacity:.45;}",
+            "#lt-quick-panel .lt-undo-content{display:flex;flex-direction:column;height:100%;min-height:0;}",
+            "#lt-quick-panel .lt-undo-preview{width:100%;display:flex;justify-content:center;align-items:center;background:var(--lt-surface);border:1px solid var(--lt-border);border-radius:12px;overflow:hidden;margin-bottom:10px;position:relative;flex:1;min-height:120px;}",
+            "#lt-quick-panel .lt-lock-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}",
+            "#lt-quick-panel .lt-lock-grid .lt-list-btn{flex-direction:column;text-align:center;justify-content:flex-start;padding:8px 3px;font-size:11px;overflow-wrap:anywhere;}",
+            "#lt-quick-panel .lt-lock-grid img{width:64px;height:64px;object-fit:contain;max-width:100%;}",
+            "#lt-quick-panel.ltp-wide{width:min(700px,calc(100vw - 8px));}",
+            "#lt-quick-panel .lt-craft-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,0fr);height:100%;min-height:0;gap:0;transition:grid-template-columns .28s ease,gap .28s ease;}",
+            "#lt-quick-panel .lt-craft-layout:has(.is-open){grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;}",
+            "#lt-quick-panel .lt-craft-side:not(.is-open){visibility:hidden;opacity:0;transform:translateX(16px);padding-left:0;border-left-width:0;overflow:hidden;pointer-events:none;}",
+            "@media(prefers-reduced-motion:reduce){#lt-quick-panel,#lt-quick-panel .lt-craft-layout,#lt-quick-panel .lt-craft-side{transition:none!important;}}",
+            "#lt-quick-panel .lt-craft-items{flex:1;min-width:0;overflow:auto;}",
+            "#lt-quick-panel .lt-craft-side{opacity:1;transform:translateX(0);transition:opacity .28s ease,transform .28s ease,visibility .28s,padding .28s;display:flex;flex:1;min-width:0;flex-direction:column;border-left:1px solid var(--lt-border);padding-left:12px;overflow:auto;color:var(--lt-text);font-size:12px;}",
+            "#lt-quick-panel .lt-craft-side .lt-settings{gap:10px;}",
+            "#lt-quick-panel .lt-craft-side [role=status]{margin:12px 0;color:var(--lt-accent-light);}",
+            "#lt-quick-panel .lt-craft-side .lt-footer{padding:12px 0;margin-top:auto;}",
+            "#lt-quick-panel .lt-btn-cancel{order:100;}",
+            "#lt-quick-panel .lt-single-craft-page.lt-has-side > .lt-footer{display:none;}",
+            "#lt-quick-panel canvas{position:static;inset:auto;margin:0;padding:0;transform:none;max-width:none;max-height:none;}",
+            "#lt-quick-panel .lt-picker-map-content{overflow:hidden;display:flex;flex-direction:column;}",
+            "#lt-quick-panel .lt-item-picker.is-map{height:100%;min-height:0;flex:1;display:flex;align-items:center;justify-content:center;overflow:clip;}",
+            "#lt-quick-panel .lt-item-map{position:relative;flex:none;overflow:visible;}",
+            "#lt-quick-panel .lt-item-map canvas{width:100%;height:100%;display:block;}",
+            "#lt-quick-panel .lt-undo-preview canvas{display:block;width:auto;height:100%;max-width:100%;object-fit:contain;}",
+            "#lt-quick-panel .lt-item-picker .lt-list-btn.selected{background:var(--lt-accent);color:#fff;border-color:var(--lt-accent-light);}",
+            "#lt-quick-panel .lt-zone-button{box-sizing:border-box;position:absolute;border:1px solid #9a9a9a;background:rgba(100,100,100,.10);padding:0;cursor:pointer;}",
+            "#lt-quick-panel .lt-zone-button.occupied{border-color:#e6b858;background:rgba(230,184,88,.18);}",
+            "#lt-quick-panel .lt-zone-button.blocked{border-color:#d05060;background:rgba(136,0,5,.3);}",
+            "#lt-quick-panel .lt-zone-button.selected{border:2px solid #42dfff;background:rgba(66,223,255,.3);}",
+            "#lt-quick-panel .lt-zone-button:disabled{pointer-events:none;}",
+            "@media(max-width:520px){#lt-quick-panel .lt-craft-layout{gap:6px;}#lt-quick-panel .lt-craft-side{padding-left:6px;}#lt-quick-panel .lt-craft-side .lt-footer{flex-wrap:wrap;}}",
             // ── Phone 导航：视口 + 滑动页面 ──
-            "#lt-quick-panel .ltp-viewport{position:relative;flex:1;overflow:hidden;min-height:0;}",
+            "#lt-quick-panel .ltp-viewport{position:relative;flex:1;overflow:clip;min-height:0;}",
             "#lt-quick-panel .ltp-page{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--lt-bg,rgba(14,18,30,0.98));transition:transform 0.28s cubic-bezier(0.16,1,0.3,1);will-change:transform;}",
-            "#lt-quick-panel .ltp-page.ltp-enter{transform:translateX(100%);}",
-            "#lt-quick-panel .ltp-page.ltp-leave{transform:translateX(100%);}",
-            "#lt-quick-panel .ltp-home{transform:none!important;}",
+            "#lt-quick-panel .ltp-page.ltp-enter,#lt-quick-panel .ltp-page.ltp-leave{transform:translateX(100%);}",
+            "#lt-quick-panel .ltp-page.ltp-leave{pointer-events:none;}",
+            "#lt-quick-panel .ltp-page.ltp-underlay{visibility:visible;opacity:1;}",
 
             // ── Quick Panel Header ──
-            "#lt-quick-panel .ltq-hdr{background:var(--lt-header-grad);color:#fff;font-size:13px;font-weight:600;padding:8px 12px;cursor:move;display:flex;align-items:center;justify-content:space-between;position:relative;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.15);}",
+            "#lt-quick-panel .ltq-hdr{touch-action:none;background:var(--lt-header-grad);color:#fff;font-size:13px;font-weight:600;padding:8px 12px;cursor:move;display:flex;align-items:center;justify-content:space-between;position:relative;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.15);}",
             "#lt-quick-panel .ltq-hdr::before{content:'';position:absolute;top:0;left:-100%;width:40%;height:100%;background:linear-gradient(to right,transparent,rgba(255,255,255,0.1),transparent);animation:lt-shimmer 6s ease-in-out infinite;pointer-events:none;}",
             "#lt-quick-panel .ltq-hdr .ltq-title{pointer-events:none;position:relative;z-index:1;font-size:13px;letter-spacing:0.03em;text-shadow:0 1px 2px rgba(0,0,0,0.2);}",
             "#lt-quick-panel .ltq-hdr .ltq-hdr-btns{display:flex;align-items:center;gap:2px;position:relative;z-index:1;}",
@@ -1111,13 +1124,8 @@
             "#lt-quick-panel .ltq-action .ltq-action-icon svg{width:100%;height:100%;}",
             "#lt-quick-panel .ltq-action:hover .ltq-action-icon{opacity:1;transform:scale(1.08);}",
             "#lt-quick-panel .ltq-action .ltq-label{font-size:10.5px;line-height:1.15;}",
-            "#lt-quick-panel .ltq-action .ltq-grip{position:absolute;top:4px;right:4px;width:12px;height:12px;opacity:0;transition:opacity 0.18s;color:var(--lt-text-faint,#4a5a7a);cursor:grab;}",
-            "#lt-quick-panel .ltq-action .ltq-grip svg{width:100%;height:100%;}",
-            "#lt-quick-panel .ltq-action:hover .ltq-grip{opacity:0.45;}",
-            "#lt-quick-panel .ltq-action .ltq-grip:active{cursor:grabbing;}",
 
             // ── Drag-over state ──
-            "#lt-quick-panel .ltq-action.ltq-drag-over{border-color:var(--lt-accent);border-style:dashed;background:var(--lt-surface-hover);transform:scale(1.04);box-shadow:0 0 0 2px var(--lt-accent-glow),0 4px 16px var(--lt-accent-glow);}",
             "#lt-quick-panel .ltq-action.ltq-dragging{opacity:0.25;}",
 
             // ── Section Label ──
@@ -1157,20 +1165,173 @@
             ".lt-accent-swatch.selected{border-color:var(--lt-text,#fff);box-shadow:0 0 0 2px var(--lt-accent),0 4px 12px var(--lt-accent-glow);}",
             ".lt-accent-swatch.selected::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);}",
 
-            // ═══ Edit button (toggle row) ═════════════════════════════════════
-            "#lt-quick-panel .ltq-edit-btn{width:20px;height:20px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:var(--lt-text-dim);cursor:pointer;opacity:0.5;transition:opacity 0.18s;padding:0;flex-shrink:0;}",
-            "#lt-quick-panel .ltq-edit-btn:hover{opacity:1;color:var(--lt-accent);}",
-            "#lt-quick-panel .ltq-edit-btn svg{width:14px;height:14px;}",
 
-            // ═══ Release Maid word chips ═════════════════════════════════════
-            ".lt-rm-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:7px;font-size:11px;font-weight:500;line-height:1.4;white-space:nowrap;}",
-            ".lt-rm-default{background:var(--lt-surface-2);color:var(--lt-text-dim);border:1px solid var(--lt-border);}",
-            ".lt-rm-custom{background:var(--lt-surface-hover);color:var(--lt-accent-light);border:1px solid var(--lt-border-hover);cursor:default;}",
-            ".lt-rm-tag{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;opacity:0.6;padding:1px 3px;border-radius:3px;background:rgba(255,255,255,0.08);}",
-            ".lt-rm-del{cursor:pointer;font-size:14px;line-height:1;opacity:0.5;transition:opacity 0.15s;padding:0 0 0 2px;}",
-            ".lt-rm-del:hover{opacity:1;color:var(--lt-accent);}",
         ].join("\n");
         document.head.appendChild(s);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 07 工具箱：狀態、共用元件、頁面堆疊與主選單
+    // ════════════════════════════════════════════════════════════════════════
+    let toolPanelEl = null;
+
+    let toolPanelVisible = false;
+
+    let _toolDragging = false;
+
+    let actionGridEl = null;
+
+    let menuEditing = false, refreshMenuLayout = null, updateTogglesOwner = null;
+
+    // 手机式导航：页面栈 + 视口/头部引用
+    let phonePages = [];
+
+    let phoneViewportEl = null;
+
+    let phoneHeaderEls = null;
+
+    let toolPanelPos = { x: TOOL_BTN_X, y: TOOL_BTN_Y + 55 };
+
+    // ── 手机式页面导航 ──────────────────────────────────────────────
+    let pageSequence = 0;
+
+    function makeToolButton(text, callback, primary = false) {
+        const button = document.createElement('button');
+        button.className = 'lt-btn ' + (primary ? 'lt-btn-primary' : 'lt-btn-secondary');
+        button.type = 'button'; button.textContent = text; button.onclick = callback;
+        return button;
+    }
+
+    function makeButtonRow(...buttons) {
+        const row = document.createElement('div'); row.className = 'lt-button-row';
+        row.append(...buttons.filter(Boolean));
+        return row;
+    }
+
+    function makeFooter(content = null) {
+        const footer = makeButtonRow(...(content?.classList.contains('lt-button-row') ? [...content.children] : [content]));
+        const cancel = makeToolButton(t('cancel'), cancelToolFeature);
+        cancel.classList.add('lt-btn-cancel');
+        footer.append(cancel);
+        return footer;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 工具快捷面板 — v2.1 SVG图标 + 拖拽排序 + 主题
+    // ════════════════════════════════════════════════════════════════════════
+    function loadToolPanelPos() { return { ...getES().panelPosition }; }
+
+    function saveToolPanelPos() { getES().panelPosition = { ...toolPanelPos }; saveES(); }
+
+    // 位置钳制：确保手机窗口不超出可视范围
+    function clampToolPanelPos() {
+        if (!toolPanelEl) return;
+        const w = toolPanelEl.offsetWidth || 340;
+        const h = toolPanelEl.offsetHeight || 640;
+        let x = Math.max(4, Math.min(toolPanelPos.x, window.innerWidth  - w - 4));
+        let y = Math.max(4, Math.min(toolPanelPos.y, window.innerHeight - h - 4));
+        toolPanelPos.x = x; toolPanelPos.y = y;
+        toolPanelEl.style.left = x + 'px';
+        toolPanelEl.style.top  = y + 'px';
+    }
+
+    function readMenuLayout() {
+        try { const data = getES().menuLayout;
+            return { hidden: Array.isArray(data?.hidden) ? data.hidden : [], toggles: Array.isArray(data?.toggles) ? data.toggles : [] };
+        } catch { return { hidden: [], toggles: [] }; }
+    }
+
+    function saveMenuLayout(data) { getES().menuLayout = data; saveES(); }
+
+    function toggleMenuHidden(id) {
+        const data = readMenuLayout();
+        data.hidden = data.hidden.includes(id) ? data.hidden.filter(key => key !== id) : [...data.hidden, id];
+        saveMenuLayout(data); refreshMenuLayout?.();
+    }
+
+    function setMenuEditing(value) {
+        menuEditing = value;
+        toolPanelEl?.classList.toggle('ltq-editing', value);
+        phoneHeaderEls?.edit.setAttribute('aria-pressed', String(value));
+        refreshMenuLayout?.();
+    }
+
+    function menuDeleteButton(id) {
+        const button = document.createElement('button');
+        button.className = 'ltq-delete'; button.type = 'button';
+        button.innerHTML = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/></svg>';
+        button.setAttribute('aria-pressed', String(!readMenuLayout().hidden.includes(id)));
+        button.title = t('menuVisibility');
+        button.setAttribute('aria-label', button.title);
+        button.onclick = event => { event.stopPropagation(); toggleMenuHidden(id); };
+        return button;
+    }
+
+    function bindMenuDrag(element, id, container, getOrder, saveOrder) {
+        const HOLD_MS = 400, MOVE_TOLERANCE = 8;
+        let pointer = null, holdTimer = null, suppressClick = false;
+        element.draggable = false;
+        const finish = event => {
+            if (!pointer || (event && pointer.id !== event.pointerId)) return;
+            clearTimeout(holdTimer); holdTimer = null;
+            const current = pointer; pointer = null;
+            suppressClick = current.dragging || current.moved || event?.type !== 'pointerup';
+            element.classList.remove('ltq-dragging');
+            if (current.capture.hasPointerCapture(current.id)) current.capture.releasePointerCapture(current.id);
+        };
+        element.addEventListener('pointerdown', event => {
+            if (!menuEditing || event.button !== 0 || !event.isPrimary || pointer) return;
+            suppressClick = false;
+            // Capture the original button so a short click still reaches the visibility circle.
+            const capture = event.target.closest('button') || element;
+            pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, capture, dragging: false, moved: false };
+            capture.setPointerCapture(event.pointerId);
+            holdTimer = setTimeout(() => {
+                holdTimer = null;
+                if (!pointer || pointer.moved || !menuEditing || !element.isConnected) return;
+                pointer.dragging = true;
+                element.classList.add('ltq-dragging');
+            }, HOLD_MS);
+        });
+        element.addEventListener('pointermove', event => {
+            if (!pointer || pointer.id !== event.pointerId) return;
+            if (Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) < MOVE_TOLERANCE) return;
+            pointer.moved = true;
+            if (!pointer.dragging) { clearTimeout(holdTimer); holdTimer = null; return; }
+            if (!menuEditing) { finish(event); return; }
+            const over = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-menu-id]');
+            if (!over || over === element || over.parentElement !== container) return;
+            const order = getOrder(), from = order.indexOf(id), to = order.indexOf(over.dataset.menuId);
+            if (from < 0 || to < 0) return;
+            order.splice(to, 0, order.splice(from, 1)[0]); saveOrder(order);
+            if (from < to) over.after(element); else over.before(element);
+            pointer.capture.setPointerCapture(pointer.id);
+        });
+        for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) element.addEventListener(type, finish);
+        element.addEventListener('contextmenu', event => { if (menuEditing) event.preventDefault(); });
+        element.addEventListener('click', event => {
+            if (suppressClick && event.detail !== 0) {
+                suppressClick = false; event.preventDefault(); event.stopImmediatePropagation();
+            }
+        }, true);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 按钮顺序系统
+    // ════════════════════════════════════════════════════════════════════════
+    function loadBtnOrder() {
+        const validIds = ALL_ACTIONS.map(a => a.id);
+        const order = getES().buttonOrder;
+        return [...new Set([...order.filter(id => validIds.includes(id)), ...validIds])];
+    }
+
+    function saveBtnOrder(order) { getES().buttonOrder = [...order]; saveES(); }
+
+    function getOrderedActions() {
+        var order = loadBtnOrder();
+        return order.map(function(id) {
+            return ALL_ACTIONS.find(function(a) { return a.id === id; });
+        }).filter(Boolean);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -1193,15 +1354,15 @@
             if (!target) return;
             const itemMiscGroup = AssetGroupGet(Player.AssetFamily, "ItemMisc");
             if (!itemMiscGroup) { ChatRoomSendLocal(t('lockTypeFail')); return; }
-            const validLocks = itemMiscGroup.Asset.filter(a => a.IsLock).map(a => ({ Name: a.Name, Description: a.Description || a.Name }));
+            const validLocks = itemMiscGroup.Asset.filter(a => a.IsLock);
             if (!validLocks.length) { ChatRoomSendLocal(t('lockTypeNone')); return; }
-            const lockOpts = validLocks.map(l => ({ text: l.Description }));
-            const selectedLock = await requestButtons(t('lockTypeTitle'), lockOpts, false);
+            const lockOpts = validLocks.map(l => ({ text: l.Description || l.Name, value: l.Name, image: toolLockPreview(l) }));
+            const selectedLock = await requestButtons(t('lockTypeTitle'), lockOpts, false, { grid: true });
             if(disposed) return;
             if (!selectedLock) return;
-            const lock = validLocks.find(l => l.Description === selectedLock);
+            const lock = validLocks.find(l => l.Name === selectedLock);
             if (!lock) return;
-            fullLock(getNickname(target) + ' ' + lock.Name);
+            fullLock('', target, lock);
         }},
         { id: 'unlock',    icon: SVG.unlock,    label: 'actUnlock',    title: 'actUnlockT', fn: async function() {
             const target = await requestCharacter(t('pickUnlock'));
@@ -1209,9 +1370,7 @@
             if (target) fullUnlock(getNickname(target));
         }},
         { id: 'editcraft', icon: SVG.craftEdit, label: 'actEditCraft', title: 'actEditCraftT', fn: async function() {
-            const target = await requestCharacter(t('pickEditCraft'));
-            if(disposed) return;
-            if (target) editCraftBatch(target);
+            openCraftTargetPicker();
         }},
         { id: 'clearcraft',icon: SVG.craftClear,label: 'actClearCraft',title: 'actClearCraftT', fn: async function() {
             const target = await requestCharacter(t('pickClearCraft'));
@@ -1228,68 +1387,59 @@
         { id: 'enhance',   icon: SVG.enhance,   label: 'actEnhance',   title: 'actEnhanceT', fn: function() { getEverything(); } },
     ];
 
-    // ════════════════════════════════════════════════════════════════════════
-    // 工具快捷面板 — v2.1 SVG图标 + 拖拽排序 + 主题
-    // ════════════════════════════════════════════════════════════════════════
-    function loadToolPanelPos() {
-        try {
-            const s = localStorage.getItem(STORAGE_TOOL_PANEL);
-            if (s) return JSON.parse(s);
-        } catch (_) {}
-        return { x: TOOL_BTN_X, y: TOOL_BTN_Y + 55 };
-    }
-    function saveToolPanelPos() {
-        try { localStorage.setItem(STORAGE_TOOL_PANEL, JSON.stringify(toolPanelPos)); } catch (_) {}
-    }
-    let toolPanelPos = loadToolPanelPos();
-
-    // 位置钳制：确保手机窗口不超出可视范围
-    function clampToolPanelPos() {
-        if (!toolPanelEl) return;
-        const w = toolPanelEl.offsetWidth || 340;
-        const h = toolPanelEl.offsetHeight || 640;
-        let x = Math.max(4, Math.min(toolPanelPos.x, window.innerWidth  - w - 4));
-        let y = Math.max(4, Math.min(toolPanelPos.y, window.innerHeight - h - 4));
-        toolPanelPos.x = x; toolPanelPos.y = y;
-        toolPanelEl.style.left = x + 'px';
-        toolPanelEl.style.top  = y + 'px';
-    }
-
-    // ── 手机式页面导航 ──────────────────────────────────────────────
     function updatePhoneHeader() {
         if (!phoneHeaderEls || !toolPanelEl) return;
+        const top = phonePages.at(-1);
+        const home = phoneViewportEl.querySelector('.ltp-home');
+        if (home) {
+            home.inert = !!top; home.classList.toggle('ltp-covered', !!top);
+            home.classList.toggle('ltp-underlay', !!top?.entering && phonePages.length === 1);
+        }
+        phonePages.forEach(entry => {
+            entry.el.inert = entry !== top;
+            entry.el.classList.toggle('ltp-covered', entry !== top);
+            entry.el.classList.toggle('ltp-underlay', !!top?.entering && entry === phonePages.at(-2));
+        });
+        phoneHeaderEls.edit.hidden = !!top;
+        phoneHeaderEls.view.hidden = !top?.viewToggle;
+        if (top?.viewToggle) {
+            phoneHeaderEls.view.innerHTML = top.viewToggle.icon();
+            phoneHeaderEls.view.title = top.viewToggle.title();
+        }
+        toolPanelEl.classList.toggle('ltp-wide', !!top?.el.querySelector('.lt-craft-side.is-open'));
+        if (top) top.el.classList.toggle('lt-has-side', !!top.el.querySelector('.lt-craft-side.is-open'));
         if (phonePages.length > 0) {
             toolPanelEl.classList.add('ltp-sub');
             phoneHeaderEls.title.textContent = phonePages[phonePages.length - 1].title || '';
-            phoneHeaderEls.settings.style.display = 'none';
+            phoneHeaderEls.settings.hidden = true;
         } else {
             toolPanelEl.classList.remove('ltp-sub');
             phoneHeaderEls.title.textContent = phoneHeaderEls.homeTitle;
-            phoneHeaderEls.settings.style.display = '';
+            phoneHeaderEls.settings.hidden = false;
         }
     }
 
-    // 推入一个子页面（内容 + 可选底栏）；返回页面元素，其 .remove() 会以“程序方式”弹出（不触发 onClose）
-    function pushPage(titleText, contentEl, footerEl, onClose) {
+    // All pages share one stack, footer and transition lifecycle.
+    // Completion: popPage(page, false); navigation/cancellation: popPage(page, true).
+    function createPanel(titleText, contentEl, footerEl = null, { onClose = null } = {}) {
         ensureToolPanel();
         const page = document.createElement('div');
         page.className = 'ltp-page ltp-enter';
+        page.style.zIndex = String(++pageSequence);
         const content = document.createElement('div');
         content.className = 'lt-content';
         content.appendChild(contentEl);
         page.appendChild(content);
-        if (footerEl) {
-            const f = document.createElement('div');
-            f.className = 'lt-footer';
-            f.appendChild(footerEl);
-            page.appendChild(f);
-        }
+        const footer = makeFooter(footerEl);
+        footer.classList.add('lt-footer');
+        page.appendChild(footer);
         phoneViewportEl.appendChild(page);
         void page.offsetWidth;                 // 强制 reflow，触发滑入过渡
         page.classList.remove('ltp-enter');
-        phonePages.push({ el: page, title: titleText, onClose: onClose || null, settled: false });
+        const entry = { el: page, title: titleText, onClose: onClose || null, settled: false, entering: true };
+        phonePages.push(entry);
+        setTimeout(() => { entry.entering = false; updatePhoneHeader(); }, 300);
         updatePhoneHeader();
-        page.remove = function () { popPage(page, false); };
         return page;
     }
 
@@ -1300,9 +1450,14 @@
         const entry = phonePages[idx];
         if (invokeOnClose && !entry.settled && typeof entry.onClose === 'function') {
             entry.settled = true;
-            try { entry.onClose(); } catch (e) {}
+            try { entry.onClose(); } catch (e) { console.warn(e); }
         }
+        // Removing a parent also cancels its descendants, settling every pending picker.
+        while (phonePages.length > idx + 1) popPage(phonePages.at(-1).el, true);
         phonePages.splice(idx, 1);
+        pageEl.inert = true;
+        entry.cleanup?.();
+        pageEl.classList.remove('ltp-covered');
         pageEl.classList.add('ltp-leave');
         setTimeout(function () { if (pageEl.parentNode) pageEl.parentNode.removeChild(pageEl); }, 300);
         updatePhoneHeader();
@@ -1310,7 +1465,15 @@
 
     function phoneBack() {
         if (!phonePages.length) return;
+        const side = phonePages.at(-1).el.querySelector('.lt-craft-side.is-open');
+        if (side) { setCraftSideOpen(side, false); return; }
         popPage(phonePages[phonePages.length - 1].el, true);
+    }
+
+    function cancelToolFeature() {
+        popAllPages();
+        setMenuEditing(false);
+        updatePhoneHeader();
     }
 
     function popAllPages() {
@@ -1338,12 +1501,12 @@
 
         var backBtn = document.createElement('button');
         backBtn.className = 'ltq-back';
-        backBtn.title = isZh() ? '返回' : 'Back';
+        backBtn.title = t('back');
         backBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
 
         var titleSpan = document.createElement('span');
         titleSpan.className = 'ltq-title';
-        titleSpan.textContent = isZh() ? '工具箱' : 'Toolbox';
+        titleSpan.textContent = t('toolbox');
 
         var hdrBtns = document.createElement('div');
         hdrBtns.className = 'ltq-hdr-btns';
@@ -1358,7 +1521,16 @@
         closeBtn.title = t('close');
         closeBtn.innerHTML = SVG.close;
 
+        const editBtn = document.createElement('button');
+        editBtn.className = 'ltq-icon-btn'; editBtn.innerHTML = TOOL_SETTINGS_ICON;
+        editBtn.title = t('menuEdit');
+        editBtn.onclick = () => setMenuEditing(!menuEditing);
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'ltq-icon-btn'; viewBtn.hidden = true;
+        viewBtn.onclick = () => { phonePages.at(-1)?.viewToggle?.toggle(); updatePhoneHeader(); };
+        settingsBtn.innerHTML = SVG.light;
         hdrBtns.appendChild(settingsBtn);
+        hdrBtns.appendChild(editBtn); hdrBtns.appendChild(viewBtn);
         hdrBtns.appendChild(closeBtn);
         hdr.appendChild(backBtn);
         hdr.appendChild(titleSpan);
@@ -1375,7 +1547,7 @@
         viewport.appendChild(homePage);
 
         phoneViewportEl = viewport;
-        phoneHeaderEls = { back: backBtn, title: titleSpan, settings: settingsBtn, close: closeBtn, homeTitle: (isZh() ? '工具箱' : 'Toolbox') };
+        phoneHeaderEls = { edit: editBtn, view: viewBtn, back: backBtn, title: titleSpan, settings: settingsBtn, close: closeBtn, homeTitle: (t('toolbox')) };
         phonePages = [];
 
         // ── Action Grid (2-column, draggable) ──
@@ -1387,27 +1559,30 @@
         // ── Toggle Section ──
         const sectionLabel = document.createElement('div');
         sectionLabel.className = 'ltq-section';
-        sectionLabel.textContent = isZh() ? '开关' : 'Toggles';
+        sectionLabel.textContent = t('toggleSection');
         body.appendChild(sectionLabel);
 
         const toggleBtnRefs = {};
 
         const toggles = [
-            { icon: SVG.rp,        label: isZh() ? 'RP模式'  : 'RP Mode',    title: isZh() ? '开启后屏蔽游戏 Action 消息' : 'Block game Action messages', toggle: 'rp', fn: function() { rpmode(); updateToggleBtns(); } },
-            { icon: SVG.dnd,       label: isZh() ? '勿扰模式' : 'Do Not Disturb', title: isZh() ? '除自己外，任何人对你外观的编辑（换衣/拘束）都会立即复原' : 'Anyone but you editing your appearance is instantly reverted', toggle: 'dnd', fn: function() { dndCommand(); updateToggleBtns(); } },
-            { icon: SVG.magicDefense,label: isZh() ? '魔法防御' : 'Magic Defense', title: isZh() ? '抵御所有对你施放的 LSCG 魔法' : 'Prevent all LSCG magic cast on you from taking effect', toggle: 'magicDefense', fn: function() { magicDefenseCommand(); updateToggleBtns(); } },
-            { icon: SVG.free,      label: isZh() ? '无视绑缚' : 'Free Hands', title: isZh() ? '被绑缚时仍可使用双手（不会实际解开道具）' : 'Use hands while restrained (does not remove items)', toggle: 'freeHands', fn: function() { freeHandsCommand(); updateToggleBtns(); } },
-            { icon: SVG.ignoreBlock,label: isZh() ? '无视衣物阻挡' : 'Ignore Clothing Block', title: isZh() ? '被服装/道具遮挡的格子仍可换装、装拘束（不必先脱）' : 'Equip on slots covered by clothing/items (no need to strip first)', toggle: 'ignoreBlock', fn: function() { ignoreBlockCommand(); updateToggleBtns(); } },
-            { icon: SVG.heightFix, label: isZh() ? '拉高'    : 'Height Fix', title: isZh() ? '趴跪姿时自动拉高视角' : 'Auto-raise when kneeling/prone', toggle: 'heightFix', fn: function() { heightFixCommand(); updateToggleBtns(); } },
-            { icon: SVG.heightLock,label: isZh() ? '身高锁'  : 'Height Lock',title: isZh() ? '强制身高为标准值' : 'Force standard height', toggle: 'heightLock', fn: function() { heightLockCommand(); updateToggleBtns(); } },
-            { icon: SVG.ooc,       label: isZh() ? '说话总是OOC' : 'Always OOC', title: isZh() ? '聊天/密语时自动加括号转为 OOC（不会被口塞乱码）' : 'Auto-wrap chat/whisper in parentheses as OOC', toggle: 'alwaysOOC', fn: function() { oocCommand(); updateToggleBtns(); } },
-            { icon: SVG.rpBtn,     label: isZh() ? '显示RP按钮' : 'Show RP Btn', title: isZh() ? '在游戏画面显示 RP 切换按钮' : 'Show RP toggle button on canvas', toggle: 'rpBtn', fn: function() { rpbtn(); updateToggleBtns(); } },
+            { icon: SVG.rp,        label: t('toggleRp'),    title: t('toggleRpHelp'), toggle: 'rp', fn: rpmode },
+            { icon: SVG.dnd,       label: t('toggleDnd'), title: t('toggleDndHelp'), toggle: 'dnd', fn: dndCommand },
+            { icon: SVG.magicDefense,label: t('toggleMagic'), title: t('toggleMagicHelp'), toggle: 'magicDefense', fn: magicDefenseCommand },
+            { icon: SVG.free,      label: t('toggleFree'), title: t('toggleFreeHelp'), toggle: 'freeHands', fn: freeHandsCommand },
+            { icon: SVG.ignoreBlock,label: t('toggleBlock'), title: t('toggleBlockHelp'), toggle: 'ignoreBlock', fn: ignoreBlockCommand },
+            { icon: SVG.heightFix, label: t('toggleRaise'), title: t('toggleRaiseHelp'), toggle: 'heightFix', fn: heightFixCommand },
+            { icon: SVG.heightLock, label: t('toggleScale'), title: t('toggleScaleHelp'), toggle: 'fixedZones', fn: heightLockCommand },
+            { icon: SVG.ooc,       label: t('toggleOoc'), title: t('toggleOocHelp'), toggle: 'alwaysOOC', fn: oocCommand },
+            { icon: SVG.rpBtn,     label: t('toggleRpButton'), title: t('toggleRpButtonHelp'), toggle: 'rpBtn', fn: rpbtn },
         ];
 
+        const toggleContainer = document.createElement('div');
+        toggleContainer.className = 'ltq-toggles'; body.appendChild(toggleContainer);
         toggles.forEach(function(tg) {
             const row = document.createElement('div');
             row.className = 'ltq-toggle';
             row.title = tg.title;
+            row.dataset.menuId = tg.toggle;
 
             const labelWrap = document.createElement('div');
             labelWrap.className = 'ltq-toggle-label';
@@ -1424,12 +1599,16 @@
 
             row.appendChild(labelWrap);
             row.appendChild(sw);
+            row.appendChild(menuDeleteButton('toggle:' + tg.toggle));
 
             toggleBtnRefs[tg.toggle] = { sw: sw, row: row };
             updateToggleState(toggleBtnRefs[tg.toggle], tg.toggle);
 
-            row.addEventListener('click', tg.fn);
-            body.appendChild(row);
+            row.addEventListener('click', () => { if (!menuEditing) tg.fn(); });
+            toggleContainer.appendChild(row);
+            bindMenuDrag(row, tg.toggle, toggleContainer,
+                () => [...toggleContainer.children].map(el => el.dataset.menuId),
+                order => { const data = readMenuLayout(); data.toggles = order; saveMenuLayout(data); });
         });
 
         function updateToggleState(ref, key) {
@@ -1438,8 +1617,8 @@
             else if (key === 'dnd') isOn = getES().dnd === 1;
             else if (key === 'magicDefense') isOn = getES().magicDefense === 1;
             else if (key === 'rpBtn') isOn = getES().rpBtnVisible === 1;
+            else if (key === 'fixedZones') isOn = getES().fixedZones === 1;
             else if (key === 'heightFix') isOn = getES().heightFix === 1;
-            else if (key === 'heightLock') isOn = getES().heightLock === 1;
             else if (key === 'freeHands') isOn = getES().freeHands === 1;
             else if (key === 'ignoreBlock') isOn = getES().ignoreBlock === 1;
             else if (key === 'alwaysOOC') isOn = getES().alwaysOOC === 1;
@@ -1452,7 +1631,22 @@
                 updateToggleState(toggleBtnRefs[key], key);
             });
         }
-        window.__LT_updateToggles = updateToggleBtns;
+        updateTogglesOwner = updateToggleBtns;
+        refreshMenuLayout = () => {
+            rebuildActionGrid();
+            const data = readMenuLayout();
+            const order = [...new Set([...data.toggles, ...toggles.map(tg => tg.toggle)])];
+            order.forEach(key => {
+                const row = toggleBtnRefs[key]?.row; if (!row) return;
+                const hidden = data.hidden.includes('toggle:' + key);
+                row.hidden = !menuEditing && hidden;
+                row.title = toggles.find(tg => tg.toggle === key).title + (menuEditing ? ' — ' + t('menuDragHint') : '');
+                row.classList.toggle('ltq-hidden-feature', hidden);
+                row.querySelector('.ltq-delete').setAttribute('aria-pressed', String(!hidden));
+                toggleContainer.appendChild(row);
+            });
+        };
+        refreshMenuLayout();
 
         // ── Assemble ──
         toolPanelEl.appendChild(hdr);
@@ -1484,7 +1678,6 @@
         // ── Drag logic (panel move) ──
         let drag = { on: false, dx: 0, dy: 0 };
 
-        hdr.style.touchAction = 'none';
         hdr.addEventListener('pointerdown', function (e) {
             if (e.target.closest('.ltq-icon-btn') || e.target.closest('.ltq-back')) return;
             if (e.button !== 0 || !e.isPrimary) return;
@@ -1514,6 +1707,7 @@
         }
         listen(document, 'pointerup', finishPanelDrag);
         listen(document, 'pointercancel', finishPanelDrag);
+        listen(window, 'resize', clampToolPanelPos);
 
         // ── ESC：有子页面则返回，否则关闭 ──
         listen(document, 'keydown', function(e) {
@@ -1528,104 +1722,21 @@
     // ════════════════════════════════════════════════════════════════════════
     function rebuildActionGrid() {
         if (!actionGridEl) return;
-        actionGridEl.innerHTML = '';
-        var dragSrc = null;
-
-        var orderedActions = getOrderedActions();
-        orderedActions.forEach(function(a) {
-            var btn = document.createElement('div');
-            btn.className = 'ltq-action';
-            btn.title = t(a.title);
-            btn.dataset.id = a.id;
-            btn.draggable = true;
-
-            var iconEl = document.createElement('span');
-            iconEl.className = 'ltq-action-icon';
-            iconEl.innerHTML = a.icon;
-
-            var labelEl = document.createElement('span');
-            labelEl.className = 'ltq-label';
-            labelEl.textContent = t(a.label);
-
-            var gripEl = document.createElement('span');
-            gripEl.className = 'ltq-grip';
-            gripEl.innerHTML = SVG.grip;
-
-            btn.appendChild(iconEl);
-            btn.appendChild(labelEl);
-            btn.appendChild(gripEl);
-            const reorder=document.createElement('span');
-            reorder.style.cssText='display:flex;gap:4px;';
-            btn.appendChild(reorder);
-            for (const [delta, label] of [[-1, '←'], [1, '→']]) {
-                const move = document.createElement('button');
-                move.type = 'button'; move.textContent = label;
-                move.title = isZh() ? (delta < 0 ? '向前移动' : '向后移动') : (delta < 0 ? 'Move earlier' : 'Move later');
-                move.setAttribute('aria-label', move.title);
-                move.style.cssText='color:inherit;background:var(--lt-surface);border:1px solid var(--lt-border);border-radius:4px;min-width:24px;cursor:pointer;';
-                move.draggable = false;
-                move.addEventListener('click', event => {
-                    event.stopPropagation();
-                    const order = loadBtnOrder(), from = order.indexOf(a.id), to = from + delta;
-                    if (from < 0 || to < 0 || to >= order.length) return;
-                    [order[from], order[to]] = [order[to], order[from]];
-                    saveBtnOrder(order); rebuildActionGrid();
-                });
-                reorder.appendChild(move);
-            }
-
-            // Click action
-            btn.addEventListener('click', function(e) {
-                if (btn.dataset.dragged === '1') {
-                    btn.dataset.dragged = '';
-                    return;
-                }
-                a.fn();
-            });
-
-            // Drag-and-drop
-            btn.addEventListener('dragstart', function(e) {
-                dragSrc = btn;
-                btn.classList.add('ltq-dragging');
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', a.id);
-            });
-
-            btn.addEventListener('dragend', function() {
-                btn.classList.remove('ltq-dragging');
-                btn.dataset.dragged = '1';
-                actionGridEl.querySelectorAll('.ltq-drag-over').forEach(function(el) {
-                    el.classList.remove('ltq-drag-over');
-                });
-                setTimeout(function() { btn.dataset.dragged = ''; }, 50);
-            });
-
-            btn.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                if (btn !== dragSrc) btn.classList.add('ltq-drag-over');
-            });
-
-            btn.addEventListener('dragleave', function() {
-                btn.classList.remove('ltq-drag-over');
-            });
-
-            btn.addEventListener('drop', function(e) {
-                e.preventDefault();
-                btn.classList.remove('ltq-drag-over');
-                if (!dragSrc || dragSrc === btn) return;
-
-                var srcId = dragSrc.dataset.id;
-                var dstId = btn.dataset.id;
-                var order = loadBtnOrder();
-                var srcIdx = order.indexOf(srcId);
-                var dstIdx = order.indexOf(dstId);
-                order.splice(dstIdx, 0, order.splice(srcIdx, 1)[0]);
-                saveBtnOrder(order);
-                rebuildActionGrid();
-            });
-
-            actionGridEl.appendChild(btn);
+        actionGridEl.replaceChildren();
+        const hidden = readMenuLayout().hidden;
+        getOrderedActions().forEach(action => {
+            const id = 'action:' + action.id, isHidden = hidden.includes(id);
+            if (isHidden && !menuEditing) return;
+            const button = document.createElement('div');
+            button.className = 'ltq-action'; button.title = t(action.title) + (menuEditing ? ' — ' + t('menuDragHint') : '');
+            button.dataset.menuId = action.id;
+            button.classList.toggle('ltq-hidden-feature', isHidden);
+            const icon = document.createElement('span'); icon.className = 'ltq-action-icon'; icon.innerHTML = action.icon;
+            const label = document.createElement('span'); label.className = 'ltq-label'; label.textContent = t(action.label);
+            button.append(icon, label, menuDeleteButton(id));
+            button.onclick = () => { if (!menuEditing) action.fn(); };
+            bindMenuDrag(button, action.id, actionGridEl, loadBtnOrder, saveBtnOrder);
+            actionGridEl.appendChild(button);
         });
     }
 
@@ -1642,6 +1753,7 @@
 
     function hideToolPanel() {
         toolPanelVisible = false;
+        setMenuEditing(false);
         if (toolPanelEl) toolPanelEl.classList.remove('show');
         popAllPages(); // 关闭时回到首页，下次打开从主选单开始
     }
@@ -1650,15 +1762,6 @@
         if(disposed) return;
         if (toolPanelVisible) hideToolPanel(); else showToolPanel();
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // 聊天室触发按钮 — 注入到 #chat-room-buttons（顺位 9，参考 BC_ChatRoomButtons）
-    // ════════════════════════════════════════════════════════════════════════
-    const TOOL_CRB_ID = 'likotool';
-    const TOOL_CRB_ORDER = 9;
-    const TOOL_BTN_DOM_ID = 'lt-tool-trigger-btn';
-    // APNG 的懸停播放與靜止 poster 由 CRB 統一處理。
-    const TOOL_ICON_URL = 'https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/Tool/Tool-icon.png';
 
     function startToolButtonInjector() {
         // 交给共用协调器 BC_ChatRoomButtons 中央託管（{plain:true} 关掉原生底色露出 SVG）。
@@ -1669,7 +1772,7 @@
             buttonId: TOOL_BTN_DOM_ID,
             order: TOOL_CRB_ORDER,
             icon: { src: TOOL_ICON_URL, animated: true },
-            tooltip: isZh() ? '工具箱' : 'Toolbox',
+            tooltip: t('toolbox'),
             background: getAccentPreset().accent,
             onClick: toggleToolPanel
         };
@@ -1711,21 +1814,14 @@
         themeSection.appendChild(themeRow);
         content.appendChild(themeSection);
 
-        darkOption.addEventListener('click', function() {
-            currentTheme.mode = 'dark';
-            saveTheme(currentTheme);
-            applyTheme();
-            darkOption.classList.add('selected');
-            lightOption.classList.remove('selected');
-        });
-
-        lightOption.addEventListener('click', function() {
-            currentTheme.mode = 'light';
-            saveTheme(currentTheme);
-            applyTheme();
-            lightOption.classList.add('selected');
-            darkOption.classList.remove('selected');
-        });
+        for (const [option, mode] of [[darkOption, 'dark'], [lightOption, 'light']]) {
+            option.addEventListener('click', () => {
+                currentTheme.mode = mode;
+                saveTheme(currentTheme); applyTheme();
+                darkOption.classList.toggle('selected', mode === 'dark');
+                lightOption.classList.toggle('selected', mode === 'light');
+            });
+        }
 
         // ── Accent color ──
         var accentSection = document.createElement('div');
@@ -1741,7 +1837,7 @@
             var swatch = document.createElement('div');
             swatch.className = 'lt-accent-swatch' + (currentTheme.accentId === preset.id ? ' selected' : '');
             swatch.style.background = preset.accent;
-            swatch.title = preset.name;
+            swatch.title = t('accent' + preset.id[0].toUpperCase() + preset.id.slice(1));
             swatch.addEventListener('click', function() {
                 currentTheme.accentId = preset.id;
                 saveTheme(currentTheme);
@@ -1756,12 +1852,8 @@
         content.appendChild(accentSection);
 
         // ── Reset button ──
-        var footerEl = document.createElement('div');
-        footerEl.style.cssText = 'width:100%;display:flex;gap:8px;';
-        var resetBtn = document.createElement('button');
-        resetBtn.className = 'lt-btn lt-btn-secondary';
-        resetBtn.textContent = t('settingsReset');
-        resetBtn.style.flex = '1';
+        var footerEl = makeButtonRow();
+        var resetBtn = makeToolButton(t('settingsReset'));
         footerEl.appendChild(resetBtn);
 
         resetBtn.addEventListener('click', function() {
@@ -1778,33 +1870,213 @@
             accentRow.querySelectorAll('.lt-accent-swatch').forEach(function(s) { s.classList.remove('selected'); });
             accentRow.querySelector('.lt-accent-swatch').classList.add('selected');
             ChatRoomSendLocal(t('settingsResetDone'));
-            panel.remove();
+            popPage(panel, false);
         });
 
         var panel = createPanel(t('settingsTitle'), content, footerEl);
-        panel.style.width = '340px';
         if (currentTheme.mode === 'light') panel.classList.add('lt-light');
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // 通用面板建构器 — 手机式：把内容作为“子页面”推入工具箱窗口
-    //   opts.onClose：当用户以返回键/关闭键离开该页时调用一次（用于结算等待中的 Promise）；
-    //   通过页面自身按钮触发的 panel.remove() 不会调用 onClose（调用方已自行 resolve）。
+    // SECTION 08 選擇器與人物預覽：清單、互動格、尺寸與 ECHO 相容
     // ════════════════════════════════════════════════════════════════════════
-    function createPanel(titleText, contentEl, footerEl, opts) {
-        injectLtStyles();
-        applyTheme();
-        ensureToolPanel();
-        return pushPage(titleText, contentEl, footerEl, opts && opts.onClose);
+    // ──────────────────────────────────────────
+    // 身高系統
+    // ──────────────────────────────────────────
+    function isToolDialogCharacter(C) {
+        return typeof CurrentCharacter !== 'undefined' && !!CurrentCharacter && (C === CurrentCharacter || C === Player);
     }
 
-    // ──────────────────────────────────────────
-    // 通用按鈕选单
-    // ──────────────────────────────────────────
-    function requestButtons(promptText, buttons, multiSelect = false) {
+    function toolViewRatio(C) { return getES().fixedZones === 1 ? 1 : C.HeightRatio ?? 1; }
+
+    function toolViewYOffset(C, ratio) {
+        return getES().heightFix === 1
+            ? 1000 * (1 - ratio) * (C.HeightRatioProportion ?? 1)
+            : CharacterAppearanceYOffset(C, ratio);
+    }
+
+    function toolPreviewZone(C, zone) {
+        const ratio = toolViewRatio(C);
+        const left = CharacterAppearanceXOffset(C, ratio) + zone[0] * ratio;
+        const y = toolViewYOffset(C, ratio);
+        const top = CharacterAppearsInverted(C) ? 1000 - (y + (zone[1] + zone[3]) * ratio) : y + zone[1] * ratio;
+        return [left, top, zone[2] * ratio, zone[3] * ratio];
+    }
+
+    // DrawCharacter's optional canvas still writes UI to MainCanvas in R132.
+    // Blit only the character canvas with the native geometry, keeping previews local.
+    function toolCharacterCanvasOffset(C) {
+        const mods = globalThis.bcModSdk?.getModsInfo?.() || [];
+        const echoLoaded = mods.some(mod => mod.name === 'echo-clothing-ext' ||
+            /(?:^|\/)SugarChain-Studio\/echo-clothing-ext(?:\.git)?\/?$/i.test(mod.repository || ''));
+        return echoLoaded && C.Canvas?.width === 1000 ? 250 : 0;
+    }
+
+    function drawToolCharacter(C, ctx, x = 0, y = 0, zoom = 1, resize = true) {
+        if (C.FixedImage) {
+            const image = DrawGetImage(C.FixedImage);
+            if (image?.complete && image.naturalWidth) {
+                const scale = Math.min(500 / image.naturalWidth, 1000 / image.naturalHeight) * zoom;
+                ctx.drawImage(image, x + (500 * zoom - image.naturalWidth * scale) / 2, y, image.naturalWidth * scale, image.naturalHeight * scale);
+            }
+            return;
+        }
+        if (C.MustDraw) CharacterRefresh(C, false, false);
+        const source = C.Canvas;
+        if (!source) return;
+        const ratio = resize ? toolViewRatio(C) : 1;
+        if (!Number.isFinite(ratio) || ratio <= 0) return;
+        const offsetX = CharacterAppearanceXOffset(C, ratio);
+        const offsetY = resize ? toolViewYOffset(C, ratio) : 0;
+        const inverted = CharacterAppearsInverted(C);
+        // Use the lower-level native extractor: DrawCharacterSegment may already
+        // carry ECHO's unconditional +250 patch. Apply the detected offset once.
+        const segment = DrawCanvasSegment(source, toolCharacterCanvasOffset(C), CanvasUpperOverflow, 500, 1000);
+        ctx.save();
+        try {
+            ctx.translate(x + offsetX * zoom, y);
+            if (inverted) { ctx.translate(500 * ratio * zoom, 1000 * zoom); ctx.scale(-1, -1); }
+            ctx.drawImage(segment, 0, 0, segment.width, segment.height,
+                0, offsetY * zoom, 500 * ratio * zoom, 1000 * ratio * zoom);
+        } finally { ctx.restore(); }
+    }
+
+    function attachItemViewHeader(panel, picker) {
+        const entry = phonePages.find(page => page.el === panel);
+        entry.viewToggle = {
+            icon: () => picker.isMap() ? ZONE_VIEW_ICON : LIST_VIEW_ICON,
+            title: () => picker.isMap() ? (t('viewCharacterHint')) : (t('viewListHint')),
+            toggle: () => picker.toggle(),
+        };
+        const cleanup = entry.cleanup;
+        entry.cleanup = () => { cleanup?.(); picker.destroy(); };
+        picker.refreshView();
+        updatePhoneHeader();
+    }
+
+    // Group names, rather than translated display labels, identify selections in both views.
+    function createItemPicker(target, options, multiple, onSelection) {
+        const root = document.createElement('div'); root.className = 'lt-item-picker';
+        const list = document.createElement('div'); list.className = 'lt-btn-list';
+        const map = document.createElement('div'); map.className = 'lt-item-map'; map.hidden = true;
+        const canvas = document.createElement('canvas'); canvas.width = 500; canvas.height = 1000; map.append(canvas);
+        root.append(list, map);
+        const selected = new Set(), controls = new Map();
+        let mapMode = getES().itemViewMode === 'character', dead = false;
+        const currentTarget = () => resolveToolTarget(target);
+        function sync() {
+            controls.forEach((elements, group) => elements.forEach(el => {
+                el.classList.toggle('selected', selected.has(group));
+                el.setAttribute('aria-pressed', String(selected.has(group)));
+            }));
+        }
+        function select(group) {
+            if (multiple) { if (selected.has(group)) selected.delete(group); else selected.add(group); }
+            else { selected.clear(); selected.add(group); }
+            sync(); onSelection?.([...selected]);
+        }
+        function register(button, group) {
+            if (!controls.has(group)) controls.set(group, []);
+            controls.get(group).push(button);
+            button.onclick = () => select(group);
+        }
+        options.forEach(option => {
+            for (const host of [list]) {
+                const button = document.createElement('button'); button.className = 'lt-list-btn';
+                button.textContent = option.text; register(button, option.group); host.append(button);
+            }
+        });
+        const zoneControls = [];
+        const eligible = new Set(options.map(option => option.group));
+        for (const group of AssetGroup) {
+            if (!group.Name.startsWith('Item')) continue;
+            for (const zone of group.Zone || []) {
+                const button = document.createElement('button'); button.className = 'lt-zone-button';
+                const option = options.find(item => item.group === group.Name);
+                button.title = option?.text || group.Description || group.Name;
+                button.setAttribute('aria-label', button.title);
+                button.disabled = !eligible.has(group.Name);
+                if (eligible.has(group.Name)) register(button, group.Name);
+                map.append(button); zoneControls.push({ button, group, zone });
+            }
+        }
+        function draw() {
+            if (!mapMode || dead || !root.isConnected || root.closest('.ltp-covered')) return;
+            const C = currentTarget(), ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 500, 1000);
+            if (!C) return;
+            try {
+                drawToolCharacter(C, ctx);
+                zoneControls.forEach(({button, group, zone}) => {
+                    const [x,y,w,h] = toolPreviewZone(C, zone);
+                    button.style.left = x / 5 + '%'; button.style.top = y / 10 + '%';
+                    button.style.width = w / 5 + '%'; button.style.height = h / 10 + '%';
+                    button.classList.toggle('occupied', !!InventoryGet(C, group.Name));
+                    button.classList.toggle('blocked', typeof InventoryGroupIsBlocked === 'function' && InventoryGroupIsBlocked(C, group.Name));
+                });
+            } catch (error) { console.warn('[LT] Item zone preview:', error); }
+        }
+        function fitMap() {
+            if (!mapMode || dead) return;
+            const scale = Math.max(0, Math.min((root.clientWidth - 8) / 500, (root.clientHeight - 8) / 1000));
+            map.style.width = 500 * scale + 'px'; map.style.height = 1000 * scale + 'px';
+        }
+        function refreshView() {
+            list.hidden = mapMode; map.hidden = !mapMode;
+            root.classList.toggle('is-map', mapMode);
+            if (root.parentElement?.classList.contains('lt-content')) root.parentElement.classList.toggle('lt-picker-map-content', mapMode);
+            fitMap(); draw();
+        }
+        const observer = new ResizeObserver(fitMap); observer.observe(root);
+        const timer = setInterval(draw, 200);
+        const destroy = () => { dead = true; observer.disconnect(); clearInterval(timer); cleanupTasks.delete(destroy); };
+        cleanupTasks.add(destroy);
+        return {
+            root, selected, refreshView, isMap: () => mapMode,
+            updateLabel(group, text) {
+                controls.get(group)?.forEach(button => {
+                    button.title = text;
+                    if (button.classList.contains('lt-list-btn')) button.textContent = text;
+                    else button.setAttribute('aria-label', text);
+                });
+            },
+            toggle() {
+                mapMode = !mapMode;
+                getES().itemViewMode = mapMode ? 'character' : 'list'; saveES();
+                refreshView();
+            },
+            selectAll() { const all = selected.size === options.length; selected.clear(); if (!all) options.forEach(o => selected.add(o.group)); sync(); onSelection?.([...selected]); },
+            destroy,
+        };
+    }
+
+    function requestItemSelection(title, target, items, onConfirm = null) {
+        return new Promise(resolve => {
+            let busy = false, closed = false;
+            const picker = createItemPicker(target, items, true);
+            const footer = makeButtonRow();
+            const finish = values => { if (closed) return; closed = true; popPage(panel, false); resolve(values); };
+            footer.append(makeToolButton(t('selectAll'), () => picker.selectAll()),
+                makeToolButton(t('confirm'), async () => {
+                    if (busy || closed) return;
+                    const selected = [...picker.selected];
+                    if (onConfirm && !selected.length) return;
+                    busy = true;
+                    try {
+                        // Keep this page below the form, just like every other forward navigation.
+                        if (onConfirm && await onConfirm(selected) === false) return;
+                        if (!disposed && !closed) finish(selected);
+                    } finally { busy = false; }
+                }, true));
+            const panel = createPanel(title, picker.root, footer, { onClose: () => { closed = true; resolve([]); } });
+            attachItemViewHeader(panel, picker);
+        });
+    }
+
+    function requestButtons(promptText, buttons, multiSelect = false, options = {}) {
         return new Promise(resolve => {
             const listEl = document.createElement("div");
-            listEl.className = "lt-btn-list";
+            listEl.className = options.grid ? 'lt-lock-grid' : 'lt-btn-list';
 
             if (!buttons.length) {
                 const empty = document.createElement("div");
@@ -1819,53 +2091,44 @@
             buttons.forEach(btn => {
                 const el = document.createElement("button");
                 el.className = "lt-list-btn";
+                el.type = "button";
+                el.classList.toggle("lt-self-option", !!btn.highlight);
+                const value = btn.value ?? btn.text;
                 const textSpan = document.createElement("span");
-                textSpan.style.fontFamily = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color","Android Emoji",sans-serif';
+                textSpan.className = 'lt-option-label';
                 textSpan.textContent = btn.text;
                 const check = document.createElement("span");
                 check.className = "lt-check";
                 check.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><circle cx="12" cy="12" r="7"/></svg>';
+                if (btn.image) {
+                    const image = document.createElement('img'); image.src = btn.image; image.alt = ''; image.loading = 'lazy';
+                    el.appendChild(image);
+                }
                 el.appendChild(textSpan);
-                el.appendChild(check);
+                if (multiSelect) el.appendChild(check);
 
                 if (multiSelect) {
-                    itemEls.push({ el, text: btn.text });
+                    itemEls.push({ el, value });
                     el.onclick = () => {
-                        if (selected.has(btn.text)) { selected.delete(btn.text); el.classList.remove("selected"); }
-                        else { selected.add(btn.text); el.classList.add("selected"); }
+                        if (selected.has(value)) { selected.delete(value); el.classList.remove("selected"); }
+                        else { selected.add(value); el.classList.add("selected"); }
                     };
                 } else {
-                    el.onclick = () => { panel.remove(); resolve(btn.text); };
+                    el.onclick = () => { popPage(panel, false); resolve(value); };
                 }
                 listEl.appendChild(el);
             });
 
-            let footerEl = null;
-            if (multiSelect) {
-                footerEl = document.createElement("div");
-                footerEl.style.cssText = "display:flex;gap:8px;width:100%;";
-                const selectAllBtn = document.createElement("button");
-                selectAllBtn.className = "lt-btn lt-btn-secondary";
-                selectAllBtn.textContent = t('selectAll');
-                selectAllBtn.onclick = () => {
+            const footerEl = multiSelect ? makeButtonRow(
+                makeToolButton(t('selectAll'), () => {
                     const allOn = selected.size === itemEls.length && itemEls.length > 0;
-                    itemEls.forEach(({ el, text }) => {
-                        if (allOn) { selected.delete(text); el.classList.remove("selected"); }
-                        else { selected.add(text); el.classList.add("selected"); }
+                    itemEls.forEach(({ el, value }) => {
+                        if (allOn) selected.delete(value); else selected.add(value);
+                        el.classList.toggle('selected', !allOn);
                     });
-                };
-                const cancelBtn = document.createElement("button");
-                cancelBtn.className = "lt-btn lt-btn-secondary";
-                cancelBtn.textContent = t('cancel');
-                cancelBtn.onclick = () => { panel.remove(); resolve([]); };
-                const confirmBtn = document.createElement("button");
-                confirmBtn.className = "lt-btn lt-btn-primary";
-                confirmBtn.textContent = t('confirm');
-                confirmBtn.onclick = () => { panel.remove(); resolve([...selected]); };
-                footerEl.appendChild(selectAllBtn);
-                footerEl.appendChild(cancelBtn);
-                footerEl.appendChild(confirmBtn);
-            }
+                }),
+                makeToolButton(t('confirm'), () => { popPage(panel, false); resolve([...selected]); }, true)
+            ) : null;
 
             const panel = createPanel(promptText, listEl, footerEl, {
                 onClose: () => resolve(multiSelect ? [] : null)
@@ -1875,71 +2138,240 @@
 
     /* ── 角色选择器 ── */
     function requestCharacter(title) {
-        return new Promise(resolve => {
-            const targets = [...(ChatRoomCharacter || [])].sort((a, b) => (b.IsPlayer?.() ? 1 : 0) - (a.IsPlayer?.() ? 1 : 0));
-            if (!targets.length) {
-                ChatRoomSendLocal(t('noPlayers'));
-                resolve(null);
-                return;
-            }
-            const listEl = document.createElement("div");
-            listEl.className = "lt-btn-list";
-            targets.forEach(target => {
-                const el = document.createElement("button");
-                el.className = "lt-list-btn";
-                const isMe = target.IsPlayer && target.IsPlayer();
-                const textSpan = document.createElement("span");
-                textSpan.style.fontFamily = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color","Android Emoji",sans-serif';
-                textSpan.textContent = getNickname(target) + ' (#' + target.MemberNumber + ')';
-                el.appendChild(textSpan);
-                if (isMe) {
-                    el.style.borderColor = 'var(--lt-accent)';
-                    el.style.background = 'var(--lt-surface-hover)';
-                }
-                el.onclick = () => { panel.remove(); resolve(target); };
-                listEl.appendChild(el);
-            });
-            const panel = createPanel(title, listEl, null, { onClose: () => resolve(null) });
+        const targets = [...(ChatRoomCharacter || [])].sort((a, b) => (b.IsPlayer?.() ? 1 : 0) - (a.IsPlayer?.() ? 1 : 0));
+        if (!targets.length) { ChatRoomSendLocal(t('noPlayers')); return Promise.resolve(null); }
+        return requestButtons(title, targets.map(target => ({
+            text: getNickname(target) + ' (#' + target.MemberNumber + ')',
+            value: target, highlight: target.IsPlayer?.(),
+        })));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 09 Craft：共用欄位、單項與批量編輯
+    // ════════════════════════════════════════════════════════════════════════
+    // ── Craft 属性：清除 / 批量编辑（只提供 名称 / 描述 / 私有）──
+    // 收集对象身上所有 Item* 组的束缚物品
+    function collectRestraintItems(target) {
+        const items = [];
+        for (const group of AssetGroup) {
+            if (!group.Name.startsWith("Item")) continue;
+            const item = InventoryGet(target, group.Name);
+            if (item) items.push({ item, group: group.Name, groupDesc: group.Description });
+        }
+        return items;
+    }
+
+    function craftForEdit(item, values) {
+        return Object.assign({
+            Color: Array.isArray(item.Color) ? item.Color.join(',') : typeof item.Color === 'string' ? item.Color : '',
+            Lock: '', Effects: {},
+        }, structuredClone(item.Craft || {}), {
+            Name: values.name, Description: values.description, Private: values.private,
+            Item: item.Asset.Name,
+            MemberName: Player.Nickname || Player.Name || '', MemberNumber: Player.MemberNumber,
         });
     }
 
-    /* ── 执行聊天命令辅助函数 ── */
-    function execChatCommand(cmd) {
-        try {
-            if (typeof ElementValue === 'function' && typeof ChatRoomSendChat === 'function') {
-                ElementValue('InputChat', cmd);
-                ChatRoomSendChat();
-                return;
-            }
-            const input = document.getElementById('InputChat');
-            if (!input) { ChatRoomSendLocal(t('noInputBox')); return; }
-            input.value = cmd;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            const sendBtn = document.getElementById('ChatSend');
-            if (sendBtn) { sendBtn.click(); return; }
-            input.dispatchEvent(new KeyboardEvent('keydown', { key:'Enter', keyCode:13, bubbles:true, cancelable:true }));
-            input.dispatchEvent(new KeyboardEvent('keyup', { key:'Enter', keyCode:13, bubbles:true, cancelable:true }));
-        } catch(e) { ChatRoomSendLocal(t('execFail') + ': ' + e.message); }
+    function createCraftFields(craft = {}) {
+        const root = document.createElement('div'); root.className = 'lt-settings lt-craft-fields';
+        const field = (label, element) => {
+            const wrapper = document.createElement('label'); wrapper.className = 'lt-settings-label';
+            wrapper.textContent = label;
+            wrapper.append(element); root.append(wrapper); return element;
+        };
+        const name = field(t('craftName'), document.createElement('input')); name.type = 'text'; name.maxLength = 30; name.value = craft.Name || '';
+        const description = field(t('craftDesc'), document.createElement('textarea')); description.maxLength = 200; description.rows = 5; description.value = craft.Description || '';
+        const privateInput = document.createElement('input'); privateInput.type = 'checkbox'; privateInput.checked = !!craft.Private;
+        const privateLabel = document.createElement('label'); privateLabel.className = 'lt-checkbox-label'; privateLabel.append(privateInput, document.createTextNode(t('craftPrivate'))); root.append(privateLabel);
+        return { root, focus() { name.focus({ preventScroll: true }); }, read() {
+            if (!name.value.trim()) { name.focus(); return null; }
+            return { name: name.value.trim(), description: description.value.trim(), private: privateInput.checked };
+        } };
     }
 
-    // ─────────────────────────────────────────
-    // 安全 hook 包装
-    // ──────────────────────────────────────────
-    function safeHookFunction(functionName, priority, callback) {
-        if (!modApi) return;
-        if (typeof window[functionName] === 'undefined') {
-            console.warn("🐈‍⬛ [LT] ⚠️ " + functionName + " 不存在，跳过 hook");
-            return;
+    // craft 编辑表单：名称 / 描述 / 私有 → resolve({name, description, private}) 或 null
+    function requestCraftEdit() {
+        return new Promise(resolve => {
+            let done = false;
+            const fields = createCraftFields();
+            const confirm = makeToolButton(t('confirm'), () => {
+                if (done) return;
+                const values = fields.read(); if (!values) return;
+                done = true; popPage(panel, false); resolve(values);
+            }, true);
+            const panel = createPanel(t('craftEditTitle'), fields.root, confirm, {
+                onClose: () => { if (!done) { done = true; resolve(null); } }
+            });
+            setTimeout(() => {
+                if (phonePages.at(-1)?.el === panel) fields.focus();
+            }, 300);
+        });
+    }
+
+    function setCraftSideOpen(side, open) {
+        if (open && side.hidden) {
+            side.hidden = false;
+            // Establish the collapsed state before starting the CSS transition.
+            void side.offsetWidth;
         }
-        try { modApi.hookFunction(functionName, priority, callback); }
-        catch (e) { console.error("🐈‍⬛ [LT] ❌ Hook " + functionName + " 失敗:", e.message); }
+        side.inert = !open;
+        side.classList.toggle('is-open', open);
+        if (open && toolPanelEl) {
+            const width = Math.min(702, innerWidth - 6);
+            const left = toolPanelEl.getBoundingClientRect().left;
+            toolPanelEl.style.left = Math.max(4, Math.min(left, innerWidth - width - 4)) + 'px';
+        }
+        updatePhoneHeader();
     }
 
+    function openSingleCraftEditor(target) {
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission')); return; }
+        const items = collectRestraintItems(target).map(r => ({ group: r.group,
+            text: (r.item.Craft?.Name || r.item.Asset.Description || r.item.Asset.Name) + ' (' + r.groupDesc + ')' }));
+        if (!items.length) { ChatRoomSendLocal(t('craftNoItem')); return; }
+        const layout = document.createElement('div'); layout.className = 'lt-craft-layout';
+        const left = document.createElement('div'); left.className = 'lt-craft-items';
+        const side = document.createElement('div'); side.className = 'lt-craft-side'; side.hidden = true;
+        let selectedGroup = null, selectedAsset = null;
+        const currentTarget = () => resolveToolTarget(target);
+        function edit(group) {
+            const C = currentTarget();
+            const item = C && InventoryGet(C, group); if (!item) return;
+            selectedGroup = group; selectedAsset = item.Asset;
+            side.replaceChildren();
+            const fields = createCraftFields(item.Craft || { Name: item.Asset.Description || item.Asset.Name });
+            const status = document.createElement('div'); status.setAttribute('role', 'status');
+            const footer = makeFooter(); footer.classList.add('lt-footer');
+            function draft() {
+                const C = currentTarget(), live = C && InventoryGet(C, selectedGroup);
+                if (!live || live.Asset !== selectedAsset) { status.textContent = t('craftItemChanged'); return null; }
+                const values = fields.read(); if (!values) return null;
+                return { C, live, craft: craftForEdit(live, values) };
+            }
+            footer.prepend(makeToolButton(t('confirm'), () => {
+                const data = draft(); if (!data) return;
+                if (!hasBCItemPermission(data.C)) { status.textContent = t('noPermission'); return; }
+                data.live.Craft = data.craft; ChatRoomCharacterUpdate(data.C);
+                picker.updateLabel(selectedGroup, data.craft.Name + ' (' + data.live.Asset.Group.Description + ')');
+                status.textContent = t('craftSaved');
+            }, true),
+            makeToolButton(t('export'), () => {
+                const data = draft(); if (!data) return;
+                // Same payload/encoding as native Crafting's single-item download.
+                const craft = structuredClone(data.craft);
+                delete craft.MemberName; delete craft.MemberNumber; craft.Partial = false;
+                CommonClipboardWrite(LZString.compressToBase64(JSON.stringify(craft)), result => {
+                    if (disposed || !side.isConnected) return;
+                    status.textContent = result.err ? (t('craftCopyFailed')) : (t('craftCopied'));
+                });
+            }));
+            side.append(fields.root, status, footer); setCraftSideOpen(side, true);
+        }
+        const picker = createItemPicker(target, items, false, groups => edit(groups[0]));
+        left.append(picker.root); layout.append(left, side);
+        const panel = createPanel((t('craftSingleTitle')) + ' — ' + getNickname(target), layout, null);
+        panel.classList.add('lt-single-craft-page');
+        attachItemViewHeader(panel, picker);
+    }
+
+    function openCraftTargetPicker(initialTarget = null) {
+        const list = document.createElement('div'); list.className = 'lt-btn-list';
+        const footer = makeButtonRow();
+        let selected = initialTarget;
+        const targets = [...(window.ChatRoomCharacter || [])].sort((a,b) => Number(b === Player) - Number(a === Player));
+        if (initialTarget && !targets.includes(initialTarget)) targets.unshift(initialTarget);
+        targets.forEach(target => {
+            const button = document.createElement('button'); button.className = 'lt-list-btn';
+            button.textContent = getNickname(target) + ' (#' + target.MemberNumber + ')';
+            button.classList.toggle('selected', selected === target);
+            button.onclick = () => { selected = target; [...list.children].forEach(el => el.classList.toggle('selected', el === button)); batch.disabled = single.disabled = false; };
+            list.append(button);
+        });
+        const batch = makeToolButton(t('craftBatch'), () => editCraftBatch(selected), true);
+        const single = makeToolButton(t('craftSingle'), () => openSingleCraftEditor(selected), true);
+        batch.disabled = single.disabled = !selected;
+        footer.append(batch, single);
+        const panel = createPanel(t('pickEditCraft'), list, footer);
+    }
+
+    async function clearAllCraft(target) {
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return; }
+        // 只列出「确实带有 craft」的束缚，供逐个选或全选
+        const restraints = collectRestraintItems(target)
+        .filter(r => r.item.Craft)
+        .map(r => ({
+            text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ")",
+            group: r.group
+        }));
+        if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('craftClearNone') + "！"); return; }
+        const selected = await requestButtons(t('craftClearTitle') + " — " + getNickname(target), restraints, true);
+        if(disposed) return;
+        if (!selected.length) return;
+        try {
+            let count = 0;
+            selected.forEach(itemText => {
+                const group = restraints.find(r => r.text === itemText)?.group;
+                if (!group) return;
+                const item = InventoryGet(target, group);
+                if (item?.Craft) { delete item.Craft; count++; }
+            });
+            if (!count) return;
+            ChatRoomCharacterUpdate(target);
+            chatSendCustomAction(getNickname(Player) + " " + t('craftClearDone') + " " + getNickname(target) + "！");
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ clearAllCraft 错误:", e.message); }
+    }
+
+    async function editCraftBatch(target) {
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return; }
+        const restraints = collectRestraintItems(target).map(r => ({
+            text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ")",
+            group: r.group
+        }));
+        if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('craftNoItem') + "！"); return; }
+        await requestItemSelection(t('craftPickTitle') + " — " + getNickname(target), target, restraints, async selected => {
+            const craft = await requestCraftEdit();
+            if (disposed || !craft) return false;
+            const current = resolveToolTarget(target);
+            if (!current) { ChatRoomSendLocal(t('notInRoom')); return false; }
+            try {
+                let count = 0;
+                if (!hasBCItemPermission(current)) { ChatRoomSendLocal(t('noPermission')); return false; }
+                selected.forEach(group => {
+                    const item = InventoryGet(current, group);
+                    if (!item) return;
+                    item.Craft = craftForEdit(item, craft);
+                    count++;
+                });
+                if (!count) return false;
+                ChatRoomCharacterUpdate(current);
+                chatSendCustomAction(getNickname(Player) + " → " + getNickname(current) + "：" + count + " " + t('craftEditDone') + "「" + craft.name + "」");
+                return true;
+            } catch (e) { console.error("🐈‍⬛ [LT] ❌ editCraftBatch 错误:", e.message); return false; }
+        });
+    }
+
+    function clearCraftCommand(args) {
+        const target = getPlayer((args || '').trim());
+        clearAllCraft(target);
+        return true;
+    }
+
+    function editCraftCommand(args) {
+        const target = getPlayer((args || '').trim());
+        openCraftTargetPicker(target);
+        return true;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 10 外觀回滾：快照、預覽與指令
+    // ════════════════════════════════════════════════════════════════════════
     // ──────────────────────────────────────────
     // Undo 系統
     // ──────────────────────────────────────────
     const UNDO_MAX_PER_CHARACTER = 30;
+
     const UNDO_MAX_CHARACTERS = 100;
+
     const undoHistory = {};
 
     function saveUndoSnapshot(target, changedByNumber) {
@@ -1995,47 +2427,38 @@
         let currentIndex = history.length - 1;
 
         const topNavEl = document.createElement("div");
-        topNavEl.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:10px;";
+        topNavEl.className = 'lt-undo-nav';
         const prevBtn = document.createElement("button");
         prevBtn.className = "lt-nav-btn";
-        prevBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="M15 18l-6-6 6-6"/></svg>' + t('undoPrev');
-        prevBtn.style.flex = "1";
+        prevBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>' + t('undoPrev');
         const counterEl = document.createElement("div");
-        counterEl.style.cssText = "flex:1;text-align:center;font-size:12px;color:var(--lt-accent);font-weight:600;white-space:nowrap;";
+        counterEl.className = 'lt-undo-counter';
         const nextBtn = document.createElement("button");
         nextBtn.className = "lt-nav-btn";
-        nextBtn.innerHTML = t('undoNext') + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="M9 18l6-6-6-6"/></svg>';
-        nextBtn.style.flex = "1";
+        nextBtn.innerHTML = t('undoNext') + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
         const metaEl = document.createElement("div");
-        metaEl.className = "lt-undo-meta"; metaEl.style.marginBottom = "8px";
+        metaEl.className = "lt-undo-meta";
         const timeRow = document.createElement("div"); timeRow.className = "lt-undo-meta-row";
-        const byRow   = document.createElement("div"); byRow.className   = "lt-undo-meta-row";
         const diffRow = document.createElement('div'); diffRow.className = 'lt-undo-meta-row';
-        metaEl.appendChild(timeRow); metaEl.appendChild(byRow);
+        metaEl.appendChild(timeRow);
         metaEl.appendChild(diffRow);
         topNavEl.appendChild(prevBtn); topNavEl.appendChild(counterEl); topNavEl.appendChild(nextBtn);
 
         const canvasWrap = document.createElement("div");
-        canvasWrap.style.cssText = "width:100%;display:flex;justify-content:center;align-items:center;background:var(--lt-surface);border:1px solid var(--lt-border);border-radius:12px;overflow:hidden;margin-bottom:10px;height:360px;position:relative;";
         const canvas = document.createElement("canvas");
         canvas.width = 500; canvas.height = 1000;
-        canvas.style.cssText = "width:220px;height:440px;display:block;";
         canvasWrap.appendChild(canvas);
 
-        const footerBtns = document.createElement("div");
-        footerBtns.style.cssText = "width:100%;display:flex;gap:8px;";
-        const applyBtn = document.createElement("button");
-        applyBtn.className = "lt-btn lt-btn-primary"; applyBtn.textContent = t('undoApply'); applyBtn.style.flex = "1";
-        const closeBtn = document.createElement("button");
-        closeBtn.className = "lt-btn lt-btn-secondary"; closeBtn.textContent = t('close'); closeBtn.style.flex = "1";
-        footerBtns.appendChild(applyBtn); footerBtns.appendChild(closeBtn);
+        const applyBtn = makeToolButton(t('undoApply'), null, true);
+        const footerBtns = makeButtonRow(applyBtn);
 
         const contentEl = document.createElement("div");
         contentEl.appendChild(topNavEl); contentEl.appendChild(metaEl); contentEl.appendChild(canvasWrap);
 
         const panel = createPanel(t('undoTitle') + " — " + getNickname(target), contentEl, footerBtns);
-        panel.style.width = "320px";
-        closeBtn.onclick = () => panel.remove();
+        panel.classList.add('lt-undo-page');
+        contentEl.className = 'lt-undo-content';
+        canvasWrap.className = 'lt-undo-preview';
 
         let renderedIndex = -1;
         function renderPreview() {
@@ -2046,10 +2469,10 @@
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 if (renderedIndex !== currentIndex) {
                     canvasCharacter.Appearance = structuredClone(entry.bundle).map(b => ServerBundledItemToAppearanceItem(target.AssetFamily, b));
-                    CharacterRefresh(canvasCharacter);
+                    CharacterRefresh(canvasCharacter, false, false);
                     renderedIndex = currentIndex;
                 }
-                DrawCharacter(canvasCharacter, 40, 100, 0.85, false, ctx);
+                drawToolCharacter(canvasCharacter, ctx, 40, 100, 0.85, false);
             } catch (e) { console.error("🐈‍⬛ [LT] ❌ 预览渲染失敗:", e.message); }
         }
 
@@ -2058,27 +2481,18 @@
             clearInterval(renderInterval);
             try { if (canvasCharacter) CharacterDelete(canvasCharacter.ID); } catch (e) {}
             canvasCharacter = null;
-            undoObs.disconnect();
             cleanupTasks.delete(cleanupPreview);
         };
-        const undoObs = new MutationObserver(() => {
-            if (!document.body.contains(panel)) {
-                cleanupPreview();
-            }
-        });
-        undoObs.observe(document.body, { childList: true, subtree: true });
         cleanupTasks.add(cleanupPreview);
+        phonePages.find(entry => entry.el === panel).cleanup = cleanupPreview;
 
         function updateMeta() {
             const entry = history[currentIndex];
             const timeStr = new Date(entry.timestamp).toLocaleString();
-            const byChar  = entry.changedBy ? ChatRoomCharacter?.find(c => c.MemberNumber === entry.changedBy) : null;
-            const byName  = byChar ? getNickname(byChar) : entry.changedBy ? "#" + entry.changedBy : "—";
             timeRow.textContent = t('undoChangedAt') + '：' + timeStr;
-            byRow.textContent = t('undoChangedBy') + '：' + byName;
             const diff = summarizeAppearanceDiff(ServerAppearanceBundle(target.Appearance), entry.bundle);
-            diffRow.textContent = (isZh() ? '与目前外观比较：' : 'Compared with current appearance: ') + `+${diff.added} / −${diff.removed} / Δ${diff.changed}`;
-            diffRow.title = isZh() ? '新增 / 移除 / 修改的装备组数' : 'Added / removed / changed equipment groups';
+            diffRow.textContent = (t('undoDiffPrefix')) + `+${diff.added} / −${diff.removed} / Δ${diff.changed}`;
+            diffRow.title = t('undoDiffHelp');
             counterEl.textContent = (currentIndex + 1) + " / " + history.length + " " + t('undoCountUnit');
             prevBtn.disabled = currentIndex <= 0;
             nextBtn.disabled = currentIndex >= history.length - 1;
@@ -2100,11 +2514,572 @@
             ChatRoomSendLocal(getNickname(target) + " " + t('undoApplyDone') + "（" + t('undoApplySize') + ": " + sizeKb + "kB）");
             chatSendCustomAction(t('actUndoMsg', { src: getNickname(Player), who: getNickname(target), time: new Date(entry.timestamp).toLocaleTimeString() }));
             // Keep live history intact: new snapshots may have arrived while previewing.
-            panel.remove();
+            popPage(panel, false);
         };
 
         updateMeta();
         renderPreview();
+    }
+
+    async function undoCommand(args) {
+        await openUndoPanel(getPlayer(args.trim()));
+        return true;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 11 外觀操作：鎖、解除拘束、匯入與衣櫃
+    // ════════════════════════════════════════════════════════════════════════
+    // ── AFC 心锁（拓展锁）识别：解除拘束 / 解锁时跳过，避免破坏 AFC 心锁 ──
+    const AFC_HEARTLOCK_NAME = 'Heart Padlock';
+
+    function isHeartLock(item) {
+        const p = item?.Property;
+        return !!p && (p.Name === AFC_HEARTLOCK_NAME || !!p.HeartLockId);
+    }
+
+    function toolLockPreview(asset) {
+        if (asset.Name === 'DeviousPadlock') return 'https://cdn.jsdelivr.net/gh/FurryZoi/Devious-Obligate-Great-Stuff@main/src/images/devious-padlock.png';
+        if (asset.Name === '淫纹锁LuziPadlock') return 'https://cdn.jsdelivr.net/gh/SugarChain-Studio/echo-clothing-ext@52afa10aaa854907422727eb623c658b20ee1b4d/resources/Assets/Female3DCG/ItemMisc/Preview/%E6%B7%AB%E7%BA%B9%E9%94%81LuziPadlock.png';
+        if (asset.Name === 'Heart Padlock') return 'https://cdn.jsdelivr.net/gh/awdrrawd/BC-AFC@main/Images/AFC-Heart_Lock.png';
+        return AssetGetPreviewPath(asset) + '/' + asset.Name + '.png';
+    }
+
+    // ──────────────────────────────────────────
+    // 指令實作
+    // ──────────────────────────────────────────
+    async function free(args) {
+        let target = getPlayer(args.trim());
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
+        const restraints = [];
+        for (const group of AssetGroup) {
+            if (group.Name.startsWith("Item")) {
+                const item = InventoryGet(target, group.Name);
+                if (item) {
+                    if (isHeartLock(item)) continue; // AFC 心锁：跳过，不列入可解除清单
+                    const lock     = item.Property?.LockedBy ? t('lockPrefix') + " " + item.Property.LockedBy : "";
+                    const password = item.Property?.Password || item.Property?.CombinationNumber || "";
+                    const itemName = item.Craft?.Name || item.Asset?.Description || item.Asset?.Name || t('unknown');
+                    restraints.push({
+                        text: (lock ? lock + " " : "") + itemName + " (" + group.Description + (password ? ", " + t('password') + ": " + password : "") + ")",
+                        group: group.Name
+                    });
+                }
+            }
+        }
+        if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('freeNoItem') + "！"); return true; }
+        const selected = await requestItemSelection(t('freeTitle') + " — " + getNickname(target), target, restraints);
+        if(disposed) return;
+        if (!selected.length) return true;
+        target = resolveToolTarget(target);
+        if (!target) { ChatRoomSendLocal(t('notInRoom')); return true; }
+        try {
+            if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission')); return true; }
+            selected.forEach(group => {
+                const item = InventoryGet(target, group);
+                if (item && !isHeartLock(item)) InventoryRemove(target, group);
+            });
+            ChatRoomCharacterUpdate(target);
+            chatSendCustomAction(t('actFreeMsg', { src: getNickname(Player), who: getNickname(target), items: selected.map(group => restraints.find(r => r.group === group)?.text || group).join(isZh() ? "、" : ", ") }));
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ free 错误:", e.message); }
+        return true;
+    }
+
+    function fullLock(args, selectedTarget = null, selectedLock = null) {
+        const params           = args.trim().split(/\s+/);
+        const targetIdentifier = params[0] || "";
+        const lockName         = params.slice(1).join(" ");
+        const target           = selectedTarget || getPlayer(targetIdentifier);
+        if (target === Player && !targetIdentifier && !selectedTarget) { ChatRoomSendLocal(t('lockSpecify')); return true; }
+        if (!ChatRoomCharacter?.find(c => c.MemberNumber === target.MemberNumber)) {
+            ChatRoomSendLocal(getNickname(target) + " " + t('notInRoom') + "！"); return true;
+        }
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
+        const itemMiscGroup = AssetGroupGet(Player.AssetFamily, "ItemMisc");
+        if (!itemMiscGroup) return true;
+        const validLocks = itemMiscGroup.Asset.filter(a => a.IsLock);
+        const lock = selectedLock ? validLocks.find(l => l.Name === selectedLock.Name) : validLocks.find(l => l.Name.toLowerCase() === lockName.toLowerCase() || l.Description?.toLowerCase() === lockName.toLowerCase());
+        if (!lock) {
+            ChatRoomSendLocal(t('lockInvalid') + "：" + lockName + "。" + t('lockAvailable') + "：" + validLocks.map(l => l.Description).join("、"));
+            return true;
+        }
+        try {
+            let count = 0;
+            for (const item of target.Appearance) {
+                const groupName = item.Asset?.Group?.Name || "";
+                if (groupName.startsWith("Item") && item.Asset?.AllowLock !== false && !item.Property?.LockedBy) {
+                    if (lock.Name === 'DeviousPadlock' && typeof InventoryIsPermissionBlocked === 'function' &&
+                        InventoryIsPermissionBlocked(target, lock.Name, groupName)) continue;
+                    InventoryLock(target, item, { Asset: AssetGet(Player.AssetFamily, "ItemMisc", lock.Name) }, Player.MemberNumber);
+                    count++;
+                }
+            }
+            if (!count) { ChatRoomSendLocal(getNickname(target) + " " + t('lockNone') + "！"); return true; }
+            ChatRoomCharacterUpdate(target);
+            chatSendCustomAction(t('actLockMsg', { src: getNickname(Player), who: getNickname(target), count: count, lock: lock.Description }));
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ fullLock 错误:", e.message); }
+        return true;
+    }
+
+    async function fullUnlock(args) {
+        const target = getPlayer(args.trim());
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
+        // 跳过主人锁 / 恋人锁 / AFC 心锁（拓展锁）
+        const skipLocks = ["OwnerPadlock", "OwnerTimerPadlock", "LoversPadlock", "LoversTimerPadlock"];
+        const locks = collectRestraintItems(target)
+        .filter(r => {
+            const lb = r.item.Property?.LockedBy;
+            return lb && !skipLocks.includes(lb) && !isHeartLock(r.item);
+        })
+        .map(r => {
+            const pw = r.item.Property?.Password || r.item.Property?.CombinationNumber || "";
+            return {
+                text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ") [" + r.item.Property.LockedBy + (pw ? ", " + t('password') + ": " + pw : "") + "]",
+                group: r.group
+            };
+        });
+        if (!locks.length) { ChatRoomSendLocal(getNickname(target) + " " + t('unlockNone') + "！"); return true; }
+        const selected = await requestButtons(t('unlockTitle') + " — " + getNickname(target), locks, true);
+        if(disposed) return;
+        if (!selected.length) return true;
+        try {
+            let count = 0;
+            selected.forEach(txt => {
+                const group = locks.find(l => l.text === txt)?.group;
+                if (!group) return;
+                const item = InventoryGet(target, group);
+                if (item && item.Property?.LockedBy) { InventoryUnlock(target, item); count++; }
+            });
+            if (!count) return true;
+            ChatRoomCharacterUpdate(target);
+            chatSendCustomAction(getNickname(Player) + " " + t('unlockDone') + " " + getNickname(target) + "！");
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ fullUnlock 错误:", e.message); }
+        return true;
+    }
+
+    async function bcxImport(args) {
+        const target = getPlayer(args.trim());
+        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
+        let bcxCode;
+        try { bcxCode = await navigator.clipboard.readText(); if(disposed) return; }
+        catch (e) { ChatRoomSendLocal(t('clipboardFail')); return true; }
+        try {
+            const appearance = JSON.parse(LZString.decompressFromBase64(bcxCode));
+            if (!Array.isArray(appearance)) throw new Error("invalid");
+            ServerAppearanceLoadFromBundle(target, target.AssetFamily, appearance, Player.MemberNumber);
+            ChatRoomCharacterUpdate(target);
+            chatSendCustomAction(getNickname(Player) + " " + t('bcxDone') + " " + getNickname(target) + "！");
+        } catch (e) { ChatRoomSendLocal(t('bcxInvalid')); }
+        return true;
+    }
+
+    async function getEverything() {
+        const options = [{ text: t('geItems') }, { text: t('geMoney') }, { text: t('geSkills') }];
+        const selected = await requestButtons(t('geTitle'), options, true);
+        if(disposed) return;
+        if (!selected.length) return true;
+        try {
+            if (selected.includes(t('geItems'))) {
+                const ids = [];
+                AssetFemale3DCG.forEach(group => {
+                    group.Asset.forEach(item => {
+                        if (item.Name && !Player.Inventory.some(inv => inv.Name === item.Name && inv.Group === group.Group) && item.InventoryID) {
+                            InventoryAdd(Player, item.Name, group.Group, false);
+                            ids.push(item.InventoryID);
+                        }
+                    });
+                });
+                ServerPlayerInventorySync();
+                ChatRoomSendLocal(ids.length + " " + t('geItemsDone') + "！");
+            }
+            if (selected.includes(t('geMoney'))) {
+                Player.Money = 999999; ServerPlayerSync();
+                ChatRoomSendLocal(t('geMoneyDone') + "！");
+            }
+            if (selected.includes(t('geSkills'))) {
+                ["LockPicking", "Evasion", "Willpower", "Bondage", "SelfBondage", "Dressage", "Infiltration"]
+                    .forEach(skill => SkillChange(Player, skill, 10, 0, true));
+                ChatRoomSendLocal(t('geSkillsDone') + "！");
+            }
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ getEverything 错误:", e.message); }
+        return true;
+    }
+
+    function wardrobe() {
+        try { ChatRoomAppearanceLoadCharacter(Player); ChatRoomSendLocal(t('wardrobeDone')); }
+        catch (e) { console.error("🐈‍⬛ [LT] ❌ wardrobe 错误:", e.message); }
+        return true;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 12 顯示與 RP：比例開關、狀態徽章與快捷鍵
+    // ════════════════════════════════════════════════════════════════════════
+    function heightFixCommand() { return toggleSetting('heightFix', { on: 'heightFixOn', off: 'heightFixOff' }); }
+
+    function heightLockCommand() {
+        return toggleSetting('fixedZones', {
+            update: settings => { settings.heightLock = settings.fixedZones; },
+            message: enabled => (t('fixedScalePrefix')) + (enabled ? 'ON' : 'OFF'),
+        });
+    }
+
+    // ──────────────────────────────────────────
+    // RP 模式（支持隐身：stealthRp=1 时状态纯本地，不广播）
+    //  - stealthRp ON  → 自己能看到图标，别人看不到（存 ExtensionSettings）
+    //  - stealthRp OFF → 所有人都能看到图标（存 OnlineSharedSettings 广播）
+    //  - Shift+P 长按 1.5 秒切换 stealthRp
+    // ──────────────────────────────────────────
+    function getRpMode(character) {
+        if (!character) return false;
+        if (character.IsPlayer && character.IsPlayer()) {
+            return getES().stealthRp === 1
+                ? getES().rpModeLocal === 1
+            : getES().rpMode === 1;
+        }
+        return character.OnlineSharedSettings?.LikoTOOL?.RPmode === 1;
+    }
+
+    function setRpMode(enabled) {
+        const settings = getES();
+        settings[settings.stealthRp === 1 ? 'rpModeLocal' : 'rpMode'] = enabled ? 1 : 0;
+        saveES();
+        if (settings.stealthRp !== 1) broadcastShared('RPmode', enabled);
+        updateTogglesOwner?.();
+    }
+
+    // ──────────────────────────────────────────
+    // Canvas：绘制头顶状态徽章（从固定高度往下堆叠；只画开启的，顺序 RP > 勿扰 > 无视绑缚）
+    // ──────────────────────────────────────────
+    function drawStateBadges(C, CharX, CharY, Zoom) {
+        const keys = [];
+        if (getRpMode(C))         keys.push('rp');
+        if (getDndMode(C))        keys.push('dnd');
+        if (getFreeHandsShared(C)) keys.push('free');
+        if (getMagicDefenseShared(C)) keys.push('magicDefense');
+        if (!keys.length) return;
+        const baseY = (C.IsKneeling && C.IsKneeling()) ? 300 : 40; // 固定锚点：跪姿往下移
+        const x = CharX +35+340 * Zoom;
+        const size = 45 * Zoom;
+        const step = 55 * Zoom;
+        keys.forEach((key, i) => {
+            const y = CharY +45+ baseY * Zoom + i * step;
+            if (key === 'rp') DrawImageResize(rpIconUrl, x, y, size, 50 * Zoom); // RP 沿用原本 PNG 徽章
+            else drawBadgeDisc(key, x, y, size);
+        });
+    }
+
+    function rpmode() {
+        const newRpMode = !getRpMode(Player);
+        setRpMode(newRpMode);
+        ChatRoomSendLocal(newRpMode ? t('rpOn') : t('rpOff'), TOGGLE_MSG_MS);
+        return true;
+    }
+
+    function rpbtn() { return toggleSetting('rpBtnVisible', { on: 'rpBtnShow', off: 'rpBtnHide' }); }
+
+    // ──────────────────────────────────────────
+    // 隐藏快捷键：长按 Shift + P 1.5 秒，切换 RP 隐身模式
+    //   - stealthRp ON  → 别人看不到你头顶的 RP 图标
+    //   - stealthRp OFF → 别人能看到你头顶的 RP 图标
+    //   - 完全隐晦：UI 上不显示任何入口，只有开发者知道
+    //   - 普通人按不出：必须 Shift + P 同时按住 1.5 秒
+    // ──────────────────────────────────────────
+    function setupHiddenRpBtnShortcut() {
+        let held = false;
+        let timer = null;
+        const HOLD_MS = 1500;
+        listen(document, 'keydown', function(e) {
+            if (e.repeat) return;
+            if (e.ctrlKey || e.altKey || e.metaKey) return;
+            if (e.key !== 'P' && e.key !== 'p') return;
+            if (!e.shiftKey) return;
+            if (held) return;
+            held = true;
+            timer = setTimeout(function() {
+                const s = getES();
+                const wasOn = getRpMode(Player);
+                s.stealthRp = s.stealthRp !== 1 ? 1 : 0;
+                saveES();
+                // 如果之前 RP 已开，把状态迁移到新的存储方式
+                if (wasOn) {
+                    setRpMode(false);
+                    setRpMode(true);
+                }
+                ChatRoomSendLocal(t('stealthLabel') + ': ' + (s.stealthRp === 1 ? t('stealthOn') : t('stealthOff')));
+            }, HOLD_MS);
+        });
+        listen(document, 'keyup', function(e) {
+            if (e.key === 'P' || e.key === 'p' || e.key === 'Shift') {
+                if (timer) { clearTimeout(timer); timer = null; }
+                held = false;
+            }
+        });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 13 功能 Hook：無視綁縛、勿擾、魔法防禦、OOC 與遮擋
+    // ════════════════════════════════════════════════════════════════════════
+    // ──────────────────────────────────────────
+    // Free Hands 无视绑缚（被绑时仍可使用双手，不解开任何拘束道具）
+    //  - 透过 ModSDK 挂钩 Player 的实例方法（点路径 "Player.X"，ModSDK 会解析 window.Player.X），
+    //    让修改登记在本 mod 名下 → 不会被其他工具判为「未使用 ModSDK 的未知修改」。
+    //  - 只挂一次；实际启停由 getES().freeHands 决定（关闭时走 next(args) 原逻辑，零副作用）。
+    //  ponytail: 挂钩在 hook 时解析当前 Player 实例；同页内重登录换了 Player 物件需重挂（init 会重跑）。
+    // ──────────────────────────────────────────
+    let freeHandsPlayer = null, freeHandsRemovers = [];
+
+    function setupFreeHandsHooks() {
+        const player = window.Player;
+        if (freeHandsPlayer === player || !modApi || !player?.MemberNumber) return;
+        freeHandsRemovers.forEach(remove => remove());
+        freeHandsRemovers = []; freeHandsPlayer = null;
+        try {
+            for (const [name, value] of [['CanInteract', true], ['IsRestrained', false], ['CanChangeOwnClothes', true]]) {
+                freeHandsRemovers.push(modApi.hookFunction('Player.' + name, 2,
+                    (args, next) => getES().freeHands === 1 ? value : next(args)));
+            }
+            freeHandsPlayer = player;
+        } catch (error) {
+            freeHandsRemovers.forEach(remove => remove()); freeHandsRemovers = [];
+            console.error('[LT] FreeHands hooks:', error);
+        }
+    }
+
+    function freeHandsCommand() { return toggleSetting('freeHands', { on: 'fhOn', off: 'fhOff', shared: 'FreeHands' }); }
+
+    // ──────────────────────────────────────────
+    // 勿扰模式：除自己外，任何人对本玩家外观的编辑（换衣/拘束）都立即复原
+    //  - _dndBaseline 记录「授权状态」：开启时、以及自己/全量同步造成的变更后都会更新。
+    //  - 他人造成的变更 → 载回 baseline 并广播，覆盖对方的修改，同时发一则动作讯息。
+    //  ponytail: 用「变更来源号码」区分自己 vs 他人的启发式；来源为 null（全量同步）视为授权。
+    // ──────────────────────────────────────────
+    let _dndBaseline = null;
+
+    let _dndLastAnnounce = 0;
+
+    let _dndInSync = false; // 处理「他人造成的同步」期间为 true，避免把对方的状态误存成基准
+
+    // 勿扰放行清单：ECHO「贴贴」(ItemMisc) — 抱入/钻怀时用来固定两人，勿扰不复原它（加/移除都放行）
+    const DND_EXEMPT = { Group: "ItemMisc", Name: "贴贴" };
+
+    function _dndIsExempt(i) { return i && i.Group === DND_EXEMPT.Group && i.Name === DND_EXEMPT.Name; }
+
+    // 非放行部分的指纹（依 Group 排序求稳定序），用来判断「除了贴贴之外有没有真的被改动」
+    function _dndFingerprint(bundle) {
+        return JSON.stringify(bundle.filter(i => !_dndIsExempt(i))
+                              .slice().sort((a, b) => (a.Group > b.Group ? 1 : a.Group < b.Group ? -1 : 0)));
+    }
+
+    // 复原用 bundle：非放行部分回到 baseline，贴贴则保留「当前」状态（让 ECHO 抱抱不被撤销）
+    function _dndBuildRevertBundle(currentBundle) {
+        let bundle = _dndBaseline.filter(i => !_dndIsExempt(i));
+        const currExempt = currentBundle.find(_dndIsExempt);
+        if (currExempt) {
+            bundle = bundle.filter(i => i.Group !== DND_EXEMPT.Group); // 让出贴贴所在格子
+            bundle.push(currExempt);
+        }
+        return bundle;
+    }
+
+    function dndCaptureBaseline() {
+        try { _dndBaseline = ServerAppearanceBundle(Player.Appearance); } catch (e) {}
+    }
+
+    function dndRevert(sourceNumber) {
+        if (!_dndBaseline) { dndCaptureBaseline(); return; }
+        let currentBundle, mergedBundle;
+        try {
+            currentBundle = ServerAppearanceBundle(Player.Appearance);
+            mergedBundle  = _dndBuildRevertBundle(currentBundle);
+            // 只有「贴贴」被加/移除 → 没有需要复原的改动，直接放行（不复原、不广播）
+            if (_dndFingerprint(currentBundle) === _dndFingerprint(_dndBaseline)) return;
+        } catch (e) { mergedBundle = _dndBaseline; }
+        try {
+            ServerAppearanceLoadFromBundle(Player, Player.AssetFamily, mergedBundle, Player.MemberNumber);
+            CharacterRefresh(Player, false); // Push=false：别再触发 ServerPlayerAppearanceSync（会重入并污染基准）
+            ChatRoomCharacterUpdate(Player); // 手动广播复原后的外观，覆盖对方的修改
+        } catch (e) { console.error("🐈‍⬛ [LT] ❌ DND 复原错误:", e.message); return; }
+        const now = Date.now();
+        if (now - _dndLastAnnounce > 3000) { // 节流，避免对方连点洗版
+            _dndLastAnnounce = now;
+            const src = ChatRoomCharacter?.find(c => c.MemberNumber === sourceNumber);
+            chatSendCustomAction(t('dndReverted', { src: getNickname(src || {}), who: getNickname(Player) }));
+        }
+    }
+
+    // 收到「本玩家外观被变更」的同步时调用；target/source 由各 sync hook 解出
+    function dndHandleIncoming(target, sourceNumber) {
+        if (getES().dnd !== 1) return;
+        if (!target || target.MemberNumber !== Player.MemberNumber) return; // 只保护自己
+        if (sourceNumber == null || sourceNumber === Player.MemberNumber) {
+            dndCaptureBaseline(); // 自己的变更或全量同步 → 更新授权基准
+            return;
+        }
+        dndRevert(sourceNumber);
+    }
+
+    function dndCommand() {
+        return toggleSetting('dnd', { on: 'dndOn', off: 'dndOff', shared: 'DND',
+            apply: enabled => { if (enabled) dndCaptureBaseline(); } });
+    }
+
+    // ──────────────────────────────────────────
+    // LSCG 魔法防御：在 LSCG 套用任何效果前拦截接收入口。
+    // 同时覆盖远端施法、本地/自施法及配对魔法，避免短暂的换装、催眠、失明等副作用。
+    // ──────────────────────────────────────────
+    let _magicDefenseModule = null;
+
+    let _magicDefenseOriginals = null;
+
+    let _magicDefenseTimer = null;
+
+    function announceMagicDefense() {
+        chatSendCustomAction(t('magicDeflected', { who: getNickname(Player) }));
+    }
+
+    function restoreMagicDefenseHooks() {
+        if (_magicDefenseModule && _magicDefenseOriginals) {
+            Object.keys(_magicDefenseOriginals).forEach(function(name) {
+                if (_magicDefenseModule[name]?._ltMagicDefenseWrapper) {
+                    _magicDefenseModule[name] = _magicDefenseOriginals[name];
+                }
+            });
+        }
+        _magicDefenseModule = null;
+        _magicDefenseOriginals = null;
+    }
+
+    function setupMagicDefenseHooks() {
+        let magic = null;
+        try { magic = window.LSCG?.getModule?.('MagicModule'); } catch (e) {}
+        if (!magic || magic === _magicDefenseModule) return;
+        restoreMagicDefenseHooks();
+
+        const originals = {};
+        ['IncomingSpellCommand', 'IncomingSpell', 'IncomingSpellPair'].forEach(function(name) {
+            if (typeof magic[name] !== 'function') return;
+            const original = magic[name];
+            originals[name] = original;
+            const wrapper = function() {
+                if (!disposed && getES().magicDefense === 1) {
+                    announceMagicDefense();
+                    return;
+                }
+                return original.apply(this, arguments);
+            };
+            wrapper._ltMagicDefenseWrapper = true;
+            magic[name] = wrapper;
+        });
+        if (Object.keys(originals).length) {
+            _magicDefenseModule = magic;
+            _magicDefenseOriginals = originals;
+        }
+    }
+
+    function startMagicDefenseHooks() {
+        setupMagicDefenseHooks();
+        if (!_magicDefenseTimer) _magicDefenseTimer = setInterval(setupMagicDefenseHooks, 1000);
+    }
+
+    function magicDefenseCommand() {
+        return toggleSetting('magicDefense', { on: 'magicDefenseOn', off: 'magicDefenseOff',
+            shared: 'MagicDefense', apply: setupMagicDefenseHooks });
+    }
+
+    // ──────────────────────────────────────────
+    // 说话总是 OOC：聊天/密语时自动把讯息包成 (...) 转为 OOC（略过指令 / / 动作 * / 已是 OOC）
+    //  另外把输入框 placeholder（BC 的「对话状态」提示）在启用时前缀「现在讯息为 OOC」。
+    // ──────────────────────────────────────────
+    // 自愈式刷新 placeholder：大多数帧只做一次 startsWith 比对就返回，仅在不一致时才重建。
+    // ponytail: 每帧检查，但已用「状态一致即短路」把成本压到近乎为零。
+    function ltRefreshOOCPlaceholder() {
+        if (CurrentScreen !== "ChatRoom") return;
+        const el = document.getElementById("InputChat");
+        if (!el) return;
+        const on = getES().alwaysOOC === 1;
+        const tag = t('oocPlaceholder');
+        const hasTag = (el.getAttribute("placeholder") || "").startsWith(tag);
+        if (on === hasTag) return; // 已一致，短路
+        // 重建 BC 原生 placeholder（密语目标 / 公开）
+        let base;
+        const tgt = (typeof ChatRoomTargetMemberNumber === 'number' && ChatRoomTargetMemberNumber >= 0)
+        ? ChatRoomCharacter?.find(c => c.MemberNumber === ChatRoomTargetMemberNumber) : null;
+        if (tgt) base = TextGetInScope("Screens/Online/ChatRoom/Text_ChatRoom.csv", "WhisperTo") + " " + CharacterNickname(tgt);
+        else base = TextGetInScope("Screens/Online/ChatRoom/Text_ChatRoom.csv", "PublicChat");
+        el.setAttribute("placeholder", on ? (tag + " · " + base) : base);
+    }
+
+    function oocCommand() { return toggleSetting('alwaysOOC', { on: 'oocOn', off: 'oocOff', apply: ltRefreshOOCPlaceholder }); }
+
+    // ──────────────────────────────────────────
+    // Ignore Clothing Block 无视衣物阻挡
+    //  - 拿掉「其他道具 Block 此格子」+ 衣物遮挡类前置条件（RemoveClothesForItem 一般衣物/外套、
+    //    UnZipSuitForItem 连体衣/外套遮住乳环），让被服装/道具遮挡的格子仍可直接换装、装拘束。
+    //  - enclose / 距离 / 主人规则 / 其它前置条件(姿势/贞操/冲突拘束)全部保留。
+    //  - 透过 modApi.hookFunction 挂钩（不直接改写全局函式），否则会被 ModSDK 判为「未知 MOD」。
+    //    关闭时呼叫 hookFunction 回传的移除器还原，不留下任何修改。
+    // ──────────────────────────────────────────
+    let _ibHooks = null;
+
+    function installIgnoreBlockHooks() {
+        if (_ibHooks || !modApi || typeof modApi.hookFunction !== 'function') return;
+        const installed = [];
+        try {
+            installed.push(modApi.hookFunction('InventoryGroupIsBlockedForCharacter', 10, (args, next) => {
+                const C = args[0], GroupName = args[1];
+                let Activity = args[2] || false;
+                const restraints = C.Appearance.filter(i => i.Asset.Group.IsItem());
+                if (Activity && !restraints.some(i => i.Asset.AllowActivityOn.includes(GroupName) || i.Property?.AllowActivityOn?.includes(GroupName)))
+                    Activity = false;
+                const blocked = next(args);
+                const itemBlocked = !Activity && restraints.some(i => i.Asset.Block?.includes(GroupName) || i.Property?.Block?.includes(GroupName));
+                if (!itemBlocked) return blocked;
+                // Only bypass native item-to-item blocking; enclosure remains protected.
+                if (!C.IsPlayer() && C.IsEnclose())
+                    return !restraints.some(i => i.Asset.Group.Name == GroupName && InventoryItemHasEffect(i, "Enclose", true));
+                return false;
+            }));
+            installed.push(modApi.hookFunction('InventoryPrerequisiteMessage', 10, (args, next) => {
+                const msg = next(args);
+                // 衣物遮挡类前置条件全部放行：RemoveClothesForItem（一般衣物/外套遮挡）、
+                // UnZipSuitForItem（连体衣/外套遮住乳环等 ItemNipplesPiercings 项目）。
+                // 其它（姿势/贞操/MustFree*/MustHave* 等结构性条件）保留。
+                return (msg === "RemoveClothesForItem" || msg === "UnZipSuitForItem") ? "" : msg;
+            }));
+            _ibHooks = installed;
+        } catch (error) {
+            installed.forEach(remove => remove());
+            throw error;
+        }
+    }
+
+    function removeIgnoreBlockHooks() {
+        if (!_ibHooks) return;
+        _ibHooks.forEach(remove => { try { remove(); } catch (e) {} });
+        _ibHooks = null;
+    }
+
+    function applyIgnoreBlock() {
+        if (getES().ignoreBlock === 1) installIgnoreBlockHooks(); else removeIgnoreBlockHooks();
+    }
+
+    function ignoreBlockCommand() { return toggleSetting('ignoreBlock', { on: 'ibOn', off: 'ibOff', apply: applyIgnoreBlock }); }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 14 整合入口：SDK Hook 與聊天指令派發
+    // ════════════════════════════════════════════════════════════════════════
+    let modApi = null;
+
+    // ─────────────────────────────────────────
+    // 安全 hook 包装
+    // ──────────────────────────────────────────
+    function safeHookFunction(functionName, priority, callback) {
+        if (!modApi) return;
+        if (typeof window[functionName] === 'undefined') {
+            console.warn("🐈‍⬛ [LT] ⚠️ " + functionName + " 不存在，跳过 hook");
+            return;
+        }
+        try { modApi.hookFunction(functionName, priority, callback); }
+        catch (e) { console.error("🐈‍⬛ [LT] ❌ Hook " + functionName + " 失敗:", e.message); }
     }
 
     // ──────────────────────────────────────────
@@ -2114,11 +3089,10 @@
 
         // 离开聊天室（如前往衣柜）时关闭工具箱
         safeHookFunction("CommonSetScreen", 10, (args, next) => {
-            const result = next(args);
-            if (typeof CurrentScreen !== 'undefined' && CurrentScreen !== 'ChatRoom' && toolPanelVisible) {
-                hideToolPanel();
-            }
-            return result;
+            return Promise.resolve(next(args)).then(result => {
+                if (!disposed && CurrentScreen !== 'ChatRoom' && toolPanelVisible) hideToolPanel();
+                return result;
+            });
         });
 
         // 说话总是 OOC：送出前把输入框内容包成 (...)（略过空 / 指令 / / 动作 * : / 已是 OOC ( ）
@@ -2187,32 +3161,37 @@
             return next(args);
         });
 
-        // 身高：开启对话框时套用
-        safeHookFunction("CharacterSetCurrent", 10, (args, next) => {
-            const [C] = args;
-            if (heightTargetChar && heightTargetChar !== C) {
-                removeHeightHijack(heightTargetChar);
-                heightTargetChar = null;
-            }
-            const result = next(args);
-            if (C?.MemberNumber) {
-                heightTargetChar = C;
-                applyHeightToTarget(C);
-            }
-            return result;
+        // Mirror native raise-view positioning without changing character height fields.
+        // IgnoreUpButton=true is used during asset construction and must remain untouched.
+        safeHookFunction('CharacterAppearanceYOffset', 10, (args, next) => {
+            const offset = next(args);
+            const [C, ratio, ignoreUpButton] = args;
+            if (ignoreUpButton || getES().heightFix !== 1 || !isToolDialogCharacter(C)) return offset;
+            return 1000 * (1 - ratio) * (C.HeightRatioProportion ?? 1);
         });
 
-        // 身高：离开对话框时还原
-        safeHookFunction("DialogLeave", 10, (args, next) => {
-            if (heightTargetChar) { removeHeightHijack(heightTargetChar); heightTargetChar = null; }
-            return next(args);
+        safeHookFunction('DrawCharacter', 10, (args, next) => {
+            if (getES().fixedZones !== 1 || !isToolDialogCharacter(args[0])) return next(args);
+            const drawArgs = [...args];
+            drawArgs[4] = false; // Native display-only ratio=1; C.HeightRatio remains untouched.
+            return next(drawArgs);
+        });
+
+        // Both native zone drawing and hit testing use this same geometry function.
+        safeHookFunction("DialogGetCharacterZone", 10, (args, next) => {
+            if (getES().fixedZones !== 1 || !isToolDialogCharacter(args[0])) return next(args);
+            const zoneArgs = [...args]; zoneArgs[5] = 1;
+            return next(zoneArgs);
         });
 
         // Undo hooks
         safeHookFunction("ChatRoomSync", -10, (args, next) => {
             const result = next(args);
-            setTimeout(scanAllCharacters, 0);
-            return result;
+            const room = typeof ChatRoomData === 'undefined' ? null : ChatRoomData;
+            return Promise.resolve(result).then(value => {
+                if (!disposed && CurrentScreen === 'ChatRoom' && ChatRoomData === room) scanAllCharacters();
+                return value;
+            });
         });
         safeHookFunction("ChatRoomSyncMemberJoin", -10, (args, next) => {
             const result = next(args);
@@ -2261,670 +3240,11 @@
     }
 
     // ──────────────────────────────────────────
-    // 指令實作
-    // ──────────────────────────────────────────
-    async function free(args) {
-        const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
-        const restraints = [];
-        for (const group of AssetGroup) {
-            if (group.Name.startsWith("Item")) {
-                const item = InventoryGet(target, group.Name);
-                if (item) {
-                    if (isHeartLock(item)) continue; // AFC 心锁：跳过，不列入可解除清单
-                    const lock     = item.Property?.LockedBy ? t('lockPrefix') + " " + item.Property.LockedBy : "";
-                    const password = item.Property?.Password || item.Property?.CombinationNumber || "";
-                    const itemName = item.Craft?.Name || item.Asset?.Description || item.Asset?.Name || t('unknown');
-                    restraints.push({
-                        text: (lock ? lock + " " : "") + itemName + " (" + group.Description + (password ? ", " + t('password') + ": " + password : "") + ")",
-                        group: group.Name
-                    });
-                }
-            }
-        }
-        if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('freeNoItem') + "！"); return true; }
-        const selected = await requestButtons(t('freeTitle') + " — " + getNickname(target), restraints, true);
-        if(disposed) return;
-        if (!selected.length) return true;
-        try {
-            selected.forEach(itemText => {
-                const group = restraints.find(r => r.text === itemText)?.group;
-                if (group) InventoryRemove(target, group);
-            });
-            ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(t('actFreeMsg', { src: getNickname(Player), who: getNickname(target), items: selected.join(isZh() ? "、" : ", ") }));
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ free 错误:", e.message); }
-        return true;
-    }
-
-    // ── Craft 属性：清除 / 批量编辑（只提供 名称 / 描述 / 私有）──
-    // 收集对象身上所有 Item* 组的束缚物品
-    function collectRestraintItems(target) {
-        const items = [];
-        for (const group of AssetGroup) {
-            if (!group.Name.startsWith("Item")) continue;
-            const item = InventoryGet(target, group.Name);
-            if (item) items.push({ item, group: group.Name, groupDesc: group.Description });
-        }
-        return items;
-    }
-
-    async function clearAllCraft(target) {
-        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return; }
-        // 只列出「确实带有 craft」的束缚，供逐个选或全选
-        const restraints = collectRestraintItems(target)
-        .filter(r => r.item.Craft)
-        .map(r => ({
-            text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ")",
-            group: r.group
-        }));
-        if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('craftClearNone') + "！"); return; }
-        const selected = await requestButtons(t('craftClearTitle') + " — " + getNickname(target), restraints, true);
-        if(disposed) return;
-        if (!selected.length) return;
-        try {
-            let count = 0;
-            selected.forEach(itemText => {
-                const group = restraints.find(r => r.text === itemText)?.group;
-                if (!group) return;
-                const item = InventoryGet(target, group);
-                if (item?.Craft) { delete item.Craft; count++; }
-            });
-            if (!count) return;
-            ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(getNickname(Player) + " " + t('craftClearDone') + " " + getNickname(target) + "！");
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ clearAllCraft 错误:", e.message); }
-    }
-
-    async function editCraftBatch(target) {
-        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return; }
-        const restraints = collectRestraintItems(target).map(r => ({
-            text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ")",
-            group: r.group
-        }));
-        if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('craftNoItem') + "！"); return; }
-        const selected = await requestButtons(t('craftPickTitle') + " — " + getNickname(target), restraints, true);
-        if(disposed) return;
-        if (!selected.length) return;
-        const craft = await requestCraftEdit();
-        if(disposed) return;
-        if (!craft) return;
-        try {
-            let count = 0;
-            selected.forEach(itemText => {
-                const group = restraints.find(r => r.text === itemText)?.group;
-                if (!group) return;
-                const item = InventoryGet(target, group);
-                if (!item) return;
-                const existing = item.Craft || {};
-                const defaults = {
-                    Color: Array.isArray(item.Color) ? item.Color.join(",") : (typeof item.Color === "string" ? item.Color : ""),
-                    Lock: "",
-                    Effects: {},
-                    Item: item.Asset?.Name ?? "",
-                };
-                item.Craft = Object.assign({}, defaults, existing, {
-                    Name: craft.name,
-                    Description: craft.description,
-                    Private: craft.private,
-                    Item: item.Asset?.Name ?? existing.Item ?? "",
-                    MemberName: Player.Nickname || Player.Name || "",
-                    MemberNumber: Player.MemberNumber,
-                });
-                count++;
-            });
-            if (!count) return;
-            ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(getNickname(Player) + " → " + getNickname(target) + "：" + count + " " + t('craftEditDone') + "「" + craft.name + "」");
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ editCraftBatch 错误:", e.message); }
-    }
-
-    // craft 编辑表单：名称 / 描述 / 私有 → resolve({name, description, private}) 或 null
-    function requestCraftEdit() {
-        return new Promise(resolve => {
-            let done = false;
-            const wrap = document.createElement('div');
-            wrap.className = 'lt-settings';
-
-            const mkLabel = (txt) => { const l = document.createElement('div'); l.className = 'lt-settings-label'; l.textContent = txt; l.style.marginBottom = '4px'; return l; };
-            const inputCss = 'width:100%;background:var(--lt-surface);border:1px solid var(--lt-border);border-radius:8px;padding:6px 10px;color:var(--lt-text);font-size:12px;outline:none;';
-
-            wrap.appendChild(mkLabel(t('craftName')));
-            const nameInput = document.createElement('input');
-            nameInput.type = 'text'; nameInput.maxLength = 100; nameInput.style.cssText = inputCss + 'margin-bottom:12px;';
-            wrap.appendChild(nameInput);
-
-            wrap.appendChild(mkLabel(t('craftDesc')));
-            const descInput = document.createElement('textarea');
-            descInput.rows = 3; descInput.maxLength = 200; descInput.style.cssText = inputCss + 'margin-bottom:12px;resize:vertical;font-family:inherit;';
-            wrap.appendChild(descInput);
-
-            const privRow = document.createElement('label');
-            privRow.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--lt-text);';
-            const privCheck = document.createElement('input');
-            privCheck.type = 'checkbox';
-            const privText = document.createElement('span'); privText.textContent = t('craftPrivate');
-            privRow.appendChild(privCheck); privRow.appendChild(privText);
-            wrap.appendChild(privRow);
-
-            const footerEl = document.createElement('div');
-            footerEl.style.cssText = 'display:flex;gap:8px;width:100%;';
-            const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'lt-btn lt-btn-secondary'; cancelBtn.textContent = t('cancel'); cancelBtn.style.flex = '1';
-            cancelBtn.onclick = () => { if (done) return; done = true; panel.remove(); resolve(null); };
-            const confirmBtn = document.createElement('button');
-            confirmBtn.className = 'lt-btn lt-btn-primary'; confirmBtn.textContent = t('confirm'); confirmBtn.style.flex = '1';
-            confirmBtn.onclick = () => {
-                if (done) return;
-                const name = nameInput.value.trim();
-                if (!name) { nameInput.focus(); return; }
-                done = true; panel.remove();
-                resolve({ name, description: descInput.value.trim(), private: privCheck.checked });
-            };
-            footerEl.appendChild(cancelBtn); footerEl.appendChild(confirmBtn);
-
-            const panel = createPanel(t('craftEditTitle'), wrap, footerEl, {
-                onClose: () => { if (!done) { done = true; resolve(null); } }
-            });
-            setTimeout(() => { try { nameInput.focus(); } catch (_) {} }, 0);
-        });
-    }
-
-    function clearCraftCommand(args) {
-        const target = getPlayer((args || '').trim());
-        clearAllCraft(target);
-        return true;
-    }
-    function editCraftCommand(args) {
-        const target = getPlayer((args || '').trim());
-        editCraftBatch(target);
-        return true;
-    }
-
-    async function bcxImport(args) {
-        const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
-        let bcxCode;
-        try { bcxCode = await navigator.clipboard.readText(); if(disposed) return; }
-        catch (e) { ChatRoomSendLocal(t('clipboardFail')); return true; }
-        try {
-            const appearance = JSON.parse(LZString.decompressFromBase64(bcxCode));
-            if (!Array.isArray(appearance)) throw new Error("invalid");
-            ServerAppearanceLoadFromBundle(target, target.AssetFamily, appearance, Player.MemberNumber);
-            ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(getNickname(Player) + " " + t('bcxDone') + " " + getNickname(target) + "！");
-        } catch (e) { ChatRoomSendLocal(t('bcxInvalid')); }
-        return true;
-    }
-
-    function rpmode() {
-        const newRpMode = !getRpMode(Player);
-        setRpMode(newRpMode);
-        ChatRoomSendLocal(newRpMode ? t('rpOn') : t('rpOff'), TOGGLE_MSG_MS);
-        return true;
-    }
-
-    function rpbtn() {
-        const s = getES();
-        s.rpBtnVisible = s.rpBtnVisible !== 1 ? 1 : 0;
-        saveES();
-        ChatRoomSendLocal(s.rpBtnVisible === 1 ? t('rpBtnShow') : t('rpBtnHide'), TOGGLE_MSG_MS);
-        return true;
-    }
-
-    // ──────────────────────────────────────────
-    // 隐藏快捷键：长按 Shift + P 1.5 秒，切换 RP 隐身模式
-    //   - stealthRp ON  → 别人看不到你头顶的 RP 图标
-    //   - stealthRp OFF → 别人能看到你头顶的 RP 图标
-    //   - 完全隐晦：UI 上不显示任何入口，只有开发者知道
-    //   - 普通人按不出：必须 Shift + P 同时按住 1.5 秒
-    // ──────────────────────────────────────────
-    (function setupHiddenRpBtnShortcut() {
-        let held = false;
-        let timer = null;
-        const HOLD_MS = 1500;
-        listen(document, 'keydown', function(e) {
-            if (e.repeat) return;
-            if (e.ctrlKey || e.altKey || e.metaKey) return;
-            if (e.key !== 'P' && e.key !== 'p') return;
-            if (!e.shiftKey) return;
-            if (held) return;
-            held = true;
-            timer = setTimeout(function() {
-                const s = getES();
-                const wasOn = getRpMode(Player);
-                s.stealthRp = s.stealthRp !== 1 ? 1 : 0;
-                saveES();
-                // 如果之前 RP 已开，把状态迁移到新的存储方式
-                if (wasOn) {
-                    setRpMode(false);
-                    setRpMode(true);
-                }
-                ChatRoomSendLocal(t('stealthLabel') + ': ' + (s.stealthRp === 1 ? t('stealthOn') : t('stealthOff')));
-            }, HOLD_MS);
-        });
-        listen(document, 'keyup', function(e) {
-            if (e.key === 'P' || e.key === 'p' || e.key === 'Shift') {
-                if (timer) { clearTimeout(timer); timer = null; }
-                held = false;
-            }
-        });
-    })();
-
-    async function fullUnlock(args) {
-        const target = getPlayer(args.trim());
-        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
-        // 跳过主人锁 / 恋人锁 / AFC 心锁（拓展锁）
-        const skipLocks = ["OwnerPadlock", "OwnerTimerPadlock", "LoversPadlock", "LoversTimerPadlock"];
-        const locks = collectRestraintItems(target)
-        .filter(r => {
-            const lb = r.item.Property?.LockedBy;
-            return lb && !skipLocks.includes(lb) && !isHeartLock(r.item);
-        })
-        .map(r => {
-            const pw = r.item.Property?.Password || r.item.Property?.CombinationNumber || "";
-            return {
-                text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ") [" + r.item.Property.LockedBy + (pw ? ", " + t('password') + ": " + pw : "") + "]",
-                group: r.group
-            };
-        });
-        if (!locks.length) { ChatRoomSendLocal(getNickname(target) + " " + t('unlockNone') + "！"); return true; }
-        const selected = await requestButtons(t('unlockTitle') + " — " + getNickname(target), locks, true);
-        if(disposed) return;
-        if (!selected.length) return true;
-        try {
-            let count = 0;
-            selected.forEach(txt => {
-                const group = locks.find(l => l.text === txt)?.group;
-                if (!group) return;
-                const item = InventoryGet(target, group);
-                if (item && item.Property?.LockedBy) { InventoryUnlock(target, item); count++; }
-            });
-            if (!count) return true;
-            ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(getNickname(Player) + " " + t('unlockDone') + " " + getNickname(target) + "！");
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ fullUnlock 错误:", e.message); }
-        return true;
-    }
-
-    async function getEverything() {
-        const options = [{ text: t('geItems') }, { text: t('geMoney') }, { text: t('geSkills') }];
-        const selected = await requestButtons(t('geTitle'), options, true);
-        if(disposed) return;
-        if (!selected.length) return true;
-        try {
-            if (selected.includes(t('geItems'))) {
-                const ids = [];
-                AssetFemale3DCG.forEach(group => {
-                    group.Asset.forEach(item => {
-                        if (item.Name && !Player.Inventory.some(inv => inv.Name === item.Name && inv.Group === group.Group) && item.InventoryID) {
-                            InventoryAdd(Player, item.Name, group.Group, false);
-                            ids.push(item.InventoryID);
-                        }
-                    });
-                });
-                ServerPlayerInventorySync();
-                ChatRoomSendLocal(ids.length + " " + t('geItemsDone') + "！");
-            }
-            if (selected.includes(t('geMoney'))) {
-                Player.Money = 999999; ServerPlayerSync();
-                ChatRoomSendLocal(t('geMoneyDone') + "！");
-            }
-            if (selected.includes(t('geSkills'))) {
-                ["LockPicking", "Evasion", "Willpower", "Bondage", "SelfBondage", "Dressage", "Infiltration"]
-                    .forEach(skill => SkillChange(Player, skill, 10, 0, true));
-                ChatRoomSendLocal(t('geSkillsDone') + "！");
-            }
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ getEverything 错误:", e.message); }
-        return true;
-    }
-
-    function wardrobe() {
-        try { ChatRoomAppearanceLoadCharacter(Player); ChatRoomSendLocal(t('wardrobeDone')); }
-        catch (e) { console.error("🐈‍⬛ [LT] ❌ wardrobe 错误:", e.message); }
-        return true;
-    }
-
-    function fullLock(args) {
-        const params           = args.trim().split(/\s+/);
-        const targetIdentifier = params[0] || "";
-        const lockName         = params[1] || "";
-        const target           = getPlayer(targetIdentifier);
-        if (target === Player && !targetIdentifier) { ChatRoomSendLocal(t('lockSpecify')); return true; }
-        if (!ChatRoomCharacter?.find(c => c.MemberNumber === target.MemberNumber)) {
-            ChatRoomSendLocal(getNickname(target) + " " + t('notInRoom') + "！"); return true;
-        }
-        if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
-        const itemMiscGroup = AssetGroupGet(Player.AssetFamily, "ItemMisc");
-        if (!itemMiscGroup) return true;
-        const validLocks = itemMiscGroup.Asset.filter(a => a.IsLock).map(a => ({ Name: a.Name, Description: a.Description || a.Name }));
-        const lock = validLocks.find(l => l.Name.toLowerCase() === lockName.toLowerCase() || l.Description.toLowerCase() === lockName.toLowerCase());
-        if (!lock) {
-            ChatRoomSendLocal(t('lockInvalid') + "：" + lockName + "。" + t('lockAvailable') + "：" + validLocks.map(l => l.Description).join("、"));
-            return true;
-        }
-        try {
-            let count = 0;
-            for (const item of target.Appearance) {
-                const groupName = item.Asset?.Group?.Name || "";
-                if (groupName.startsWith("Item") && item.Asset?.AllowLock !== false && !item.Property?.LockedBy) {
-                    InventoryLock(target, item, { Asset: AssetGet(Player.AssetFamily, "ItemMisc", lock.Name) }, Player.MemberNumber);
-                    count++;
-                }
-            }
-            if (!count) { ChatRoomSendLocal(getNickname(target) + " " + t('lockNone') + "！"); return true; }
-            ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(t('actLockMsg', { src: getNickname(Player), who: getNickname(target), count: count, lock: lock.Description }));
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ fullLock 错误:", e.message); }
-        return true;
-    }
-
-    function heightFixCommand() {
-        const s = getES();
-        s.heightFix = s.heightFix !== 1 ? 1 : 0;
-        saveES();
-        if (s.heightFix === 1) {
-            if (heightTargetChar && s.heightLock !== 1) applyHeightFix(heightTargetChar);
-        } else {
-            if (heightTargetChar && s.heightLock !== 1) removeHeightHijack(heightTargetChar);
-        }
-        ChatRoomSendLocal(s.heightFix === 1 ? t('heightFixOn') : t('heightFixOff'), TOGGLE_MSG_MS);
-        return true;
-    }
-
-    function heightLockCommand() {
-        const s = getES();
-        s.heightLock = s.heightLock !== 1 ? 1 : 0;
-        saveES();
-        if (s.heightLock === 1) {
-            if (heightTargetChar) {
-                if (heightTargetChar._ltHeightFixed) removeHeightHijack(heightTargetChar);
-                applyHeightLock(heightTargetChar);
-            }
-        } else {
-            if (heightTargetChar) {
-                removeHeightHijack(heightTargetChar);
-                if (s.heightFix === 1) applyHeightFix(heightTargetChar);
-            }
-        }
-        ChatRoomSendLocal(s.heightLock === 1 ? t('heightLockOn') : t('heightLockOff'), TOGGLE_MSG_MS);
-        return true;
-    }
-
-    async function undoCommand(args) {
-        await openUndoPanel(getPlayer(args.trim()));
-        return true;
-    }
-
-    // ──────────────────────────────────────────
-    // Free Hands 无视绑缚（被绑时仍可使用双手，不解开任何拘束道具）
-    //  - 透过 ModSDK 挂钩 Player 的实例方法（点路径 "Player.X"，ModSDK 会解析 window.Player.X），
-    //    让修改登记在本 mod 名下 → 不会被其他工具判为「未使用 ModSDK 的未知修改」。
-    //  - 只挂一次；实际启停由 getES().freeHands 决定（关闭时走 next(args) 原逻辑，零副作用）。
-    //  ponytail: 挂钩在 hook 时解析当前 Player 实例；同页内重登录换了 Player 物件需重挂（init 会重跑）。
-    // ──────────────────────────────────────────
-    let _fhHooked = false;
-    function setupFreeHandsHooks() {
-        if (_fhHooked || !modApi || typeof modApi.hookFunction !== 'function' || !Player) return;
-        try {
-            modApi.hookFunction("Player.CanInteract",         2, (args, next) => getES().freeHands === 1 ? true  : next(args));
-            modApi.hookFunction("Player.IsRestrained",        2, (args, next) => getES().freeHands === 1 ? false : next(args));
-            modApi.hookFunction("Player.CanChangeOwnClothes", 2, (args, next) => getES().freeHands === 1 ? true  : next(args));
-            _fhHooked = true;
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ FreeHands hook 失败:", e.message); }
-    }
-    function applyFreeHands() { setupFreeHandsHooks(); } // 相容旧调用：只负责挂钩，开关状态即时生效
-
-    function freeHandsCommand() {
-        const s = getES();
-        s.freeHands = s.freeHands !== 1 ? 1 : 0;
-        saveES();
-        broadcastShared('FreeHands', s.freeHands === 1); // 徽章广播
-        ChatRoomSendLocal(s.freeHands === 1 ? t('fhOn') : t('fhOff'), TOGGLE_MSG_MS);
-        if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
-        return true;
-    }
-
-    // ──────────────────────────────────────────
-    // 勿扰模式：除自己外，任何人对本玩家外观的编辑（换衣/拘束）都立即复原
-    //  - _dndBaseline 记录「授权状态」：开启时、以及自己/全量同步造成的变更后都会更新。
-    //  - 他人造成的变更 → 载回 baseline 并广播，覆盖对方的修改，同时发一则动作讯息。
-    //  ponytail: 用「变更来源号码」区分自己 vs 他人的启发式；来源为 null（全量同步）视为授权。
-    // ──────────────────────────────────────────
-    let _dndBaseline = null;
-    let _dndLastAnnounce = 0;
-    let _dndInSync = false; // 处理「他人造成的同步」期间为 true，避免把对方的状态误存成基准
-
-    // 勿扰放行清单：ECHO「贴贴」(ItemMisc) — 抱入/钻怀时用来固定两人，勿扰不复原它（加/移除都放行）
-    const DND_EXEMPT = { Group: "ItemMisc", Name: "贴贴" };
-    function _dndIsExempt(i) { return i && i.Group === DND_EXEMPT.Group && i.Name === DND_EXEMPT.Name; }
-    // 非放行部分的指纹（依 Group 排序求稳定序），用来判断「除了贴贴之外有没有真的被改动」
-    function _dndFingerprint(bundle) {
-        return JSON.stringify(bundle.filter(i => !_dndIsExempt(i))
-                              .slice().sort((a, b) => (a.Group > b.Group ? 1 : a.Group < b.Group ? -1 : 0)));
-    }
-    // 复原用 bundle：非放行部分回到 baseline，贴贴则保留「当前」状态（让 ECHO 抱抱不被撤销）
-    function _dndBuildRevertBundle(currentBundle) {
-        let bundle = _dndBaseline.filter(i => !_dndIsExempt(i));
-        const currExempt = currentBundle.find(_dndIsExempt);
-        if (currExempt) {
-            bundle = bundle.filter(i => i.Group !== DND_EXEMPT.Group); // 让出贴贴所在格子
-            bundle.push(currExempt);
-        }
-        return bundle;
-    }
-
-    function dndCaptureBaseline() {
-        try { _dndBaseline = ServerAppearanceBundle(Player.Appearance); } catch (e) {}
-    }
-
-    function dndRevert(sourceNumber) {
-        if (!_dndBaseline) { dndCaptureBaseline(); return; }
-        let currentBundle, mergedBundle;
-        try {
-            currentBundle = ServerAppearanceBundle(Player.Appearance);
-            mergedBundle  = _dndBuildRevertBundle(currentBundle);
-            // 只有「贴贴」被加/移除 → 没有需要复原的改动，直接放行（不复原、不广播）
-            if (_dndFingerprint(currentBundle) === _dndFingerprint(_dndBaseline)) return;
-        } catch (e) { mergedBundle = _dndBaseline; }
-        try {
-            ServerAppearanceLoadFromBundle(Player, Player.AssetFamily, mergedBundle, Player.MemberNumber);
-            CharacterRefresh(Player, false); // Push=false：别再触发 ServerPlayerAppearanceSync（会重入并污染基准）
-            ChatRoomCharacterUpdate(Player); // 手动广播复原后的外观，覆盖对方的修改
-        } catch (e) { console.error("🐈‍⬛ [LT] ❌ DND 复原错误:", e.message); return; }
-        const now = Date.now();
-        if (now - _dndLastAnnounce > 3000) { // 节流，避免对方连点洗版
-            _dndLastAnnounce = now;
-            const src = ChatRoomCharacter?.find(c => c.MemberNumber === sourceNumber);
-            chatSendCustomAction(t('dndReverted', { src: getNickname(src || {}), who: getNickname(Player) }));
-        }
-    }
-
-    // 收到「本玩家外观被变更」的同步时调用；target/source 由各 sync hook 解出
-    function dndHandleIncoming(target, sourceNumber) {
-        if (getES().dnd !== 1) return;
-        if (!target || target.MemberNumber !== Player.MemberNumber) return; // 只保护自己
-        if (sourceNumber == null || sourceNumber === Player.MemberNumber) {
-            dndCaptureBaseline(); // 自己的变更或全量同步 → 更新授权基准
-            return;
-        }
-        dndRevert(sourceNumber);
-    }
-
-    function dndCommand() {
-        const s = getES();
-        s.dnd = s.dnd !== 1 ? 1 : 0;
-        saveES();
-        if (s.dnd === 1) dndCaptureBaseline();
-        broadcastShared('DND', s.dnd === 1); // 徽章广播
-        ChatRoomSendLocal(s.dnd === 1 ? t('dndOn') : t('dndOff'), TOGGLE_MSG_MS);
-        if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
-        return true;
-    }
-
-    // ──────────────────────────────────────────
-    // LSCG 魔法防御：在 LSCG 套用任何效果前拦截接收入口。
-    // 同时覆盖远端施法、本地/自施法及配对魔法，避免短暂的换装、催眠、失明等副作用。
-    // ──────────────────────────────────────────
-    let _magicDefenseModule = null;
-    let _magicDefenseOriginals = null;
-    let _magicDefenseTimer = null;
-
-    function announceMagicDefense() {
-        chatSendCustomAction(t('magicDeflected', { who: getNickname(Player) }));
-    }
-
-    function restoreMagicDefenseHooks() {
-        if (_magicDefenseModule && _magicDefenseOriginals) {
-            Object.keys(_magicDefenseOriginals).forEach(function(name) {
-                if (_magicDefenseModule[name]?._ltMagicDefenseWrapper) {
-                    _magicDefenseModule[name] = _magicDefenseOriginals[name];
-                }
-            });
-        }
-        _magicDefenseModule = null;
-        _magicDefenseOriginals = null;
-    }
-
-    function setupMagicDefenseHooks() {
-        let magic = null;
-        try { magic = window.LSCG?.getModule?.('MagicModule'); } catch (e) {}
-        if (!magic || magic === _magicDefenseModule) return;
-        restoreMagicDefenseHooks();
-
-        const originals = {};
-        ['IncomingSpellCommand', 'IncomingSpell', 'IncomingSpellPair'].forEach(function(name) {
-            if (typeof magic[name] !== 'function') return;
-            const original = magic[name];
-            originals[name] = original;
-            const wrapper = function() {
-                if (getES().magicDefense === 1) {
-                    announceMagicDefense();
-                    return;
-                }
-                return original.apply(this, arguments);
-            };
-            wrapper._ltMagicDefenseWrapper = true;
-            magic[name] = wrapper;
-        });
-        if (Object.keys(originals).length) {
-            _magicDefenseModule = magic;
-            _magicDefenseOriginals = originals;
-        }
-    }
-
-    function startMagicDefenseHooks() {
-        setupMagicDefenseHooks();
-        if (!_magicDefenseTimer) _magicDefenseTimer = setInterval(setupMagicDefenseHooks, 1000);
-    }
-
-    function magicDefenseCommand() {
-        const s = getES();
-        s.magicDefense = s.magicDefense !== 1 ? 1 : 0;
-        saveES();
-        setupMagicDefenseHooks();
-        broadcastShared('MagicDefense', s.magicDefense === 1);
-        ChatRoomSendLocal(s.magicDefense === 1 ? t('magicDefenseOn') : t('magicDefenseOff'), TOGGLE_MSG_MS);
-        if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
-        return true;
-    }
-
-    // ──────────────────────────────────────────
-    // 说话总是 OOC：聊天/密语时自动把讯息包成 (...) 转为 OOC（略过指令 / / 动作 * / 已是 OOC）
-    //  另外把输入框 placeholder（BC 的「对话状态」提示）在启用时前缀「现在讯息为 OOC」。
-    // ──────────────────────────────────────────
-    // 自愈式刷新 placeholder：大多数帧只做一次 startsWith 比对就返回，仅在不一致时才重建。
-    // ponytail: 每帧检查，但已用「状态一致即短路」把成本压到近乎为零。
-    function ltRefreshOOCPlaceholder() {
-        if (CurrentScreen !== "ChatRoom") return;
-        const el = document.getElementById("InputChat");
-        if (!el) return;
-        const on = getES().alwaysOOC === 1;
-        const tag = t('oocPlaceholder');
-        const hasTag = (el.getAttribute("placeholder") || "").startsWith(tag);
-        if (on === hasTag) return; // 已一致，短路
-        // 重建 BC 原生 placeholder（密语目标 / 公开）
-        let base;
-        const tgt = (typeof ChatRoomTargetMemberNumber === 'number' && ChatRoomTargetMemberNumber >= 0)
-        ? ChatRoomCharacter?.find(c => c.MemberNumber === ChatRoomTargetMemberNumber) : null;
-        if (tgt) base = TextGetInScope("Screens/Online/ChatRoom/Text_ChatRoom.csv", "WhisperTo") + " " + CharacterNickname(tgt);
-        else base = TextGetInScope("Screens/Online/ChatRoom/Text_ChatRoom.csv", "PublicChat");
-        el.setAttribute("placeholder", on ? (tag + " · " + base) : base);
-    }
-
-    function oocCommand() {
-        const s = getES();
-        s.alwaysOOC = s.alwaysOOC !== 1 ? 1 : 0;
-        saveES();
-        ltRefreshOOCPlaceholder();
-        ChatRoomSendLocal(s.alwaysOOC === 1 ? t('oocOn') : t('oocOff'), TOGGLE_MSG_MS);
-        if (typeof window.__LT_updateToggles === 'function') window.__LT_updateToggles();
-        return true;
-    }
-
-    // ──────────────────────────────────────────
-    // Ignore Clothing Block 无视衣物阻挡
-    //  - 拿掉「其他道具 Block 此格子」+ 衣物遮挡类前置条件（RemoveClothesForItem 一般衣物/外套、
-    //    UnZipSuitForItem 连体衣/外套遮住乳环），让被服装/道具遮挡的格子仍可直接换装、装拘束。
-    //  - enclose / 距离 / 主人规则 / 其它前置条件(姿势/贞操/冲突拘束)全部保留。
-    //  - 透过 modApi.hookFunction 挂钩（不直接改写全局函式），否则会被 ModSDK 判为「未知 MOD」。
-    //    关闭时呼叫 hookFunction 回传的移除器还原，不留下任何修改。
-    // ──────────────────────────────────────────
-    let _ibHooks = null;
-    function _ibPatch() {
-        if (_ibHooks || !modApi || typeof modApi.hookFunction !== 'function') return;
-        _ibHooks = [
-            modApi.hookFunction('InventoryGroupIsBlockedForCharacter', 10, (args) => {
-                const C = args[0], GroupName = args[1];
-                let Activity = args[2] || false;
-                const restraints = C.Appearance.filter(i => i.Asset.Group.IsItem());
-                if (Activity && !restraints.some(i => i.Asset.AllowActivityOn.includes(GroupName) || i.Property?.AllowActivityOn?.includes(GroupName)))
-                    Activity = false;
-                // 原本此处是 item-Block-item 检查，被无视
-                if (!C.IsPlayer() && C.IsEnclose())
-                    return !restraints.some(i => i.Asset.Group.Name == GroupName && InventoryItemHasEffect(i, "Enclose", true));
-                return false;
-            }),
-            modApi.hookFunction('InventoryPrerequisiteMessage', 10, (args, next) => {
-                const msg = next(args);
-                // 衣物遮挡类前置条件全部放行：RemoveClothesForItem（一般衣物/外套遮挡）、
-                // UnZipSuitForItem（连体衣/外套遮住乳环等 ItemNipplesPiercings 项目）。
-                // 其它（姿势/贞操/MustFree*/MustHave* 等结构性条件）保留。
-                return (msg === "RemoveClothesForItem" || msg === "UnZipSuitForItem") ? "" : msg;
-            }),
-        ];
-    }
-    function _ibUnpatch() {
-        if (!_ibHooks) return;
-        _ibHooks.forEach(remove => { try { remove(); } catch (e) {} });
-        _ibHooks = null;
-    }
-    function applyIgnoreBlock() {
-        if (getES().ignoreBlock === 1) _ibPatch(); else _ibUnpatch();
-    }
-
-    function ignoreBlockCommand() {
-        const s = getES();
-        s.ignoreBlock = s.ignoreBlock !== 1 ? 1 : 0;
-        saveES();
-        applyIgnoreBlock();
-        ChatRoomSendLocal(s.ignoreBlock === 1 ? t('ibOn') : t('ibOff'), TOGGLE_MSG_MS);
-        return true;
-    }
-
-    // ── AFC 心锁（拓展锁）识别：解除拘束 / 解锁时跳过，避免破坏 AFC 心锁 ──
-    const AFC_HEARTLOCK_NAME = 'Heart Padlock';
-    function isHeartLock(item) {
-        const p = item?.Property;
-        return !!p && (p.Name === AFC_HEARTLOCK_NAME || !!p.HeartLockId);
-    }
-
-    // ──────────────────────────────────────────
     // 指令入口
     // ──────────────────────────────────────────
     function handleLtCommand(text) {
         if (disposed) return;
-        if (!Player.LikoTool) initializeStorage();
+        if (!Player.ExtensionSettings?.LikoTOOL) initializeStorage();
         const args       = text.trim().split(/\s+/);
         const subCommand = args[0]?.toLowerCase() || "";
         const commandText = args.slice(1).join(" ");
@@ -2965,6 +3285,58 @@
         return true;
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    // SECTION 15 啟動與卸載：依賴、登入、註冊與完整清理
+    // ════════════════════════════════════════════════════════════════════════
+    // ──────────────────────────────────────────
+    // 等待系列
+    // ──────────────────────────────────────────
+    // ──────────────────────────────────────────
+    // 初始化 modApi
+    // ──────────────────────────────────────────
+    function waitForLogin() { return waitFor(() => window.Player?.MemberNumber !== undefined); }
+
+    async function initializeModApi() {
+        if (!(await waitFor(() => typeof bcModSdk !== "undefined" && bcModSdk?.registerMod)) || disposed) return;
+        try {
+            modApi = bcModSdk.registerMod({
+                name: "Liko - tool",
+                fullName: "Liko's tool",
+                version: MOD_Version,
+                repository: 'https://github.com/awdrrawd/liko-Plugin-Repository'
+            });
+        } catch (e) {
+            console.error("🐈‍⬛ [LT] ❌ 初始化 modApi 失敗:", e.message);
+        }
+    }
+
+    // ──────────────────────────────────────────
+    // 载入 Toast 系統
+    // ──────────────────────────────────────────
+    function loadToastSystem() {
+        return new Promise((resolve, reject) => {
+            if (window.ChatRoomSendLocalStyled) { resolve(); return; }
+            const script = document.createElement('script');
+            script.src = "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_toast_system.user.js";
+            let settled = false;
+            const finish = error => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeout);
+                lifecycle.signal.removeEventListener('abort', cancel);
+                script.onload = script.onerror = null;
+                script.remove();
+                if (error) reject(error); else resolve();
+            };
+            const cancel = () => finish();
+            const timeout = setTimeout(() => finish(new Error('Toast load timed out')), 10000);
+            lifecycle.signal.addEventListener('abort', cancel, { once: true });
+            script.onload = () => finish();
+            script.onerror = () => finish(new Error("Toast 载入失敗"));
+            document.head.appendChild(script);
+        });
+    }
+
     // ──────────────────────────────────────────
     // 主初始化
     // ──────────────────────────────────────────
@@ -2978,12 +3350,14 @@
         if (!(await waitForLogin()) || disposed) return;
 
         initializeStorage();
-        applyFreeHands();
+        setupHiddenRpBtnShortcut();
+        setupFreeHandsHooks();
+        setInterval(setupFreeHandsHooks, 1000);
         applyIgnoreBlock();
         startMagicDefenseHooks();
         if (getES().dnd === 1) dndCaptureBaseline();
         // 广播持久化的徽章状态（DND / FreeHands / MagicDefense），让别人一进房就看得到
-        if (typeof ServerAccountUpdate?.QueueData === 'function') {
+        if (typeof globalThis.ServerAccountUpdate?.QueueData === 'function') {
             ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
         }
         applyTheme();
@@ -3008,7 +3382,7 @@
             if (disposed) return;
             ChatRoomSendLocal(t('loaded', { v: MOD_Version }), 30000);
         });
-        console.log("🐈‍⬛ [LT] ✅ v${MOD_Version}  loaded");
+        console.log(`🐈‍⬛ [LT] ✅ v${MOD_Version} loaded`);
     }
 
     // ──────────────────────────────────────────
@@ -3018,13 +3392,14 @@
         if (disposed) return;
         hideToolPanel();
         stopLifecycle();
-        if (heightTargetChar) { removeHeightHijack(heightTargetChar); heightTargetChar=null; }
-        _ibUnpatch(); restoreMagicDefenseHooks();
+        removeIgnoreBlockHooks(); restoreMagicDefenseHooks();
         try { modApi?.unload(); } catch (error) { console.warn(error); }
         modApi=null;
         window.Liko.__Sys_ChatRoomButtons__?.remove(TOOL_CRB_ID);
         if (Array.isArray(window.Liko.__CRB_pending__)) window.Liko.__CRB_pending__ = window.Liko.__CRB_pending__.filter(s => s.id !== TOOL_CRB_ID);
         toolPanelEl?.remove(); toolPanelEl=null;
+        refreshMenuLayout = updateTogglesOwner = null;
+        actionGridEl = phoneHeaderEls = phoneViewportEl = null;
         document.getElementById('lt-styles')?.remove();
         document.getElementById('lt-theme-vars')?.remove();
         if (typeof Command !== 'undefined' && Array.isArray(Command)) {
@@ -3034,6 +3409,8 @@
         if (window.Liko.Tool?.Destroy === destroy) delete window.Liko.Tool;
         delete window.Liko.LT;
     }
+
+    // 公開生命週期 API，所有宣告就緒後才開始非同步初始化。
     window.Liko.Tool = { version: MOD_Version, Destroy: destroy };
     initialize().catch(error => { console.error('[LT] Initialization failed:', error); destroy(); });
 })();
