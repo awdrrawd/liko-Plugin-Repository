@@ -3,7 +3,7 @@
 // @name:zh      Liko的聊天室音樂控制器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.3.3
+// @version      1.4.1
 // @description  Chat Music Controller with playlist sharing and lyrics support
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -64,7 +64,7 @@ let disposed = false;
     }
     window.Liko = window.Liko ?? {};
     if (window.Liko.CMC) return;
-    const MOD_VER = "1.3.3";
+    const MOD_VER = "1.4.1";
     const CMC = window.Liko.CMC = { version: MOD_VER };
 
     CMC.debug = false;
@@ -132,7 +132,6 @@ let disposed = false;
 
         bcMusicURL: "",
         bcMusicMuted: false,
-        bcOriginalMusicVolume: null, // 保存玩家原本的 MusicVolume，靜音期間強制為 0，cleanup 時還原
 
         ytPlayer: null,
         ytReady: false,
@@ -439,37 +438,26 @@ let disposed = false;
         updatePanelUI();
     }
 
-    // ============ BC 音樂靜音 ============
-    // BC 的 AudioBackgroundMusicPlay() 在每次換歌時，會把 AudioBackgroundMusic.volume
-    // 重設為 Player.AudioSettings.MusicVolume。直接把 .volume 設 0 每次都會被覆蓋回去，
-    // 所以改成把「設定值本身」設為 0 —— 換歌重設後仍是 0，且 BC 會自己 pause 背景音樂
-    // (見 AudioBackgroundMusicPlay / AudioBackgroundMusicSetVolume)，不需要再手動 stop。
-    // 原始音量會被保存，並在 cleanup() (離開房間) 時還原，避免污染玩家帳號設定。
+    // ============ BC 音樂接管 ============
+    // 面板開啟期間接管原生背景音樂；玩家帳號的音量與房間自訂偏好保持原樣。
+    function ownsBCMusic() {
+        return !disposed && musicPlayer.isPanelVisible &&
+            typeof ChatRoomData !== 'undefined' && !!ChatRoomData;
+    }
     function muteBCMusic() {
-        if (!ChatRoomCustomized) return;
-        try {
-            if (musicPlayer.bcOriginalMusicVolume === null && Player?.AudioSettings) {
-                musicPlayer.bcOriginalMusicVolume = Player.AudioSettings.MusicVolume ?? 0;
-            }
-            if (Player?.AudioSettings) Player.AudioSettings.MusicVolume = 0;
-            // 立即靜音當前已在播放的實例 (只改設定要到下次換歌才生效，故同步把元素音量設 0)
-            AudioBackgroundMusic.volume = 0;
-        } catch(e) {}
+        if (!ownsBCMusic()) return;
+        AudioBackgroundMusicStop();
         musicPlayer.bcMusicMuted = true;
-        log('BC音樂已靜音 (MusicVolume=0)');
     }
-    function muteBCIfNeeded(url) {
-        if (ChatRoomCustomized && isBCCompatibleURL(url)) muteBCMusic();
+    function muteBCIfNeeded() {
+        muteBCMusic();
     }
-    // 還原玩家原本的 BC 音樂音量 (離開房間 / 清理時呼叫)
     function unmuteBCMusic() {
-        if (musicPlayer.bcOriginalMusicVolume !== null) {
-            try {
-                if (Player?.AudioSettings) Player.AudioSettings.MusicVolume = musicPlayer.bcOriginalMusicVolume;
-            } catch(e) {}
-            musicPlayer.bcOriginalMusicVolume = null;
-        }
+        if (!musicPlayer.bcMusicMuted) return;
         musicPlayer.bcMusicMuted = false;
+        // 依當前設定重新判斷是否播放，不還原過期的音量快照。
+        AudioBackgroundMusic.volume = Player.AudioSettings.MusicVolume;
+        ChatRoomUpdateCustomization();
     }
 
     // ============ 房間名 ============
@@ -1354,21 +1342,11 @@ let disposed = false;
     function playNext() {
         if (musicPlayer.currentPlaylist.length === 0 || musicPlayer.isLoading) return;
         muteBCMusic();
-        if (canControlMusic() && !ChatRoomCustomized) {
-            ChatRoomCustomized = true;
-            ChatRoomCustomizationClear();
-            const url = musicPlayer.currentPlaylist[musicPlayer.currentIndex]?.url || '';
-            muteBCIfNeeded(url);
-        }
         playTrack((musicPlayer.currentIndex + 1) % musicPlayer.currentPlaylist.length, true);
     }
     function playPrevious() {
         if (musicPlayer.currentPlaylist.length === 0 || musicPlayer.isLoading) return;
         muteBCMusic();
-        if (canControlMusic() && !ChatRoomCustomized) {
-            ChatRoomCustomized = true;
-            ChatRoomCustomizationClear();
-        }
         let prev = musicPlayer.currentIndex - 1;
         if (prev < 0) prev = musicPlayer.currentPlaylist.length - 1;
         playTrack(prev, true);
@@ -1390,11 +1368,6 @@ let disposed = false;
         if (musicPlayer.isPlaying) {
             pauseMusic();
         } else {
-            if (canControlMusic() && !ChatRoomCustomized) {
-                ChatRoomCustomized = true;
-                ChatRoomCustomizationClear();
-                muteBCMusic();
-            }
             const hasAudio = musicPlayer.audioPlayer?.src || (musicPlayer.isYouTube && musicPlayer.ytPlayer) || musicPlayer.isBilibili;
             if (hasAudio) {
                 resumeMusic();
@@ -2065,6 +2038,7 @@ let disposed = false;
         if (!musicPlayer.floatingPanel) createFloatingPanel();
         musicPlayer.floatingPanel.style.display = 'block';
         musicPlayer.isPanelVisible = true;
+        muteBCMusic();
         onRoomEnter();
         // If not rank-1, broadcast RequestSync so rank-1 responds with full SyncState (playlist included)
         setTimeout(() => {
@@ -2469,7 +2443,7 @@ let disposed = false;
         musicPlayer.permissions.clear();requestedSync.clear();
         musicPlayer.currentRoomName="";
         musicPlayer.bcMusicURL = "";
-        unmuteBCMusic(); // 還原玩家原本的 BC 音樂音量，避免帳號設定被永久改成 0
+        unmuteBCMusic();
 
         saveSettings(true);
         log('資源清理完成');
@@ -2535,13 +2509,14 @@ let disposed = false;
             }
         });
 
-        modApi.hookFunction("ChatRoomMenuClick", 0, (args, next) => {
-            muteBCMusic();
-            const result = next(args);
-            if (result?.catch) result.catch(() => {});
-            setTimeout(() => muteBCMusic(), 100);
-            return result;
-        });
+        // R132 選單已改為 ChatRoomMenuPerformAction；直接攔截音樂入口，
+        // 同時涵蓋房間更新、偏好音量調整與其他原生播放路徑。
+        for (const name of ["AudioBackgroundMusicPlay", "AudioBackgroundMusicSetVolume"]) {
+            modApi.hookFunction(name, 0, (args, next) => {
+                if (!ownsBCMusic()) return next(args);
+                muteBCMusic();
+            });
+        }
 
         // Helper: hide CMC panel for navigation (doesn't change isPanelVisible)
         function hideForNav() {
@@ -2586,13 +2561,7 @@ let disposed = false;
             }, 100);
         });
 
-        modApi.hookFunction("ChatRoomCustomizationClear", 0, (args, next) => {
-            muteBCMusic();
-            const result = next(args);
-            if (result?.catch) result.catch(() => {});
-            muteBCMusic();
-            return result;
-        });
+
     }
 
     // ============ 命令 ============

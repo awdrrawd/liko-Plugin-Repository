@@ -91,5 +91,49 @@ function clock() {
     vm.runInContext('playbackToken++;musicPlayer.isPlaying=false;',audioCtx);
     resolvePlay();await Promise.resolve();await Promise.resolve();
     assert.equal(vm.runInContext('musicPlayer.isPlaying',audioCtx),false);
-    console.log('CMC lifecycle, transaction, sync and stale-playback checks passed.');
+    // R132 music entry points: takeover must not alter persisted preferences.
+    const musicCtx=vm.createContext({});
+    vm.runInContext(`
+        let disposed=false, stops=0, nativeCalls=0, updates=0;
+        const hooks=new Map();
+        const modApi={hookFunction:(name,priority,fn)=>hooks.set(name,fn)};
+        const musicPlayer={isPanelVisible:false,bcMusicMuted:false};
+        const Player={AudioSettings:{MusicVolume:0.6}};
+        let ChatRoomData={Custom:{MusicURL:'https://a/test.mp3'}};
+        let ChatRoomCustomized=true;
+        const AudioBackgroundMusic={volume:0.6};
+        function AudioBackgroundMusicStop(){stops++;}
+        function ChatRoomUpdateCustomization(){
+            updates++;
+            if(ChatRoomCustomized && ChatRoomData) invoke('AudioBackgroundMusicPlay');
+        }
+        function invoke(name){return hooks.get(name)([],()=>{nativeCalls++;return 42;});}
+        function setInterval(){return 1;}
+        ${extract('ownsBCMusic')}
+        ${extract('muteBCMusic')}
+        ${extract('unmuteBCMusic')}
+        ${extract('hookChatRoom')}
+        hookChatRoom();
+    `,musicCtx);
+    const music=code=>vm.runInContext(code,musicCtx);
+    assert.equal(music("hooks.has('ChatRoomMenuClick')"),false);
+    assert.equal(music("invoke('AudioBackgroundMusicPlay')"),42);
+    music('muteBCMusic()');assert.equal(music('stops'),0);
+    music('musicPlayer.isPanelVisible=true;muteBCMusic()');
+    music("invoke('AudioBackgroundMusicPlay');Player.AudioSettings.MusicVolume=0.8;invoke('AudioBackgroundMusicSetVolume')");
+    assert.equal(music('nativeCalls'),1);
+    assert.equal(music('Player.AudioSettings.MusicVolume'),0.8);
+    music('musicPlayer.isPanelVisible=false;unmuteBCMusic()');
+    assert.equal(music('nativeCalls'),2);
+    assert.equal(music('AudioBackgroundMusic.volume'),0.8);
+    music('muteBCMusic()');assert.equal(music('musicPlayer.bcMusicMuted'),false);
+    music('musicPlayer.isPanelVisible=true;muteBCMusic();ChatRoomCustomized=false;musicPlayer.isPanelVisible=false;unmuteBCMusic()');
+    assert.equal(music('nativeCalls'),2);
+    assert.equal(music('ChatRoomCustomized'),false);
+    music('ChatRoomData=null;musicPlayer.isPanelVisible=true');
+    assert.equal(music("invoke('AudioBackgroundMusicPlay')"),42);
+    for(const name of ['playNext','playPrevious','togglePlay']) {
+        assert.doesNotMatch(extract(name),/ChatRoomCustomizationClear|ChatRoomCustomized\s*=/);
+    }
+    console.log('CMC lifecycle, transaction, sync, stale-playback and R132 music takeover checks passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
