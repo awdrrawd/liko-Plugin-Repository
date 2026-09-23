@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.3.0
+// @version      2.3.1
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
     // 防重複載入必須先於生命週期資源、事件與初始化。
     window.Liko = window.Liko ?? {};
     if (window.Liko.LT) return;
-    const MOD_Version = "2.3.0";
+    const MOD_Version = "2.3.1";
     window.Liko.LT = MOD_Version;
 
     // 閱讀順序：生命週期 → 靜態資源／語系 → 設定 → 共用操作 → UI → 功能 → Hook → 啟動。
@@ -261,6 +261,7 @@
 
     const LANG = {
         zh: {
+            scrollbar: "垂直捲軸",
             back: "返回",
             toolbox: "工具箱",
             menuEdit: "編輯順序與顯示功能",
@@ -466,6 +467,7 @@
             loaded: "莉柯莉丝工具 v{v} 载入！使用 /lt help 查看说明",
         },
         en: {
+            scrollbar: "Vertical scrollbar",
             back: "Back",
             toolbox: "Toolbox",
             menuEdit: "Edit feature order and visibility",
@@ -989,10 +991,7 @@
 
             "@keyframes lt-shimmer{0%{transform:translateX(0)}100%{transform:translateX(600%)}}",
             // ── Modal Content ──
-            ".lt-content{min-height:0;min-width:0;overscroll-behavior:contain;padding:16px 18px 8px;overflow-y:auto;overflow-x:hidden;flex:1;scrollbar-width:thin;scrollbar-color:var(--lt-scrollbar,rgba(139,45,196,0.4)) transparent;}",
-            ".lt-content::-webkit-scrollbar{width:4px;}",
-            ".lt-content::-webkit-scrollbar-thumb{background:var(--lt-scrollbar,rgba(139,45,196,0.4));border-radius:2px;}",
-            ".lt-content::-webkit-scrollbar-track{background:transparent;}",
+            ".lt-content{min-height:0;min-width:0;overscroll-behavior:contain;padding:16px 10px 8px;overflow-y:auto;overflow-x:hidden;flex:1;}",
 
             // ── Button List (modal) ──
             ".lt-btn-list{display:flex;flex-direction:column;gap:6px;}",
@@ -1014,6 +1013,17 @@
             ".lt-nav-btn svg{width:12px;height:12px;}",
             ".lt-nav-btn:hover:not(:disabled){background:var(--lt-surface-hover);border-color:var(--lt-border-hover);color:var(--lt-accent-light);box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 2px 6px var(--lt-accent-glow);}",
             ".lt-nav-btn:disabled{opacity:0.25;cursor:not-allowed;}",
+
+            // Native scrolling, with one DOM scrollbar renderer for every scroll host.
+            "#lt-quick-panel *{scrollbar-width:none!important;}",
+            "#lt-quick-panel ::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;}",
+            "#lt-quick-panel textarea{overflow-x:hidden;padding-right:14px;}",
+            "#lt-quick-panel .lt-scroll-layer{position:absolute;inset:0;z-index:10000;pointer-events:none;overflow:hidden;}",
+            "#lt-quick-panel .lt-scroll-track{position:absolute;width:8px;border-radius:4px;background:var(--lt-surface-2);pointer-events:auto;touch-action:none;}",
+            "#lt-quick-panel .lt-scroll-thumb{position:absolute;top:0;left:1px;width:6px;border-radius:4px;background:var(--lt-scrollbar);cursor:grab;touch-action:none;}",
+            "#lt-quick-panel .lt-scroll-track:hover .lt-scroll-thumb,#lt-quick-panel .lt-scroll-track:focus-visible .lt-scroll-thumb{background:var(--lt-accent);}",
+            "#lt-quick-panel .lt-scroll-track:focus-visible{outline:1px solid var(--lt-accent-light);outline-offset:1px;}",
+            "#lt-quick-panel .lt-scroll-thumb:active{cursor:grabbing;}",
 
             // ── Shared form / selection / navigation components ──
             ".lt-button-row{display:flex;flex:1;gap:8px;width:100%;min-width:0;}",
@@ -1065,8 +1075,9 @@
             "#lt-quick-panel .lt-craft-layout:has(.is-open){grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;}",
             "#lt-quick-panel .lt-craft-side:not(.is-open){visibility:hidden;opacity:0;transform:translateX(16px);padding-left:0;border-left-width:0;overflow:hidden;pointer-events:none;}",
             "@media(prefers-reduced-motion:reduce){#lt-quick-panel,#lt-quick-panel .lt-craft-layout,#lt-quick-panel .lt-craft-side{transition:none!important;}}",
-            "#lt-quick-panel .lt-craft-items{flex:1;min-width:0;overflow:auto;}",
-            "#lt-quick-panel .lt-craft-side{opacity:1;transform:translateX(0);transition:opacity .28s ease,transform .28s ease,visibility .28s,padding .28s;display:flex;flex:1;min-width:0;flex-direction:column;border-left:1px solid var(--lt-border);padding-left:12px;overflow:auto;color:var(--lt-text);font-size:12px;}",
+            "#lt-quick-panel .lt-has-side .lt-craft-items{padding-right:12px;}",
+            "#lt-quick-panel .lt-craft-items{flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;}",
+            "#lt-quick-panel .lt-craft-side{opacity:1;transform:translateX(0);transition:opacity .28s ease,transform .28s ease,visibility .28s,padding .28s;display:flex;flex:1;min-width:0;flex-direction:column;border-left:1px solid var(--lt-border);padding-left:12px;overflow-y:auto;overflow-x:hidden;color:var(--lt-text);font-size:12px;}",
             "#lt-quick-panel .lt-craft-side .lt-settings{gap:10px;}",
             "#lt-quick-panel .lt-craft-side [role=status]{margin:12px 0;color:var(--lt-accent-light);}",
             "#lt-quick-panel .lt-craft-side .lt-footer{padding:12px 0;margin-top:auto;}",
@@ -1081,7 +1092,6 @@
             "#lt-quick-panel .lt-item-picker .lt-list-btn.selected{background:var(--lt-accent);color:#fff;border-color:var(--lt-accent-light);}",
             "#lt-quick-panel .lt-zone-button{box-sizing:border-box;position:absolute;border:1px solid #9a9a9a;background:rgba(100,100,100,.10);padding:0;cursor:pointer;}",
             "#lt-quick-panel .lt-zone-button.occupied{border-color:#e6b858;background:rgba(230,184,88,.18);}",
-            "#lt-quick-panel .lt-zone-button.blocked{border-color:#d05060;background:rgba(136,0,5,.3);}",
             "#lt-quick-panel .lt-zone-button.selected{border:2px solid #42dfff;background:rgba(66,223,255,.3);}",
             "#lt-quick-panel .lt-zone-button:disabled{pointer-events:none;}",
             "@media(max-width:520px){#lt-quick-panel .lt-craft-layout{gap:6px;}#lt-quick-panel .lt-craft-side{padding-left:6px;}#lt-quick-panel .lt-craft-side .lt-footer{flex-wrap:wrap;}}",
@@ -1109,9 +1119,7 @@
             "#lt-quick-panel.ltp-sub .ltq-hdr .ltq-back{display:flex;}",
 
             // ── Quick Panel Body ──
-            "#lt-quick-panel .ltq-body{padding:10px;display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--lt-scrollbar,rgba(139,45,196,0.35)) transparent;}",
-            "#lt-quick-panel .ltq-body::-webkit-scrollbar{width:3px;}",
-            "#lt-quick-panel .ltq-body::-webkit-scrollbar-thumb{background:var(--lt-scrollbar,rgba(139,45,196,0.35));border-radius:2px;}",
+            "#lt-quick-panel .ltq-body{padding:10px;display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;overflow-y:auto;}",
 
             // ── Action Grid (2-column, draggable) ──
             "#lt-quick-panel .ltq-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;}",
@@ -1194,6 +1202,133 @@
 
     // ── 手机式页面导航 ──────────────────────────────────────────────
     let pageSequence = 0;
+
+    // Owns all scrollbars in the toolbox, including dynamically mounted textarea fields.
+    // No wrappers are inserted around content, so page/flex layout remains unchanged.
+    function setupToolScrollbars(panel) {
+        const selector = '.ltq-body,.lt-content,.lt-craft-items,.lt-craft-side,textarea';
+        const layer = document.createElement('div'); layer.className = 'lt-scroll-layer'; panel.append(layer);
+        const entries = new Map();
+        let queued = false, dead = false, sequence = 0, animateUntil = 0;
+        const resize = new ResizeObserver(schedule);
+        function schedule() {
+            if (queued || dead) return;
+            queued = true;
+            requestAnimationFrame(() => { queued = false; if (!dead) update(); });
+        }
+        function add(host) {
+            const track = document.createElement('div'); track.className = 'lt-scroll-track'; track.hidden = true;
+            const thumb = document.createElement('div'); thumb.className = 'lt-scroll-thumb'; track.append(thumb);
+            host.id ||= 'lt-scroll-region-' + (++sequence);
+            track.tabIndex = 0; track.setAttribute('role', 'scrollbar');
+            track.setAttribute('aria-controls', host.id); track.setAttribute('aria-orientation', 'vertical');
+            track.setAttribute('aria-label', t('scrollbar')); track.setAttribute('aria-valuemin', '0');
+            const entry = { track, thumb, max: 0, travel: 0, drag: null };
+            track.addEventListener('keydown', event => {
+                const steps = { ArrowUp: -40, ArrowDown: 40, PageUp: -host.clientHeight, PageDown: host.clientHeight };
+                if (event.key === 'Home') host.scrollTop = 0;
+                else if (event.key === 'End') host.scrollTop = entry.max;
+                else if (event.key in steps) host.scrollTop += steps[event.key];
+                else return;
+                event.preventDefault(); event.stopPropagation(); schedule();
+            });
+            track.addEventListener('pointerdown', event => {
+                if (event.button !== 0 || !event.isPrimary) return;
+                event.preventDefault(); event.stopPropagation();
+                if (event.target === thumb) {
+                    entry.drag = { id: event.pointerId, y: event.clientY, scroll: host.scrollTop };
+                    thumb.setPointerCapture(event.pointerId);
+                } else {
+                    host.scrollTop += (event.clientY < thumb.getBoundingClientRect().top ? -1 : 1) * host.clientHeight * .85;
+                    schedule();
+                }
+            });
+            thumb.addEventListener('pointermove', event => {
+                if (!entry.drag || entry.drag.id !== event.pointerId) return;
+                const scale = panel.getBoundingClientRect().height / panel.offsetHeight || 1;
+                host.scrollTop = entry.drag.scroll + (event.clientY - entry.drag.y) / scale * entry.max / Math.max(1, entry.travel);
+                schedule();
+            });
+            const finish = event => {
+                if (!entry.drag || entry.drag.id !== event.pointerId) return;
+                entry.drag = null;
+                if (thumb.hasPointerCapture(event.pointerId)) thumb.releasePointerCapture(event.pointerId);
+            };
+            for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) thumb.addEventListener(type, finish);
+            track.addEventListener('wheel', event => {
+                const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? host.clientHeight : 1;
+                host.scrollTop += event.deltaY * unit; event.preventDefault(); event.stopPropagation(); schedule();
+            }, { passive: false });
+            layer.append(track); entries.set(host, entry);
+        }
+        function update() {
+            const hosts = new Set(panel.querySelectorAll(selector));
+            for (const [host, entry] of entries) if (!hosts.has(host)) { entry.track.remove(); entries.delete(host); }
+            for (const host of hosts) if (!entries.has(host)) add(host);
+            const base = panel.getBoundingClientRect();
+            const sx = base.width / panel.offsetWidth || 1, sy = base.height / panel.offsetHeight || 1;
+            for (const [host, entry] of entries) {
+                const rect = host.getBoundingClientRect(), style = getComputedStyle(host);
+                entry.max = Math.max(0, host.scrollHeight - host.clientHeight);
+                const visible = toolPanelVisible && entry.max > 1 && host.clientHeight > 0 && rect.width > 0 &&
+                    style.visibility !== 'hidden' && /^(auto|scroll)$/.test(style.overflowY) && !host.closest('.ltp-covered,.ltp-leave');
+                entry.track.hidden = !visible;
+                if (!visible) { entry.drag = null; continue; }
+                const height = Math.max(0, host.clientHeight - 8);
+                const thumbHeight = Math.min(height, Math.max(24, height * host.clientHeight / host.scrollHeight));
+                entry.travel = height - thumbHeight;
+                // Full-width pages share the panel's right gutter. Only the left column
+                // of an expanded editor and textareas own an internal scrollbar gutter.
+                const internal = host.tagName === 'TEXTAREA' ||
+                    (host.classList.contains('lt-craft-items') && host.closest('.lt-has-side'));
+                const frame = internal ? host : host.closest('.ltp-page') || host;
+                const right = frame.getBoundingClientRect().right;
+                entry.track.style.left = ((right - base.left) / sx - panel.clientLeft - 9) + 'px';
+                entry.track.style.top = ((rect.top - base.top) / sy + host.clientTop + 4) + 'px';
+                entry.track.style.height = height + 'px';
+                entry.thumb.style.height = thumbHeight + 'px';
+                entry.thumb.style.transform = 'translateY(' + (host.scrollTop / entry.max * entry.travel) + 'px)';
+                entry.track.setAttribute('aria-valuemax', String(entry.max));
+                entry.track.setAttribute('aria-valuenow', String(Math.round(host.scrollTop)));
+                // Match clipping of nested scroll regions, especially a textarea in the side editor.
+                let top = rect.top, bottom = rect.bottom;
+                for (let parent = host.parentElement; parent && parent !== panel; parent = parent.parentElement) {
+                    if (/auto|scroll|hidden|clip/.test(getComputedStyle(parent).overflowY)) {
+                        const bounds = parent.getBoundingClientRect(); top = Math.max(top, bounds.top); bottom = Math.min(bottom, bounds.bottom);
+                    }
+                }
+                if (bottom <= top) entry.track.hidden = true;
+                entry.track.style.clipPath = `inset(${Math.max(0, (top - rect.top) / sy - 4)}px 0 ${Math.max(0, (rect.bottom - bottom) / sy - 4)}px 0)`;
+            }
+            if (performance.now() < animateUntil) schedule();
+        }
+        const observed = new Set();
+        function observeSizes() {
+            const wanted = new Set([panel]);
+            for (const host of panel.querySelectorAll(selector)) {
+                wanted.add(host); for (const child of host.children) wanted.add(child);
+            }
+            for (const node of observed) if (!wanted.has(node)) { resize.unobserve(node); observed.delete(node); }
+            for (const node of wanted) if (!observed.has(node)) { resize.observe(node); observed.add(node); }
+        }
+        const mutation = new MutationObserver(records => {
+            const relevant = records.filter(record => !(record.target.nodeType === 1 ? record.target : record.target.parentElement)?.closest('.lt-scroll-layer'));
+            if (!relevant.length) return;
+            // Keep existing observations: re-observing on each style change reissues size notifications.
+            if (relevant.some(record => record.type === 'childList')) observeSizes();
+            schedule();
+        });
+        mutation.observe(panel, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
+        listen(panel, 'scroll', schedule, { capture: true, passive: true });
+        listen(panel, 'input', schedule);
+        listen(panel, 'transitionrun', event => {
+            if (event.target.closest('.lt-scroll-layer')) return;
+            animateUntil = performance.now() + 350; schedule();
+        });
+        listen(panel, 'transitionend', schedule); listen(window, 'resize', schedule);
+        const cleanup = () => { dead = true; mutation.disconnect(); resize.disconnect(); observed.clear(); entries.clear(); layer.remove(); cleanupTasks.delete(cleanup); };
+        cleanupTasks.add(cleanup); observeSizes(); schedule();
+    }
 
     function makeToolButton(text, callback, primary = false) {
         const button = document.createElement('button');
@@ -1652,6 +1787,7 @@
         toolPanelEl.appendChild(hdr);
         toolPanelEl.appendChild(viewport);
         document.body.appendChild(toolPanelEl);
+        setupToolScrollbars(toolPanelEl);
         clampToolPanelPos();
 
         // Apply theme class
@@ -2011,15 +2147,17 @@
                     const [x,y,w,h] = toolPreviewZone(C, zone);
                     button.style.left = x / 5 + '%'; button.style.top = y / 10 + '%';
                     button.style.width = w / 5 + '%'; button.style.height = h / 10 + '%';
-                    button.classList.toggle('occupied', !!InventoryGet(C, group.Name));
-                    button.classList.toggle('blocked', typeof InventoryGroupIsBlocked === 'function' && InventoryGroupIsBlocked(C, group.Name));
+                    // Highlight only this operation's selectable items; clothing occlusion is irrelevant.
+                    button.classList.toggle('occupied', eligible.has(group.Name) && !!InventoryGet(C, group.Name));
                 });
             } catch (error) { console.warn('[LT] Item zone preview:', error); }
         }
         function fitMap() {
             if (!mapMode || dead) return;
             const scale = Math.max(0, Math.min((root.clientWidth - 8) / 500, (root.clientHeight - 8) / 1000));
-            map.style.width = 500 * scale + 'px'; map.style.height = 1000 * scale + 'px';
+            const width = 500 * scale + 'px', height = 1000 * scale + 'px';
+            if (map.style.width !== width) map.style.width = width;
+            if (map.style.height !== height) map.style.height = height;
         }
         function refreshView() {
             list.hidden = mapMode; map.hidden = !mapMode;
@@ -2027,7 +2165,14 @@
             if (root.parentElement?.classList.contains('lt-content')) root.parentElement.classList.toggle('lt-picker-map-content', mapMode);
             fitMap(); draw();
         }
-        const observer = new ResizeObserver(fitMap); observer.observe(root);
+        // ResizeObserver must not synchronously write sizes back into its observed layout.
+        let fitQueued = false;
+        const observer = new ResizeObserver(() => {
+            if (fitQueued || dead) return;
+            fitQueued = true;
+            requestAnimationFrame(() => { fitQueued = false; fitMap(); });
+        });
+        observer.observe(root);
         const timer = setInterval(draw, 200);
         const destroy = () => { dead = true; observer.disconnect(); clearInterval(timer); cleanupTasks.delete(destroy); };
         cleanupTasks.add(destroy);
@@ -2304,19 +2449,20 @@
             group: r.group
         }));
         if (!restraints.length) { ChatRoomSendLocal(getNickname(target) + " " + t('craftClearNone') + "！"); return; }
-        const selected = await requestButtons(t('craftClearTitle') + " — " + getNickname(target), restraints, true);
+        const selected = await requestItemSelection(t('craftClearTitle') + " — " + getNickname(target), target, restraints);
         if(disposed) return;
         if (!selected.length) return;
+        const current = resolveToolTarget(target);
+        if (!current) { ChatRoomSendLocal(t('notInRoom')); return; }
+        if (!hasBCItemPermission(current)) { ChatRoomSendLocal(t('noPermission')); return; }
         try {
             let count = 0;
-            selected.forEach(itemText => {
-                const group = restraints.find(r => r.text === itemText)?.group;
-                if (!group) return;
-                const item = InventoryGet(target, group);
+            selected.forEach(group => {
+                const item = InventoryGet(current, group);
                 if (item?.Craft) { delete item.Craft; count++; }
             });
             if (!count) return;
-            ChatRoomCharacterUpdate(target);
+            ChatRoomCharacterUpdate(current);
             chatSendCustomAction(getNickname(Player) + " " + t('craftClearDone') + " " + getNickname(target) + "！");
         } catch (e) { console.error("🐈‍⬛ [LT] ❌ clearAllCraft 错误:", e.message); }
     }

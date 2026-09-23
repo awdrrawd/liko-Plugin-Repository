@@ -9,7 +9,7 @@ const screenshotDir = fs.mkdtempSync(path.join(os.tmpdir(), 'liko-tool-ui-'));
 const source = fs.readFileSync(path.join(__dirname, '../Plugins/main/Liko - Tool.main.user.js'), 'utf8');
 const instrumented = source.replace("    initialize().catch(error => { console.error('[LT] Initialization failed:', error); destroy(); });", `
     window.testTool = { showToolPanel, hideToolPanel, phoneBack, createPanel, popPage, requestItemSelection,
-        openCraftTargetPicker, openSingleCraftEditor, requestButtons, requestCharacter, openUndoPanel, saveUndoSnapshot,
+        openCraftTargetPicker, openSingleCraftEditor, clearAllCraft, requestButtons, requestCharacter, openUndoPanel, saveUndoSnapshot,
         setupHooks, setupFreeHandsHooks, toolPreviewZone, drawToolCharacter, toolCharacterCanvasOffset, toolLockPreview, craftForEdit, getES, saveES, setRpMode, fullLock, heightLockCommand, heightFixCommand,
         initializeStorage, t, LANG, get pages() { return phonePages; }, get timers() { return intervals.size; },
         setApi(api) { modApi = api; } };
@@ -47,7 +47,8 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
             Player.Appearance = AssetGroup.slice(0,2).map((Group,i) => ({ Asset: { Group, Name:'Fixture'+i, Description:'Item '+i }, Color:['Red'],
                 Craft: { Name:'Original '+i, Description:'Keep me', Private:true, MemberNumber:99, MemberName:'Other', Effects:{Large:1}, ItemProperty:{OverridePriority:7}, TypeRecord:{a:1}, Color:'Blue' } }));
             window.InventoryGet = (C, group) => C.Appearance.find(item => item.Asset.Group.Name === group);
-            window.InventoryGroupIsBlocked = () => false;
+            window.InventoryGroupIsBlocked = () => true; // Occlusion must not affect tool picker colors.
+            window.resizeErrors=[];window.addEventListener('error',event=>{if(event.message.includes('ResizeObserver'))window.resizeErrors.push(event.message);});
             window.ServerChatRoomGetAllowItem = () => true;
             window.ChatRoomCharacterUpdate = () => { window.updateCount = (window.updateCount || 0) + 1; };
             window.ServerAppearanceBundle = items => items.map(item => ({Group:item.Asset.Group.Name, Name:item.Asset.Name}));
@@ -124,6 +125,7 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         assert.ok((await viewToggle.innerHTML()).includes('M4 6h16'));
         await viewToggle.click();
         assert.equal(await panel.locator('.lt-zone-button.selected').count(),1);
+        assert.equal(await panel.locator('.lt-zone-button.blocked').count(),0);
         assert.equal(await panel.locator('.lt-zone-choices').count(),0);
         await page.waitForTimeout(100);
         const mapLayout=await panel.locator('.lt-item-map').evaluate(el=>{
@@ -267,6 +269,23 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         await side.getByRole('button',{name:'Cancel',exact:true}).click();
         assert.equal(await page.evaluate(()=>testTool.pages.length),0);
         await page.evaluate(()=>testTool.hideToolPanel());
+        // A single-column Craft list aligns its scrollbar with the outer panel, beyond cards.
+        await page.evaluate(()=>{
+            testTool.showToolPanel();testTool.getES().itemViewMode='list';testTool.openSingleCraftEditor(Player);
+            const list=document.querySelector('.ltp-page:not(.ltp-covered):not(.ltp-leave) .lt-btn-list');
+            for(let i=0;i<30;i++)list.append(list.firstElementChild.cloneNode(true));
+        });
+        await page.waitForTimeout(400);
+        const craftRail=await panel.evaluate(panel=>{
+            const host=panel.querySelector('.ltp-page:not(.ltp-covered):not(.ltp-leave) .lt-craft-items');
+            const rail=panel.querySelector('[aria-controls="'+host.id+'"]');
+            const card=host.querySelector('.lt-list-btn');
+            return {hidden:rail.hidden,gap:panel.getBoundingClientRect().right-rail.getBoundingClientRect().right,clearance:rail.getBoundingClientRect().left-card.getBoundingClientRect().right};
+        });
+        assert.equal(craftRail.hidden,false);assert.ok(craftRail.gap>=1&&craftRail.gap<=5,JSON.stringify(craftRail));
+        assert.ok(craftRail.clearance>=0,JSON.stringify(craftRail));
+        await page.screenshot({path:path.join(screenshotDir,'craft-scroll-alignment.png')});
+        await page.evaluate(()=>{testTool.hideToolPanel();testTool.getES().itemViewMode='character';});
         // Reopening a different feature restores the shared view preference.
         await page.evaluate(()=>{testTool.showToolPanel();testTool.openSingleCraftEditor(Player);});
         assert.equal(await panel.locator('.ltq-hdr button[title="Character view; click for list"]').count(),1);
@@ -333,6 +352,79 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         assert.deepEqual(await page.evaluate(async()=>Promise.all([window.parentChoice,window.childChoice])),[null,[]]);
         assert.equal(await page.evaluate(()=>testTool.pages.length),0);
         await page.evaluate(()=>testTool.hideToolPanel());
+        // Every overflow surface uses the same custom thumb, without native scrollbar chrome.
+        await page.setViewportSize({width:1100,height:600});
+        await page.evaluate(()=>{testTool.showToolPanel();window.scrollChoice=testTool.requestButtons('Scroll test',Array.from({length:60},(_,i)=>({text:'Long option '+i})));});
+        await page.waitForTimeout(400);
+        const scrollHost=panel.locator('.ltp-page:not(.ltp-covered):not(.ltp-leave)>.lt-content');
+        const hostId=await scrollHost.getAttribute('id');
+        const track=panel.locator('.lt-scroll-track[aria-controls="'+hostId+'"]');
+        assert.equal(await track.isVisible(),true);
+        const railGap=await track.evaluate(el=>el.closest('#lt-quick-panel').getBoundingClientRect().right-el.getBoundingClientRect().right);
+        assert.ok(railGap>=1 && railGap<=5, String(railGap));
+
+        assert.equal(await scrollHost.evaluate(el=>getComputedStyle(el).scrollbarWidth),'none');
+        await track.focus();await page.keyboard.press('End');
+        assert.ok(await scrollHost.evaluate(el=>el.scrollTop>=el.scrollHeight-el.clientHeight-1));
+        await page.keyboard.press('Home');
+        await scrollHost.hover();await page.mouse.wheel(0,240);await page.waitForTimeout(100);
+        assert.ok(await scrollHost.evaluate(el=>el.scrollTop>0));
+        await track.focus();await page.keyboard.press('Home');await page.waitForTimeout(60);
+        const thumbRect=await track.locator('.lt-scroll-thumb').boundingBox();
+        await page.mouse.move(thumbRect.x+3,thumbRect.y+8);await page.mouse.down();await page.mouse.move(thumbRect.x+3,thumbRect.y+110,{steps:5});await page.mouse.up();
+        assert.ok(await scrollHost.evaluate(el=>el.scrollTop>0));
+        await page.screenshot({path:path.join(screenshotDir,'custom-scrollbar.png')});
+        await panel.locator('.ltp-page:not(.ltp-covered):not(.ltp-leave)').getByRole('button',{name:'Cancel',exact:true}).click();
+        await page.waitForTimeout(400);assert.equal(await track.count(),0);
+        await page.evaluate(()=>{
+            const textarea=document.createElement('textarea');textarea.rows=3;textarea.value=Array.from({length:80},(_,i)=>'Line '+i).join('\n');
+            const content=document.createElement('div');content.append(textarea);testTool.createPanel('Textarea scroll',content);
+        });
+        await page.waitForTimeout(400);
+        const textarea=panel.locator('.ltp-page:not(.ltp-covered):not(.ltp-leave) textarea');
+        const textareaId=await textarea.getAttribute('id');
+        const textareaTrack=panel.locator('.lt-scroll-track[aria-controls="'+textareaId+'"]');
+        assert.equal(await textareaTrack.isVisible(),true);
+        await textareaTrack.focus();await page.keyboard.press('End');assert.ok(await textarea.evaluate(el=>el.scrollTop>0));
+        await textarea.fill('Short');await page.waitForTimeout(100);assert.equal(await textareaTrack.isVisible(),false);
+        await page.evaluate(()=>testTool.hideToolPanel());
+        // Stress nested map/scrollbar observers through width transitions and viewport resizing.
+        await page.evaluate(()=>{testTool.getES().itemViewMode='character';testTool.showToolPanel();testTool.openSingleCraftEditor(Player);});
+        for(const width of [1100,520,780,420,1000]) {
+            await page.setViewportSize({width,height:640});
+            await panel.locator('.ltp-page:not(.ltp-covered):not(.ltp-leave) .lt-zone-button:not(:disabled)').first().click();
+            await page.waitForTimeout(60);
+            await panel.locator('.ltq-back').click();
+        }
+        await page.waitForTimeout(400);
+        assert.deepEqual(await page.evaluate(()=>window.resizeErrors),[]);
+        await page.evaluate(()=>testTool.hideToolPanel());
+        // Clear Craft shares list/map selection; identical names still target distinct groups.
+        await page.evaluate(()=>{
+            window.craftBackup=Player.Appearance.map(item=>structuredClone(item.Craft));
+            Player.Appearance.forEach(item=>item.Craft={Name:'Same craft',Description:'Keep unless selected'});
+            Player.Appearance.push({Asset:{Name:'Uncrafted',Group:AssetGroup[2]}});
+            testTool.getES().itemViewMode='character';testTool.showToolPanel();window.clearResult=testTool.clearAllCraft(Player);
+        });
+        const clearPage=panel.locator('.ltp-page:not(.ltp-covered):not(.ltp-leave)');
+        assert.equal(await panel.locator('.ltq-hdr button[title="Character view; click for list"]').count(),1);
+        await page.waitForTimeout(250);
+        assert.equal(await clearPage.locator('.lt-zone-button.occupied').count(),2);
+        assert.equal(await clearPage.locator('.lt-zone-button.blocked').count(),0);
+        const uncrafted=clearPage.locator('.lt-zone-button[title="ItemFeet"]');
+        assert.equal(await uncrafted.isDisabled(),true);assert.ok(!(await uncrafted.getAttribute('class')).includes('occupied'));
+        await page.evaluate(()=>Player.Appearance.pop());
+        await clearPage.locator('.lt-zone-button[title*="ItemLegs"]').click();
+        await panel.locator('.ltq-hdr button[title="Character view; click for list"]').click();
+        assert.equal(await clearPage.locator('.lt-list-btn.selected').count(),1);
+        await clearPage.getByRole('button',{name:'Confirm',exact:true}).click();await page.evaluate(()=>window.clearResult);
+        assert.deepEqual(await page.evaluate(()=>Player.Appearance.map(item=>!!item.Craft)),[true,false]);
+        await page.evaluate(()=>{window.clearResult=testTool.clearAllCraft(Player);});
+        assert.equal(await panel.locator('.ltq-hdr button[title="List view; click for character"]').count(),1);
+        assert.equal(await clearPage.locator('.lt-list-btn').count(),1);
+        await clearPage.getByRole('button',{name:'Cancel',exact:true}).click();await page.evaluate(()=>window.clearResult);
+        assert.equal(await page.evaluate(()=>!!Player.Appearance[0].Craft),true);
+        await page.evaluate(()=>{Player.Appearance.forEach((item,i)=>item.Craft=window.craftBackup[i]);testTool.hideToolPanel();});
         const translationCheck=await page.evaluate(()=>{
             const zh=Object.keys(testTool.LANG.zh),en=Object.keys(testTool.LANG.en);
             const missing=[...zh.filter(k=>!en.includes(k)),...en.filter(k=>!zh.includes(k))];
