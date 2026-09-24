@@ -3,7 +3,7 @@
 // @name:zh      Liko的自訂更衣室背景
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.2
+// @version      1.5.3
 // @description  自訂更衣室背景 | Custom Dressing Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -17,7 +17,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.5.2";
+    const MOD_VER = "1.5.3";
     if (window.Liko.CDB) return;
     window.Liko.CDB = MOD_VER;
 
@@ -370,7 +370,7 @@
     function changePose(poseIndex) {
         const now = Date.now();
         try {
-            if (typeof CharacterSetActivePose === 'undefined') { safeError("🐈‍⬛ [CDB] ❌ CharacterSetActivePose 不存在"); return false; }
+            if (typeof PoseSetActive === 'undefined') { safeError("🐈‍⬛ [CDB] ❌ PoseSetActive 不存在"); return false; }
 
             let target = Player;
             try {
@@ -400,7 +400,7 @@
             const pose = poses[state.currentPoseIndex];
             if (!pose || !pose.name) { state.currentPoseIndex = 0; return false; }
 
-            CharacterSetActivePose(target, pose.name);
+            PoseSetActive(target, pose.name);
             if (typeof CharacterRefresh !== 'undefined') CharacterRefresh(target);
             if (typeof ChatRoomCharacterUpdate !== 'undefined' && typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
                 ChatRoomCharacterUpdate(target);
@@ -1286,79 +1286,6 @@
     }
 
     // ================================
-    // BCX 格式的匯出 / 匯入
-    // ================================
-    function bcxExport(C) {
-        try {
-            const bundle = [];
-            for (const item of C.Appearance) {
-                if (item.Asset && item.Asset.Group && item.Asset.Group.Category === "Appearance") {
-                    const entry = {
-                        Group: item.Asset.Group.Name,
-                        Name: item.Asset.Name,
-                    };
-                    if (item.Color != null) entry.Color = item.Color;
-                    if (item.Property != null) entry.Property = item.Property;
-                    if (item.Difficulty != null) entry.Difficulty = item.Difficulty;
-                    bundle.push(entry);
-                }
-            }
-            const compressed = LZString.compressToBase64(JSON.stringify(bundle));
-            navigator.clipboard.writeText(compressed).then(function() {
-            if (typeof ChatRoomSendLocal === 'function') {
-                ChatRoomSendLocal("✅ Appearance Export");
-            }
-                safeLog("🐈‍⬛ [CDB] ✅ BCX格式外觀已複製到剪貼板");
-            }).catch(function(e) {
-                safeError("🐈‍⬛ [CDB] ❌ 複製到剪貼板失敗:", e);
-            });
-        } catch (e) {
-            safeError("🐈‍⬛ [CDB] ❌ BCX匯出失敗:", e);
-        }
-    }
-
-    async function bcxImport(C) {
-        let bcxCode;
-        try {
-            bcxCode = await navigator.clipboard.readText();
-        } catch (e) {
-            safeError("🐈‍⬛ [CDB] ❌ 讀取剪貼板失敗:", e);
-            if (typeof ChatRoomSendLocal === 'function') ChatRoomSendLocal("❌ 無法讀取剪貼板");
-            return;
-        }
-        try {
-            const appearance = JSON.parse(LZString.decompressFromBase64(bcxCode));
-            if (!Array.isArray(appearance)) throw new Error("invalid format");
-
-            if (typeof ServerAppearanceLoadFromBundle === 'function') {
-                ServerAppearanceLoadFromBundle(C, C.AssetFamily, appearance, Player.MemberNumber);
-                CharacterRefresh(C, false);
-                if (typeof ChatRoomCharacterUpdate === 'function' && typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") {
-                    ChatRoomCharacterUpdate(C);
-                }
-            } else {
-                for (const entry of appearance) {
-                    if (entry.Group && entry.Name && AppearanceGroupAllowed(C, entry.Group)) {
-                        InventoryWear(C, entry.Name, entry.Group, entry.Color || null, null, null, entry.Property || null, false);
-                    }
-                }
-                CharacterRefresh(C, false);
-            }
-            if (typeof ChatRoomSendLocal === 'function') {
-                ChatRoomSendLocal("✅ Appearance Import");
-            }
-            safeLog("🐈‍⬛ [CDB] ✅ BCX格式外觀已匯入");
-        } catch (e) {
-            safeError("🐈‍⬛ [CDB] ❌ BCX匯入失敗 (可能不是BCX格式):", e);
-            try {
-                if (typeof CharacterAppearancePaste === 'function') {
-                    CharacterAppearancePaste(C, bcxCode, false);
-                }
-            } catch (_) {}
-        }
-    }
-
-    // ================================
     // BC Hooks
     // ================================
     function setupBCHooks() {
@@ -1379,33 +1306,16 @@
                 }
 
                 // 主模式：移除 CDB_Pose（不加入 AppearanceMenu，改由左下角 canvas 繪製）
-                // 替換 Copy/Paste，移除 WearRandom/Random，加入 CDB_Zoom 和 CDB_Extension
+                // 保留 Copy/Paste，移除 WearRandom/Random，加入 CDB_Zoom 和 CDB_Extension
                 if (typeof CharacterAppearanceMode !== 'undefined' && CharacterAppearanceMode === "") {
                     // 移除 WearRandom / Random
                     AppearanceMenu = AppearanceMenu.filter(btn => btn !== "WearRandom" && btn !== "Random");
 
-                    // 替換 Copy / Paste 為 BCX 版本
-                    AppearanceMenu = AppearanceMenu.map(btn => {
-                        if (btn === "Copy") return "CDB_BCXExport";
-                        if (btn === "Paste") return "CDB_BCXImport";
-                        return btn;
-                    });
-
-                    // 移除現有的 CDB 按鈕（先全部拔掉，重新排列）
-                    // 注意：不加 CDB_Pose，POSE 只由左下角 canvas 繪製
+                    // 保留遊戲原生 Copy / Paste，只排列 CDB 自己的工具。
                     AppearanceMenu = AppearanceMenu.filter(btn =>
-                        btn !== "CDB_BCXExport" && btn !== "CDB_BCXImport" &&
                         btn !== "CDB_Pose" && btn !== "CDB_Zoom" && btn !== "CDB_Extension"
                     );
-
-                    // 目標由左至右：CDB_Zoom → CDB_Extension → Wardrobe → BCXExport → BCXImport → ...
-                    const wardrobeIdx = AppearanceMenu.findIndex(btn => btn === "Wardrobe" || btn === "WardrobeDisabled");
-                    if (wardrobeIdx >= 0) {
-                        AppearanceMenu.splice(wardrobeIdx + 1, 0, "CDB_BCXExport", "CDB_BCXImport");
-                        AppearanceMenu.unshift("CDB_Zoom", "CDB_Extension");
-                    } else {
-                        AppearanceMenu.unshift("CDB_Zoom", "CDB_Extension", "CDB_BCXExport", "CDB_BCXImport");
-                    }
+                    AppearanceMenu.unshift("CDB_Zoom", "CDB_Extension");
                 }
             });
 
@@ -1426,14 +1336,6 @@
                     if (rawName === "CDB_Zoom") {
                         const color = zoomPreviewState.active ? "#5323a1" : "White";
                         DrawButton(btnX, 25, 90, 90, "", color, CONFIG.getIconURL('Search'), Lang.t('zoomTooltip'));
-                        continue;
-                    }
-                    if (rawName === "CDB_BCXExport") {
-                        DrawButton(btnX, 25, 90, 90, "", "White", "Icons/Copy.png", "BCX 匯出外觀");
-                        continue;
-                    }
-                    if (rawName === "CDB_BCXImport") {
-                        DrawButton(btnX, 25, 90, 90, "", "White", "Icons/Paste.png", "BCX 匯入外觀");
                         continue;
                     }
 
@@ -1461,8 +1363,6 @@
                         if (zoomPreviewState.active) closeZoomPreview(); else openZoomPreview();
                         return;
                     }
-                    if (rawName === "CDB_BCXExport") { bcxExport(C); return; }
-                    if (rawName === "CDB_BCXImport") { bcxImport(C); return; }
                 }
 
                 return next(args);
@@ -2011,8 +1911,6 @@
                 openZoom: openZoomPreview,
                 closeZoom: closeZoomPreview,
                 refreshZoom: function() { updateZoomPreview(true); },
-                bcxExport: bcxExport,
-                bcxImport: bcxImport,
                 test: function() {
                     safeLog(`📋 CDB v${MOD_VER}`);
                     safeLog("🌐 語言: " + Lang.get());

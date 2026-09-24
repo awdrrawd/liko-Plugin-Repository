@@ -3,7 +3,7 @@
 // @name:zh      聊天室輔助工具
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.0.2
+// @version      1.0.3
 // @description  替他人改姿勢、輸入歷史、BIO時區頭頂時間、@動作自帶名字、指令/房間轉按鈕 | Chat room assistant
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -20,7 +20,7 @@
 
     window.Liko = window.Liko ?? {};
     if (window.Liko.CRA) return;
-    const MOD_VER = "1.0.2";
+    const MOD_VER = "1.0.3";
     window.Liko.CRA = MOD_VER;
 
     const LOG = "🐈‍⬛ [CRA]";
@@ -757,9 +757,11 @@
 
         // 歡迎訊息（每連線一次）
         if (!window.LikoCRAWelcomed && typeof ChatRoomSendLocal === 'function') {
-            modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                const r = next(args);
+            modApi.hookFunction("ChatRoomLoad", 0, async (args, next) => {
+                const r = await next(args);
+                if (CurrentScreen !== "ChatRoom") return r;
                 setTimeout(() => {
+                    if (CurrentScreen !== "ChatRoom") return;
                     if (!window.LikoCRTWelcomed) {
                         ChatRoomSendLocal("<div style='background:#4C2772;color:#EEE;padding:6px;border-radius:6px;'>" +
                                           Lang.t('welcome') + "</div>", 30000);

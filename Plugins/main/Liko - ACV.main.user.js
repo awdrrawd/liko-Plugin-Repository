@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動創建影片
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.1
+// @version      1.5.2
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
 (function () {
     window.Liko = window.Liko ?? {};
     if (window.Liko.ACV) return;
-    const MOD_VER = "1.5.1";
+    const MOD_VER = "1.5.2";
     window.Liko.ACV = MOD_VER;
 
     if (window.LikoVideoPlayerInstance) return;
@@ -676,7 +676,7 @@ regex: new RegExp(
     function processInlineButtons(container) {
         if (!isEnabled) return;
         const text = container.textContent || "";
-        if (!text || !combinedVideoRegex.test(text)) return; // 快速跳過完全沒有影片網址的一般訊息
+        if ((!text || !combinedVideoRegex.test(text)) && !container.querySelector("a[href]")) return; // 快速跳過完全沒有影片網址的一般訊息
 
         // 相容其他 mod（例如 LCE 的 augmentChat）可能已經先把文字轉成 <a> 的情況
         container.querySelectorAll("a[href]:not([data-liko-processed])").forEach((link) => {
@@ -707,6 +707,7 @@ regex: new RegExp(
     // ─────────────────────────────────────────────────────────────
     function enablePlugin() {
         isEnabled = true;
+        window.dispatchEvent(new CustomEvent("liko:media-api-ready"));
         scanChatMessages(); // 初次進房需要完整掃一次既有訊息
         if (!scanInterval) {
             scanInterval = setInterval(scanChatMessages, FALLBACK_SCAN_MS);
@@ -725,10 +726,12 @@ regex: new RegExp(
     function togglePlugin() { isEnabled ? disablePlugin() : enablePlugin(); return isEnabled; }
     function destroyPlugin() { disablePlugin(); delete window.LikoVideoPlayerInstance; }
 
-    function stopAllPlayers() {
-        document.querySelectorAll(".likoVideoIframe").forEach((el) => el.remove());
-        document.querySelectorAll(".likoVideoButton").forEach((el) => el.remove());
-        document.querySelectorAll("[data-liko-processed]").forEach((el) => {
+    function stopRoomPlayers() {
+        const roomLog = document.getElementById("TextAreaChatLog");
+        if (!roomLog) return;
+        roomLog.querySelectorAll(".likoVideoIframe").forEach((el) => el.remove());
+        roomLog.querySelectorAll(".likoVideoButton").forEach((el) => el.remove());
+        roomLog.querySelectorAll("[data-liko-processed]").forEach((el) => {
             delete el.dataset.likoProcessed;
         });
     }
@@ -739,6 +742,7 @@ regex: new RegExp(
         disable: disablePlugin,
         toggle: togglePlugin,
         destroy: destroyPlugin,
+        processMessage: processInlineButtons,
     };
 
     // ─────────────────────────────────────────────────────────────
@@ -747,10 +751,12 @@ regex: new RegExp(
     function hookChatRoomLoad() {
         if (!modApi?.hookFunction) return;
 
-        modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-            const result = next(args);
+        modApi.hookFunction("ChatRoomLoad", 0, async (args, next) => {
+            const result = await next(args);
+            if (CurrentScreen !== "ChatRoom") return result;
 
             setTimeout(() => {
+                    if (CurrentScreen !== "ChatRoom") return;
                 if (!window.LikoVideoPlayerWelcomed && isEnabled) {
                     const platforms = [...new Set(
                         Object.keys(videoPatterns).map((k) => PLATFORM_DISPLAY_NAME[k] || k)
@@ -784,7 +790,7 @@ regex: new RegExp(
         // ★ 離開房間時自動停止播放
         if (typeof ChatRoomLeave === "function") {
             modApi.hookFunction("ChatRoomLeave", 0, (args, next) => {
-                stopAllPlayers();
+                stopRoomPlayers();
                 return next(args);
             });
         }

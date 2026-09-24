@@ -3,7 +3,7 @@
 // @name:zh      Liko的圖片上傳器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.2
+// @version      1.6.3
 // @description  Bondage Club - 上傳圖片到圖床並分享網址 + 懸停/點擊圖片放大預覽
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
 
 (function () {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.2";
+    const MOD_VER = "1.6.3";
     if (window.Liko.IMG) return;
     window.Liko.IMG = MOD_VER;
 
@@ -138,8 +138,8 @@
     // 上傳前共用檢查
     // ──────────────────────────────────────────
     function preUploadCheck(file, host) {
-        if (!ChatRoomData || CurrentScreen !== "ChatRoom") {
-            ChatRoomSendLocalStyled("🚫 請加入聊天室後重新上傳圖片", 4000, "#ff4444");
+        if (typeof Player === 'undefined' || Player?.MemberNumber === undefined) {
+            ChatRoomSendLocalStyled("🚫 請先登入遊戲", 4000, "#ff4444");
             return false;
         }
         if (!isValidImageFormat(file)) {
@@ -280,23 +280,39 @@
     // ──────────────────────────────────────────
     // 文件選擇輸入框
     // ──────────────────────────────────────────
-    function createFileInput() {
-        if (document.getElementById("LikoImageUploaderInput")) return document.getElementById("LikoImageUploaderInput");
+    function createFileInput(onUploaded = sendToChat) {
+        // 每次選檔捕捉目的地，後續選檔不會覆寫進行中上傳的回呼。
         const input = document.createElement("input");
         input.type = "file";
-        input.id = "LikoImageUploaderInput";
         input.accept = "image/*";
         input.style.display = "none";
-        input.onchange = async (event) => {
-            const file = event.target.files[0];
-            if (file) {
+        input.oncancel = () => input.remove();
+        input.onchange = async () => {
+            const file = input.files?.[0];
+            input.remove();
+            if (!file) return;
+            try {
                 const url = await uploadImage(file);
-                if (url) sendToChat(url);
-                input.value = '';
+                if (url) onUploaded(url);
+            } catch (error) {
+                console.error('[IMG] Upload failed:', error);
+                ChatRoomSendLocalStyled('❌ 圖片上傳失敗，請重試', 4000, '#ff4444');
             }
         };
         document.body.appendChild(input);
         return input;
+    }
+
+    function appendUploadDraft(input, urls) {
+        if (!input?.isConnected) {
+            // 切換對象／重新渲染後，絕不改填到另一個輸入框。
+            window.prompt('圖片已上傳，但原對話已切換。請複製連結：', urls.join(' '));
+            return false;
+        }
+        input.value = [input.value.trimEnd(), ...urls].filter(Boolean).join(' ');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.focus();
+        return true;
     }
 
     function triggerFileSelect() {
@@ -308,11 +324,11 @@
     // 拖曳上傳
     // ──────────────────────────────────────────
     document.addEventListener("dragover", (e) => {
-        if (CurrentScreen !== "ChatRoom") return;
+        if (e.target.closest?.("#fcm-chat-panel") || CurrentScreen !== "ChatRoom") return;
         if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "copy"; }
     });
     document.addEventListener("drop", (e) => {
-        if (CurrentScreen !== "ChatRoom") return;
+        if (e.target.closest?.("#fcm-chat-panel") || CurrentScreen !== "ChatRoom") return;
         if (!e.dataTransfer.files?.length) return;
 
         // 先 preventDefault，避免瀏覽器開啟檔案
@@ -336,9 +352,7 @@
             }
             if (urls.length > 0) {
                 // 放進輸入框，讓玩家確認後再手動發送，避免誤拖造成重複發送
-                inputElement.value = urls.join(" ");
-                inputElement.dispatchEvent(new Event("input", { bubbles: true }));
-                inputElement.focus();
+                appendUploadDraft(inputElement, urls);
             }
         })();
     });
@@ -586,7 +600,7 @@
 
         function tryAttach() {
             const chatLog = document.getElementById("TextAreaChatLog");
-            if (!chatLog) { setTimeout(tryAttach, 800); return; }
+            if (!chatLog) return;
 
             // 掃描已有訊息
             processImgsInNode(chatLog);
@@ -718,28 +732,38 @@
     // ──────────────────────────────────────────
     // Hook ChatRoomLoad
     // ──────────────────────────────────────────
+    function notifyReady() {
+        if (window.LikoImageUploaderWelcomed || CurrentScreen !== 'ChatRoom' ||
+            !document.getElementById('TextAreaChatLog')) return;
+        ChatRoomSendLocalStyled(`🖼️ Liko 圖片上傳器 v${MOD_VER} 載入！使用(use) /img 查看說明`, 5000);
+        window.LikoImageUploaderWelcomed = true;
+    }
+
     function hookChatRoomLoad() {
-        if (modApi && typeof modApi.hookFunction === 'function') {
-            modApi.hookFunction("ChatRoomLoad", 0, (args, next) => {
-                const result = next(args);
-                setTimeout(() => {
-                    try {
-                        loadSettings();
-                        setupChatObserver();
-                        if (!window.LikoImageUploaderWelcomed) {
-                            ChatRoomSendLocalStyled(
-                                `🖼️ Liko 圖片上傳器 v${MOD_VER} 載入！使用(use) /img 查看說明`,
-                                5000
-                            );
-                            window.LikoImageUploaderWelcomed = true;
-                        }
-                    } catch (e) {
-                        console.error("🐈‍⬛ [IMG] ❌ ChatRoomLoad 延遲處理錯誤:", e);
-                    }
-                }, 1000);
-                return result;
+        modApi.hookFunction("ChatRoomLoad", 0, async (args, next) => {
+            const result = await next(args);
+            if (CurrentScreen !== 'ChatRoom') return result;
+            setupChatObserver();
+            notifyReady();
+            return result;
+        });
+    }
+
+    function observeChatSurfaces() {
+        let frame = null;
+        const observer = new MutationObserver(records => {
+            if (!records.some(record => record.addedNodes.length) || frame !== null) return;
+            frame = requestAnimationFrame(() => {
+                frame = null;
+                notifyReady();
             });
-        }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        window.addEventListener('beforeunload', () => {
+            observer.disconnect();
+            chatObserver?.disconnect();
+            if (frame !== null) cancelAnimationFrame(frame);
+        }, { once: true });
     }
 
     // ──────────────────────────────────────────
@@ -772,6 +796,13 @@
             { Tag: "imgclick", Description: "開關點擊放大 | Toggle click zoom",                    Action: () => { cmdImgClick(); return true; } },
         ]);
         hookChatRoomLoad();
+        // 支援登入後／已在房間內才載入，不依賴下一次 ChatRoomLoad。
+        window.Liko.ImageUploader = Object.freeze({ version: MOD_VER, uploadFile: uploadImage,
+            chooseImage: callback => createFileInput(callback).click() });
+        window.dispatchEvent(new CustomEvent("liko:media-api-ready"));
+        observeChatSurfaces();
+        if (CurrentScreen === 'ChatRoom') setupChatObserver();
+        notifyReady();
     }
     initialize();
 })();

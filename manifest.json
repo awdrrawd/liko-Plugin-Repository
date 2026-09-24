@@ -259,7 +259,7 @@
       ],
 
       "priority": 4,
-      "version": "1.6.2"
+      "version": "1.6.3"
     },
     {
       "id": "Liko-MAT",
@@ -283,7 +283,7 @@
         }
       ],
       "priority": 4,
-      "version": "1.7.10"
+      "version": "1.7.12"
     },
     {
       "id": "Liko-Tool",
@@ -335,7 +335,7 @@
         }
       ],
       "priority": 4,
-      "version": "1.5.1"
+      "version": "1.5.2"
     },
     {
       "id": "Liko-Kaomoji",
@@ -407,7 +407,7 @@
         }
       ],
       "priority": 7,
-      "version": "1.0.2"
+      "version": "1.0.3"
     },
     {
       "id": "Liko-Prank",
@@ -459,7 +459,7 @@
         }
       ],
       "priority": 7,
-      "version": "1.5.2"
+      "version": "1.5.3"
     },
     {
       "id": "Liko-CMC",
@@ -507,7 +507,7 @@
         }
       ],
       "priority": 7,
-      "version": "0.5.4"
+      "version": "0.5.5"
     },
     {
       "id": "Liko-NOI",

@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.11
+// @version      1.7.12
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.11";
+    const MOD_VER = "1.7.12";
     if (window.Liko.MAT) return;
     window.Liko.MAT = { version: MOD_VER };
 
@@ -2361,9 +2361,13 @@
             stopObserver(); hideClickToolbar();
             return next(args);
         });
-        modApi.hookFunction("ChatRoomSync", 4, (args, next) => {
-            const result = next(args);
-            if (config.enabled || config.filterTranslations) { stopObserver(); setTimeout(startObserver, 500); }
+        modApi.hookFunction("ChatRoomSync", 4, async (args, next) => {
+            const result = await next(args);
+            if (CurrentScreen !== "ChatRoom") return result;
+            if (config.enabled || config.filterTranslations) {
+                stopObserver();
+                startObserver();
+            }
             hideClickToolbar();
             return result;
         });

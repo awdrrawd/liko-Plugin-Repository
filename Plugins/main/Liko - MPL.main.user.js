@@ -3,7 +3,7 @@
 // @name:zh        Liko的手機直版佈局
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.5.4
+// @version        0.5.5
 // @description    Supports vertical layout for ChatSearch and ChatRoom
 // @description:zh 支援房間搜尋與聊天室的直版佈局
 // @author         Likolisu
@@ -26,7 +26,7 @@
     window.Liko.MPL = window.Liko.MPL ?? {};
     if (window.Liko.MPL.version) return;
 
-    const MOD_VER = '0.5.4';
+    const MOD_VER = '0.5.5';
     window.Liko.MPL.version = MOD_VER;
 
     const modApi = bcModSdk.registerMod({
@@ -2129,15 +2129,17 @@
         return r;
     });
 
-    modApi.hookFunction('ChatSelectLoad', 0, (args, next) => {
-        const r = next(args);
-        if (csActive) requestAnimationFrame(buildCsBg);
+    modApi.hookFunction('ChatSelectLoad', 0, async (args, next) => {
+        const r = await next(args);
+        if (CurrentScreen !== "ChatSelect") return r;
+        if (csActive) requestAnimationFrame(() => { if (csActive && CurrentScreen === "ChatSelect") buildCsBg(); });
         return r;
     });
 
-    modApi.hookFunction('ChatSearchLoad', 0, (args, next) => {
-        const r = next(args);
-        if (cshActive) setTimeout(() => { if (cshActive) renderCshList(); }, 600);
+    modApi.hookFunction('ChatSearchLoad', 0, async (args, next) => {
+        const r = await next(args);
+        if (CurrentScreen !== "ChatSearch") return r;
+        if (cshActive) setTimeout(() => { if (cshActive && CurrentScreen === "ChatSearch") renderCshList(); }, 600);
         return r;
     });
 

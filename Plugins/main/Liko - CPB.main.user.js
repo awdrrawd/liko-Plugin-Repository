@@ -3,7 +3,7 @@
 // @name:zh      Liko的自定義個人資料頁面背景
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.2.2-1
+// @version      1.2.2-2
 // @description  自定義個人資料頁面背景 | Custom Profile Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
 (function() {
     window.Liko = window.Liko ?? {};
     if (window.Liko.CPB) return;
-    const MOD_VER = "1.2.2";
+    const MOD_VER = "1.2.2-2";
     window.Liko.CPB = MOD_VER;
 
     let modApi = null;
@@ -1120,19 +1120,18 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             }
         });
 
-        modApi.hookFunction("InformationSheetLoad", 5, (args, next) => {
+        modApi.hookFunction("InformationSheetLoad", 5, async (args, next) => {
+            // R132 會等待子頁文字載入；只在原生 Load 完成後讀取畫面。
+            const result = await next(args);
+            if (CurrentScreen !== "InformationSheet") return result;
             try {
-                const result = next(args);
-                setTimeout(() => {
-                    currentViewingCharacter = getCurrentViewingCharacter();
-                    cachedViewingCharacter = null;
-                    lastCharacterCheck = 0;
-                }, 100);
-                return result;
+                currentViewingCharacter = getCurrentViewingCharacter();
+                cachedViewingCharacter = null;
+                lastCharacterCheck = 0;
             } catch (e) {
                 console.error("🐈‍⬛ [CPB] ❌ InformationSheetLoad 處理失敗:", e.message);
-                return next(args);
             }
+            return result;
         });
 
         modApi.hookFunction("InformationSheetClick", 10, (args, next) => {
