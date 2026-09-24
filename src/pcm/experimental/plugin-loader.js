@@ -1,5 +1,5 @@
-import {downloads} from './download-queue.js';
-import {fetchFirstText, fetchText, isJavaScriptText} from './network.js';
+import {downloads} from '../download-queue.js';
+import {fetchFirstText, fetchText, isJavaScriptText} from '../network.js';
 
 const OWN_RAW = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/';
 const OWN_PAGES = 'https://awdrrawd.github.io/liko-Plugin-Repository/';

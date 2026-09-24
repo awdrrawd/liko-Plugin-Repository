@@ -17,10 +17,18 @@
 ## 改完任何來源檔後
 
 ```bash
-node scripts/build.mjs
+npm run build
 ```
 
-會用 `manifest.json` + `external.json` + `meta.json` 重新產生 `Plugins.json`。
+會依序建置 PCM、合併清單並解析版本，最後產生 README 與網站。
+
+- PCM 核心只有 `src/pcm/compat/core.js` 一份來源，ESM 與單檔版皆由建置產生。
+- PCM 與加載器版本維護於 `src/pcm/release.js`；userscript 標頭維護於 `src/pcm/userscripts.json`。
+- 清單的本倉庫版本從實際檔案的 `@version` 取得，支援 Pages、raw GitHub、jsDelivr 網址；外部來源保留清單設定的版本。
+- 舊命令 `node .github/scripts/update-versions.mjs` 現在會呼叫同一份清單建置，不再另外改寫版本。
+- 單獨產生清單可用 `npm run build:catalog`；提交前執行 `npm run build` 和 `npm run test:pcm`。
+
+CI 已整合成單一建置流程，避免多個工作同時推送不同產物。
 
 ## 登入更新提示（changelog）
 

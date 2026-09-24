@@ -20,7 +20,8 @@ export class DependencyLoader {
         return true;
       })
       .catch(error => {
-        this.runtime?.log('WARN', `Dependency failed: ${name}`, {error: String(error?.message || error)});
+        if (this.runtime) this.runtime.log('WARN', `Dependency failed: ${name}`, {error: String(error?.message || error)});
+        else console.warn(`[PCM] Dependency failed: ${name}`, error);
         throw error;
       })
       .finally(() => {
@@ -43,13 +44,13 @@ export class DependencyLoader {
   }
 
   async ensureCore() {
-    const jobs = [];
-    jobs.push(this.ensure({
+    // SDK readiness is required; optional services may use built-in UI fallbacks.
+    await this.ensure({
       name: 'bcmodsdk',
       relativePath: 'expand/bcmodsdk.js',
       ready: () => Boolean(this.global.bcModSdk?.registerMod),
-    }));
-    jobs.push(this.ensure({
+    });
+    await this.ensure({
       name: 'i18n',
       relativePath: 'expand/BC_i18n.js',
       ready: () => {
@@ -59,14 +60,15 @@ export class DependencyLoader {
           && typeof liko?.__Sys_Flags__?.ensure === 'function'
           && typeof liko?.__Sys_Flags__?.renderLabel === 'function';
       },
-    }));
-    await Promise.allSettled(jobs);
+    }).catch(() => {});
 
     const optional = [
       ['toast', 'expand/BC_toast_system.user.js', () => Boolean(this.global.Liko?.__Sys_Toast__)],
       ['color', 'expand/BC_ThemeColorCheck.js', () => Boolean(this.global.Liko?.__Sys_ColorAPI__)],
       ['chat-buttons', 'expand/BC_ChatRoomButtons.js', () => Boolean(this.global.Liko?.__Sys_ChatRoomButtons__)],
     ];
-    await Promise.allSettled(optional.map(([name, relativePath, ready]) => this.ensure({name, relativePath, ready})));
+    for (const [name, relativePath, ready] of optional) {
+      await this.ensure({name, relativePath, ready}).catch(() => {});
+    }
   }
 }

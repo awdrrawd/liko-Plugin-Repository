@@ -3,8 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/build-all.mjs",
     "build:pcm": "node scripts/build-pcm.mjs",
-    "build:docs": "node scripts/build-docs.mjs"
+    "build:catalog": "node scripts/build.mjs",
+    "build:docs": "node scripts/build-docs.mjs",
+    "test:pcm": "node --test scripts/test-pcm-*.mjs scripts/test-downloads.mjs && node scripts/test-pcm-visibility.cjs && node scripts/test-i18n-flags.cjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.9"

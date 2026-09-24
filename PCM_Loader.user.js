@@ -2,7 +2,7 @@
 // @name           Liko - Plugin Collection Manager-Loader
 // @name:zh        Liko的插件管理器-Loader
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        1.4.0
+// @version        1.5.0
 // @description    Liko's Plugin Collection Manager
 // @author         Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -14,138 +14,258 @@
 // @run-at         document-end
 // ==/UserScript==
 
-(function () {
-    "use strict";
-
-    const MODULE_REL = "dist/pcm/PCM.js";
-    const MAIN_REL = "Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js";
-
-    function buildModuleUrls() {
-        const ts = Date.now();
-        return [
-            `https://awdrrawd.github.io/liko-Plugin-Repository/${MODULE_REL}?timestamp=${ts}`,
-            `https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/${MODULE_REL}`,
-            `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${MODULE_REL}`,
-        ];
+// AUTO-GENERATED from src/pcm/loader-entry.js by scripts/build-pcm.mjs. Do not edit directly.
+(() => {
+  // src/pcm/config.js
+  var NETWORK_TIMEOUT_MS = 3e4;
+  var STORAGE_KEYS = Object.freeze({
+    settings: "BC_PluginManager_Settings",
+    account: "PCMAccount",
+    accountConfig: "PCMConfig",
+    pluginCache: "pcm_plugin_cache",
+    jsonCache: "pcm_json_cache",
+    customPlugins: "pcm_custom_plugins",
+    lastPluginError: "pcm_last_plugin_error"
+  });
+  function getRepositoryBases(global = window) {
+    if (global.LikoDevBase) {
+      return {
+        plugins: [global.LikoDevBase],
+        root: [new URL("../", global.LikoDevBase).href]
+      };
     }
+    return {
+      plugins: [
+        "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/",
+        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/",
+        "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/"
+      ],
+      root: [
+        "https://awdrrawd.github.io/liko-Plugin-Repository/",
+        "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/",
+        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/"
+      ]
+    };
+  }
 
-    function loadModule(url, timeoutMs = 15000) {
-        return new Promise((resolve, reject) => {
-            const script = document.createElement("script");
-            const timer = setTimeout(() => {
-                script.remove();
-                reject(new Error("module load timeout"));
-            }, timeoutMs);
-            script.type = "module";
-            script.src = url;
-            script.dataset.pcmModuleLoader = "true";
-            script.onload = () => {
-                clearTimeout(timer);
-                if (window.Liko?.PCM) resolve();
-                else reject(new Error("module loaded but PCM did not start"));
-            };
-            script.onerror = () => {
-                clearTimeout(timer);
-                script.remove();
-                reject(new Error("module script error"));
-            };
-            (document.head || document.documentElement).appendChild(script);
+  // src/pcm/download-queue.js
+  var DownloadQueue = class {
+    constructor(limit = 3) {
+      this.limit = limit;
+      this.active = 0;
+      this.waiting = [];
+    }
+    run(task, signal) {
+      return new Promise((resolve, reject) => {
+        const job = { task, resolve, reject, signal };
+        const cancel = () => {
+          const index = this.waiting.indexOf(job);
+          if (index >= 0) this.waiting.splice(index, 1);
+          reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+        };
+        job.detach = () => signal?.removeEventListener("abort", cancel);
+        if (signal?.aborted) {
+          cancel();
+          return;
+        }
+        signal?.addEventListener("abort", cancel, { once: true });
+        this.waiting.push(job);
+        this.drain();
+      });
+    }
+    drain() {
+      while (this.active < this.limit && this.waiting.length) {
+        const job = this.waiting.shift();
+        job.detach();
+        this.active++;
+        Promise.resolve().then(job.task).then(job.resolve, job.reject).finally(() => {
+          this.active--;
+          this.drain();
         });
+      }
     }
+  };
+  var downloads = new DownloadQueue(3);
 
-    async function loadModuleSequential() {
-        let lastErr;
-        for (const url of buildModuleUrls()) {
-            try {
-                await loadModule(url);
-                return;
-            } catch (e) {
-                lastErr = e;
-                console.warn(`🐈‍⬛ [PCM] ⚠️ 模組入口 ${url}: ${e.message}`);
-            }
+  // src/pcm/network.js
+  var NetworkTimeoutError = class extends Error {
+    constructor(url, timeoutMs) {
+      super(`Timeout after ${timeoutMs}ms: ${url}`);
+      this.name = "NetworkTimeoutError";
+      this.url = url;
+      this.timeoutMs = timeoutMs;
+    }
+  };
+  function fetchText(url, options = {}, timeoutMs = NETWORK_TIMEOUT_MS) {
+    return downloads.run(() => receiveText(url, options, timeoutMs), options.signal);
+  }
+  async function receiveText(url, options, timeoutMs) {
+    const controller = new AbortController();
+    let timer, timeoutError, reader;
+    const arm = (delay, stage) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        timeoutError = new NetworkTimeoutError(url, delay);
+        timeoutError.message = `No download progress (${stage}) for ${delay}ms: ${url}`;
+        controller.abort(timeoutError);
+      }, delay);
+    };
+    const abort = () => controller.abort(options.signal.reason);
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.signal?.aborted) abort();
+    arm(Math.max(45e3, timeoutMs), "first byte");
+    try {
+      const response = await fetch(url, { priority: "low", ...options, signal: controller.signal });
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error(`HTTP ${response.status}`);
+      }
+      if (!response.body?.getReader) throw new Error("Readable response body unavailable");
+      reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      const parts = [];
+      for (; ; ) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value.byteLength) {
+          arm(timeoutMs, "body");
+          parts.push(decoder.decode(value, { stream: true }));
         }
-        throw lastErr ?? new Error("all module URLs failed");
+      }
+      parts.push(decoder.decode());
+      const text = parts.join("");
+      return { response, text, url };
+    } catch (error) {
+      if (timeoutError) throw timeoutError;
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      reader?.releaseLock();
+      options.signal?.removeEventListener("abort", abort);
     }
+  }
+  function isJavaScriptText(text) {
+    return typeof text === "string" && text.trim().length > 0 && !text.trimStart().startsWith("<");
+  }
 
-    // 優先序：
-    // 1. GitHub Pages — 即時（push 後幾乎立刻生效）且不會 429，帶時間戳確保拿最新版
-    // 2. raw.githubusercontent — 即時，但限流嚴格，只在 Pages 掛掉時當備援，不加時間戳降低疊加量
-    // 3. jsDelivr — 可能有快取延遲（有時隔天才更新），但幾乎不會掛，留著當最後保底
-    function buildMainUrls() {
-        const ts = Date.now();
-        return [
-            `https://awdrrawd.github.io/liko-Plugin-Repository/${MAIN_REL}?timestamp=${ts}`,
-            `https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/${MAIN_REL}`,
-            `https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/${MAIN_REL}`,
-        ];
+  // src/pcm/loader.js
+  var CACHE_KEY = "pcm_main_cache";
+  var PATHS = {
+    module: "dist/pcm/PCM.js",
+    classic: "Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js"
+  };
+  function sourceUrls(path, localBase) {
+    if (localBase) return [new URL(`${path}?t=${Date.now()}`, localBase).href];
+    return getRepositoryBases({}).root.map((base, index) => `${base}${path}${index === 0 ? `?timestamp=${Date.now()}` : ""}`);
+  }
+  function validateCode(code) {
+    if (!isJavaScriptText(code)) throw new Error("Received HTML or empty JavaScript");
+    if (!code.includes("__PCMStartup__")) throw new Error("PCM release lacks startup handshake");
+  }
+  async function importCode(code) {
+    const url = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
+    try {
+      await import(url);
+    } finally {
+      URL.revokeObjectURL(url);
     }
-
-    const MAIN_CACHE_KEY = "pcm_main_cache";
-
-    function getCachedMain() {
+  }
+  async function waitForStartup(global) {
+    const startup = global.Liko.__PCMStartup__;
+    if (!startup?.promise) throw new Error("PCM startup handshake missing");
+    await startup.promise;
+    if (startup.status !== "ready" || !global.Liko.PCM || !global.Liko.PCMApi) {
+      throw new Error("PCM initialization did not complete");
+    }
+  }
+  function readCache(global) {
+    try {
+      const cached = JSON.parse(global.localStorage.getItem(CACHE_KEY) || "null");
+      if (cached?.schema !== 1 || !["module", "classic"].includes(cached.format)) return null;
+      validateCode(cached.code);
+      return cached;
+    } catch {
+      return null;
+    }
+  }
+  function writeCache(global, record) {
+    try {
+      global.localStorage.setItem(CACHE_KEY, JSON.stringify(record));
+    } catch (error) {
+      console.warn("[PCM] 無法儲存備援快取：", error);
+    }
+  }
+  function startLoader({
+    localBase = null,
+    global = window,
+    download = fetchText,
+    executeModule = importCode,
+    executeClassic = (code) => new Function(code)()
+  } = {}) {
+    global.Liko ??= {};
+    const previous = global.Liko.__PCMLoader__;
+    if (previous?.promise) return previous.promise;
+    const loader = { promise: null };
+    global.Liko.__PCMLoader__ = loader;
+    loader.promise = Promise.resolve().then(async () => {
+      if (localBase) global.LikoDevBase = new URL("Plugins/", localBase).href;
+      const errors = [];
+      if (global.Liko.__PCMStartup__?.status === "starting" || global.Liko.__PCMStartup__?.status === "ready") {
         try {
-            const c = JSON.parse(localStorage.getItem(MAIN_CACHE_KEY) || "null");
-            return c?.code ?? null;
-        } catch (e) { return null; }
-    }
-
-    function setCachedMain(code) {
-        try { localStorage.setItem(MAIN_CACHE_KEY, JSON.stringify({ time: Date.now(), code })); } catch (e) {}
-    }
-
-    // 依序抓取，第一個成功就回傳，不並行、不對 raw/jsDelivr 加時間戳
-    async function fetchMainSequential() {
-        let lastErr;
-        for (const url of buildMainUrls()) {
-            try {
-                const res = await fetch(url, { cache: "no-store" });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const code = await res.text();
-                if (!code || code.trimStart().startsWith('<')) throw new Error("Invalid response");
-                return code;
-            } catch (e) { lastErr = e; console.warn(`🐈‍⬛ [PCM] ⚠️ ${url}: ${e.message}`); }
+          await waitForStartup(global);
+          return { format: "existing" };
+        } catch (error) {
+          errors.push(error);
         }
-        throw lastErr ?? new Error("all main URLs failed");
-    }
-
-    (async () => {
+      }
+      if (global.Liko.PCM) return { format: "existing" };
+      const cached = localBase ? null : readCache(global);
+      const execute = async (format, code) => {
+        validateCode(code);
+        const before = global.Liko.__PCMStartup__;
+        await (format === "module" ? executeModule(code) : executeClassic(code));
+        if (global.Liko.__PCMStartup__ === before) throw new Error("PCM did not create a startup handshake");
+        await waitForStartup(global);
+      };
+      for (const format of ["module", "classic"]) {
+        for (const url of sourceUrls(PATHS[format], localBase)) {
+          try {
+            const { text: code } = await download(url, { cache: "no-store" });
+            await execute(format, code);
+            if (!localBase) writeCache(global, {
+              schema: 1,
+              format,
+              code,
+              url,
+              time: Date.now(),
+              version: global.Liko.PCM
+            });
+            console.log(`[PCM] ✅ ${localBase ? "Local " : ""}${format} PCM started`);
+            return { format, url, cached: false };
+          } catch (error) {
+            errors.push(error);
+            console.warn(`[PCM] ⚠️ ${url}:`, error);
+          }
+        }
+      }
+      if (cached) {
         try {
-            await loadModuleSequential();
-            console.log("🐈‍⬛ [PCM] ✅ Modular PCM started");
-            return;
-        } catch (e) {
-            console.warn(`🐈‍⬛ [PCM] ⚠️ 模組版載入失敗，回退單檔版：${e.message}`);
+          await execute(cached.format, cached.code);
+          console.log("[PCM] ✅ PCM started (cached fallback)");
+          return { format: cached.format, url: cached.url, cached: true };
+        } catch (error) {
+          errors.push(error);
         }
+      }
+      throw new AggregateError(errors, "PCM 載入失敗，無可用的備援版本");
+    }).catch((error) => {
+      if (global.Liko.__PCMLoader__ === loader) delete global.Liko.__PCMLoader__;
+      throw error;
+    });
+    loader.promise.catch((error) => console.error("[PCM] ❌", error));
+    return loader.promise;
+  }
 
-        const oldCache = getCachedMain();
-
-        let freshCode = null;
-        try {
-            freshCode = await fetchMainSequential();
-        } catch (e) {
-            console.warn(`🐈‍⬛ [PCM] ⚠️ 下載失敗，改用舊版快取：${e.message}`);
-        }
-
-        if (freshCode) {
-            try {
-                eval(freshCode);
-                setCachedMain(freshCode);
-                console.log("🐈‍⬛ [PCM] ✅ Main script started");
-                return;
-            } catch (evalErr) {
-                console.error(`🐈‍⬛ [PCM] ❌ 新版執行失敗，改用舊版快取：${evalErr.message}`);
-            }
-        }
-
-        if (oldCache) {
-            try {
-                eval(oldCache);
-                console.log("🐈‍⬛ [PCM] ✅ Main script started (cached fallback)");
-            } catch (e) {
-                console.error("🐈‍⬛ [PCM] ❌ 舊版快取也執行失敗", e.message);
-            }
-        } else {
-            console.error("🐈‍⬛ [PCM] ❌ 無可用版本（下載失敗且無快取）");
-        }
-    })();
+  // src/pcm/loader-entry.js
+  startLoader();
 })();

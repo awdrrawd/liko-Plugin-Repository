@@ -23,7 +23,7 @@ export function normalizePlugin(raw, seen = new Set()) {
   if (!raw || typeof raw !== 'object') return {plugin: null, reason: 'Plugin entry is not an object'};
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
   const name = typeof raw.name === 'string' ? raw.name.trim() : '';
-  const type = raw.type || 'eval';
+  const type = raw.type == null || raw.type === '' ? 'eval' : raw.type;
   const urls = [raw.url, raw.mirrorUrl, raw.altUrl, raw.altMirrorUrl].filter(Boolean);
 
   if (!SAFE_PLUGIN_ID.test(id)) return {plugin: null, reason: `Invalid plugin id: ${id || '(missing)'}`};

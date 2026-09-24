@@ -1,52 +1,73 @@
-# PCM modular runtime
+# PCM runtime and release pipeline
 
-This directory contains the native ES module distribution of PCM. The existing
-`../Liko - Plugin Collection Manager.main.user.js` remains an independent,
-stable fallback. The build updates only its marked generated download helpers.
+PCM has one production implementation: `compat/core.js` exports `startPCM()`. Both
+`entry.js` (ESM) and `classic-entry.js` (userscript) invoke it. The classic release is
+now generated, including the same UI, FUSAM integration and translations as ESM.
+Do not edit `dist/pcm/PCM.js` or `Plugins/main/Liko - Plugin Collection Manager.main.user.js`.
 
-Module boundaries:
+## Source ownership
 
-- `config.js` — version, storage keys and repository URLs.
-- `network.js` — streamed downloads with first-byte and inactivity deadlines.
-- `download-queue.js` — shared rolling limit of three active requests.
-- `storage.js` — safe JSON persistence and debounced documents.
-- `manifest.js` — validation, normalization and saved settings.
-- `runtime.js` — plugin state machine, diagnostics and subscriptions.
-- `notification-stack.js` — independent stacked side notifications.
+- `release.js`: canonical PCM and loader version numbers.
+- `userscripts.json`: userscript metadata templates and output paths.
+- `compat/core.js`: production application, UI and plugin orchestration.
+- `dependencies.js`: required SDK readiness and optional service capability checks.
+- `lifecycle.js`: owned timers, listeners, cleanup and cancellable sleeps.
+- `manifest.js`: validation shared by the production core and catalog build.
+- `network.js` / `download-queue.js`: streamed downloads and the three-request FIFO limit.
+- `config.js`: storage keys, timeouts and repository source policies.
+- `i18n/PCM-i18n.js`: the only PCM dictionary, including English and all translations.
+- `i18n/index.js`: registration and fallback when the translation engine is unavailable.
+- `loader.js`: the common production/local bootstrap.
+- `experimental/`: retained migration prototypes, excluded from release bundles.
 
-Shared language services use the canonical `Plugins/expand/BC_i18n.js` (2.2).
-`dependencies.js` checks UI translations, L10N and SVG flag APIs together;
-an older translation engine alone does not satisfy the dependency. Only pending
-loads are shared, so a missing service can be loaded again after an earlier success.
-The flag API is `window.Liko.__Sys_Flags__`; the settings labels in `compat/core.js`
-prefer decoded SVGs and retain Twemoji text when unavailable. Do not embed SVG
-assets in `i18n/PCM-i18n.js`, which remains a plain translation dictionary.
+The PCM dictionary is bundled in both formats. There is no deployed PCM dictionary
+in `Plugins/Translation` and no extra runtime dictionary fetch. Other plugins retain
+their own translation files. `BC_i18n.js` remains the shared external language/flag
+engine, with capabilities checked by `DependencyLoader` before the core initializes.
 
-Regression check: `node scripts/test-pcm-dependencies.mjs`.
+## Startup and fallback
 
-`entry.js` acquires the shared `window.Liko.__PCMBoot__` lock and imports
-`compat/core.js`. The compatibility core preserves the retained userscript UI, so the module URL has the same UI, badge, account, command,
-preferences and plugin-loading behaviour from its first release. Extracted
-services remain available beside it and can replace internals incrementally
-without changing the entry URL or public API.
+`startPCM` owns `window.Liko.__PCMStartup__`, with a promise and starting/ready/failed
+status. Both release formats share this lock. The previous separate module boot
+lock is gone. `window.Liko.PCM` is assigned after SDK and initial UI readiness.
+Independent plugin/account loading remains in the background. Failed starts dispose
+owned resources and release SDK registration before another attempt. Early plugin
+promises survive retries so an already-started early plugin is not executed twice.
 
-This directory is the authored modular source. Run `npm run build:pcm` to bundle
-`entry.js` and all internal imports into the single production module
-`dist/pcm/PCM.js`. GitHub Pages, raw GitHub, jsDelivr and the local development
-loader all load that bundle, then fall back to the retained single-file
-userscript if module loading fails. Do not edit the generated bundle directly.
+The loader owns only source selection and its own in-flight invocation lock.
+Production stores the exact successfully executed bytes in `pcm_main_cache` as
+`{schema: 1, format, code, url, time, version}`; format is `module` or `classic`.
+Failed attempts preserve the last good cache. Cached execution follows network
+attempts. Pre-handshake cache entries are ignored until a successful online start
+replaces them. Local mode does not read/write production cache.
 
-When changing loader behavior, update both `compat/core.js` and the legacy userscript.
-Their network helpers share one source and are regenerated by `build:pcm`.
+PCM ESM is self-contained and imported from a temporary Blob URL, revoked after
+evaluation. Keep relative imports bundled and avoid `import.meta.url` asset paths.
+The classic artifact is an alternative execution format of the same release;
+last-known-good cache provides version rollback. The cache covers PCM itself,
+not every external dependency or managed plugin.
 
-Downloads run through a FIFO queue capped at three active requests. Completing or
-failing one request immediately admits the next; queue time is not timeout time.
-Fetch requests use low priority, wait up to 45 seconds for the first body bytes,
-and abort after 30 seconds without additional bytes. Continuous progress has no
-total-duration limit. No progress/speed UI is added.
-Native script and module requests also use the queue, but expose no byte progress;
-they rely on browser completion/error instead of a fabricated idle timeout. A hung
-native request can therefore occupy a slot until the browser settles it. Plugin-owned
-requests are outside this queue. Module evaluation may also hold a native slot.
+## Build and verify
 
-Regression checks: `node --test scripts/test-downloads.mjs`.
+Run `npm run build` to build PCM, resolve catalog versions, and generate `Plugins.json`,
+`README.md` and `index.html` in that order. CI uses this same pipeline and one publishing
+workflow. All output paths and userscript metadata come from source files, so
+existing generated artifacts are not needed to rebuild.
+
+For PCM-only changes, `npm run build:pcm` generates the bundle and all three
+userscripts. Configure the local URL in `loader-local-entry.js`, then rebuild.
+Existing installation URLs are preserved.
+
+Run `npm run test:pcm` for download, startup, dependency, lifecycle, translation,
+version-source, artifact-parity, visibility and flag checks. The startup tests run
+the actual core and generated classic artifact against browser/game boundaries;
+they do not replace core initialization code. Experimental imports are checked
+separately and are not evidence of production feature parity.
+
+## Download policy
+
+Fetch requests wait up to 45 seconds for first body bytes and abort after 30 seconds
+without progress. Continuous progress has no total-duration limit. Source attempts
+are sequential. Plugin-native script/module requests expose no byte progress and
+retain browser completion/error handling; a hung native request can occupy a queue
+slot until the browser settles it. Plugin-owned requests are outside PCM's queue.

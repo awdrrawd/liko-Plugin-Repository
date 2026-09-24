@@ -1,0 +1,17 @@
+[
+  {
+    "entry": "loader-entry.js",
+    "output": "PCM_Loader.user.js",
+    "metadata": "// ==UserScript==\n// @name           Liko - Plugin Collection Manager-Loader\n// @name:zh        Liko的插件管理器-Loader\n// @namespace      https://github.com/awdrrawd/liko-Plugin-Repository\n// @version        {{LOADER_VERSION}}\n// @description    Liko's Plugin Collection Manager\n// @author         Likolisu\n// @include      /^https:\\/\\/(www\\.)?(bondage(projects\\.elementfx|-(europe|asia))\\.com|bondageeurope\\.com)\\/R*/\n// @grant          none\n// @icon           https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png\n// @updateURL      https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js\n// @downloadURL    https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js\n// @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository/issues\n// @run-at         document-end\n// ==/UserScript=="
+  },
+  {
+    "entry": "loader-local-entry.js",
+    "output": "PCM_Loader.local.user.js",
+    "metadata": "// ==UserScript==\n// @name         本地測試 - PCM 載入器\n// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository\n// @version      {{LOCAL_LOADER_VERSION}}\n// @description  本地測試載入器：優先載入模組版 PCM，失敗時回退保留的單檔版\n// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository\n// @author       Likolisu\n// @include      /^https:\\/\\/(www\\.)?(bondage(projects\\.elementfx|-(europe|asia))\\.com|bondageeurope\\.com)\\/R*/\n// @grant        none\n// @icon         https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png\n// @run-at       document-end\n// ==/UserScript=="
+  },
+  {
+    "entry": "classic-entry.js",
+    "output": "Plugins/main/Liko - Plugin Collection Manager.main.user.js",
+    "metadata": "// ==UserScript==\n// @name         Liko - Plugin Collection Manager\n// @name:zh      Liko的插件管理器\n// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository\n// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository\n// @version      {{PCM_VERSION}}\n// @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager\n// @author       Liko\n// @include      /^https:\\/\\/(www\\.)?(bondage(projects\\.elementfx|-(europe|asia))\\.com|bondageeurope\\.com)\\/R*/\n// @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png\n// @grant        none\n// @run-at       document-end\n// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js\n// @downloadURL  https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js\n// @updateURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js\n// ==/UserScript=="
+  }
+]

@@ -1,5 +1,5 @@
-import {PCM_VERSION, STORAGE_KEYS} from './config.js';
-import {loadPCMTranslations, isCJK} from './i18n/index.js';
+import {PCM_VERSION, STORAGE_KEYS} from '../config.js';
+import {registerPCMTranslations, isCJK} from '../i18n/index.js';
 import {createPCMServices} from './services.js';
 import {installComponentStyles} from './ui/component-styles.js';
 
@@ -17,7 +17,7 @@ export class PCMApp {
     installComponentStyles();
 
     await dependencies.ensureCore();
-    await loadPCMTranslations().catch(error => runtime.log('WARN', 'PCM translations failed', {error: String(error?.message || error)}));
+    registerPCMTranslations({global: this.services.global, lifecycle});
     const data = await catalog.load();
     this.plugins = data.plugins;
     this.installApi();

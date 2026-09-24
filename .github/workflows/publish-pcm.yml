@@ -1,22 +1,29 @@
-name: Build PCM bundle
+name: Build and verify repository artifacts
 
 on:
   push:
     branches: [ main ]
     paths:
       - 'src/pcm/**'
-      - 'scripts/build-pcm.mjs'
-      - 'scripts/test-downloads.mjs'
-      - 'Plugins/main/Liko - Plugin Collection Manager.main.user.js'
+      - 'scripts/**'
+      - '.github/scripts/**'
+      - '.github/workflows/publish-pcm.yml'
+      - 'Plugins/**'
+      - 'manifest.json'
+      - 'external.json'
+      - 'meta.json'
+      - 'Translation-Tool/index.html'
+      - 'PCM_Loader*.user.js'
       - 'package.json'
       - 'package-lock.json'
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: build-pcm-bundle
+  group: repository-build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -28,20 +35,19 @@ jobs:
         with:
           node-version: 24
           cache: npm
-
       - run: npm ci
-      - run: node --test scripts/test-downloads.mjs
-      - run: node scripts/test-pcm-dependencies.mjs && node scripts/test-pcm-visibility.cjs
-      - run: npm run build:pcm
-
-      - name: Commit bundle
+      - run: npm run build
+      - run: npm run test:pcm
+      - name: Commit generated artifacts
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
-          if [[ -n "$(git status --porcelain dist/pcm/PCM.js 'Plugins/main/Liko - Plugin Collection Manager.main.user.js')" ]]; then
-            git config user.name  "github-actions[bot]"
+          artifacts=(dist/pcm/PCM.js 'Plugins/main/Liko - Plugin Collection Manager.main.user.js' PCM_Loader.user.js PCM_Loader.local.user.js Plugins.json README.md index.html)
+          if [[ -n "$(git status --porcelain -- "${artifacts[@]}")" ]]; then
+            git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add dist/pcm/PCM.js 'Plugins/main/Liko - Plugin Collection Manager.main.user.js'
-            git commit -m "chore: build PCM bundle"
+            git add -- "${artifacts[@]}"
+            git commit -m "chore: build repository artifacts"
             git push
           else
-            echo "PCM bundle already up to date"
+            echo "Generated artifacts already up to date"
           fi

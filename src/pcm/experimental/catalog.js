@@ -1,6 +1,6 @@
-import {getPluginListUrls, STORAGE_KEYS} from './config.js';
-import {fetchFirstText} from './network.js';
-import {applySavedSettings, normalizeManifest} from './manifest.js';
+import {getPluginListUrls, STORAGE_KEYS} from '../config.js';
+import {fetchFirstText} from '../network.js';
+import {applySavedSettings, normalizeManifest} from '../manifest.js';
 
 const CATALOG_TTL = 24 * 60 * 60 * 1000;
 

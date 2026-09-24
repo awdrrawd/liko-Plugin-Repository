@@ -1,32 +1,41 @@
 import {fetchText as downloadText} from '../network.js';
 import {downloads} from '../download-queue.js';
 
-// ==UserScript==
-// @name         Liko - Plugin Collection Manager
-// @name:zh      Liko的插件管理器
-// @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.2.0
-// @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
-// @author       Liko
-// @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
-// @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
-// @grant        none
-// @run-at       document-end
-// @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
-// @downloadURL  https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
-// @updateURL    https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Plugin%20Collection%20Manager.main.user.js
-// ==/UserScript==
-(function() {
+import {PCM_VERSION} from '../release.js';
+import {getPluginListUrls, NETWORK_TIMEOUT_MS} from '../config.js';
+import {DependencyLoader} from '../dependencies.js';
+import {Lifecycle} from '../lifecycle.js';
+import {normalizeManifest} from '../manifest.js';
+import {registerPCMTranslations, translatePCM} from '../i18n/index.js';
+import {installFusamCompat} from '../fusam-compat.js';
+
+// Shared application implementation for ESM and classic userscript releases.
+export function startPCM() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.2.0";
-    if (window.Liko.PCM) return;
-    window.Liko.PCM = MOD_VER;
+    const MOD_VER = PCM_VERSION;
+    const current = window.Liko.__PCMStartup__;
+    if (current?.status === 'starting' || current?.status === 'ready') return current.promise;
+    if (window.Liko.PCM) return Promise.resolve(window.Liko.PCMApi);
+    const startup = { status: 'starting', version: MOD_VER, promise: null };
+    window.Liko.__PCMStartup__ = startup;
+    let rollback = () => {};
+    // Defer execution so the shared promise exists before any initialization runs.
+    startup.promise = Promise.resolve().then(async () => {
 
     let modApi;
     let isInitialized = false;
-    // unloaded 讓所有遞迴輪詢鏈在 mod 卸載後停止，避免背景無限重排 timer。
-    const _lifecycle = { intervals: [], mousemoveHandler: null, unloaded: false };
+    const _lifecycle = new Lifecycle();
+    _lifecycle.add(() => {
+        if (_lifecycle.mousemoveHandler) document.removeEventListener('mousemove', _lifecycle.mousemoveHandler);
+        for (const id of ['bc-plugin-btn-group', 'bc-plugin-panel', 'bc-plugin-styles', 'pcm-notification-stack']) {
+            document.getElementById(id)?.remove();
+        }
+    });
+    rollback = () => {
+        _lifecycle.dispose();
+        try { modApi?.unload?.(); } catch (error) { console.warn('[PCM] SDK cleanup:', error); }
+    };
+    installFusamCompat();
 
     // 簡易 HTML escape：插件名稱/描述/連結進 innerHTML 前一律過濾，防注入。
     function escapeHtml(str) {
@@ -44,98 +53,7 @@ import {downloads} from '../download-queue.js';
     let pcmUiSettings = loadUiSettings();
     function saveUiSettings() { try { localStorage.setItem(PCM_UI_SETTINGS_KEY, JSON.stringify(pcmUiSettings)); } catch(e) {} }
     const pcmLang = () => pcmUiSettings.language === 'AUTO' ? undefined : pcmUiSettings.language;
-    const t = (key, vars) => window.Liko.__Sys_i18n__?.t('PCM', key, vars, pcmLang()) ?? key;
-
-    function registerI18n() {
-        // EN strings are the authoritative fallback — other languages live in PCM-i18n.js
-        const _enStrings = {
-            hideBalloon: { EN: "Hide balloon" },
-            hideMainHall: { EN: "Main hall" },
-            hidePreference: { EN: "Settings page" },
-            hideInformationSheet: { EN: "Profile" },
-            'loaded':           { EN: 'Liko\'s Plugin Collection Manager v{ver} loaded! Click the floating button to manage plugins.' },
-            'shortLoaded':      { EN: '📋 Liko Plugin Collection Manager Manual\n\n🎮 How to Use:\n• Click the floating button to open panel\n• Toggle switches to enable/disable plugins\n• Three-state toggle: OFF → ON → BETA\n\n📝 Commands:\n/pcm help — show this\n/pcm list — list all plugins\n\n💡 Plugins load on enable, or take effect on next refresh.' },
-            'welcomeTitle':     { EN: '🐈‍⬛ Plugin Manager' },
-            'tabLocal':         { EN: '📱 Local' },
-            'tabAccount':       { EN: '☁️ Account' },
-            'tabCustom':        { EN: '🔧 Custom' },
-            'tabFusam':         { EN: '◆ FUSAM' },
-            'searchPlaceholder':{ EN: 'Search plugins...' },
-            'filterAll':        { EN: 'Showing: All' },
-            'filterEnabled':    { EN: 'Showing: Enabled' },
-            'filterDisabled':   { EN: 'Showing: Disabled' },
-            'pluginEnabled':    { EN: 'enabled' },
-            'pluginDisabled':   { EN: 'disabled' },
-            'willTakeEffect':   { EN: 'Plugin loaded or will take effect on next refresh' },
-            'willNotStart':       { EN: 'Will not start on next load' },
-            'visitWebsite':       { EN: 'Visit website' },
-            'changelogTitle':     { EN: '📋 Update Log' },
-            'changelogClose':     { EN: 'Close' },
-            'newVersionTitle':    { EN: '✨ PCM Updated' },
-            'newVersionHint':     { EN: 'Click 📋 to view again anytime' },
-            'loadingPlugins':     { EN: 'Loading plugin list...' },
-            'loadPluginsFailed':  { EN: 'Failed to load plugin list, please refresh' },
-            'refreshTitle':       { EN: 'Clear Cache & Refresh' },
-            'refreshing':         { EN: 'Clearing cache and re-downloading...' },
-            'refreshDone':        { EN: 'All cache cleared, plugin list updated! Please refresh the game to fully apply the latest main script and plugins.' },
-            'refreshFailed':      { EN: 'Update failed, using cached list' },
-            'pluginLoadComplete': { EN: 'Plugin loading complete' },
-            'successLoaded':      { EN: 'Loaded' },
-            'pcmLoadedCount':     { EN: 'PCM - {count} loaded successfully' },
-            'fusamLoadedCount':   { EN: 'FUSAM - {count} loaded successfully' },
-            'pcmFailedCount':     { EN: 'PCM - {count} failed to load' },
-            'fusamFailedCount':   { EN: 'FUSAM - {count} failed to load' },
-            'plugins':            { EN: 'plugins' },
-            'failed':             { EN: 'failed' },
-            'pluginLoadFailed':   { EN: '{name} failed to load' },
-            'pluginLoadRetry':    { EN: 'Click ↺ on the plugin to retry' },
-            'accountNotLoggedIn': { EN: '🔒\nPlease log in to use account settings' },
-            'customAddTitle':     { EN: 'Add Custom Plugin' },
-            'customFieldName':    { EN: 'Plugin name *' },
-            'customFieldUrl':     { EN: 'URL (.js) *' },
-            'customFieldIcon':    { EN: 'Icon — emoji or image URL (optional)' },
-            'customFieldDesc':    { EN: 'Description (optional)' },
-            'customFieldType':    { EN: 'Load method (advanced, leave default if unsure)' },
-            'customTypeEval':     { EN: 'Eval — fetch code as text & run it (default)' },
-            'customTypeScr':      { EN: 'Script tag — <script src>, use if the host blocks fetch() with CORS' },
-            'customTypeMod':      { EN: 'Module — dynamic import(), for Vite/Rollup ESM bundles' },
-            'customBtnAdd':       { EN: 'Add' },
-            'customBtnCancel':    { EN: 'Cancel' },
-            'customDeleteConfirm':{ EN: 'Remove "{name}"?' },
-            'customDeleteYes':    { EN: 'Remove' },
-            'customAdded':        { EN: '{name} added' },
-            'customDeleted':      { EN: '{name} removed' },
-            'customUrlInvalid':   { EN: 'URL must end in .js' },
-            'customNameRequired': { EN: 'Please enter a name' },
-            'customEmptyHint':    { EN: 'No custom plugins yet.\nTap ＋ in the lower-right corner to add one.' },
-            'prefButton':         { EN: 'PCM Plugin Manager' },
-            'settingsTitle':      { EN: 'PCM Settings' },
-            'settingsLanguage':   { EN: 'Language' },
-            'settingsAuto':       { EN: 'AUTO' },
-            'settingsLoadNotif':  { EN: 'Show plugin loading notifications' },
-            'settingsFusam':      { EN: 'Load FUSAM plugin list' },
-            'settingsCustom':     { EN: 'Show custom plugins tab' },
-            'settingsClose':      { EN: 'Done' },
-            'fusamTitle':         { EN: 'Fantastic Ultimate Solution to Addon Management' },
-            'fusamDesc':          { EN: 'An independent community addon manager. PCM reads its official GitLab Pages manifest directly.' },
-            'fusamOpen':          { EN: 'Open official FUSAM installation page' },
-            'fusamLicense':       { EN: 'FUSAM is an independent GPLv3 project. Addons installed there are managed by FUSAM.' },
-        };
-
-        // i18n 引擎可能晚就位（EBC 下要等別的插件順便載入），輪詢等待最多 10 秒再放棄。
-        (function registerWhenReady(tries) {
-            if (window.Liko.__Sys_i18n__?.register) {
-                window.Liko.__Sys_i18n__.register('PCM', _enStrings);
-                return;
-            }
-            if (_lifecycle.unloaded) return;
-            if ((tries ?? 0) > 100) {
-                console.warn('🐈‍⬛ [PCM] ⚠️ __Sys_i18n__ never became available, EN fallback not registered');
-                return;
-            }
-            setTimeout(() => registerWhenReady((tries ?? 0) + 1), 100);
-        })();
-    }
+    const t = (key, vars) => translatePCM(key, vars, pcmLang());
 
     // === PCM 徽章系統 ====================================
 
@@ -161,8 +79,8 @@ import {downloads} from '../download-queue.js';
         };
         if (typeof Player !== 'undefined' && Player?.AccountName) doSetup();
         else {
-            const id = setInterval(() => { if (typeof Player !== 'undefined' && Player?.AccountName) { clearInterval(id); doSetup(); } }, 500);
-            _lifecycle.intervals.push(id);
+            const id = _lifecycle.interval(() => { if (typeof Player !== 'undefined' && Player?.AccountName) { _lifecycle.clearInterval(id); doSetup(); } }, 500);
+
         }
     }
 
@@ -299,14 +217,17 @@ import {downloads} from '../download-queue.js';
 
     function registerPCMBadge() {
         const wait = () => {
-            if (_lifecycle.unloaded) return;
-            if (!modApi?.hookFunction || typeof ServerSocket === 'undefined' || !ServerSocket) { setTimeout(wait, 500); return; }
+            if (_lifecycle.disposed) return;
+            if (!modApi?.hookFunction || typeof ServerSocket === 'undefined' || !ServerSocket) { _lifecycle.timeout(wait, 500); return; }
             initializePCMBadgeImage(); setupHoverTracking(); cleanupLegacyOnlineSettings(); hookCharacterDrawing();
             bindPCMSocketListener();
+            _lifecycle.add(() => {
+                if (typeof ServerSocket !== 'undefined') ServerSocket?.off('ChatRoomMessage', parsePCMMessage);
+            });
             // 載入時若已在房內（不會再觸發 ChatRoomSync/MemberJoin），廣播一發要求在場所有人回應
             sendPCMInitialization(true);
             if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
-                _lifecycle.unloaded = true;
+                _lifecycle.dispose();
                 try { ServerSocket.off("ChatRoomMessage", parsePCMMessage); } catch(e) {}
                 if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
                 hoveredCharacters.clear(); characterDrawPositions.clear();
@@ -317,14 +238,7 @@ import {downloads} from '../download-queue.js';
 
     // === JSON 來源 ===============================================
     // GitHub Pages 優先、raw 備援、jsDelivr 最後保底 —— Plugins.json 承載版本號/更新日誌等
-    const DEV_PLUGINS_JSON_URL = window.LikoDevBase ? new URL('../Plugins.json', window.LikoDevBase).href : null;
-    const PLUGINS_JSON_URLS = [
-        DEV_PLUGINS_JSON_URL,
-        `https://awdrrawd.github.io/liko-Plugin-Repository/Plugins.json?timestamp=${Date.now()}`,
-        "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins.json",
-        "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins.json",
-    ].filter(Boolean);
-    const NETWORK_TIMEOUT_MS = 30000;
+    const PLUGINS_JSON_URLS = getPluginListUrls();
     async function fetchTextWithTimeout(url, options = {}, timeoutMs = NETWORK_TIMEOUT_MS) {
         const {response: res, text} = await downloadText(url, options, timeoutMs);
         return {res, text};
@@ -332,7 +246,7 @@ import {downloads} from '../download-queue.js';
 
     // === 設定存取 ================================================
     let saveTimer;
-    function saveSettings(s) { clearTimeout(saveTimer); saveTimer = setTimeout(() => localStorage.setItem("BC_PluginManager_Settings", JSON.stringify(s)), 100); }
+    function saveSettings(s) { _lifecycle.clearTimeout(saveTimer); saveTimer = _lifecycle.timeout(() => localStorage.setItem("BC_PluginManager_Settings", JSON.stringify(s)), 100); }
     function loadSettings() {
         try {
             const parsed = JSON.parse(localStorage.getItem("BC_PluginManager_Settings") || "{}");
@@ -363,11 +277,11 @@ import {downloads} from '../download-queue.js';
         accountSettingsLoadPromise = (async () => {
             let waited = 0;
             while ((typeof Player === 'undefined' || !Player?.AccountName) && waited < 15 * 60000) {
-                if (_lifecycle.unloaded) return false;
-                await new Promise(r => setTimeout(r, 1000));
+                if (_lifecycle.disposed) return false;
+                await _lifecycle.sleep(1000);
                 waited += 1000;
             }
-            if (_lifecycle.unloaded) return false;
+            if (_lifecycle.disposed) return false;
             return refreshAccountSettingsFromPlayer();
         })();
 
@@ -495,27 +409,8 @@ import {downloads} from '../download-queue.js';
     let _resolvePluginsReady;
     const pluginsReady = new Promise(r => { _resolvePluginsReady = r; });
 
-    const SAFE_PLUGIN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
     function normalizePluginData(data) {
-        if (!data || typeof data !== 'object' || !Array.isArray(data.plugins) || !data.plugins.length) return null;
-        const seen = new Set();
-        const plugins = [];
-        for (const raw of data.plugins) {
-            if (!raw || typeof raw !== 'object') { console.warn('🐈‍⬛ [PCM] ⚠️ 略過無效插件資料'); continue; }
-            const id = typeof raw.id === 'string' ? raw.id.trim() : '';
-            const name = typeof raw.name === 'string' ? raw.name.trim() : '';
-            const type = raw.type == null || raw.type === '' ? 'eval' : raw.type;
-            const urls = [raw.url, raw.mirrorUrl, raw.altUrl, raw.altMirrorUrl].filter(Boolean);
-            const validUrls = urls.every(url => typeof url === 'string' && /^https:\/\//i.test(url));
-            if (!SAFE_PLUGIN_ID_RE.test(id) || !name || seen.has(id) || !['eval', 'scr', 'mod'].includes(type)
-                || (!raw.url && !raw.inlineCode) || !validUrls) {
-                console.warn(`🐈‍⬛ [PCM] ⚠️ 略過不合法插件：${id || '(missing id)'}`);
-                continue;
-            }
-            seen.add(id);
-            plugins.push({ ...raw, id, name, type, priority: Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 5 });
-        }
-        return plugins.length ? { ...data, plugins } : null;
+        return normalizeManifest(data, (reason) => console.warn('[PCM] Invalid plugin:', reason));
     }
 
     function applyPluginSettings(plugins) {
@@ -557,12 +452,13 @@ import {downloads} from '../download-queue.js';
 
     async function initPlugins() {
         const data = await fetchJSONFromNetwork();
+        if (_lifecycle.disposed) return;
         if (data) {
             processPluginData(data);
             _resolvePluginsReady(true);
             refreshPluginListUI();
             if (checkVersionUpdate()) {
-                setTimeout(() => { showChangelogModal(); showNotification("✨", t('newVersionTitle'), `v${remoteVersion} — ${t('newVersionHint')}`); }, 2000);
+                _lifecycle.timeout(() => { showChangelogModal(); showNotification("✨", t('newVersionTitle'), `v${remoteVersion} — ${t('newVersionHint')}`); }, 2000);
             }
             return;
         }
@@ -826,6 +722,10 @@ import {downloads} from '../download-queue.js';
     };
     window.addEventListener('error', _onPluginWindowError);
     window.addEventListener('unhandledrejection', _onPluginUnhandledRejection);
+    _lifecycle.add(() => {
+        window.removeEventListener('error', _onPluginWindowError);
+        window.removeEventListener('unhandledrejection', _onPluginUnhandledRejection);
+    });
 
     function injectScript(id, code) {
         if (code.trimStart().startsWith('<')) throw new Error('Received HTML instead of JS');
@@ -1094,7 +994,7 @@ import {downloads} from '../download-queue.js';
     }
 
     async function runPluginBatch(plugins, source = 'local') {
-        while (isLoadingPlugins) await new Promise(r => setTimeout(r, 200));
+        while (isLoadingPlugins) { if (!(await _lifecycle.sleep(200))) return; }
         if (!plugins.length) return;
         isLoadingPlugins = true;
         try {
@@ -1117,7 +1017,7 @@ import {downloads} from '../download-queue.js';
 
         localPhasePromise = (async () => {
             await pluginsReady;
-            if (!pluginsLoaded || _lifecycle.unloaded) { localLoadStarted = false; localPhasePromise = null; return; }
+            if (!pluginsLoaded || _lifecycle.disposed) { localLoadStarted = false; localPhasePromise = null; return; }
             await runPluginBatch(subPlugins.filter(p => isPluginEnabled(p)), 'local');
         })();
         return localPhasePromise;
@@ -1131,10 +1031,10 @@ import {downloads} from '../download-queue.js';
         if (!pluginsLoaded) { accountLoadStarted = false; return; }
 
         const settingsReady = await ensureAccountSettingsLoaded();
-        if (!settingsReady || _lifecycle.unloaded) { accountLoadStarted = false; return; }
+        if (!settingsReady || _lifecycle.disposed) { accountLoadStarted = false; return; }
 
         if (localPhasePromise) await localPhasePromise;
-        if (_lifecycle.unloaded) { accountLoadStarted = false; return; }
+        if (_lifecycle.disposed) { accountLoadStarted = false; return; }
 
         const pending = subPlugins.filter(p => isPluginEnabledInAccount(p) && !loadedPlugins.has(p.id) && !pluginLoadPromises.has(p.id));
         await runPluginBatch(pending, 'account');
@@ -1142,7 +1042,7 @@ import {downloads} from '../download-queue.js';
 
     async function loadCustomPluginsPhase() {
         if (customLoadStarted) return; customLoadStarted = true;
-        while (isLoadingPlugins) await new Promise(r => setTimeout(r, 500));
+        while (isLoadingPlugins) { if (!(await _lifecycle.sleep(500))) return; }
         const enabled = customPlugins.filter(p => p.enabled);
         if (enabled.length) await runPluginBatch(enabled, 'custom');
     }
@@ -1155,6 +1055,7 @@ import {downloads} from '../download-queue.js';
     let isCustomEditMode = false;
     let activeTab      = 'local';
     let _docClickHandler = null;
+    _lifecycle.add(() => { if (_docClickHandler) document.removeEventListener('click', _docClickHandler); });
     let lastDetectedLanguage = null;
 
     // === 篩選 ===================================================
@@ -2030,7 +1931,7 @@ import {downloads} from '../download-queue.js';
             drag = null; area.classList.remove('dragging');
             if (!wasDragging) return;
             suppressClick = true;
-            setTimeout(() => { suppressClick = false; }, 0);
+            _lifecycle.timeout(() => { suppressClick = false; }, 0);
         };
         area.addEventListener('pointerdown', onPointerDown, true);
         area.addEventListener('pointermove', onPointerMove, { capture:true, passive:false });
@@ -2122,7 +2023,7 @@ import {downloads} from '../download-queue.js';
             pointerId = null;
             container.classList.remove('dragging'); suppressClick = dragged;
             if (dragged && Math.abs(velocity) >= 0.015) inertiaFrame = requestAnimationFrame(runInertia);
-            setTimeout(() => { suppressClick = false; dragged = false; });
+            _lifecycle.timeout(() => { suppressClick = false; dragged = false; });
         };
         container.addEventListener('pointerup', finish);
         container.addEventListener('pointercancel', finish);
@@ -2374,7 +2275,7 @@ import {downloads} from '../download-queue.js';
 
         let closeRebuildTimer = null, closeTransitionHandler = null;
         const cancelClosedRebuild = () => {
-            if (closeRebuildTimer) clearTimeout(closeRebuildTimer);
+            if (closeRebuildTimer) _lifecycle.clearTimeout(closeRebuildTimer);
             closeRebuildTimer = null;
             if (closeTransitionHandler) panel.removeEventListener('transitionend', closeTransitionHandler);
             closeTransitionHandler = null;
@@ -2414,7 +2315,7 @@ import {downloads} from '../download-queue.js';
                 finalizeClosedRebuild();
             };
             panel.addEventListener('transitionend', closeTransitionHandler);
-            closeRebuildTimer = setTimeout(finalizeClosedRebuild, 460);
+            closeRebuildTimer = _lifecycle.timeout(finalizeClosedRebuild, 460);
         };
 
         floatBtn.addEventListener('click', e => {
@@ -2457,7 +2358,7 @@ import {downloads} from '../download-queue.js';
         changelogBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showChangelogModal(); });
         settingsBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openSettings(); });
 
-        [contentLocal, contentAccount, contentFusam, contentCustom].forEach(c => c.addEventListener('click', e => { handlePluginToggle(e); setTimeout(updateHeaderSummary); }));
+        [contentLocal, contentAccount, contentFusam, contentCustom].forEach(c => c.addEventListener('click', e => { handlePluginToggle(e); _lifecycle.timeout(updateHeaderSummary); }));
         updateHeaderSummary();
 
         if (_docClickHandler) document.removeEventListener('click', _docClickHandler);
@@ -2474,13 +2375,13 @@ import {downloads} from '../download-queue.js';
     let toggleNotifTimer = null;
     function showToggleNotification(icon, title, message) {
         let notif = document.getElementById("pcm-toggle-notif");
-        if (notif) { notif.classList.remove('show'); clearTimeout(toggleNotifTimer); }
+        if (notif) { notif.classList.remove('show'); _lifecycle.clearTimeout(toggleNotifTimer); }
         else { notif = document.createElement("div"); notif.id = "pcm-toggle-notif"; notif.className = "bc-liko-toggle-notification"; document.body.appendChild(notif); }
         const panel = document.getElementById("bc-plugin-panel");
         if (panel) { const r = panel.getBoundingClientRect(); const width = Math.min(250, Math.max(180, panel.clientWidth - 110)); notif.style.top = (r.top + 14) + "px"; notif.style.width = width + "px"; notif.style.left = (r.left + Math.max(58, (panel.clientWidth - width) / 2)) + "px"; notif.style.right = "auto"; }
         notif.innerHTML = `<div style="display:flex;align-items:center;margin-bottom:2px;"><span style="font-size:16px;margin-right:7px;">${escapeHtml(icon)}</span><strong style="font-size:12px;">${escapeHtml(title)}</strong></div><div style="font-size:11px;opacity:.88;">${escapeHtml(message)}</div>`;
         requestAnimationFrame(() => requestAnimationFrame(() => notif.classList.add('show')));
-        toggleNotifTimer = setTimeout(() => { notif.classList.remove('show'); notif.classList.add('hide'); setTimeout(() => notif?.parentNode?.removeChild(notif), 350); }, 1800);
+        toggleNotifTimer = _lifecycle.timeout(() => { notif.classList.remove('show'); notif.classList.add('hide'); _lifecycle.timeout(() => notif?.parentNode?.removeChild(notif), 350); }, 1800);
     }
 
     function getNotificationStack() {
@@ -2498,7 +2399,7 @@ import {downloads} from '../download-queue.js';
         notif.dataset.dismissing = 'true';
         notif.classList.remove('show');
         notif.classList.add('hide');
-        setTimeout(() => {
+        _lifecycle.timeout(() => {
             const stack = notif.parentElement;
             notif.remove();
             if (stack?.id === 'pcm-notification-stack' && !stack.children.length) stack.remove();
@@ -2519,7 +2420,7 @@ import {downloads} from '../download-queue.js';
         notif.addEventListener('click', dismiss, { once: true });
         getNotificationStack().appendChild(notif);
         requestAnimationFrame(() => requestAnimationFrame(() => notif.classList.add('show')));
-        setTimeout(dismiss, 8000);
+        _lifecycle.timeout(dismiss, 8000);
         previousPluginError = null;
     }
     function showNotification(icon, title, message, durationMs = 3500) { _createSystemNotif(icon, title, message, durationMs); }
@@ -2531,7 +2432,7 @@ import {downloads} from '../download-queue.js';
         getNotificationStack().appendChild(notif);
         notif.addEventListener('click', () => dismissStackNotification(notif), { once: true });
         requestAnimationFrame(() => requestAnimationFrame(() => notif.classList.add('show')));
-        setTimeout(() => dismissStackNotification(notif), durationMs);
+        _lifecycle.timeout(() => dismissStackNotification(notif), durationMs);
     }
 
     // === Language Change ========================================
@@ -2548,8 +2449,8 @@ import {downloads} from '../download-queue.js';
     }
 
     function monitorPageChanges() {
-        const id = setInterval(() => checkLanguageChange(), 5000);
-        _lifecycle.intervals.push(id);
+        const id = _lifecycle.interval(() => checkLanguageChange(), 5000);
+
         createManagerUI();
     }
 
@@ -2577,9 +2478,10 @@ import {downloads} from '../download-queue.js';
     function tryRegisterCommand() {
         let n = 0;
         const try_ = () => {
+            if (_lifecycle.disposed) return;
             n++;
             try { if (typeof CommandCombine === "function") { CommandCombine([{ Tag: "pcm", Description: "Liko Plugin Collection Manager", Action: handle_PCM_Command }]); return; } } catch(e) {}
-            if (n < 20) setTimeout(try_, 3000);
+            if (n < 20) _lifecycle.timeout(try_, 3000);
         };
         try_();
     }
@@ -2589,8 +2491,8 @@ import {downloads} from '../download-queue.js';
     function sendLoadedMessage() {
         const wait = () => new Promise(r => {
             let done = false;
-            const check = () => { if (done) return; if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") { done = true; r(true); } else setTimeout(check, 1000); };
-            check(); setTimeout(() => { if (!done) { done = true; r(false); } }, 60000);
+            const check = () => { if (done) return; if (typeof CurrentScreen !== 'undefined' && CurrentScreen === "ChatRoom") { done = true; r(true); } else _lifecycle.timeout(check, 1000); };
+            check(); _lifecycle.timeout(() => { if (!done) { done = true; r(false); } }, 60000);
         });
         wait().then(ok => {
             if (!ok) return;
@@ -2602,8 +2504,8 @@ import {downloads} from '../download-queue.js';
 
     async function registerPreferencePage() {
         let n = 0;
-        while (typeof PreferenceRegisterExtensionSetting !== 'function' && n < 60) { if (_lifecycle.unloaded) return; await new Promise(r => setTimeout(r, 1000)); n++; }
-        if (typeof PreferenceRegisterExtensionSetting !== 'function' || _lifecycle.unloaded) return;
+        while (typeof PreferenceRegisterExtensionSetting !== 'function' && n < 60) { if (_lifecycle.disposed) return; await _lifecycle.sleep(1000); n++; }
+        if (typeof PreferenceRegisterExtensionSetting !== 'function' || _lifecycle.disposed) return;
 
         window.PreferenceSubscreenPCMSettingsLoad = () => {};
         window.PreferenceSubscreenPCMSettingsRun = () => {
@@ -2645,77 +2547,7 @@ import {downloads} from '../download-queue.js';
 
     // === 初始化 =================================================
 
-    // 系統依賴依序抓（Pages 優先、jsDelivr 次之、raw 保底），絕不並行同打兩邊。
-    // Pages 走 Fastly：push 後幾秒即新、且不像 raw 會 429；jsDelivr(@main) 邊緣快取數小時、
-    // 各 POP 不一致，搶第一會抓到舊版（BC_ChatRoomButtons 等已更新卻在 EBC 抓到舊的即此故）。
-    // raw 有嚴格速率限制、EBC 單一 IP 啟動突發易觸發 429，只當最後保底。
-    // 本地測試時 window.LikoDevBase 只有單一 localhost。
-    const _DEP_BASES = (typeof window !== 'undefined' && window.LikoDevBase)
-        ? [window.LikoDevBase]
-        : [
-            "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/",
-            "https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/",
-            "https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/",
-        ];
-
-    function _injectCode(code) {
-        const s = document.createElement('script');
-        s.textContent = code;              // 內聯 script → 同步執行
-        document.head.appendChild(s);
-    }
-
-    // 依序抓取並驗證內容（避免把 404 的 HTML 當 JS 注入）。不加破快取 query，重用 HTTP 快取遠離 429。
-    async function _fetchDep(rel) {
-        let lastErr;
-        for (const base of _DEP_BASES) {
-            try {
-                const { res, text } = await fetchTextWithTimeout(base + rel, { cache: 'no-store' });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
-                return text;
-            } catch(e) { lastErr = e; console.warn(`🐈‍⬛ [PCM] ⚠️ ${base}${rel}: ${e.message}`); }
-        }
-        throw lastErr ?? new Error('all bases failed');
-    }
-
-    async function _loadDep(rel) { _injectCode(await _fetchDep(rel)); }
-    // BC_ChatRoomButtons.js 開發先告一段落
-    /*async function _loadCrbFromRaw() {
-        const url = 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/expand/BC_ChatRoomButtons.js';
-        const res = await fetch(url, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
-        _injectCode(text);
-    }*/
-
-    async function _ensureDeps() {
-        // bcmodsdk must exist before registerMod — must be first
-        if (typeof bcModSdk === 'undefined') {
-            await _loadDep("expand/bcmodsdk.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ bcmodsdk:", e.message));
-        }
-        // i18n 引擎：能力偵測（ensure 為 v2 專有），沒有才載入
-        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function' || !window.Liko?.__Sys_Flags__) {
-            await _loadDep("expand/BC_i18n.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ BC_i18n.js:", e.message));
-        }
-        // PCM 字庫：一律載入。不用 has('PCM','tabLocal') 判斷，否則會被本體內建的 EN fallback
-        // 誤判成「已載入」而跳過、只剩英文。（PCM-i18n.js 內部自帶輪詢等引擎就位後 register）
-        await _loadDep("Translation/PCM-i18n.js").catch(e => console.warn("🐈‍⬛ [PCM] ⚠️ PCM-i18n.js:", e.message));
-
-        // 其餘系統擴充 —— 已就位就跳過
-        const rest = [
-            { rel: "expand/BC_toast_system.user.js",   ready: () => !!window.Liko?.__Sys_Toast__ },
-            { rel: "expand/BC_ThemeColorCheck.js",      ready: () => !!window.Liko?.__Sys_ColorAPI__ },
-            { rel: "expand/BC_ChatRoomButtons.js",      ready: () => !!window.Liko?.__Sys_ChatRoomButtons__ },
-        ];
-        /*if (!window.Liko?.__Sys_ChatRoomButtons__) {
-            await _loadCrbFromRaw().catch(e => console.warn('🐈‍⬛ [PCM] ⚠️ RAW BC_ChatRoomButtons.js:', e.message));
-        }*/
-        for (const { rel, ready } of rest) {
-            if (ready()) continue;
-            await _loadDep(rel).catch(e => console.warn(`🐈‍⬛ [PCM] ⚠️ ${rel}:`, e.message));
-        }
-    }
+    const dependencies = new DependencyLoader();
 
     // === 提早啟動（early-boot）==================================
     // 少數插件的 UI 必須在「登入前」就位（LCE 的美化登入介面 + 帳號記憶），
@@ -2741,28 +2573,40 @@ import {downloads} from '../download-queue.js';
         for (const e of EARLY_BOOT) {
             if (!earlyBootEnabled(e)) continue;
             // enabled:true 讓 loadSubPluginOnce 內部的來源啟用檢查通過（LCE 非三段式，走 p.enabled）。
-            loadSubPlugin({ ...e, enabled: true }, 'local').catch(() => {});
+            // A failed PCM attempt must not execute an already-started early plugin twice.
+            const early = window.Liko.__PCMEarlyBoot__ ??= new Map();
+            let pending = early.get(e.id);
+            if (!pending) {
+                pending = loadSubPlugin({ ...e, enabled: true }, 'local');
+                early.set(e.id, pending);
+                pending.catch(() => { if (early.get(e.id) === pending) early.delete(e.id); });
+            }
+            pluginLoadPromises.set(e.id, pending);
+            pending.then(() => loadedPlugins.add(e.id), () => {}).finally(() => {
+                if (pluginLoadPromises.get(e.id) === pending) pluginLoadPromises.delete(e.id);
+            });
         }
     }
 
-    // _ensureDeps runs async before everything else
-    (async () => {
+    // The shared startup promise covers dependencies, SDK registration and the UI.
+    await (async () => {
         // early-boot 插件（LCE）先於 PCM 系統依賴啟動：LCE 只需要 @require 同步載入的 bcModSdk，
         // 不依賴 i18n / toast / 顏色 API / 聊天按鈕。所以 import() 立刻發起（自己就會下載 main.js），
-        // 與 _ensureDeps 的網路抓取完全平行 —— LCE 的登入介面不必再等 PCM 那串依賴串行抓完。
+        // 與 dependencies.ensureCore 的網路抓取完全平行 —— LCE 的登入介面不必再等 PCM 那串依賴串行抓完。
         // 這是消除「原生登入畫面先閃、LCE 才蓋上」延遲的第一步（LCE 端仍需自己盡早注入 overlay）。
         earlyBootPlugins();
 
-        await _ensureDeps();
+        await dependencies.ensureCore();
 
         try {
-            if (!bcModSdk?.registerMod) { console.error("🐈‍⬛ [PCM] ❌ bcModSdk not available"); return; }
+            if (typeof bcModSdk === 'undefined' || typeof bcModSdk.registerMod !== 'function') throw new Error('bcModSdk not available');
             modApi = bcModSdk.registerMod({ name: "Liko - PCM", fullName: "Liko's Plugin Collection Manager", version: MOD_VER, repository: "https://github.com/awdrrawd/liko-Plugin-Repository" });
             registerPCMBadge();
-        } catch(e) { console.error("🐈‍⬛ [PCM] ❌ Init failed:", e.message); return; }
+        } catch(e) { console.error("🐈‍⬛ [PCM] ❌ Init failed:", e.message); throw e; }
 
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => initialize().then(() => sendLoadedMessage()), { once: true });
-        else initialize().then(() => sendLoadedMessage());
+        if (document.readyState === 'loading') await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true }));
+        await initialize();
+        sendLoadedMessage();
 
         console.log(`🐈‍⬛ [PCM] ✅ v${MOD_VER} loaded`);
     })();
@@ -2771,19 +2615,19 @@ import {downloads} from '../download-queue.js';
         if (isInitialized) return;
         isInitialized = true;
 
-        registerI18n();
+        registerPCMTranslations({lifecycle: _lifecycle});
 
         // 短暫等待 TranslationLanguage 就位（done/unloaded 判斷避免遞迴 setTimeout 鏈背景重排）
         await new Promise(r => {
             let done = false;
             const finish = () => { if (!done) { done = true; r(); } };
             const check = () => {
-                if (done || _lifecycle.unloaded) return finish();
+                if (done || _lifecycle.disposed) return finish();
                 if (typeof TranslationLanguage !== 'undefined') return finish();
-                setTimeout(check, 100);
+                _lifecycle.timeout(check, 100);
             };
             check();
-            setTimeout(finish, 3000);
+            _lifecycle.timeout(finish, 3000);
         });
 
         lastDetectedLanguage = getLang();
@@ -2791,26 +2635,37 @@ import {downloads} from '../download-queue.js';
         installPCMReadOnlyApi();
 
         injectStyles();
-        setTimeout(showPreviousPluginErrorNotice, 1200);
         monitorPageChanges();
+        if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
+            _lifecycle.dispose();
+            if (_lifecycle.mousemoveHandler) { document.removeEventListener('mousemove', _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
+            document.getElementById('pcm-notification-stack')?.remove();
+            isInitialized = false;
+        });
         tryRegisterCommand();
+        _lifecycle.timeout(showPreviousPluginErrorNotice, 1200);
 
         initPlugins();
         loadLocalPluginsPhase();
         loadAccountPluginsPhase();
-        setTimeout(() => loadCustomPluginsPhase(), 5000);
-        setTimeout(() => loadEnabledFusamPluginsPhase(), 5500);
+        _lifecycle.timeout(() => loadCustomPluginsPhase(), 5000);
+        _lifecycle.timeout(() => loadEnabledFusamPluginsPhase(), 5500);
         registerPreferencePage();
-
-        if (typeof modApi.onUnload === 'function') modApi.onUnload(() => {
-            _lifecycle.unloaded = true; // 讓各輪詢鏈停止重排
-            _lifecycle.intervals.forEach(id => clearInterval(id));
-            _lifecycle.intervals.length = 0;
-            if (_lifecycle.mousemoveHandler) { document.removeEventListener("mousemove", _lifecycle.mousemoveHandler); _lifecycle.mousemoveHandler = null; }
-            window.removeEventListener('error', _onPluginWindowError);
-            window.removeEventListener('unhandledrejection', _onPluginUnhandledRejection);
-            document.getElementById('pcm-notification-stack')?.remove();
-            isInitialized = false;
-        });
     }
-})();
+    window.Liko.PCM = MOD_VER;
+    startup.status = 'ready';
+    return window.Liko.PCMApi;
+    }).catch(error => {
+        startup.status = 'failed';
+        startup.error = error;
+        try { rollback(); } catch (cleanupError) { console.warn('[PCM] Startup cleanup:', cleanupError); }
+        if (window.Liko.__PCMStartup__ === startup) {
+            delete window.Liko.PCM;
+            delete window.Liko.PCMApi;
+        }
+        throw error;
+    });
+    // Direct userscript installs have no loader awaiting this promise.
+    startup.promise.catch(error => console.error('[PCM] Startup failed:', error));
+    return startup.promise;
+}

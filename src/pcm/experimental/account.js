@@ -1,4 +1,4 @@
-import {STORAGE_KEYS} from './config.js';
+import {STORAGE_KEYS} from '../config.js';
 
 export class AccountSettings {
   constructor({global = window, runtime = null} = {}) {

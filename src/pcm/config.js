@@ -1,4 +1,4 @@
-export const PCM_VERSION = '2.2.0';
+export {PCM_VERSION} from './release.js';
 export const NETWORK_TIMEOUT_MS = 30_000;
 
 export const STORAGE_KEYS = Object.freeze({

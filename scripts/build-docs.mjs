@@ -1,7 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
+import {PCM_VERSION} from '../src/pcm/release.js';
 
-const plugins = JSON.parse(readFileSync('Plugins.json', 'utf8')).plugins;
-const manifest = JSON.parse(readFileSync('manifest.json', 'utf8')).addons;
+const root = new URL('../', import.meta.url);
+const plugins = JSON.parse(readFileSync(new URL('Plugins.json', root), 'utf8')).plugins;
+const manifest = JSON.parse(readFileSync(new URL('manifest.json', root), 'utf8')).addons;
 const tagMap = new Map(manifest.map((plugin) => [plugin.id, plugin.tags ?? []]));
 
 const categoryOf = (plugin) => {
@@ -38,7 +40,7 @@ const readme = `<div align="center">
 
 # Plugin Collection Manager（PCM）
 
-[![PCM](https://img.shields.io/badge/PCM-v2.2.0-9F7AEA?style=for-the-badge)](https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js)
+[![PCM](https://img.shields.io/badge/PCM-v${PCM_VERSION}-9F7AEA?style=for-the-badge)](https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js)
 [![License](https://img.shields.io/badge/License-MIT-C084FC?style=for-the-badge)](LICENSE)
 
 集中安裝、啟用與管理 Bondage Club 插件。建議優先使用 PCM；也保留書籤、控制台及單獨安裝方式。
@@ -415,6 +417,6 @@ const html = `<!doctype html>
 </html>
 `;
 
-writeFileSync('README.md', readme);
-writeFileSync('index.html', html);
+writeFileSync(new URL('README.md', root), readme);
+writeFileSync(new URL('index.html', root), html);
 console.log(`✅ README.md and index.html rebuilt from ${plugins.length} plugins`);

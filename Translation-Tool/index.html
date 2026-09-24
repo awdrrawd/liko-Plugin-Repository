@@ -461,6 +461,19 @@
       // FCM-style compact packs register a generated T variable; V is its source.
       if (!calls.length && variables.V) calls.push({ namespace: state.namespace, group: state.namespace, entries: wrapFlatLanguage(variables.V, code) });
 
+      // Bundled PCM keeps its dictionary as a named ESM export, with no runtime
+      // register() call in the data file. Parse the literal without executing it.
+      if (!calls.length) {
+        const named = /\bexport\s+const\s+([A-Za-z_$][\w$]*_STRINGS)\s*=/.exec(text);
+        const entries = named && variables[named[1]];
+        if (entries && Object.keys(entries).length && Object.values(entries).every(langs =>
+          langs && typeof langs === 'object' && !Array.isArray(langs) &&
+          Object.values(langs).every(value => typeof value === 'string'))) {
+          const namespace = named[1].replace(/_STRINGS$/, '');
+          calls.push({namespace, group: namespace, entries});
+        }
+      }
+
       // LCE uses an ES-module default export instead of BC_i18n.register().
       if (!calls.length) {
         const exportMatch = /\bexport\s+default\s*\{/g.exec(text);
@@ -485,7 +498,7 @@
 
     function collectObjectVariables(text) {
       const variables = {};
-      const declaration = /\b(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*\{/g;
+      const declaration = /\b(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:Object\.freeze\s*\(\s*)?\{/g;
       let match;
       while ((match = declaration.exec(text))) {
         const start = text.indexOf('{', match.index);

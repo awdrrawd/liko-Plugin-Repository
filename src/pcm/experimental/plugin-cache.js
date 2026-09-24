@@ -1,4 +1,4 @@
-import {STORAGE_KEYS} from './config.js';
+import {STORAGE_KEYS} from '../config.js';
 
 const CACHE_SIZE_LIMIT = 3_500_000;
 

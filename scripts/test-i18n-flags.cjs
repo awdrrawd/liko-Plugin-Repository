@@ -62,10 +62,14 @@ const context = vm.createContext({
     assert.equal(i18n.version, '2.2.0');
     i18n.register('test', { hello: { EN: 'Hello' } });
     assert.equal(i18n.t('test', 'hello', {}, 'EN'), 'Hello');
-    for (const namespace of ['DDT', 'MAT', 'MPL', 'PCM', 'Prank']) {
+    for (const namespace of ['DDT', 'MAT', 'MPL', 'Prank']) {
         vm.runInContext(fs.readFileSync(`Plugins/Translation/${namespace}-i18n.js`, 'utf8'), context);
         assert.ok(i18n.getNamespaceLanguages(namespace).length > 0, `${namespace} dictionary works with 2.2`);
     }
+    const {registerPCMTranslations} = await import('../src/pcm/i18n/index.js');
+    assert.equal(registerPCMTranslations({global: context.window}), true);
+    assert.equal(i18n.t('PCM', 'hideMainHall', {}, 'TW'), '大廳');
+    assert.equal(i18n.t('PCM', 'hideMainHall', {}, 'EN'), 'Main hall');
     assert.equal(context.window.Liko.__Sys_Flags__, flags);
     console.log('Flags: preload, deduplication, formats, legacy coexistence, retries passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
