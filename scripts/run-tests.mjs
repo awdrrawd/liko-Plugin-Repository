@@ -3,7 +3,7 @@ import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const browserTests = ['test-media-fcm.cjs', 'test-tool-ui.cjs', 'test-json-editor.cjs'];
+const browserTests = ['test-media.cjs', 'test-tool-ui.cjs', 'test-json-editor.cjs'];
 const browser = process.argv.includes('--browser');
 const files = readdirSync(new URL('./', import.meta.url)).filter(name =>
   /^test-.*\.(cjs|mjs)$/.test(name) && browserTests.includes(name) === browser

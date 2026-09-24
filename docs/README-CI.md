@@ -23,6 +23,10 @@ npm run test:browser
 
 `npm test` 自動收集 `scripts/test-*.cjs` 與 `scripts/test-*.mjs`，瀏覽器測試另由 `test:browser` 執行。新增瀏覽器測試時，需更新 `scripts/run-tests.mjs` 的清單。可用 `TEST_BROWSER_CHANNEL=msedge` 選用本機 Edge，CI 預設使用 Playwright 安裝的 Chromium。
 
+媒體測試 `scripts/test-media.cjs` 只驗證本倉庫 Image Uploader、ACV 與 CDB 的實作，不載入 FCM 或其他獨立倉庫的原始碼及副本。CI 的建置和測試資料均來自本倉庫；外部插件清單只檢查資料格式，不下載或執行外部插件。`scripts/sync-i18n-clients.mjs` 是跨倉庫手動同步工具，不屬於 CI 建置或測試流程。
+
+Runner 固定為 Ubuntu 24.04，避免 `ubuntu-latest` 升級時連帶改變測試環境；checkout/setup-node 使用 Node 24 runtime 的 v5。
+
 來源資料驗證器位於 `JSON-Editor/validation.js`，編輯器與建置共用。它檢查編輯格式；PCM 執行期另驗證遠端清單格式。單檔插件的版本仍從檔頭 `@version` 讀取。
 
 `scripts/lib/artifacts.mjs` 集中定義回寫和重建檢查的產物。乾淨重建在暫存目錄執行，不刪除工作區檔案，也不要求 PR 提前提交產物。請勿手動修改生成檔。
