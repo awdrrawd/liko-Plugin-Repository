@@ -47,7 +47,7 @@ server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
         console.error(`🐈‍⬛ [dev server] ❌ 埠 ${PORT} 已被佔用（可能上一個伺服器沒關）。`);
         console.error(`   解法一：換埠 →  PowerShell:  $env:PORT=5176; node dev/serve-local.mjs`);
-        console.error(`            （記得把 PCM_Loader.local.user.js 裡的 PORT 也改成同一個）`);
+        console.error(`            （記得修改 src/pcm/loader-local-entry.js 的 localBase，再執行 npm run build:pcm）`);
         console.error(`   解法二：關掉舊的 →  Get-NetTCPConnection -LocalPort ${PORT} -State Listen | %{ Stop-Process -Id $_.OwningProcess -Force }`);
     } else {
         console.error('🐈‍⬛ [dev server] ❌', err.message);

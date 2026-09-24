@@ -4,7 +4,7 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const source = name => fs.readFileSync(path.join(__dirname,`../Plugins/main/Liko - ${name}.main.user.js`),'utf8');
 (async()=>{
- const browser=await chromium.launch({headless:true,channel:'msedge'});
+ const browser=await chromium.launch({headless:true,channel:process.env.TEST_BROWSER_CHANNEL || undefined});
  try {
   const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('https://fixture.test/**',route=>route.fulfill({body:'<!doctype html><body><div id="TextAreaChatLog"></div><textarea id="InputChat"></textarea></body>',contentType:'text/html'}));

@@ -11,8 +11,10 @@ import {fileURLToPath} from 'node:url';
 import {withLocalVersion} from './lib/plugin-versions.mjs';
 import {normalizeManifest} from '../src/pcm/manifest.js';
 import {PCM_VERSION} from '../src/pcm/release.js';
+import {validateRepository} from './validate-repository.mjs';
 
 const root = new URL('../', import.meta.url);
+validateRepository(fileURLToPath(root));
 const readJSON = name => JSON.parse(readFileSync(new URL(name, root), 'utf8'));
 const manifest = readJSON('manifest.json');
 const external = readJSON('external.json');
@@ -31,14 +33,14 @@ function addonToPcm(a) {
   const t = pcmType(a.type);
   return {
     id: a.id,
-    name: a.name.cn,
+    name: a.name.cn || a.name.en || Object.values(a.name)[0],
     // Keep the image URL and emoji fallback separately. PCM displays the image
     // when available, then falls back to iemoji if the image cannot be loaded.
     ...(a.icon ? { icon: a.icon } : {}),
     iemoji: a.iemoji ?? '🐈‍⬛',
-    en_name: a.name.en,
-    description: a.description.cn,
-    en_description: a.description.en,
+    en_name: a.name.en || a.name.cn || Object.values(a.name)[0],
+    description: a.description?.cn ?? a.description?.en ?? '',
+    en_description: a.description?.en ?? a.description?.cn ?? '',
     additionalInfo: a.additionalInfo?.cn ?? '',
     en_additionalInfo: a.additionalInfo?.en ?? '',
     url: stable?.source,

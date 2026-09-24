@@ -7,9 +7,14 @@
     "build:pcm": "node scripts/build-pcm.mjs",
     "build:catalog": "node scripts/build.mjs",
     "build:docs": "node scripts/build-docs.mjs",
-    "test:pcm": "node --test scripts/test-pcm-*.mjs scripts/test-downloads.mjs && node scripts/test-pcm-visibility.cjs && node scripts/test-i18n-flags.cjs"
+    "test:pcm": "node --test scripts/test-pcm-*.mjs scripts/test-downloads.mjs && node scripts/test-pcm-visibility.cjs && node scripts/test-i18n-flags.cjs",
+    "test": "node scripts/run-tests.mjs",
+    "test:browser": "node scripts/run-tests.mjs --browser",
+    "validate": "node scripts/validate-repository.mjs",
+    "check:build": "node scripts/check-build.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.25.9"
+    "esbuild": "^0.25.9",
+    "playwright": "1.63.0"
   }
 }

@@ -23,7 +23,8 @@ export function repositoryFile(source, root) {
 
 export function withLocalVersion(plugin, root) {
   const file = repositoryFile(plugin.url, root);
-  if (!file || !existsSync(file)) return {...plugin};
+  if (!file) return {...plugin};
+  if (!existsSync(file)) throw new Error(`Missing repository plugin: ${plugin.url}`);
   const version = readFileSync(file, 'utf8').match(/^\/\/\s*@version\s+(\S+)/m)?.[1];
   return version ? {...plugin, version} : {...plugin};
 }

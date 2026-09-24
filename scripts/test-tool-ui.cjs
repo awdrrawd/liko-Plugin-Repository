@@ -1,5 +1,5 @@
 // Browser regression tests with isolated game fixtures: no account or server is contacted.
-// npm install --no-save playwright, or provide NODE_PATH to an existing installation.
+// npm ci && npx playwright install chromium
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -15,7 +15,7 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         setApi(api) { modApi = api; } };
 `);
 (async () => {
-    const browser = await chromium.launch({ headless: true, channel: process.env.TOOL_TEST_BROWSER || 'msedge' });
+    const browser = await chromium.launch({ headless: true, channel: process.env.TEST_BROWSER_CHANNEL || process.env.TOOL_TEST_BROWSER || undefined });
     try {
         const page = await browser.newPage({ viewport: { width: 1100, height: 820 } });
         const errors = []; page.on('pageerror', e => errors.push(e.message));
