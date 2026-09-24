@@ -144,7 +144,7 @@
       "en_additionalInfo": "If the image fails to upload, you can use /IMG or /IMG HELP to view the instructions.",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js",
       "priority": 4,
-      "version": "1.6.2"
+      "version": "1.6.3"
     },
     {
       "id": "Liko-MAT",
@@ -157,7 +157,7 @@
       "en_additionalInfo": "",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MAT.main.user.js",
       "priority": 4,
-      "version": "1.7.10"
+      "version": "1.7.12"
     },
     {
       "id": "Liko-Tool",
@@ -183,7 +183,7 @@
       "en_additionalInfo": "",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20ACV.main.user.js",
       "priority": 4,
-      "version": "1.5.1"
+      "version": "1.5.2"
     },
     {
       "id": "Liko-Kaomoji",
@@ -222,7 +222,7 @@
       "en_additionalInfo": "",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CRA.main.user.js",
       "priority": 7,
-      "version": "1.0.2"
+      "version": "1.0.3"
     },
     {
       "id": "Liko-Prank",
@@ -248,7 +248,7 @@
       "en_additionalInfo": "",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CDB.main.user.js",
       "priority": 7,
-      "version": "1.5.2"
+      "version": "1.5.3"
     },
     {
       "id": "Liko-CMC",
@@ -274,7 +274,7 @@
       "en_additionalInfo": "",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MPL.main.user.js",
       "priority": 7,
-      "version": "0.5.4"
+      "version": "0.5.5"
     },
     {
       "id": "Liko-NOI",
