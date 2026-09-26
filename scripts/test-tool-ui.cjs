@@ -60,6 +60,19 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
             window.DrawCharacter = () => { throw Error('Previews must not call DrawCharacter: it writes to MainCanvas'); };
             window.DialogGetCharacterZone = (C,zone,x,y,zoom,ratio) => [x+(500*(1-ratio)/2+zone[0]*ratio)*zoom,y+(1000*(1-ratio)-C.HeightModifier*ratio+zone[1]*ratio)*zoom,zone[2]*zoom*ratio,zone[3]*zoom*ratio];
             window.LZString = {compressToBase64:s=>btoa(unescape(encodeURIComponent(s))),decompressFromBase64:s=>decodeURIComponent(escape(atob(s)))};
+            // Native extended-description contract, without depending on another repository.
+            window.CraftingDescription = {
+                Encode(text) {
+                    if (!text || /[^\n\x20-\xA6\xA8-\xB5\xB7-\xFF]/.test(text)) return '';
+                    let result='\0';
+                    for(let i=0;i<Math.min(text.length,398);i+=2) result+=String.fromCharCode((text.charCodeAt(i)<<8)|(text.charCodeAt(i+1)||0));
+                    return result;
+                },
+                Decode(text) {
+                    if(!text.startsWith('\0')) return text.slice(0,200);
+                    return Array.from(text.slice(1,200)).flatMap(c=>[c.charCodeAt(0)>>8,c.charCodeAt(0)&255].filter(Boolean).map(n=>String.fromCharCode(n))).join('');
+                },
+            };
             window.CommonClipboardWrite = (value, callback) => {window.exported = value;callback({err:false});};
             window.ChatRoomSendLocalStyled = () => {};
             window.ServerSend = () => {}; window.Command = [];
@@ -135,6 +148,19 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         });
         assert.ok(Math.abs(mapLayout.w*2-mapLayout.h)<1);assert.ok(mapLayout.scroll<=1,JSON.stringify(mapLayout));assert.ok(mapLayout.inset>=3);
         await page.screenshot({path:path.join(screenshotDir,'character-map.png')});
+        // Height offsets and oversized/inverted bodies must keep every zone visible.
+        const previewState = await page.evaluate(() => ({ratio:Player.HeightRatio, modifier:Player.HeightModifier, inverted:Player.inverted, fixed:testTool.getES().fixedZones}));
+        for (const pose of [{ratio:.65,modifier:-800,inverted:false},{ratio:1.4,modifier:140,inverted:false},{ratio:.65,modifier:-800,inverted:true}]) {
+            await page.evaluate(pose => {testTool.getES().fixedZones=0;Player.HeightRatio=pose.ratio;Player.HeightModifier=pose.modifier;Player.inverted=pose.inverted;},pose);
+            await page.waitForTimeout(250);
+            const zones = await panel.locator('.lt-zone-button').evaluateAll(buttons => buttons.map(button => {
+                const r=button.getBoundingClientRect(),m=button.parentElement.getBoundingClientRect();
+                return {left:r.left-m.left,top:r.top-m.top,right:r.right-m.right,bottom:r.bottom-m.bottom,width:parseFloat(button.style.width),height:parseFloat(button.style.height)};
+            }));
+            zones.forEach(zone => assert.ok(zone.left>=-1&&zone.top>=-1&&zone.right<=1&&zone.bottom<=1,JSON.stringify({pose,zone})));
+            zones.forEach(zone => {assert.equal(zone.width,36);assert.equal(zone.height,16);});
+        }
+        await page.evaluate(state => {Player.HeightRatio=state.ratio;Player.HeightModifier=state.modifier;Player.inverted=state.inverted;testTool.getES().fixedZones=state.fixed;},previewState);
         assert.ok((await panel.locator('.ltq-hdr button[title="Character view; click for list"]').innerHTML()).includes('<rect'));
         await panel.locator('.lt-zone-button[title="ItemLegs"]').click();
         await panel.locator('.ltq-hdr button[title="Character view; click for list"]').click();
@@ -146,6 +172,8 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         await page.evaluate(()=>testTool.openCraftTargetPicker(Player));
         assert.match(await panel.getByRole('button',{name:'Single edit',exact:true}).getAttribute('class'),/lt-btn-primary/);
         await panel.getByRole('button',{name:'Single edit',exact:true}).click();
+        const longDescription='Long description with spaces and newlines.\n'.repeat(6);
+        await page.evaluate(text=>{Player.Appearance[0].Craft.Description=CraftingDescription.Encode(text);},longDescription);
         await panel.locator('.ltp-page:not(.ltp-covered) .lt-btn-list button').first().click();
         const side = panel.locator('.lt-craft-side');
         const itemRow = panel.locator('.ltp-page:not(.ltp-covered) .lt-item-picker .lt-list-btn').first();
@@ -160,10 +188,18 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         assert.equal(await side.evaluate(el=>el.classList.contains('is-open')&&!el.inert),true);
 
         assert.equal(await side.locator('input:not([type="checkbox"])').inputValue(),'Original 0');
+        assert.equal(await side.locator('textarea').inputValue(),longDescription);
+        assert.equal(await side.locator('.lt-craft-count span').first().textContent(),`${longDescription.length} characters`);
+        assert.ok(await side.locator('.lt-craft-info').getAttribute('title'));
+        assert.equal(await side.locator('.lt-craft-count').evaluate(el=>getComputedStyle(el).justifyContent),'flex-end');
+        await side.locator('textarea').fill('Counter test');
+        assert.equal(await side.locator('.lt-craft-count span').first().textContent(),'12 characters');
+        await side.locator('textarea').fill(longDescription);
         await side.locator('input:not([type="checkbox"])').fill('New name');
         await side.getByRole('button',{name:'Confirm',exact:true}).click();
         const craft = await page.evaluate(()=>Player.Appearance[0].Craft);
         assert.equal(craft.Name,'New name'); assert.equal(craft.MemberNumber,1); assert.deepEqual(craft.Effects,{Large:1});
+        assert.equal(await page.evaluate(()=>CraftingDescription.Decode(Player.Appearance[0].Craft.Description)),longDescription);
         assert.equal(await itemRow.locator('.lt-item-thumb').count(),1);
         assert.match(await itemRow.locator('.lt-item-label').textContent(),/New name/);
         assert.deepEqual(craft.ItemProperty,{OverridePriority:7}); assert.equal(craft.Color,'Blue');
@@ -171,6 +207,20 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         await side.getByRole('button',{name:'Export',exact:true}).click();
         const exported = await page.evaluate(()=>JSON.parse(LZString.decompressFromBase64(window.exported)));
         assert.equal(exported.Name,'New name'); assert.equal(exported.Partial,false); assert.equal(exported.MemberNumber,undefined);
+        assert.equal(exported.Description,craft.Description);
+        const editedDescription='Updated extended description. '.repeat(10).trim();
+        await side.locator('textarea').fill(editedDescription);
+        await side.getByRole('button',{name:'Confirm',exact:true}).click();
+        assert.equal(await page.evaluate(()=>CraftingDescription.Decode(Player.Appearance[0].Craft.Description)),editedDescription);
+        const savedDescription=await page.evaluate(()=>Player.Appearance[0].Craft.Description);
+        assert(savedDescription.length<=200);
+        await side.locator('textarea').fill('中文'.repeat(110));
+        await side.getByRole('button',{name:'Confirm',exact:true}).click();
+        assert.equal(await page.evaluate(()=>Player.Appearance[0].Craft.Description),savedDescription);
+        assert.equal(await side.locator('textarea').evaluate(el=>el.validity.customError),true);
+        await side.locator('textarea').fill('正常中文描述');
+        await side.getByRole('button',{name:'Confirm',exact:true}).click();
+        assert.equal(await page.evaluate(()=>Player.Appearance[0].Craft.Description),'正常中文描述');
         const contentRect = await panel.locator('.ltp-page:not(.ltp-covered) .lt-craft-items').boundingBox();
         const sideRect = await side.boundingBox(); assert.ok(sideRect.x > contentRect.x);
         await page.screenshot({path:path.join(screenshotDir,'craft.png')});

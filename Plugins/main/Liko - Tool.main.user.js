@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.3.2
+// @version      2.3.3
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
     // 防重複載入必須先於生命週期資源、事件與初始化。
     window.Liko = window.Liko ?? {};
     if (window.Liko.LT) return;
-    const MOD_Version = "2.3.2";
+    const MOD_Version = "2.3.3";
     window.Liko.LT = MOD_Version;
 
     // 閱讀順序：生命週期 → 靜態資源／語系 → 設定 → 共用操作 → UI → 功能 → Hook → 啟動。
@@ -335,6 +335,9 @@
             craftEditTitle:  "编辑订制物品属性（批量套用到所选束缚）",
             craftName:       "物品名称",
             craftDesc:       "物品描述",
+            craftDescCount: "{count} 字元",
+            craftDescHint: "描述最多200字元，延長描述支援398個字元",
+            craftDescTooLong: "這段描述無法完整儲存。超過 200 字元時僅支援遊戲延長描述允許的字元，最多 398 字元；中文等字元請限制在 200 字元內。",
             craftPrivate:    "设为私有（仅自己可见名称）",
             craftEditDone:   "个束缚已套用订制属性",
             craftPickTitle:  "选择要编辑订制属性的束缚",
@@ -541,6 +544,9 @@
             craftEditTitle:  "Edit craft (batch-apply to selected restraints)",
             craftName:       "Item name",
             craftDesc:       "Item description",
+            craftDescCount: "{count} characters",
+            craftDescHint: "Descriptions support up to 200 characters; extended descriptions support up to 398 characters.",
+            craftDescTooLong: "This description cannot be saved in full. Beyond 200 characters, use only characters supported by the game's extended description format (up to 398). Other characters must fit within 200.",
             craftPrivate:    "Private (only you see the name)",
             craftEditDone:   "restraints updated with craft",
             craftPickTitle:  "Select restraints to edit craft",
@@ -1036,6 +1042,12 @@
             ".lt-item-label{min-width:0;overflow-wrap:anywhere;}",
             ".lt-craft-fields input[type=text],.lt-craft-fields textarea{box-sizing:border-box;width:100%;margin:5px 0 12px;padding:8px;background:var(--lt-surface);color:var(--lt-text);border:1px solid var(--lt-border);border-radius:8px;font-family:inherit;font-size:13px;font-weight:400;user-select:text;-webkit-user-select:text;}",
             ".lt-craft-fields textarea{resize:vertical;}",
+            ".lt-settings.lt-craft-fields{gap:10px;}",
+            ".lt-craft-description{display:flex;flex-direction:column;gap:4px;}",
+            ".lt-craft-description>.lt-settings-label{display:block;margin-bottom:0;}",
+            ".lt-craft-description textarea{display:block;margin-bottom:0;}",
+            ".lt-craft-count{display:flex;justify-content:flex-end;align-items:center;gap:6px;font-size:12px;color:var(--lt-text-dim,#6a8ab0);}",
+            ".lt-craft-info{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border:1px solid currentColor;border-radius:50%;font-size:11px;cursor:help;}",
             ".lt-checkbox-label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--lt-text);}",
             ".lt-undo-nav{display:flex;align-items:center;gap:6px;margin-bottom:10px;}",
             ".lt-undo-counter{flex:1;text-align:center;font-size:12px;color:var(--lt-accent);font-weight:600;white-space:nowrap;}",
@@ -1082,7 +1094,6 @@
             "#lt-quick-panel .lt-has-side .lt-craft-items{padding-right:12px;}",
             "#lt-quick-panel .lt-craft-items{flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;}",
             "#lt-quick-panel .lt-craft-side{opacity:1;transform:translateX(0);transition:opacity .28s ease,transform .28s ease,visibility .28s,padding .28s;display:flex;flex:1;min-width:0;flex-direction:column;border-left:1px solid var(--lt-border);padding-left:12px;overflow-y:auto;overflow-x:hidden;color:var(--lt-text);font-size:12px;}",
-            "#lt-quick-panel .lt-craft-side .lt-settings{gap:10px;}",
             "#lt-quick-panel .lt-craft-side [role=status]{margin:12px 0;color:var(--lt-accent-light);}",
             "#lt-quick-panel .lt-craft-side .lt-footer{padding:12px 0;margin-top:auto;}",
             "#lt-quick-panel .lt-btn-cancel{order:100;}",
@@ -2034,10 +2045,10 @@
             : CharacterAppearanceYOffset(C, ratio);
     }
 
-    function toolPreviewZone(C, zone) {
-        const ratio = toolViewRatio(C);
+    function toolPreviewZone(C, zone, resize = true) {
+        const ratio = resize ? toolViewRatio(C) : 1;
         const left = CharacterAppearanceXOffset(C, ratio) + zone[0] * ratio;
-        const y = toolViewYOffset(C, ratio);
+        const y = resize ? toolViewYOffset(C, ratio) : 0;
         const top = CharacterAppearsInverted(C) ? 1000 - (y + (zone[1] + zone[3]) * ratio) : y + zone[1] * ratio;
         return [left, top, zone[2] * ratio, zone[3] * ratio];
     }
@@ -2157,9 +2168,11 @@
             ctx.clearRect(0, 0, 500, 1000);
             if (!C) return;
             try {
-                drawToolCharacter(C, ctx);
+                // Normalize height and remove game offsets only inside the picker.
+                // Use the same geometry for the portrait and its clickable zones.
+                drawToolCharacter(C, ctx, 0, 0, 1, false);
                 zoneControls.forEach(({button, group, zone}) => {
-                    const [x,y,w,h] = toolPreviewZone(C, zone);
+                    const [x,y,w,h] = toolPreviewZone(C, zone, false);
                     button.style.left = x / 5 + '%'; button.style.top = y / 10 + '%';
                     button.style.width = w / 5 + '%'; button.style.height = h / 10 + '%';
                     // Highlight only this operation's selectable items; clothing occlusion is irrelevant.
@@ -2340,12 +2353,38 @@
             wrapper.append(element); root.append(wrapper); return element;
         };
         const name = field(t('craftName'), document.createElement('input')); name.type = 'text'; name.maxLength = 30; name.value = craft.Name || '';
-        const description = field(t('craftDesc'), document.createElement('textarea')); description.maxLength = 200; description.rows = 5; description.value = craft.Description || '';
+        const codec = typeof CraftingDescription !== 'undefined' ? CraftingDescription : null;
+        const storedDescription = craft.Description || '';
+        const decodedDescription = codec?.Decode ? codec.Decode(storedDescription) : storedDescription;
+        const description = field(t('craftDesc'), document.createElement('textarea'));
+        const descriptionGroup = document.createElement('div'); descriptionGroup.className = 'lt-craft-description';
+        root.insertBefore(descriptionGroup, description.parentElement);
+        descriptionGroup.append(description.parentElement);
+        description.maxLength = codec?.Encode && codec?.Decode ? 398 : 200;
+        description.rows = 5; description.value = decodedDescription;
+        const counter = document.createElement('div'); counter.className = 'lt-craft-count';
+        const count = document.createElement('span');
+        const info = document.createElement('span'); info.className = 'lt-craft-info'; info.textContent = 'i';
+        info.tabIndex = 0; info.title = t('craftDescHint'); info.setAttribute('aria-label', info.title);
+        counter.append(count, info); descriptionGroup.append(counter);
+        const updateCount = () => { count.textContent = t('craftDescCount').replace('{count}', description.value.length); };
+        updateCount();
+        description.oninput = () => { description.setCustomValidity(''); updateCount(); };
         const privateInput = document.createElement('input'); privateInput.type = 'checkbox'; privateInput.checked = !!craft.Private;
         const privateLabel = document.createElement('label'); privateLabel.className = 'lt-checkbox-label'; privateLabel.append(privateInput, document.createTextNode(t('craftPrivate'))); root.append(privateLabel);
         return { root, focus() { name.focus({ preventScroll: true }); }, read() {
             if (!name.value.trim()) { name.focus(); return null; }
-            return { name: name.value.trim(), description: description.value.trim(), private: privateInput.checked };
+            let value = description.value.trim();
+            if (description.value === decodedDescription) value = storedDescription;
+            else if (value.length > 200) {
+                const encoded = codec?.Encode?.(value);
+                if (!encoded || codec.Decode(encoded) !== value) {
+                    description.setCustomValidity(t('craftDescTooLong'));
+                    description.reportValidity(); return null;
+                }
+                value = encoded;
+            }
+            return { name: name.value.trim(), description: value, private: privateInput.checked };
         } };
     }
 
