@@ -44,6 +44,33 @@ const source = name => fs.readFileSync(path.join(__dirname,`../Plugins/main/Liko
   assert.equal(await page.locator('#message .likoVideoButton').count(),1);
   await page.click('#message .likoVideoButton');
   assert.equal(await page.locator('#message .likoVideoIframe').count(),1);
+  // Uguu uses the same native media rendering as Catbox, including file subdomains.
+  for (const [url, tag] of [
+   ['https://uguu.se/example.mp4', 'video'],
+   ['https://a.uguu.se/example.WEBM?download=1#play', 'video'],
+   ['https://files.uguu.se/example.mp3#play', 'audio'],
+   ['https://files.catbox.moe/example.mp4', 'video'],
+  ]) {
+   await page.evaluate(url=>{
+    document.querySelector('#media-test')?.remove();
+    const node=document.createElement('div');node.id='media-test';
+    const link=document.createElement('a');link.href=url;link.textContent='Media link';
+    node.append(link);document.body.append(node);
+    LikoVideoPlayerInstance.processMessage(node);
+    LikoVideoPlayerInstance.processMessage(node);
+   }, url);
+   assert.equal(await page.locator('#media-test .likoVideoButton').count(),1);
+   await page.locator('#media-test .likoVideoButton').click();
+   assert.equal(await page.locator(`#media-test ${tag}`).getAttribute('src'),url);
+  }
+  for (const url of ['https://uguu.se/example.png', 'https://uguu.se/example.mp4.exe', 'https://uguu.se.example.org/example.mp4', 'https://notuguu.se/example.mp4']) {
+   const count=await page.evaluate(url=>{
+    const node=document.createElement('div');node.textContent=url;document.body.append(node);
+    LikoVideoPlayerInstance.processMessage(node);
+    const count=node.querySelectorAll('.likoVideoButton').length;node.remove();return count;
+   },url);
+   assert.equal(count,0,url);
+  }
   await page.evaluate(()=>LikoVideoPlayerInstance.disable());
   assert.equal(await page.locator('.likoVideoButton,.likoVideoIframe').count(),0);
   assert.deepEqual(errors,[]);

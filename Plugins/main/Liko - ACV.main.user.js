@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動創建影片
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.2
+// @version      1.5.3
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
 (function () {
     window.Liko = window.Liko ?? {};
     if (window.Liko.ACV) return;
-    const MOD_VER = "1.5.2";
+    const MOD_VER = "1.5.3";
     window.Liko.ACV = MOD_VER;
 
     if (window.LikoVideoPlayerInstance) return;
@@ -56,6 +56,7 @@
         niconico:        "Niconico",
         douyin:          "抖音",
         catbox:          "Catbox/Litterbox",
+        uguu:            "Uguu",
         githubRaw:       "GitHub",
         streamable:      "Streamable",
         dailymotion:     "Dailymotion",
@@ -86,7 +87,7 @@
     }
 
     // 哪些平台是「直接檔案連結」型，需要另外判斷 audio/video
-    const RAW_MEDIA_PLATFORMS = new Set(["catbox", "githubRaw", "discordCdn", "imgurVideo"]);
+    const RAW_MEDIA_PLATFORMS = new Set(["catbox", "uguu", "githubRaw", "discordCdn", "imgurVideo"]);
 
     // ─────────────────────────────────────────────────────────────
     //  影片平台 Patterns
@@ -150,6 +151,13 @@
         catbox: {
             regex: new RegExp(
                 `(?:files\\.catbox\\.moe|litter(?:box)?\\.catbox\\.moe)\\/([a-zA-Z0-9]+\\.(?:${RAW_MEDIA_EXT_LIST}))`,
+                "i"
+            ),
+            ratio: "auto",
+        },
+        uguu: {
+            regex: new RegExp(
+                `(?<![\\w./@-])(?:https?:\\/\\/)?(?:[a-z0-9-]+\\.)*uguu\\.se\\/([a-z0-9_.%-]+\\.(?:${RAW_MEDIA_EXT_LIST}))(?=$|[?#\\s<>"'])(?:[?#][^\\s<>"']*)?`,
                 "i"
             ),
             ratio: "auto",
@@ -238,7 +246,7 @@ regex: new RegExp(
     //  URL 偵測（dispatch table 取代序列 if 判斷，O(1) 查找）
     // ─────────────────────────────────────────────────────────────
     function fileNameFromUrl(url) {
-        return url.split("/").pop().split("?")[0];
+        return url.split(/[?#]/)[0].split("/").pop();
     }
 
     function extFromUrl(url) {
@@ -409,6 +417,7 @@ regex: new RegExp(
         soundcloud: renderSoundcloud,
         appleMusic: renderAppleMusic,
         catbox: renderRawVideo,
+        uguu: renderRawVideo,
         githubRaw: renderRawVideo,
         imgurVideo: renderRawVideo,
         discordCdn: renderRawVideo,
