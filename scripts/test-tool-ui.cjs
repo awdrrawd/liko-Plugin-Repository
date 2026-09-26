@@ -47,6 +47,8 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
             Player.Appearance = AssetGroup.slice(0,2).map((Group,i) => ({ Asset: { Group, Name:'Fixture'+i, Description:'Item '+i }, Color:['Red'],
                 Craft: { Name:'Original '+i, Description:'Keep me', Private:true, MemberNumber:99, MemberName:'Other', Effects:{Large:1}, ItemProperty:{OverridePriority:7}, TypeRecord:{a:1}, Color:'Blue' } }));
             window.InventoryGet = (C, group) => C.Appearance.find(item => item.Asset.Group.Name === group);
+            window.AssetGetPreviewPath = asset => 'Assets/Female3DCG/' + asset.Group.Name + '/Preview';
+            window.DrawGetImage = path => ({src: path.endsWith('/Fixture0.png') ? 'https://expansion.test/preview/Fixture0.png' : path});
             window.InventoryGroupIsBlocked = () => true; // Occlusion must not affect tool picker colors.
             window.resizeErrors=[];window.addEventListener('error',event=>{if(event.message.includes('ResizeObserver'))window.resizeErrors.push(event.message);});
             window.ServerChatRoomGetAllowItem = () => true;
@@ -146,6 +148,11 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         await panel.getByRole('button',{name:'Single edit',exact:true}).click();
         await panel.locator('.ltp-page:not(.ltp-covered) .lt-btn-list button').first().click();
         const side = panel.locator('.lt-craft-side');
+        const itemRow = panel.locator('.ltp-page:not(.ltp-covered) .lt-item-picker .lt-list-btn').first();
+        assert.equal(await itemRow.locator('.lt-item-thumb').getAttribute('src'),'https://expansion.test/preview/Fixture0.png');
+        assert.equal(await itemRow.evaluate(el=>el.firstElementChild.classList.contains('lt-item-thumb')),true);
+        assert.equal(await side.locator('.lt-craft-preview').getAttribute('src'),'https://expansion.test/preview/Fixture0.png');
+        assert.equal(await side.evaluate(el=>el.firstElementChild.classList.contains('lt-craft-preview')),true);
         assert.equal(await side.evaluate(el=>getComputedStyle(el).transitionDuration.split(',')[0].trim()),'0.28s');
         // Reverse a collapse before it finishes: no delayed callback may hide a reopened editor.
         await page.evaluate(()=>{testTool.phoneBack();document.querySelector('.ltp-page:not(.ltp-covered) .lt-btn-list button').click();});
@@ -157,6 +164,8 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         await side.getByRole('button',{name:'Confirm',exact:true}).click();
         const craft = await page.evaluate(()=>Player.Appearance[0].Craft);
         assert.equal(craft.Name,'New name'); assert.equal(craft.MemberNumber,1); assert.deepEqual(craft.Effects,{Large:1});
+        assert.equal(await itemRow.locator('.lt-item-thumb').count(),1);
+        assert.match(await itemRow.locator('.lt-item-label').textContent(),/New name/);
         assert.deepEqual(craft.ItemProperty,{OverridePriority:7}); assert.equal(craft.Color,'Blue');
         assert.equal(await side.isVisible(),true);
         await side.getByRole('button',{name:'Export',exact:true}).click();

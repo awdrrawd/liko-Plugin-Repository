@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.3.1
+// @version      2.3.2
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
     // 防重複載入必須先於生命週期資源、事件與初始化。
     window.Liko = window.Liko ?? {};
     if (window.Liko.LT) return;
-    const MOD_Version = "2.3.1";
+    const MOD_Version = "2.3.2";
     window.Liko.LT = MOD_Version;
 
     // 閱讀順序：生命週期 → 靜態資源／語系 → 設定 → 共用操作 → UI → 功能 → Hook → 啟動。
@@ -1030,6 +1030,10 @@
             ".lt-option-label{font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;}",
             ".lt-self-option{border-color:var(--lt-accent);background:var(--lt-surface-hover);}",
             ".lt-craft-fields>.lt-settings-label{display:block;}",
+            ".lt-craft-preview{display:block;width:120px;height:120px;max-width:100%;object-fit:contain;margin:0 auto 12px;border-radius:10px;background:var(--lt-surface);}",
+            ".lt-item-picker .lt-list-btn{display:flex;align-items:center;justify-content:flex-start;gap:10px;text-align:left;}",
+            ".lt-item-thumb{width:40px;height:40px;flex:0 0 40px;object-fit:contain;border-radius:6px;background:var(--lt-surface);}",
+            ".lt-item-label{min-width:0;overflow-wrap:anywhere;}",
             ".lt-craft-fields input[type=text],.lt-craft-fields textarea{box-sizing:border-box;width:100%;margin:5px 0 12px;padding:8px;background:var(--lt-surface);color:var(--lt-text);border:1px solid var(--lt-border);border-radius:8px;font-family:inherit;font-size:13px;font-weight:400;user-select:text;-webkit-user-select:text;}",
             ".lt-craft-fields textarea{resize:vertical;}",
             ".lt-checkbox-label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--lt-text);}",
@@ -1089,7 +1093,6 @@
             "#lt-quick-panel .lt-item-map{position:relative;flex:none;overflow:visible;}",
             "#lt-quick-panel .lt-item-map canvas{width:100%;height:100%;display:block;}",
             "#lt-quick-panel .lt-undo-preview canvas{display:block;width:auto;height:100%;max-width:100%;object-fit:contain;}",
-            "#lt-quick-panel .lt-item-picker .lt-list-btn.selected{background:var(--lt-accent);color:#fff;border-color:var(--lt-accent-light);}",
             "#lt-quick-panel .lt-zone-button{box-sizing:border-box;position:absolute;border:1px solid #9a9a9a;background:rgba(100,100,100,.10);padding:0;cursor:pointer;}",
             "#lt-quick-panel .lt-zone-button.occupied{border-color:#e6b858;background:rgba(230,184,88,.18);}",
             "#lt-quick-panel .lt-zone-button.selected{border:2px solid #42dfff;background:rgba(66,223,255,.3);}",
@@ -2090,6 +2093,13 @@
         updatePhoneHeader();
     }
 
+    function toolItemPreview(asset) {
+        const path = AssetGetPreviewPath(asset) + '/' + asset.Name + '.png';
+        // Respect expansion image mappings without changing the cached game image.
+        const image = typeof DrawGetImage === 'function' ? DrawGetImage(path) : null;
+        return image?.src || path;
+    }
+
     // Group names, rather than translated display labels, identify selections in both views.
     function createItemPicker(target, options, multiple, onSelection) {
         const root = document.createElement('div'); root.className = 'lt-item-picker';
@@ -2117,10 +2127,15 @@
             button.onclick = () => select(group);
         }
         options.forEach(option => {
-            for (const host of [list]) {
-                const button = document.createElement('button'); button.className = 'lt-list-btn';
-                button.textContent = option.text; register(button, option.group); host.append(button);
+            const button = document.createElement('button'); button.className = 'lt-list-btn';
+            const C = currentTarget(), item = C && InventoryGet(C, option.group);
+            if (item?.Asset) {
+                const image = document.createElement('img'); image.className = 'lt-item-thumb';
+                image.alt = ''; image.loading = 'lazy'; image.src = toolItemPreview(item.Asset);
+                button.append(image);
             }
+            const label = document.createElement('span'); label.className = 'lt-item-label'; label.textContent = option.text;
+            button.append(label); register(button, option.group); list.append(button);
         });
         const zoneControls = [];
         const eligible = new Set(options.map(option => option.group));
@@ -2181,7 +2196,7 @@
             updateLabel(group, text) {
                 controls.get(group)?.forEach(button => {
                     button.title = text;
-                    if (button.classList.contains('lt-list-btn')) button.textContent = text;
+                    if (button.classList.contains('lt-list-btn')) button.querySelector('.lt-item-label').textContent = text;
                     else button.setAttribute('aria-label', text);
                 });
             },
@@ -2384,6 +2399,10 @@
             const item = C && InventoryGet(C, group); if (!item) return;
             selectedGroup = group; selectedAsset = item.Asset;
             side.replaceChildren();
+            const preview = document.createElement('img');
+            preview.className = 'lt-craft-preview';
+            preview.alt = item.Asset.Description || item.Asset.Name;
+            preview.src = toolItemPreview(item.Asset);
             const fields = createCraftFields(item.Craft || { Name: item.Asset.Description || item.Asset.Name });
             const status = document.createElement('div'); status.setAttribute('role', 'status');
             const footer = makeFooter(); footer.classList.add('lt-footer');
@@ -2410,7 +2429,7 @@
                     status.textContent = result.err ? (t('craftCopyFailed')) : (t('craftCopied'));
                 });
             }));
-            side.append(fields.root, status, footer); setCraftSideOpen(side, true);
+            side.append(preview, fields.root, status, footer); setCraftSideOpen(side, true);
         }
         const picker = createItemPicker(target, items, false, groups => edit(groups[0]));
         left.append(picker.root); layout.append(left, side);
