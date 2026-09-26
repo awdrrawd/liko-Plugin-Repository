@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         本地測試 - PCM 載入器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.6
+// @version      0.6.1
 // @description  本地測試載入器：優先載入模組版 PCM，失敗時回退保留的單檔版
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
+// @exclude        *://*/changelog.html*
 // @grant        none
 // @icon         https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Images/PCM_ICON.png
 // @run-at       document-end
@@ -145,6 +146,19 @@
     return typeof text === "string" && text.trim().length > 0 && !text.trimStart().startsWith("<");
   }
 
+  // src/pcm/page-policy.js
+  function isChangelogPage(location) {
+    let pathname = location?.pathname;
+    if (typeof pathname !== "string") {
+      try {
+        pathname = new URL(location?.href).pathname;
+      } catch {
+        return false;
+      }
+    }
+    return /\/changelog\.html$/i.test(pathname);
+  }
+
   // src/pcm/loader.js
   var CACHE_KEY = "pcm_main_cache";
   var PATHS = {
@@ -199,6 +213,7 @@
     executeModule = importCode,
     executeClassic = (code) => new Function(code)()
   } = {}) {
+    if (isChangelogPage(global.location)) return Promise.resolve();
     global.Liko ??= {};
     const previous = global.Liko.__PCMLoader__;
     if (previous?.promise) return previous.promise;

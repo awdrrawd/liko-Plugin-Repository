@@ -4,7 +4,7 @@
 
 # Plugin Collection Manager（PCM）
 
-[![PCM](https://img.shields.io/badge/PCM-v2.2.2-9F7AEA?style=for-the-badge)](https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js)
+[![PCM](https://img.shields.io/badge/PCM-v2.2.3-9F7AEA?style=for-the-badge)](https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js)
 [![License](https://img.shields.io/badge/License-MIT-C084FC?style=for-the-badge)](LICENSE)
 
 集中安裝、啟用與管理 Bondage Club 插件。建議優先使用 PCM；也保留書籤、控制台及單獨安裝方式。

@@ -1,5 +1,6 @@
 import {fetchText, isJavaScriptText} from './network.js';
 import {getRepositoryBases} from './config.js';
+import {isChangelogPage} from './page-policy.js';
 
 const CACHE_KEY = 'pcm_main_cache';
 const PATHS = {
@@ -57,6 +58,7 @@ export function startLoader({
   executeModule = importCode,
   executeClassic = code => new Function(code)(),
 } = {}) {
+  if (isChangelogPage(global.location)) return Promise.resolve();
   global.Liko ??= {};
   const previous = global.Liko.__PCMLoader__;
   if (previous?.promise) return previous.promise;

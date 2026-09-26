@@ -8,9 +8,11 @@ import {Lifecycle} from '../lifecycle.js';
 import {normalizeManifest} from '../manifest.js';
 import {registerPCMTranslations, translatePCM} from '../i18n/index.js';
 import {installFusamCompat} from '../fusam-compat.js';
+import {isChangelogPage} from '../page-policy.js';
 
 // Shared application implementation for ESM and classic userscript releases.
 export function startPCM() {
+    if (isChangelogPage(window.location)) return Promise.resolve();
     window.Liko = window.Liko ?? {};
     const MOD_VER = PCM_VERSION;
     const current = window.Liko.__PCMStartup__;

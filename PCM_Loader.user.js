@@ -2,10 +2,11 @@
 // @name           Liko - Plugin Collection Manager-Loader
 // @name:zh        Liko的插件管理器-Loader
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        1.5.0
+// @version        1.5.1
 // @description    Liko's Plugin Collection Manager
 // @author         Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
+// @exclude        *://*/changelog.html*
 // @grant          none
 // @icon           https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @updateURL      https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js
@@ -148,6 +149,19 @@
     return typeof text === "string" && text.trim().length > 0 && !text.trimStart().startsWith("<");
   }
 
+  // src/pcm/page-policy.js
+  function isChangelogPage(location) {
+    let pathname = location?.pathname;
+    if (typeof pathname !== "string") {
+      try {
+        pathname = new URL(location?.href).pathname;
+      } catch {
+        return false;
+      }
+    }
+    return /\/changelog\.html$/i.test(pathname);
+  }
+
   // src/pcm/loader.js
   var CACHE_KEY = "pcm_main_cache";
   var PATHS = {
@@ -202,6 +216,7 @@
     executeModule = importCode,
     executeClassic = (code) => new Function(code)()
   } = {}) {
+    if (isChangelogPage(global.location)) return Promise.resolve();
     global.Liko ??= {};
     const previous = global.Liko.__PCMLoader__;
     if (previous?.promise) return previous.promise;

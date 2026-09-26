@@ -3,11 +3,12 @@
 // @name:zh      Liko的插件管理器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.2.2
+// @version      2.2.3
 // @description  Liko的插件集合管理器 | Liko - Plugin Collection Manager
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
+// @exclude        *://*/changelog.html*
 // @grant        none
 // @run-at       document-end
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
@@ -18,7 +19,7 @@
 // AUTO-GENERATED from src/pcm/classic-entry.js by scripts/build-pcm.mjs. Do not edit directly.
 (() => {
   // src/pcm/release.js
-  var PCM_VERSION = "2.2.2";
+  var PCM_VERSION = "2.2.3";
 
   // src/pcm/config.js
   var NETWORK_TIMEOUT_MS = 3e4;
@@ -666,8 +667,22 @@
     return { installed: true, reason: "missing-fusam", api };
   }
 
+  // src/pcm/page-policy.js
+  function isChangelogPage(location) {
+    let pathname = location?.pathname;
+    if (typeof pathname !== "string") {
+      try {
+        pathname = new URL(location?.href).pathname;
+      } catch {
+        return false;
+      }
+    }
+    return /\/changelog\.html$/i.test(pathname);
+  }
+
   // src/pcm/compat/core.js
   function startPCM() {
+    if (isChangelogPage(window.location)) return Promise.resolve();
     window.Liko = window.Liko ?? {};
     const MOD_VER = PCM_VERSION;
     const current = window.Liko.__PCMStartup__;
