@@ -10,7 +10,7 @@ function harness() {
   TestURL.createObjectURL = () => `blob:test-${fetches}`;
   TestURL.revokeObjectURL = url => revoked.push(url);
   class Image { set src(value) { this._src = value; queueMicrotask(() => this.onload?.()); } get src() {return this._src;} }
-  const ctx = { console: {log(){},warn(){},error(){}}, URL: TestURL, Image, AbortController, setTimeout, clearTimeout, clearInterval,
+  const ctx = { TranslationLanguage:'CN', console: {log(){},warn(){},error(){}}, URL: TestURL, Image, AbortController, setTimeout, clearTimeout, clearInterval,
     window: {location: {href:'https://game.test/R132/',origin:'https://game.test'}}, document:{querySelector:()=>null},
     Player: {MemberNumber:1, OnlineSharedSettings:{Other:42}, ExtensionSettings:{Other:43}},
     InformationSheetSelection:null, CurrentScreen:'InformationSheet', MainCanvasWidth:2000, MainCanvasHeight:1000,
@@ -20,7 +20,7 @@ function harness() {
   };
   vm.createContext(ctx);
   vm.runInContext(source.replace('    initialize();', `    globalThis.api = {
-    getSettings, saveSettings, getCurrentViewingCharacter, loadRemoteBackground, getTargetBackground, cleanup, loadImage,
+    getSettings, saveSettings, resetSettings, t, getCurrentViewingCharacter, loadRemoteBackground, getTargetBackground, cleanup, loadImage,
     setup() { modApi = {hookFunction(name, priority, fn) { globalThis.hooks[name] = fn; }}; setupHooks(); },
     setLocal(image) {customBG=image;}, cache:remoteBackgrounds, pending:pendingRemoteBackgrounds,
     retry:remoteBackgroundRetryAfter, isProfilePage
@@ -68,6 +68,24 @@ function harness() {
   assert.equal(api.pending.size,0);
   api.cleanup(); assert.equal(api.cache.size,0); assert.equal(api.isProfilePage(),false);
   await assert.rejects(api.loadImage('https://image.test/a.jpg'),/已卸載/);
+  const reset = harness();
+  reset.ctx.Player.OnlineSharedSettings.CustomProfileBG={enabled:true,imageUrl:'https://image.test/old.jpg'};
+  reset.ctx.Player.ExtensionSettings.CustomProfileBG={showRemoteBackground:false};
+  await reset.api.resetSettings();
+  assert.equal(Object.hasOwn(reset.ctx.Player.OnlineSharedSettings,'CustomProfileBG'),false);
+  assert.equal(reset.ctx.Player.OnlineSharedSettings.Other,42);
+  assert.equal(reset.ctx.Player.ExtensionSettings.CustomProfileBG.showRemoteBackground,false);
+  assert.equal(reset.queued.length,1);
+  assert.equal(reset.synced.length,0);
+  assert.equal(reset.api.t('恢復預設'),'恢復預設');
+  reset.ctx.TranslationLanguage='EN'; assert.equal(reset.api.t('恢復預設'),'Restore defaults');
+  reset.ctx.TranslationLanguage='TW'; assert.equal(reset.api.t('保存設置'),'保存設置');
+  reset.ctx.TranslationLanguage='DE'; assert.equal(reset.api.t('保存設置'),'Save settings');
+  const failedReset=harness();
+  failedReset.ctx.Player.OnlineSharedSettings.CustomProfileBG={enabled:false};
+  failedReset.ctx.ServerAccountUpdate.QueueData=()=>{throw Error('sync failed');};
+  assert.throws(()=>failedReset.api.resetSettings(),/sync failed/);
+  assert.equal(failedReset.ctx.Player.OnlineSharedSettings.CustomProfileBG.enabled,false);
   const late=harness(); let resolve;
   late.ctx.fetch=()=>new Promise(r=>{resolve=r;});
   const pending=late.api.loadRemoteBackground('https://image.test/late.jpg');late.api.cleanup();

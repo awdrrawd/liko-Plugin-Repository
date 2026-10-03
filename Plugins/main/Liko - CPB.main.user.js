@@ -3,7 +3,7 @@
 // @name:zh      Liko的自定義個人資料頁面背景
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.2.3
+// @version      1.2.4
 // @description  自定義個人資料頁面背景 | Custom Profile Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,8 +18,46 @@
 (function() {
     window.Liko = window.Liko ?? {};
     if (window.Liko.CPB) return;
-    const MOD_VER = "1.2.3";
+    const MOD_VER = "1.2.4";
     window.Liko.CPB = MOD_VER;
+
+    const EN = {
+    "自訂個人資料背景": "Custom profile background",
+    "背景圖片網址 (HTTPS)": "Background image URL (HTTPS)",
+    "建議尺寸: 2000x1000 像素 (2:1比例)": "Recommended: 2000 × 1000 pixels (2:1)",
+    "檔案大小限制: 10MB": "Maximum file size: 10 MB",
+    "點擊預覽按鈕載入圖片": "Select Preview to load your image",
+    "啟用背景": "Enable background",
+    "顯示他人自訂背景": "Show others’ backgrounds",
+    "預覽": "Preview",
+    "保存設置": "Save settings",
+    "取消": "Cancel",
+    "關閉": "Close",
+    "恢復預設": "Restore defaults",
+    "清除設置": "Clear settings",
+    "清除": "Clear",
+    "保存": "Save",
+    "清除自己的背景分享設定，恢復 CPB 預設背景；保留顯示他人背景的偏好。": "Clear your shared background settings and restore the CPB default. Keep your preference for other players’ backgrounds.",
+    "載入中...": "Loading…",
+    "預覽失敗": "Preview failed",
+    "啟用背景時請輸入圖片網址": "Enter an image URL to enable the background.",
+    "帳號同步尚未就緒，請稍後再試": "Account sync is not ready. Please try again shortly.",
+    "必須使用 HTTPS 協議": "Use an HTTPS URL.",
+    "不支援的圖片格式，請使用 jpg、png、gif 或 webp": "Use a jpg, png, gif or webp image.",
+    "無效的網址格式": "Invalid URL.",
+    "CPB 已卸載": "CPB has been unloaded.",
+    "圖片檔案過大，請使用小於 10MB 的圖片": "The image exceeds 10 MB.",
+    "圖片載入已取消": "Image loading was cancelled.",
+    "圖片載入逾時或已取消": "Image loading timed out or was cancelled.",
+    "圖片格式不支援或載入失敗": "Unsupported image or image failed to load.",
+    "自訂背景設置": "Custom background settings",
+    "無法載入圖片": "Unable to load image"
+};
+
+    function t(text) {
+        const language = typeof TranslationLanguage === "string" ? TranslationLanguage.toUpperCase() : "EN";
+        return language === "CN" || language === "TW" || language.startsWith("ZH") ? text : (EN[text] || text);
+    }
 
     let modApi = null;
     let disposed = false;
@@ -74,7 +112,7 @@
 
     // 配置
     const DEFAULT_BG_URL = "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/Leonardo_Anime_XL_anime_style_outdoor_magical_wedding_backgrou_2.jpg";
-    const BUTTON_X = 1695;
+    const BUTTON_X = 1715;
     const BUTTON_Y = 190;
     const BUTTON_SIZE = 90;
     const MAX_CACHE_SIZE = 15;
@@ -164,7 +202,7 @@
         if (disposed || !Player.OnlineSharedSettings || !Player.ExtensionSettings ||
             typeof ServerAccountUpdate === "undefined" || typeof ServerAccountUpdate.QueueData !== "function" ||
             typeof ServerPlayerExtensionSettingsSync !== "function") {
-            throw new Error("帳號同步尚未就緒，請稍後再試");
+            throw new Error(t("帳號同步尚未就緒，請稍後再試"));
         }
         Player.OnlineSharedSettings.CustomProfileBG = {
             enabled: settings.enabled === true,
@@ -177,6 +215,28 @@
         };
         ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
         ServerPlayerExtensionSettingsSync("CustomProfileBG");
+    }
+
+    function resetSettings() {
+        if (disposed || !Player.OnlineSharedSettings || typeof ServerAccountUpdate === "undefined" ||
+            typeof ServerAccountUpdate.QueueData !== "function") throw new Error(t("帳號同步尚未就緒，請稍後再試"));
+        const previous = Player.OnlineSharedSettings.CustomProfileBG;
+        delete Player.OnlineSharedSettings.CustomProfileBG;
+        try {
+            ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+        } catch (error) {
+            if (previous !== undefined) Player.OnlineSharedSettings.CustomProfileBG = previous;
+            throw error;
+        }
+        closeUI();
+        const request = ++uiRequest;
+        cleanupBlobUrl(customBG?.src);
+        customBG = null;
+        // Restoring the local default must never re-create the deleted shared setting.
+        return loadImage(DEFAULT_BG_URL).then(image => {
+            if (disposed || request !== uiRequest) { cleanupBlobUrl(image.src); return; }
+            customBG = image;
+        }).catch(error => console.warn("[CPB] Default background unavailable:", error.message));
     }
 
     function getPlayerCustomBackground(character) {
@@ -231,7 +291,7 @@
             const parsedUrl = new URL(url);
 
             if (parsedUrl.protocol !== 'https:') {
-                return { valid: false, error: "必須使用 HTTPS 協議" };
+                return { valid: false, error: t("必須使用 HTTPS 協議") };
             }
 
             const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
@@ -240,12 +300,12 @@
             );
 
             if (!hasValidExtension) {
-                return { valid: false, error: "不支援的圖片格式，請使用 jpg、png、gif 或 webp" };
+                return { valid: false, error: t("不支援的圖片格式，請使用 jpg、png、gif 或 webp") };
             }
 
             return { valid: true };
         } catch (e) {
-            return { valid: false, error: "無效的網址格式" };
+            return { valid: false, error: t("無效的網址格式") };
         }
     }
 
@@ -270,7 +330,7 @@
     }
 
     async function loadImage(url) {
-        if (disposed) throw new Error("CPB 已卸載");
+        if (disposed) throw new Error(t("CPB 已卸載"));
         const parsed = new URL(url, window.location.href);
         if (parsed.origin !== window.location.origin) {
             const validation = isValidImageUrl(url);
@@ -282,10 +342,10 @@
         let blobUrl;
         try {
             const response = await fetch(parsed.href, { signal: controller.signal });
-            if (!response.ok) throw new Error(`無法載入圖片: ${response.status}`);
+            if (!response.ok) throw new Error(`${t("無法載入圖片")}: ${response.status}`);
             const blob = await response.blob();
-            if (blob.size > 10 * 1024 * 1024) throw new Error("圖片檔案過大，請使用小於 10MB 的圖片");
-            if (disposed || controller.signal.aborted) throw new Error("圖片載入已取消");
+            if (blob.size > 10 * 1024 * 1024) throw new Error(t("圖片檔案過大，請使用小於 10MB 的圖片"));
+            if (disposed || controller.signal.aborted) throw new Error(t("圖片載入已取消"));
             blobUrl = URL.createObjectURL(blob);
             pendingBlobUrls.add(blobUrl);
             const img = new Image();
@@ -295,13 +355,13 @@
                     controller.signal.removeEventListener("abort", abort);
                     error ? reject(error) : resolve();
                 };
-                const abort = () => finish(new Error("圖片載入逾時或已取消"));
+                const abort = () => finish(new Error(t("圖片載入逾時或已取消")));
                 controller.signal.addEventListener("abort", abort, { once: true });
                 img.onload = () => finish();
-                img.onerror = () => finish(new Error("圖片格式不支援或載入失敗"));
+                img.onerror = () => finish(new Error(t("圖片格式不支援或載入失敗")));
                 img.src = blobUrl;
             });
-            if (disposed) throw new Error("CPB 已卸載");
+            if (disposed) throw new Error(t("CPB 已卸載"));
             return img;
         } catch (error) {
             cleanupBlobUrl(blobUrl);
@@ -318,259 +378,45 @@
         const style = document.createElement('style');
         style.id = 'cpbg-styles';
         style.textContent = `
-            .cpbg-modal {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.8);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 10000;
-                animation: cpbg-fadeIn 0.3s ease-out;
-            }
-
-            .cpbg-dialog {
-                background: linear-gradient(135deg, #6027DD 0%, #4A1B6B 100%);
-                border: 2px solid #7C3AED;
-                border-radius: 15px;
-                box-shadow: 0 0 30px rgba(96, 39, 221, 0.5);
-                padding: 25px;
-                width: 500px;
-                max-width: 90vw;
-                animation: cpbg-slideIn 0.3s ease-out;
-                position: relative;
-                backdrop-filter: blur(10px);
-            }
-
-            .cpbg-title {
-                color: #F3F0FF;
-                font-size: 24px;
-                font-weight: bold;
-                text-align: center;
-                margin-bottom: 20px;
-                text-shadow: 0 0 10px rgba(96, 39, 221, 0.8);
-            }
-
-            .cpbg-section {
-                margin-bottom: 20px;
-            }
-
-            .cpbg-label {
-                color: #E5DEFF;
-                font-size: 16px;
-                margin-bottom: 8px;
-                display: block;
-                font-weight: 500;
-            }
-
-            .cpbg-input {
-                width: 100%;
-                padding: 12px;
-                border: 2px solid #4C1D95;
-                border-radius: 8px;
-                background: rgba(96, 39, 221, 0.1);
-                color: #F3F0FF;
-                font-size: 14px;
-                box-sizing: border-box;
-                transition: all 0.3s ease;
-            }
-
-            .cpbg-input:focus {
-                outline: none;
-                border-color: #7C3AED;
-                box-shadow: 0 0 15px rgba(96, 39, 221, 0.3);
-                background: rgba(255, 255, 255, 0.9);
-                color: #333;
-            }
-
-            .cpbg-checkbox-container {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                margin: 10px 0;
-            }
-
-            .cpbg-checkbox {
-                width: 20px;
-                height: 20px;
-                accent-color: #6027DD;
-            }
-
-            .cpbg-preview {
-                width: 100%;
-                border: 2px solid #4C1D95;
-                border-radius: 8px;
-                background-size: cover;
-                background-position: center;
-                background-repeat: no-repeat;
-                background-color: rgba(96, 39, 221, 0.1);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: #C4B5FD;
-                font-size: 14px;
-                text-align: center;
-                transition: all 0.3s ease;
-                aspect-ratio: 2 / 1;
-            }
-
-            .cpbg-preview.loading {
-                background: linear-gradient(45deg, rgba(96, 39, 221, 0.1) 25%, transparent 25%, transparent 75%, rgba(96, 39, 221, 0.1) 75%);
-                background-size: 20px 20px;
-                animation: cpbg-loading 1s linear infinite;
-            }
-
-            .cpbg-buttons {
-                display: flex;
-                gap: 10px;
-                justify-content: center;
-                margin-top: 25px;
-            }
-
-            .cpbg-button {
-                padding: 12px 24px;
-                border: none;
-                border-radius: 8px;
-                font-size: 16px;
-                font-weight: bold;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                position: relative;
-                overflow: hidden;
-            }
-
-            .cpbg-button::before {
-                content: '';
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                width: 0;
-                height: 0;
-                background: rgba(255, 255, 255, 0.3);
-                border-radius: 50%;
-                transition: width 0.3s, height 0.3s, top 0.3s, left 0.3s;
-                transform: translate(-50%, -50%);
-            }
-
-            .cpbg-button.clicked::before {
-                width: 300px;
-                height: 300px;
-                top: 50%;
-                left: 50%;
-                background: rgba(255, 255, 255, 0.1);
-            }
-
-            .cpbg-button.primary {
-                background: linear-gradient(135deg, #6027DD 0%, #4C1D95 100%);
-                color: white;
-                box-shadow: 0 4px 15px rgba(96, 39, 221, 0.3);
-            }
-
-            .cpbg-button.primary:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 20px rgba(96, 39, 221, 0.4);
-            }
-
-            .cpbg-button.primary:active {
-                transform: translateY(0);
-                box-shadow: 0 2px 10px rgba(96, 39, 221, 0.3);
-            }
-
-            .cpbg-button.secondary {
-                background: rgba(96, 39, 221, 0.2);
-                color: #E5DEFF;
-                border: 2px solid #4C1D95;
-            }
-
-            .cpbg-button.secondary:hover {
-                background: rgba(96, 39, 221, 0.3);
-                border-color: #7C3AED;
-                transform: translateY(-2px);
-            }
-
-            .cpbg-button.secondary:active {
-                transform: translateY(0);
-                background: rgba(96, 39, 221, 0.4);
-            }
-
-            .cpbg-error {
-                color: #FCA5A5;
-                font-size: 14px;
-                margin-top: 5px;
-                text-align: center;
-            }
-
-            .cpbg-info {
-                color: #A5F3FC;
-                font-size: 12px;
-                margin-top: 5px;
-                text-align: center;
-            }
-
-            .cpbg-close {
-                position: absolute;
-                top: 10px;
-                right: 15px;
-                background: none;
-                border: none;
-                color: #E5DEFF;
-                font-size: 24px;
-                cursor: pointer;
-                width: 30px;
-                height: 30px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border-radius: 50%;
-                transition: all 0.3s ease;
-            }
-
-            .cpbg-close:hover {
-                background: rgba(239, 68, 68, 0.2);
-                color: #FCA5A5;
-                transform: scale(1.1);
-            }
-
-            .cpbg-close:active {
-                transform: scale(0.95);
-            }
-
-            @keyframes cpbg-fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-
-            @keyframes cpbg-slideIn {
-                from {
-                    opacity: 0;
-                    transform: translateY(-50px) scale(0.9);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0) scale(1);
-                }
-            }
-
-            @keyframes cpbg-loading {
-                0% { background-position: 0 0; }
-                100% { background-position: 20px 20px; }
-            }
+            .cpbg-modal { position:fixed; inset:0; z-index:10000; display:flex; align-items:center;
+                justify-content:center; padding:20px; box-sizing:border-box; background:rgba(24,32,40,.48); }
+            .cpbg-dialog { position:relative; box-sizing:border-box; width:550px; max-width:100%;
+                max-height:calc(100dvh - 40px); overflow:auto; padding:28px; border:1px solid #444444;
+                border-radius:14px; background:#202020; color:#eeeeee; box-shadow:0 16px 48px #00000066;
+                font-family:system-ui,sans-serif; color-scheme:dark; user-select:none; -webkit-user-select:none; }
+            .cpbg-title { margin:0 30px 24px 0; color:#eeeeee; font-size:22px; font-weight:650; }
+            .cpbg-section { margin-bottom:18px; }
+            .cpbg-label { display:block; margin-bottom:8px; font-size:14px; line-height:1.5; color:#d4d4d4; }
+            .cpbg-input { user-select:text; -webkit-user-select:text; min-width:0; width:100%; box-sizing:border-box; padding:11px 12px; border:1px solid #505050;
+                border-radius:7px; background:#2c2c2c; color:#eeeeee; font-size:14px; }
+            .cpbg-input:focus, .cpbg-button:focus-visible, .cpbg-close:focus-visible, .cpbg-checkbox:focus-visible {
+                outline:2px solid #91afc0; outline-offset:3px; }
+            .cpbg-checkbox-container { display:flex; align-items:center; gap:10px; margin:12px 0; }
+            .cpbg-checkbox-container .cpbg-label { margin:0; }
+            .cpbg-checkbox { width:18px; height:18px; flex-shrink:0; accent-color:#526c7c; }
+            .cpbg-preview { width:100%; box-sizing:border-box; aspect-ratio:2/1; border:1px solid #444444;
+                border-radius:8px; background:#292929 center/cover no-repeat; display:flex; align-items:center;
+                justify-content:center; padding:12px; color:#bcbcbc; font-size:14px; text-align:center; }
+            .cpbg-preview.loading { opacity:.65; }
+            .cpbg-url-row { display:flex; align-items:center; gap:10px; }
+            .cpbg-url-row .cpbg-input { flex:1; }
+            .cpbg-url-row .cpbg-button { flex-shrink:0; }
+            .cpbg-toggles { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+            .cpbg-buttons { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin-top:22px; }
+            .cpbg-buttons .cpbg-button { padding:10px 4px; overflow-wrap:anywhere; }
+            .cpbg-button { padding:10px 16px; border:1px solid #505050; border-radius:7px; font-size:14px;
+                font-weight:600; cursor:pointer; background:#2c2c2c; color:#e0e0e0; transition:background .15s; }
+            .cpbg-button:hover { background:#404040; }
+            .cpbg-button.primary { background:#526c7c; color:#fff; border-color:#526c7c; }
+            .cpbg-button.primary:hover { background:#637f90; }
+            .cpbg-button:disabled { opacity:.5; cursor:wait; }
+            .cpbg-error { color:#f0a0a0; font-size:13px; margin-top:8px; }
+            .cpbg-close { position:absolute; top:16px; right:16px; width:30px; height:30px; background:transparent;
+                color:#bcbcbc; border:0; border-radius:6px; font-size:24px; cursor:pointer; }
+            .cpbg-close:hover { background:#383838; }
+            @media(max-width:480px) { .cpbg-dialog { padding:20px; } .cpbg-title { font-size:19px; } }
         `;
         document.head.appendChild(style);
-    }
-
-    function addButtonClickEffect(button) {
-        button.addEventListener('click', function() {
-            this.classList.add('clicked');
-            setTimeout(() => {
-                this.classList.remove('clicked');
-            }, 300);
-        });
     }
 
     function createUI() {
@@ -579,48 +425,53 @@
         const modal = document.createElement('div');
         modal.className = 'cpbg-modal';
         modal.innerHTML = `
-            <div class="cpbg-dialog">
-                <button class="cpbg-close" type="button">×</button>
-                <div class="cpbg-title">🎨 自訂個人資料背景</div>
+            <div class="cpbg-dialog" role="dialog" aria-modal="true" aria-labelledby="cpbg-title">
+                <button class="cpbg-close" type="button" aria-label="${t("關閉")}">×</button>
+                <div class="cpbg-title" id="cpbg-title">${t("自訂個人資料背景")}</div>
 
                 <div class="cpbg-section">
-                    <label class="cpbg-label">背景圖片網址 (HTTPS)</label>
+                    <label class="cpbg-label" for="cpbg-url-input">${t("背景圖片網址 (HTTPS)")}</label>
+                    <div class="cpbg-url-row">
                     <input type="text" class="cpbg-input" id="cpbg-url-input"
                            placeholder="https://example.com/image.jpg"
-                           value="${settings.imageUrl || ''}">
-                    <div class="cpbg-info">建議尺寸: 2000x1000 像素 (2:1比例)</div>
-                    <div class="cpbg-info">檔案大小限制: 10MB</div>
+                           title="${t("建議尺寸: 2000x1000 像素 (2:1比例)")} · ${t("檔案大小限制: 10MB")}">
+                    <button class="cpbg-button secondary" id="cpbg-preview-btn">${t("預覽")}</button>
+                    </div>
                     <div class="cpbg-error" id="cpbg-url-error"></div>
                 </div>
 
                 <div class="cpbg-section">
                     <div class="cpbg-preview" id="cpbg-preview">
-                        點擊預覽按鈕載入圖片
+                        ${t("點擊預覽按鈕載入圖片")}
                     </div>
                 </div>
 
-                <div class="cpbg-section">
+                <div class="cpbg-section cpbg-toggles">
                     <div class="cpbg-checkbox-container">
                         <input type="checkbox" class="cpbg-checkbox" id="cpbg-enabled"
                                ${settings.enabled ? 'checked' : ''}>
-                        <label class="cpbg-label" for="cpbg-enabled">啟用自訂背景</label>
+                        <label class="cpbg-label" for="cpbg-enabled">${t("啟用背景")}</label>
                     </div>
 
                     <div class="cpbg-checkbox-container">
                         <input type="checkbox" class="cpbg-checkbox" id="cpbg-show-remote"
                                ${settings.showRemoteBackground ? 'checked' : ''}>
-                        <label class="cpbg-label" for="cpbg-show-remote">顯示其他玩家的自訂背景</label>
+                        <label class="cpbg-label" for="cpbg-show-remote">${t("顯示他人自訂背景")}</label>
                     </div>
                 </div>
 
                 <div class="cpbg-buttons">
-                    <button class="cpbg-button secondary" id="cpbg-preview-btn">預覽</button>
-                    <button class="cpbg-button primary" id="cpbg-save-btn">保存設置</button>
-                    <button class="cpbg-button secondary" id="cpbg-cancel-btn">取消</button>
+                    <button class="cpbg-button secondary" id="cpbg-reset-btn"
+                        title="${t("清除自己的背景分享設定，恢復 CPB 預設背景；保留顯示他人背景的偏好。")}">${t("清除")}</button>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <button class="cpbg-button primary" id="cpbg-save-btn">${t("保存")}</button>
+                    <button class="cpbg-button secondary" id="cpbg-cancel-btn">${t("取消")}</button>
                 </div>
             </div>
         `;
 
+        modal.querySelector('#cpbg-url-input').value = settings.imageUrl || '';
         bindUIEvents(modal);
 
         uiElements.modal = modal;
@@ -632,6 +483,7 @@
         const cancelBtn = modal.querySelector('#cpbg-cancel-btn');
         const saveBtn = modal.querySelector('#cpbg-save-btn');
         const previewBtn = modal.querySelector('#cpbg-preview-btn');
+        const resetBtn = modal.querySelector('#cpbg-reset-btn');
 
         const handleClose = () => closeUI();
         const handleModalClick = (e) => {
@@ -646,7 +498,7 @@
             const validation = isValidImageUrl(url);
             if (!validation.valid) { showError(errorDiv, validation.error); return; }
             preview.className = 'cpbg-preview loading';
-            preview.textContent = '載入中...';
+            preview.textContent = t("載入中...");
             errorDiv.textContent = '';
             try {
                 const image = await loadImage(url);
@@ -663,7 +515,10 @@
                 if (request !== uiRequest || disposed || !isUIOpen) return;
                 showError(errorDiv, error.message);
                 preview.className = 'cpbg-preview';
-                preview.textContent = '預覽失敗';
+                cleanupBlobUrl(previewImage?.src);
+                previewImage = null;
+                preview.style.backgroundImage = '';
+                preview.textContent = t("預覽失敗");
             }
         };
 
@@ -677,7 +532,7 @@
             saveBtn.disabled = previewBtn.disabled = true;
             errorDiv.textContent = '';
             try {
-                if (enabled && !url) throw new Error("啟用背景時請輸入圖片網址");
+                if (enabled && !url) throw new Error(t("啟用背景時請輸入圖片網址"));
                 if (url) {
                     const validation = isValidImageUrl(url);
                     if (!validation.valid) throw new Error(validation.error);
@@ -699,22 +554,16 @@
             }
         };
 
+        resetBtn.addEventListener('click', () => {
+            try { void resetSettings(); }
+            catch (error) { showError(modal.querySelector('#cpbg-url-error'), error.message); }
+        });
         closeBtn.addEventListener('click', handleClose);
         cancelBtn.addEventListener('click', handleClose);
         saveBtn.addEventListener('click', handleSave);
         previewBtn.addEventListener('click', handlePreview);
         modal.addEventListener('click', handleModalClick);
 
-        [closeBtn, cancelBtn, saveBtn, previewBtn].forEach(btn => {
-            if (btn) addButtonClickEffect(btn);
-        });
-
-        uiElements.eventHandlers = {
-            handleClose,
-            handleModalClick,
-            handlePreview,
-            handleSave
-        };
     }
 
     function showError(errorDiv, message) {
@@ -772,7 +621,7 @@
         if (!shouldShow || !buttonImage) return;
 
         try {
-            DrawButton(BUTTON_X, BUTTON_Y, BUTTON_SIZE, BUTTON_SIZE, "", "White", "", "自訂背景設置");
+            DrawButton(BUTTON_X, BUTTON_Y, BUTTON_SIZE, BUTTON_SIZE, "", "White", "", t("自訂背景設置"));
 
             if (buttonImage.src && buttonImage.complete) {
                 DrawImage(buttonImage.src, BUTTON_X, BUTTON_Y, BUTTON_SIZE, BUTTON_SIZE);
@@ -984,7 +833,6 @@
                 uiElements.modal.remove();
                 uiElements.modal = null;
             }
-            uiElements.eventHandlers = null;
 
             const styleElement = document.querySelector('#cpbg-styles');
             if (styleElement) {
