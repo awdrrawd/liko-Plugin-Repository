@@ -3,7 +3,7 @@
 // @name:zh      Liko的自定義個人資料頁面背景
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.2.2-2
+// @version      1.2.3
 // @description  自定義個人資料頁面背景 | Custom Profile Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,14 +18,20 @@
 (function() {
     window.Liko = window.Liko ?? {};
     if (window.Liko.CPB) return;
-    const MOD_VER = "1.2.2-2";
+    const MOD_VER = "1.2.3";
     window.Liko.CPB = MOD_VER;
 
     let modApi = null;
+    let disposed = false;
+    let uiRequest = 0;
+    let previewImage = null;
+    const imageControllers = new Set();
     let customBG = null;
     let buttonImage = null;
     let isInitialized = false;
     let remoteBackgrounds = new Map();
+    const pendingRemoteBackgrounds = new Set();
+    const remoteBackgroundRetryAfter = new Map();
     let cacheAccessOrder = [];
     let isUIOpen = false;
     let uiElements = {};
@@ -33,10 +39,6 @@
     let interfaceCheckInterval = null;
     let currentViewingCharacter = null;
 
-    let cachedViewingCharacter = null;
-    let lastCharacterCheck = 0;
-    let lastScreenCheck = null;
-    let lastScreenCheckTime = 0;
     let pendingBlobUrls = new Set();
 
     // ===== 圖片路徑輔助工具 =====
@@ -76,8 +78,6 @@
     const BUTTON_Y = 190;
     const BUTTON_SIZE = 90;
     const MAX_CACHE_SIZE = 15;
-    const CHARACTER_CACHE_TIME = 50;
-    const SCREEN_CACHE_TIME = 100;
 
     function getButtonImageURL() {
         return ImagePathHelper.getIconURL('Extensions.png');
@@ -145,116 +145,39 @@
     }
 
     function getCurrentViewingCharacter() {
-        const now = Date.now();
-
-        if (now - lastCharacterCheck < CHARACTER_CACHE_TIME && cachedViewingCharacter !== null) {
-            return cachedViewingCharacter;
-        }
-
-        try {
-            let character = null;
-
-            if (typeof InformationSheetCharacter !== 'undefined' && InformationSheetCharacter) {
-                character = InformationSheetCharacter;
-            }
-            else if (typeof InformationSheetSelection !== 'undefined' && InformationSheetSelection !== null && typeof InformationSheetSelection === 'object') {
-                if (InformationSheetSelection.Name && (InformationSheetSelection.MemberNumber || InformationSheetSelection.ID)) {
-                    character = InformationSheetSelection;
-                }
-                else if (InformationSheetSelection.ID && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
-                    character = ChatRoomCharacter.find(c => c.ID === InformationSheetSelection.ID);
-                }
-                else if (InformationSheetSelection.MemberNumber && CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
-                    character = ChatRoomCharacter.find(c => c.MemberNumber === InformationSheetSelection.MemberNumber);
-                }
-            }
-            else if (typeof InformationSheetSelection !== 'undefined' && typeof InformationSheetSelection === 'number') {
-                if (CurrentScreen === "ChatRoom" && Array.isArray(ChatRoomCharacter)) {
-                    character = ChatRoomCharacter.find(c => c.MemberNumber === InformationSheetSelection);
-                }
-            }
-
-            if (!character) {
-                character = Player;
-            }
-
-            cachedViewingCharacter = character;
-            lastCharacterCheck = now;
-
-            return character;
-        } catch (e) {
-            console.error("🐈‍⬛ [CPB] ❌ 獲取當前查看角色失敗:", e.message);
-            return Player;
-        }
+        return typeof InformationSheetSelection === "object" ? InformationSheetSelection : null;
     }
 
+    // Reading defaults never changes or uploads account data.
     function getSettings() {
-    try {
-        if (!Player?.OnlineSharedSettings?.CustomProfileBG) {
-            Player.OnlineSharedSettings.CustomProfileBG = {
-                enabled: true,
-                imageUrl: DEFAULT_BG_URL,
-                lastUpdated: Date.now()
-            };
-        }
-
-        if (!Player?.ExtensionSettings?.CustomProfileBG) {
-            Player.ExtensionSettings.CustomProfileBG = {
-                showRemoteBackground: true
-            };
-        }
-
+        const shared = Player.OnlineSharedSettings?.CustomProfileBG;
+        const privateSettings = Player.ExtensionSettings?.CustomProfileBG;
         return {
-            ...Player.OnlineSharedSettings.CustomProfileBG,
-            showRemoteBackground: Player.ExtensionSettings.CustomProfileBG.showRemoteBackground
-        };
-    } catch (e) {
-        console.error("🐈‍⬛ [CPB] ❌ 獲取設置失敗:", e.message);
-        return {
-            enabled: true,
-            imageUrl: DEFAULT_BG_URL,
-            showRemoteBackground: true,
-            lastUpdated: Date.now()
+            enabled: shared?.enabled !== false,
+            imageUrl: typeof shared?.imageUrl === "string" ? shared.imageUrl : DEFAULT_BG_URL,
+            showRemoteBackground: privateSettings?.showRemoteBackground !== false,
+            lastUpdated: Number.isFinite(shared?.lastUpdated) ? shared.lastUpdated : 0
         };
     }
-}
 
     function saveSettings(settings) {
-    try {
-        if (!Player?.OnlineSharedSettings || !Player?.ExtensionSettings) return;
-
-        const { showRemoteBackground, ...sharedSettings } = settings;
-
+        if (disposed || !Player.OnlineSharedSettings || !Player.ExtensionSettings ||
+            typeof ServerAccountUpdate === "undefined" || typeof ServerAccountUpdate.QueueData !== "function" ||
+            typeof ServerPlayerExtensionSettingsSync !== "function") {
+            throw new Error("帳號同步尚未就緒，請稍後再試");
+        }
         Player.OnlineSharedSettings.CustomProfileBG = {
-            ...sharedSettings,
+            enabled: settings.enabled === true,
+            imageUrl: settings.imageUrl,
             lastUpdated: Date.now()
         };
-
         Player.ExtensionSettings.CustomProfileBG = {
-            showRemoteBackground: showRemoteBackground !== false
+            ...Player.ExtensionSettings.CustomProfileBG,
+            showRemoteBackground: settings.showRemoteBackground !== false
         };
-
-       if (typeof ServerAccountUpdate?.QueueData === 'function') {
-    ServerAccountUpdate.QueueData({
-        OnlineSharedSettings: Player.OnlineSharedSettings
-        // ← ExtensionSettings 不再一起送
-    });
-}
-if (typeof ServerPlayerExtensionSettingsSync === 'function') {
-    ServerPlayerExtensionSettingsSync("CustomProfileBG");  // ← 改用這個單獨同步
-}
-
-        if (typeof ServerPlayerExtensionSettingsSync === 'function') {
-            try {
-                ServerPlayerExtensionSettingsSync("CustomProfileBG");
-            } catch (syncError) {}
-        }
-
-        console.log("🐈‍⬛ [CPB] ✅ 設置已保存:", settings);
-    } catch (e) {
-        console.error("🐈‍⬛ [CPB] ❌ 保存設置失敗:", e.message);
+        ServerAccountUpdate.QueueData({ OnlineSharedSettings: Player.OnlineSharedSettings });
+        ServerPlayerExtensionSettingsSync("CustomProfileBG");
     }
-}
 
     function getPlayerCustomBackground(character) {
         if (!character || !character.OnlineSharedSettings) {
@@ -262,7 +185,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
         }
 
         const bgSettings = character.OnlineSharedSettings.CustomProfileBG;
-        if (!bgSettings || !bgSettings.enabled || !bgSettings.imageUrl) {
+        if (!bgSettings || !bgSettings.enabled || typeof bgSettings.imageUrl !== "string" || !bgSettings.imageUrl) {
             return null;
         }
 
@@ -270,28 +193,36 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
     }
 
     async function loadRemoteBackground(imageUrl) {
+        if (disposed) return;
         if (remoteBackgrounds.has(imageUrl)) {
             updateCacheAccess(imageUrl);
             return;
         }
 
+        if (pendingRemoteBackgrounds.has(imageUrl) ||
+            Date.now() < (remoteBackgroundRetryAfter.get(imageUrl) || 0)) return;
+        pendingRemoteBackgrounds.add(imageUrl);
+
         try {
-            const img = await loadImage(imageUrl, true);
+            const img = await loadImage(imageUrl);
 
-            cleanupImageCache();
-
+            if (disposed) { cleanupBlobUrl(img.src); return; }
             remoteBackgrounds.set(imageUrl, img);
+            remoteBackgroundRetryAfter.delete(imageUrl);
             updateCacheAccess(imageUrl);
 
-            if (CurrentScreen === "InformationSheet") {
-                setTimeout(() => {
-                    if (typeof InformationSheetRun === 'function') {
-                        InformationSheetRun();
-                    }
-                }, 50);
-            }
+            cleanupImageCache();
+            // BC draws continuously; the next frame uses the loaded image.
+
         } catch (error) {
+            if (disposed) return;
+            if (remoteBackgroundRetryAfter.size >= MAX_CACHE_SIZE) {
+                remoteBackgroundRetryAfter.delete(remoteBackgroundRetryAfter.keys().next().value);
+            }
+            remoteBackgroundRetryAfter.set(imageUrl, Date.now() + 30000);
             console.error("🐈‍⬛ [CPB] ❌ 遠程背景載入失敗:", imageUrl, error.message);
+        } finally {
+            pendingRemoteBackgrounds.delete(imageUrl);
         }
     }
 
@@ -305,7 +236,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
 
             const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
             const hasValidExtension = validExtensions.some(ext =>
-                parsedUrl.pathname.toLowerCase().includes(ext)
+                parsedUrl.pathname.toLowerCase().endsWith(ext)
             );
 
             if (!hasValidExtension) {
@@ -319,21 +250,11 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
     }
 
     function isProfilePage() {
-        const now = Date.now();
-
-        if (now - lastScreenCheckTime < SCREEN_CACHE_TIME && lastScreenCheck !== null) {
-            return lastScreenCheck;
-        }
-
-        const result = CurrentScreen === "InformationSheet" &&
-              window.bcx?.inBcxSubscreen() !== true &&
-              window.LITTLISH_CLUB?.inModSubscreen() !== true &&
-              window.MPA?.menuLoaded !== true &&
-              window.LSCG_REMOTE_WINDOW_OPEN !== true;
-
-        lastScreenCheck = result;
-        lastScreenCheckTime = now;
-        return result;
+        return !disposed && CurrentScreen === "InformationSheet" &&
+            window.bcx?.inBcxSubscreen() !== true &&
+            window.LITTLISH_CLUB?.inModSubscreen() !== true &&
+            window.MPA?.menuLoaded !== true &&
+            window.LSCG_REMOTE_WINDOW_OPEN !== true;
     }
 
     function shouldShowButton() {
@@ -348,57 +269,46 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
         return isProfilePage();
     }
 
-    async function loadImage(url, isPersistent = false) {
-        try {
-            const isGameResource = url && (
-                url.includes('/BondageClub/') ||
-                url.startsWith(window.location.origin)
-            );
-
-            if (isGameResource) {
-                return new Promise((resolve, reject) => {
-                    const img = new Image();
-                    img.onload = () => resolve(img);
-                    img.onerror = () => reject(new Error("遊戲資源載入失敗"));
-                    img.src = url;
-                });
-            }
-
+    async function loadImage(url) {
+        if (disposed) throw new Error("CPB 已卸載");
+        const parsed = new URL(url, window.location.href);
+        if (parsed.origin !== window.location.origin) {
             const validation = isValidImageUrl(url);
-            if (!validation.valid) {
-                throw new Error(validation.error);
-            }
-
-            const response = await fetch(url);
+            if (!validation.valid) throw new Error(validation.error);
+        }
+        const controller = new AbortController();
+        imageControllers.add(controller);
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        let blobUrl;
+        try {
+            const response = await fetch(parsed.href, { signal: controller.signal });
             if (!response.ok) throw new Error(`無法載入圖片: ${response.status}`);
-
             const blob = await response.blob();
-
-            if (blob.size > 10 * 1024 * 1024) {
-                throw new Error("圖片檔案過大，請使用小於 10MB 的圖片");
-            }
-
-            return new Promise((resolve, reject) => {
-                const img = new Image();
-                const blobUrl = URL.createObjectURL(blob);
-
-                pendingBlobUrls.add(blobUrl);
-
-                img.onload = () => {
-                    resolve(img);
+            if (blob.size > 10 * 1024 * 1024) throw new Error("圖片檔案過大，請使用小於 10MB 的圖片");
+            if (disposed || controller.signal.aborted) throw new Error("圖片載入已取消");
+            blobUrl = URL.createObjectURL(blob);
+            pendingBlobUrls.add(blobUrl);
+            const img = new Image();
+            await new Promise((resolve, reject) => {
+                const finish = (error) => {
+                    img.onload = img.onerror = null;
+                    controller.signal.removeEventListener("abort", abort);
+                    error ? reject(error) : resolve();
                 };
-
-                img.onerror = () => {
-                    cleanupBlobUrl(blobUrl);
-                    console.error("🐈‍⬛ [CPB] ❌ 圖片載入失敗:", url);
-                    reject(new Error("圖片載入失敗"));
-                };
-
+                const abort = () => finish(new Error("圖片載入逾時或已取消"));
+                controller.signal.addEventListener("abort", abort, { once: true });
+                img.onload = () => finish();
+                img.onerror = () => finish(new Error("圖片格式不支援或載入失敗"));
                 img.src = blobUrl;
             });
+            if (disposed) throw new Error("CPB 已卸載");
+            return img;
         } catch (error) {
-            console.error("🐈‍⬛ [CPB] ❌ 載入圖片時發生錯誤:", error.message);
+            cleanupBlobUrl(blobUrl);
             throw error;
+        } finally {
+            clearTimeout(timeout);
+            imageControllers.delete(controller);
         }
     }
 
@@ -729,95 +639,64 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
         };
 
         const handlePreview = async () => {
-            const urlInput = modal.querySelector('#cpbg-url-input');
+            const request = ++uiRequest;
+            const url = modal.querySelector('#cpbg-url-input').value.trim();
             const preview = modal.querySelector('#cpbg-preview');
             const errorDiv = modal.querySelector('#cpbg-url-error');
-
-            const url = urlInput.value.trim();
-            if (!url) {
-                showError(errorDiv, "請輸入圖片網址");
-                return;
-            }
-
             const validation = isValidImageUrl(url);
-            if (!validation.valid) {
-                showError(errorDiv, validation.error);
-                return;
-            }
-
+            if (!validation.valid) { showError(errorDiv, validation.error); return; }
             preview.className = 'cpbg-preview loading';
             preview.textContent = '載入中...';
             errorDiv.textContent = '';
-
             try {
-                if (preview.style.backgroundImage) {
-                    const oldUrl = preview.style.backgroundImage.match(/url\("([^"]+)"\)/);
-                    if (oldUrl && oldUrl[1] && oldUrl[1].startsWith('blob:')) {
-                        cleanupBlobUrl(oldUrl[1]);
-                    }
+                const image = await loadImage(url);
+                if (request !== uiRequest || disposed || !isUIOpen) {
+                    cleanupBlobUrl(image.src);
+                    return;
                 }
-
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`無法載入圖片: ${response.status}`);
-
-                const blob = await response.blob();
-                if (blob.size > 10 * 1024 * 1024) {
-                    throw new Error("圖片檔案過大，請使用小於 10MB 的圖片");
-                }
-
-                const previewUrl = URL.createObjectURL(blob);
-                pendingBlobUrls.add(previewUrl);
-
-                const testImg = new Image();
-                await new Promise((resolve, reject) => {
-                    testImg.onload = resolve;
-                    testImg.onerror = () => reject(new Error("圖片格式不支援"));
-                    testImg.src = previewUrl;
-                });
-
-                preview.style.backgroundImage = `url("${previewUrl}")`;
+                cleanupBlobUrl(previewImage?.src);
+                previewImage = image;
+                preview.style.backgroundImage = `url("${image.src}")`;
                 preview.textContent = '';
                 preview.className = 'cpbg-preview';
             } catch (error) {
+                if (request !== uiRequest || disposed || !isUIOpen) return;
                 showError(errorDiv, error.message);
                 preview.className = 'cpbg-preview';
                 preview.textContent = '預覽失敗';
-                preview.style.backgroundImage = '';
-                console.error("🐈‍⬛ [CPB] ❌ 預覽載入失敗:", error.message);
             }
         };
 
         const handleSave = async () => {
-            const urlInput = modal.querySelector('#cpbg-url-input');
+            const request = ++uiRequest;
             const errorDiv = modal.querySelector('#cpbg-url-error');
-
-            const url = urlInput.value.trim();
+            const url = modal.querySelector('#cpbg-url-input').value.trim();
             const enabled = modal.querySelector('#cpbg-enabled').checked;
-            const showRemote = modal.querySelector('#cpbg-show-remote').checked;
-
-            if (enabled && url) {
-                const validation = isValidImageUrl(url);
-                if (!validation.valid) {
-                    showError(errorDiv, validation.error);
+            const showRemoteBackground = modal.querySelector('#cpbg-show-remote').checked;
+            let image = null;
+            saveBtn.disabled = previewBtn.disabled = true;
+            errorDiv.textContent = '';
+            try {
+                if (enabled && !url) throw new Error("啟用背景時請輸入圖片網址");
+                if (url) {
+                    const validation = isValidImageUrl(url);
+                    if (!validation.valid) throw new Error(validation.error);
+                }
+                if (enabled) image = await loadImage(url);
+                if (request !== uiRequest || disposed || !isUIOpen) {
+                    cleanupBlobUrl(image?.src);
                     return;
                 }
-
-                try {
-                    customBG = await loadImage(url, true);
-                } catch (error) {
-                    showError(errorDiv, error.message);
-                    return;
-                }
+                saveSettings({ enabled, imageUrl: url, showRemoteBackground });
+                cleanupBlobUrl(customBG?.src);
+                customBG = image;
+                closeUI();
+            } catch (error) {
+                cleanupBlobUrl(image?.src);
+                if (request === uiRequest && !disposed && isUIOpen) showError(errorDiv, error.message);
+            } finally {
+                saveBtn.disabled = previewBtn.disabled = false;
             }
-
-            const newSettings = {
-                enabled,
-                imageUrl: url,
-                showRemoteBackground: showRemote
-            };
-
-            saveSettings(newSettings);
-            closeUI();
         };
 
         closeBtn.addEventListener('click', handleClose);
@@ -863,71 +742,28 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
         if (!isUIOpen) return;
 
         isUIOpen = false;
+        uiRequest++;
+        cleanupBlobUrl(previewImage?.src);
+        previewImage = null;
         if (uiElements.modal) {
             uiElements.modal.style.display = 'none';
         }
     }
 
-    function setupDrawImageHook() {
-        const originalDrawImage = CanvasRenderingContext2D.prototype.drawImage;
-
-        CanvasRenderingContext2D.prototype.drawImage = function(img, ...args) {
-            try {
-                if (img && img.src && img.src.includes("Backgrounds/Sheet.jpg")) {
-                    const shouldReplace = shouldReplaceBackground();
-
-                    if (shouldReplace) {
-                        const settings = getSettings();
-                        const viewingCharacter = getCurrentViewingCharacter();
-
-                        let targetBG = null;
-
-                        if (viewingCharacter &&
-                            viewingCharacter.MemberNumber !== Player.MemberNumber &&
-                            settings.showRemoteBackground) {
-
-                            const remoteImageUrl = getPlayerCustomBackground(viewingCharacter);
-
-                            if (remoteImageUrl) {
-                                if (remoteBackgrounds.has(remoteImageUrl)) {
-                                    targetBG = remoteBackgrounds.get(remoteImageUrl);
-                                    updateCacheAccess(remoteImageUrl);
-                                } else {
-                                    loadRemoteBackground(remoteImageUrl).then(() => {
-                                        if (CurrentScreen === "InformationSheet") {
-                                            setTimeout(() => {
-                                                if (typeof InformationSheetRun === 'function') {
-                                                    InformationSheetRun();
-                                                }
-                                            }, 100);
-                                        }
-                                    });
-
-                                    if (settings.enabled && customBG) {
-                                        targetBG = customBG;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (!targetBG && settings.enabled && customBG) {
-                            targetBG = customBG;
-                        }
-
-                        if (targetBG) {
-                            const canvas = this.canvas;
-                            if (canvas) {
-                                originalDrawImage.call(this, targetBG, 0, 0, targetBG.width, targetBG.height, 0, 0, canvas.width, canvas.height);
-                                return;
-                            }
-                        }
-                    }
+    function getTargetBackground() {
+        const settings = getSettings();
+        const character = getCurrentViewingCharacter();
+        if (character && character.MemberNumber !== Player.MemberNumber && settings.showRemoteBackground) {
+            const url = getPlayerCustomBackground(character);
+            if (url) {
+                if (remoteBackgrounds.has(url)) {
+                    updateCacheAccess(url);
+                    return remoteBackgrounds.get(url);
                 }
-            } catch (e) {
-                console.error("🐈‍⬛ [CPB] ❌ drawImage 處理失敗:", e.message);
+                void loadRemoteBackground(url);
             }
-            return originalDrawImage.call(this, img, ...args);
-        };
+        }
+        return settings.enabled ? customBG : null;
     }
 
     function drawButton() {
@@ -998,7 +834,8 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
     return new Promise(resolve => {
         const check = () => {
             if (typeof CurrentScreen !== 'undefined' &&
-                typeof DrawImage === 'function' &&
+                typeof DrawRoomBackground === 'function' &&
+                typeof DrawProcess === 'function' &&
                 typeof DrawButton === 'function' &&
                 typeof MouseIn === 'function' &&
                 typeof Player !== 'undefined' &&
@@ -1022,90 +859,44 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             return;
         }
 
-        const hasThemed = window.Themed || window.Player?.Themed;
-
         let cpbControllingBackground = false;
-
-        if (hasThemed) {
-            modApi.hookFunction("DrawRoomBackground", 100, (args, next) => {
-                try {
-                    const [url] = args;
-                    if (url && url.includes("Backgrounds/Sheet.jpg") && shouldReplaceBackground()) {
-                        const settings = getSettings();
-                        const viewingCharacter = getCurrentViewingCharacter();
-
-                        let targetBG = null;
-
-                        if (viewingCharacter &&
-                            viewingCharacter.MemberNumber !== Player.MemberNumber &&
-                            settings.showRemoteBackground) {
-                            const remoteImageUrl = getPlayerCustomBackground(viewingCharacter);
-                            if (remoteImageUrl && remoteBackgrounds.has(remoteImageUrl)) {
-                                targetBG = remoteBackgrounds.get(remoteImageUrl);
-                                updateCacheAccess(remoteImageUrl);
-                            }
-                        }
-
-                        if (!targetBG && settings.enabled && customBG) {
-                            targetBG = customBG;
-                        }
-
-                        if (targetBG) {
-                            cpbControllingBackground = true;
-
-                            MainCanvas.save();
-                            MainCanvas.globalCompositeOperation = "source-over";
-                            MainCanvas.filter = "none";
-                            MainCanvas.globalAlpha = 1;
-
-                            MainCanvas.drawImage(targetBG, 0, 0, 2000, 1000);
-
-                            MainCanvas.restore();
-
-                            setTimeout(() => {
-                                cpbControllingBackground = false;
-                            }, 200);
-
-                            return;
-                        }
-                    }
-
-                    cpbControllingBackground = false;
-                    return next(args);
-                } catch (e) {
-                    console.error("🐈‍⬛ [CPB] ❌ DrawRoomBackground hook 失敗:", e.message);
-                    cpbControllingBackground = false;
-                    return next(args);
+        // Scope overlay suppression to this frame instead of a wall-clock timeout.
+        modApi.hookFunction("DrawProcess", 100, (args, next) => {
+            cpbControllingBackground = false;
+            try { return next(args); }
+            finally { cpbControllingBackground = false; }
+        });
+        modApi.hookFunction("DrawRoomBackground", 100, (args, next) => {
+            const [, bounds] = args;
+            // Only the full-screen profile background; UBC may supply any image URL.
+            if (shouldReplaceBackground() && bounds && bounds.x === 0 && bounds.y === 0 &&
+                bounds.w === MainCanvasWidth && bounds.h === MainCanvasHeight) {
+                const image = getTargetBackground();
+                if (image) {
+                    MainCanvas.save();
+                    try {
+                        MainCanvas.globalCompositeOperation = "source-over";
+                        MainCanvas.filter = "none";
+                        MainCanvas.globalAlpha = 1;
+                        MainCanvas.drawImage(image, bounds.x, bounds.y, bounds.w, bounds.h);
+                        cpbControllingBackground = true;
+                    } finally { MainCanvas.restore(); }
+                    return;
                 }
-            });
-
-            modApi.hookFunction("DrawRect", 200, (args, next) => {
-                try {
-                    const [Left, Top, Width, Height, Color] = args;
-
-                    if (cpbControllingBackground &&
-                        Left === 0 && Top === 0 &&
-                        Width >= 2000 && Height >= 1000 &&
-                        (typeof Color === 'string' && Color.includes('main'))) {
-
-                        console.log("🐈‍⬛ [CPB] ❗ 阻止 Themed 颜色叠加");
-                        return;
-                    }
-
-                    return next(args);
-                } catch (e) {
-                    console.error("🐈‍⬛ [CPB] ❌ DrawRect hook 失敗:", e.message);
-                    return next(args);
-                }
-            });
-
-        } else {
-            setupDrawImageHook();
-        }
+            }
+            return next(args);
+        });
+        modApi.hookFunction("DrawRect", 200, (args, next) => {
+            const [left, top, width, height, color] = args;
+            if (cpbControllingBackground && isProfilePage() && left === 0 && top === 0 &&
+                width >= MainCanvasWidth && height >= MainCanvasHeight &&
+                typeof color === "string" && color.includes("main")) return;
+            return next(args);
+        });
 
         modApi.hookFunction("InformationSheetRun", 10, (args, next) => {
+            const result = next(args);
             try {
-                const result = next(args);
                 currentViewingCharacter = getCurrentViewingCharacter();
                 drawButton();
 
@@ -1116,7 +907,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 return result;
             } catch (e) {
                 console.error("🐈‍⬛ [CPB] ❌ InformationSheetRun 處理失敗:", e.message);
-                return next(args);
+                return result;
             }
         });
 
@@ -1126,8 +917,6 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             if (CurrentScreen !== "InformationSheet") return result;
             try {
                 currentViewingCharacter = getCurrentViewingCharacter();
-                cachedViewingCharacter = null;
-                lastCharacterCheck = 0;
             } catch (e) {
                 console.error("🐈‍⬛ [CPB] ❌ InformationSheetLoad 處理失敗:", e.message);
             }
@@ -1150,10 +939,6 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             try {
                 stopInterfaceMonitoring();
                 currentViewingCharacter = null;
-                cachedViewingCharacter = null;
-                lastCharacterCheck = 0;
-                lastScreenCheck = null;
-                lastScreenCheckTime = 0;
                 cpbControllingBackground = false;
 
                 if (isUIOpen) {
@@ -1167,6 +952,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
         });
     }
     function waitForLogin() {
+        if (typeof ServerIsLoggedInAsync === "function") return ServerIsLoggedInAsync();
         if (window.Player?.MemberNumber !== undefined) return Promise.resolve();
         return new Promise(resolve => {
             const remove = modApi.hookFunction("LoginResponse", 0, (args, next) => {
@@ -1183,6 +969,12 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
     function cleanup() {
         console.log("🐈‍⬛ [CPB] ⌛ 開始資源清理...");
 
+        disposed = true;
+        uiRequest++;
+        for (const controller of imageControllers) controller.abort();
+        imageControllers.clear();
+        pendingRemoteBackgrounds.clear();
+        remoteBackgroundRetryAfter.clear();
         try {
             stopInterfaceMonitoring();
 
@@ -1223,10 +1015,6 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             buttonImage = null;
 
             currentViewingCharacter = null;
-            cachedViewingCharacter = null;
-            lastCharacterCheck = 0;
-            lastScreenCheck = null;
-            lastScreenCheckTime = 0;
 
             isInitialized = false;
             isUIOpen = false;
@@ -1239,7 +1027,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
     }
 
     async function initialize() {
-        if (isInitialized) return;
+        if (isInitialized || disposed) return;
 
         console.log("🐈‍⬛ [CPB] ⌛ 開始初始化...");
 
@@ -1249,7 +1037,17 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 console.error("🐈‍⬛ [CPB] ❌ modApi 初始化失敗，無法繼續");
                 return;
             }
+            if (modApi && typeof modApi.onUnload === 'function') {
+                modApi.onUnload(() => {
+                    console.log("🐈‍⬛ [CPB] ⌛ 模組卸載中...");
+                    cleanup();
+                });
+            }
+
+            window.addEventListener('beforeunload', cleanup);
+
             await waitForLogin();
+            if (disposed) return;
 
             const gameLoaded = await waitForGame();
             if (!gameLoaded) {
@@ -1261,22 +1059,20 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
 
             if (settings.enabled && settings.imageUrl) {
                 try {
-                    customBG = await loadImage(settings.imageUrl, true);
+                    customBG = await loadImage(settings.imageUrl);
                 } catch (error) {
                     console.warn("🐈‍⬛ [CPB] ❌ 載入保存的背景失敗:", error.message);
                     try {
-                        customBG = await loadImage(DEFAULT_BG_URL, true);
-                        const newSettings = { ...settings, imageUrl: DEFAULT_BG_URL };
-                        saveSettings(newSettings);
+                        customBG = await loadImage(DEFAULT_BG_URL);
+                        // Temporary fallback only; preserve the saved URL.
                     } catch (defaultError) {
                         console.error("🐈‍⬛ [CPB] ❌ 默認背景載入也失敗:", defaultError.message);
                     }
                 }
             } else if (!settings.imageUrl) {
                 try {
-                    customBG = await loadImage(DEFAULT_BG_URL, true);
-                    const newSettings = { ...settings, imageUrl: DEFAULT_BG_URL };
-                    saveSettings(newSettings);
+                    customBG = await loadImage(DEFAULT_BG_URL);
+                    // Empty settings stay empty until the user explicitly saves.
                 } catch (error) {
                     console.error("🐈‍⬛ [CPB] ❌ 載入默認背景失敗:", error.message);
                 }
@@ -1285,7 +1081,7 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
             try {
                 const buttonImageURL = getButtonImageURL();
                 if (buttonImageURL) {
-                    buttonImage = await loadImage(buttonImageURL, true);
+                    buttonImage = await loadImage(buttonImageURL);
                     console.log("🐈‍⬛ [CPB] ✅ 按鈕圖標載入成功");
                 } else {
                     throw new Error("無法獲取按鈕圖標路徑");
@@ -1295,17 +1091,8 @@ if (typeof ServerPlayerExtensionSettingsSync === 'function') {
                 buttonImage = null;
             }
 
-            setupDrawImageHook();
+            if (disposed) return;
             setupHooks();
-
-            if (modApi && typeof modApi.onUnload === 'function') {
-                modApi.onUnload(() => {
-                    console.log("🐈‍⬛ [CPB] ⌛ 模組卸載中...");
-                    cleanup();
-                });
-            }
-
-            window.addEventListener('beforeunload', cleanup);
 
             startInterfaceMonitoring();
 
