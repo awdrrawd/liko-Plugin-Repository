@@ -72,7 +72,7 @@ import(`https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?v=$
 | 🎵 **Liko的聊天室音樂控制器(測試中)**<br><sub>Liko's Music Controller(testing)</sub><br>`Liko-CMC` | 支援歌詞(需要有曲名)、歌曲列表 | v1.4.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CMC.main.user.js) |
 | 📱 **手機直版佈局(測試)**<br><sub>Mobile Portrait Layout(test)</sub><br>`Liko-MPL` | 支援房間搜尋與聊天室的直版佈局 | v0.5.5 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MPL.main.user.js) |
 | 📧 **Liko的邀請通知器**<br><sub>Liko's Notification of Invites</sub><br>`Liko-NOI` | 發出好友、白單、黑單的信息! | v1.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20NOI.main.user.js) |
-| 🆔 **WCE的個人資料分享**<br><sub>WCE Profile Share.</sub><br>`Liko-WPS` | WCE的個人資料分享，需開啟WCE的個人資料保存 | v1.1.3 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20WPS.main.user.js) |
+| 🆔 **WCE的個人資料分享**<br><sub>WCE Profile Share.</sub><br>`Liko-WPS` | WCE的個人資料分享，需開啟WCE的個人資料保存 | v1.1.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20WPS.main.user.js) |
 | ⚧️ **快速切換混合&女性區**<br><sub>Region switch</sub><br>`Liko-Region_switch` | 快速切換混合&女性區 | v1.3.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Region%20switch.main.user.js) |
 | 🎮 **Liko的玩具遙控器**<br><sub>Liko's Toy remote control</sub><br>`Liko-TRC` | 聊天室玩具控制 | v1.1.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TRC.main.user.js) |
 | 📋 **聊天室信息過濾器**<br><sub>RChat Filter Tool</sub><br>`Liko-CFT` | 聊天室信息過濾 | v1.1.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CFT.main.user.js) |
