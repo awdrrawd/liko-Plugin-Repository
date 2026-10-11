@@ -248,6 +248,7 @@
         return _dbPromise;
     }
 
+    // 收到分享時與按「開啟」時都會呼叫（只在 seen 比本地新時才寫入），所以重複呼叫無害。
     async function saveIfNewer(profile) {
         try {
             const db = await openBceDB();
@@ -400,6 +401,9 @@
                 getI18N().sharedFrom(escapeHtml(fromName), `${openToken} ${escapeHtml(displayName)} (${p.memberNumber})`, seenText),
                 0
             );
+
+            // 收到就記錄（與 FCM / LCE 一致），不必等使用者點「開啟」；只在比本地新時才覆蓋。
+            void saveIfNewer(p);
         } catch (e) {
             log("❌ parse error", e);
         }
