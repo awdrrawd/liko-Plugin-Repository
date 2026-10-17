@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.3.3
+// @version      2.3.4
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
     // 防重複載入必須先於生命週期資源、事件與初始化。
     window.Liko = window.Liko ?? {};
     if (window.Liko.LT) return;
-    const MOD_Version = "2.3.3";
+    const MOD_Version = "2.3.4";
     window.Liko.LT = MOD_Version;
 
     // 閱讀順序：生命週期 → 靜態資源／語系 → 設定 → 共用操作 → UI → 功能 → Hook → 啟動。
@@ -3026,26 +3026,44 @@
     // Free Hands 无视绑缚（被绑时仍可使用双手，不解开任何拘束道具）
     //  - 透过 ModSDK 挂钩 Player 的实例方法（点路径 "Player.X"，ModSDK 会解析 window.Player.X），
     //    让修改登记在本 mod 名下 → 不会被其他工具判为「未使用 ModSDK 的未知修改」。
-    //  - 只挂一次；实际启停由 getES().freeHands 决定（关闭时走 next(args) 原逻辑，零副作用）。
-    //  ponytail: 挂钩在 hook 时解析当前 Player 实例；同页内重登录换了 Player 物件需重挂（init 会重跑）。
+    //  - 必须使用标准路径 "Player.X"：BCX 会逐个 ModSDK entry 检查「属性上的函式是否就是该 entry 的 router」，
+    //    若另开别名 entry 去包同一个属性，会被判成「Overwritten functions」并弹出 Unknown mod 警告。
+    //  - 每个 Player 实例只挂一次；实际启停由 getES().freeHands 决定（关闭时走 next(args) 原逻辑，零副作用）。
+    //  ponytail: ModSDK 只在「第一次」挂钩某路径时解析并记住物件。若该路径在登入前已被别的 mod 建立过 entry，
+    //    新 Player 不会被路由（ModSDK 无法重新绑定）；这里只做只读诊断，不改写任何东西。
     // ──────────────────────────────────────────
-    let freeHandsPlayer = null, freeHandsRemovers = [];
+    let freeHandsPlayer = null, freeHandsRemovers = [], freeHandsTimer = null;
+
+    function clearFreeHandsHooks() {
+        freeHandsRemovers.forEach(remove => { try { remove(); } catch (e) {} });
+        freeHandsRemovers = []; freeHandsPlayer = null;
+    }
 
     function setupFreeHandsHooks() {
         const player = window.Player;
-        if (freeHandsPlayer === player || !modApi || !player?.MemberNumber) return;
-        freeHandsRemovers.forEach(remove => remove());
-        freeHandsRemovers = []; freeHandsPlayer = null;
+        if (disposed || freeHandsPlayer === player || !modApi || !player?.MemberNumber) return;
+        clearFreeHandsHooks();
+        const names = [['CanInteract', true], ['IsRestrained', false], ['CanChangeOwnClothes', true]];
         try {
-            for (const [name, value] of [['CanInteract', true], ['IsRestrained', false], ['CanChangeOwnClothes', true]]) {
+            for (const [name, value] of names) {
                 freeHandsRemovers.push(modApi.hookFunction('Player.' + name, 2,
                     (args, next) => getES().freeHands === 1 ? value : next(args)));
             }
             freeHandsPlayer = player;
         } catch (error) {
-            freeHandsRemovers.forEach(remove => remove()); freeHandsRemovers = [];
+            clearFreeHandsHooks();
             console.error('[LT] FreeHands hooks:', error);
+            return;
         }
+        // 只读诊断：确认当前 Player 上的方法确实是 ModSDK router，否则代表 hook 没有路由到这个 Player。
+        try {
+            const info = bcModSdk.getPatchingInfo?.();
+            const stale = names.map(([name]) => name).filter(name => {
+                const entry = info?.get('Player.' + name);
+                return entry && player[name] !== entry.sdkEntrypoint;
+            });
+            if (stale.length) console.warn('🐈‍⬛ [LT] ⚠️ FreeHands hook 未路由到当前 Player（ModSDK entry 绑定了旧物件）:', stale.join(', '));
+        } catch (e) { /* 诊断失败不影响功能 */ }
     }
 
     function freeHandsCommand() { return toggleSetting('freeHands', { on: 'fhOn', off: 'fhOff', shared: 'FreeHands' }); }
@@ -3556,7 +3574,7 @@
         initializeStorage();
         setupHiddenRpBtnShortcut();
         setupFreeHandsHooks();
-        setInterval(setupFreeHandsHooks, 1000);
+        freeHandsTimer = setInterval(setupFreeHandsHooks, 1000);
         applyIgnoreBlock();
         startMagicDefenseHooks();
         if (getES().dnd === 1) dndCaptureBaseline();
@@ -3597,6 +3615,7 @@
         hideToolPanel();
         stopLifecycle();
         removeIgnoreBlockHooks(); restoreMagicDefenseHooks();
+        clearInterval(freeHandsTimer); freeHandsTimer = null; clearFreeHandsHooks();
         try { modApi?.unload(); } catch (error) { console.warn(error); }
         modApi=null;
         window.Liko.__Sys_ChatRoomButtons__?.remove(TOOL_CRB_ID);

@@ -3,7 +3,7 @@
 // @name:zh      Liko的邀請通知器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.1
+// @version      1.1.1
 // @description  Notify on Invite - Optimized with hooks
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -17,7 +17,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.1";
+    const MOD_VER = "1.1.1";
     if (window.Liko.NOI) return;
     window.Liko.NOI = MOD_VER;
     
@@ -369,8 +369,8 @@
                 const result = next(args);
                 const show = () => {
                     if (!window.LikoNOIWelcomed) {
-                        window.ChatRoomSendLocalStyled(
-                            " 📧 Liko的邀请通知器 v" + modversion + " 已載入！使用 /noi help 查看说明",
+                        ChatRoomSendLocalStyled(
+                            " 📧 Liko的邀请通知器 v" + MOD_VER + " 已載入！使用 /noi help 查看说明",
                             5000,
                             "#885CB0"
                         );
@@ -533,7 +533,7 @@
                 modApi = bcModSdk.registerMod({
                     name: "Liko - NOI",
                     fullName: "Liko's Notify on Invite (Optimized)",
-                    version: modversion,
+                    version: MOD_VER,
                     repository: "https://github.com/awdrrawd/liko-Plugin-Repository"
                 });
                 log("modApi 註冊成功");

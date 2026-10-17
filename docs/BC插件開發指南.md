@@ -3,6 +3,7 @@
 > 適用對象：開發本工作區 BC 插件的人與 AI。
 > 原則：先做出可驗收的效果，再把必要的原生流程、相容性與限制補齊。
 > 核對日期：2026-09-14；續寫與容量限制補正：2026-09-15。遊戲基準：本地 `BCJS/Bondage-College-master/BondageClub`，`GameVersion = "R131"`；SDK 基準：`Plugins/expand/bcmodsdk.js`，版本 1.2.0。
+> 2026-10-12 補正：另對照 Bondage-College-Mirror 原始碼（`GameVersion = "R133Beta1"`）核對 `Server.js`、`Login.js`，修正 `ServerPlayerExtensionSettingsSync` 的行為，並新增同層多鍵保存（8.2）與送出頻率限制（8.5.1）。
 > 本文件已對照原始碼；範例尚未在遊戲內執行驗證。實作案例代表現有程式的做法，不代表所有版本、姿勢或插件組合都已測通。
 
 ## 1. 怎麼使用這份指南
@@ -18,6 +19,7 @@
 | 貼著角色的特效 | HSC，第 7 節 | 姿勢／身高／縮放、Canvas 到 DOM 座標 |
 | 個人設定、公開狀態 | 第 8 節 | 誰需要讀取、保存在哪裡、何時同步 |
 | 180K 限制、大資料保存與遷移 | 第 8.5～8.7 節 | 完整 payload 位元組數、預算、超限後的處理 |
+| 一次要送多筆（分欄位、遷移、批次） | 第 8.5.1 節 | 每秒封包上限、排隊延遲、與聊天訊息共用佇列 |
 | 原生道具／互動功能 | 第 9 節 | 權限、驗證、外觀與聊天室同步 |
 | 更新後功能失效 | 第 10、11 節 | 原生入口是否改動、hook 是否執行、資料是否被覆寫 |
 
@@ -329,7 +331,9 @@ Player.ExtensionSettings.MyPlugin = JSON.stringify({ version: 1, enabled: true }
 ServerPlayerExtensionSettingsSync("MyPlugin");
 ```
 
-指定版本的 `ServerPlayerExtensionSettingsSync` 會檢查該鍵不是 undefined，建立 `ExtensionSettings.MyPlugin` 欄位，再呼叫 `ServerSend("AccountUpdate", obj)`。不要把整包其他插件設定重新送回去。
+`ServerPlayerExtensionSettingsSync(dataKeyName)` 先檢查 `Player.ExtensionSettings[dataKeyName]`：**值是 `undefined` 時直接丟出 `Error`**（不是靜默返回），否則組出 `{ "ExtensionSettings.<鍵>": 值 }` 並呼叫 `ServerSend("AccountUpdate", obj)`。核對來源：Bondage-College-Mirror `Scripts/Server.js`（R133Beta1）。它一次只送一個鍵，不要把整包其他插件設定重新送回去。
+
+因為 `undefined` 會丟錯，**不能用 `delete Player.ExtensionSettings[key]` 再同步來移除欄位**；要清掉內容，改寫成空字串（或其他明確的空值）再同步，並在讀取端把空值視為「無資料」。同步呼叫放進 try/catch，失敗時還原本地值。
 
 **大型物件型設定：** 若伺服器中自己的插件資料是可局部更新的物件，依變更葉節點送 dot-notation 欄位。以下是整合片段；`nextRule` 是呼叫端已驗證的 JSON 值，大小檢查沿用 8.5 的保守預算：
 
@@ -354,7 +358,15 @@ function saveMyPluginRule(nextRule) {
 }
 ```
 
-不能直接呼叫 `ServerPlayerExtensionSettingsSync("MyPlugin.RULE")` 期待 helper 自動走訪物件：它讀的是 `Player.ExtensionSettings[dataKeyName]`，沒有拆解巢狀路徑。局部更新使用明確的 AccountUpdate payload，並同步維護本地對應欄位。
+不能直接呼叫 `ServerPlayerExtensionSettingsSync("MyPlugin.RULE")` 期待 helper 自動走訪物件：它讀的是 `Player.ExtensionSettings[dataKeyName]`，沒有拆解巢狀路徑；`"MyPlugin.RULE"` 這種鍵在 `Player.ExtensionSettings` 上不存在，會被判為 `undefined` 而丟錯。局部更新使用明確的 AccountUpdate payload，並同步維護本地對應欄位。
+
+**同層多鍵（已由原始碼核對客戶端行為）：** 想把一份大資料拆開保存、又不依賴巢狀路徑，可以用多個同層鍵，例如索引鍵 `MyPlugin` 加上 `MyPlugin_P0`、`MyPlugin_P1`……。依 Mirror 原始碼：`ExtensionSettings` 型別是 `{ [key: string]: any }`，`Login.js` 登入時整包 `Player.ExtensionSettings = C.ExtensionSettings ?? {}`，客戶端沒有限制鍵的數量或內容；每個鍵各走一次 `ServerPlayerExtensionSettingsSync`，也就是各自獨立的一次傳輸。做法要點：
+
+- 只同步內容真的有變的鍵（與目前值比較），每個鍵各自量測並低於預算（見 8.5）。
+- 先寫資料鍵、最後才寫索引；刪除資料時**先**讓索引不再引用它，再把該鍵清成空值，避免中途中斷後索引指向空資料。
+- 讀取時任何被索引引用的鍵遺失或損壞，都應丟錯並保留原資料，不要用預設值覆蓋。
+- 一次寫很多鍵會受 8.5.1 的送出頻率限制，並與聊天訊息共用佇列。
+- 這只證明客戶端流程；伺服器端如何儲存、是否另有鍵數限制，原始碼看不出來，仍依維護者確認的 180K 單次傳輸規則設計。
 
 也不能對已序列化的 JSON 字串做物件路徑更新。若 `ExtensionSettings.MyPlugin` 現在是字串，`.RULE` 並不是其可更新子欄位；要先規劃遷移為物件型結構或獨立可更新欄位。只有單一不可再拆的值本身仍超過傳輸預算時，才進一步考慮壓縮、應用層分塊或本機儲存。
 
@@ -431,7 +443,31 @@ function saveGuideSettings(settings) {
 
 欄位檢查與完整訊息檢查各有用途：平常只送自己實際變更的欄位，必要時深入到 RULE／TEST 等子欄位；每次仍檢查真正的整包提交。不要把插件資料累積大小當成「剩餘傳輸容量」，也不能把其他插件的資料刪掉來讓自己的提交通過。
 
-`QueueData` 可能把多次欄位更新合成一包。每個欄位各自低於預算，不代表合併後安全；需要分開的 RULE／TEST 更新不能因排程合併而又形成超大包。可建立各自符合預算的 AccountUpdate 呼叫，交給正常 ServerSend 佇列處理。合理分次局部更新是遵守限制的方式；仍應避免高頻切片與無限重試。
+`QueueData` 可能把多次欄位更新合成一包。每個欄位各自低於預算，不代表合併後安全；需要分開的 RULE／TEST 更新不能因排程合併而又形成超大包。可建立各自符合預算的 AccountUpdate 呼叫，交給正常 ServerSend 佇列處理。合理分次局部更新是遵守限制的方式；仍應避免高頻切片與無限重試，並注意 8.5.1 的每秒訊息上限。
+
+### 8.5.1 送出頻率：每秒封包上限
+
+客戶端對**所有** `ServerSend` 訊息做滑動視窗限流（`Scripts/Server.js`，R133Beta1）：
+
+```js
+var ServerSendRateLimit = 14;          // 每個視窗最多 14 則
+var ServerSendRateLimitInterval = 1200; // 視窗長度 1200 ms
+```
+
+換算約 **14 則／1.2 秒，平均約 11.7 則／秒**。行為：
+
+- `ServerSend` 只是把 `{ Message, args }` 放進 `ServerSendRateLimitQueue`，再呼叫 `ServerSendQueueProcess()`；該函式濾掉 1200 ms 以前的送出時間戳，視窗內不足 14 則才 `shift()` 出訊息並 `ServerSocket.emit`。超出的訊息**留在佇列中等待，不會被丟棄**。
+- `ServerSendQueueProcess()` 每個畫面幀在 `GameRun` 內被呼叫，背景分頁（動畫幀被節流）時另有一條備援路徑也會呼叫，所以排隊的訊息會持續被消化。
+- 這個佇列是**全域共用**的：`AccountUpdate`、`ChatRoomChat`、`ChatRoomCharacterUpdate` 等都在同一個額度裡。插件一次塞入大量 `AccountUpdate`，會延後同時間的聊天、動作與外觀更新。
+- 估算：連續送出 N 則時，第一批 14 則立即送出，之後每 1.2 秒再放行 14 則。例如 101 則約需 7 個額外視窗，也就是約 8～9 秒才送完；這段期間玩家自己的聊天訊息也在同一條隊伍後面。
+
+設計上的要求：
+
+- 分欄位保存時只送有變動的欄位；首次遷移、匯入大量資料這類「一次全寫」的操作要提示使用者，或分批排程，不要在同一個事件裡一次寫完所有鍵。
+- 不要在輸入框、滑桿拖曳等高頻事件中直接同步；用 debounce／提交後保存（見 8.2）。
+- 不要用迴圈一次排入無上限數量的訊息；批次要有上限與進度顯示，必要時讓使用者取消。
+- 這是**客戶端**限流，原始碼看不出伺服器端是否另有每秒或每分鐘的封包上限與超限處理（斷線、丟棄、忽略等）。伺服器端數值未核對，不要用「剛好不超過客戶端限流」來推論一定安全，也不要故意試探。
+- 其他排隊注意事項（payload 不會被深拷貝）見 10.2。
 
 ### 8.6 資料太大時，依用途處理
 
@@ -719,7 +755,7 @@ R131 提供 `ChatRoomRegisterMessageHandler`。其 `ChatRoomMessageRunHandlers` 
 | 同檔：`CharacterLoadCanvas` | 從 Appearance 建立 DrawAppearance／DrawPoseMapping，排序、遮罩、角色 hooks、身高與 Canvas 重建，最後清 MustDraw | 瞬間改 DrawAppearance 可能在下一次重建消失；需找穩定的渲染入口 |
 | 同檔：`CharacterDelete` | 依 ID 找到角色，清動畫並從全域集合移除 | 預覽／頭像角色需要所有權，不能刪仍被其他功能共用的角色 |
 | [ChatRoom.js](../../BCJS/Bondage-College-master/BondageClub/Screens/Online/ChatRoom/ChatRoom.js)：`ChatRoomSync` | 本版本為 async | 等完成後再讀新房間／角色狀態；延遲工作也要防止已離房 |
-| [Server.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Server.js) | 登入 API、欄位佇列、ExtensionSettings 單鍵更新 | 不混用登入、連線與資源就緒；保存與廣播分開驗證 |
+| [Server.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Server.js) | 登入 API、欄位佇列、ExtensionSettings 單鍵更新、送出限流 | 不混用登入、連線與資源就緒；保存與廣播分開驗證；同步 `undefined` 會丟錯；每 1200 ms 最多 14 則 |
 | [Validation.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Validation.js) | `ValidationApplyRecord` 是否保留額外欄位由參數決定 | 必須讀呼叫端，不能只看驗證表就推斷封閉 schema |
 | [GLDraw.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/GLDraw.js) | 含 context lost／恢復相關處理 | 只攔 WebGL 的效果要定義失效與 fallback 行為 |
 | [Dialog.js](../../BCJS/Bondage-College-master/BondageClub/Scripts/Dialog.js) | 多種選單與角色互動狀態，應沿實際按鈕呼叫追蹤 | 顯示、點擊、權限與退出不是單一 Draw hook 就能完成 |
@@ -743,7 +779,7 @@ R131 提供 `ChatRoomRegisterMessageHandler`。其 `ChatRoomMessageRunHandlers` 
 
 ### 10.2 ServerSend：排隊中的 payload 仍可能被修改
 
-本地 `ServerSend` 把 `{ Message, args }` 放入佇列，沒有深拷貝 payload。`ServerAccountUpdate.QueueData` 的 Map 也保存傳入 value。佇列受到限流時，呼叫之後再改原物件，可能影響稍後真正送出的內容。
+本地 `ServerSend` 把 `{ Message, args }` 放入佇列，沒有深拷貝 payload。`ServerAccountUpdate.QueueData` 的 Map 也保存傳入 value。佇列受到限流（客戶端目前為每 1200 ms 最多 14 則，見 8.5.1）時，呼叫之後再改原物件，可能影響稍後真正送出的內容。
 
 對必須固定在提交瞬間的插件資料，先建立只含可序列化欄位的新 payload；巢狀欄位也要考慮引用，只有 `{ ...obj }` 不會複製內部物件。不要整包 clone 活的 Character，它含有方法與其他執行狀態；使用對應的 bundle／資料投影。
 
@@ -802,6 +838,8 @@ BC／SDK／相關插件版本：
 測試投入要對準效果：純座標映射適合單元測試；頭像完整度與角色錨點需要視覺驗收；多人同步需要第二個客戶端。不要只測自己寫的 mock，再推論整個遊戲流程已完成。
 
 ### 11.5 本文件目前的驗證紀錄
+
+2026-10-12：對照 Bondage-College-Mirror（`GameVersion = "R133Beta1"`）的 `Scripts/Server.js`、`Scripts/Game.js`、`Screens/Character/Login/Login.js`、`Scripts/Typedef.d.ts`，確認：`ServerPlayerExtensionSettingsSync` 遇 `undefined` 丟錯；`ServerSendRateLimit = 14`、`ServerSendRateLimitInterval = 1200`，超出者排隊而非丟棄，佇列每幀被處理；登入時整包載入 `ExtensionSettings`，型別為任意字串鍵。伺服器端的儲存、鍵數與頻率限制不在原始碼內，未核對。
 
 180K 局部更新補正後：11 段 JavaScript 語法及所有本地連結重新檢查通過。巢狀 AccountUpdate 的伺服器行為依維護者提供的確認記錄，範例尚未送出至遊戲伺服器驗證。
 
