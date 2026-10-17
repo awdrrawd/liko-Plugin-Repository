@@ -6,13 +6,14 @@ const root = path.join(__dirname, '../Plugins/main');
 function read(name) { return fs.readFileSync(path.join(root, `Liko - ${name}.main.user.js`), 'utf8'); }
 function hook(name, target, context) {
     const source = read(name);
-    const re = new RegExp(`^( +)modApi\\.hookFunction\\(["']${target}["']`, 'm');
+    const re = new RegExp(`^( +)(?:modApi\\.hookFunction|hook)\\(["']${target}["']`, 'm');
     const match = re.exec(source);
     assert.ok(match, `${name}: ${target}`);
     const end = source.indexOf('\n' + match[1] + '});', match.index);
     assert.ok(end > match.index);
     let callback;
     context.modApi = {hookFunction(n, priority, fn) {callback = fn;}};
+    context.hook = (n, priority, fn) => { callback = fn; };
     vm.runInNewContext(source.slice(match.index, end) + '\n' + match[1] + '});', context);
     return callback;
 }
