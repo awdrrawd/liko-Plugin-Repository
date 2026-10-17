@@ -171,7 +171,7 @@
       "en_additionalInfo": "For detailed usage instructions, please enter /LT or /LT help.",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Tool.main.user.js",
       "priority": 5,
-      "version": "2.3.3"
+      "version": "2.3.4"
     },
     {
       "id": "Liko-ACV",
@@ -288,7 +288,7 @@
       "en_additionalInfo": "",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20NOI.main.user.js",
       "priority": 7,
-      "version": "1.1"
+      "version": "1.1.1"
     },
     {
       "id": "Liko-WPS",
