@@ -1,21 +1,13 @@
 {
-  "updateId": "260901",
+  "updateId": "261018",
   "changelog": {
     "cn": [
-      "⭐AEE - 外觀編輯拓展 更新",
-      "已經上傳FUSAM",
-      "新增隨意變形功能",
-      "新增部件圖示功能",
-      "⭐HCR - 製作物品的擴充物品資產保護 新增",
-      "在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用。"
+    "已經完成關於R133大多已知的錯誤修復",
+    "提供ECHO的R133熱修檔"
     ],
     "en": [
-      "⭐ AEE - Appearance Edit Extension Update",
-      "Uploaded to FUSAM",
-      "Added freeform deformation feature",
-      "Added part icon feature",
-      "⭐ HCR - Craftable Expansion Item Asset Protection (New)",
-      "Preserves crafted items while extension assets are unavailable and restores them after the assets load."
+    "Most known bugs related to R133 have been fixed.",
+    "Provides ECHO R133 hotfix."
     ]
   }
 }
