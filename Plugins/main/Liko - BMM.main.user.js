@@ -2,7 +2,7 @@
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version 2.0.1
+// @version      2.0.2
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -28,7 +28,7 @@
         if (window.Liko) window.Liko.BMM = null;
     };
     if (window.Liko.BMM) return;
-    const MOD_VER = "2.0.1";
+    const MOD_VER = "2.0.2";
     window.Liko.BMM = MOD_VER;
 
     // ── i18n 多語言系統 ─────────────────────────────────────────────────────
@@ -398,18 +398,52 @@
     }
     let _tlCache = null, _olCache = null, _lastMapData = null;
 
+    // R133 把 ChatRoomMapViewTileList / ChatRoomMapViewObjectList 改成 MapDataTiles / MapDataObjects（Map: ID → 定義）。
+    // 兩種都支援；登錄表還沒載入時回傳空陣列，並且不快取空結果。
+    function listTiles() {
+        if (typeof MapDataTiles !== "undefined" && MapDataTiles?.values) return [...MapDataTiles.values()];  // eslint-disable-line
+        if (typeof ChatRoomMapViewTileList !== "undefined") return ChatRoomMapViewTileList || [];  // eslint-disable-line
+        return [];
+    }
+    function listObjects() {
+        if (typeof MapDataObjects !== "undefined" && MapDataObjects?.values) return [...MapDataObjects.values()];  // eslint-disable-line
+        if (typeof ChatRoomMapViewObjectList !== "undefined") return ChatRoomMapViewObjectList || [];  // eslint-disable-line
+        return [];
+    }
+    function registryReady() {
+        return (typeof MapDataTiles !== "undefined" && MapDataTiles.size > 0) ||  // eslint-disable-line
+            typeof ChatRoomMapViewTileList !== "undefined";  // eslint-disable-line
+    }
+    // 貼圖網址：R133 放在 Assets/Map/Tiles|Objects/<Type>/<Style>.png，由 MapGetAssetUrl 組出
+    function tileImageUrl(tile) {
+        if (typeof MapGetAssetUrl === "function") return MapGetAssetUrl("Tile", tile.Type, tile.Style);  // eslint-disable-line
+        return "Screens/Online/ChatRoom/MapTile/" + tile.Type + "/" + tile.Style + ".png";
+    }
+    function objectImageUrl(obj, imageName) {
+        if (typeof MapGetAssetUrl === "function") return MapGetAssetUrl("Object", obj.Type, imageName);  // eslint-disable-line
+        return "Screens/Online/ChatRoom/MapObject/" + obj.Type + "/" + imageName + ".png";
+    }
+    // R132 的 DrawGetImage 回傳 <img>；R133 載入前回傳 undefined、載入後回傳 ImageBitmap（沒有 complete / naturalWidth）
+    function imageReady(img) {
+        if (!img) return false;
+        if (typeof ImageBitmap !== "undefined" && img instanceof ImageBitmap) return img.width > 0;
+        return !!img.complete && img.naturalWidth > 0;
+    }
+
     function getTL() {
-        if (_tlCache && _lastMapData === ChatRoomData?.MapData) return _tlCache;
-        _tlCache = {};
-        for (const t of (ChatRoomMapViewTileList || [])) _tlCache[t.ID] = t;
-        return _tlCache;
+        if (_tlCache && Object.keys(_tlCache).length > 0) return _tlCache;
+        const c = {};
+        for (const t of listTiles()) c[t.ID] = t;
+        if (Object.keys(c).length > 0) _tlCache = c;
+        return c;
     }
     function getOL() {
-        if (_olCache && _lastMapData === ChatRoomData?.MapData) return _olCache;
-        _olCache = {};
-        for (const o of (ChatRoomMapViewObjectList || [])) _olCache[o.ID] = o;
+        if (_olCache && Object.keys(_olCache).length > 0 && _lastMapData === ChatRoomData?.MapData) return _olCache;
+        const c = {};
+        for (const o of listObjects()) c[o.ID] = o;
+        if (Object.keys(c).length > 0) _olCache = c;
         _lastMapData = ChatRoomData?.MapData;
-        return _olCache;
+        return c;
     }
 
     // 從遊戲引擎抓取已快取的圖片物件（沿用 ChatRoomMapViewDrawGrid 用的同一支函式）
@@ -455,8 +489,8 @@
             for (let x = 0; x < MAP_W; x++) {
                 const tile = tl[md.Tiles.charCodeAt(y*MAP_W+x)];
                 if (!tile) continue;
-                const img = getGameImage("Screens/Online/ChatRoom/MapTile/" + tile.Type + "/" + tile.Style + ".png");
-                if (img && img.complete && img.naturalWidth > 0) {
+                const img = getGameImage(tileImageUrl(tile));
+                if (imageReady(img)) {
                     ctx.drawImage(img, ox+x*ts, oy+y*ts, ts, ts);
                 } else {
                     // 圖片尚未載入完成時先用灰塊佔位，下次重繪（每 500ms）會補上
@@ -473,8 +507,8 @@
                     const obj = ol[id];
                     const imageName = resolveObjectImageName(obj, x, y, chars);
                     if (!imageName) continue;
-                    const img = getGameImage("Screens/Online/ChatRoom/MapObject/" + obj.Type + "/" + imageName + ".png");
-                    if (!img || !img.complete || img.naturalWidth === 0) continue;
+                    const img = getGameImage(objectImageUrl(obj, imageName));
+                    if (!imageReady(img)) continue;
                     const ow = ts * (obj.Width  == null ? 1 : obj.Width);
                     const oh = ts * (obj.Height == null ? 1 : obj.Height);
                     const dx = ox + x*ts + (obj.Left == null ? 0 : ts*obj.Left);
@@ -1581,8 +1615,15 @@
     function bmmxDoImport(str, map) {
         try {
             const payload = { Type: map.Type, Tiles: map.Tiles, Objects: map.Objects, Fog: map.Fog };
-            if (typeof ChatRoomData !== "undefined" && ChatRoomData) ChatRoomData.MapData = payload; // 本地即时反馈（与 BC 原生 MapPaste 一致）
-            if (typeof ServerSend === "function") ServerSend("ChatRoomMapData", payload);
+            if (typeof MapManager !== "undefined" && MapManager?.Map?.importString) {  // eslint-disable-line
+                // R133：与原生 /mappaste 相同，交给 MapManager 解码、更新内部地图并排程同步（仅房间管理员可用）
+                if (!ChatRoomPlayerIsAdmin()) throw new Error("not admin");  // eslint-disable-line
+                const encoded = window.LZString ? bmmxMapToStr(payload) : str;
+                if (!MapManager.Map.importString(encoded)) throw new Error("importString failed");  // eslint-disable-line
+            } else {
+                if (typeof ChatRoomData !== "undefined" && ChatRoomData) ChatRoomData.MapData = payload; // 本地即时反馈（与 BC 原生 MapPaste 一致）
+                if (typeof ServerSend === "function") ServerSend("ChatRoomMapData", payload);
+            }
             if (_bmmRedraw) _bmmRedraw();
             _bmmxToast(t("clip_import_done"));
         } catch (e) { alert(t("clip_import_fail", { reason: (e && e.message) || String(e) })); }
@@ -1822,7 +1863,7 @@
         }
 
         await waitForLogin(modApi);
-        await waitFor(()=>typeof ChatRoomMapViewTileList!=="undefined");  // eslint-disable-line
+        await waitFor(registryReady);
 
         // 剪贴板自动检测 + 地图导入：返回 BMM 焦点时自动检测（编辑器回传 / 系统剪贴板）
         if (!window.__bmmClipLinked) {
