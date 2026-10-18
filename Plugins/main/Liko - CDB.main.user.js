@@ -3,7 +3,7 @@
 // @name:zh      Liko的自訂更衣室背景
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.3
+// @version      1.5.4
 // @description  自訂更衣室背景 | Custom Dressing Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -17,7 +17,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.5.3";
+    const MOD_VER = "1.5.4";
     if (window.Liko.CDB) return;
     window.Liko.CDB = MOD_VER;
 
@@ -223,6 +223,10 @@
     let modApi = null;
     let customBG = null;
     let originalDrawImage = null;
+    // BC R133+：背景圖是 ImageBitmap（沒有 .src），所以改成在 DrawRoomBackground 執行期間記下 URL
+    let roomBackgroundUrl = null;
+    let roomBackgroundHooked = false;
+    let saveTimer = null;
     let colorPickerUI = null;
     let isInitialized = false;
 
@@ -342,7 +346,15 @@
         return false;
     }
 
-    function saveToOnlineSettings() {
+    // 拖曳滑桿時 input 事件非常頻繁，直接同步到伺服器會造成大量 AccountUpdate。
+    // 預設延遲合併；傳入 true 則立即儲存（Save 按鈕、卸載時使用）。
+    function saveToOnlineSettings(immediate) {
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        if (immediate === true) { doSaveToOnlineSettings(); return; }
+        saveTimer = setTimeout(function() { saveTimer = null; doSaveToOnlineSettings(); }, 600);
+    }
+
+    function doSaveToOnlineSettings() {
         try {
             if (typeof Player !== 'undefined' && Player.ExtensionSettings) {
                 Player.ExtensionSettings.CDBEnhanced = {
@@ -826,7 +838,7 @@
         const applyBtn = document.getElementById('bc-apply-btn');
         if (resetBtn) addManagedEventListener(resetBtn, 'click', resetSettings);
         if (saveBtn) addManagedEventListener(saveBtn, 'click', function() {
-            saveToOnlineSettings();
+            saveToOnlineSettings(true);
             const orig = saveBtn.textContent;
             saveBtn.textContent = Lang.t('saved');
             addManagedTimeout(function() { saveBtn.textContent = orig; }, 1500);
@@ -1229,9 +1241,28 @@
     // ================================
     // drawImage Hook
     // ================================
+    // BC R133 之後 DrawRoomBackground → DrawImageEx 傳給 drawImage 的是 ImageBitmap，
+    // 沒有 .src，舊的「img.src.includes('Backgrounds/Dressing.jpg')」永遠不會命中。
+    // 做法（同 AEE）：hook DrawRoomBackground，執行期間記住 URL，讓 drawImage hook 以此判斷。
+    // 同時保留 img.src 判斷，相容舊版 BC (R132)。
+    function installRoomBackgroundHook() {
+        if (roomBackgroundHooked || !modApi) return;
+        if (typeof DrawRoomBackground !== 'function') return; // 舊版：走 img.src 路徑
+        roomBackgroundHooked = true;
+        modApi.hookFunction("DrawRoomBackground", 5, function(args, next) {
+            roomBackgroundUrl = (typeof args[0] === 'string') ? args[0] : null;
+            try {
+                return next(args);
+            } finally {
+                roomBackgroundUrl = null;
+            }
+        });
+    }
+
     function setupDrawImageHook() {
         if (originalDrawImage) return;
         originalDrawImage = CanvasRenderingContext2D.prototype.drawImage;
+        installRoomBackgroundHook();
 
         addManagedInterval(function() {
             if (Date.now() - performance.lastResetTime > 5000) {
@@ -1242,15 +1273,19 @@
         }, 5000);
 
         CanvasRenderingContext2D.prototype.drawImage = function(img) {
-            const args = Array.prototype.slice.call(arguments, 1);
             if (performance.isInDressingRoom) performance.drawImageCalls++;
 
-            if (!img || typeof img.src !== 'string') {
-                return originalDrawImage.apply(this, [img].concat(args));
+            // 來源判斷：優先用 DrawRoomBackground 記下的 URL（R133+），否則退回 img.src（R132）
+            let source = roomBackgroundUrl;
+            if (source === null) {
+                if (!img || typeof img.src !== 'string') {
+                    return originalDrawImage.apply(this, arguments);
+                }
+                source = img.src;
             }
 
             try {
-                if (img.src.includes("Backgrounds/Dressing.jpg") &&
+                if (source.includes("Backgrounds/Dressing.jpg") &&
                     isInAppearanceScreen() &&
                     state.currentMode !== 'disabled') {
 
@@ -1264,7 +1299,7 @@
                         } else if (state.currentMode === 'custom' && customBG && customBG.complete) {
                             originalDrawImage.call(this, customBG, 0, 0, customBG.width, customBG.height, 0, 0, canvas.width, canvas.height);
                         } else {
-                            originalDrawImage.apply(this, [img].concat(args));
+                            originalDrawImage.apply(this, arguments);
                         }
 
                         if (state.gridLayer === 'below') {
@@ -1281,7 +1316,7 @@
                 try { this.restore(); } catch(_) {}
             }
 
-            return originalDrawImage.apply(this, [img].concat(args));
+            return originalDrawImage.apply(this, arguments);
         };
     }
 
@@ -1837,6 +1872,9 @@
             removeColorPickerMenuButtons();
             removePoseExpandDOM();
 
+            if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; doSaveToOnlineSettings(); }
+            roomBackgroundUrl = null;
+
             if (originalDrawImage) {
                 CanvasRenderingContext2D.prototype.drawImage = originalDrawImage;
                 originalDrawImage = null;
@@ -1896,7 +1934,7 @@
             loadFromOnlineSettings();
             setupDrawImageHook();
             setupBCHooks();
-            return loadCustomBackground();
+            return state.currentMode === 'custom' ? loadCustomBackground() : null;
         }).then(function() {
             if (modApi && modApi.onUnload) modApi.onUnload(cleanup);
 
@@ -1906,7 +1944,7 @@
                 toggle: toggleUI,
                 cleanup: cleanup,
                 changePose: changePose,
-                saveSettings: saveToOnlineSettings,
+                saveSettings: function() { saveToOnlineSettings(true); },
                 loadSettings: loadFromOnlineSettings,
                 openZoom: openZoomPreview,
                 closeZoom: closeZoomPreview,
