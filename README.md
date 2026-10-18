@@ -103,10 +103,10 @@ import(`https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?v=$
 
 | 插件 | 功能介紹 | 版本 | 連結 |
 |---|---|---:|---|
+| 💉 **ECHO-R133熱修**<br><sub>HOTFIX-ECHO-R133</sub><br>`Fix-ECHO` | 這是一個臨時修復，將在ECHO更新後移除 | v0.1.0 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/Hotfix-R133_Echo_compatibility_fix.user.js) |
 | 💉 **物件隱藏熱修**<br><sub>Hotfix for Hidden elements</sub><br>`Fix-HHA` | 在更衣室、個人資訊、角色互動中隱藏興奮條、MPA等物件 | v0.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HHA.user.js) |
 | 💉 **牽引補丁(測試)**<br><sub>Leash Fix(test)</sub><br>`Fix-HLF` | 修復部分牽引失敗的錯誤 | v0.17 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HLF.user.js) |
 | 💉 **製作物品的擴充物品資產保護**<br><sub>Crafting Asset Recovery</sub><br>`Fix-HCR` | 在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用 | v0.1.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HCR.user.js) |
-| 💉 **ECHO-R133熱修**<br><sub>HOTFIX-ECHO-R133</sub><br>`Fix-ECHO` | 這是一個臨時修復，將在ECHO更新後移除 | v0.1.0 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/Hotfix-R133_Echo_compatibility_fix.user.js) |
 
 ## 開發參考
 
