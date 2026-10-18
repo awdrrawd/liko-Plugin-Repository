@@ -3,7 +3,7 @@
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.9
+// @version      1.6.10
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -18,7 +18,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.9";
+    const MOD_VER = "1.6.10";
     if (window.Liko.Prank) return;
     window.Liko.Prank = MOD_VER;
 
@@ -40,6 +40,11 @@
 
         getAssetURL: function(path) {
             return this.getBasePath() + 'Assets/' + path;
+        },
+
+        // 活動圖示位於 Icons/Activity/（與遊戲本身 ElementButton.CreateForActivity 的預設路徑一致）
+        getActivityIconURL: function(name) {
+            return './Icons/Activity/' + name + '.png';
         },
 
         clearCache: function() {
@@ -962,7 +967,7 @@
                     }
                 }
             },
-            CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Activity/Caress.png")
+            CustomImage: ImagePathHelper.getActivityIconURL("Caress")
         });
 
         AddActivity({
@@ -1216,7 +1221,7 @@
                     }
                 }
             },
-            CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Activity/MasturbateFist.png")
+            CustomImage: ImagePathHelper.getActivityIconURL("MasturbateFist")
         });
 
         AddActivity({
@@ -1333,7 +1338,7 @@
                     }
                 }
             },
-            CustomImage: ImagePathHelper.getAssetURL("Female3DCG/Activity/MasturbateFist.png")
+            CustomImage: ImagePathHelper.getActivityIconURL("MasturbateFist")
         });
 
         // R130：把上面所有活動的標籤注入 ActivityDictionary 的 TextCache，否則按鈕顯示 MISSING TEXT
