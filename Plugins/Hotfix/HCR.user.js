@@ -3,7 +3,7 @@
 // @name:zh      熱修 - 製作物品的擴充物品資產保護 
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.1.2
+// @version      0.1.3
 // @description  Preserves crafted items while extension assets are unavailable and restores them after the assets load.
 // @description:zh 在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用。
 // @author       Likolisu
@@ -22,14 +22,21 @@
     window.Liko = window.Liko ?? {};
     if (window.Liko.HCR) return;
 
-    const MOD_VERSION = "0.1.2";
-    const MIGRATION_VERSION = "0.1.2";
-    let migrationReady = false;
-    const UNKNOWN_ASSET = -1;
+    const MOD_VERSION = "0.1.3";
     const TAG = "🐈‍⬛ [HCR]";
-    const BACKUP_KEY = "HCR";
-    const BACKUP_VERSION = 1;
-    const EXTENSION_SETTINGS_SAFE_LIMIT = 175000;
+    const SLOT_COUNT = 200;
+    const BACKUP_ROOT = "HCR";
+    const BACKUP_FORMAT = 2;
+    const BACKUP_SETS = [
+        { name: "set1", from: 0, to: 100 },
+        { name: "set2", from: 100, to: 200 },
+    ];
+    // Budget for ONE AccountUpdate (measured as UTF-8 bytes of ["AccountUpdate", payload]).
+    // The official per-transfer limit is 180K; keep headroom.
+    const PAYLOAD_BUDGET = 150000;
+    const RAW = "__hcrRaw";
+    const RESOLVE_POLL_MS = 2000;
+
     const STRINGS = {
         TW: "此物品的資產丟失，如果為拓展套件請重新加載後再次確認",
         CN: "此物品的资产丢失，如果为扩展组件请重新加载后再次确认",
@@ -43,15 +50,30 @@
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 7 96 90H4Z" fill="#ffd43b" stroke="#111" stroke-width="7" stroke-linejoin="round"/><path d="M50 31v32" stroke="#111" stroke-width="9" stroke-linecap="round"/><circle cx="50" cy="77" r="5.5" fill="#111"/></svg>'
     )}`;
 
+    // ---------------------------------------------------------------- state
+    let loaded = false;   // this session's account crafting data has been loaded and reconciled
+    let loading = false;  // currently inside CraftingLoadServer
+    let assetSignature = { ref: null, length: -1 };
+    const warnedOnce = new Set();
+
+    // ------------------------------------------------------------- helpers
     function waitFor(predicate, timeout = 30000) {
         const start = Date.now();
         return new Promise((resolve) => {
             (function check() {
-                if (predicate()) return resolve(true);
+                let ok = false;
+                try { ok = predicate(); } catch (_) { /* not ready yet */ }
+                if (ok) return resolve(true);
                 if (Date.now() - start >= timeout) return resolve(false);
                 setTimeout(check, 50);
             })();
         });
+    }
+
+    function warnOnce(key, ...args) {
+        if (warnedOnce.has(key)) return;
+        warnedOnce.add(key);
+        console.error(TAG, ...args);
     }
 
     function language() {
@@ -68,230 +90,417 @@
         return STRINGS[language()] || STRINGS.EN;
     }
 
-    function populateAssets() {
+    function utf8Bytes(text) {
+        return typeof TextEncoder === "function" ? new TextEncoder().encode(text).byteLength : text.length * 3;
+    }
+
+    function isPlain(value) {
+        return value !== null && typeof value === "object" && !Array.isArray(value);
+    }
+
+    function isLoggedIn() {
         try {
-            return typeof CraftingAssetsPopulate === "function" ? CraftingAssetsPopulate() : {};
+            return typeof ServerIsLoggedIn === "function" ? !!ServerIsLoggedIn() : Player?.MemberNumber != null;
+        } catch (_) { return false; }
+    }
+
+    // ------------------------------------------------- raw slot strings
+    function rawItemName(raw) {
+        return typeof raw === "string" ? raw.split(CraftingSerializeFieldSep, 1)[0] : "";
+    }
+
+    function validRaw(raw) {
+        return typeof raw === "string" && raw !== "" && rawItemName(raw) !== "";
+    }
+
+    function isPlaceholder(craft) {
+        return craft != null && typeof craft[RAW] === "string";
+    }
+
+    // Decode the game's account packet into per-slot raw strings WITHOUT the game's asset check.
+    function packetToRaw(packet) {
+        if (typeof packet !== "string" || !packet) return [];
+        let text = null;
+        try { text = LZString.decompressFromUTF16(packet); } catch (_) { text = null; }
+        if (typeof text !== "string" || !text) return [];
+        return text.split(CraftingSerializeItemSep).slice(0, SLOT_COUNT);
+    }
+
+    function rawToPacket(slots) {
+        const list = slots.slice(0, SLOT_COUNT);
+        while (list.length && !list[list.length - 1]) list.pop();
+        return LZString.compressToUTF16(list.join(CraftingSerializeItemSep));
+    }
+
+    // -------------------------------------------------------- asset index
+    // CraftingAssets is built once by AssetLoadAll(); assets added by extensions later are missing.
+    function refreshCraftingAssets(force = false) {
+        if (typeof Asset === "undefined" || typeof CraftingAssetsPopulate !== "function") return false;
+        if (!force && Asset === assetSignature.ref && Asset.length === assetSignature.length) return false;
+        assetSignature = { ref: Asset, length: Asset.length };
+        try {
+            CraftingAssets = CraftingAssetsPopulate();
+            return true;
         } catch (error) {
             console.warn(`${TAG} failed to rebuild the crafting asset index`, error);
-            return {};
+            return false;
         }
     }
 
     function assetsFor(itemName) {
         if (typeof itemName !== "string" || !itemName) return [];
-        const indexed = typeof CraftingAssets === "object" ? CraftingAssets[itemName] : undefined;
-        if (indexed?.length) return indexed;
-
-        const refreshed = populateAssets();
-        const assets = refreshed[itemName] || [];
-        if (assets.length) {
-            // Keep the game's snapshot synchronized so later unhooked lookups also succeed.
-            try { CraftingAssets = refreshed; } catch (_) { /* lexical globals may be read-only from some loaders */ }
-        }
-        return assets;
+        refreshCraftingAssets();
+        return (typeof CraftingAssets === "object" && CraftingAssets?.[itemName]) || [];
     }
 
-    function preserveLegacyFields(craft, encoded) {
+    // ------------------------------------------------------- placeholders
+    function buildPlaceholder(raw) {
+        if (!validRaw(raw)) return null;
+        const f = raw.split(CraftingSerializeFieldSep);
+        const craft = {
+            Item: f[0],
+            Name: f[3] || f[0],
+            Description: f[4] || "",
+            Color: f[5] || "",
+            Lock: f[2] || "",
+            Private: f[6] === "T",
+            ItemProperty: {},
+            Type: undefined,
+            TypeRecord: null,
+            Effects: {},
+            Partial: false,
+        };
+        Object.defineProperty(craft, RAW, { value: raw, enumerable: false, writable: true, configurable: true });
+        return craft;
+    }
+
+    function placeholderSlots() {
+        const out = [];
+        if (!Array.isArray(Player?.Crafting)) return out;
+        Player.Crafting.forEach((craft, i) => { if (isPlaceholder(craft)) out.push(i); });
+        return out;
+    }
+
+    // Keep the legacy wire fields that the game's serializer blanks ("DO NOT REMOVE" fields) while the
+    // craft still holds a legacy Type that has not been converted to a TypeRecord.
+    function keepLegacyFields(craft, encoded) {
+        if (!isPlain(craft) || typeof encoded !== "string" || !encoded) return encoded;
+        const needType = craft.TypeRecord == null && typeof craft.Type === "string" && craft.Type !== "";
+        const needProperty = typeof craft.Property === "string" && craft.Property !== "";
+        if (!needType && !needProperty) return encoded;
         const fields = encoded.split(CraftingSerializeFieldSep);
-        if (craft.TypeRecord == null && typeof craft.Type === "string") fields[7] = craft.Type;
-        if (typeof craft.Property === "string") fields[1] = craft.Property;
-        if (Number.isInteger(craft.OverridePriority)) fields[8] = String(craft.OverridePriority);
-        return fields.map(value => value.replace(CraftingSerializeSanitize, "")).join(CraftingSerializeFieldSep);
+        if (needProperty) fields[1] = craft.Property;
+        if (needType) fields[7] = craft.Type;
+        return fields.map((value) => value.replace(CraftingSerializeSanitize, "")).join(CraftingSerializeFieldSep);
     }
 
-    function encodeCrafting(crafting = Player?.Crafting) {
-        if (!Array.isArray(crafting) || typeof CraftingSerialize !== "function" || typeof LZString !== "object") return null;
-        let serialized = crafting.map((craft) => {
-            if (craft == null) return "";
-            const encoded = CraftingSerialize(craft);
-            // A missing extension asset prevents Type -> TypeRecord conversion. Keep the
-            // legacy wire field until it can be converted, including across login/reload.
-            return preserveLegacyFields(craft, encoded);
-        }).join("§");
-        while (serialized.endsWith("§")) serialized = serialized.slice(0, -1);
-        return LZString.compressToUTF16(serialized);
-    }
-
-    function readBackup() {
-        try {
-            let backup = Player?.ExtensionSettings?.[BACKUP_KEY];
-            if (typeof backup === "string") backup = JSON.parse(backup);
-            if (!backup || backup.v !== BACKUP_VERSION || typeof backup.p !== "string") return null;
-            return backup;
-        } catch (error) {
-            console.warn(`${TAG} invalid ExtensionSettings backup`, error);
-            return null;
-        }
-    }
-
-    function readBackupPacket() {
-        return readBackup()?.p ?? null;
-    }
-
-    function hasLegacyCraft(craft) {
-        if (!CommonIsObject(craft)) return false;
-        return craft.Partial !== false
-            || (craft.TypeRecord == null && typeof craft.Type === "string")
-            || typeof craft.Property === "string"
-            || Number.isInteger(craft.OverridePriority);
-    }
-
-    function needsMigration(currentData, backupData) {
-        const version = readBackup()?.version;
-        if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) return true;
-        const parts = version.split(".").map(Number);
-        const target = MIGRATION_VERSION.split(".").map(Number);
-        for (let i = 0; i < target.length; i++) {
-            if (parts[i] !== target[i]) return parts[i] < target[i];
-        }
-        // The version is an account-level marker, not proof that every extension
-        // item has been converted. Inspect both lists even when already at 0.1.2.
-        return currentData.some(hasLegacyCraft) || backupData.some(hasLegacyCraft);
-    }
-
-    function migrateCrafting(data) {
-        let complete = true;
-        for (const craft of data) {
-            if (!CommonIsObject(craft)) continue;
-            // Only crafting slots and the HCR backup enter here, never Appearance.Craft.
-            craft.Partial = false;
-            if (typeof craft.Color !== "string") craft.Color = "";
-            if (typeof craft.Lock !== "string") craft.Lock = "";
-            if (!CommonIsObject(craft.ItemProperty)) craft.ItemProperty = {};
-            if (!CommonIsObject(craft.Effects)) craft.Effects = {};
-            if (typeof craft.Name !== "string" || !craft.Name) craft.Name = craft.Item || "Crafted Item";
-            if (typeof craft.Description !== "string") craft.Description = "";
-            if (typeof craft.Private !== "boolean") craft.Private = false;
-            if (craft.TypeRecord === undefined) craft.TypeRecord = null;
-            if (Number.isInteger(craft.OverridePriority)) {
-                craft.ItemProperty.OverridePriority ??= craft.OverridePriority;
-                delete craft.OverridePriority;
-            }
-            if (craft.Property === "Normal") delete craft.Property;
-            else if (typeof CraftingPropertyMap !== "undefined" && CraftingPropertyMap.has(craft.Property)) {
-                craft.Effects[craft.Property] ||= 1;
-                delete craft.Property;
-            }
-            if (craft.TypeRecord == null && typeof craft.Type === "string") {
-                const assets = assetsFor(craft.Item);
-                if (assets.length === 1 && typeof ExtendedItemTypeToRecord === "function") {
-                    try {
-                        craft.TypeRecord = ExtendedItemTypeToRecord(assets[0], craft.Type);
-                        delete craft.Type;
-                    } catch (error) {
-                        complete = false;
-                        console.warn(`${TAG} deferred legacy Type migration`, error);
-                    }
-                } else complete = false;
-            }
-        }
-        return complete;
-    }
-
-    function extensionSettingsSize(settings) {
-        const json = JSON.stringify(settings);
-        return typeof TextEncoder === "function" ? new TextEncoder().encode(json).byteLength : json.length * 2;
-    }
-
-    function saveBackupPacket(packet, reason = "save") {
-        if (typeof packet !== "string" || !Player?.ExtensionSettings) return false;
-        const previous = Player.ExtensionSettings[BACKUP_KEY];
-        const version = migrationReady ? MIGRATION_VERSION : readBackup()?.version;
-        if (readBackupPacket() === packet && readBackup()?.version === version) return true;
-
-        const backup = { v: BACKUP_VERSION, version, t: Date.now(), p: packet };
-        Player.ExtensionSettings[BACKUP_KEY] = backup;
-        // ServerPlayerExtensionSettingsSync sends only { "ExtensionSettings.HCR": value },
-        // so the relevant limit is this key's serialized value, not every extension's settings.
-        const size = extensionSettingsSize(backup);
-        if (size > EXTENSION_SETTINGS_SAFE_LIMIT) {
-            if (previous === undefined) delete Player.ExtensionSettings[BACKUP_KEY];
-            else Player.ExtensionSettings[BACKUP_KEY] = previous;
-            console.error(`${TAG} backup skipped: ExtensionSettings.HCR would use ${size} bytes (safe limit ${EXTENSION_SETTINGS_SAFE_LIMIT})`);
-            return false;
-        }
-
-        try {
-            ServerPlayerExtensionSettingsSync(BACKUP_KEY);
-            console.info(`${TAG} backup updated (${reason}, ${packet.length} characters, ExtensionSettings.HCR ${size} bytes)`);
-            return true;
-        } catch (error) {
-            if (previous === undefined) delete Player.ExtensionSettings[BACKUP_KEY];
-            else Player.ExtensionSettings[BACKUP_KEY] = previous;
-            console.error(`${TAG} failed to sync backup`, error);
-            return false;
-        }
-    }
-
-    function mergeBackup(currentData) {
-        const backupPacket = readBackupPacket();
-        if (!Array.isArray(currentData)) return { data: currentData, restored: 0, indices: [], migrated: false };
-        const backupData = backupPacket ? CraftingDecompressServerData(backupPacket) : [];
-        const migrated = needsMigration(currentData, backupData);
-        if (migrated) {
-            const currentReady = migrateCrafting(currentData);
-            const backupReady = migrateCrafting(backupData);
-            migrationReady = currentReady && backupReady;
-        } else migrationReady = false;
-
-        const data = currentData.slice(0, 200);
-        let restored = 0;
-        const indices = [];
-        const length = Math.min(200, Math.max(data.length, backupData.length));
-        while (data.length < length) data.push(null);
-        for (let i = 0; i < length; i++) {
-            // The live game is authoritative whenever it has an item. Restore only a hole:
-            // game empty + backup populated. If both sides are populated but differ, keep game.
-            if (data[i] == null && backupData[i] != null) {
-                data[i] = backupData[i];
-                restored++;
-                indices.push(i);
-            }
-        }
-        return { data, restored, indices, migrated };
-    }
-
-    function announceRestoration(indices, phase) {
+    function announce(name, indices, phase) {
         if (!indices.length) return;
-        window.dispatchEvent(new CustomEvent("HCRCraftingRestored", {
+        window.dispatchEvent(new CustomEvent(name, {
             detail: { indices: indices.slice(), count: indices.length, phase },
         }));
     }
 
-    async function ensureInitialBackup() {
-        const ready = await waitFor(() => Player?.MemberNumber != null
-            && Player.ExtensionSettings !== undefined
-            && Array.isArray(Player.Crafting), 30000);
-        if (!ready) return false;
+    // Turn placeholders into real crafts once their asset exists in the index.
+    function resolvePlaceholders(reason = "manual") {
+        if (!loaded || !Array.isArray(Player?.Crafting)) return 0;
+        const slots = placeholderSlots();
+        if (!slots.length) return 0;
+        refreshCraftingAssets();
 
-        // Allow an in-flight account packet to settle. If it arrives later, the
-        // CraftingLoadServer hook below replaces this first snapshot immediately.
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        reconcileLoadedCrafting();
+        const resolved = [];
+        let needSave = false;
+        for (const i of slots) {
+            const placeholder = Player.Crafting[i];
+            const raw = placeholder[RAW];
+            if (!assetsFor(rawItemName(raw)).length) continue;
+
+            let real = null;
+            try { real = CraftingDeserialize(raw); } catch (error) {
+                console.warn(`${TAG} could not rebuild slot ${i}`, error);
+            }
+            if (real == null) continue;
+
+            let status;
+            try { status = CraftingValidate(real, null, false, true); } catch (error) {
+                console.warn(`${TAG} validation threw for slot ${i}`, error);
+                continue;
+            }
+            if (status === CraftingStatusType.OK) {
+                Player.Crafting[i] = real;
+                resolved.push(i);
+            } else if (status === CraftingStatusType.ERROR) {
+                // The validator repaired the craft in place; persist the repair.
+                Player.Crafting[i] = real;
+                resolved.push(i);
+                needSave = true;
+            } else {
+                // The game itself would delete this one. Keep the placeholder (never drop silently).
+                warnOnce(`critical-${i}-${raw}`, `slot ${i} (${rawItemName(raw)}) has its asset but failed validation; kept unchanged`);
+            }
+        }
+        if (resolved.length) {
+            console.info(`${TAG} resolved ${resolved.length} crafted item(s) (${reason})`);
+            announce("HCRCraftingResolved", resolved, reason);
+            if (needSave) CraftingSaveServer();
+        }
+        return resolved.length;
+    }
+
+    // ------------------------------------------------------------ backup
+    function readBackupRoot() {
+        let root = Player?.ExtensionSettings?.[BACKUP_ROOT];
+        if (typeof root === "string") {
+            try { root = JSON.parse(root); } catch (_) { return null; }
+        }
+        return isPlain(root) ? root : null;
+    }
+
+    function decodeSet(value, size) {
+        if (value === "") return [];
+        if (typeof value !== "string") return null;
+        let text = null;
+        try { text = LZString.decompressFromBase64(value); } catch (_) { text = null; }
+        // A non-empty value must decode to something; "" would mean it is corrupt.
+        if (typeof text !== "string" || text === "") return null;
+        return text.split(CraftingSerializeItemSep).slice(0, size);
+    }
+
+    function packSet(list) {
+        const copy = list.slice();
+        while (copy.length && !copy[copy.length - 1]) copy.pop();
+        if (!copy.length) return "";
+        return LZString.compressToBase64(copy.join(CraftingSerializeItemSep));
+    }
+
+    // slots:    sets + legacy (0.1.x) backup, used for restoring holes
+    // setSlots: sets only, used to decide whether a set needs to be written
+    function readBackup() {
+        const info = {
+            slots: Array(SLOT_COUNT).fill(""),
+            setSlots: Array(SLOT_COUNT).fill(""),
+            invalid: [],
+            persisted: false,
+            hasLegacy: false,
+            legacyItems: 0,
+        };
+        const root = readBackupRoot();
+        if (!root) return info;
+
+        const sets = isPlain(root.Backup) ? root.Backup : {};
+        let persisted = true;
+        for (const set of BACKUP_SETS) {
+            const value = sets[set.name];
+            if (typeof value !== "string") { persisted = false; continue; }
+            const decoded = decodeSet(value, set.to - set.from);
+            if (decoded === null) { info.invalid.push(set.name); persisted = false; continue; }
+            decoded.forEach((raw, i) => {
+                if (!validRaw(raw)) return;
+                info.setSlots[set.from + i] = raw;
+                info.slots[set.from + i] = raw;
+            });
+        }
+        info.persisted = persisted;
+
+        // 0.1.x single-packet backup (ExtensionSettings.HCR.p, LZ UTF16). Import only what is missing.
+        if (typeof root.p === "string" && root.p) {
+            info.hasLegacy = true;
+            packetToRaw(root.p).forEach((raw, i) => {
+                if (!info.slots[i] && validRaw(raw)) { info.slots[i] = raw; info.legacyItems++; }
+            });
+        }
+        return info;
+    }
+
+    // Create the container for the nested keys when it does not exist yet. The nested paths below
+    // only work if ExtensionSettings.HCR is already an object on the server.
+    function ensureContainer() {
+        const settings = Player?.ExtensionSettings;
+        if (!settings) return false;
+        const stored = settings[BACKUP_ROOT];
+        let parsed = stored;
+        const wasString = typeof stored === "string";
+        if (wasString) {
+            try { parsed = JSON.parse(stored); } catch (_) {
+                warnOnce("corrupt-root", "ExtensionSettings.HCR is a corrupt string; refusing to overwrite it");
+                return false;
+            }
+        }
+
+        if (parsed === undefined || parsed === null || wasString) {
+            if (parsed != null && !isPlain(parsed)) {
+                warnOnce("odd-root", "ExtensionSettings.HCR has an unexpected type; refusing to overwrite it");
+                return false;
+            }
+            settings[BACKUP_ROOT] = { v: BACKUP_FORMAT, Backup: { set1: "", set2: "" } };
+            // A fresh literal: queued payloads are not deep-copied by ServerSend.
+            ServerSend("AccountUpdate", { [`ExtensionSettings.${BACKUP_ROOT}`]: { v: BACKUP_FORMAT, Backup: { set1: "", set2: "" } } });
+            return true;
+        }
+        if (!isPlain(parsed)) {
+            warnOnce("odd-root", "ExtensionSettings.HCR has an unexpected type; refusing to overwrite it");
+            return false;
+        }
+        if (parsed.Backup === undefined) {
+            parsed.Backup = { set1: "", set2: "" };
+            ServerSend("AccountUpdate", { [`ExtensionSettings.${BACKUP_ROOT}.Backup`]: { set1: "", set2: "" } });
+            return true;
+        }
+        if (!isPlain(parsed.Backup)) {
+            warnOnce("odd-backup", "ExtensionSettings.HCR.Backup has an unexpected type; refusing to overwrite it");
+            return false;
+        }
         return true;
     }
 
-    function reconcileLoadedCrafting() {
-        if (!Array.isArray(Player?.Crafting)) return 0;
-        const existingBackup = readBackupPacket();
-        // An empty array also exists before the account Crafting packet is loaded. Do not let
-        // that transient state become the first account backup.
-        if (!existingBackup && !Player.Crafting.some((craft) => craft != null)) return 0;
-        const { data, restored, indices, migrated } = mergeBackup(Player.Crafting);
-        if (!restored && !migrated) {
-            const packet = encodeCrafting(Player.Crafting);
-            if (!existingBackup && packet != null) saveBackupPacket(packet, "initial");
-            return 0;
+    // One set = one AccountUpdate for exactly one nested path.
+    function sendBackupSet(name, value) {
+        const path = `ExtensionSettings.${BACKUP_ROOT}.Backup.${name}`;
+        const payload = { [path]: value };
+        const bytes = utf8Bytes(JSON.stringify(["AccountUpdate", payload]));
+        if (bytes > PAYLOAD_BUDGET) {
+            warnOnce(`oversize-${name}`, `${name} would use ${bytes} bytes (budget ${PAYLOAD_BUDGET}); not written, previous backup kept`);
+            return false;
         }
-        if (restored) console.warn(`${TAG} restored ${restored} crafted item(s) from ExtensionSettings`);
-        // Re-enter the public loader instead of assigning Player.Crafting directly. This lets
-        // BC and every already-loaded extension hook observe and rebuild from the restored data.
-        CraftingLoadServer(data);
-        CraftingSaveServer();
-        announceRestoration(indices, "late-load");
-        return restored;
+        if (!ensureContainer()) return false;
+
+        const backup = Player.ExtensionSettings[BACKUP_ROOT].Backup;
+        const previous = backup[name];
+        backup[name] = value;
+        try {
+            ServerSend("AccountUpdate", payload);
+        } catch (error) {
+            backup[name] = previous;
+            console.error(`${TAG} failed to send ${path}`, error);
+            return false;
+        }
+        console.info(`${TAG} backup ${name} updated (${bytes} bytes)`);
+        return true;
     }
 
+    function serializeCurrent() {
+        const raw = Array(SLOT_COUNT).fill("");
+        const failed = [];
+        if (!Array.isArray(Player?.Crafting)) return { raw, failed };
+        Player.Crafting.slice(0, SLOT_COUNT).forEach((craft, i) => {
+            if (craft == null) return;
+            let text = "";
+            try { text = CraftingSerialize(craft); } catch (error) {
+                console.warn(`${TAG} serialize failed for slot ${i}`, error);
+            }
+            if (validRaw(text)) raw[i] = text;
+            else failed.push(i);
+        });
+        return { raw, failed };
+    }
+
+    // Mirror the current crafting list into the backup sets (only sets that changed).
+    function syncBackup(reason = "save") {
+        if (!loaded || !Array.isArray(Player?.Crafting) || !Player?.ExtensionSettings) return false;
+        const { raw, failed } = serializeCurrent();
+        const stored = readBackup();
+        // A craft that cannot be serialized must never erase what the backup already holds.
+        for (const i of failed) raw[i] = stored.slots[i];
+
+        let ok = true;
+        for (const set of BACKUP_SETS) {
+            if (stored.invalid.includes(set.name)) {
+                warnOnce(`invalid-${set.name}`, `${set.name} in ExtensionSettings is unreadable; leaving it untouched`);
+                ok = false;
+                continue;
+            }
+            const next = raw.slice(set.from, set.to);
+            const prev = stored.setSlots.slice(set.from, set.to);
+            if (next.every((value, i) => value === prev[i])) continue;
+            if (!sendBackupSet(set.name, packSet(next))) ok = false;
+        }
+        if (!ok) console.warn(`${TAG} backup sync (${reason}) was incomplete`);
+        return ok;
+    }
+
+    // After this session's sets are in place, the 0.1.x packet is redundant.
+    function clearLegacyBackup(setsWerePersisted, syncOk) {
+        const root = Player?.ExtensionSettings?.[BACKUP_ROOT];
+        if (!setsWerePersisted || !syncOk || !isPlain(root) || typeof root.p !== "string" || root.p === "") return;
+        root.p = "";
+        try {
+            ServerSend("AccountUpdate", { [`ExtensionSettings.${BACKUP_ROOT}.p`]: "" });
+            console.info(`${TAG} cleared the legacy 0.1.x backup packet`);
+        } catch (error) {
+            console.warn(`${TAG} could not clear legacy backup`, error);
+        }
+    }
+
+    // ------------------------------------------------------- load / merge
+    // Server data is authoritative. The backup may only fill an EMPTY slot:
+    //  - slot holds a valid item (same or different)  -> keep it; a different backup value means the
+    //    slot was replaced, so the backup is stale and is NOT restored (counted as a conflict);
+    //  - the identical item already exists in another slot (it was moved) -> not restored again.
+    function mergeRaw(serverRaw, backupSlots) {
+        const raw = Array(SLOT_COUNT).fill("");
+        const restored = [];
+        const conflicts = [];
+        const duplicates = [];
+        const present = new Set();
+        for (let i = 0; i < SLOT_COUNT; i++) {
+            if (validRaw(serverRaw[i])) { raw[i] = serverRaw[i]; present.add(serverRaw[i]); }
+        }
+        for (let i = 0; i < SLOT_COUNT; i++) {
+            const backup = backupSlots[i];
+            if (!backup) continue;
+            if (raw[i]) {
+                if (raw[i] !== backup) conflicts.push(i);
+            } else if (present.has(backup)) {
+                duplicates.push(i);
+            } else {
+                raw[i] = backup;
+                present.add(backup);
+                restored.push(i);
+            }
+        }
+        return { raw, restored, conflicts, duplicates };
+    }
+
+    function finishLoad(ctx) {
+        if (!Array.isArray(Player?.Crafting)) return;
+
+        // Things the game still rejected (asset present but the craft is invalid): never silent.
+        const rejected = [];
+        for (let i = 0; i < SLOT_COUNT; i++) {
+            if (ctx.merged.raw[i] && Player.Crafting[i] == null) rejected.push({ slot: i, raw: ctx.merged.raw[i] });
+        }
+        if (rejected.length) console.error(`${TAG} the game rejected ${rejected.length} crafted item(s) with a known asset; raw data:`, rejected);
+
+        loaded = true;
+        let syncOk = true;
+        if (ctx.merged.restored.length) {
+            console.warn(`${TAG} restored ${ctx.merged.restored.length} crafted item(s) from backup`);
+            CraftingSaveServer(); // pushes the repaired list to the server; the hook mirrors the backup
+            announce("HCRCraftingRestored", ctx.merged.restored, "initialization");
+        } else {
+            syncOk = syncBackup("initialization");
+        }
+        clearLegacyBackup(ctx.setsWerePersisted, syncOk);
+        // Assets may already be available (rebuilt index), so try once right away.
+        resolvePlaceholders("initialization");
+    }
+
+    async function lateReconcile() {
+        // HCR was installed after the account had already loaded: the game's null entries are gone,
+        // but the backup can still fill holes.
+        if (loaded || loading || !isLoggedIn() || !Array.isArray(Player?.Crafting)) return;
+        const backup = readBackup();
+        const { raw } = serializeCurrent();
+        const hasHole = mergeRaw(raw, backup.slots).restored.length > 0;
+        if (hasHole) CraftingLoadServer(rawToPacket(raw)); // goes through the hook below
+        else {
+            loaded = true;
+            syncBackup("late");
+            resolvePlaceholders("late");
+        }
+    }
+
+    // ------------------------------------------------------------ display
     function installSlotDisplayPatch() {
         const original = CraftingSlots._createButtonAllSections;
         if (typeof original !== "function" || original.__likoCraftingAssetRecovery) return;
@@ -300,7 +509,8 @@
             const result = original.call(this, mode, options);
             for (const args of result?.modeArgs || []) {
                 const craft = args.craft;
-                if (!craft || assetsFor(craft.Item).length) continue;
+                if (!craft) continue;
+                if (!isPlaceholder(craft) && assetsFor(craft.Item).length) continue;
 
                 const oldButton = args.button;
                 const index = oldButton?.getAttribute("data-index");
@@ -339,13 +549,20 @@
         CraftingSlots._createButtonAllSections = patched;
     }
 
+    // --------------------------------------------------------------- init
     Promise.all([
         waitFor(() => typeof bcModSdk === "object" && typeof bcModSdk.registerMod === "function"),
         waitFor(() => typeof CraftingValidate === "function"
             && typeof CraftingLoadServer === "function"
-            && typeof CraftingDecompressServerData === "function"
+            && typeof CraftingSaveServer === "function"
+            && typeof CraftingSerialize === "function"
+            && typeof CraftingDeserialize === "function"
+            && typeof CraftingAssetsPopulate === "function"
             && typeof CraftingSlots === "object"
-            && typeof ElementButton === "object"),
+            && typeof ElementButton === "object"
+            && typeof ServerSend === "function"
+            && typeof LZString === "object"
+            && typeof CraftingSerializeFieldSep === "string"),
     ]).then(([sdkReady, gameReady]) => {
         if (!sdkReady || !gameReady) {
             console.error(`${TAG} ModSDK or Crafting API unavailable`);
@@ -365,113 +582,112 @@
             return;
         }
 
-        try { CraftingStatusType.UNKNOWN_ASSET = UNKNOWN_ASSET; } catch (_) { /* optional diagnostic enum */ }
-
-        modApi.hookFunction("CraftingSerialize", 100, (args, next) => {
-            const encoded = next(args);
-            // Preserve unresolved legacy values in the normal account save as well.
-            return Player?.Crafting?.includes(args[0]) ? preserveLegacyFields(args[0], encoded) : encoded;
+        // Unknown-asset items become placeholders instead of null, but only while the account loads.
+        modApi.hookFunction("CraftingDeserialize", 100, (args, next) => {
+            const result = next(args);
+            if (result != null || !loading) return result;
+            return buildPlaceholder(args[0]);
         });
 
+        // A placeholder is preserved, not validated.
         modApi.hookFunction("CraftingValidate", 100, (args, next) => {
-            const [craft, suppliedAsset] = args;
-            if (CommonIsObject(craft) && suppliedAsset == null && !args[4]
-                && typeof craft.Item === "string" && craft.Item) {
-                const assets = assetsFor(craft.Item);
-                if (!assets.length) return UNKNOWN_ASSET;
-                // Passing the resolved asset bypasses a stale CraftingAssets snapshot in the original validator.
-                args[1] = assets[0];
-            }
+            if (isPlaceholder(args[0])) return CraftingStatusType.OK;
             return next(args);
+        });
+
+        // A placeholder serializes back to exactly what the server sent.
+        modApi.hookFunction("CraftingSerialize", 100, (args, next) => {
+            const craft = args[0];
+            if (isPlaceholder(craft)) return craft[RAW];
+            return keepLegacyFields(craft, next(args));
         });
 
         modApi.hookFunction("CraftingSaveServer", 100, (args, next) => {
-            const packet = encodeCrafting();
-            if (packet != null) saveBackupPacket(packet, "crafting-change");
-            return next(args);
+            const result = next(args);
+            syncBackup("crafting-change");
+            return result;
         });
 
         modApi.hookFunction("CraftingLoadServer", 100, (args, next) => {
-            Player.Crafting = [];
-            let refresh = false;
-            const criticalErrors = {};
-            const serverData = CraftingDecompressServerData(args[0]);
-            // Reconcile on every account initialization, not only when creating the first backup.
-            const merged = mergeBackup(serverData);
-            const data = merged.data;
-            refresh = merged.migrated;
+            loaded = false;
+            warnedOnce.clear();
+            refreshCraftingAssets(true);
 
-            // When every asset is already available (including the case where an extension
-            // initialized before HCR), keep the normal loader chain intact. Other extensions
-            // hooking CraftingLoadServer will receive the restored array and can rebuild caches.
-            const allAssetsReady = data.every((item) => item == null || assetsFor(item.Item).length > 0);
-            if (allAssetsReady) {
-                if (merged.restored) console.warn(`${TAG} restored ${merged.restored} crafted item(s) during initialization`);
-                const result = next([data]);
-                if (merged.restored || merged.migrated) {
-                    CraftingSaveServer();
-                    announceRestoration(merged.indices, "initialization");
-                } else {
-                    const packet = encodeCrafting(Player.Crafting);
-                    if (packet != null) saveBackupPacket(packet, "initialization");
-                }
-                return result;
+            const serverRaw = packetToRaw(args[0]);
+            const backup = readBackup();
+            const merged = mergeRaw(serverRaw, backup.slots);
+            if (backup.invalid.length) console.error(`${TAG} unreadable backup set(s):`, backup.invalid);
+            if (merged.conflicts.length || merged.duplicates.length) {
+                console.info(`${TAG} backup not applied: ${merged.conflicts.length} replaced slot(s), ${merged.duplicates.length} moved/duplicate slot(s)`);
             }
 
-            if (merged.restored) {
-                refresh = true;
-                console.warn(`${TAG} restored ${merged.restored} crafted item(s) during initialization`);
+            let result;
+            loading = true;
+            try {
+                result = next([rawToPacket(merged.raw)]);
+            } finally {
+                loading = false;
             }
-
-            for (const [i, item] of CommonEnumerate(data)) {
-                if (item == null) {
-                    Player.Crafting.push(null);
-                    continue;
-                }
-
-                const status = CraftingValidate(item, undefined, undefined, true);
-                if (status === CraftingStatusType.OK || status === UNKNOWN_ASSET) {
-                    Player.Crafting.push(item);
-                } else if (status === CraftingStatusType.ERROR) {
-                    Player.Crafting.push(item);
-                    refresh = true;
-                } else {
-                    Player.Crafting.push(null);
-                    refresh = true;
-                    criticalErrors[i] = item;
-                }
-                if (Player.Crafting.length >= 200) break;
+            try {
+                finishLoad({ merged, setsWerePersisted: backup.persisted });
+            } catch (error) {
+                loaded = true;
+                console.error(`${TAG} post-load reconciliation failed`, error);
             }
-
-            if (refresh) {
-                const count = Object.keys(criticalErrors).length;
-                if (count) console.error(`${TAG} Removing ${count} corrupted crafted items`, criticalErrors);
-                CraftingSaveServer();
-                if (merged.restored) announceRestoration(merged.indices, "initialization");
-            } else {
-                const packet = encodeCrafting(Player.Crafting);
-                if (packet != null) saveBackupPacket(packet, "initialization");
-            }
+            return result;
         });
 
+        // Entering the crafting room is a good moment to pick up assets that arrived late.
+        if (typeof CraftingLoad === "function") {
+            modApi.hookFunction("CraftingLoad", 100, (args, next) => {
+                try {
+                    refreshCraftingAssets(true);
+                    resolvePlaceholders("screen");
+                } catch (error) {
+                    console.warn(`${TAG} resolve on screen load failed`, error);
+                }
+                return next(args);
+            });
+        }
+
         installSlotDisplayPatch();
+
+        setInterval(() => {
+            if (!loaded || !placeholderSlots().length) return;
+            if (refreshCraftingAssets()) resolvePlaceholders("assets-changed");
+        }, RESOLVE_POLL_MS);
+
         window.Liko.HCR = {
             version: MOD_VERSION,
             assetsFor,
             tooltip,
             warningImage: WARNING_IMAGE,
+            status() {
+                const info = readBackup();
+                const root = readBackupRoot();
+                const sets = {};
+                for (const set of BACKUP_SETS) {
+                    const value = isPlain(root?.Backup) ? root.Backup[set.name] : undefined;
+                    sets[set.name] = {
+                        items: info.setSlots.slice(set.from, set.to).filter(Boolean).length,
+                        bytes: typeof value === "string" ? utf8Bytes(value) : null,
+                    };
+                }
+                return {
+                    version: MOD_VERSION,
+                    loaded,
+                    placeholders: placeholderSlots().map((i) => ({ slot: i, item: Player.Crafting[i].Item })),
+                    backup: { ...sets, invalid: info.invalid, legacyPacketPresent: info.hasLegacy },
+                };
+            },
             backup: {
-                encode: encodeCrafting,
-                read: readBackupPacket,
-                save: () => {
-                    const packet = encodeCrafting();
-                    return packet != null ? saveBackupPacket(packet, "manual") : false;
-                },
-                reconcile: reconcileLoadedCrafting,
+                read: () => readBackup().slots.slice(),
+                save: () => syncBackup("manual"),
+                reconcile: () => resolvePlaceholders("manual"),
             },
         };
-        // Also reconcile/migrate when HCR is installed after the account packet loaded.
-        ensureInitialBackup();
+
+        if (isLoggedIn()) setTimeout(() => { lateReconcile().catch((error) => console.error(`${TAG} late reconcile failed`, error)); }, 500);
         console.log(`${TAG} v${MOD_VERSION} loaded`);
     });
 })();
