@@ -3,7 +3,7 @@
 // @name:zh      熱修 - 製作物品的擴充物品資產保護 
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.1.3
+// @version      0.1.4
 // @description  Preserves crafted items while extension assets are unavailable and restores them after the assets load.
 // @description:zh 在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用。
 // @author       Likolisu
@@ -22,7 +22,7 @@
     window.Liko = window.Liko ?? {};
     if (window.Liko.HCR) return;
 
-    const MOD_VERSION = "0.1.3";
+    const MOD_VERSION = "0.1.4";
     const TAG = "🐈‍⬛ [HCR]";
     const SLOT_COUNT = 200;
     const BACKUP_ROOT = "HCR";
@@ -258,7 +258,8 @@
 
     function decodeSet(value, size) {
         if (value === "") return [];
-        if (typeof value !== "string") return null;
+        // LZString can decode invalid alphabet characters into non-empty garbage.
+        if (typeof value !== "string" || value.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,3}$/.test(value)) return null;
         let text = null;
         try { text = LZString.decompressFromBase64(value); } catch (_) { text = null; }
         // A non-empty value must decode to something; "" would mean it is corrupt.
@@ -332,9 +333,20 @@
                 warnOnce("odd-root", "ExtensionSettings.HCR has an unexpected type; refusing to overwrite it");
                 return false;
             }
-            settings[BACKUP_ROOT] = { v: BACKUP_FORMAT, Backup: { set1: "", set2: "" } };
-            // A fresh literal: queued payloads are not deep-copied by ServerSend.
-            ServerSend("AccountUpdate", { [`ExtensionSettings.${BACKUP_ROOT}`]: { v: BACKUP_FORMAT, Backup: { set1: "", set2: "" } } });
+            // Preserve legacy data until both replacement sets have been sent successfully.
+            const next = parsed == null ? { v: BACKUP_FORMAT } : { ...parsed };
+            if (next.Backup === undefined) next.Backup = { set1: "", set2: "" };
+            if (!isPlain(next.Backup)) return false;
+            const payload = { [`ExtensionSettings.${BACKUP_ROOT}`]: next };
+            if (utf8Bytes(JSON.stringify(["AccountUpdate", payload])) > PAYLOAD_BUDGET) return false;
+            try {
+                // Detach the queued snapshot from subsequent local set changes.
+                ServerSend("AccountUpdate", JSON.parse(JSON.stringify(payload)));
+            } catch (error) {
+                console.error(`${TAG} failed to initialize backup container`, error);
+                return false;
+            }
+            settings[BACKUP_ROOT] = next;
             return true;
         }
         if (!isPlain(parsed)) {
@@ -342,8 +354,13 @@
             return false;
         }
         if (parsed.Backup === undefined) {
+            try {
+                ServerSend("AccountUpdate", { [`ExtensionSettings.${BACKUP_ROOT}.Backup`]: { set1: "", set2: "" } });
+            } catch (error) {
+                console.error(`${TAG} failed to initialize backup sets`, error);
+                return false;
+            }
             parsed.Backup = { set1: "", set2: "" };
-            ServerSend("AccountUpdate", { [`ExtensionSettings.${BACKUP_ROOT}.Backup`]: { set1: "", set2: "" } });
             return true;
         }
         if (!isPlain(parsed.Backup)) {
@@ -411,20 +428,24 @@
             }
             const next = raw.slice(set.from, set.to);
             const prev = stored.setSlots.slice(set.from, set.to);
-            if (next.every((value, i) => value === prev[i])) continue;
+            const hasSet = typeof readBackupRoot()?.Backup?.[set.name] === "string";
+            if (hasSet && next.every((value, i) => value === prev[i])) continue;
             if (!sendBackupSet(set.name, packSet(next))) ok = false;
         }
         if (!ok) console.warn(`${TAG} backup sync (${reason}) was incomplete`);
+        // Clear the legacy source in the same session, before later deletions can be undone by it.
+        // Failed serialization or incomplete sets must retain the old recovery source.
+        if (ok && !failed.length && readBackup().persisted) clearLegacyBackup();
         return ok;
     }
 
     // After this session's sets are in place, the 0.1.x packet is redundant.
-    function clearLegacyBackup(setsWerePersisted, syncOk) {
+    function clearLegacyBackup() {
         const root = Player?.ExtensionSettings?.[BACKUP_ROOT];
-        if (!setsWerePersisted || !syncOk || !isPlain(root) || typeof root.p !== "string" || root.p === "") return;
-        root.p = "";
+        if (!isPlain(root) || typeof root.p !== "string" || root.p === "") return;
         try {
             ServerSend("AccountUpdate", { [`ExtensionSettings.${BACKUP_ROOT}.p`]: "" });
+            root.p = "";
             console.info(`${TAG} cleared the legacy 0.1.x backup packet`);
         } catch (error) {
             console.warn(`${TAG} could not clear legacy backup`, error);
@@ -472,15 +493,13 @@
         if (rejected.length) console.error(`${TAG} the game rejected ${rejected.length} crafted item(s) with a known asset; raw data:`, rejected);
 
         loaded = true;
-        let syncOk = true;
         if (ctx.merged.restored.length) {
             console.warn(`${TAG} restored ${ctx.merged.restored.length} crafted item(s) from backup`);
             CraftingSaveServer(); // pushes the repaired list to the server; the hook mirrors the backup
             announce("HCRCraftingRestored", ctx.merged.restored, "initialization");
         } else {
-            syncOk = syncBackup("initialization");
+            syncBackup("initialization");
         }
-        clearLegacyBackup(ctx.setsWerePersisted, syncOk);
         // Assets may already be available (rebuilt index), so try once right away.
         resolvePlaceholders("initialization");
     }
@@ -585,7 +604,7 @@
         // Unknown-asset items become placeholders instead of null, but only while the account loads.
         modApi.hookFunction("CraftingDeserialize", 100, (args, next) => {
             const result = next(args);
-            if (result != null || !loading) return result;
+            if (result != null || !loading || assetsFor(rawItemName(args[0])).length) return result;
             return buildPlaceholder(args[0]);
         });
 
@@ -629,7 +648,7 @@
                 loading = false;
             }
             try {
-                finishLoad({ merged, setsWerePersisted: backup.persisted });
+                finishLoad({ merged });
             } catch (error) {
                 loaded = true;
                 console.error(`${TAG} post-load reconciliation failed`, error);

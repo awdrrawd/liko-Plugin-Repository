@@ -1,3 +1,5 @@
+// Regressions originally found in R132; these async contracts still apply in R133.
+// Isolated hooks test behavior, not full compatibility with a particular BC release.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -62,5 +64,5 @@ function hook(name, target, context) {
         const s=read(name),header=/@version\s+(\S+)/.exec(s)[1];
         assert.equal(/const MOD_VER = ["']([^"']+)/.exec(s)[1],header, `${name}: version metadata`);
     }
-    console.log(`${files.length} main scripts parse; R132 async hooks, stale navigation, error propagation and versions passed.`);
+    console.log(`${files.length} main scripts parse; Async hooks, stale navigation, error propagation and versions passed.`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -78,7 +78,7 @@ import(`https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?v=$
 | 📋 **聊天室信息過濾器**<br><sub>RChat Filter Tool</sub><br>`Liko-CFT` | 聊天室信息過濾 | v1.1.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CFT.main.user.js) |
 | 🫟 **你畫我猜(測試)**<br><sub>Draw Game(test)</sub><br>`Liko-BDG` | 可以在聊天室隨意塗鴉 | v0.3.0 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko-BDG.main.user.js) |
 | 🪪 **Liko的自定義個人資料頁面背景**<br><sub>Liko's Custom Profile Background</sub><br>`Liko-CPB` | 自定義個人資料頁面背景並分享給他人 | v1.2.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CPB.main.user.js) |
-| 💬 **Liko的對話變按鈕**<br><sub>Liko's Chat Text to Button</sub><br>`Liko-Chat_TtoB` | 聊天室信息轉按鈕，現在還多了傳送門功能!<br><sub>使用/指令、!!說話、#房名#都會變成可以點擊的按鈕，#房名#提供傳送功能</sub> | v1.1.1-1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js) |
+| 💬 **Liko的對話變按鈕**<br><sub>Liko's Chat Text to Button</sub><br>`Liko-Chat_TtoB` | 聊天室信息轉按鈕，現在還多了傳送門功能!<br><sub>使用/指令、!!說話、#房名#都會變成可以點擊的按鈕，#房名#提供傳送功能</sub> | v1.1.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js) |
 | 📔 **BC翻譯補丁**<br><sub>BC-translation-patch</sub><br>`Liko-BTP` | 中文的翻譯補丁，補充上遺漏翻譯 | v0.1.0 | [安裝](https://awdrrawd.github.io/BC-translation-patch/bc-translation-patch.js) · [專案網站](https://github.com/awdrrawd/BC-translation-patch) |
 | 🖌️ **繪圖檢測工具**<br><sub>Draw Detection Tool</sub><br>`Liko-DDT` | 偵測 canvas & DOM 物件的屬性，支持染色與位移，並支持繪製物件功能 | v0.3.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20DDT.main.user.js) |
 | 🧹 **Liko的解綁女僕**<br><sub>Liko's Release Maid</sub><br>`Liko-Release_Maid` | 自動解綁女僕，不過有點天然，會在意外時觸發!<br><sub>請評估自己需求，避免降低遊戲樂趣</sub> | v1.2-1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Release%20Maid.main.user.js) |
@@ -106,7 +106,7 @@ import(`https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?v=$
 | 💉 **ECHO-R133熱修**<br><sub>HOTFIX-ECHO-R133</sub><br>`Fix-ECHO` | 這是一個臨時修復，將在ECHO更新後移除 | v0.1.0 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/Hotfix-R133_Echo_compatibility_fix.user.js) |
 | 💉 **物件隱藏熱修**<br><sub>Hotfix for Hidden elements</sub><br>`Fix-HHA` | 在更衣室、個人資訊、角色互動中隱藏興奮條、MPA等物件 | v0.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HHA.user.js) |
 | 💉 **牽引補丁(測試)**<br><sub>Leash Fix(test)</sub><br>`Fix-HLF` | 修復部分牽引失敗的錯誤 | v0.17 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HLF.user.js) |
-| 💉 **製作物品的擴充物品資產保護**<br><sub>Crafting Asset Recovery</sub><br>`Fix-HCR` | 在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用 | v0.1.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HCR.user.js) |
+| 💉 **製作物品的擴充物品資產保護**<br><sub>Crafting Asset Recovery</sub><br>`Fix-HCR` | 在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用 | v0.1.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HCR.user.js) |
 
 ## 開發參考
 

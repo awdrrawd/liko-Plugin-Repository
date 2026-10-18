@@ -18,7 +18,7 @@
 
 ## 驗證
 
-- `node scripts/test-main-r132.cjs`：28 個主程式語法、載入完成順序、離開畫面、原生錯誤傳遞、CPB 單次載入、版本一致性。
+- `node scripts/test-main-compat.cjs`（2026-10-18 由 `test-main-r132.cjs` 改名）：28 個主程式語法、載入完成順序、離開畫面、原生錯誤傳遞、CPB 單次載入、版本一致性。
 - `scripts/test-mat-*.cjs` 共 9 項測試通過。
 - 快取測試原本寫死 10 分鐘，與既有 30 分鐘程式設定不符；改依 TTL 常數驗證到期前與到期邊界，未改動產品快取期限。
 - `git diff --check` 通過。
