@@ -608,7 +608,7 @@
       "description": "這是一個臨時修復，將在ECHO更新後移除",
       "en_description": "This is a temporary fix and will be removed after the ECHO update.",
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/Hotfix-R133_Echo_compatibility_fix.user.js",
-      "priority": 1,
+      "priority": 0,
       "icon": "💉",
       "version": "0.1.0"
     }
