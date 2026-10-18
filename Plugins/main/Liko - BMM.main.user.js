@@ -2,7 +2,7 @@
 // @name         liko - BMM
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.0.2
+// @version      2.0.3
 // @description  BC 地圖房迷你地圖
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -28,7 +28,7 @@
         if (window.Liko) window.Liko.BMM = null;
     };
     if (window.Liko.BMM) return;
-    const MOD_VER = "2.0.2";
+    const MOD_VER = "2.0.3";
     window.Liko.BMM = MOD_VER;
 
     // ── i18n 多語言系統 ─────────────────────────────────────────────────────
@@ -170,7 +170,15 @@
     };
 
     const OBJECT_STYLES = {
-        FloorDecoration:          { mode:"fill",       fill:"#ffcfa8", border:"#a08a5f" },
+        FloorDecoration:          { mode:"fill",       fill:"#ffcfa8", border:"#a08a5f" }, // R132 以前的舊類型（保留相容）
+        // ── R133 新類型 ──
+        LivingRoom:               { mode:"fill",       fill:"#ffcfa8", border:"#a08a5f" },
+        Bedroom:                  { mode:"fill",       fill:"#f5b8c8", border:"#a08a5f" },
+        Bathroom:                 { mode:"fill",       fill:"#a8d8f0", border:"#a08a5f" },
+        School:                   { mode:"fill",       fill:"#becbfe", border:"#a08a5f" },
+        ABDL:                     { mode:"fillBorder", fill:"#ffd6ec", border:"#ad528c" },
+        FloorFoamTiles:           { mode:"fillBorder", fill:"#ffb3e3", border:"#ad528c" },
+        Functional:               { mode:"fillBorder", fill:"#e8e8e8", border:"#000000" },
         FloorDecorationThemed:    { mode:"fill",       fill:"#becbfe", border:"#a08a5f" },
         FloorDecorationParty:     { mode:"fill",       fill:"#f8945d", border:"#a08a5f" },
         FloorDecorationCamping:   { mode:"fill",       fill:"#db9757", border:"#a08a5f" },
@@ -191,6 +199,8 @@
         { match:"EntryFlag", matchType:"exact",  mode:"star", fill:"#00d115", border:"#000000" }, // 入口
         { match:"ExitFlag",  matchType:"exact",  mode:"star", fill:"#ff352e", border:"#000000" }, // 出口
         { match:"Key",       matchType:"prefix", mode:"star", fill:"#f6fa00", border:"#000000" }, // 鑰匙 Key*
+        { match:"ConveyorBelt", matchType:"prefix", mode:"fillBorder", fill:"#8a8f98", border:"#202020" }, // 輸送帶（含 Fast）
+        { match:"Sign",      matchType:"prefix", mode:"fillBorder", fill:"#d9b36c", border:"#5a3d12" }, // 告示牌 Sign*
     ];
 
     function starPath(ctx, cx, cy, outerR, innerRatio, points, rotation) {
@@ -300,6 +310,16 @@
         ctx.setLineDash([4, 3]);
         ctx.strokeRect(sx+1, sy+1, ts-2, ts-2);
         ctx.restore();
+    }
+
+    // R133 告示牌文字：存在 MapData.CellData[格子索引].Text
+    function getSignText(x, y) {
+        try {
+            const md = getRenderMap();
+            if (!md || !md.CellData) return "";
+            const cfg = md.CellData[y * MAP_W + x];
+            return (cfg && cfg.Type === "Sign" && typeof cfg.Text === "string") ? cfg.Text : "";
+        } catch (e) { return ""; }
     }
 
     function getObjectVisual(obj) {
@@ -1497,7 +1517,8 @@
             const tileY = originY + Math.floor((my-toy)/ts);
             if (tileX < 0 || tileX >= MAP_W || tileY < 0 || tileY >= MAP_H) return;
             _selectedTile = { x: tileX, y: tileY };
-            setFooterText(`✜ (${tileX},${tileY})`, "selection");
+            const _sign = getSignText(tileX, tileY);
+            setFooterText(`✜ (${tileX},${tileY})` + (_sign ? ` 📝 ${_sign.replace(/\s+/g, " ").slice(0, 40)}` : ""), "selection");
             redrawNow();
         });
 
@@ -1528,7 +1549,10 @@
     // 把 mappaste 串解回 {Type,Tiles,Objects,Fog}（编辑器 MapLib.decode 产出的同格式）
     function bmmxDecode(str) {
         if (!window.LZString) return null;
-        try { return JSON.parse(window.LZString.decompressFromBase64(str)); } catch (e) { return null; }
+        try {
+            const at = str.indexOf("@");  // R133 完整串：舊格式 + "@" + Effects
+            return JSON.parse(window.LZString.decompressFromBase64(at >= 0 ? str.slice(0, at) : str));
+        } catch (e) { return null; }
     }
     // 联动态下绘制用的地图源：优先用编辑器实时预览
     function getRenderMap() { return (_linkedEdit && _livePreview) ? _livePreview : getMapData(); }
@@ -1615,10 +1639,12 @@
     function bmmxDoImport(str, map) {
         try {
             const payload = { Type: map.Type, Tiles: map.Tiles, Objects: map.Objects, Fog: map.Fog };
+            if (map.CellData) payload.CellData = map.CellData;
             if (typeof MapManager !== "undefined" && MapManager?.Map?.importString) {  // eslint-disable-line
                 // R133：与原生 /mappaste 相同，交给 MapManager 解码、更新内部地图并排程同步（仅房间管理员可用）
                 if (!ChatRoomPlayerIsAdmin()) throw new Error("not admin");  // eslint-disable-line
-                const encoded = window.LZString ? bmmxMapToStr(payload) : str;
+                // 已是完整串（含 @Effects）就原樣送出，避免洗掉燈光；否則才用解出的內容重新編碼
+                const encoded = (typeof str === "string" && str.indexOf("@") > 0) ? str : (window.LZString ? bmmxMapToStr(map) : str);
                 if (!MapManager.Map.importString(encoded)) throw new Error("importString failed");  // eslint-disable-line
             } else {
                 if (typeof ChatRoomData !== "undefined" && ChatRoomData) ChatRoomData.MapData = payload; // 本地即时反馈（与 BC 原生 MapPaste 一致）
@@ -1649,9 +1675,25 @@
             document.head.appendChild(s);
         });
     }
+    // 舊格式（LZString）：{Type,Tiles,Objects,Fog,CellData}；編輯器只認這一段
     function bmmxMapToStr(md) {
         const payload = { Type: md.Type, Tiles: md.Tiles, Objects: md.Objects, Fog: md.Fog };
+        if (md.CellData && Object.keys(md.CellData).length) payload.CellData = md.CellData; // 告示牌文字
         return window.LZString ? window.LZString.compressToBase64(JSON.stringify(payload)) : JSON.stringify(payload);
+    }
+    // 完整匯出串（含燈光 Effects）：優先用遊戲原生 MapManager.Map.exportString()，與 /mapcopy 相同
+    function bmmxNativeExport() {
+        try {
+            if (typeof MapManager !== "undefined" && MapManager?.Map?.exportString) {  // eslint-disable-line
+                const s = MapManager.Map.exportString();  // eslint-disable-line
+                if (typeof s === "string" && s.length) return s;
+            }
+        } catch (e) { console.warn("[BMM] exportString failed", e); }
+        return null;
+    }
+    // 存檔紀錄要還原成可匯入的字串：有完整串（含 @Effects）就用它，否則退回舊格式
+    function bmmxRecordToStr(rec) {
+        return (rec && typeof rec.Str === "string" && rec.Str.length) ? rec.Str : bmmxMapToStr(rec);
     }
     async function openEditorWith(md) {
         await bmmxEnsureLZ();
@@ -1731,6 +1773,10 @@
         const name = await showSaveNameDialog(def);
         if (!name) return;
         const rec = { id: "m_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7), name, savedAt: Date.now(), Type: md.Type, Tiles: md.Tiles, Objects: md.Objects, Fog: md.Fog };
+        // R133：一併保存燈光 Effects、告示牌 CellData 與原生完整匯出串
+        if (md.Effects) rec.Effects = md.Effects;
+        if (md.CellData) rec.CellData = md.CellData;
+        const full = bmmxNativeExport(); if (full) rec.Str = full;
         try { await bmmxPut(rec); flashBtn(bmmxSaveBtn); } catch (e) { alert(t("save_fail") + e); }
     }
     let _bmmxLoadOv = null;
@@ -1756,7 +1802,7 @@
             const bOpen = document.createElement("button"); bOpen.className = "mm-btn"; bOpen.type = "button"; bOpen.textContent = t("ov_editor"); bOpen.onclick = () => { openEditorWith(m); if (_bmmxLoadOv) { _bmmxLoadOv.remove(); _bmmxLoadOv = null; } };
             const bLoad = document.createElement("button"); bLoad.className = "mm-btn"; bLoad.type = "button"; bLoad.textContent = t("ov_load"); bLoad.onclick = () => {
                 if (!confirm(t("ov_load_confirm", { name: m.name }))) return;
-                bmmxDoImport(bmmxMapToStr(m), m);
+                bmmxDoImport(bmmxRecordToStr(m), m);
             };
             const bDel = document.createElement("button"); bDel.className = "mm-btn"; bDel.type = "button"; bDel.textContent = t("ov_delete"); bDel.onclick = async () => { if (confirm(t("ov_del_confirm", { name: m.name }))) { await bmmxDel(m.id); refreshLoadOverlay(ov); } };
             acts.append(bOpen, bLoad, bDel); row.append(meta, acts); list.appendChild(row);
@@ -1783,6 +1829,9 @@
                     for (const m of arr) {
                         if (m && m.Tiles) {
                             const rec = { id: m.id || ("imp_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7)), name: m.name || f.name, savedAt: m.savedAt || Date.now(), Type: m.Type, Tiles: m.Tiles, Objects: m.Objects, Fog: m.Fog };
+                            if (m.Effects) rec.Effects = m.Effects;
+                            if (m.CellData) rec.CellData = m.CellData;
+                            if (typeof m.Str === "string") rec.Str = m.Str;
                             await bmmxPut(rec); n++;
                         }
                     }
