@@ -3,12 +3,10 @@
   "updateId": "261018",
   "version": "2.2.3",
   "changelog": [
-    "已經完成關於R133大多已知的錯誤修復",
-    "提供ECHO的R133熱修檔"
+    "已經完成關於R133大多已知的錯誤修復"
   ],
   "en_changelog": [
-    "Most known bugs related to R133 have been fixed.",
-    "Provides ECHO R133 hotfix."
+    "Most known bugs related to R133 have been fixed."
   ],
   "plugins": [
     {
@@ -453,17 +451,6 @@
       "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TTS.main.user.js",
       "priority": 8,
       "version": "0.6.3"
-    },
-    {
-      "id": "Fix-ECHO",
-      "name": "ECHO-R133熱修",
-      "en_name": "HOTFIX-ECHO-R133",
-      "description": "這是一個臨時修復，將在ECHO更新後移除",
-      "en_description": "This is a temporary fix and will be removed after the ECHO update.",
-      "url": "https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/Hotfix-R133_Echo_compatibility_fix.user.js",
-      "priority": 1,
-      "icon": "💉",
-      "version": "0.1.0"
     },
     {
       "id": "ECHO-Cloth",
