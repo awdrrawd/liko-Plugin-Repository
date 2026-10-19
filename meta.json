@@ -2,12 +2,10 @@
   "updateId": "261018",
   "changelog": {
     "cn": [
-    "已經完成關於R133大多已知的錯誤修復",
-    "提供ECHO的R133熱修檔"
+    "已經完成關於R133大多已知的錯誤修復"
     ],
     "en": [
-    "Most known bugs related to R133 have been fixed.",
-    "Provides ECHO R133 hotfix."
+    "Most known bugs related to R133 have been fixed."
     ]
   }
 }
