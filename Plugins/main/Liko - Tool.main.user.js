@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.3.4
+// @version      2.3.5
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
     // 防重複載入必須先於生命週期資源、事件與初始化。
     window.Liko = window.Liko ?? {};
     if (window.Liko.LT) return;
-    const MOD_Version = "2.3.4";
+    const MOD_Version = "2.3.5";
     window.Liko.LT = MOD_Version;
 
     // 閱讀順序：生命週期 → 靜態資源／語系 → 設定 → 共用操作 → UI → 功能 → Hook → 啟動。
@@ -138,6 +138,7 @@
         rp:        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="22" y1="2" x2="2" y2="22"/></svg>',
         dnd:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="7.5" y1="12" x2="16.5" y2="12"/></svg>',
         ooc:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/><path d="M10 8.7c-1 1-1 5.6 0 6.6M14 8.7c1 1 1 5.6 0 6.6"/></svg>',
+        safeword:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>',
         heightFix: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>',
         heightLock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="6" rx="1"/><path d="M7 9v3M11 9v3M15 9v3M19 9v3"/></svg>',
         rpBtn:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="8" rx="4"/><circle cx="8" cy="12" r="1.5"/></svg>',
@@ -282,6 +283,8 @@
             toggleScaleHelp: "人物與互動格使用顯示比例 1，不改寫人物屬性",
             toggleOoc: "说话总是OOC",
             toggleOocHelp: "聊天/密语时自动加括号转为 OOC（不会被口塞乱码）",
+            toggleSafeword: "啟用安全詞",
+            toggleSafewordHelp: "開啟後在聊天室內一律可使用安全詞（優先於 BCX 與個人設定）；關閉時依個人設定",
             toggleRpButton: "显示RP按钮",
             toggleRpButtonHelp: "在游戏画面显示 RP 切换按钮",
             viewCharacterHint: "目前：人物模式；點擊切換清單",
@@ -371,6 +374,8 @@
             magicDeflected:  "{who}受到了魔法的攻击，但很快的就失去效力了",
             oocOn:           "说话总是OOC 已启用（聊天/密语自动加上括号转为 OOC）",
             oocOff:          "说话总是OOC 已停用",
+            safewordOn:      "啟用安全詞 已開啟（在聊天室內無論 BCX／個人設定都能使用安全詞）",
+            safewordOff:     "啟用安全詞 已關閉（安全詞依個人設定決定）",
             oocPlaceholder:  "现在讯息为 OOC",
             ibOn:            "无视衣物阻挡已启用（被服装/道具遮挡的格子仍可换装、装拘束）",
             ibOff:           "无视衣物阻挡已停用",
@@ -431,7 +436,7 @@
             lockTypeTitle:  "选择锁类型",
             lockTypeFail:   "无法获取锁类型列表",
             lockTypeNone:   "没有可用的锁类型",
-            lockPrefix:     "[锁]",
+            lockPrefix:     "🔒",
             // 其他 UI 讯息
             noPlayers:      "房间内没有玩家",
             noInputBox:     "找不到聊天输入框",
@@ -460,6 +465,7 @@
             "/lt heightfix         - 拉高互動視角（消除垂直位移）\n" +
             "/lt heightlock        - 固定人物與互動格顯示比例（不改人物資料）\n" +
             "/lt ooc               - 说话总是OOC（聊天/密语自动加括号转 OOC）\n" +
+            "/lt safeword          - 啟用安全詞（開啟後聊天室內一律可用，優先於 BCX）\n" +
             "/lt dnd               - 勿扰模式（除自己外，他人对你外观的编辑立即复原）\n" +
             "/lt magicdefense      - 魔法防御（使 LSCG 魔法无法生效）\n" +
             "/lt freehands         - 无视绑缚（被绑时仍可使用双手，不解开道具）\n" +
@@ -491,6 +497,8 @@
             toggleScaleHelp: "Draw the character and zones at view scale 1 without changing character properties",
             toggleOoc: "Always OOC",
             toggleOocHelp: "Auto-wrap chat/whisper in parentheses as OOC",
+            toggleSafeword: "Enable Safeword",
+            toggleSafewordHelp: "When on, the safeword is always usable in a chat room (overrides BCX and personal settings); when off, your own settings apply",
             toggleRpButton: "Show RP Btn",
             toggleRpButtonHelp: "Show RP toggle button on canvas",
             viewCharacterHint: "Character view; click for list",
@@ -580,6 +588,8 @@
             magicDeflected:  "{who} was struck by magic, but it quickly lost its effect",
             oocOn:           "Always OOC enabled (chat/whisper auto-wrapped in parentheses as OOC)",
             oocOff:          "Always OOC disabled",
+            safewordOn:      "Enable Safeword ON (the safeword is usable in a chat room regardless of BCX / personal settings)",
+            safewordOff:     "Enable Safeword OFF (the safeword follows your personal settings)",
             oocPlaceholder:  "Messages are OOC now",
             ibOn:            "Ignore Clothing Block enabled (equip on slots covered by clothing/items)",
             ibOff:           "Ignore Clothing Block disabled",
@@ -640,7 +650,7 @@
             lockTypeTitle:  "Select a lock type",
             lockTypeFail:   "Cannot get lock type list",
             lockTypeNone:   "No lock types available",
-            lockPrefix:     "[Lock]",
+            lockPrefix:     "🔒",
             // Other UI messages
             noPlayers:      "No players in the room",
             noInputBox:     "Chat input box not found",
@@ -669,6 +679,7 @@
             "/lt heightfix         - Raise dialog view (remove vertical offset)\n" +
             "/lt heightlock        - Fixed dialog view scale (does not change character data)\n" +
             "/lt ooc               - Always OOC (auto-wrap chat/whisper in parentheses)\n" +
+            "/lt safeword          - Enable Safeword (always usable in a chat room, overrides BCX)\n" +
             "/lt dnd               - Do Not Disturb (others' edits to your appearance auto-revert)\n" +
             "/lt magicdefense      - Block LSCG magic from taking effect\n" +
             "/lt freehands         - Free hands (use hands while restrained, keeps items on)\n" +
@@ -706,7 +717,7 @@
     let _esRaw, _esObj = null, _esMember;
 
     const ES_DEFAULTS = { heightFix: 0, heightLock: 0, rpBtnVisible: 0, stealthRp: 0,
-                         rpModeLocal: 0, freeHands: 0, ignoreBlock: 0, dnd: 0, magicDefense: 0, alwaysOOC: 0, bypassActivities: false, itemViewMode: 'list' };
+                         rpModeLocal: 0, freeHands: 0, ignoreBlock: 0, dnd: 0, magicDefense: 0, alwaysOOC: 0, safeword: 0, bypassActivities: false, itemViewMode: 'list' };
 
     function getES() {
         if (!Player.ExtensionSettings) Player.ExtensionSettings = {};
@@ -1039,6 +1050,9 @@
             ".lt-craft-preview{display:block;width:120px;height:120px;max-width:100%;object-fit:contain;margin:0 auto 12px;border-radius:10px;background:var(--lt-surface);}",
             ".lt-item-picker .lt-list-btn{display:flex;align-items:center;justify-content:flex-start;gap:10px;text-align:left;}",
             ".lt-item-thumb{width:40px;height:40px;flex:0 0 40px;object-fit:contain;border-radius:6px;background:var(--lt-surface);}",
+            ".lt-item-thumb-wrap{position:relative;flex:0 0 40px;width:40px;height:40px;}",
+            ".lt-item-thumb-wrap .lt-item-thumb{display:block;width:40px;height:40px;}",
+            ".lt-lock-badge{position:absolute;right:-5px;bottom:-5px;width:18px;height:18px;box-sizing:border-box;padding:1px;object-fit:contain;border-radius:50%;background:rgba(0,0,0,0.72);border:1px solid var(--lt-border,rgba(255,255,255,0.25));pointer-events:none;}",
             ".lt-item-label{min-width:0;overflow-wrap:anywhere;}",
             ".lt-craft-fields input[type=text],.lt-craft-fields textarea{box-sizing:border-box;width:100%;margin:5px 0 12px;padding:8px;background:var(--lt-surface);color:var(--lt-text);border:1px solid var(--lt-border);border-radius:8px;font-family:inherit;font-size:13px;font-weight:400;user-select:text;-webkit-user-select:text;}",
             ".lt-craft-fields textarea{resize:vertical;}",
@@ -1722,6 +1736,7 @@
             { icon: SVG.heightFix, label: t('toggleRaise'), title: t('toggleRaiseHelp'), toggle: 'heightFix', fn: heightFixCommand },
             { icon: SVG.heightLock, label: t('toggleScale'), title: t('toggleScaleHelp'), toggle: 'fixedZones', fn: heightLockCommand },
             { icon: SVG.ooc,       label: t('toggleOoc'), title: t('toggleOocHelp'), toggle: 'alwaysOOC', fn: oocCommand },
+            { icon: SVG.safeword,  label: t('toggleSafeword'), title: t('toggleSafewordHelp'), toggle: 'safeword', fn: safewordCommand },
             { icon: SVG.rpBtn,     label: t('toggleRpButton'), title: t('toggleRpButtonHelp'), toggle: 'rpBtn', fn: rpbtn },
         ];
 
@@ -1771,6 +1786,7 @@
             else if (key === 'freeHands') isOn = getES().freeHands === 1;
             else if (key === 'ignoreBlock') isOn = getES().ignoreBlock === 1;
             else if (key === 'alwaysOOC') isOn = getES().alwaysOOC === 1;
+            else if (key === 'safeword') isOn = getES().safeword === 1;
             ref.sw.classList.toggle('on', isOn);
             ref.row.classList.toggle('on', isOn);
         }
@@ -2104,11 +2120,47 @@
         updatePhoneHeader();
     }
 
+    // Custom-asset mods built on @sugarch/bc-asset-manager (ECHO among them) do not serve images from BC's server.
+    // They register a "BC path -> CDN URL" mapping (shared global __BC_LUZI_GLOBALS__, "ImageMapping@<version>")
+    // that only BC's own drawing functions apply. A plain <img> never goes through them, so apply every
+    // mapping instance here, exactly like AEE does for its previews.
+    function resolveToolImageUrl(url) {
+        if (!url) return url;
+        let resolved = url;
+        const shared = globalThis.__BC_LUZI_GLOBALS__;
+        if (shared && typeof shared === 'object') {
+            for (const [key, instance] of Object.entries(shared)) {
+                if (!/^ImageMapping@/.test(key)) continue;
+                const mapper = instance?.storage;
+                if (typeof mapper?.mapImgSrc !== 'function') continue;
+                try {
+                    const mapped = mapper.mapImgSrc(resolved);
+                    if (typeof mapped === 'string' && mapped) resolved = mapped;
+                } catch (e) { /* a broken third-party mapper must not break the picker */ }
+            }
+        }
+        return resolved.startsWith('@nomap/') ? resolved.slice(7) : resolved;
+    }
+
     function toolItemPreview(asset) {
         const path = AssetGetPreviewPath(asset) + '/' + asset.Name + '.png';
-        // Respect expansion image mappings without changing the cached game image.
-        const image = typeof DrawGetImage === 'function' ? DrawGetImage(path) : null;
-        return image?.src || path;
+        const resolved = resolveToolImageUrl(path);
+        if (resolved !== path) return resolved;
+        // R132 fallback: mods that only hook DrawGetImage leave the mapped URL on the cached <img>.
+        try {
+            const image = typeof DrawGetImage === 'function' ? DrawGetImage(path) : null;
+            if (typeof image?.src === 'string' && image.src) return image.src;
+        } catch (e) { /* ignore */ }
+        return path;
+    }
+
+    // 縮圖右下角的鎖圖示：沿用鎖選單的預覽圖（含 ECHO / DOGS / AFC 特例）
+    function toolLockBadgeSrc(item) {
+        const lockName = isHeartLock(item) ? AFC_HEARTLOCK_NAME : item?.Property?.LockedBy;
+        if (!lockName) return '';
+        try {
+            return toolLockPreview(AssetGet(Player.AssetFamily, 'ItemMisc', lockName) || { Name: lockName });
+        } catch (e) { return ''; }
     }
 
     // Group names, rather than translated display labels, identify selections in both views.
@@ -2141,9 +2193,17 @@
             const button = document.createElement('button'); button.className = 'lt-list-btn';
             const C = currentTarget(), item = C && InventoryGet(C, option.group);
             if (item?.Asset) {
+                const thumb = document.createElement('span'); thumb.className = 'lt-item-thumb-wrap';
                 const image = document.createElement('img'); image.className = 'lt-item-thumb';
                 image.alt = ''; image.loading = 'lazy'; image.src = toolItemPreview(item.Asset);
-                button.append(image);
+                thumb.append(image);
+                const lockSrc = toolLockBadgeSrc(item);
+                if (lockSrc) {
+                    const badge = document.createElement('img'); badge.className = 'lt-lock-badge';
+                    badge.alt = ''; badge.src = lockSrc; badge.onerror = () => badge.remove();
+                    thumb.append(badge);
+                }
+                button.append(thumb);
             }
             const label = document.createElement('span'); label.className = 'lt-item-label'; label.textContent = option.text;
             button.append(label); register(button, option.group); list.append(button);
@@ -2741,11 +2801,16 @@
         return !!p && (p.Name === AFC_HEARTLOCK_NAME || !!p.HeartLockId);
     }
 
+    // 主人鎖／戀人鎖（含計時版）與 AFC 心鎖（拓展鎖）：解鎖與解除拘束一律略過、不可選
+    const PROTECTED_LOCKS = ["OwnerPadlock", "OwnerTimerPadlock", "LoversPadlock", "LoversTimerPadlock"];
+
+    function isProtectedLock(item) { return isHeartLock(item) || PROTECTED_LOCKS.includes(item?.Property?.LockedBy); }
+
     function toolLockPreview(asset) {
         if (asset.Name === 'DeviousPadlock') return 'https://cdn.jsdelivr.net/gh/FurryZoi/Devious-Obligate-Great-Stuff@main/src/images/devious-padlock.png';
         if (asset.Name === '淫纹锁LuziPadlock') return 'https://cdn.jsdelivr.net/gh/SugarChain-Studio/echo-clothing-ext@52afa10aaa854907422727eb623c658b20ee1b4d/resources/Assets/Female3DCG/ItemMisc/Preview/%E6%B7%AB%E7%BA%B9%E9%94%81LuziPadlock.png';
         if (asset.Name === 'Heart Padlock') return 'https://cdn.jsdelivr.net/gh/awdrrawd/BC-AFC@main/Images/AFC-Heart_Lock.png';
-        return AssetGetPreviewPath(asset) + '/' + asset.Name + '.png';
+        return resolveToolImageUrl(AssetGetPreviewPath(asset) + '/' + asset.Name + '.png');
     }
 
     // ──────────────────────────────────────────
@@ -2759,8 +2824,8 @@
             if (group.Name.startsWith("Item")) {
                 const item = InventoryGet(target, group.Name);
                 if (item) {
-                    if (isHeartLock(item)) continue; // AFC 心锁：跳过，不列入可解除清单
-                    const lock     = item.Property?.LockedBy ? t('lockPrefix') + " " + item.Property.LockedBy : "";
+                    if (isProtectedLock(item)) continue; // 主人锁 / 恋人锁 / AFC 心锁：跳过，不列入可解除清单
+                    const lock     = item.Property?.LockedBy ? t('lockPrefix') : ""; // 只顯示 🔒，鎖的名稱由縮圖右下角的鎖圖呈現
                     const password = item.Property?.Password || item.Property?.CombinationNumber || "";
                     const itemName = item.Craft?.Name || item.Asset?.Description || item.Asset?.Name || t('unknown');
                     restraints.push({
@@ -2780,7 +2845,7 @@
             if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission')); return true; }
             selected.forEach(group => {
                 const item = InventoryGet(target, group);
-                if (item && !isHeartLock(item)) InventoryRemove(target, group);
+                if (item && !isProtectedLock(item)) InventoryRemove(target, group);
             });
             ChatRoomCharacterUpdate(target);
             chatSendCustomAction(t('actFreeMsg', { src: getNickname(Player), who: getNickname(target), items: selected.map(group => restraints.find(r => r.group === group)?.text || group).join(isZh() ? "、" : ", ") }));
@@ -2828,34 +2893,32 @@
         const target = getPlayer(args.trim());
         if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return true; }
         // 跳过主人锁 / 恋人锁 / AFC 心锁（拓展锁）
-        const skipLocks = ["OwnerPadlock", "OwnerTimerPadlock", "LoversPadlock", "LoversTimerPadlock"];
         const locks = collectRestraintItems(target)
-        .filter(r => {
-            const lb = r.item.Property?.LockedBy;
-            return lb && !skipLocks.includes(lb) && !isHeartLock(r.item);
-        })
+        .filter(r => r.item.Property?.LockedBy && !isProtectedLock(r.item))
         .map(r => {
             const pw = r.item.Property?.Password || r.item.Property?.CombinationNumber || "";
             return {
-                text: (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + ") [" + r.item.Property.LockedBy + (pw ? ", " + t('password') + ": " + pw : "") + "]",
+                text: t('lockPrefix') + " " + (r.item.Craft?.Name || r.item.Asset?.Description || r.item.Asset?.Name || t('unknown')) + " (" + r.groupDesc + (pw ? ", " + t('password') + ": " + pw : "") + ")",
                 group: r.group
             };
         });
         if (!locks.length) { ChatRoomSendLocal(getNickname(target) + " " + t('unlockNone') + "！"); return true; }
-        const selected = await requestButtons(t('unlockTitle') + " — " + getNickname(target), locks, true);
+        // 與解除拘束相同：可用清單或人物圖選部位，並可全選
+        const selected = await requestItemSelection(t('unlockTitle') + " — " + getNickname(target), target, locks);
         if(disposed) return;
         if (!selected.length) return true;
+        const live = resolveToolTarget(target);
+        if (!live) { ChatRoomSendLocal(t('notInRoom')); return true; }
         try {
+            if (!hasBCItemPermission(live)) { ChatRoomSendLocal(t('noPermission')); return true; }
             let count = 0;
-            selected.forEach(txt => {
-                const group = locks.find(l => l.text === txt)?.group;
-                if (!group) return;
-                const item = InventoryGet(target, group);
-                if (item && item.Property?.LockedBy) { InventoryUnlock(target, item); count++; }
+            selected.forEach(group => {
+                const item = InventoryGet(live, group);
+                if (item && item.Property?.LockedBy && !isProtectedLock(item)) { InventoryUnlock(live, item); count++; }
             });
             if (!count) return true;
-            ChatRoomCharacterUpdate(target);
-            chatSendCustomAction(getNickname(Player) + " " + t('unlockDone') + " " + getNickname(target) + "！");
+            ChatRoomCharacterUpdate(live);
+            chatSendCustomAction(getNickname(Player) + " " + t('unlockDone') + " " + getNickname(live) + "！");
         } catch (e) { console.error("🐈‍⬛ [LT] ❌ fullUnlock 错误:", e.message); }
         return true;
     }
@@ -3233,6 +3296,14 @@
     function oocCommand() { return toggleSetting('alwaysOOC', { on: 'oocOn', off: 'oocOff', apply: ltRefreshOOCPlaceholder }); }
 
     // ──────────────────────────────────────────
+    // 啟用安全詞：開啟時，只要人在聊天室就一律可使用安全詞（優先於 BCX「Allow safeword use」與個人設定）。
+    //  - 只在「能不能用安全詞」的判斷處放行，不寫入 Player.GameplaySettings.EnableSafeword，
+    //    所以不會改動個人設定，也不會與 BCX 規則的強制設定互相拉扯。
+    //  - 關閉（預設）時完全走原邏輯，由個人設定 / BCX 決定。
+    // ──────────────────────────────────────────
+    function safewordCommand() { return toggleSetting('safeword', { on: 'safewordOn', off: 'safewordOff' }); }
+
+    // ──────────────────────────────────────────
     // Ignore Clothing Block 无视衣物阻挡
     //  - 拿掉「其他道具 Block 此格子」+ 衣物遮挡类前置条件（RemoveClothesForItem 一般衣物/外套、
     //    UnZipSuitForItem 连体衣/外套遮住乳环），让被服装/道具遮挡的格子仍可直接换装、装拘束。
@@ -3316,6 +3387,10 @@
                 return result;
             });
         });
+
+        // 啟用安全詞：開啟時在聊天室內視為可用（Dialog 的安全詞選項與 /safeword 都走此判斷）
+        safeHookFunction("DialogChatRoomCanSafeword", 10, (args, next) =>
+            getES().safeword === 1 ? ServerPlayerIsInChatRoom() : next(args));
 
         // 说话总是 OOC：送出前把输入框内容包成 (...)（略过空 / 指令 / / 动作 * : / 已是 OOC ( ）
         safeHookFunction("ChatRoomSendChat", 20, (args, next) => {
@@ -3488,6 +3563,7 @@
             heightfix:     heightFixCommand,
             heightlock:    heightLockCommand,
             ooc:           oocCommand,
+            safeword:      safewordCommand,
             dnd:           dndCommand,
             magicdefense:  magicDefenseCommand,
             freehands:     freeHandsCommand,
