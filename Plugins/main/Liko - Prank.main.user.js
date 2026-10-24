@@ -3,7 +3,7 @@
 // @name:zh      Liko对朋友的恶作剧
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.6.10
+// @version      1.6.11
 // @description  Likolisu's prank on her friends
 // @description:zh Liko对朋友的恶作剧
 // @author       Likolisu
@@ -18,7 +18,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.6.10";
+    const MOD_VER = "1.6.11";
     if (window.Liko.Prank) return;
     window.Liko.Prank = MOD_VER;
 
@@ -60,24 +60,107 @@
     const LIKO_PRANK_STRINGS_URL = _I18N_BASE + 'Translation/Prank-i18n.js';
     const I18N_NS = 'Prank';
 
-    function loadScript(url) {
-        return fetch(url)
+    // 備援 CDN：raw.githubusercontent.com 在部分地區連不上，備援走 jsDelivr
+    const _I18N_FALLBACK_BASE = 'https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/';
+    const _I18N_BASES = [...new Set([_I18N_BASE, _I18N_FALLBACK_BASE])];
+    const _sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    // 帶 timeout 的載入（連線卡住時不會永遠等下去）
+    function loadScript(url, timeout = 8000) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), timeout);
+        return fetch(url, { signal: ctrl.signal })
             .then(res => { if (!res.ok) throw new Error(`[prank] 无法载入 ${url} (${res.status})`); return res.text(); })
-            .then(code => { new Function(code)(); });
+            .then(code => { new Function(code)(); })
+            .finally(() => clearTimeout(timer));
     }
 
-    // 确保共用引擎与本插件字库都已载入（各只载入一次）
-    // 用能力侦测（ensure）判断 v2 引擎 —— 旧版 v1 只有 version，会被误判为已载入而挡掉 v2。
-    // 字库改用引擎的 ensure() 载入（依 URL 去重，不需自订旗标）。
-    async function ensureI18n() {
-        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function' || !window.Liko?.__Sys_Flags__) await loadScript(LIKO_I18N_ENGINE_URL);
-        if (typeof window.Liko?.__Sys_i18n__?.ensure === 'function') await window.Liko.__Sys_i18n__.ensure(I18N_NS, LIKO_PRANK_STRINGS_URL);
+    // 字庫是否「真的」可用。引擎的 ensure() 失敗時只回傳 false、不會 reject，
+    // 且「已請求過／載入中」也回傳 false，所以不能用它的回傳值判斷，必須探測字庫本身。
+    function i18nReady() {
+        const e = window.Liko?.__Sys_i18n__;
+        try { return typeof e?.t === 'function' && e.getNamespaceLanguages(I18N_NS).length > 0; }
+        catch { return false; }
+    }
+    async function _waitI18nReady(ms) {
+        const end = Date.now() + ms;
+        while (Date.now() < end) { if (i18nReady()) return true; await _sleep(200); }
+        return i18nReady();
     }
 
-    // 取翻译字串；引擎尚未就绪时回传 key 本身，不丢例外。vars 以 {name}/{v} 占位代入。
+    // 字庫狀態：ready 可用 / loading 載入中 / failed 試過仍失敗 / idle 尚未嘗試
+    let _i18nPromise = null;
+    let _i18nFailed = false;
+    let _sendWaitSpent = false;   // 同一輪載入中，送訊息只等一次；等過了就不再讓後面的訊息各等一次
+    function i18nState() {
+        if (i18nReady()) return 'ready';
+        if (_i18nPromise) return 'loading';
+        return _i18nFailed ? 'failed' : 'idle';
+    }
+
+    // 確保共用引擎與本插件字庫都已載入：兩個來源各試兩輪；回傳 true/false。
+    function ensureI18n() {
+        if (i18nReady()) return Promise.resolve(true);
+        return _i18nPromise ??= (async () => {
+            _sendWaitSpent = false;
+            try {
+                for (let round = 0; round < 2; round++) {
+                    for (const base of _I18N_BASES) {
+                        try {
+                            if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function' || !window.Liko?.__Sys_Flags__)
+                                await loadScript(base + 'expand/BC_i18n.js');
+                            const eng = window.Liko?.__Sys_i18n__;
+                            if (typeof eng?.ensure === 'function')
+                                await eng.ensure(I18N_NS, base + 'Translation/Prank-i18n.js');
+                        } catch (e) {
+                            console.warn('🐈‍⬛ [prank] ⚠️ i18n 載入失敗，換來源重試:', base, e?.message ?? e);
+                        }
+                        if (await _waitI18nReady(1500)) { _i18nFailed = false; return true; }
+                    }
+                    if (round === 0) await _sleep(2000);
+                }
+                _i18nFailed = true;
+                return false;
+            } finally {
+                _i18nPromise = null;
+            }
+        })();
+    }
+
+    // 載入最終失敗時只提醒一次（本地提示，不影響其他人）
+    let _i18nNoticed = false;
+    function notifyI18nFailed() {
+        if (_i18nNoticed) return;
+        _i18nNoticed = true;
+        console.warn('🐈‍⬛ [prank] ⚠️ 語言包載入失敗');
+        chatSendLocal('🐈‍⬛ Prank：語言包載入失敗，動作訊息可能顯示不完整，重新整理頁面可再試一次。 / Language pack failed to load; action messages may look incomplete. Reload to retry.');
+    }
+
+    // 第一次進入聊天室：確認字庫就位。這時字庫通常早已載好；若沒有就補一次載入並把結果定案，
+    // 讓之後送出動作時不必每次都為此等待。
+    let _roomChecked = false;
+    async function onFirstRoomEnter() {
+        if (_roomChecked) return;
+        _roomChecked = true;
+        if (!i18nReady()) {
+            const ok = await ensureI18n();
+            if (ok) refreshActivityLabels(); else notifyI18nFailed();
+        }
+        announceLoaded();
+    }
+
+    // 取翻譯字串：字庫沒有該 key（或引擎未就緒）時回傳 null，不會把 key 當翻譯、也不會洗 console.warn
+    function _tryT(key, vars, lang) {
+        const e = window.Liko?.__Sys_i18n__;
+        if (typeof e?.t !== 'function' || !e.has(I18N_NS, key)) return null;
+        try {
+            const r = lang ? e.t(I18N_NS, key, vars, lang) : e.t(I18N_NS, key, vars);
+            return (typeof r === 'string' && r !== '' && r !== key) ? r : null;
+        } catch { return null; }
+    }
+    // 取翻譯字串；字庫未就緒時回傳 key 本身，不丟例外。vars 以 {name}/{v} 占位代入。
     function getMessage(key, vars) {
-        const fn = window.Liko?.__Sys_i18n__?.t;
-        return fn ? fn(I18N_NS, key, vars) : key;
+        return _tryT(key, vars) ?? _tryT(key, vars, 'EN') ?? key;
     }
 
     // 语言侦测（保留给指令区使用；Command 不更动）
@@ -141,19 +224,6 @@
         return character.Nickname || character.Name || character.AccountName || "Unknown";
     }
 
-    function chatSendCustomAction(message) {
-        if (typeof ServerSend === "function") {
-            ServerSend("ChatRoomChat", {
-                Type: "Action",
-                Content: "CUSTOM_SYSTEM_ACTION",
-                Dictionary: [{
-                    Tag: 'MISSING TEXT IN "Interface.csv": CUSTOM_SYSTEM_ACTION',
-                    Text: message
-                }]
-            });
-        }
-    }
-
     // ===== 動作旁白在地化（隱藏標籤，收訊端依「自己的語言」重寫） =====
     // 技術與 BC-AFC / window.Liko.__Sys_L10N__ 同源：Action 的 Dictionary 除了帶「底本」的
     // CUSTOM_SYSTEM_ACTION 條目外，再夾帶一個自訂條目 { Tag, data }。BC 伺服器只保留「非保留欄位」
@@ -167,10 +237,9 @@
     const PRANK_L10N_TAG   = 'Liko_Prank_L10N';
     const PRANK_CUSTOM_TAG = 'CUSTOM_SYSTEM_ACTION';
 
-    // 取某語言下的字串（第四參數 forceLang：指定要抓的語言，不傳則用引擎的 detectLang）
+    // 取某語言下的字串（lang：指定要抓的語言，不傳則用引擎的 detectLang）
     function getMessageLang(key, vars, lang) {
-        const fn = window.Liko?.__Sys_i18n__?.t;
-        return fn ? fn(I18N_NS, key, vars, lang) : key;
+        return _tryT(key, vars, lang) ?? _tryT(key, vars) ?? _tryT(key, vars, 'EN') ?? key;
     }
     // 收訊端當下語言
     function localRenderLang() {
@@ -184,13 +253,33 @@
             Array.isArray(p) ? getMessageLang(p[0], p[1], lang) : String(p ?? '')
         ).join('');
     }
+    // 食譜中是否有字庫片段「在本機翻不出來」（字庫未就緒或缺 key）
+    function recipeHasMiss(recipe, lang) {
+        return recipe.some(p => Array.isArray(p) && _tryT(p[0], p[1], lang) == null);
+    }
     // 送出一條在地化動作旁白。parts：字面字串，或 [key] / [key, vars] 字庫片段。
-    // 引擎不在時仍會送出（Text 為英文底本），不丟例外。
+    // 串行佇列：保證多條訊息的送出順序，也讓「等字庫」不會造成亂序。回傳的 Promise 永不 reject。
+    let _sendChain = Promise.resolve();
     function sendAction(...parts) {
+        _sendChain = _sendChain
+            .then(() => _sendActionNow(parts))
+            .catch(e => console.error('🐈‍⬛ [prank] ❌ sendAction:', e));
+        return _sendChain;
+    }
+    async function _sendActionNow(parts) {
         if (typeof ServerSend !== 'function') return;
-        // 底本用「發送者自己的語言」：沒裝插件的人會看到發送者的語言（對同語系不想裝插件的人友善）；
+        // 只有「字庫還在載入中」才短暫等待（最多 2 秒），避免把 key 當底本送給沒裝插件的人。
+        // 已就緒 → 直接送；已確定失敗（進房時已檢查並提醒過）→ 直接送，聊天不會被拖慢。
+        // 同一輪載入只等一次，之後的訊息直接送。
+        if (i18nState() === 'loading' && !_sendWaitSpent && recipeHasMiss(parts, localRenderLang())) {
+            await Promise.race([ensureI18n(), _sleep(2000)]);
+            if (i18nState() !== 'ready') _sendWaitSpent = true;
+        }
+        // 語言必須「等完之後」才取：引擎未載入時 detectLang 不可用，會誤判成 EN
+        const lang = localRenderLang();
+        // 底本用「發送者自己的語言」：沒裝插件的人會看到發送者的語言；
         // 有裝插件的收訊端則由下方 hook 依「自己的語言」重寫。
-        const base = renderRecipe(parts, localRenderLang());
+        const base = renderRecipe(parts, lang);
         ServerSend('ChatRoomChat', {
             Type: 'Action',
             Content: PRANK_CUSTOM_TAG,
@@ -213,10 +302,18 @@
                 const tag  = dict && dict.find(x => x && x.Tag === PRANK_L10N_TAG && typeof x.data === 'string');
                 if (tag) {
                     const recipe = JSON.parse(tag.data);
-                    if (Array.isArray(recipe)) {
-                        const local  = renderRecipe(recipe, localRenderLang());
+                    const lang = localRenderLang();
+                    // 本機字庫翻不出來時，保留發送者送來的底本，不要用 key 覆蓋它
+                    if (Array.isArray(recipe) && !recipeHasMiss(recipe, lang)) {
+                        const local  = renderRecipe(recipe, lang);
                         const custom = dict.find(x => x && typeof x.Tag === 'string' && x.Tag.includes(PRANK_CUSTOM_TAG));
-                        if (custom) custom.Text = local; else data.Content = local;
+                        if (custom) {
+                            custom.Text = local;
+                        } else {
+                            // 底本條目遺失：重建佔位條目，Content 必須維持為 Tag，不能放整句（會被當成 key 查表）
+                            data.Content = PRANK_CUSTOM_TAG;
+                            dict.push({ Tag: `MISSING TEXT IN "Interface.csv": ${PRANK_CUSTOM_TAG}`, Text: local });
+                        }
                     }
                 }
             } catch (e) { /* 壞掉就顯示英文底本，不影響其他訊息 */ }
@@ -224,18 +321,14 @@
         });
     }
 
+    // 本地提示（只有自己看得到）。必須走 ChatRoomSendLocal：它會補上 Sender，
+    // 直接呼叫 ChatRoomMessage 缺 Sender 時會被 BC 靜默丟棄。不在聊天室內時不會顯示。
     function chatSendLocal(message, timeout = 10000) {
-        if (typeof ChatRoomMessage === "function") {
-            ChatRoomMessage({ Content: message, Type: "LocalMessage" }, timeout);
-        } else {
-            console.log("Local: " + message);
-        }
+        ChatRoomSendLocal(message, timeout);
     }
 
     function hasBCItemPermission(target) {
-        return typeof ServerChatRoomGetAllowItem === "function"
-            ? ServerChatRoomGetAllowItem(Player, target)
-        : true;
+        return ServerChatRoomGetAllowItem(Player, target);
     }
 
     function getRandomColor() {
@@ -243,7 +336,11 @@
         return colors[Math.floor(Math.random() * colors.length)];
     }
 
-    // 溶解時要「保留」的部位/物件群組（不在清單內者一律溶解）。
+    // 溶解分三階段（由輕到重）：
+    //   weak   弱：只溶外衣（保留內衣褲與拘束）
+    //   normal 普通：外衣 + 內衣褲（保留拘束）
+    //   strong 強：外衣 + 內衣褲 + 拘束（全部溶解，只留身體部位）
+    // 下表是「所有階段都保留」的部位/物件群組（不在清單內者一律溶解）。
     const dissolveKeepGroups = [
         "ArmsLeft", "ArmsRight", "HandsLeft", "HandsRight", "Mouth", "Pronouns", "Head", "Blush",
         "Fluids", "Emoticon", "Eyes", "Eyes2", "右眼_Luzi", "Eyebrows", "BodyStyle", "HairFront",
@@ -253,7 +350,7 @@
         "Wings_笨笨蛋Luzi", "Luzi_TailStraps_0"
     ];
 
-    // 弱溶解：在上述保留群組之外，額外保留內衣褲。
+    // 弱溶解：在上述保留群組之外，額外保留內衣褲（只溶外衣）。
     const dissolveKeepGroupsWeak = [
         ...dissolveKeepGroups,
         "Bra", "Panties", "Bra_笨笨蛋Luzi", "Panties_笨笨蛋Luzi"
@@ -276,7 +373,7 @@
                 if (dissolveKeepGroups.includes(group)) return true;
                 if (isItemGroup) return true;   // ← 保留拘束
                 return false;
-            } else { // strong：只溶衣服，拘束依然保留
+            } else { // strong：外衣 + 內衣褲 + 拘束全部溶解（Item* 群組不保留）
                 if (dissolveKeepGroups.includes(group)) return true;
                 return false;
             }
@@ -329,6 +426,15 @@
         });
     }
 
+    // 是否還有可插呆毛的空格（活動前置條件與實際動作共用同一套判斷）
+    function hasEmptyAhogeSlot(target) {
+        const occupied = new Set(getAhogeItems(target).map(item => item.Asset?.Group?.Name));
+        const isSelf = target.MemberNumber === Player.MemberNumber;
+        const allowFull = isSelf || target.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
+        const available = allowFull ? AHOGE_GROUPS : AHOGE_GROUPS.filter(g => g !== "额外头发_Luzi");
+        return available.some(g => !occupied.has(g) && !InventoryGet(target, g));
+    }
+
     // ===== 命令功能 =====
     function stealPanties(args) {
         try {
@@ -350,41 +456,14 @@
 
             const targetNick = getNickname(target);
             const playerNick = getNickname(Player);
-            const panties = InventoryGet(target, "Panties");
-
-            try {
-                InventoryRemove(target, "Panties");
-                ChatRoomCharacterUpdate(target);
-            } catch (e) {
-                console.log("🐈‍⬛ [prank] ❌ Error removing panties:", e);
+            if (!InventoryGet(target, "Panties")) {
+                sendAction(targetNick, " ", ['noUnderwear']);
+                return;
             }
-
-            let itemColor = getItemColor(target, panties?.Color);
-
-            InventoryRemove(Player, "ItemHandheld");
-
-            const itemName = getMessage('itemPantiesName', { name: targetNick });
-            const itemDesc = getMessage('itemPantiesDesc', { name: targetNick });
-
-            try {
-                InventoryWear(Player, "Panties", "ItemHandheld", itemColor, 0, target.MemberNumber, {
-                    Name: itemName,
-                    Description: itemDesc,
-                    Color: itemColor,
-                    Private: true,
-                    Item: "Panties",
-                    Lock: "",
-                    ItemProperty: {},
-                    MemberNumber: target.MemberNumber,
-                    MemberName: targetNick
-                });
-            } catch (e) {
-                console.log("🐈‍⬛ [prank] ❌ InventoryWear error:", e);
+            if (!stealItem(target, "panties")) {
                 chatSendLocal(getMessage('stealFailed'));
                 return;
             }
-
-            ChatRoomCharacterUpdate(Player);
 
             if (target.MemberNumber === Player.MemberNumber) {
                 sendAction(playerNick, " ", ['removedOwnUnderwear']);
@@ -428,16 +507,25 @@
                 if (!roomName) return;
             }
 
-            sendAction(getNickname(Player), " ", ['enterPortal'], "「", roomName, "」");
+            await sendAction(getNickname(Player), " ", ['enterPortal'], "「", roomName, "」");   // 等送出後再離開房間
 
             setTimeout(() => {
                 if (typeof ChatRoomLeave === "function") ChatRoomLeave();
                 if (typeof CommonSetScreen === "function") CommonSetScreen("Online", "ChatSearch");
                 if (typeof ServerSend === "function") {
                     ServerSend("ChatRoomJoin", { Name: roomName });
-                    setTimeout(() => {
-                        sendAction(getNickname(Player), " ", ['exitPortal']);
-                    }, 1000);
+                    // 確認真的進到目標房間才送「抵達」訊息（最多等 10 秒）；加入失敗就不送
+                    const nick = getNickname(Player);
+                    const want = String(roomName).toLowerCase();
+                    let tries = 0;
+                    const timer = setInterval(() => {
+                        if (typeof ChatRoomData !== "undefined" && ChatRoomData?.Name?.toLowerCase() === want) {
+                            clearInterval(timer);
+                            sendAction(nick, " ", ['exitPortal']);
+                        } else if (++tries >= 20) {
+                            clearInterval(timer);
+                        }
+                    }, 500);
                 }
             }, 500);
         } catch (error) {
@@ -482,7 +570,6 @@
     function _dictSet(key, text) {
         if (text == null) return;
         _actDict.set(key, text);
-        if (typeof ActivityDictionary !== "undefined") ActivityDictionary.push([key, text]); // 舊版 BC 相容
         // BC 對有陰莖的角色會把 ItemVulva/ItemVulvaPiercings 鏡射成 ItemPenis/ItemGlans 來找標籤，
         // 補上鏡射鍵，否則這些角色身上的偷內褲類活動標籤會 MISSING。
         for (const [from, to] of Object.entries(_grpMirror)) {
@@ -490,23 +577,39 @@
             if (key.includes(seg)) {
                 const mk = key.replace(seg, "-" + to + "-");
                 _actDict.set(mk, text);
-                if (typeof ActivityDictionary !== "undefined") ActivityDictionary.push([mk, text]);
             }
         }
     }
 
     // 把 _actDict 注入 R130 的 ActivityDictionary TextCache（含語言切換後自動重注入）
+    let _actDictInject = null;
+    let _activitiesRegistered = false;
+    let _loadedAnnounced = false;
+    function announceLoaded() {
+        if (_loadedAnnounced || !i18nReady() || !ServerPlayerIsInChatRoom()) return;   // 不在房間內不會顯示，不能算已提示
+        _loadedAnnounced = true;
+        chatSendLocal(getMessage('loaded', { v: MOD_VER }));
+    }
+    // 活動標籤在註冊當下若字庫未就緒，值會是 key 原文；字庫晚到時把它們換成翻譯並重新注入
+    function refreshActivityLabels() {
+        const e = window.Liko?.__Sys_i18n__;
+        if (typeof e?.has !== 'function') return;
+        let changed = false;
+        for (const [k, v] of _actDict) {
+            if (typeof v === 'string' && e.has(I18N_NS, v)) {
+                const t = _tryT(v);
+                if (t) { _actDict.set(k, t); changed = true; }
+            }
+        }
+        if (changed) _actDictInject?.();
+        if (_activitiesRegistered) announceLoaded();
+    }
     function installActivityDict() {
-        if (typeof TextPrefetchFile !== "function" || typeof ScreenFileGetPath !== "function") return; // 舊版 BC 無此機制
-        let cache;
-        try {
-            cache = TextPrefetchFile(ScreenFileGetPath("ActivityDictionary.csv", "Character", "Preference"));
-        } catch (e) { return; }
-        if (!cache) return;
+        const cache = TextPrefetchFile(ScreenFileGetPath("ActivityDictionary.csv", "Character", "Preference"));
         const inject = () => { if (cache.cache) for (const [k, v] of _actDict) cache.cache[k] = v; };
-        // onRebuild(fn, immediate=true)：立刻注入一次；之後每次快取重建（含語言切換）完成後再自動注入
-        if (typeof cache.onRebuild === "function") cache.onRebuild(inject, true);
-        else inject();
+        _actDictInject = inject;
+        // 立刻注入一次；之後每次快取重建（含語言切換）完成後再自動注入
+        cache.onRebuild(inject, true);
     }
 
     function AddTargetToActivity(activity, tgt) {
@@ -563,29 +666,31 @@
         }
     }
 
+    const CLOTHING_MAP = {
+        "ItemNeck": ["Suit", "Cloth", "Bra"],
+        "ItemNipples": ["Suit", "Cloth", "Bra"],
+        "ItemBreast": ["Suit", "Cloth", "Bra"],
+        "ItemTorso": ["Suit", "Cloth", "Bra"],
+        "ItemNeckAccessories": ["Suit", "Cloth", "Bra"],
+        "ItemNeckRestraints": ["Suit", "Cloth", "Bra"],
+        "ItemNipplesPiercings": ["Suit", "Cloth", "Bra"],
+        "ItemTorso2": ["Suit", "Cloth", "Bra"],
+        "ItemHands": ["Gloves"],
+        "ItemHandheld": ["Gloves"],
+        "ItemPelvis": ["ClothLower", "SuitLower", "Panties"],
+        "ItemButt": ["ClothLower", "SuitLower", "Panties"],
+        "ItemVulvaPiercings": ["ClothLower", "SuitLower", "Panties"],
+        "ItemVulva": ["ClothLower", "SuitLower", "Panties"],
+        "ItemBoots": ["Shoes", "Socks", "SocksRight", "SocksLeft"],
+        "ItemLegs": ["Socks", "SocksRight", "SocksLeft"],
+        "ItemFeet": ["Socks", "SocksRight", "SocksLeft"],
+        "ItemMouth": ["Mask"],
+        "ItemMouth2": ["Mask"],
+        "ItemMouth3": ["Mask"]
+    };
+
     function hasRemovableClothing(target, group) {
-        const clothingMap = {
-            "ItemNeck": ["Suit", "Cloth", "Bra"],
-            "ItemNipples": ["Suit", "Cloth", "Bra"],
-            "ItemBreast": ["Suit", "Cloth", "Bra"],
-            "ItemTorso": ["Suit", "Cloth", "Bra"],
-            "ItemNeckAccessories": ["Suit", "Cloth", "Bra"],
-            "ItemNeckRestraints": ["Suit", "Cloth", "Bra"],
-            "ItemNipplesPiercings": ["Suit", "Cloth", "Bra"],
-            "ItemTorso2": ["Suit", "Cloth", "Bra"],
-            "ItemHands": ["Gloves"],
-            "ItemHandheld": ["Gloves"],
-            "ItemPelvis": ["ClothLower", "SuitLower", "Panties"],
-            "ItemButt": ["ClothLower", "SuitLower", "Panties"],
-            "ItemVulvaPiercings": ["ClothLower", "SuitLower", "Panties"],
-            "ItemVulva": ["ClothLower", "SuitLower", "Panties"],
-            "ItemBoots": ["Shoes", "Socks", "SocksRight", "SocksLeft"],
-            "ItemLegs": ["Socks", "SocksRight", "SocksLeft"],
-            "ItemFeet": ["Socks", "SocksRight", "SocksLeft"],
-            "ItemMouth": ["Mask"],
-            "ItemMouth2": ["Mask"],
-            "ItemMouth3": ["Mask"]
-        };
+        const clothingMap = CLOTHING_MAP;
 
         if (group === "ItemLegs" || group === "ItemFeet") {
             const hasShoes = InventoryGet(target, "Shoes");
@@ -599,28 +704,7 @@
     }
 
     function removeClothing(target, group) {
-        const clothingMap = {
-            "ItemNeck": ["Suit", "Cloth", "Bra"],
-            "ItemNipples": ["Suit", "Cloth", "Bra"],
-            "ItemBreast": ["Suit", "Cloth", "Bra"],
-            "ItemTorso": ["Suit", "Cloth", "Bra"],
-            "ItemNeckAccessories": ["Suit", "Cloth", "Bra"],
-            "ItemNeckRestraints": ["Suit", "Cloth", "Bra"],
-            "ItemNipplesPiercings": ["Suit", "Cloth", "Bra"],
-            "ItemTorso2": ["Suit", "Cloth", "Bra"],
-            "ItemHands": ["Gloves"],
-            "ItemHandheld": ["Gloves"],
-            "ItemPelvis": ["ClothLower", "SuitLower", "Panties"],
-            "ItemButt": ["ClothLower", "SuitLower", "Panties"],
-            "ItemVulvaPiercings": ["ClothLower", "SuitLower", "Panties"],
-            "ItemVulva": ["ClothLower", "SuitLower", "Panties"],
-            "ItemBoots": ["Shoes", "Socks", "SocksRight", "SocksLeft"],
-            "ItemLegs": ["Socks", "SocksRight", "SocksLeft"],
-            "ItemFeet": ["Socks", "SocksRight", "SocksLeft"],
-            "ItemMouth": ["Mask"],
-            "ItemMouth2": ["Mask"],
-            "ItemMouth3": ["Mask"]
-        };
+        const clothingMap = CLOTHING_MAP;
 
         if (group === "ItemLegs" || group === "ItemFeet") {
             const hasShoes = InventoryGet(target, "Shoes");
@@ -665,21 +749,20 @@
 
         let itemColor = getItemColor(target, item.Color);
 
-        if (itemType === "panties") {
-            InventoryRemove(target, "Panties");
-        } else if (itemType === "socks") {
-            InventoryRemove(target, "Socks");
-            InventoryRemove(target, "SocksRight");
-            InventoryRemove(target, "SocksLeft");
-        }
-        ChatRoomCharacterUpdate(target);
-        InventoryRemove(Player, "ItemHandheld");
-
         const handheldItemName = itemType === "panties" ? "Panties" : "LongSock";
+
+        // 先確認手持素材存在：InventoryWear 找不到素材時只回傳 null、不會丟例外，
+        // 若等到穿戴失敗才發現，受害者的物品已經被移除了。
+        if (!AssetGet("Female3DCG", "ItemHandheld", handheldItemName)) {
+            console.error("🐈‍⬛ [prank] ❌ Handheld asset missing:", handheldItemName);
+            return false;
+        }
 
         const itemName = getMessage(itemType === "panties" ? 'itemPantiesName' : 'itemSocksName', { name: targetNick });
         const itemDesc = getMessage(itemType === "panties" ? 'itemPantiesDesc' : 'itemSocksDesc', { name: targetNick });
 
+        // 先穿到自己手上並確認成功，才移除受害者的衣物
+        InventoryRemove(Player, "ItemHandheld");
         InventoryWear(Player, handheldItemName, "ItemHandheld", itemColor, 0, target.MemberNumber, {
             Name: itemName,
             Description: itemDesc,
@@ -692,14 +775,20 @@
             MemberName: targetNick
         });
 
-        ChatRoomCharacterUpdate(Player);
-
-        const finalHandItem = InventoryGet(Player, "ItemHandheld");
-        if (!finalHandItem) {
+        if (InventoryGet(Player, "ItemHandheld")?.Asset?.Name !== handheldItemName) {
             console.error("🐈‍⬛ [prank] ❌ Item failed to persist in hand!");
             return false;
         }
 
+        if (itemType === "panties") {
+            InventoryRemove(target, "Panties");
+        } else if (itemType === "socks") {
+            InventoryRemove(target, "Socks");
+            InventoryRemove(target, "SocksRight");
+            InventoryRemove(target, "SocksLeft");
+        }
+        ChatRoomCharacterUpdate(target);
+        ChatRoomCharacterUpdate(Player);
         return true;
     }
 
@@ -761,19 +850,17 @@
 
         let itemColor = getItemColor(target, tailItem.Color);
 
-        try {
-            InventoryRemove(target, tailGroup);
-            ChatRoomCharacterUpdate(target);
-        } catch (e) {
-            console.error("🐈‍⬛ [prank] ❌ Error removing tail:", e);
+        // 「大号拉珠」來自擴充素材包：沒有該素材時直接中止，不要先把受害者的尾巴拿掉
+        if (!AssetGet("Female3DCG", "ItemHandheld", "大号拉珠")) {
+            chatSendLocal(getMessage('stealFailed'));
             return false;
         }
-
-        InventoryRemove(Player, "ItemHandheld");
 
         const itemName = getMessage('itemTailName', { name: targetNick });
         const itemDesc = getMessage('itemTailDesc', { name: targetNick });
 
+        // 先穿到自己手上並確認成功，才移除受害者的尾巴
+        InventoryRemove(Player, "ItemHandheld");
         try {
             InventoryWear(Player, "大号拉珠", "ItemHandheld", "Default" , 0, target.MemberNumber, {
                 Name: itemName,
@@ -791,14 +878,20 @@
             return false;
         }
 
-        ChatRoomCharacterUpdate(Player);
-
-        const finalHandItem = InventoryGet(Player, "ItemHandheld");
-        if (!finalHandItem) {
+        if (InventoryGet(Player, "ItemHandheld")?.Asset?.Name !== "大号拉珠") {
             console.error("🐈‍⬛ [prank] ❌ Item failed to persist in hand!");
+            chatSendLocal(getMessage('stealFailed'));
             return false;
         }
 
+        try {
+            InventoryRemove(target, tailGroup);
+            ChatRoomCharacterUpdate(target);
+        } catch (e) {
+            console.error("🐈‍⬛ [prank] ❌ Error removing tail:", e);
+            return false;
+        }
+        ChatRoomCharacterUpdate(Player);
         return true;
     }
 
@@ -844,8 +937,6 @@
             if (worn) {
                 if (!worn.Property) worn.Property = {};
                 worn.Property.TypeRecord = { typed: randomTyped };
-                worn.Property.Type = String(randomTyped === 1 ? "1a" :
-                                            randomTyped === 0 ? "1" : String(randomTyped)); // 對應 Option Name
             }
 
             ChatRoomCharacterUpdate(target);
@@ -885,11 +976,7 @@
             return getAhogeItems(target2).length > 0;
         });
         actData.CustomPrerequisiteFuncs.set("LikoHasEmptyAhogeSlot", function(target1, target2, group) {
-            const ahogeGroups = new Set(getAhogeItems(target2).map(item => item.Asset?.Group?.Name));
-            const isSelfSlot = target2.MemberNumber === Player.MemberNumber;
-            const allowFullWardrobe = isSelfSlot || target2.OnlineSharedSettings?.AllowFullWardrobeAccess !== false;
-            const available = allowFullWardrobe ? AHOGE_GROUPS : AHOGE_GROUPS.filter(g => g !== "额外头发_Luzi");
-            return available.some(g => !ahogeGroups.has(g) && !InventoryGet(target2, g));
+            return hasEmptyAhogeSlot(target2);
         });
         actData.CustomPrerequisiteFuncs.set("LikoPlayerMouthFree", function(target1, target2, group) {
             return !InventoryGroupIsBlocked(target1, "ItemMouth") && SpeechGetGagLevel(target1, "ItemMouth") === 0;
@@ -1242,11 +1329,7 @@
             ],
             CustomAction: {
                 Func: (target, args, next) => {
-                    const occupied = new Set(
-                        getAhogeItems(target).map(item => item.Asset?.Group?.Name)
-                    );
-                    const hasSlot = AHOGE_GROUPS.some(g => !occupied.has(g));
-                    if (!hasSlot) {
+                    if (!hasEmptyAhogeSlot(target)) {
                         sendAction(getNickname(target), " ", ['ahogeSlotFull']);
                         return;
                     }
@@ -1290,19 +1373,22 @@
                     const itemName = getMessage('itemCookieName', { name: targetNick });
                     const itemDesc = getMessage('itemCookieDesc', { name: targetNick });
 
-                    InventoryRemove(Player, "ItemMouth");
-                    try {
-                        InventoryWear(Player, "曲奇", "ItemMouth", "Default", 0, target.MemberNumber, {
-                            Name: itemName,
-                            Description: itemDesc,
-                            Private: true,
-                            MemberNumber: target.MemberNumber,
-                            MemberName: targetNick
-                        });
-                    } catch (e) {
-                        console.error("🐈‍⬛ [prank] ❌ BiteEar InventoryWear error:", e);
+                    // 沒有「曲奇」素材（未裝擴充包）時不動自己嘴上的物品，只送動作訊息
+                    if (AssetGet("Female3DCG", "ItemMouth", "曲奇")) {
+                        InventoryRemove(Player, "ItemMouth");
+                        try {
+                            InventoryWear(Player, "曲奇", "ItemMouth", "Default", 0, target.MemberNumber, {
+                                Name: itemName,
+                                Description: itemDesc,
+                                Private: true,
+                                MemberNumber: target.MemberNumber,
+                                MemberName: targetNick
+                            });
+                        } catch (e) {
+                            console.error("🐈‍⬛ [prank] ❌ BiteEar InventoryWear error:", e);
+                        }
+                        ChatRoomCharacterUpdate(Player);
                     }
-                    ChatRoomCharacterUpdate(Player);
 
                     sendAction(playerNick, " ", ['biteEar'], " ", targetNick, ['biteEarSuffix']);
                 }
@@ -1429,7 +1515,11 @@
 
                     if (target && actData.CustomActionCallbacks.has(activityName)) {
                         const callback = actData.CustomActionCallbacks.get(activityName);
-                        callback(target, args, next);
+                        try {
+                            callback(target, args, next);
+                        } catch (e) {
+                            console.error("🐈‍⬛ [prank] ❌ activity callback error:", activityName, e);
+                        }
                         return;
                     }
                 }
@@ -1460,28 +1550,35 @@
             return button;
         });
 
-        if (typeof GameVersion !== 'undefined' && GameVersion !== "R121") {
-            modApi.hookFunction("PreferenceGetActivityFactor", 4, (args, next) => {
-                if (typeof args[1] === "string" && args[1].indexOf("Liko_") === 0) {
-                    return 2;
-                }
-                return next(args);
-            });
-        }
+        modApi.hookFunction("PreferenceGetActivityFactor", 4, (args, next) => {
+            if (typeof args[1] === "string" && args[1].indexOf("Liko_") === 0) {
+                return 2;
+            }
+            return next(args);
+        });
+
+        // 第一次進入聊天室時確認字庫就位；之後送訊息就不必再為此等待
+        modApi.hookFunction("ChatRoomLoad", 4, (args, next) => {
+            const result = next(args);
+            Promise.resolve(result).then(onFirstRoomEnter).catch(e => console.error("🐈‍⬛ [prank] ❌ room-enter check:", e));
+            return result;
+        });
     }
 
     async function phase2() {
         try {
             await waitFor(() =>
                           typeof CommandCombine === "function" &&
-                          typeof ActivityFemale3DCG !== "undefined" &&
-                          typeof ActivityDictionary !== "undefined",
+                          typeof ActivityFemale3DCG !== "undefined",
                           30000  // 已知登入完成，30 秒綽綽有餘
                          );
 
-            // 先确保 i18n 就绪，再注册活动（活动标签在注册当下就写入 ActivityDictionary，
-            // 故必须先载入字库；载入失败则以 key 原文 fallback，不阻断注册）
-            await ensureI18n().catch(e => console.warn("🐈‍⬛ [prank] ⚠️ i18n 载入失败，改以 key 显示:", e));
+            // 登入階段先確保 i18n 就緒（最多等 5 秒）。仍未就緒就先以 key 註冊、不阻斷；
+            // 字庫之後載入成功時，refreshActivityLabels() 會把標籤換成翻譯。
+            // 最終失敗與否會在第一次進入聊天室時定案並提醒（onFirstRoomEnter）。
+            const i18nP = ensureI18n();
+            i18nP.then(ok => { if (ok) refreshActivityLabels(); });
+            await Promise.race([i18nP, _sleep(5000)]);
 
             const isZh = detectLanguage();
             CommandCombine([
@@ -1495,7 +1592,8 @@
             ]);
 
             registerActivities();
-            chatSendLocal(getMessage('loaded', { v: MOD_VER }));
+            _activitiesRegistered = true;
+            announceLoaded();   // 字庫未就緒時不顯示 key，等 refreshActivityLabels() 補發
 
         } catch (error) {
             console.error("🐈‍⬛ [prank] ❌ Phase 2 (registration) failed:", error);
@@ -1504,6 +1602,8 @@
 
     function waitForLogin() {
         if (typeof Player !== "undefined" && Player?.MemberNumber !== undefined) return Promise.resolve();
+        // SDK 沒載入成功時 modApi 是 undefined，改用輪詢，避免對 undefined 呼叫 hookFunction
+        if (!modApi?.hookFunction) return waitFor(() => typeof Player !== "undefined" && Player?.MemberNumber !== undefined, 600000);
         return new Promise(resolve => {
             const removeHook = modApi.hookFunction("LoginResponse", 0, (args, next) => {
                 const result = next(args);
