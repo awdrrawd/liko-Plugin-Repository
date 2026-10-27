@@ -178,7 +178,7 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         const side = panel.locator('.lt-craft-side');
         const itemRow = panel.locator('.ltp-page:not(.ltp-covered) .lt-item-picker .lt-list-btn').first();
         assert.equal(await itemRow.locator('.lt-item-thumb').getAttribute('src'),'https://expansion.test/preview/Fixture0.png');
-        assert.equal(await itemRow.evaluate(el=>el.firstElementChild.classList.contains('lt-item-thumb')),true);
+        assert.equal(await itemRow.evaluate(el=>el.firstElementChild.classList.contains('lt-item-thumb-wrap')&&el.firstElementChild.firstElementChild.classList.contains('lt-item-thumb')),true);
         assert.equal(await side.locator('.lt-craft-preview').getAttribute('src'),'https://expansion.test/preview/Fixture0.png');
         assert.equal(await side.evaluate(el=>el.firstElementChild.classList.contains('lt-craft-preview')),true);
         assert.equal(await side.evaluate(el=>getComputedStyle(el).transitionDuration.split(',')[0].trim()),'0.28s');
