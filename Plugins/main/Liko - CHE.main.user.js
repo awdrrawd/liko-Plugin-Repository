@@ -3,7 +3,7 @@
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.6.1
+// @version      2.6.2
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.6.1";
+    const MOD_VER = "2.6.2";
     if (window.Liko.CHE) return;
     window.Liko.CHE = MOD_VER;
 
@@ -331,7 +331,8 @@
 
         _prepareRecord(msg, dateKey) {
             const account = getAccountPrefix();
-            const uid = msg.msgid || msg._uid || `${msg._ts || Date.now()}_${Math.random().toString(36).slice(2)}`;
+            const uid = msg._forceUid || msg.msgid || msg._uid || `${msg._ts || Date.now()}_${Math.random().toString(36).slice(2)}`;
+            msg = { ...msg }; delete msg._forceUid; delete msg._incomplete;
             return { ...msg, _uid: uid, _account: account, _dateStr: dateKey,
                 _accountDate: `${account}_${dateKey}`, _key: `${account}_${dateKey}_${uid}` };
         },
@@ -1719,6 +1720,10 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 clone.querySelectorAll('.chat-room-message-popup, .chat-room-metadata, .ChatMessageName, .chat-room-message-original').forEach(el => el.remove());
                 clone.querySelectorAll('img[src]').forEach(img => { img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || '')); });
                 content = (clone.textContent || clone.innerText || "").trim();
+                // 名字按鈕被移除後會殘留「名字: 內文」中的冒號，聊天/悄悄話要把它去掉。
+                if (nameButton && /\bChatMessage(Chat|Whisper)\b/.test(msg.className || "")) {
+                    content = content.replace(/^[:：]\s*/, "");
+                }
             }
             if (content === '[🌐]' || content.startsWith('[🌐] ')) {
                 const originalText = msg.getAttribute('bce-original-text');
@@ -1735,6 +1740,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             const className = Array.from(msg.classList||[]).join(" ");
             const record = { time: normalizedTime, id: senderId, name: senderName, content, direction, msgid: msgidAttr, type: messageType, color: labelColor, className, roomName: window.ChatRoomData?.Name || "", _ts: Date.now(), _uid: crypto.randomUUID?.() || `${Date.now()}_${Math.random()}` };
             record.category = classifyCategory(record);
+            // 擷取當下節點尚無內文 span（可能還在被其他模組重組）→ 標記為「不完整」
+            if (!contentSpan && !isBceNotif && nameButton) record._incomplete = true;
             return record;
         } catch (e) {
             logError("normalizeChatMessageNode", e);
@@ -1772,12 +1779,36 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
     function flushRecordQueue() { return recordWriteChain; }
 
-    function queueHookedNode(node) {
-        if (!(node instanceof HTMLElement) || currentMode !== "cache") return;
-        if (capturedNodes.has(node)) return;
-        const record = normalizeChatMessageNode(node);
-        if (!record) return;
-        capturedNodes.add(node);
+    // 同一句話被擷取兩次的防護：
+    // 某些模組（或遊戲本身）會在訊息節點插入後把它換成另一個節點，舊節點當下只有
+    // 「名字: 內文」而沒有 .chat-room-message-content，會被存成「: 內文」。
+    // 1) 這類節點延後一小段時間再處理；若已被移出 DOM，代表有替代節點，直接放棄。
+    // 2) 仍保留簽章去重：短時間內同人同內文，若前一筆不完整或其節點已脫離 DOM，
+    //    就用完整版覆寫（沿用同一把 key），否則視為重複略過。
+    const recentSigs = new Map();
+    const DEDUPE_WINDOW_MS = 4000;
+    function recordSig(r) {
+        const body = String(r.content || "").replace(/^[:：]\s*/, "").trim();
+        return [r.type, r.direction || "", r.id, body].join("\u0001");
+    }
+    function pruneSigs(now) {
+        for (const [k, v] of recentSigs) if (now - v.ts > DEDUPE_WINDOW_MS) recentSigs.delete(k);
+    }
+
+    function commitHookedNode(node, record) {
+        const now = Date.now();
+        if (record.type !== "separator") {
+            pruneSigs(now);
+            const sig = recordSig(record);
+            const prev = recentSigs.get(sig);
+            if (prev && now - prev.ts <= DEDUPE_WINDOW_MS) {
+                const prevBad = prev.incomplete || !prev.node?.isConnected;
+                if (record._incomplete) return;                 // 新的是殘缺版 → 丟棄
+                if (prevBad) record._forceUid = prev.uid;       // 舊的是殘缺版/已被換掉 → 覆寫
+                // 兩筆都完整且舊節點仍在 → 視為使用者真的連發相同內容，兩筆都保留
+            }
+            recentSigs.set(sig, { ts: now, node, incomplete: !!record._incomplete, uid: record._forceUid || record.msgid || record._uid });
+        }
         const roomName = record.roomName || window.ChatRoomData?.Name || "";
         if (record.type !== "separator" && roomName && roomName !== lastHookRoom) {
             lastHookRoom = roomName;
@@ -1786,6 +1817,30 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 _uid:crypto.randomUUID?.() || `room_${Date.now()}_${Math.random()}` });
         }
         queueRecord(record);
+    }
+
+    function queueHookedNode(node) {
+        if (!(node instanceof HTMLElement) || currentMode !== "cache") return;
+        if (capturedNodes.has(node)) return;
+        const record = normalizeChatMessageNode(node);
+        if (!record) return;
+        capturedNodes.add(node);
+
+        if (record._incomplete && node.dataset?.cheRestrictedMessage !== "1") {
+            const capturedAt = record._ts;
+            setTimeout(() => {
+                try {
+                    if (currentMode !== "cache") return;
+                    if (!node.isConnected) return;               // 已被替換，交給新節點
+                    const fresh = normalizeChatMessageNode(node);
+                    if (!fresh) return;
+                    fresh._ts = capturedAt;                      // 保持原本排序
+                    commitHookedNode(node, fresh);
+                } catch (e) { logError("queueHookedNode.deferred", e); }
+            }, 150);
+            return;
+        }
+        commitHookedNode(node, record);
     }
 
     function captureAddedTree(node) {
