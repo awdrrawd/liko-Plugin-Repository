@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.7.12
+// @version      1.8.0
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.7.12";
+    const MOD_VER = "1.8.0";
     if (window.Liko.MAT) return;
     window.Liko.MAT = { version: MOD_VER };
 
@@ -87,6 +87,10 @@
             filterPrefixes: '[🌐],🔊',
             skipTranslationEnabled: true,
             skipTranslationRules: '[🌐],🔊,📞,$url,🎬',
+            // ── 翻譯工具 / 通道 ──
+            translateTool: 'google',   // 翻譯工具（見 TRANSLATE_TOOLS）
+            toolChannels: {},          // 各工具選定的通道，例：{ google: 'g2' }；缺省用該工具的第一個通道
+            channelFailover: true,     // 自動重試其他通道（僅 Google 工具提供）
             hotkeys: makeDefaultHotkeys()
         };
     }
@@ -209,6 +213,7 @@
             if (config[key] === undefined || config[key] === null) config[key] = val;
         }
         normalizeHotkeys();
+        normalizeChannelConfig(null);
     }
 
     const SETTINGS_KEY = "Liko_MAT";
@@ -234,6 +239,7 @@
             config.recvFold = saved.recvHideOriginal;
         }
         normalizeHotkeys();
+        normalizeChannelConfig(saved);
     }
 
     // 舊版設定以 BCMachineTranslation 為鍵，現改名為 Liko_MAT。
@@ -259,6 +265,198 @@
     const TRANSLATION_CACHE_LIMIT = 300;
     const TRANSLATION_ATTEMPT_TIMEOUTS = [3000, 1000, 1000];
     const TRANSLATION_MAX_ATTEMPTS = TRANSLATION_ATTEMPT_TIMEOUTS.length;
+
+    // ============================================================
+    // 翻譯通道（可擴充）
+    // ============================================================
+    // 每個通道 = { name(), run(text, target, signal) }
+    //   name()  ：回傳顯示名稱（走 i18n），供設定頁與 console 使用。
+    //   run()   ：成功回傳 { translated, detectedLang }；失敗丟 Error，message 為原因碼
+    //             （rate_limit / blocked / http_xxx / invalid_response…），其餘由 classifyFetchFailure 分類。
+    // 新增翻譯服務時，只要在 TRANSLATE_CHANNELS 加一項：
+    //   ・單純 GET + JSON 的服務用 jsonChannel(name, buildUrl, parse)
+    //   ・需要 token、POST、或語言代碼不同（如 zh-TW ↔ zh-Hant）的服務自行寫 run()，在裡面轉換 target
+    // 並在 i18n 補名稱字串。選擇、冷卻、自動切換、統計都會自動套用。
+    // 解析一律嚴格驗證：格式不符就丟 invalid_response，交給自動切換處理，絕不把異常內容當成譯文快取。
+    function invalidResponse() { throw new Error('invalid_response'); }
+
+    // translate_a/single 格式：[[["譯文","原文",...],...], null, "來源語言", ...]
+    function parseSingleResponse(data, text) {
+        if (!Array.isArray(data?.[0]) || !data[0].length ||
+            data[0].some(seg => !Array.isArray(seg) || typeof seg[0] !== 'string')) invalidResponse();
+        const translated = data[0].map(seg => seg[0]).join('');
+        if (!translated && text.trim()) invalidResponse();
+        return { translated, detectedLang: typeof data[2] === 'string' ? data[2] : null };
+    }
+
+    // clients5 /translate_a/t（dict-chrome-ex）格式：
+    //   {"sentences":[{"trans":"譯文","orig":"原文"}],"src":"en",...}
+    //   或較舊形式 [["譯文","來源語言"]]
+    function parseDictResponse(data, text) {
+        let translated, detectedLang = null;
+        if (Array.isArray(data?.sentences)) {
+            if (!data.sentences.length || data.sentences.some(s => typeof s?.trans !== 'string')) invalidResponse();
+            translated = data.sentences.map(s => s.trans).join('');
+            if (typeof data.src === 'string') detectedLang = data.src;
+        } else if (Array.isArray(data) && data.length &&
+                   data.every(e => Array.isArray(e) && typeof e[0] === 'string')) {
+            translated = data.map(e => e[0]).join('');
+            if (typeof data[0][1] === 'string') detectedLang = data[0][1];
+        } else invalidResponse();
+        if (!translated && text.trim()) invalidResponse();
+        return { translated, detectedLang };
+    }
+
+    // Microsoft Edge 網頁翻譯（免 key、免 token）：
+    //   POST edge.microsoft.com/translate/translatetext?to=zh-Hant&isEnterpriseClient=false
+    //   body: ["文字"]  →  [{"detectedLanguage":{"language":"en",...},"translations":[{"text":"譯文","to":"zh-Hant"}]}]
+    // 舊的 /translate/auth 換 JWT 流程已於 2026-08 起失效，不可使用。
+    // 語言代碼為 Azure 格式：中文要區分 zh-Hans / zh-Hant，其餘與本插件的代碼相同。
+    const EDGE_LANG_TO = { 'zh-TW': 'zh-Hant', 'zh-CN': 'zh-Hans' };
+    const EDGE_LANG_FROM = { 'zh-Hant': 'zh-TW', 'zh-Hans': 'zh-CN' };
+    function parseEdgeResponse(data, text) {
+        const tr = Array.isArray(data) && data.length === 1 ? data[0]?.translations : null;
+        if (!Array.isArray(tr) || tr.length !== 1 || typeof tr[0]?.text !== 'string') invalidResponse();
+        if (!tr[0].text && text.trim()) invalidResponse();
+        const lang = data[0].detectedLanguage?.language;
+        return { translated: tr[0].text, detectedLang: typeof lang === 'string' ? (EDGE_LANG_FROM[lang] || lang) : null };
+    }
+    const edgeChannel = {
+        name: () => ui('chDefault'),
+        async run(text, target, signal) {
+            const to = EDGE_LANG_TO[target] || target;
+            const resp = await fetch(`https://edge.microsoft.com/translate/translatetext?to=${encodeURIComponent(to)}&isEnterpriseClient=false`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([text]), signal
+            });
+            if (resp.status === 429) throw new Error('rate_limit');
+            if (resp.status === 403) throw new Error('blocked');
+            if (!resp.ok) throw new Error(`http_${resp.status}`);
+            return parseEdgeResponse(await resp.json(), text);
+        }
+    };
+
+    // 通用 GET + JSON 通道：HTTP 狀態碼統一處理。
+    function jsonChannel(name, buildUrl, parse) {
+        return {
+            name,
+            async run(text, target, signal) {
+                const resp = await fetch(buildUrl(encodeURIComponent(text), target), { signal });
+                if (resp.status === 429) throw new Error('rate_limit');
+                if (resp.status === 403) throw new Error('blocked');
+                if (!resp.ok) throw new Error(`http_${resp.status}`);
+                return parse(await resp.json(), text);
+            }
+        };
+    }
+    const numberedChannelName = n => () => ui('chNum', { n });
+
+    const TRANSLATE_CHANNELS = {
+        // Google 通道 1：預設，長期使用的端點
+        g1: jsonChannel(numberedChannelName(1), (q, tl) => `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${tl}&dt=t&q=${q}`, parseSingleResponse),
+        // Google 通道 2：同一端點、網頁版主機
+        g2: jsonChannel(numberedChannelName(2), (q, tl) => `https://translate.google.com/translate_a/single?client=gtx&sl=auto&tl=${tl}&dt=t&q=${q}`, parseSingleResponse),
+        // Google 通道 3：同一端點、clients5 主機
+        g3: jsonChannel(numberedChannelName(3), (q, tl) => `https://clients5.google.com/translate_a/single?client=gtx&sl=auto&tl=${tl}&dt=t&q=${q}`, parseSingleResponse),
+        // Google 通道 4：Chrome「Google 辭典」擴充使用的通道，回應格式不同
+        g4: jsonChannel(numberedChannelName(4), (q, tl) => `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl=${tl}&q=${q}`, parseDictResponse),
+        // Microsoft Edge 網頁翻譯（品質與 Google 不同；內容會送往 edge.microsoft.com）
+        e1: edgeChannel
+    };
+    const TRANSLATE_CHANNEL_IDS = Object.keys(TRANSLATE_CHANNELS);
+    const DEFAULT_CHANNEL = 'g1';
+
+    // 翻譯工具 = 一組通道。failover：該工具是否提供「自動重試其他通道」（只在同一工具內切換，不會跨工具）。
+    // 新增翻譯服務：先在 TRANSLATE_CHANNELS 加通道，再在這裡加一個工具即可，設定面板會自動列出。
+    const TRANSLATE_TOOLS = {
+        google: { name: () => 'Google', channels: ['g1', 'g2', 'g3', 'g4'], failover: true },
+        edge:   { name: () => ui('chEdge'), channels: ['e1'], failover: false }
+    };
+    const TRANSLATE_TOOL_IDS = Object.keys(TRANSLATE_TOOLS);
+    const DEFAULT_TOOL = 'google';
+    // 1.7.13 測試版曾使用英文代號存設定，讀取時對應到新代號。
+    const LEGACY_CHANNEL_IDS = { gtx: 'g1', web: 'g2', c5: 'g3', dict: 'g4' };
+    const channelTool = id => TRANSLATE_TOOL_IDS.find(t => TRANSLATE_TOOLS[t].channels.includes(id)) || null;
+    // 完整顯示名稱：多通道的工具顯示「工具 通道」，單通道的工具只顯示工具名。
+    function channelName(id) {
+        const tool = TRANSLATE_TOOLS[channelTool(id)], ch = TRANSLATE_CHANNELS[id];
+        if (!tool || !ch) return id;
+        return tool.channels.length > 1 ? `${tool.name()} ${ch.name()}` : tool.name();
+    }
+
+    // 各通道執行期狀態：連續失敗次數、冷卻到期時間、累計成功/失敗（供 Liko.MAT.channelStats() 檢視）
+    const channelState = new Map(TRANSLATE_CHANNEL_IDS.map(id => [id, { fails: 0, until: 0, ok: 0, fail: 0, lastError: null }]));
+
+    // 1.7.13～1.7.16 以 translateChannel（單一通道代號）存設定；轉成「工具 + 各工具通道」並清掉舊鍵。
+    function normalizeChannelConfig(saved) {
+        if (saved && saved.translateTool === undefined && saved.translateChannel !== undefined) {
+            const id = LEGACY_CHANNEL_IDS[saved.translateChannel] || saved.translateChannel;
+            const tool = channelTool(id);
+            if (tool) { config.translateTool = tool; config.toolChannels = { ...(config.toolChannels || {}), [tool]: id }; }
+        }
+        delete config.translateChannel;
+        if (!TRANSLATE_TOOLS[config.translateTool]) config.translateTool = DEFAULT_TOOL;
+        if (!config.toolChannels || typeof config.toolChannels !== 'object' || Array.isArray(config.toolChannels)) config.toolChannels = {};
+    }
+
+    // 設定中的工具與通道（持久化於設定，只有用戶自己改）。
+    function selectedTool() { return TRANSLATE_TOOLS[config.translateTool] ? config.translateTool : DEFAULT_TOOL; }
+    function toolChannel(toolId) {
+        const tool = TRANSLATE_TOOLS[toolId], id = config.toolChannels?.[toolId];
+        return tool.channels.includes(id) ? id : tool.channels[0];
+    }
+    function selectedChannel() { return toolChannel(selectedTool()); }
+    function toolChannelIds() { return TRANSLATE_TOOLS[selectedTool()].channels; }
+    // 自動重試其他通道：工具要支援，且用戶有開。
+    function failoverEnabled() { return TRANSLATE_TOOLS[selectedTool()].failover && config.channelFailover !== false; }
+
+    // 自動重試後的「目前有效通道」只存在記憶體，絕不寫回設定：
+    // 切換成功後後續請求沿用該通道，不必每次冷卻結束又回頭試已失敗的通道。
+    // 用戶改了設定的工具/通道、或重新載入頁面，就回到設定值。
+    let activeChannel = null, activeChannelBase = null;
+    function currentChannel() {
+        const sel = selectedChannel();
+        // 用戶改過設定 → 清掉舊的記憶體覆蓋（否則改回原值時舊覆蓋會復活）。
+        if (activeChannel && activeChannelBase !== sel) activeChannel = activeChannelBase = null;
+        if (!failoverEnabled() || !activeChannel) return sel;
+        return activeChannel;
+    }
+    function channelCooling(id) { return channelState.get(id).until > Date.now(); }
+    function allChannelsCooling() { return toolChannelIds().every(channelCooling); }
+
+    // 通道嘗試順序（只含同一工具）：目前有效通道優先，其次設定的通道，再依序補位；
+    // 冷卻中的通道排除（全部冷卻時才全部重新納入）。
+    function channelOrder() {
+        const sel = selectedChannel();
+        if (!failoverEnabled()) return [sel];
+        const all = [...new Set([currentChannel(), sel, ...toolChannelIds()])];
+        const ready = all.filter(id => !channelCooling(id));
+        return ready.length ? ready : all;
+    }
+    // 同一筆請求重試時優先挑還沒試過的通道；都試過就回到順序首位。
+    function pickChannel(item) {
+        const order = channelOrder();
+        if (!failoverEnabled()) return order[0];
+        return order.find(id => !item.triedChannels.has(id)) || order[0];
+    }
+    // 失敗後冷卻：限流/封鎖 60 秒起，其他 15 秒起，連續失敗倍增（上限 8 倍）；成功即重置。
+    function reportChannelResult(id, res) {
+        const st = channelState.get(id);
+        if (!st) return;
+        if (!res.error) {
+            st.fails = 0; st.until = 0; st.ok++;
+            // 備援通道成功 → 記在記憶體，後續沿用（不修改設定）。
+            if (failoverEnabled() && id !== currentChannel()) {
+                activeChannel = id; activeChannelBase = selectedChannel();
+                console.info(`🐈‍⬛ [MAT] switched to channel ${id} (${channelName(id)}) for this session`);
+            }
+            return;
+        }
+        if (res.error === 'cancelled' || res.error === 'offline') return;
+        st.fails++; st.fail++; st.lastError = res.error;
+        const base = (res.error === 'rate_limit' || res.error === 'blocked') ? 60000 : 15000;
+        st.until = Date.now() + base * Math.min(8, 2 ** (st.fails - 1));
+        console.warn(`🐈‍⬛ [MAT] channel ${id} (${channelName(id)}) failed: ${res.error}`);
+    }
 
     function pruneTranslationCache() {
         const now = Date.now();
@@ -292,7 +490,7 @@
                 existing.consumers.push({ bioToken, priority });
                 return existing.promise;
             }
-            const item = { text, targetLang, consumers: [{ bioToken, priority }], attempts: 0 };
+            const item = { text, targetLang, consumers: [{ bioToken, priority }], attempts: 0, triedChannels: new Set() };
             const pending = new Promise(resolve => {
                 item.resolve = resolve;
                 this.queue.push(item);
@@ -340,14 +538,18 @@
             const [item] = this.queue.splice(nextIndex, 1);
             this.lastRequestTime = Date.now();
             item.attempts++;
+            const channel = pickChannel(item);
+            item.triedChannels.add(channel);
             let res;
             try {
-                res = await translateGoogle(item.text, item.targetLang, TRANSLATION_ATTEMPT_TIMEOUTS[item.attempts - 1]);
+                res = await translateViaChannel(item.text, item.targetLang, TRANSLATION_ATTEMPT_TIMEOUTS[item.attempts - 1], channel);
             } catch (e) {
                 res = { translated: null, detectedLang: null, error: e.message || 'unknown' };
             }
+            reportChannelResult(channel, res);
             // 只有服務端限流才延長全域間隔；一般逾時不再額外堆疊等待。
-            if (res.error === 'rate_limit') this.backoff(); else this.recover();
+            // 開啟自動切換時，只有所有通道都在冷卻（等於全面受限）才拉長間隔。
+            if (res.error === 'rate_limit' && (!failoverEnabled() || allChannelsCooling())) this.backoff(); else this.recover();
             if (res.error && item.attempts < TRANSLATION_MAX_ATTEMPTS &&
                 item.consumers.some(c => !c.bioToken?.cancelled)) {
                 // 重試回到相同順位尾端，仍受共用節流約束，不額外等待 3 秒。
@@ -422,6 +624,13 @@
         get settingsReady() { return matSettingsReady; },
         get recvLang() { return config.recvLang; },
         get sendLang() { return config.sendLang; },
+        // 各通道累計成功/失敗與冷卻狀態；可在 console 輸入 Liko.MAT.channelStats() 比較哪個通道最穩
+        channelStats() {
+            return Object.fromEntries([...channelState].map(([id, st]) => [id, {
+                name: channelName(id), tool: channelTool(id), active: id === currentChannel(), ok: st.ok, fail: st.fail, lastError: st.lastError,
+                cooling: Math.max(0, Math.ceil((st.until - Date.now()) / 1000)) + 's'
+            }]));
+        },
         getLanguages() { return matSettingsReady ? [...langCodes] : []; },
         getHistory() {
             pruneTranslationCache();
@@ -490,29 +699,14 @@
         return 'network';
     }
 
-    async function translateGoogle(text, target, timeoutMs = TRANSLATION_ATTEMPT_TIMEOUTS[0]) {
+    async function translateViaChannel(text, target, timeoutMs = TRANSLATION_ATTEMPT_TIMEOUTS[0], channelId = DEFAULT_CHANNEL) {
+        const channel = TRANSLATE_CHANNELS[channelId] || TRANSLATE_CHANNELS[DEFAULT_CHANNEL];
         const ctrl = new AbortController();
         const to = setTimeout(() => ctrl.abort(), timeoutMs);
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
         try {
-            const resp = await fetch(url, { signal: ctrl.signal });
-
-            if (resp.status === 429) throw new Error('rate_limit');
-            if (resp.status === 403) throw new Error('blocked');
-            if (!resp.ok) throw new Error(`http_${resp.status}`);
-
-            const data = await resp.json();
-            // HTTP 成功不代表譯文有效；不可把異常回應當成原文成功並快取。
-            if (!Array.isArray(data?.[0]) || !data[0].length ||
-                data[0].some(seg => !Array.isArray(seg) || typeof seg[0] !== 'string')) {
-                throw new Error('invalid_response');
-            }
-            const translated = data[0].map(seg => seg[0]).join('');
-            if (!translated && text.trim()) throw new Error('invalid_response');
-            return { translated, detectedLang: typeof data[2] === 'string' ? data[2] : null };
+            return await channel.run(text, target, ctrl.signal);
         } catch (e) {
-            const reason = classifyFetchFailure(e);
-            return { translated: null, detectedLang: null, error: reason };
+            return { translated: null, detectedLang: null, error: classifyFetchFailure(e) };
         } finally {
             clearTimeout(to);
         }
@@ -1265,6 +1459,31 @@
         document.body.appendChild(sel);
         window.Liko?.__Sys_Flags__?.bindSelect(sel);
         void window.Liko?.__Sys_Flags__?.preload(langCodes);
+        setTimeout(() => sel.focus(), 0);
+    }
+
+    // 通用選項下拉（樣式與語言下拉一致；與語言下拉共用同一個 id，確保同時只開一個）。
+    // options: [{ value, text }]
+    function openMATOptionSelect(anchor, options, current, onSelect) {
+        document.getElementById('mat-inline-lang-select')?.remove();
+        const sel = document.createElement('select');
+        sel.id = 'mat-inline-lang-select';
+        const rect = anchor.getBoundingClientRect();
+        const selW = window.innerWidth * 0.12;
+        let left = rect.right + 4;
+        if (left + selW > window.innerWidth - 8) left = rect.left - selW - 4;
+        sel.style.cssText = `position:fixed;z-index:99999;left:${Math.max(4,left)}px;top:${Math.max(4,rect.top-4)}px;font-size:1vw;padding:0.2vh 0.3vw;border:1px solid #4CAF50;border-radius:4px;background:#1a1a2e;color:#eee;cursor:pointer;max-height:35vh;min-width:9vw;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;`;
+        options.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o.value;
+            opt.textContent = o.text;
+            if (o.value === current) opt.selected = true;
+            sel.appendChild(opt);
+        });
+        let settled = false;
+        sel.addEventListener('change', () => { settled = true; onSelect(sel.value); if (sel.parentNode) sel.remove(); });
+        sel.addEventListener('blur', () => { setTimeout(() => { if (!settled && sel.parentNode) sel.remove(); }, 100); });
+        document.body.appendChild(sel);
         setTimeout(() => sel.focus(), 0);
     }
 
@@ -2160,9 +2379,15 @@
             ROW_Y0: 225, ROW_H: 80,
             HK_KEY_X: 970, HK_KEY_W: 210, HK_CLR_X: 1195, HK_CLR_W: 90,
             HELP_X: 1350, HELP_Y: 200, HELP_W: 560, HELP_H: 700,
+            // 翻譯工具面板：右側滑入（BC 畫面 2000×1000）。面板開啟時說明框改放在面板左側：
+            // 說明框 X = PANEL_X - HELP_GAP - HELP_W，調整面板位置時說明框會自動跟著算。
+            PANEL_X: 1300, PANEL_W: 700, PANEL_H: 1000, PANEL_ANIM: 220, HELP_GAP: 20,
         },
 
+        panel: null,        // 翻譯工具面板狀態：{ state: 'opening'|'open'|'closing', t0, draft }
+
         load() {
+            this._dropPanel();
             uiSendIdx = Math.max(0, langCodes.indexOf(config.sendLang));
             uiRecvIdx = Math.max(0, langCodes.indexOf(config.recvLang));
         },
@@ -2201,6 +2426,120 @@
             if (desc && MouseIn(LBL_X, y, SEL_X - LBL_X + SEL_W, CB_SZ)) this.hoverDesc = desc;
         },
 
+        // 翻譯工具列：標籤 + 顯示目前工具/通道的按鈕（點擊滑入設定面板）
+        _tool(y, label, desc) {
+            const { CB_SZ, LBL_X, LBL_W, SEL_X, SEL_W } = this.C;
+            this._left(() => DrawTextFit(label, LBL_X, this._rowMid(y), LBL_W, "Black"));
+            DrawButton(SEL_X, y, SEL_W, CB_SZ, channelName(selectedChannel()), "White", "", "");
+            this._hit(SEL_X, y, SEL_W, CB_SZ, () => this.openPanel());
+            if (desc && MouseIn(LBL_X, y, SEL_X - LBL_X + SEL_W, CB_SZ)) this.hoverDesc = desc;
+        },
+
+        // ── 翻譯工具面板 ──
+        // 編輯的是草稿 draft，按「保存」才寫入設定；「取消」或離開頁面則捨棄。
+        openPanel() {
+            if (this.panel) return;
+            this.panel = { state: 'opening', t0: Date.now(), draft: {
+                tool: selectedTool(),
+                channels: Object.fromEntries(TRANSLATE_TOOL_IDS.map(t => [t, toolChannel(t)])),
+                failover: config.channelFailover !== false
+            } };
+        },
+        closePanel(save) {
+            const p = this.panel;
+            if (!p || p.state !== 'open') return;
+            if (save) {
+                const d = p.draft;
+                config.translateTool = d.tool;
+                config.toolChannels = { ...d.channels };
+                config.channelFailover = d.failover;
+                saveSettings();
+            }
+            document.getElementById('mat-inline-lang-select')?.remove();
+            p.state = 'closing'; p.t0 = Date.now();
+        },
+        _dropPanel() { document.getElementById('mat-inline-lang-select')?.remove(); this.panel = null; },
+        // 回傳面板滑入進度 0（完全在畫面外）～1（完全展開）；順便推進狀態。
+        _panelProgress() {
+            const p = this.panel;
+            if (!p) return 0;
+            if (p.state === 'open') return 1;
+            const t = Math.min(1, (Date.now() - p.t0) / this.C.PANEL_ANIM);
+            const ease = 1 - Math.pow(1 - t, 3);
+            if (p.state === 'opening') { if (t >= 1) p.state = 'open'; return ease; }
+            if (t >= 1) { this.panel = null; return 0; }
+            return 1 - ease;
+        },
+
+        _drawHelp(r) {
+            if (r.filled) DrawRect(r.x, r.y, r.w, r.h, "White");
+            DrawEmptyRect(r.x, r.y, r.w, r.h, "#888");
+            // 說明文字（hover 優先，否則顯示常駐說明）
+            const desc = this.hoverDesc || (this.panel ? ui('dTranslateTool') : this._tabDesc());
+            if (desc) DrawTextWrap(desc, r.x + 25, r.y + 20, r.w - 50, r.h - 40, "Black", undefined, 8);
+        },
+
+        _runPanel(prog) {
+            const C = this.C, p = this.panel, d = p.draft;
+            const interactive = p.state === 'open';
+            const px = C.PANEL_X + (2000 - C.PANEL_X) * (1 - prog);
+            // 面板開啟時底下的設定頁暫停互動：清掉它登記的點擊區與 hover 說明。
+            this._hits = []; this.hoverDesc = '';
+            // 沿用 BC 的標準繪圖顏色，讓主題插件透過 DrawRect / DrawEmptyRect 自動染色。
+            DrawRect(0, 0, 2000, 1000, `rgba(0,0,0,${(0.45 * prog).toFixed(3)})`);
+            DrawRect(px, 0, C.PANEL_W, C.PANEL_H, "White");
+            DrawEmptyRect(px, 0, C.PANEL_W, C.PANEL_H, "Black");
+            DrawText(ui('titleTranslateTool'), px + C.PANEL_W / 2, 90, "Black", "Gray");
+
+            const tool = TRANSLATE_TOOLS[d.tool];
+            const SZ = C.CB_SZ, LX = px + 40, CX = px + 330, CW = 330, RW = C.PANEL_W - 80;
+            const label = (yy, text, gray) => this._left(() => DrawTextFit(text, LX, this._rowMid(yy), 280, gray ? "Gray" : "Black"));
+            const H = 110; let y = 200;
+
+            // 1. 工具
+            label(y, ui('lblTool'));
+            DrawButton(CX, y, CW, SZ, tool.name(), "White", "", "");
+            if (interactive) {
+                const yy = y;
+                this._hit(CX, yy, CW, SZ, () => openMATOptionSelect(this._anchor(CX, yy, CW),
+                    TRANSLATE_TOOL_IDS.map(id => ({ value: id, text: TRANSLATE_TOOLS[id].name() })), d.tool, v => { d.tool = v; }));
+                if (MouseIn(LX, y, RW, SZ)) this.hoverDesc = ui('dTool');
+            }
+            y += H;
+
+            // 2. 通道（只有一個通道的工具不需選擇）
+            const single = tool.channels.length <= 1;
+            label(y, ui('lblChannel'), single);
+            DrawButton(CX, y, CW, SZ, TRANSLATE_CHANNELS[d.channels[d.tool]].name(), single ? "#DDDDDD" : "White", "", "", single);
+            if (interactive) {
+                const yy = y;
+                if (!single) this._hit(CX, yy, CW, SZ, () => openMATOptionSelect(this._anchor(CX, yy, CW),
+                    tool.channels.map(id => ({ value: id, text: TRANSLATE_CHANNELS[id].name() })), d.channels[d.tool], v => { d.channels[d.tool] = v; }));
+                if (MouseIn(LX, y, RW, SZ)) this.hoverDesc = single ? ui('dChannelNone') : ui('dChannel');
+            }
+            y += H;
+
+            // 3. 自動重試其他通道（僅 Google 工具提供）
+            const na = !tool.failover;
+            DrawCheckbox(LX, y, SZ, SZ, "", na ? false : d.failover, na);
+            this._left(() => DrawTextFit(ui('optFailover'), LX + SZ + 25, this._rowMid(y), RW - SZ - 25, na ? "Gray" : "Black"));
+            if (interactive) {
+                if (!na) this._hit(LX, y, RW, SZ, () => { d.failover = !d.failover; });
+                if (MouseIn(LX, y, RW, SZ)) this.hoverDesc = na ? ui('dFailoverNA') : ui('dFailover');
+            }
+
+            // 底部：保存 / 取消
+            const by = C.PANEL_H - 130, bw = 290, bh = 80;
+            DrawButton(LX, by, bw, bh, ui('btnSave'), "White", "", "");
+            DrawButton(LX + bw + 20, by, bw, bh, ui('btnCancel'), "White", "", "");
+            if (interactive) {
+                this._hit(LX, by, bw, bh, () => this.closePanel(true));
+                this._hit(LX + bw + 20, by, bw, bh, () => this.closePanel(false));
+                // 說明框在面板左側（面板完全展開後才顯示）
+                this._drawHelp({ x: C.PANEL_X - C.HELP_GAP - C.HELP_W, y: C.HELP_Y, w: C.HELP_W, h: C.HELP_H, filled: true });
+            }
+        },
+
         // 熱鍵列：啟用勾選框 + 標籤 + 綁定鈕（點擊錄製）+ 清除鈕
         _hotkey(y, label, actionName, desc) {
             const { CBX, CB_SZ, LBL_X, HK_KEY_X, HK_KEY_W, HK_CLR_X, HK_CLR_W } = this.C;
@@ -2224,11 +2563,12 @@
 
         run() {
             if (this.tab !== 4) this._removePrefixInput();
+            const panelProg = this._panelProgress();
             this.hoverDesc = '';
             this._hits = [];
             const { TAB_X, TAB_Y0, TAB_W, TAB_H, TAB_GAP, HELP_X, HELP_Y, HELP_W, HELP_H } = this.C;
 
-            DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", ui('btnBack'));
+            if (!this.panel) DrawButton(1815, 75, 90, 90, "", "White", "Icons/Exit.png", ui('btnBack'));
             DrawText(ui('pageTitle', { v: MOD_VER }), 1000, 110, "Black", "Gray");
 
             // 左側第 0 鍵：總開關（直接切換，顏色反映啟用狀態）
@@ -2250,15 +2590,12 @@
                 this._hit(TAB_X, y, TAB_W, TAB_H, () => { this.tab = idx; });
             });
 
-            // 右側說明框
-            DrawEmptyRect(HELP_X, HELP_Y, HELP_W, HELP_H, "#888");
-
             // 中間內容
             [this._runBasic, this._runSend, this._runRecv, this._runOther, this._runHotkeys][this.tab - 1].call(this);
 
-            // 說明文字（hover 優先，否則顯示分頁常駐說明）
-            const desc = this.hoverDesc || this._tabDesc();
-            if (desc) DrawTextWrap(desc, HELP_X + 25, HELP_Y + 20, HELP_W - 50, HELP_H - 40, "Black", undefined, 8);
+            // 右側說明框；翻譯工具面板開啟時改由面板繪製（說明框移到面板左側）
+            if (this.panel) this._runPanel(panelProg);
+            else this._drawHelp({ x: HELP_X, y: HELP_Y, w: HELP_W, h: HELP_H, filled: false });
         },
 
         _runBasic() {
@@ -2268,6 +2605,7 @@
             this._lang(y, ui('lblSendLang'), uiSendIdx, ui('dSendLang'), code => { const i = langCodes.indexOf(code); if (i < 0) return; uiSendIdx = i; config.sendLang = code; saveSettings(); }); y += H;
             this._cb(y, ui('optRecv'), config.translateReceived, ui('dRecv'), () => { config.translateReceived = !config.translateReceived; saveSettings(); }); y += H;
             this._lang(y, ui('lblRecvLang'), uiRecvIdx, ui('dRecvLang'), code => { const i = langCodes.indexOf(code); if (i < 0) return; uiRecvIdx = i; config.recvLang = code; saveSettings(); }); y += H;
+            this._tool(y, ui('lblTranslateTool'), ui('dTranslateTool')); y += H;
         },
 
         _runSend() {
@@ -2345,11 +2683,20 @@
         },
 
         click() {
+            // 面板開啟時為模態：只處理面板上的點擊（展開動畫與收合動畫期間不回應）。
+            if (this.panel) {
+                if (this.panel.state !== 'open') return;
+                for (const h of this._hits) { if (MouseIn(h.x, h.y, h.w, h.h)) { h.onClick(); return; } }
+                // 面板外（包含說明框）點擊視同取消，且不把點擊傳給底下的設定頁。
+                const C = this.C;
+                if (!MouseIn(C.PANEL_X, 0, C.PANEL_W, C.PANEL_H)) this.closePanel(false);
+                return;
+            }
             if (MouseIn(1815, 75, 90, 90)) { if (typeof PreferenceExit === "function") PreferenceExit(); return; }
             for (const h of this._hits) { if (MouseIn(h.x, h.y, h.w, h.h)) { h.onClick(); return; } }
         },
-        unload() { this._removePrefixInput(); hotkeyRecording = false; hotkeyRecordingTarget = null; },
-        exit()   { this._removePrefixInput(); hotkeyRecording = false; hotkeyRecordingTarget = null; }
+        unload() { this._removePrefixInput(); this._dropPanel(); hotkeyRecording = false; hotkeyRecordingTarget = null; },
+        exit()   { this._removePrefixInput(); this._dropPanel(); hotkeyRecording = false; hotkeyRecordingTarget = null; }
     };
 
     // ============================================================

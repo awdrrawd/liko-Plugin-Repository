@@ -55,7 +55,7 @@
 
         // ── API / 翻譯失敗 ────────────────────────────────────────────────
         'apiFail': {
-            TW: "⚠️ [MAT] Google 翻譯請求失敗\n・{hint}\n請稍後再試。",
+            TW: "⚠️ [MAT] 翻譯請求失敗\n・{hint}\n請稍後再試。",
             CN: "⚠️ [MAT] Google 翻译请求失败\n・{hint}\n请稍后再试。",
             EN: "⚠️ [MAT] Google Translate request failed\n・{hint}\nPlease try again later.",
             DE: "⚠️ [MAT] Google-Übersetzungsanfrage fehlgeschlagen\n・{hint}\nBitte später erneut versuchen.",
@@ -738,6 +738,152 @@
         'dHkSend':   { TW: "啟用後可用快捷鍵切換發送翻譯（預設 Ctrl+S）。點右側按鈕可重新綁定。", CN: "启用后可用快捷键切换发送翻译（默认 Ctrl+S）。点右侧按钮可重新绑定。", EN: "When enabled, a hotkey toggles send translation (default Ctrl+S). Click the button to rebind.", DE: "Aktiviert ein Tastenkürzel für Sendeübersetzung (Standard Ctrl+S). Rechts neu belegen.", FR: "Activer un raccourci pour la traduction envoyée (par défaut Ctrl+S). Cliquer à droite pour le modifier.", RU: "Включить горячую клавишу для переключения перевод исходящих (по умолчанию Ctrl+S). Кнопка справа меняет сочетание.", UA: "Увімкнути гарячу клавішу для перемикання переклад вихідних (типово Ctrl+S). Кнопка праворуч змінює комбінацію." },
         'optShrinkNonDialogue': { TW: "對話以外縮小", CN: "对话以外缩小", EN: "Shrink non-dialogue messages", DE: "Nichtdialog-Nachrichten verkleinern", FR: "Réduire les messages hors dialogue", RU: "Уменьшать сообщения вне диалога", UA: "Зменшувати повідомлення поза діалогом" },
         'dShrinkNonDialogue': { TW: "譯文跟隨遊戲「對話以外縮小」設定，套用原訊息實際顯示的字級。", CN: "译文跟随游戏「对话以外缩小」设置，使用原消息实际显示的字号。", EN: "Match translated non-dialogue messages to the original font size used by the game’s shrink setting.", DE: "Übersetzte Nichtdialog-Nachrichten verwenden die Originalschriftgröße gemäß der Verkleinerungseinstellung des Spiels.", FR: "Les traductions hors dialogue reprennent la taille du texte original définie par le réglage de réduction du jeu.", RU: "Переводы сообщений вне диалога используют размер шрифта оригинала согласно настройке уменьшения в игре.", UA: "Переклади повідомлень поза діалогом використовують розмір шрифту оригіналу відповідно до налаштування зменшення у грі." },
+
+        // ── 翻譯工具 / 通道 ───────────────────────────────────────────────
+        'lblTranslateTool': {
+            TW: "翻譯工具：",
+            CN: "翻译工具：",
+            EN: "Translation tool: ",
+            DE: "Übersetzungstool: ",
+            FR: "Outil de traduction : ",
+            RU: "Инструмент перевода: ",
+            UA: "Інструмент перекладу: "
+        },
+        'titleTranslateTool': {
+            TW: "翻譯工具設定",
+            CN: "翻译工具设置",
+            EN: "Translation Tool Settings",
+            DE: "Übersetzungstool-Einstellungen",
+            FR: "Paramètres de l'outil de traduction",
+            RU: "Настройки инструмента перевода",
+            UA: "Налаштування інструмента перекладу"
+        },
+        'lblTool': {
+            TW: "工具：",
+            CN: "工具：",
+            EN: "Tool: ",
+            DE: "Tool: ",
+            FR: "Outil : ",
+            RU: "Инструмент: ",
+            UA: "Інструмент: "
+        },
+        'lblChannel': {
+            TW: "翻譯通道：",
+            CN: "翻译通道：",
+            EN: "Channel: ",
+            DE: "Kanal: ",
+            FR: "Canal : ",
+            RU: "Канал: ",
+            UA: "Канал: "
+        },
+        'optFailover': {
+            TW: "自動重試其他通道",
+            CN: "自动重试其他通道",
+            EN: "Auto-retry other channels",
+            DE: "Andere Kanäle automatisch erneut versuchen",
+            FR: "Réessayer via d'autres canaux",
+            RU: "Автоповтор через другие каналы",
+            UA: "Автоповтор через інші канали"
+        },
+        'btnSave': {
+            TW: "保存",
+            CN: "保存",
+            EN: "Save",
+            DE: "Speichern",
+            FR: "Enregistrer",
+            RU: "Сохранить",
+            UA: "Зберегти"
+        },
+        'btnCancel': {
+            TW: "取消",
+            CN: "取消",
+            EN: "Cancel",
+            DE: "Abbrechen",
+            FR: "Annuler",
+            RU: "Отмена",
+            UA: "Скасувати"
+        },
+        'chNum': {
+            TW: "通道{n}",
+            CN: "通道{n}",
+            EN: "Channel {n}",
+            DE: "Kanal {n}",
+            FR: "Canal {n}",
+            RU: "Канал {n}",
+            UA: "Канал {n}"
+        },
+        'chDefault': {
+            TW: "預設",
+            CN: "默认",
+            EN: "Default",
+            DE: "Standard",
+            FR: "Par défaut",
+            RU: "По умолчанию",
+            UA: "За замовчуванням"
+        },
+        'chEdge': {
+            TW: "Microsoft Edge 翻譯",
+            CN: "Microsoft Edge 翻译",
+            EN: "Microsoft Edge",
+            DE: "Microsoft Edge",
+            FR: "Microsoft Edge",
+            RU: "Microsoft Edge",
+            UA: "Microsoft Edge"
+        },
+        'dTranslateTool': {
+            TW: "翻譯工具設定：選擇翻譯工具與通道，以及失敗時是否自動重試其他通道。點擊開啟設定面板，按「保存」後才會生效。",
+            CN: "翻译工具设置：选择翻译工具与通道，以及失败时是否自动重试其他通道。点击打开设置面板，按「保存」后才会生效。",
+            EN: "Translation tool settings: choose the tool and channel, and whether to auto-retry other channels on failure. Click to open the panel; changes apply only after pressing Save.",
+            DE: "Einstellungen zum Übersetzungstool: Tool und Kanal wählen und festlegen, ob bei Fehlern automatisch andere Kanäle versucht werden. Klicken öffnet das Panel; Änderungen gelten erst nach „Speichern“.",
+            FR: "Paramètres de l'outil de traduction : choisissez l'outil et le canal, et réessayez ou non automatiquement via d'autres canaux en cas d'échec. Cliquez pour ouvrir le panneau ; les changements ne s'appliquent qu'après « Enregistrer ».",
+            RU: "Настройки инструмента перевода: выберите инструмент и канал и укажите, повторять ли запрос через другие каналы при сбое. Нажмите, чтобы открыть панель; изменения применяются только после «Сохранить».",
+            UA: "Налаштування інструмента перекладу: виберіть інструмент і канал та чи повторювати запит через інші канали при збої. Натисніть, щоб відкрити панель; зміни застосовуються лише після «Зберегти»."
+        },
+        'dTool': {
+            TW: "選擇翻譯工具。Google：預設，提供 4 個通道，支援自動重試其他通道。Microsoft Edge：使用 Edge 瀏覽器的網頁翻譯，待翻譯的文字會送往 edge.microsoft.com，譯文風格與 Google 不同，不提供自動重試。",
+            CN: "选择翻译工具。Google：默认，提供 4 个通道，支持自动重试其他通道。Microsoft Edge：使用 Edge 浏览器的网页翻译，待翻译的文字会发送到 edge.microsoft.com，译文风格与 Google 不同，不提供自动重试。",
+            EN: "Choose the translation tool. Google: default, 4 channels, supports auto-retry on other channels. Microsoft Edge: uses the Edge browser's web translation; the text is sent to edge.microsoft.com, the translation style differs from Google's, and auto-retry is not offered.",
+            DE: "Wählt das Übersetzungstool. Google: Standard, 4 Kanäle, unterstützt automatische Wiederholung über andere Kanäle. Microsoft Edge: nutzt die Webübersetzung des Edge-Browsers; der Text wird an edge.microsoft.com gesendet, der Stil unterscheidet sich von Google, keine automatische Wiederholung.",
+            FR: "Choisit l'outil de traduction. Google : par défaut, 4 canaux, prend en charge la nouvelle tentative automatique via d'autres canaux. Microsoft Edge : utilise la traduction web du navigateur Edge ; le texte est envoyé à edge.microsoft.com, le style diffère de Google et la nouvelle tentative automatique n'est pas proposée.",
+            RU: "Выбор инструмента перевода. Google: по умолчанию, 4 канала, поддерживает автоповтор через другие каналы. Microsoft Edge: веб-перевод браузера Edge; текст отправляется на edge.microsoft.com, стиль отличается от Google, автоповтор недоступен.",
+            UA: "Вибір інструмента перекладу. Google: за замовчуванням, 4 канали, підтримує автоповтор через інші канали. Microsoft Edge: веб-переклад браузера Edge; текст надсилається на edge.microsoft.com, стиль відрізняється від Google, автоповтор недоступний."
+        },
+        'dChannel': {
+            TW: "選擇該工具使用的通道。各通道是不同的入口，其中一個被限流（429）或封鎖時，可換另一個試試；可用性依網路環境而異。",
+            CN: "选择该工具使用的通道。各通道是不同的入口，其中一个被限流（429）或封锁时，可换另一个试试；可用性因网络环境而异。",
+            EN: "Choose the channel this tool uses. Channels are different entry points; if one gets rate-limited (429) or blocked, try another. Availability depends on your network.",
+            DE: "Wählt den Kanal dieses Tools. Die Kanäle sind unterschiedliche Zugänge; wird einer begrenzt (429) oder blockiert, einen anderen testen. Die Verfügbarkeit hängt vom Netzwerk ab.",
+            FR: "Choisit le canal utilisé par cet outil. Les canaux sont des points d'entrée différents ; si l'un est limité (429) ou bloqué, essayez-en un autre. La disponibilité dépend de votre réseau.",
+            RU: "Выбор канала для этого инструмента. Каналы — разные точки входа; если один ограничен (429) или заблокирован, попробуйте другой. Доступность зависит от сети.",
+            UA: "Вибір каналу для цього інструмента. Канали — різні точки входу; якщо один обмежений (429) або заблокований, спробуйте інший. Доступність залежить від мережі."
+        },
+        'dChannelNone': {
+            TW: "此工具只有一個通道，不需選擇。",
+            CN: "此工具只有一个通道，无需选择。",
+            EN: "This tool has only one channel; nothing to choose.",
+            DE: "Dieses Tool hat nur einen Kanal; keine Auswahl nötig.",
+            FR: "Cet outil n'a qu'un seul canal ; rien à choisir.",
+            RU: "У этого инструмента только один канал; выбирать нечего.",
+            UA: "Цей інструмент має лише один канал; обирати нічого."
+        },
+        'dFailover': {
+            TW: "翻譯失敗（429、逾時、被封鎖等）時，自動改用同一工具內的其他通道重試。切換成功後會沿用新通道直到它也失敗；這只暫存在記憶體，不會改動你設定的通道，重新載入頁面或手動更改設定後即回到設定值。",
+            CN: "翻译失败（429、超时、被封锁等）时，自动改用同一工具内的其他通道重试。切换成功后会沿用新通道直到它也失败；这只暂存在内存，不会改动你设置的通道，重新加载页面或手动更改设置后即回到设置值。",
+            EN: "When a translation fails (429, timeout, blocked, etc.), retry through another channel of the same tool. After a successful switch, the new channel keeps being used until it fails too. This is kept in memory only and never changes your configured channel; reloading the page or changing the setting returns to it.",
+            DE: "Bei einem Fehler (429, Zeitüberschreitung, Blockierung usw.) wird über einen anderen Kanal desselben Tools erneut versucht. Nach erfolgreichem Wechsel bleibt der neue Kanal aktiv, bis auch er ausfällt. Das wird nur im Speicher gehalten und ändert Ihren eingestellten Kanal nie; nach Neuladen oder Änderung der Einstellung gilt wieder der eingestellte Kanal.",
+            FR: "En cas d'échec (429, délai dépassé, blocage, etc.), nouvelle tentative via un autre canal du même outil. Après un changement réussi, le nouveau canal reste utilisé jusqu'à son propre échec. Cela n'est conservé qu'en mémoire et ne modifie jamais le canal configuré ; recharger la page ou changer le réglage y ramène.",
+            RU: "При сбое (429, тайм-аут, блокировка и т. д.) повторить запрос через другой канал того же инструмента. После успешного переключения новый канал используется, пока не откажет и он. Это хранится только в памяти и не меняет выбранный вами канал; после перезагрузки страницы или смены настройки возвращается выбранный канал.",
+            UA: "У разі збою (429, тайм-аут, блокування тощо) повторити запит через інший канал того самого інструмента. Після успішного перемикання новий канал використовується, доки не відмовить і він. Це зберігається лише в пам'яті й не змінює вибраний вами канал; після перезавантаження сторінки або зміни налаштування повертається вибраний канал."
+        },
+        'dFailoverNA': {
+            TW: "自動重試其他通道只在 Google 工具提供。",
+            CN: "自动重试其他通道仅在 Google 工具提供。",
+            EN: "Auto-retry on other channels is only available for the Google tool.",
+            DE: "Die automatische Wiederholung über andere Kanäle gibt es nur beim Google-Tool.",
+            FR: "La nouvelle tentative automatique via d'autres canaux n'est disponible que pour l'outil Google.",
+            RU: "Автоповтор через другие каналы доступен только для инструмента Google.",
+            UA: "Автоповтор через інші канали доступний лише для інструмента Google."
+        },
     });
 
     console.log('[Liko MAT strings] ✅ 已注入 i18n 字庫');
