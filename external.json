@@ -64,13 +64,7 @@
       "en_description": "A large collection of cheats, quality of life improvements, and a moaner script.",
       "additionalInfo": "",
       "en_additionalInfo": "",
-      "url": "https://tetris245.github.io/ultrabc.github.io/ULTRAbcloader.user.js",
-      "altUrl": "https://tetris245.github.io/ultrabc.github.io/ULTRAbcloader-ch.user.js",
-      "triLabels": [
-        "OFF",
-        "EN",
-        "ZH"
-      ],
+      "url": "https://tetris245.github.io/ultrabc.github.io/ULTRAbc.js",
       "website": "https://github.com/tetris245/ULTRAbc",
       "priority": 2
     },
