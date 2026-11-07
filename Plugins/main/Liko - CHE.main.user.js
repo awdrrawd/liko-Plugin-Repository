@@ -3,7 +3,7 @@
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.6.2
+// @version      2.6.3
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.6.2";
+    const MOD_VER = "2.6.3";
     if (window.Liko.CHE) return;
     window.Liko.CHE = MOD_VER;
 
@@ -137,6 +137,39 @@
         return timeStr;
     }
 
+    // =====================================================================
+    // 內容清理：BC 單筆訊息上限約 2000 字，正常聊天不會有大檔案。
+    // data:/blob: 圖片（base64）對聊天紀錄沒有保存價值，一律丟棄；
+    // 真正的圖片分享是「圖片網址」，匯出 HTML 時由 linkifyContent 還原成 <img>。
+    // =====================================================================
+    const CHE_MAX_CONTENT = 10000;      // 含翻譯/原文串接，留足餘裕
+    const CHE_MAX_FIELD = 1000;         // 其他字串欄位（name/className/roomName…）
+    const CHE_DATA_URI_RE = /data:[\w.+-]+\/[\w.+-]+(?:;[\w.+=-]+)*,[^\s"'<>)\]]*/gi;
+    const CHE_BLOB_URI_RE = /blob:(?:https?:\/\/)?[^\s"'<>)\]]+/gi;
+    const CHE_LONG_B64_RE = /[A-Za-z0-9+/=_-]{1500,}/g;
+    const CHE_HEAVY_SELECTOR = "style,script,svg,canvas,video,audio,iframe,object,embed,noscript,template";
+
+    function sanitizeContent(text) {
+        if (typeof text !== "string" || !text) return text;
+        let out = text.replace(CHE_DATA_URI_RE, "[🖼️]")
+                      .replace(CHE_BLOB_URI_RE, "[🖼️]")
+                      .replace(CHE_LONG_B64_RE, "[…]");
+        if (out.length > CHE_MAX_CONTENT) {
+            let cut = out.slice(0, CHE_MAX_CONTENT);
+            const last = cut.charCodeAt(cut.length - 1);
+            if (last >= 0xD800 && last <= 0xDBFF) cut = cut.slice(0, -1);   // 避免截斷代理對
+            out = cut + "…[已截斷]";
+        }
+        return out;
+    }
+
+    // <img> → 文字：只保留 http(s) 網址；data:/blob:/遊戲內相對路徑一律改用 alt（沒有就空字串）
+    function imgToText(img) {
+        const src = (img.getAttribute("src") || "").trim();
+        if (/^(https?:)?\/\//i.test(src)) return src;
+        return img.getAttribute("alt") || "";
+    }
+
     const DOMCache = {
         chatLog: null,
         lastCheckTime: 0,
@@ -216,6 +249,7 @@
                     }
                     catch (e) { this._dbPromise = null; reject(e); }
                 };
+                request.onblocked = () => console.warn("🐈‍⬛ [CHE] IndexedDB 升級被其他分頁佔用，請關閉其他 BC 分頁");
                 request.onerror = () => {
                     this._dbPromise = null;
                     logError("CacheManager.init", request.error || "IndexedDB init failed");
@@ -294,17 +328,19 @@
             const plaintext = new TextEncoder().encode(JSON.stringify(privateData));
             const encrypted = await crypto.subtle.encrypt({ name:"AES-GCM", iv, additionalData:aad }, key, plaintext);
             return { _key, _account, _dateStr, _accountDate, _uid, _encrypted:1,
-                _iv:Array.from(iv), _data:Array.from(new Uint8Array(encrypted)) };
+                _iv:iv, _data:new Uint8Array(encrypted) };
         },
 
         async _decryptRecord(db, record) {
             if (record?._encrypted !== 1) return record;
             const key = await this._getCryptoKey(db);
-            const iv = new Uint8Array(record._iv);
-            const data = new Uint8Array(record._data);
+            // v2.6.3 起以 Uint8Array 儲存；舊版是普通數字陣列，兩種都讀得懂。
+            const iv = record._iv instanceof Uint8Array ? record._iv : new Uint8Array(record._iv);
+            const data = record._data instanceof Uint8Array ? record._data : new Uint8Array(record._data);
             const aad = new TextEncoder().encode(record._key);
             const decrypted = await crypto.subtle.decrypt({ name:"AES-GCM", iv, additionalData:aad }, key, data);
             const privateData = JSON.parse(new TextDecoder().decode(decrypted));
+            if (typeof privateData.content === "string") privateData.content = sanitizeContent(privateData.content);
             return { ...privateData, _key:record._key, _account:record._account, _dateStr:record._dateStr,
                 _accountDate:record._accountDate, _uid:record._uid };
         },
@@ -333,6 +369,11 @@
             const account = getAccountPrefix();
             const uid = msg._forceUid || msg.msgid || msg._uid || `${msg._ts || Date.now()}_${Math.random().toString(36).slice(2)}`;
             msg = { ...msg }; delete msg._forceUid; delete msg._incomplete;
+            // 寫入前最後一道防線：不論來源，內容與字串欄位都不得異常膨脹。
+            if (typeof msg.content === "string") msg.content = sanitizeContent(msg.content);
+            for (const k of Object.keys(msg)) {
+                if (k !== "content" && typeof msg[k] === "string" && msg[k].length > CHE_MAX_FIELD) msg[k] = msg[k].slice(0, CHE_MAX_FIELD);
+            }
             return { ...msg, _uid: uid, _account: account, _dateStr: dateKey,
                 _accountDate: `${account}_${dateKey}`, _key: `${account}_${dateKey}_${uid}` };
         },
@@ -348,12 +389,17 @@
                 await new Promise((resolve, reject) => {
                     tx.oncomplete = () => resolve();
                     tx.onerror = () => reject(tx.error);
-                    tx.onabort = () => reject(new Error("Transaction aborted"));
+                    tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
                 });
                 return messages.length;
             } catch (e) {
                 logError("CacheManager.saveForDate", e);
-                window.ChatRoomSendLocalStyled(ui('toastSaveFail'), 3000, "#ff0000");
+                // 同一類失敗 30 秒內只提示一次，避免持續失敗時洗版。
+                const now = Date.now();
+                if (now - (this._lastSaveFailToast || 0) > 30000) {
+                    this._lastSaveFailToast = now;
+                    window.ChatRoomSendLocalStyled(ui('toastSaveFail'), 3000, "#ff0000");
+                }
                 throw e;
             }
         },
@@ -1707,9 +1753,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             } else if (contentSpan) {
                 const _clone = contentSpan.cloneNode(true);
                 _clone.querySelectorAll('[style*="display: none"], [style*="display:none"]').forEach(el => el.remove());
-                _clone.querySelectorAll('img[src]').forEach(img => {
-                    img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || ''));
-                });
+                _clone.querySelectorAll(CHE_HEAVY_SELECTOR).forEach(el => el.remove());
+                _clone.querySelectorAll('img').forEach(img => img.replaceWith(document.createTextNode(imgToText(img))));
                 content = (_clone.textContent || _clone.innerText || "").trim();
                 if (originContentSpan) {
                     const originContent = (originContentSpan.textContent || originContentSpan.innerText || "").trim();
@@ -1718,7 +1763,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             } else {
                 const clone = msg.cloneNode(true);
                 clone.querySelectorAll('.chat-room-message-popup, .chat-room-metadata, .ChatMessageName, .chat-room-message-original').forEach(el => el.remove());
-                clone.querySelectorAll('img[src]').forEach(img => { img.replaceWith(document.createTextNode(img.getAttribute('src') || img.getAttribute('alt') || '')); });
+                clone.querySelectorAll(CHE_HEAVY_SELECTOR).forEach(el => el.remove());
+                clone.querySelectorAll('img').forEach(img => img.replaceWith(document.createTextNode(imgToText(img))));
                 content = (clone.textContent || clone.innerText || "").trim();
                 // 名字按鈕被移除後會殘留「名字: 內文」中的冒號，聊天/悄悄話要把它去掉。
                 if (nameButton && /\bChatMessage(Chat|Whisper)\b/.test(msg.className || "")) {
@@ -1735,6 +1781,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             // 不繞過限制保存原句，改為留下明確標記，避免匯出時出現無法解釋的空白紀錄。
             if (msg.dataset.cheRestrictedMessage === "1") content = restrictedMessageText();
 
+            content = sanitizeContent(content);
             const messageType = detectMessageType(msg, content);
             const labelColor = getLabelColor(msg, nameButton);
             const className = Array.from(msg.classList||[]).join(" ");
