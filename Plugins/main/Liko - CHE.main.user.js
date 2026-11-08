@@ -3,14 +3,13 @@
 // @name:zh      Liko的聊天室書記官
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      2.6.3
+// @version      2.6.4
 // @description  聊天室紀錄匯出 | Chat History Export
 // @author       莉柯莉絲(likolisu)
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
 // @icon         https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Images/PCM_ICON.png
 // @grant        none
 // @require      https://cdn.jsdelivr.net/gh/awdrrawd/liko-Plugin-Repository@main/Plugins/expand/bcmodsdk.js
-// @require      https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js
 // @require      https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/expand/BC_toast_system.user.js
 // @run-at       document-end
 // @downloadURL  https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CHE.main.user.js
@@ -18,7 +17,7 @@
 // ==/UserScript==
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "2.6.3";
+    const MOD_VER = "2.6.4";
     if (window.Liko.CHE) return;
     window.Liko.CHE = MOD_VER;
 
@@ -391,6 +390,10 @@
                     tx.onerror = () => reject(tx.error);
                     tx.onabort = () => reject(tx.error || new Error("Transaction aborted"));
                 });
+                // 不用計時器：寫入時若日期已變動才補清一次（每天最多一次）。
+                if (this._lastCleanKey !== DateUtils.getDateKey()) {
+                    this.cleanOldData().catch(e => logError("CacheManager.dailyClean", e));
+                }
                 return messages.length;
             } catch (e) {
                 logError("CacheManager.saveForDate", e);
@@ -497,6 +500,7 @@
         },
 
         async cleanOldData() {
+            this._lastCleanKey = DateUtils.getDateKey(); // 記住清理日，saveForDate 只在日期變動時再觸發
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
             const cutoffDate = DateUtils.getDateKey(sevenDaysAgo);
@@ -549,10 +553,19 @@
         });
     }
 
-    if (!window.XLSX?.version) {
-        const script = document.createElement("script");
-        script.src = "https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js";
-        document.head.appendChild(script);
+    // xlsx 只有匯出 Excel 時才需要：首次使用才載入，避免每次啟動都下載約 880 KB。
+    let xlsxLoading = null;
+    function ensureXlsx() {
+        if (window.XLSX?.utils) return Promise.resolve(true);
+        if (xlsxLoading) return xlsxLoading;
+        xlsxLoading = new Promise(resolve => {
+            const script = document.createElement("script");
+            script.src = "https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js";
+            script.onload = () => resolve(!!window.XLSX?.utils);
+            script.onerror = () => { script.remove(); resolve(false); };
+            document.head.appendChild(script);
+        }).then(ok => { if (!ok) xlsxLoading = null; return ok; });
+        return xlsxLoading;
     }
 
     function isFilteredMessage(content, messageType, includePrivate = true) {
@@ -592,6 +605,13 @@
         return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
+    // 插值進 style 屬性前的最後一道防線：只放行 #hex / rgb(a)，其餘回落預設色。
+    function safeCssColor(c, fallback = '#888888') {
+        if (typeof c !== 'string') return fallback;
+        c = c.trim();
+        return (/^#[0-9a-f]{3,8}$/i.test(c) || /^rgba?\(\s*[\d.]+%?\s*(,\s*[\d.]+%?\s*){2,3}\)$/i.test(c)) ? c : fallback;
+    }
+
     function linkifyContent(text) {
         if (!text) return '';
         const urlRegex = /(https?:\/\/[^\s\n]+)/g;
@@ -602,10 +622,9 @@
                 const cleanPart = part.replace(/[^\x21-\x7E]+$/, '').replace(/[.,;:!?)]+$/, '');
                 const safeUrl = escapeHtml(cleanPart);
                 if (imageExts.test(cleanPart)) {
-                    return `<a href="${safeUrl}" target="_blank" rel="noopener" style="display:inline-block;margin:4px 0;">` +
-                        `<img src="${safeUrl}" style="max-width:240px;max-height:180px;border-radius:6px;vertical-align:middle;cursor:zoom-in;display:block;" ` +
-                        `onerror="this.style.display='none';this.nextElementSibling.style.display='inline'" loading="lazy">` +
-                        `<span style="display:none;color:inherit;">${safeUrl}</span></a>`;
+                    // 不自動載入外部圖片（避免洩漏觀看者 IP / 被追蹤像素利用）；點擊後才由導出頁面的腳本載入。
+                    return `<span class="img-gate"><button type="button" class="img-load" data-src="${safeUrl}">🖼 <span class="img-load-text"></span></button> ` +
+                        `<a class="img-url" href="${safeUrl}" target="_blank" rel="noopener noreferrer" style="color:inherit;opacity:0.8;text-decoration:underline;word-break:break-all;">${safeUrl}</a></span>`;
                 }
                 return `<a href="${safeUrl}" target="_blank" rel="noopener" style="color:inherit;opacity:0.8;text-decoration:underline;word-break:break-all;">${safeUrl}</a>`;
             }
@@ -741,6 +760,9 @@ body.light .chat-row { --resolved-name:color-mix(in srgb,var(--name-color),#241c
 .separator-row { position:sticky; top:var(--sticky-top,88px); z-index:60; background:var(--separator-bg); border-left:4px solid var(--separator-border); text-align:center; font-weight:bold; padding:8px; margin:4px 0; border-radius:8px; box-shadow:0 3px 10px rgba(0,0,0,.18); transition:opacity 0.2s; }
 .separator-row.is-collapsed { position:relative; top:auto; z-index:1; box-shadow:none; }
 .separator-row.filter-hidden { display:none !important; }
+.img-gate .img-load { cursor:pointer; padding:2px 8px; border-radius:6px; border:1px solid currentColor; background:transparent; color:inherit; font-size:0.9em; opacity:0.85; }
+.img-gate .img-load:hover { opacity:1; }
+.img-gate.loaded .img-load, .img-gate.loaded .img-url { display:none; }
 .collapse-button { background:none; border:none; color:inherit; font-size:16px; cursor:pointer; padding:6px 10px; border-radius:4px; }
 .collapse-button:hover { background:rgba(255,255,255,0.1); }
 body.light .collapse-button:hover { background:rgba(0,0,0,0.08); }
@@ -854,6 +876,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             clearBtn: "清除",
             lightMode: "✧ 淺色",
             darkMode: "✦ 深色",
+            imgLoad: "點擊載入圖片",
             langLabel: "ENG",
             showing: function(v,t){ return "顯示 "+v+" / "+t+" 條訊息"; },
             typeChat:     "💬 聊天",
@@ -882,6 +905,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             clearBtn: "Clear",
             lightMode: "✧ Light",
             darkMode: "✦ Dark",
+            imgLoad: "Click to load image",
             langLabel: "中文",
             showing: function(v,t){ return "Showing "+v+" / "+t+" messages"; },
             typeChat:     "💬 Chat",
@@ -939,6 +963,27 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         });
     }
 
+    // 點擊才載入外部圖片；載入失敗則還原成按鈕 + 網址。
+    document.addEventListener("click", function(e){
+        var btn = e.target && e.target.closest ? e.target.closest(".img-load") : null;
+        if (!btn) return;
+        var gate = btn.closest(".img-gate");
+        var src = btn.getAttribute("data-src") || "";
+        if (!gate || (src.indexOf("http://") !== 0 && src.indexOf("https://") !== 0)) return;
+        var a = document.createElement("a");
+        a.href = src; a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.style.cssText = "display:inline-block;margin:4px 0;";
+        var img = document.createElement("img");
+        img.referrerPolicy = "no-referrer";
+        img.loading = "lazy";
+        img.style.cssText = "max-width:240px;max-height:180px;border-radius:6px;vertical-align:middle;cursor:zoom-in;display:block;";
+        img.onerror = function(){ gate.classList.remove("loaded"); if (a.parentNode) a.parentNode.removeChild(a); };
+        img.src = src;
+        a.appendChild(img);
+        gate.insertBefore(a, gate.firstChild);
+        gate.classList.add("loaded");
+    });
+
     function applyLangUI() {
         document.getElementById("contentSearch").placeholder = t("searchPlaceholder");
         document.getElementById("idFilter").placeholder     = t("idPlaceholder");
@@ -951,6 +996,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         document.getElementById("maskKeywordsBtn").textContent = t("maskKeywords");
         document.getElementById("resetMasksBtn").textContent = t("resetMasks");
         document.getElementById("toggleLang").textContent   = t("langLabel");
+        document.querySelectorAll(".img-load-text").forEach(function(el){ el.textContent = t("imgLoad"); });
         var isLight = document.body.classList.contains("light");
         document.getElementById("toggleTheme").textContent  = isLight ? t("darkMode") : t("lightMode");
         var delBtn = document.getElementById("toggleDelMode");
@@ -1001,6 +1047,10 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             exportRoot.querySelectorAll('.chat-row[data-player-name]').forEach(function(r){ r.removeAttribute('data-player-name'); });
             exportRoot.querySelectorAll('.separator-row').forEach(function(r){ r.style.display = ''; });
             exportRoot.querySelectorAll('.filter-expanded').forEach(function(r){ r.classList.remove('filter-expanded'); });
+            exportRoot.querySelectorAll('.img-gate.loaded').forEach(function(g){
+                g.classList.remove('loaded');
+                g.querySelectorAll('img').forEach(function(i){ var a = i.parentNode; if (a && a.parentNode) a.parentNode.removeChild(a); });
+            });
             exportRoot.querySelectorAll('#contentSearch,#idFilter,#privacyIds,#privacyKeywords').forEach(function(input){ input.setAttribute('value',''); });
             var exportedPrivacyPanel = exportRoot.querySelector('#privacyPanel');
             if (exportedPrivacyPanel) exportedPrivacyPanel.classList.remove('open');
@@ -1408,7 +1458,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         } else if (rowType === 'system') {
             const sysColor = getEnhancedContrastColor('#3aa76d', true);
             bgColor = toRGBA(sysColor, 0.12); borderColor = sysColor;
-            content = `<span style="color:${sysColor}">${linkifyContent(msg.content)}</span>`;
+            content = `<span style="color:${safeCssColor(sysColor)}">${linkifyContent(msg.content)}</span>`;
         } else if (rowType === 'chat' && msg.name) {
             // FIX: 訊息內文加 color:var(--text-color)，避免深色模式下繼承失敗變黑字
             // 特別修正：[🌐] 翻譯訊息在此分支不再出現黑字問題
@@ -1419,7 +1469,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
 
         // FIX: 移除 enhanced-color class，filter:brightness 會干擾文字顏色繼承
         return `
-            <div class="chat-row with-accent" data-type="${rowType}" data-player-name="${escapeHtml(msg.name || '')}" style="--row-bg:${bgColor};--row-accent:${borderColor};--name-color:${adjustedColor};">
+            <div class="chat-row with-accent" data-type="${escapeHtml(String(rowType))}" data-player-name="${escapeHtml(msg.name || '')}" style="--row-bg:${safeCssColor(bgColor)};--row-accent:${safeCssColor(borderColor)};--name-color:${safeCssColor(adjustedColor)};">
                 <div class="chat-meta">
                     <span class="chat-time">${escapeHtml(msg.time || '')}</span>
                     <span class="chat-id">${escapeHtml(msg.id || '')}</span>
@@ -1518,13 +1568,13 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                            <button id="customPromptNo" style="margin:10px;padding:8px 16px;cursor:pointer;background:#666;color:#fff;border:none;border-radius:4px;">${noLabel}</button>`;
             } else {
                 buttons = options.map(opt =>
-                                      `<button data-value="${opt.value}" style="margin:5px;padding:8px 16px;cursor:pointer;background:#0066cc;color:#fff;border:none;border-radius:4px;">${opt.text}</button>`
+                                      `<button data-value="${escapeHtml(String(opt.value))}" style="margin:5px;padding:8px 16px;cursor:pointer;background:#0066cc;color:#fff;border:none;border-radius:4px;">${escapeHtml(String(opt.text))}</button>`
                                      ).join('');
             }
             modal.innerHTML = `
                 <div style="background:#333;color:#fff;padding:24px;border-radius:12px;max-width:500px;text-align:center;max-height:80vh;overflow-y:auto;">
-                    <h3 style="margin-top:0;">${message.split('\n')[0]}</h3>
-                    ${message.split('\n').slice(1).map(line=>`<p style="margin:8px 0;">${line}</p>`).join('')}
+                    <h3 style="margin-top:0;">${escapeHtml(String(message).split('\n')[0])}</h3>
+                    ${String(message).split('\n').slice(1).map(line=>`<p style="margin:8px 0;">${escapeHtml(line)}</p>`).join('')}
                     <div style="margin-top:20px;">${buttons}</div>
                 </div>`;
             document.body.appendChild(modal);
@@ -1562,11 +1612,11 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
             modal.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;justify-content:center;align-items:center;z-index:2000;backdrop-filter:blur(5px);`;
 
             const dateOptions = availableDates.map(date =>
-                                                   `<div class="date-option" data-value="${date.dateKey}" style="
+                                                   `<div class="date-option" data-value="${escapeHtml(String(date.dateKey))}" style="
                     position:relative;margin:8px 0;cursor:pointer;padding:12px;border-radius:8px;
                     background:linear-gradient(135deg,#2c3e50 0%,#34495e 100%);
                     border:2px solid transparent;transition:all 0.3s;color:#ecf0f1;font-weight:500;user-select:none;">
-                    <span style="font-size:16px;">${date.display}</span>
+                    <span style="font-size:16px;">${escapeHtml(String(date.display))}</span>
                     <span style="color:#bdc3c7;margin-left:8px;">${ui('cacheMsgCount', date.count)}</span>
                 </div>`
                                                   ).join('');
@@ -1657,10 +1707,11 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     }
 
     async function exportExcel() {
-        if (!window.XLSX?.utils) { window.ChatRoomSendLocalStyled(ui('toastXlsxFail'), 3000, "#ff0000"); return; }
         const messages = processCurrentMessages();
         if (messages.length === 0) { window.ChatRoomSendLocalStyled(ui('toastNoMsg'), 3000, "#ffa500"); return; }
+        const xlsxReady = ensureXlsx(); // 趁使用者回答提示時先載入
         const includePrivate = await showCustomPrompt(ui('promptPrivate'));
+        if (!(await xlsxReady)) { window.ChatRoomSendLocalStyled(ui('toastXlsxFail'), 3000, "#ff0000"); return; }
         window.ChatRoomSendLocalStyled(ui('toastExcelWait'), 2000, "#ffa500");
         try {
             const data = [["Time", "ID", "Name", "Content"]];
@@ -1712,10 +1763,6 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
     // =====================================================================
     // Message normalization (shared by full-scan and incremental capture)
     // =====================================================================
-    function restrictedMessageText() {
-        return isZh() ? "[訊息遭限制（未顯示）]" : "[Message restricted (not displayed)]";
-    }
-
     function normalizeChatMessageNode(msg) {
         try {
             if (msg.classList?.contains("chat-room-sep-div")) {
@@ -1778,8 +1825,8 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                 }
             }
             // BCX 或 BC 的限制可能保留訊息外框、但不提供任何可見內文。
-            // 不繞過限制保存原句，改為留下明確標記，避免匯出時出現無法解釋的空白紀錄。
-            if (msg.dataset.cheRestrictedMessage === "1") content = restrictedMessageText();
+            // 聊天室沒有顯示的內容不記錄：匯出只反映聊天室實際看到的內容。
+            if (msg.dataset.cheHiddenMessage === "1") return null;
 
             content = sanitizeContent(content);
             const messageType = detectMessageType(msg, content);
@@ -1873,7 +1920,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         if (!record) return;
         capturedNodes.add(node);
 
-        if (record._incomplete && node.dataset?.cheRestrictedMessage !== "1") {
+        if (record._incomplete) {
             const capturedAt = record._ts;
             setTimeout(() => {
                 try {
@@ -1939,7 +1986,7 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
         if (!modApi) return;
         // BCX 的接收限制可能直接中止 ChatRoomMessage，因而完全不建立 DOM；另一些
         // 感官/審查限制則只建立空白外框。包住整條 hook chain，比較呼叫前後的最後
-        // 節點：正常訊息仍交給 DOM 正規化；沒有可見節點時留下「遭限制」紀錄。
+        // 節點：正常訊息仍交給 DOM 正規化；沒有可見節點或內文為空時不記錄。
         if (typeof window.ChatRoomMessage === "function") {
             modApi.hookFunction("ChatRoomMessage", 20, (args, next) => {
                 if (currentMode !== "cache") return next(args);
@@ -1961,25 +2008,10 @@ body.del-mode #toggleDelMode { background:rgba(231,76,60,0.35); color:#fff; }
                             clone.querySelectorAll(".ChatMessageName,.chat-room-message-popup,.chat-room-metadata").forEach(el => el.remove());
                             return (clone.innerText || clone.textContent || "").trim();
                         })();
-                    if (!visibleBody) node.dataset.cheRestrictedMessage = "1";
-                    queueHookedNode(node);
-                } else {
-                    const sender = window.ChatRoomCharacter?.find?.(character => character?.MemberNumber === data.Sender);
-                    const direction = data.Type === "Whisper"
-                        ? (data.Sender === window.Player?.MemberNumber ? "outgoing" : "incoming")
-                        : undefined;
-                    const record = {
-                        time: new Date().toISOString(), id: String(data.Sender),
-                        name: sender ? (window.CharacterNickname?.(sender) || sender.Name || "") : "",
-                        content: restrictedMessageText(), direction,
-                        msgid: "", type: data.Type === "Whisper" ? "whisper" : data.Type === "Emote" ? "emote" : "normal",
-                        color: sender?.LabelColor || "#000", className: "ChatMessage che-restricted-message",
-                        roomName: window.ChatRoomData?.Name || "", _ts: Date.now(),
-                        _uid: crypto.randomUUID?.() || `${Date.now()}_${Math.random()}`,
-                    };
-                    record.category = classifyCategory(record);
-                    queueRecord(record);
+                    if (!visibleBody) node.dataset.cheHiddenMessage = "1";
+                    else queueHookedNode(node);
                 }
+                // 沒有可見節點（被限制擋下）：什麼都不記。
                 return result;
             });
         }
