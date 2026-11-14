@@ -5,12 +5,13 @@ const source = fs.readFileSync('Plugins/main/Liko - MAT.main.user.js', 'utf8');
 let now = 10000;
 const sent = [], releases = [], events = [];
 const context = vm.createContext({
+    ui: key => key,
     MOD_VER: source.match(/const MOD_VER = "([^"]+)"/)[1],
     Date: { now: () => now }, queueMicrotask, setTimeout,
     window: { Liko: {}, dispatchEvent: event => events.push(event.type) },
     CustomEvent: class { constructor(type) { this.type = type; } },
     config: { enabled: true },
-    translateGoogle: (text, lang) => {
+    translateViaChannel: (text, lang) => {
         sent.push(text);
         return new Promise(resolve => releases.push(() => resolve({ translated: `${lang}:${text}`, detectedLang: 'en' })));
     },

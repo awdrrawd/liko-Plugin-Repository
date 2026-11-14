@@ -59,7 +59,7 @@ const context = vm.createContext({
     delete context.window.Liko.__Sys_L10N__;
     vm.runInContext(source, context);
     const i18n = context.window.Liko.__Sys_i18n__;
-    assert.equal(i18n.version, '2.2.0');
+    assert.equal(i18n.version, source.match(/@version\s+(\S+)/)[1]);
     i18n.register('test', { hello: { EN: 'Hello' } });
     assert.equal(i18n.t('test', 'hello', {}, 'EN'), 'Hello');
     for (const namespace of ['DDT', 'MAT', 'MPL', 'Prank']) {

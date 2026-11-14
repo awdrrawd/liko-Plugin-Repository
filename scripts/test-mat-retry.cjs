@@ -10,7 +10,7 @@ const ctx = vm.createContext({
     setTimeout: (fn, ms) => timers.push({ fn, ms }),
     window: { Liko: {}, dispatchEvent() {} }, CustomEvent: class {},
     config: { enabled: true },
-    translateGoogle: async (text, lang, timeout) => {
+    translateViaChannel: async (text, lang, timeout) => {
         sent.push(text);
         timeouts.push(timeout);
         if (text === 'bad') return new Promise(resolve => failures.push(() => resolve({ translated: null, error: 'network', detectedLang: null })));
@@ -18,7 +18,7 @@ const ctx = vm.createContext({
         return { translated: text, detectedLang: 'en' };
     },
     ChatRoomSendLocal: text => notices.push(text),
-    ui: (key, vars) => `${key}:${vars.hint}`, apiHint: reason => reason,
+    ui: (key, vars) => `${key}:${vars?.hint ?? key}`, apiHint: reason => reason,
 });
 vm.runInContext(source.slice(source.indexOf('    const translationCache ='), source.indexOf('    // 單次請求逾時')), ctx);
 const run = code => vm.runInContext(code, ctx);

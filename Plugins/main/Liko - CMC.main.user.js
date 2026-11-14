@@ -3,7 +3,7 @@
 // @name:zh      Liko的聊天室音樂控制器
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.4.1
+// @version      1.4.2
 // @description  Chat Music Controller with playlist sharing and lyrics support
 // @author       莉柯莉絲(Likolisu)
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -64,7 +64,7 @@ let disposed = false;
     }
     window.Liko = window.Liko ?? {};
     if (window.Liko.CMC) return;
-    const MOD_VER = "1.4.1";
+    const MOD_VER = "1.4.2";
     const CMC = window.Liko.CMC = { version: MOD_VER };
 
     CMC.debug = false;
@@ -143,7 +143,6 @@ let disposed = false;
         lastDisplayedSecond: -1,
 
         currentRoomName: "",
-        playlistRequested: false,
         hiddenForNav: false,
     };
 
@@ -1484,7 +1483,6 @@ let disposed = false;
     // Called on room entry — only plays room music, does NOT ask for playlist
     function onRoomEnter() {
         if (!musicPlayer.isPanelVisible) return;
-        musicPlayer.playlistRequested = false;
 
         registerController();
 
@@ -1500,22 +1498,6 @@ let disposed = false;
 
         recalcMyRank();
         updatePanelUI();
-    }
-
-    function askForPlaylist() {
-        if (musicPlayer.playlistRequested) return;
-        if (musicPlayer.currentPlaylist.length > 0) return;
-        const controllers = getControllerList().filter(c => c.memberNumber !== Player.MemberNumber);
-        if (controllers.length === 0) return;
-
-        const best = controllers.reduce((a, b) => b.list > a.list ? b : a, controllers[0]);
-        musicPlayer.playlistRequested = true;
-
-        if (best.list === 0) return; // no songs to request
-
-        // Auto-request without confirmation dialog
-        requestMusicSyncFrom(best.memberNumber);
-        sendLocalMsg(`正在從 ${best.name || best.memberNumber} 同步歌單...`);
     }
 
     // ============ 歌詞 ============
@@ -2427,7 +2409,6 @@ let disposed = false;
         // Clear current (room) playlist
         musicPlayer.currentPlaylist = [];
         musicPlayer.currentIndex = -1;
-        musicPlayer.playlistRequested = false;
 
         stopMusic();
 

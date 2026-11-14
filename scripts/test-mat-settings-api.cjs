@@ -4,11 +4,12 @@ const assert = require('node:assert/strict');
 const source = fs.readFileSync('Plugins/main/Liko - MAT.main.user.js', 'utf8');
 let now = 10000, calls = 0;
 const ctx = vm.createContext({
+    ui: key => key,
     MOD_VER: 'test', Date: {now: () => now}, queueMicrotask, setTimeout,
     window: {Liko: {}, dispatchEvent() {}}, CustomEvent: class {},
     config: {enabled:true, translateReceived:true, translateSent:true, recvLang:'ja', sendLang:'en'},
     langCodes: ['en','ja','zh-TW'],
-    translateGoogle: async (text, lang) => {calls++; return {translated:lang+':'+text, detectedLang:'en'};},
+    translateViaChannel: async (text, lang) => {calls++; return {translated:lang+':'+text, detectedLang:'en'};},
 });
 vm.runInContext(source.slice(source.indexOf('    const translationCache ='), source.indexOf('    // API 失敗通知器')), ctx);
 vm.runInContext('translateQueue.baseInterval = translateQueue.minInterval = translateQueue.maxInterval = 0', ctx);

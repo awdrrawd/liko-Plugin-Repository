@@ -3,7 +3,7 @@
 // @name:zh      Liko的自訂更衣室背景
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.4
+// @version      1.5.5
 // @description  自訂更衣室背景 | Custom Dressing Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -17,7 +17,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.5.4";
+    const MOD_VER = "1.5.5";
     if (window.Liko.CDB) return;
     window.Liko.CDB = MOD_VER;
 
@@ -1561,7 +1561,6 @@
                 hideUI();
                 removeLayeringDOMButtons();
                 removeColorPickerMenuButtons();
-                removePoseExpandDOM();
             }
 
             modApi.hookFunction("AppearanceExit", 4, function(args, next) {
@@ -1781,71 +1780,6 @@
     }
 
     // ================================
-    // POSE 展開 DOM 面板（Color / Layering overlay 上使用）
-    // ================================
-    function injectPoseExpandDOM() {
-        if (document.getElementById('cdb-pose-expand-dom')) {
-            return;
-        }
-        const poses = CONFIG.POSES;
-        const COLS = 6;
-        const BTN = 52;
-        const GAP = 4;
-
-        const panel = document.createElement('div');
-        panel.id = 'cdb-pose-expand-dom';
-        panel.style.cssText = [
-            'position:fixed;left:4px;top:130px;',
-            'display:flex;flex-wrap:wrap;gap:' + GAP + 'px;',
-            'padding:6px;',
-            'background:rgba(20,20,20,0.92);',
-            'border:1px solid rgba(157,78,221,0.6);',
-            'border-radius:8px;',
-            'z-index:10002;',
-            'pointer-events:auto;',
-            'width:' + (COLS * (BTN + GAP) - GAP + 12) + 'px;'
-        ].join('');
-
-        poses.forEach(function(pose, index) {
-            const btn = document.createElement('button');
-            btn.title = pose.display;
-            btn.style.cssText = [
-                'width:' + BTN + 'px;height:' + BTN + 'px;',
-                'background:rgba(255,255,255,0.08);',
-                'border:1px solid rgba(255,255,255,0.2);',
-                'border-radius:6px;cursor:pointer;padding:2px;',
-                'display:flex;align-items:center;justify-content:center;',
-                'transition:background .15s;'
-            ].join('');
-            const img = document.createElement('img');
-            img.src = CONFIG.getPoseIconURL(pose.name);
-            img.alt = pose.display;
-            img.style.cssText = 'width:44px;height:44px;object-fit:contain;pointer-events:none;';
-            img.onerror = function() { img.style.display = 'none'; btn.textContent = pose.display.slice(0, 4); btn.style.fontSize = '10px'; btn.style.color = '#fff'; };
-            btn.appendChild(img);
-            btn.addEventListener('mouseenter', function() { btn.style.background = 'rgba(83,35,161,0.5)'; });
-            btn.addEventListener('mouseleave', function() { btn.style.background = 'rgba(255,255,255,0.08)'; });
-            btn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                if (changePose(index)) {
-                    poseState.expanded = false;
-                    removePoseExpandDOM();
-                    updateColorPickerMenuStates();
-                    updateLayeringDOMButtonStates();
-                }
-            });
-            panel.appendChild(btn);
-        });
-
-        document.body.appendChild(panel);
-    }
-
-    function removePoseExpandDOM() {
-        const el = document.getElementById('cdb-pose-expand-dom');
-        if (el) el.remove();
-    }
-
-    // ================================
     // 初始化和清理
     // ================================
     function initializeModApi() {
@@ -1870,7 +1804,6 @@
             hideUI();
             removeLayeringDOMButtons();
             removeColorPickerMenuButtons();
-            removePoseExpandDOM();
 
             if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; doSaveToOnlineSettings(); }
             roomBackgroundUrl = null;

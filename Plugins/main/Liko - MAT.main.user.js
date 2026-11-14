@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.8.0
+// @version      1.8.1
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.8.0";
+    const MOD_VER = "1.8.1";
     if (window.Liko.MAT) return;
     window.Liko.MAT = { version: MOD_VER };
 
@@ -113,23 +113,21 @@
     // ============================================================
     // i18n 系統
     // ============================================================
-    // production 走 CDN；本地測試由 window.LikoDevBase 覆寫成 http://localhost/…/Plugins/
-    const _I18N_BASE = (typeof window !== 'undefined' && window.LikoDevBase) || 'https://raw.githubusercontent.com/awdrrawd/liko-Plugin-Repository/main/Plugins/';
-    const LIKO_I18N_ENGINE_URL = _I18N_BASE + 'expand/BC_i18n.js';
-    const LIKO_MAT_STRINGS_URL = _I18N_BASE + 'Translation/MAT-i18n.js';
     const I18N_NS = 'MAT';
-
-    function loadScript(url) {
-        return fetch(url)
-            .then(res => { if (!res.ok) throw new Error(`[MAT] 無法載入 ${url} (${res.status})`); return res.text(); })
-            .then(code => { new Function(code)(); });
-    }
-
-    // 用能力偵測（ensure）判斷 v2 引擎是否就緒 —— 舊版 v1 只有 version，會被誤判為已載入而擋掉 v2。
-    // 字庫改用引擎的 ensure() 載入（依 URL 去重，不需自訂旗標）。
-    async function ensureI18n() {
-        if (typeof window.Liko?.__Sys_i18n__?.ensure !== 'function' || !window.Liko?.__Sys_Flags__) await loadScript(LIKO_I18N_ENGINE_URL);
-        if (typeof window.Liko?.__Sys_i18n__?.ensure === 'function') await window.Liko.__Sys_i18n__.ensure(I18N_NS, LIKO_MAT_STRINGS_URL);
+    let i18nLoading = null;
+    function ensureI18n() {
+        if (window.Liko.__Sys_i18n__?.has?.(I18N_NS, 'prefButton')) return Promise.resolve();
+        if (i18nLoading) return i18nLoading;
+        i18nLoading = (async () => {
+            await ensureExpandDep('expand/BC_i18n.js', () => typeof window.Liko.__Sys_i18n__?.ensure === 'function' && !!window.Liko.__Sys_Flags__);
+            const engine = window.Liko.__Sys_i18n__;
+            for (const base of _EXPAND_BASES) {
+                await engine.ensure(I18N_NS, base + 'Translation/MAT-i18n.js');
+                if (engine.has(I18N_NS, 'prefButton')) return;
+            }
+            throw new Error('MAT translation dictionary unavailable');
+        })().finally(() => { i18nLoading = null; });
+        return i18nLoading;
     }
 
     // 取翻譯字串；引擎尚未就緒時回傳 key 本身，不丟例外。vars 以 {name} 佔位代入。
@@ -189,7 +187,7 @@
     initSDK().then(sdk => {
         if (!sdk) return;
         try {
-            modApi = bcModSdk.registerMod({
+            modApi = sdk.registerMod({
                 name: "Liko - MAT",
                 fullName: "Liko's Messages Auto Translator",
                 version: MOD_VER,
@@ -480,7 +478,7 @@
             const key = JSON.stringify([targetLang, text]);
             const cached = translationCache.get(key);
             if (cached) {
-                // LRU：使用時移到末尾，但不延長 10 分鐘有效期。
+                // LRU：使用時移到末尾，但不延長有效期。
                 translationCache.delete(key);
                 translationCache.set(key, cached);
                 return cached.result;
@@ -2387,6 +2385,7 @@
         panel: null,        // 翻譯工具面板狀態：{ state: 'opening'|'open'|'closing', t0, draft }
 
         load() {
+            ensureI18n().catch(e => console.warn('[MAT] i18n:', e.message));
             this._dropPanel();
             uiSendIdx = Math.max(0, langCodes.indexOf(config.sendLang));
             uiRecvIdx = Math.max(0, langCodes.indexOf(config.recvLang));
@@ -2973,12 +2972,9 @@
 
     // 登入通知：ChatRoomSendLocal 只在房間內有效，故等進入 ChatRoom 後延遲 1 秒顯示一次（仿 HSC）
     function notifyLoginOnce() {
-        let done = false;
         const timer = setInterval(() => {
             if (typeof CurrentScreen === 'undefined' || CurrentScreen !== 'ChatRoom') return;
             clearInterval(timer);
-            if (done) return;
-            done = true;
             setTimeout(() => { if (config.loginNotice) ChatRoomSendLocal(ui('loginNotice', { v: MOD_VER })); }, 1000);
         }, 500);
     }
@@ -3010,18 +3006,22 @@
             let lastErr;
             for (const base of _EXPAND_BASES) {
                 try {
-                    const res = await fetch(base + rel, { cache: 'no-store' });
-                    if (!res.ok) throw new Error('HTTP ' + res.status);
-                    const text = await res.text();
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), 15000);
+                    let text;
+                    try {
+                        const res = await fetch(base + rel, { cache: 'no-cache', signal: controller.signal });
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        text = await res.text();
+                    } finally { clearTimeout(timer); }
                     if (!text || text.trimStart().startsWith('<')) throw new Error('bad content');
-                    const s = document.createElement('script');
-                    s.textContent = text + '\n//# sourceURL=' + rel;
-                    document.head.appendChild(s);
+                    new Function(text)();
+                    if (ready && !ready()) throw new Error('Module did not initialize: ' + rel);
                     return;
                 } catch (e) { lastErr = e; console.warn('🐈‍⬛ [MAT] ⚠️ ' + base + rel + ': ' + e.message); }
             }
             throw lastErr ?? new Error('all bases failed: ' + rel);
-        })();
+        })().finally(() => { delete _expandDepPromises[rel]; });
         return _expandDepPromises[rel];
     }
 
@@ -3084,10 +3084,12 @@
         const setLabel = (cls, base, code) => {
             const b = menu.querySelector('.' + cls);
             if (!b) return;
-            const f = flagOf(code);
+            const f = code ? flagOf(code) : '';
             b.textContent = f ? `${base} ${f}` : base;
             window.Liko?.__Sys_Flags__?.renderLabel(b, b.textContent);
         };
+        setLabel('lk-mat-q-master', ui('cbtnMaster'));
+        setLabel('lk-mat-q-settings', ui('cbtnSettings'));
         setLabel('lk-mat-q-send', ui('cbtnSend'), config.sendLang);
         setLabel('lk-mat-q-recv', ui('cbtnRecv'), config.recvLang);
     }
@@ -3137,6 +3139,7 @@
 
     function toggleMatQuickMenu() {
         const menu = buildMatQuickMenu();
+        ensureI18n().then(refreshMatQuickMenu).catch(e => console.warn('[MAT] i18n:', e.message));
         if (menu.dataset.open === '1') { hideMatQuickMenu(); return; }
         clearTimeout(menu._lkHideTimer);
         refreshMatQuickMenu();
@@ -3171,30 +3174,21 @@
     });
 
     // 只交付圖示、顏色與行為資料；按鈕 DOM 與染色由 CRB 統一建立。
-    // Always register the shared chat button.
-    function applyChatButton() {
+    function setupChatButton() {
         const L = window.Liko;
         const crb = L.__Sys_ChatRoomButtons__;
-        {
-            const spec = {
-                id: "mat",
-                buttonId: MAT_BTN_ID,
-                order: sys_CRB,
-                icon: MAT_ICON_SVG.replace(/fill:\s*#000000/gi, 'fill:currentColor'),
-                tooltip: ui('prefButton'),
-                background: 'rgba(76,175,80,0.9)',
-                color: '#ffffff',
-                onClick: toggleMatQuickMenu,
-            };
-            if (crb?.add) crb.add(spec);
-            else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
-        }
-    }
-
-
-    function setupChatButton() {
-        // 同步登記按鈕規格（不綁在載入 promise 上）；容器建立/重建、收合同步、順位皆由協調器統一處理。
-        applyChatButton();
+        const spec = {
+            id: "mat",
+            buttonId: MAT_BTN_ID,
+            order: sys_CRB,
+            icon: MAT_ICON_SVG.replace(/fill:\s*#000000/gi, 'fill:currentColor'),
+            tooltip: ui('prefButton'),
+            background: 'rgba(76,175,80,0.9)',
+            color: '#ffffff',
+            onClick: toggleMatQuickMenu,
+        };
+        if (crb?.add) crb.add(spec);
+        else (L.__CRB_pending__ = L.__CRB_pending__ || []).push(spec);
     }
 
     // ============================================================

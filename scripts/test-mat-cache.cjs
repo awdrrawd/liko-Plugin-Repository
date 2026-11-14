@@ -4,8 +4,9 @@ const assert = require('node:assert/strict');
 const source = fs.readFileSync('Plugins/main/Liko - MAT.main.user.js', 'utf8');
 let now = 10000, calls = 0, fail = false;
 const context = vm.createContext({
+    config: { enabled: true }, ui: key => key,
     Date: { now: () => now }, setTimeout: fn => queueMicrotask(fn), queueMicrotask, setInterval() {},
-    translateGoogle: async (text, lang) => {
+    translateViaChannel: async (text, lang) => {
         calls++;
         return fail ? { translated: null, error: 'network' } : { translated: `${lang}:${text}`, detectedLang: 'en' };
     },
