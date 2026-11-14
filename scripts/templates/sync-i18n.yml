@@ -1,0 +1,47 @@
+name: Manually sync shared i18n
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-i18n-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run sync:i18n
+      - run: npm run check:i18n
+      - run: npm run lint --if-present
+      - run: npm run format:check --if-present
+      - run: npm test
+      - run: npm run build
+      - name: Save the tested update on a new branch
+        env:
+          SYNC_BRANCH: sync/i18n-${{ github.run_id }}-${{ github.run_attempt }}
+          BASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          target=$(node --input-type=module -e "import fs from 'node:fs'; console.log(JSON.parse(fs.readFileSync('scripts/i18n-source.json')).target)")
+          git add -- "$target" scripts/i18n-source.json
+          if git diff --cached --quiet; then
+            echo 'No i18n changes.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git switch -c "$SYNC_BRANCH"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(i18n): sync shared engine from upstream main'
+          git push origin "HEAD:refs/heads/$SYNC_BRANCH"
+          echo "Tested update: [Create pull request]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BASE_BRANCH...$SYNC_BRANCH?expand=1)" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Open the pull request using this link so the normal PR checks run under your account. No deployment was triggered.' >> "$GITHUB_STEP_SUMMARY"

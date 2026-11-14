@@ -11,7 +11,9 @@
     "test": "node scripts/run-tests.mjs",
     "test:browser": "node scripts/run-tests.mjs --browser",
     "validate": "node scripts/validate-repository.mjs",
-    "check:build": "node scripts/check-build.mjs"
+    "check:build": "node scripts/check-build.mjs",
+    "install:i18n-clients": "node scripts/install-i18n-sync.mjs",
+    "sync:i18n-clients": "node scripts/sync-i18n-clients.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.9",

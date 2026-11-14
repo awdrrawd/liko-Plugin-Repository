@@ -7,6 +7,7 @@ const dictionary = fs.readFileSync('Plugins/Translation/MAT-i18n.js', 'utf8');
 const timers = new Map();
 let timerId = 0, requests = 0, respond;
 const context = vm.createContext({
+    document: {}, URL,
     window: { Liko: { __Sys_Flags__: {} } }, AbortController,
     console: { log() {}, warn() {} }, setInterval() {},
     setTimeout(fn) { timers.set(++timerId, fn); return timerId; },
@@ -18,10 +19,23 @@ const response = code => ({ ok: true, text: async () => code });
 (async () => {
     run(source);
     const engine = context.window.Liko.__Sys_i18n__;
+    for (const url of ['https://evil.example/a.js', 'https://cdn.jsdelivr.net/gh/other/repo/a.js', 'https://raw.githubusercontent.com/other/repo/a.js', 'https://user:pass@awdrrawd.github.io/a.js', '/relative.js']) {
+        assert.equal(await engine.loadScript(url), false);
+    }
+    assert.equal(requests, 0, 'untrusted scripts are rejected before fetching');
+    const changes = [];
+    const unsubscribe = engine.onChange(lang => changes.push(lang));
+    context.TranslationLanguage = 'TW';
+    assert.equal(engine.refreshLanguage(), true);
+    assert.equal(engine.refreshLanguage(), false);
+    unsubscribe();
+    context.TranslationLanguage = 'EN';
+    engine.refreshLanguage();
+    assert.deepEqual(changes, ['TW']);
     let release;
     respond = () => new Promise(resolve => { release = resolve; });
-    const first = engine.ensure('MAT', 'mat.js');
-    const second = engine.ensure('MAT', 'mat.js');
+    const first = engine.ensure('MAT', 'https://awdrrawd.github.io/test/mat.js');
+    const second = engine.ensure('MAT', 'https://awdrrawd.github.io/test/mat.js');
     assert.equal(first, second, 'concurrent callers share completion, not an early success');
     assert.equal(engine.has('MAT', 'prefButton'), false);
     release(response(dictionary));
@@ -29,22 +43,22 @@ const response = code => ({ ok: true, text: async () => code });
     assert.equal(requests, 1);
     assert.equal(engine.has('MAT', 'prefButton'), true);
     assert.equal(await first, true);
-    assert.equal(await engine.ensure('MAT', 'mat.js'), true);
+    assert.equal(await engine.ensure('MAT', 'https://awdrrawd.github.io/test/mat.js'), true);
     assert.equal(requests, 1, 'completed dictionary is reused');
 
     for (const invalid of ['', '<html>Unavailable</html>', 'throw new Error("broken script")']) {
         respond = async () => response(invalid);
-        assert.equal(await engine.loadScript('retry.js'), false);
+        assert.equal(await engine.loadScript('https://awdrrawd.github.io/test/retry.js'), false);
     }
     respond = async () => response('window.recovered = true;');
-    assert.equal(await engine.loadScript('retry.js'), true);
+    assert.equal(await engine.loadScript('https://awdrrawd.github.io/test/retry.js'), true);
     assert.equal(context.window.recovered, true);
     respond = async () => ({ ok: false, status: 503 });
-    assert.equal(await engine.loadScript('http.js'), false);
+    assert.equal(await engine.loadScript('https://awdrrawd.github.io/test/http.js'), false);
     respond = (_url, { signal }) => new Promise((_resolve, reject) => {
         signal.addEventListener('abort', () => reject(new Error('aborted')));
     });
-    const timeout = engine.loadScript('timeout.js');
+    const timeout = engine.loadScript('https://awdrrawd.github.io/test/timeout.js');
     [...timers.values()][0]();
     assert.equal(await timeout, false);
     assert.equal(timers.size, 0, 'timers released after success, failure and timeout');
