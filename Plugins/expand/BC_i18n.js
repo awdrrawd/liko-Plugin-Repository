@@ -3,7 +3,7 @@
 // @name:zh        Liko 共用多語引擎（介面 + 聊天在地化 + 國旗）
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        2.2.1
+// @version        2.3.0
 // @description    Shared UI translations, chat localization and on-demand flags (__Sys_i18n__, __Sys_L10N__, __Sys_Flags__)
 // @author         Likolisu
 // @include        /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -22,7 +22,7 @@
     // Flags initializes independently, including when an older translation engine won the race.
     installFlags();
     if (window.Liko.__Sys_i18n__ && window.Liko.__Sys_L10N__) return;   // 防重複載入（先到者勝）
-    const ENGINE_VER = '2.2.1';
+    const ENGINE_VER = '2.3.0';
 
     function installFlags() {
         if (window.Liko.__Sys_Flags__) return;
@@ -197,7 +197,19 @@
                 menu.setAttribute('role', 'listbox');
                 menu.setAttribute('aria-label', select.getAttribute('aria-label') || 'Language');
                 menu.style.cssText = `position:fixed;z-index:2147483647;box-sizing:border-box;overflow:auto;max-height:45vh;padding:4px;border:1px solid currentColor;border-radius:6px;box-shadow:0 4px 16px #0008;`;
-                Object.assign(menu.style, { left: `${Math.max(4, Math.min(rect.left, innerWidth - Math.max(rect.width, 180) - 4))}px`, top: `${Math.min(rect.bottom + 3, innerHeight * .5)}px`, minWidth: `${Math.min(Math.max(rect.width, 180), innerWidth - 8)}px`, maxWidth: 'calc(100vw - 8px)', background: style.backgroundColor === 'rgba(0, 0, 0, 0)' ? '#222' : style.backgroundColor, color: style.color, font: style.font });
+                const viewport = window.visualViewport;
+                const vx = viewport?.offsetLeft || 0, vy = viewport?.offsetTop || 0;
+                const vw = viewport?.width || innerWidth, vh = viewport?.height || innerHeight;
+                const width = Math.max(0, Math.min(Math.max(rect.width, 180), vw - 8));
+                const below = Math.max(0, vy + vh - rect.bottom - 7);
+                const above = Math.max(0, rect.top - vy - 7);
+                const upward = above > below;
+                Object.assign(menu.style, {
+                    left: `${Math.max(vx + 4, Math.min(rect.left, vx + vw - width - 4))}px`,
+                    width: `${width}px`, maxHeight: `${Math.min(vh * .6, upward ? above : below)}px`,
+                    background: style.backgroundColor === 'rgba(0, 0, 0, 0)' ? '#222' : style.backgroundColor,
+                    color: style.color, font: style.font,
+                });
                 const controller = new AbortController();
                 let removalObserver;
                 const close = () => {
@@ -229,12 +241,16 @@
                     }
                 };
                 document.body.appendChild(menu);
+                menu.style.top = `${Math.max(vy + 4, Math.min(upward ? rect.top - 3 - menu.getBoundingClientRect().height : rect.bottom + 3,
+                    vy + vh - menu.getBoundingClientRect().height - 4))}px`;
                 removalObserver = new MutationObserver(() => { if (!select.isConnected || select.style.display === 'none') close(); });
                 removalObserver.observe(document.body, { childList: true, subtree: true });
                 removalObserver.observe(select, { attributes: true, attributeFilter: ['style'] });
-                (menu.querySelector('[aria-selected="true"]:not(:disabled)') || rows[0])?.focus();
+                (menu.querySelector('[aria-selected="true"]:not(:disabled)') || rows[0])?.focus({ preventScroll: true });
                 document.addEventListener('pointerdown', e => { if (!menu.contains(e.target)) close(); }, { capture: true, signal: controller.signal });
                 window.addEventListener('resize', close, { signal: controller.signal });
+                window.visualViewport?.addEventListener('resize', close, { signal: controller.signal });
+                window.visualViewport?.addEventListener('scroll', close, { signal: controller.signal });
                 window.addEventListener('scroll', e => { if (!menu.contains(e.target)) close(); }, { capture: true, signal: controller.signal });
             };
             select.addEventListener('pointerdown', open);
@@ -283,14 +299,25 @@
 
     const _languageListeners = new Set();
     let _lastDetectedLang = detectLang();
-    setInterval(() => {
+    function refreshLanguage() {
         const next = detectLang();
-        if (next === _lastDetectedLang) return;
+        if (next === _lastDetectedLang) return false;
         _lastDetectedLang = next;
         for (const listener of _languageListeners) {
             try { listener(next); } catch (e) { console.warn('[Liko i18n] language listener failed:', e); }
         }
-    }, 2000);
+        return true;
+    }
+    window.addEventListener?.('storage', event => {
+        if (!event.key || event.key === 'BondageClubLanguage') refreshLanguage();
+    });
+    window.addEventListener?.('focus', refreshLanguage);
+    // Native language controls update within the same tab; notify after their click handlers.
+    window.addEventListener?.('click', () => queueMicrotask(refreshLanguage));
+    window.addEventListener?.('change', () => queueMicrotask(refreshLanguage));
+    document.addEventListener?.('visibilitychange', () => {
+        if (!document.hidden) refreshLanguage();
+    });
     function onChange(listener) {
         if (typeof listener !== 'function') return () => {};
         _languageListeners.add(listener);
@@ -379,7 +406,23 @@
         return request;
     }
 
+    function isTrustedScriptUrl(url) {
+        try {
+            const u = new URL(url);
+            if (u.username || u.password) return false;
+            if (['localhost', '127.0.0.1', '[::1]'].includes(u.hostname)) return ['http:', 'https:'].includes(u.protocol);
+            if (u.protocol !== 'https:') return false;
+            if (u.hostname === 'awdrrawd.github.io') return true;
+            if (u.hostname === 'raw.githubusercontent.com') return u.pathname.startsWith('/awdrrawd/');
+            return u.hostname === 'cdn.jsdelivr.net' && u.pathname.startsWith('/gh/awdrrawd/');
+        } catch { return false; }
+    }
+
     function loadScript(url) {
+        if (!isTrustedScriptUrl(url)) {
+            console.warn('[Liko i18n] loadScript blocked untrusted URL: ' + url);
+            return Promise.resolve(false);
+        }
         return _load(url, url, async response => {
             const code = await response.text();
             if (!code.trim() || code.trimStart().startsWith('<')) throw new Error('Invalid script content');
@@ -430,6 +473,7 @@
         detectLang,
         normalizeLang,
         onChange,
+        refreshLanguage,
         register: (ns, strings) => _register('ui', ns, strings),
         has: (ns, key) => _has('ui', ns, key),
         getNamespaceLanguages: ns => _languages('ui', ns),
@@ -503,6 +547,7 @@
         detectLang,
         normalizeLang,
         onChange,
+        refreshLanguage,
         register: (ns, table) => _register('msg', ns, table),
         has: (ns, key) => _has('msg', ns, key),
         getNamespaceLanguages: ns => _languages('msg', ns),
