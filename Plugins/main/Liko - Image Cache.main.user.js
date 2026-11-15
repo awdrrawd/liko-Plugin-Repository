@@ -3,7 +3,7 @@
 // @name:zh        Liko - 圖片快取
 // @namespace      https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL     https://github.com/awdrrawd/liko-Plugin-Repository
-// @version        0.1.0
+// @version        0.1.1
 // @description    Persistent, size-limited image cache for Bondage Club and custom assets.
 // @description:zh 為 Bondage Club 與自訂資產提供有容量上限的持久圖片快取。
 // @author         Likolisu
@@ -21,7 +21,7 @@
     window.Liko = window.Liko ?? {};
     if (window.Liko.ImageCache) return;
 
-    const VERSION = "0.1.0";
+    const VERSION = "0.1.1";
     const TAG = "🐈‍⬛ [ImageCache]";
     const CACHE_NAME = "liko-image-cache-v1";
     const DB_NAME = "liko-image-cache-meta";
@@ -733,7 +733,10 @@
 
     function installGLDrawGuard() {
         if (glDrawGuardInstalled) return true;
-        if (!modApi || typeof window.GLDrawBingImageToTextureInfo !== "function") return false;
+        if (!modApi) return false;
+        if (typeof window.GLDrawBingImageToTextureInfo !== "function") {
+            return typeof window.GLDrawDecodeImage === "function";
+        }
         try {
             modApi.hookFunction("GLDrawBingImageToTextureInfo", 100, (args, next) => {
                 const image = args[1];

@@ -3,7 +3,7 @@
 // @name:zh      熱修 - 製作物品的擴充物品資產保護 
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      0.1.4
+// @version      0.1.5
 // @description  Preserves crafted items while extension assets are unavailable and restores them after the assets load.
 // @description:zh 在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用。
 // @author       Likolisu
@@ -22,7 +22,7 @@
     window.Liko = window.Liko ?? {};
     if (window.Liko.HCR) return;
 
-    const MOD_VERSION = "0.1.4";
+    const MOD_VERSION = "0.1.5";
     const TAG = "🐈‍⬛ [HCR]";
     const SLOT_COUNT = 200;
     const BACKUP_ROOT = "HCR";
@@ -174,6 +174,13 @@
         return craft;
     }
 
+    function restoreLegacyType(craft, raw) {
+        if (!craft || craft.Type != null || craft.TypeRecord != null) return craft;
+        const type = raw.split(CraftingSerializeFieldSep)[7];
+        if (type) craft.TypeRecord = ExtendedItemTypeToRecord(assetsFor(craft.Item)[0], type);
+        return craft;
+    }
+
     function placeholderSlots() {
         const out = [];
         if (!Array.isArray(Player?.Crafting)) return out;
@@ -216,7 +223,7 @@
             if (!assetsFor(rawItemName(raw)).length) continue;
 
             let real = null;
-            try { real = CraftingDeserialize(raw); } catch (error) {
+            try { real = restoreLegacyType(CraftingDeserialize(raw, { C: Player }), raw); } catch (error) {
                 console.warn(`${TAG} could not rebuild slot ${i}`, error);
             }
             if (real == null) continue;
@@ -604,7 +611,9 @@
         // Unknown-asset items become placeholders instead of null, but only while the account loads.
         modApi.hookFunction("CraftingDeserialize", 100, (args, next) => {
             const result = next(args);
-            if (result != null || !loading || assetsFor(rawItemName(args[0])).length) return result;
+            if (!loading) return result;
+            if (result != null) return restoreLegacyType(result, args[0]);
+            if (assetsFor(rawItemName(args[0])).length) return result;
             return buildPlaceholder(args[0]);
         });
 

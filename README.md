@@ -61,14 +61,14 @@ import(`https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?v=$
 | 🌀 **催眠奴隸俱樂部**<br><sub>Hypnotic Slave Club</sub><br>`Liko-HSC` | 提供多樣催眠效果，增強催眠的沉浸度 | 持續更新 | [安裝](https://awdrrawd.github.io/BC-HSC/assets/main.js) · [專案網站](https://github.com/awdrrawd/BC-HSC) |
 | 📖 **Liko的聊天室書記官**<br><sub>Liko's Chat History Exporter</sub><br>`Liko-CHE` | 聊天室信息轉HTML，並且提供最多7天的信息救援(需要手動啟用緩存功能)<br><sub>包含完整的聊天記錄、時間戳和角色信息，可以搭配Neocities等網站上傳分享</sub> | v2.6.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CHE.main.user.js) |
 | 🖼️ **Liko的圖片上傳器**<br><sub>Liko's Image Uploader</sub><br>`Liko-Image_Uploader` | 拖曳上傳圖片並分享到聊天室<br><sub>圖片上傳失敗時，可以使用/IMG或/IMG HELP查閱說明</sub> | v1.6.3 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Image%20Uploader.main.user.js) |
-| 🌐 **Liko的自動翻譯**<br><sub>Liko's Messages Auto Translator</sub><br>`Liko-MAT` | 自動翻譯(使用Google api) | v1.8.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MAT.main.user.js) |
-| 🧰 **Liko的工具包**<br><sub>Liko's Tool Kit</sub><br>`Liko-Tool` | 有許多小功能合集的工具包，但也有點不穩定<br><sub>詳細使用說明請輸入/LT或/LT help查詢</sub> | v2.3.5 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Tool.main.user.js) |
+| 🌐 **Liko的自動翻譯**<br><sub>Liko's Messages Auto Translator</sub><br>`Liko-MAT` | 自動翻譯(使用Google api) | v1.8.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MAT.main.user.js) |
+| 🧰 **Liko的工具包**<br><sub>Liko's Tool Kit</sub><br>`Liko-Tool` | 有許多小功能合集的工具包，但也有點不穩定<br><sub>詳細使用說明請輸入/LT或/LT help查詢</sub> | v2.3.6 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Tool.main.user.js) |
 | 🎬 **Liko的自動創建影片**<br><sub>Liko's Automatically create video.</sub><br>`Liko-ACV` | Liko的自動創建影片 | v1.5.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20ACV.main.user.js) |
 | 😀 **文字表情**<br><sub>Kaomoji</sub><br>`Liko-Kaomoji` | 文字表情快捷面板，並提供自訂、常用快捷分類 | v1.2.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Kaomoji.main.user.js) |
 | 🗺️ **Liko的地圖房迷你地圖**<br><sub>Liko's Bondage Map Minimap</sub><br>`Liko-BMM` | BC 地圖房迷你地圖 | v2.0.3 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20BMM.main.user.js) |
 | 🔧 **聊天室輔助工具**<br><sub>ChatRoom Assistant</sub><br>`Liko-CRA` | 替他人改姿勢、輸入歷史、BIO時區頭頂時間、@動作自帶名字、指令/房間轉按鈕 | v1.0.3 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CRA.main.user.js) |
 | 🪄 **Liko對朋友的惡作劇**<br><sub>Liko's Friend Prank</sub><br>`Liko-Prank` | 內褲大盜鬧得BC社群人心惶惶！<br><sub>注意：這是個惡作劇插件，請謹慎使用！指令 /偷取, /溶解, /传送</sub> | v1.6.11 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Prank.main.user.js) |
-| 👗 **Liko的自訂更衣室背景**<br><sub>Liko's Custom Dressing Background</sub><br>`Liko-CDB` | 更衣室背景替換，並提供網格對焦與替換姿勢 | v1.5.5 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CDB.main.user.js) |
+| 👗 **Liko的自訂更衣室背景**<br><sub>Liko's Custom Dressing Background</sub><br>`Liko-CDB` | 更衣室背景替換，並提供網格對焦與替換姿勢 | v1.5.6 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CDB.main.user.js) |
 | 🎵 **Liko的聊天室音樂控制器(測試中)**<br><sub>Liko's Music Controller(testing)</sub><br>`Liko-CMC` | 支援歌詞(需要有曲名)、歌曲列表 | v1.4.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CMC.main.user.js) |
 | 📱 **手機直版佈局(測試)**<br><sub>Mobile Portrait Layout(test)</sub><br>`Liko-MPL` | 支援房間搜尋與聊天室的直版佈局 | v0.5.6 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20MPL.main.user.js) |
 | 📧 **Liko的邀請通知器**<br><sub>Liko's Notification of Invites</sub><br>`Liko-NOI` | 發出好友、白單、黑單的信息! | v1.1.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20NOI.main.user.js) |
@@ -77,7 +77,7 @@ import(`https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?v=$
 | 🎮 **Liko的玩具遙控器**<br><sub>Liko's Toy remote control</sub><br>`Liko-TRC` | 聊天室玩具控制 | v1.1.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20TRC.main.user.js) |
 | 📋 **聊天室信息過濾器**<br><sub>RChat Filter Tool</sub><br>`Liko-CFT` | 聊天室信息過濾 | v1.1.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CFT.main.user.js) |
 | 🫟 **你畫我猜(測試)**<br><sub>Draw Game(test)</sub><br>`Liko-BDG` | 可以在聊天室隨意塗鴉 | v0.3.0 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko-BDG.main.user.js) |
-| 🪪 **Liko的自定義個人資料頁面背景**<br><sub>Liko's Custom Profile Background</sub><br>`Liko-CPB` | 自定義個人資料頁面背景並分享給他人 | v1.2.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CPB.main.user.js) |
+| 🪪 **Liko的自定義個人資料頁面背景**<br><sub>Liko's Custom Profile Background</sub><br>`Liko-CPB` | 自定義個人資料頁面背景並分享給他人 | v1.2.5 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20CPB.main.user.js) |
 | 💬 **Liko的對話變按鈕**<br><sub>Liko's Chat Text to Button</sub><br>`Liko-Chat_TtoB` | 聊天室信息轉按鈕，現在還多了傳送門功能!<br><sub>使用/指令、!!說話、#房名#都會變成可以點擊的按鈕，#房名#提供傳送功能</sub> | v1.1.2 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20Chat%20TtoB.main.user.js) |
 | 📔 **BC翻譯補丁**<br><sub>BC-translation-patch</sub><br>`Liko-BTP` | 中文的翻譯補丁，補充上遺漏翻譯 | v0.1.0 | [安裝](https://awdrrawd.github.io/BC-translation-patch/bc-translation-patch.js) · [專案網站](https://github.com/awdrrawd/BC-translation-patch) |
 | 🖌️ **繪圖檢測工具**<br><sub>Draw Detection Tool</sub><br>`Liko-DDT` | 偵測 canvas & DOM 物件的屬性，支持染色與位移，並支持繪製物件功能 | v0.3.1 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/main/Liko%20-%20DDT.main.user.js) |
@@ -105,7 +105,7 @@ import(`https://awdrrawd.github.io/liko-Plugin-Repository/PCM_Loader.user.js?v=$
 |---|---|---:|---|
 | 💉 **物件隱藏熱修**<br><sub>Hotfix for Hidden elements</sub><br>`Fix-HHA` | 在更衣室、個人資訊、角色互動中隱藏興奮條、MPA等物件 | v0.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HHA.user.js) |
 | 💉 **牽引補丁(測試)**<br><sub>Leash Fix(test)</sub><br>`Fix-HLF` | 修復部分牽引失敗的錯誤 | v0.17 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HLF.user.js) |
-| 💉 **製作物品的擴充物品資產保護**<br><sub>Crafting Asset Recovery</sub><br>`Fix-HCR` | 在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用 | v0.1.4 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HCR.user.js) |
+| 💉 **製作物品的擴充物品資產保護**<br><sub>Crafting Asset Recovery</sub><br>`Fix-HCR` | 在擴充資產尚未載入時保留 Craft 物品，並於資產載入後自動恢復使用 | v0.1.5 | [安裝](https://awdrrawd.github.io/liko-Plugin-Repository/Plugins/Hotfix/HCR.user.js) |
 
 ## 開發參考
 

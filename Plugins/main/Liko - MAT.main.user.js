@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動翻譯(使用Google api)
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.8.1
+// @version      1.8.2
 // @description  Automatically translate BC chat messages using Google API.
 // @author       Liko
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -16,7 +16,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.8.1";
+    const MOD_VER = "1.8.2";
     if (window.Liko.MAT) return;
     window.Liko.MAT = { version: MOD_VER };
 
@@ -2842,7 +2842,7 @@
     function getBioText() {
         const rich = document.getElementById('bceRichOnlineProfile');
         if (rich) { const orig = rich.getAttribute('bce-original-text'); if (orig) return orig; return rich.textContent || ''; }
-        const input = document.getElementById('DescriptionInput');
+        const input = document.getElementById('online-profile-description-input') || document.getElementById('DescriptionInput');
         return input ? (input.value || '') : '';
     }
 
@@ -2854,12 +2854,19 @@
 
     function showBioTranslation(translatedText) {
         removeBioTranslation();
-        const ref = document.getElementById('bceRichOnlineProfile') || document.getElementById('DescriptionInput');
+        const ref = document.getElementById('bceRichOnlineProfile') || document.getElementById('online-profile-description-input') || document.getElementById('DescriptionInput');
         const div = document.createElement('div');
         div.id = BIO_TRANS_ID;
         //bio翻譯UI設定
         div.style.cssText = 'overflow-x:hidden;overflow-wrap:break-word;white-space:pre-wrap;background:rgb(187,196,255);color:rgb(27,45,27);border:2px solid #4CAF50;padding:2px;position:fixed;z-index:999;font-family:Arial,sans-serif;display:flex;flex-direction:column;';
-        if (ref) {
+        const main = document.getElementById('online-profile-screen-main');
+        if (main) {
+            const style = document.createElement('style');
+            style.textContent = `#online-profile-screen-main:has(>#${BIO_TRANS_ID}) {position:relative}
+                #online-profile-screen[data-mode="ownersNotes"] #${BIO_TRANS_ID} {display:none!important}`;
+            div.appendChild(style);
+            Object.assign(div.style, {position:'absolute', inset:'0', zIndex:'1', fontSize:ref ? getComputedStyle(ref).fontSize : 'inherit'});
+        } else if (ref) {
             const cs = window.getComputedStyle(ref);
             div.style.fontSize = cs.fontSize;
             div.style.left  = ref.style.left  || cs.left;
@@ -2872,8 +2879,8 @@
         const textNode = document.createElement('div');
         textNode.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;user-select:text;cursor:text;';
         textNode.textContent = `[🌐 MAT]\n${translatedText}`;
-        div.appendChild(textNode);
-        document.body.appendChild(div);
+        div.prepend(textNode);
+        (main || document.body).appendChild(div);
     }
 
     function removeBioTranslation() { document.getElementById(BIO_TRANS_ID)?.remove(); }
@@ -2908,12 +2915,39 @@
         }
     }
 
+    function toggleBioTranslation() {
+        if (bioTranslating) cancelBioTranslation();
+        else if (document.getElementById(BIO_TRANS_ID)) removeBioTranslation();
+        else void translateBio();
+    }
+
     function hookOnlineProfile() {
         if (!modApi) return;
         try {
             modApi.hookFunction("OnlineProfileRun", 4, (args, next) => {
                 const result = next(args);
                 const isOpen = !!document.getElementById(BIO_TRANS_ID);
+                const menu = document.getElementById('online-profile-screen-menu');
+                if (menu) {
+                    let button = document.getElementById('mat-bio-translate');
+                    if (!button) {
+                        button = ElementButton.Create('mat-bio-translate', toggleBioTranslation, {
+                            image: "Icons/Chat.png", tooltip: ui('bioTranslate'), role: "menuitem",
+                        });
+                        menu.appendChild(button);
+                    }
+                    const notes = menu.closest('#online-profile-screen')?.dataset.mode === 'ownersNotes';
+                    if (button.hidden !== notes) button.hidden = notes;
+                    if (notes && (bioTranslating || isOpen)) cancelBioTranslation();
+                    const label = ui(bioTranslating ? 'bioCancelTranslate' : isOpen ? 'bioClose' : 'bioTranslate');
+                    if (button.getAttribute('aria-label') !== label) {
+                        button.setAttribute('aria-label', label);
+                        const tooltip = button.querySelector('.button-tooltip');
+                        if (tooltip) tooltip.textContent = label;
+                        ElementButton.SetImage(button, bioTranslating || isOpen ? 'Icons/Cancel.png' : 'Icons/Chat.png');
+                    }
+                    return result;
+                }
                 if (bioTranslating) {
                     DrawButton(1415, 60, 90, 90, "", "#FFD700", "Icons/Cancel.png", ui('bioCancelTranslate'));
                 } else if (isOpen) {
@@ -2925,16 +2959,16 @@
             });
             modApi.hookFunction("OnlineProfileLoad", 4, (args, next) => {
                 try {
-                    const target = typeof InspectCharacter !== "undefined" ? InspectCharacter
+                    const target = typeof InformationSheetSelection !== "undefined" && InformationSheetSelection ? InformationSheetSelection
+                    : typeof InspectCharacter !== "undefined" ? InspectCharacter
                     : typeof CurrentCharacter !== "undefined" ? CurrentCharacter : null;
                     bioCurrentMemberNumber = target?.MemberNumber ?? null;
                 } catch { bioCurrentMemberNumber = null; }
                 return next(args);
             });
             modApi.hookFunction("OnlineProfileClick", 4, (args, next) => {
-                if (MouseIn(1415, 60, 90, 90)) {
-                    if (bioTranslating) { cancelBioTranslation(); return; }
-                    document.getElementById(BIO_TRANS_ID) ? removeBioTranslation() : translateBio();
+                if (!document.getElementById('online-profile-screen-menu') && MouseIn(1415, 60, 90, 90)) {
+                    toggleBioTranslation();
                     return;
                 }
                 return next(args);

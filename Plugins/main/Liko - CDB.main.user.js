@@ -3,7 +3,7 @@
 // @name:zh      Liko的自訂更衣室背景
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.5
+// @version      1.5.6
 // @description  自訂更衣室背景 | Custom Dressing Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -17,7 +17,7 @@
 
 (function() {
     window.Liko = window.Liko ?? {};
-    const MOD_VER = "1.5.5";
+    const MOD_VER = "1.5.6";
     if (window.Liko.CDB) return;
     window.Liko.CDB = MOD_VER;
 
@@ -1381,6 +1381,11 @@
                     const ButtonDisabled = typeof DialogIsMenuButtonDisabled === 'function' ? DialogIsMenuButtonDisabled(rawName) : false;
                     DrawButton(btnX, 25, 90, 90, "", ButtonColor, "Icons/" + ButtonName + ButtonSuffix + ".png", typeof TextGet === 'function' ? TextGet(rawName) : rawName, ButtonDisabled);
                 }
+                const search = document.getElementById("appearance-search-input");
+                if (search) {
+                    const reserve = menu.includes("Prev") || menu.includes("Next") ? 0 : 2 * 117;
+                    ElementPositionFix(search.id, 40, X - 600 - 25 - reserve, 35, 600, 60);
+                }
             });
 
             // ── Hook 3: AppearanceMenuClick ──
@@ -1727,7 +1732,7 @@
             return;
         }
 
-        const btnGrid = document.getElementById('layering-button-grid');
+        const btnGrid = document.getElementById('layering-menu') || document.getElementById('layering-button-grid');
         if (!btnGrid) return;
 
         const extBtn = makeGameStyleButton(

@@ -50,6 +50,10 @@ async function boot(backup, options = {}) {
             return { Item:f[0], Name:f[3], Type:f[7] || undefined, TypeRecord:f[10] ? JSON.parse(f[10]) : null,
                 ItemProperty:JSON.parse(f[9] || '{}'), Effects:JSON.parse(f[12] || '{}'), Partial:false };
         },
+        ExtendedItemTypeToRecord(asset, type) {
+            assert.ok(asset);
+            return { converted: type };
+        },
         CraftingValidate(c) {
             if (!c?.Item || c.Name === 'Rejected') return 0;
             if (c.Type && c.TypeRecord == null) { c.TypeRecord = { converted: c.Type }; delete c.Type; return 1; }

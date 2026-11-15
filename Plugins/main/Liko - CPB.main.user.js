@@ -3,7 +3,7 @@
 // @name:zh      Liko的自定義個人資料頁面背景
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.2.4
+// @version      1.2.5
 // @description  自定義個人資料頁面背景 | Custom Profile Background
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
 (function() {
     window.Liko = window.Liko ?? {};
     if (window.Liko.CPB) return;
-    const MOD_VER = "1.2.4";
+    const MOD_VER = "1.2.5";
     window.Liko.CPB = MOD_VER;
 
     const EN = {
@@ -618,6 +618,19 @@
     function drawButton() {
         const shouldShow = shouldShowButton();
 
+        const menu = document.getElementById('information-sheet-screen-menu');
+        if (menu) {
+            let button = document.getElementById('cpb-background-settings');
+            if (!button && shouldShow) {
+                button = ElementButton.Create('cpb-background-settings', openUI, {
+                    image: getButtonImageURL(), tooltip: t("自訂背景設定"), role: "menuitem",
+                    tooltipPosition: "left",
+                });
+                menu.appendChild(button);
+            }
+            if (button && button.hidden === !!shouldShow) button.hidden = !shouldShow;
+            return;
+        }
         if (!shouldShow || !buttonImage) return;
 
         try {
@@ -634,7 +647,7 @@
     }
 
     function handleClick() {
-        if (!shouldShowButton()) return false;
+        if (document.getElementById('information-sheet-screen-menu') || !shouldShowButton()) return false;
         if (MouseIn(BUTTON_X, BUTTON_Y, BUTTON_SIZE, BUTTON_SIZE)) {
             openUI();
             return true;
@@ -818,6 +831,7 @@
     function cleanup() {
         console.log("🐈‍⬛ [CPB] ⌛ 開始資源清理...");
 
+        document.querySelector('#cpb-background-settings')?.remove();
         disposed = true;
         uiRequest++;
         for (const controller of imageControllers) controller.abort();
