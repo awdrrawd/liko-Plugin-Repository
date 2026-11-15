@@ -3,7 +3,7 @@
 // @name:zh      Liko的自動創建影片
 // @namespace    https://github.com/awdrrawd/liko-Plugin-Repository
 // @supportURL   https://github.com/awdrrawd/liko-Plugin-Repository
-// @version      1.5.3
+// @version      1.5.4
 // @description  Auto video player - detects video links and adds play buttons
 // @author       likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
 (function () {
     window.Liko = window.Liko ?? {};
     if (window.Liko.ACV) return;
-    const MOD_VER = "1.5.3";
+    const MOD_VER = "1.5.4";
     window.Liko.ACV = MOD_VER;
 
     if (window.LikoVideoPlayerInstance) return;
@@ -50,6 +50,7 @@
         youtubeLive:     "YouTube Live",
         bilibiliVideo:   "Bilibili",
         bilibiliBangumi: "Bilibili",
+        bilibiliLive:    "Bilibili Live",
         facebook:        "Facebook",
         twitch:          "Twitch",
         vimeo:           "Vimeo",
@@ -111,14 +112,19 @@
             ratio: "16:9",
         },
         bilibiliVideo: {
-            regex: /bilibili\.com\/video\/(BV[a-zA-Z0-9]+)/,
+            regex: /bilibili\.com\/(?:[a-z]{2}(?:-[A-Za-z]+)?\/)?video\/(BV[a-zA-Z0-9]+)/,
             embedUrl: (id) => `https://player.bilibili.com/player.html?bvid=${id}&autoplay=0&isOutside=true`,
             ratio: "16:9",
         },
         bilibiliBangumi: {
-            regex: /bilibili\.com\/bangumi\/play\/(ep|ss)(\d+)/,
+            regex: /bilibili\.com\/(?:[a-z]{2}(?:-[A-Za-z]+)?\/)?bangumi\/play\/(ep|ss)(\d+)/,
             embedUrl: (type, id) =>
             `https://player.bilibili.com/player.html?${type === "ep" ? "ep_id" : "season_id"}=${id}&autoplay=0&isOutside=true`,
+            ratio: "16:9",
+        },
+        bilibiliLive: {
+            regex: /live\.bilibili\.com\/(?:h5\/|blanc\/)?(\d+)/,
+            embedUrl: (id) => `https://www.bilibili.com/blackboard/live/live-activity-player.html?enterTheRoom=0&cid=${id}`,
             ratio: "16:9",
         },
         douyin: {
