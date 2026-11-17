@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.3.5
+// @version      2.3.6
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
     // 防重複載入必須先於生命週期資源、事件與初始化。
     window.Liko = window.Liko ?? {};
     if (window.Liko.LT) return;
-    const MOD_Version = "2.3.5";
+    const MOD_Version = "2.3.6";
     window.Liko.LT = MOD_Version;
 
     // 閱讀順序：生命週期 → 靜態資源／語系 → 設定 → 共用操作 → UI → 功能 → Hook → 啟動。
@@ -2081,9 +2081,11 @@
     function drawToolCharacter(C, ctx, x = 0, y = 0, zoom = 1, resize = true) {
         if (C.FixedImage) {
             const image = DrawGetImage(C.FixedImage);
-            if (image?.complete && image.naturalWidth) {
-                const scale = Math.min(500 / image.naturalWidth, 1000 / image.naturalHeight) * zoom;
-                ctx.drawImage(image, x + (500 * zoom - image.naturalWidth * scale) / 2, y, image.naturalWidth * scale, image.naturalHeight * scale);
+            const width = image?.naturalWidth ?? image?.width;
+            const height = image?.naturalHeight ?? image?.height;
+            if (image?.complete !== false && width > 0 && height > 0) {
+                const scale = Math.min(500 / width, 1000 / height) * zoom;
+                ctx.drawImage(image, x + (500 * zoom - width * scale) / 2, y, width * scale, height * scale);
             }
             return;
         }

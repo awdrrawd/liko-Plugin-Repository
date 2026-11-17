@@ -239,6 +239,22 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         await page.screenshot({path:path.join(screenshotDir,'undo.png')});
         await page.evaluate(()=>testTool.hideToolPanel());
         assert.equal(await page.evaluate(()=>window.deletedPreviews),1);
+        const bitmapPreview = await page.evaluate(async () => {
+            const image = await createImageBitmap(new ImageData(100, 400));
+            const original = window.DrawGetImage;
+            try {
+                window.DrawGetImage = () => image;
+                let bounds;
+                testTool.drawToolCharacter({FixedImage:'portrait.png'}, {
+                    drawImage(source, ...rect) { if (source === image) bounds = rect; }
+                });
+                return bounds;
+            } finally {
+                window.DrawGetImage = original;
+                image.close();
+            }
+        });
+        assert.deepEqual(bitmapPreview, [125, 0, 250, 1000]);
         // A square in native or ECHO padded storage stays square after every preview transform.
         const aspectRatios=await page.evaluate(()=>{
             const results=[];
