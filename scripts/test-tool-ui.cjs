@@ -191,7 +191,7 @@ const instrumented = source.replace("    initialize().catch(error => { console.e
         assert.equal(await side.locator('textarea').inputValue(),longDescription);
         assert.equal(await side.locator('.lt-craft-count span').first().textContent(),`${longDescription.length} characters`);
         assert.ok(await side.locator('.lt-craft-info').getAttribute('title'));
-        assert.equal(await side.locator('.lt-craft-count').evaluate(el=>getComputedStyle(el).justifyContent),'flex-end');
+        assert.match(await side.locator('.lt-craft-count').evaluate(el=>getComputedStyle(el).justifyContent),/^(flex|flow)-end$/); // Chromium may serialize flex-end as flow-end
         await side.locator('textarea').fill('Counter test');
         assert.equal(await side.locator('.lt-craft-count span').first().textContent(),'12 characters');
         await side.locator('textarea').fill(longDescription);
