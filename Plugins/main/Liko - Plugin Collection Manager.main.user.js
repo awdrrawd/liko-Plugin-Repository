@@ -459,7 +459,7 @@
   }
 
   // src/pcm/fusam-compat.js
-  var BRAND = Symbol.for("pcm.fusam.compat");
+  var BRAND = /* @__PURE__ */ Symbol.for("pcm.fusam.compat");
   var STYLE_ID = "pcm-fusam-compat-style";
   var MODAL_ROOT_ID = "pcm-fusam-modal-root";
   var LANGUAGES = ["TW", "CN", "EN", "DE", "FR", "RU", "UA"];
