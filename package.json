@@ -16,7 +16,7 @@
     "sync:i18n-clients": "node scripts/sync-i18n-clients.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.25.9",
-    "playwright": "1.63.0"
+    "esbuild": "^0.28.2",
+    "playwright": "1.65.0"
   }
 }
