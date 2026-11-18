@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Wait 7 days after a release before proposing it (supply-chain safety).
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    # Minor/patch updates in one PR; major upgrades stay separate for review.
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
