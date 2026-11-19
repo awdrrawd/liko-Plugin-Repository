@@ -2,7 +2,7 @@
 // @name         Liko - Tool
 // @name:zh      Liko的工具包
 // @namespace    https://likolisu.dev/
-// @version      2.3.6
+// @version      2.3.7
 // @description  Bondage Club - Likolisu's tool
 // @author       Likolisu
 // @include      /^https:\/\/(www\.)?(bondage(projects\.elementfx|-(europe|asia))\.com|bondageeurope\.com)\/R*/
@@ -18,7 +18,7 @@
     // 防重複載入必須先於生命週期資源、事件與初始化。
     window.Liko = window.Liko ?? {};
     if (window.Liko.LT) return;
-    const MOD_Version = "2.3.6";
+    const MOD_Version = "2.3.7";
     window.Liko.LT = MOD_Version;
 
     // 閱讀順序：生命週期 → 靜態資源／語系 → 設定 → 共用操作 → UI → 功能 → Hook → 啟動。
@@ -2745,7 +2745,7 @@
         const renderInterval = setInterval(renderPreview, 200);
         const cleanupPreview = () => {
             clearInterval(renderInterval);
-            try { if (canvasCharacter) CharacterDelete(canvasCharacter.ID); } catch (e) {}
+            try { if (canvasCharacter) CharacterDelete(canvasCharacter); } catch (e) {}
             canvasCharacter = null;
             cleanupTasks.delete(cleanupPreview);
         };
@@ -2768,18 +2768,37 @@
         nextBtn.onclick = () => { if (currentIndex < history.length - 1) { currentIndex++; updateMeta(); renderPreview(); } };
 
         applyBtn.onclick = () => {
-            if (!hasBCItemPermission(target)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(target) + "。"); return; }
+            // 以點擊當下的房內角色為準（預覽期間對方可能已重新進房／被重建）
+            const live = resolveToolTarget(target);
+            if (!live) { ChatRoomSendLocal(getNickname(target) + " " + t('notInRoom')); return; }
+            if (!hasBCItemPermission(live)) { ChatRoomSendLocal(t('noPermission') + " " + getNickname(live) + "。"); return; }
             const entry = history[currentIndex];
-            const oldBundle = ServerAppearanceBundle(target.Appearance);
-            ServerSend("ChatRoomCharacterUpdate", {
-                ID: target.ID === 0 ? target.OnlineID : target.AccountName.replace("Online-", ""),
-                ActivePose: target.ActivePose,
-                Appearance: entry.bundle
-            });
+            const oldBundle = ServerAppearanceBundle(live.Appearance);
+            try {
+                // 先在本地套用（經過 BC 驗證，與伺服器規則一致），畫面立即生效；
+                // 再把驗證後的結果推送給房間／伺服器。
+                // 注意：新版 BC 已移除 OnlineID，角色識別必須使用 CharacterID（舊寫法會送出 undefined，被伺服器忽略）。
+                ServerAppearanceLoadFromBundle(live, live.AssetFamily, structuredClone(entry.bundle), Player.MemberNumber);
+                CharacterRefresh(live, false, false);
+                ServerSend("ChatRoomCharacterUpdate", {
+                    ID: live.CharacterID,
+                    ActivePose: live.ActivePose,
+                    Appearance: ServerAppearanceBundle(live.Appearance)
+                });
+                if (ChatRoomData?.Character) {
+                    const idx = ChatRoomData.Character.findIndex(c => c.MemberNumber === live.MemberNumber);
+                    if (idx !== -1) ChatRoomData.Character[idx].Appearance = ServerAppearanceBundle(live.Appearance);
+                }
+            } catch (e) {
+                console.error("🐈‍⬛ [LT] ❌ 回滾套用失敗:", e.message);
+                ChatRoomSendLocal(t('sendFail'));
+                return;
+            }
             const sizeKb = (Math.abs(JSON.stringify(oldBundle).length - JSON.stringify(entry.bundle).length) / 1024).toFixed(1);
-            ChatRoomSendLocal(getNickname(target) + " " + t('undoApplyDone') + "（" + t('undoApplySize') + ": " + sizeKb + "kB）");
-            chatSendCustomAction(t('actUndoMsg', { src: getNickname(Player), who: getNickname(target), time: new Date(entry.timestamp).toLocaleTimeString() }));
-            // Keep live history intact: new snapshots may have arrived while previewing.
+            ChatRoomSendLocal(getNickname(live) + " " + t('undoApplyDone') + "（" + t('undoApplySize') + ": " + sizeKb + "kB）");
+            chatSendCustomAction(t('actUndoMsg', { src: getNickname(Player), who: getNickname(live), time: new Date(entry.timestamp).toLocaleTimeString() }));
+            // 回滾本身也存成一筆快照，之後可再「回滾回來」；歷史其餘部分維持不動
+            saveUndoSnapshot(live, Player.MemberNumber);
             popPage(panel, false);
         };
 
