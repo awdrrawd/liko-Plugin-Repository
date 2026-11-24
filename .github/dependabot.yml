@@ -4,16 +4,23 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: saturday
+      time: '08:12'
+      timezone: Asia/Taipei
     # Wait 7 days after a release before proposing it (supply-chain safety).
     cooldown:
       default-days: 7
     groups:
       actions:
         patterns: ['*']
+        update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+      day: saturday
+      time: '08:12'
+      timezone: Asia/Taipei
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
